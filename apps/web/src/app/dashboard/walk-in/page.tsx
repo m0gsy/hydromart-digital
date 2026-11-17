@@ -150,6 +150,13 @@ function WalkIn({ depotId }: { depotId: string }) {
    */
   const [buyerId, setBuyerId] = useState<string | null>(null);
   const [identifying, setIdentifying] = useState(false);
+  /*
+   * PR-B: most counter sales are "two galon, cash, exact money" - nobody, no voucher, no note.
+   * Those fields stay one tap away instead of standing between the basket and Bayar. They
+   * open themselves whenever they hold something (a resumed basket, a looked-up buyer).
+   */
+  const [buyerOpen, setBuyerOpen] = useState(false);
+  const [extrasOpen, setExtrasOpen] = useState(false);
   // Baskets set aside while a buyer fetches their money. Read after mount: this is a browser
   // store, and the page is also rendered once on the server.
   const [held, setHeld] = useState<HeldBasket[]>([]);
@@ -471,6 +478,11 @@ function WalkIn({ depotId }: { depotId: string }) {
     [buyerId, depotId],
   );
   const offeredVouchers = buyerId ? (grantedVouchers.data ?? []) : [];
+  // The buyer's own codes are the reason to open the section: one tap is the whole point.
+  useEffect(() => {
+    if (offeredVouchers.length > 0) setExtrasOpen(true);
+  }, [offeredVouchers.length]);
+  const itemCount = lines.reduce((sum, l) => sum + l.quantity, 0);
 
   // No silent fall back to shelf prices: a total the server did not agree to is exactly the
   // bug this replaces. The Bayar button is disabled instead, and the reason is on screen.
@@ -486,7 +498,8 @@ function WalkIn({ depotId }: { depotId: string }) {
   // What the empties box means for the report: a swap of all, some, or none. Informational —
   // the sale is the same either way; only how it is counted differs.
   const emptiesNum = Number(emptiesReturned);
-  const emptiesTyped = emptiesReturned.trim() === '' || Number.isNaN(emptiesNum) ? null : emptiesNum;
+  const emptiesTyped =
+    emptiesReturned.trim() === '' || Number.isNaN(emptiesNum) ? null : emptiesNum;
   const emptiesHint =
     emptiesTyped === null || emptiesTyped >= galonQty
       ? t('opsFix.reports.emptiesReturnedHint')
@@ -629,6 +642,8 @@ function WalkIn({ depotId }: { depotId: string }) {
     setAddrLine('');
     setAddrCity('');
     setAddrNotes('');
+    setBuyerOpen(false);
+    setExtrasOpen(false);
   }
 
   /**
@@ -696,6 +711,8 @@ function WalkIn({ depotId }: { depotId: string }) {
     setAddrLine(b.delivery?.line ?? '');
     setAddrCity(b.delivery?.city ?? '');
     setAddrNotes(b.delivery?.notes ?? '');
+    setBuyerOpen(Boolean(b.phone || b.name));
+    setExtrasOpen(Boolean(b.voucher || b.note));
     const rest = removeHeld(held, b.id);
     saveHeld(heldScope, rest);
     setHeld(rest);
@@ -802,6 +819,7 @@ function WalkIn({ depotId }: { depotId: string }) {
        * new total out before pressing Bayar again. Otherwise a promo hour moved: re-quote.
        */
       if (e instanceof ApiError && e.code === 'ORDER_COUNTER_TOTAL_CHANGED') {
+        setBuyerOpen(true);
         if (!buyerId && phone.trim()) void identifyBuyer();
         else void quote.reload();
         return toast(e.message, 'error');
@@ -826,7 +844,9 @@ function WalkIn({ depotId }: { depotId: string }) {
       toast(
         t('opsFix.walkIn.freeDropped', {
           items: dropped
-            .map((d) => t('opsFix.walkIn.freeItemQty', { qty: d.quantity, name: freeName(d.productId) }))
+            .map((d) =>
+              t('opsFix.walkIn.freeItemQty', { qty: d.quantity, name: freeName(d.productId) }),
+            )
             .join(', '),
         }),
         'error',
@@ -911,7 +931,7 @@ function WalkIn({ depotId }: { depotId: string }) {
   if (stock.error) return <ErrorState message={stock.error} onRetry={stock.reload} />;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-3xl space-y-5 lg:max-w-6xl">
       <SectionHeader
         title={t('opsFix.walkIn.title')}
         subtitle={t('opsFix.walkIn.subtitle')}
@@ -961,6 +981,16 @@ function WalkIn({ depotId }: { depotId: string }) {
 
       {lastSale && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+          {/* The number the cashier is counting out of the drawer right now, so it is the
+              biggest thing on the screen until the next sale. */}
+          {lastSale.cash && (
+            <div className="w-full" role="status">
+              <p className="text-xs font-semibold text-muted">{t('opsFix.walkIn.changeDue')}</p>
+              <p className="text-3xl font-extrabold tabular-nums">
+                <Money amount={lastSale.cash.change} />
+              </p>
+            </div>
+          )}
           <p className="text-sm">
             {t('opsFix.walkIn.lastSale')}{' '}
             <span className="font-bold">{lastSale.order.orderNumber}</span> ·{' '}
@@ -1037,144 +1067,238 @@ function WalkIn({ depotId }: { depotId: string }) {
         </Card>
       )}
 
-      <CounterPromoStrip rules={livePromos.data ?? []} productName={productNameById} />
-      <CounterHeldBaskets
-        held={held}
-        canResume={lines.length === 0}
-        onResume={resumeBasket}
-        onDiscard={discardHeld}
-      />
-
-      <Card className="divide-y divide-[color:var(--border)] p-0">
-        {products.map((p, i) => {
-          const left = availableById.get(p.id) ?? 0;
-          return (
-            <div
-              key={p.id}
-              className="flex items-center justify-between gap-3 p-3"
-              {...(i === 0 ? { 'data-counter-first-product': '' } : {})}
-            >
-              <div>
-                <p className="font-medium">{p.name}</p>
-                <p className="text-xs text-muted">
-                  {p.sku} · <Money amount={priceById.get(p.id) ?? p.basePrice} />
-                  {left <= LOW_STOCK && (
-                    // Said before the stepper stops, not after: a "+" that goes dead is a
-                    // cashier wondering whether the till is broken with a buyer waiting.
-                    <span className="ml-1 font-semibold text-[color:var(--danger)]">
-                      · {t('opsFix.walkIn.stockLeft', { n: left })}
-                    </span>
-                  )}
-                </p>
-              </div>
-              <QuantityStepper
-                editable
-                label={`Quantity: ${p.name}`}
-                value={qty[p.id] ?? 0}
-                min={0}
-                // Never let the counter ring up more than the depot holds: the reservation
-                // would reject the whole sale after the buyer already agreed to it.
-                max={left}
-                onChange={(next) => setQty((q) => ({ ...q, [p.id]: next }))}
-              />
-            </div>
-          );
-        })}
-        {products.length === 0 && (
-          <p className="p-6 text-center text-sm text-muted">{t('opsFix.walkIn.noProducts')}</p>
-        )}
-      </Card>
-
+      {/*
+        Phone and narrow tablet: the products come first and the total sits below them, off
+        screen while the cashier is picking. This bar keeps both in view and jumps to the
+        payment. From lg the payment is its own column and never scrolls away.
+      */}
       {lines.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={holdBasket} disabled={busy}>
-            {t('opsFix.walkIn.holdBasket')}
-          </Button>
-          <Button variant="ghost" onClick={() => setQty({})} disabled={busy}>
-            {t('opsFix.walkIn.clearBasket')}
+        <div className="surface sticky top-[var(--safe-area-inset-top,env(safe-area-inset-top))] z-20 flex items-center justify-between gap-3 rounded-xl border border-app px-3 py-2 shadow-sm lg:hidden">
+          <span className="text-sm font-semibold tabular-nums">
+            {t('opsFix.walkIn.basketCount', { n: itemCount })} ·{' '}
+            {quoteFresh && total !== null ? <Money amount={total} /> : '…'}
+          </span>
+          <Button
+            type="button"
+            onClick={() =>
+              document
+                .getElementById('wi-checkout')
+                ?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+            }
+          >
+            {t('opsFix.walkIn.toCheckout')}
           </Button>
         </div>
       )}
 
-      <Card className="space-y-3 p-4">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {/* htmlFor/id on every field: without it the <label> is only nearby text, so a screen
+      <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,400px)] lg:items-start lg:gap-6 lg:space-y-0">
+        <div className="space-y-5">
+          <CounterPromoStrip rules={livePromos.data ?? []} productName={productNameById} />
+          <CounterHeldBaskets
+            held={held}
+            canResume={lines.length === 0}
+            onResume={resumeBasket}
+            onDiscard={discardHeld}
+          />
+
+          {/* Tiles, not rows: a whole tile is a target for "one more", which is most taps at a
+          till. The stepper stays for a typed or reduced quantity. */}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+            {products.map((p, i) => {
+              const left = availableById.get(p.id) ?? 0;
+              const inBasket = qty[p.id] ?? 0;
+              return (
+                <div key={p.id} {...(i === 0 ? { 'data-counter-first-product': '' } : {})}>
+                  <Card
+                    className={`flex h-full flex-col gap-3 p-3 ${inBasket > 0 ? 'ring-2 ring-brand-500' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      className="min-h-14 rounded-lg text-left disabled:opacity-50"
+                      aria-label={t('opsFix.walkIn.addOne', { name: p.name })}
+                      disabled={inBasket >= left}
+                      onClick={() => setQty((q) => ({ ...q, [p.id]: (q[p.id] ?? 0) + 1 }))}
+                    >
+                      <p className="font-semibold">{p.name}</p>
+                      <p className="text-xs text-muted">
+                        {p.sku} · <Money amount={priceById.get(p.id) ?? p.basePrice} />
+                        {left <= LOW_STOCK && (
+                          // Said before the stepper stops, not after: a "+" that goes dead is a
+                          // cashier wondering whether the till is broken with a buyer waiting.
+                          <span className="ml-1 font-semibold text-[color:var(--danger)]">
+                            · {t('opsFix.walkIn.stockLeft', { n: left })}
+                          </span>
+                        )}
+                      </p>
+                    </button>
+                    <QuantityStepper
+                      editable
+                      label={`Quantity: ${p.name}`}
+                      value={qty[p.id] ?? 0}
+                      min={0}
+                      // Never let the counter ring up more than the depot holds: the reservation
+                      // would reject the whole sale after the buyer already agreed to it.
+                      max={left}
+                      onChange={(next) => setQty((q) => ({ ...q, [p.id]: next }))}
+                    />
+                  </Card>
+                </div>
+              );
+            })}
+            {products.length === 0 && (
+              <Card className="p-6 text-center text-sm text-muted sm:col-span-2">
+                {t('opsFix.walkIn.noProducts')}
+              </Card>
+            )}
+          </div>
+
+          {lines.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" onClick={holdBasket} disabled={busy}>
+                {t('opsFix.walkIn.holdBasket')}
+              </Button>
+              <Button variant="ghost" onClick={() => setQty({})} disabled={busy}>
+                {t('opsFix.walkIn.clearBasket')}
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div
+          id="wi-checkout"
+          className="scroll-mt-4 lg:sticky lg:top-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto"
+        >
+          <Card className="space-y-3 p-4">
+            {/* What is being sold, as the buyer will hear it read back: the steppers say it only
+            one product at a time, scattered over the list. */}
+            <div>
+              <p className="text-sm font-bold">{t('opsFix.walkIn.basketTitle')}</p>
+              {lines.length === 0 ? (
+                <p className="mt-1 text-sm text-muted">{t('opsFix.walkIn.basketEmpty')}</p>
+              ) : (
+                <ul className="mt-1 divide-y divide-[color:var(--border)]">
+                  {lines.map((l) => (
+                    <li
+                      key={l.product.id}
+                      className="flex items-baseline justify-between gap-3 py-1.5 text-sm"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate">
+                          {t('opsFix.walkIn.freeItemQty', {
+                            qty: l.quantity,
+                            name: l.product.name,
+                          })}
+                        </span>
+                        <span className="text-xs text-muted">
+                          @ <Money amount={priceById.get(l.product.id) ?? l.product.basePrice} />
+                        </span>
+                      </span>
+                      <span className="shrink-0 tabular-nums">
+                        <Money amount={l.lineTotal} />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <details
+              className="rounded-xl border border-app p-3"
+              open={buyerOpen}
+              onToggle={(e) => setBuyerOpen(e.currentTarget.open)}
+            >
+              <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm font-bold">
+                <span>{t('opsFix.walkIn.buyerSection')}</span>
+                <span className="truncate text-xs font-medium text-muted">
+                  {buyerId
+                    ? `✓ ${name.trim() || phone.trim()}`
+                    : name.trim() || phone.trim() || t('opsFix.walkIn.buyerAnonymous')}
+                </span>
+              </summary>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {/* htmlFor/id on every field: without it the <label> is only nearby text, so a screen
               reader announces an unnamed box and the cashier tabbing in hears nothing. */}
-          <Field label={t('opsFix.walkIn.buyerName')} htmlFor="wi-name">
-            <Input
-              id="wi-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={t('opsFix.walkIn.buyerNamePlaceholder')}
-            />
-          </Field>
-          <Field
-            label={t('opsFix.walkIn.buyerPhone')}
-            htmlFor="wi-phone"
-            hint={t('opsFix.walkIn.buyerPhoneHint')}
-          >
-            <Input
-              id="wi-phone"
-              value={phone}
-              onChange={(e) => {
-                setPhone(e.target.value);
-                // Typing a different number un-identifies the buyer: the badge and the
-                // discount belong to whoever was actually looked up, not to whatever is
-                // in the box now.
-                setBuyerId(null);
-                // …and so does a voucher picked from that buyer's list: it is theirs, and
-                // the quote would refuse it for whoever the next number belongs to.
-                if (offeredVouchers.some((v) => v.code === voucher)) setVoucher('');
-              }}
-              inputMode="tel"
-              placeholder={t('opsFix.walkIn.buyerPhonePlaceholder')}
-            />
-          </Field>
-          {/*
+                <Field label={t('opsFix.walkIn.buyerName')} htmlFor="wi-name">
+                  <Input
+                    id="wi-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={t('opsFix.walkIn.buyerNamePlaceholder')}
+                  />
+                </Field>
+                <Field
+                  label={t('opsFix.walkIn.buyerPhone')}
+                  htmlFor="wi-phone"
+                  hint={t('opsFix.walkIn.buyerPhoneHint')}
+                >
+                  <Input
+                    id="wi-phone"
+                    value={phone}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      // Typing a different number un-identifies the buyer: the badge and the
+                      // discount belong to whoever was actually looked up, not to whatever is
+                      // in the box now.
+                      setBuyerId(null);
+                      // …and so does a voucher picked from that buyer's list: it is theirs, and
+                      // the quote would refuse it for whoever the next number belongs to.
+                      if (offeredVouchers.some((v) => v.code === voucher)) setVoucher('');
+                    }}
+                    inputMode="tel"
+                    placeholder={t('opsFix.walkIn.buyerPhonePlaceholder')}
+                  />
+                </Field>
+                {/*
             C12: the one tap that may create an account, and it exists so nothing else does
             it by accident. Quoting never resolves a phone — see the quote above — so a
             number half-typed and abandoned costs nothing. The sale still resolves one when
             a sale actually happens, which is a customer who really bought something.
           */}
-          <div className="flex items-center gap-2 sm:col-span-2">
-            <Button
-              variant="ghost"
-              onClick={() => void identifyBuyer()}
-              disabled={identifying || !phone.trim() || buyerId !== null}
-            >
-              {buyerId ? t('opsFix.walkIn.buyerIdentified') : t('opsFix.walkIn.identifyBuyer')}
-            </Button>
-            <span className="text-xs text-muted">{t('opsFix.walkIn.identifyHint')}</span>
-          </div>
-          {/* Read-only: nothing is created until the cashier taps Cek pelanggan or sells. */}
-          {lookup && (
-            <p className="text-xs font-semibold sm:col-span-2" role="status">
-              {lookup.registered
-                ? lookup.firstName
-                  ? t('opsFix.walkIn.lookupRegistered', { name: lookup.firstName })
-                  : t('opsFix.walkIn.lookupRegisteredNoName')
-                : t('opsFix.walkIn.lookupNew')}
-            </p>
-          )}
-          {/* The buyer is new but this cashier is past the depot's daily ceiling: say so, or the
+                <div className="flex items-center gap-2 sm:col-span-2">
+                  <Button
+                    variant="ghost"
+                    onClick={() => void identifyBuyer()}
+                    disabled={identifying || !phone.trim() || buyerId !== null}
+                  >
+                    {buyerId
+                      ? t('opsFix.walkIn.buyerIdentified')
+                      : t('opsFix.walkIn.identifyBuyer')}
+                  </Button>
+                  <span className="text-xs text-muted">{t('opsFix.walkIn.identifyHint')}</span>
+                </div>
+                {/* Read-only: nothing is created until the cashier taps Cek pelanggan or sells. */}
+                {lookup && (
+                  <p className="text-xs font-semibold sm:col-span-2" role="status">
+                    {lookup.registered
+                      ? lookup.firstName
+                        ? t('opsFix.walkIn.lookupRegistered', { name: lookup.firstName })
+                        : t('opsFix.walkIn.lookupRegisteredNoName')
+                      : t('opsFix.walkIn.lookupNew')}
+                  </p>
+                )}
+                {/* The buyer is new but this cashier is past the depot's daily ceiling: say so, or the
               missing promo reads as a fault at the till. */}
-          {buyerId && quote.data?.firstOrderCapped && (
-            <p className="text-xs font-semibold text-[color:var(--danger)] sm:col-span-2" role="status">
-              {t('opsFix.walkIn.firstOrderCapped')}
-            </p>
-          )}
-          {/* So the cashier knows a first-order promo is the reason the price just moved. */}
-          {buyerId && quote.data?.firstOrder && (
-            <p className="flex items-center gap-2 text-xs sm:col-span-2">
-              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700">
-                {t('opsFix.walkIn.newCustomerBadge')}
-              </span>
-              <span className="text-muted">{t('opsFix.walkIn.newCustomerHint')}</span>
-            </p>
-          )}
-        </div>
+                {buyerId && quote.data?.firstOrderCapped && (
+                  <p
+                    className="text-xs font-semibold text-[color:var(--danger)] sm:col-span-2"
+                    role="status"
+                  >
+                    {t('opsFix.walkIn.firstOrderCapped')}
+                  </p>
+                )}
+                {/* So the cashier knows a first-order promo is the reason the price just moved. */}
+                {buyerId && quote.data?.firstOrder && (
+                  <p className="flex items-center gap-2 text-xs sm:col-span-2">
+                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700">
+                      {t('opsFix.walkIn.newCustomerBadge')}
+                    </span>
+                    <span className="text-muted">{t('opsFix.walkIn.newCustomerHint')}</span>
+                  </p>
+                )}
+              </div>
+            </details>
 
-        {/*
+            {/*
           C11: the counter can take a delivery. The server half has been able to since #231 —
           DTO, kill switch, and a fee threaded so the quote and the sale agree — and there
           was no way for an operator to say so, which made all of it unreachable.
@@ -1184,395 +1308,430 @@ function WalkIn({ depotId }: { depotId: string }) {
           pick-up would go back to writing on paper. Province left with the customer address
           form: nothing downstream ever read it.
         */}
-        <div className="rounded-xl border border-app p-3">
-          <label className="flex cursor-pointer items-center justify-between gap-3">
-            <span className="text-sm font-bold">{t('opsFix.walkIn.deliverToggle')}</span>
-            <input
-              type="checkbox"
-              className="h-5 w-9 cursor-pointer accent-brand-600"
-              checked={deliver}
-              onChange={(e) => setDeliver(e.target.checked)}
-            />
-          </label>
-          <p className="mt-1 text-[11.5px] leading-snug text-muted">
-            {t('opsFix.walkIn.deliverHint')}
-          </p>
+            <div className="rounded-xl border border-app p-3">
+              <label className="flex cursor-pointer items-center justify-between gap-3">
+                <span className="text-sm font-bold">{t('opsFix.walkIn.deliverToggle')}</span>
+                <input
+                  type="checkbox"
+                  className="h-5 w-9 cursor-pointer accent-brand-600"
+                  checked={deliver}
+                  onChange={(e) => setDeliver(e.target.checked)}
+                />
+              </label>
+              <p className="mt-1 text-[11.5px] leading-snug text-muted">
+                {t('opsFix.walkIn.deliverHint')}
+              </p>
 
-          {deliver && (
-            <div className="mt-3 flex flex-col gap-2.5">
-              <Input
-                id="wi-addr-line"
-                value={addrLine}
-                onChange={(e) => setAddrLine(e.target.value)}
-                placeholder={t('opsFix.walkIn.deliverAddressPlaceholder')}
-              />
-              {/* City alone: the counter asks for what the courier reads. Province went with
+              {deliver && (
+                <div className="mt-3 flex flex-col gap-2.5">
+                  <Input
+                    id="wi-addr-line"
+                    value={addrLine}
+                    onChange={(e) => setAddrLine(e.target.value)}
+                    placeholder={t('opsFix.walkIn.deliverAddressPlaceholder')}
+                  />
+                  {/* City alone: the counter asks for what the courier reads. Province went with
                   the customer form — no delivery, depot match or price ever consulted it. */}
-              <Input
-                id="wi-addr-city"
-                value={addrCity}
-                onChange={(e) => setAddrCity(e.target.value)}
-                placeholder={t('opsFix.walkIn.deliverCityPlaceholder')}
-              />
-              <div className="grid grid-cols-2 gap-2.5">
-                <Input
-                  id="wi-addr-name"
-                  value={addrName}
-                  onChange={(e) => setAddrName(e.target.value)}
-                  placeholder={t('opsFix.walkIn.deliverRecipientPlaceholder')}
-                />
-                <Input
-                  id="wi-addr-phone"
-                  value={addrPhone}
-                  onChange={(e) => setAddrPhone(e.target.value)}
-                  placeholder={t('opsFix.walkIn.deliverPhonePlaceholder')}
-                />
-              </div>
-              {/* Patokan: the landmark a courier actually navigates by. */}
-              <Input
-                id="wi-addr-notes"
-                value={addrNotes}
-                onChange={(e) => setAddrNotes(e.target.value)}
-                placeholder={t('opsFix.walkIn.deliverNotesPlaceholder')}
-              />
-              {!deliveryReady && (
-                // Said out loud rather than left to a disabled button with no reason: the
-                // quote below is still a PICK-UP total until this is complete, and a cashier
-                // reading it would otherwise quote the wrong number.
-                <p className="text-[11.5px] font-semibold leading-snug text-[color:var(--danger)]">
-                  {t('opsFix.walkIn.deliverIncomplete')}
-                </p>
+                  <Input
+                    id="wi-addr-city"
+                    value={addrCity}
+                    onChange={(e) => setAddrCity(e.target.value)}
+                    placeholder={t('opsFix.walkIn.deliverCityPlaceholder')}
+                  />
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <Input
+                      id="wi-addr-name"
+                      value={addrName}
+                      onChange={(e) => setAddrName(e.target.value)}
+                      placeholder={t('opsFix.walkIn.deliverRecipientPlaceholder')}
+                    />
+                    <Input
+                      id="wi-addr-phone"
+                      value={addrPhone}
+                      onChange={(e) => setAddrPhone(e.target.value)}
+                      placeholder={t('opsFix.walkIn.deliverPhonePlaceholder')}
+                    />
+                  </div>
+                  {/* Patokan: the landmark a courier actually navigates by. */}
+                  <Input
+                    id="wi-addr-notes"
+                    value={addrNotes}
+                    onChange={(e) => setAddrNotes(e.target.value)}
+                    placeholder={t('opsFix.walkIn.deliverNotesPlaceholder')}
+                  />
+                  {!deliveryReady && (
+                    // Said out loud rather than left to a disabled button with no reason: the
+                    // quote below is still a PICK-UP total until this is complete, and a cashier
+                    // reading it would otherwise quote the wrong number.
+                    <p className="text-[11.5px] font-semibold leading-snug text-[color:var(--danger)]">
+                      {t('opsFix.walkIn.deliverIncomplete')}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
 
-        {galonQty > 0 && (
-          <Field
-            label={t('opsFix.reports.emptiesReturnedLabel')}
-            htmlFor="wi-empties"
-            hint={emptiesHint}
-          >
-            <div className="flex items-center gap-2">
-              <Input
-                id="wi-empties"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                max={galonQty}
-                value={emptiesReturned}
-                onChange={(e) => setEmptiesReturned(e.target.value)}
-                placeholder="0"
-              />
-              <button
-                type="button"
-                onClick={() => setEmptiesReturned(String(galonQty))}
-                className="shrink-0 rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold"
+            {galonQty > 0 && (
+              <Field
+                label={t('opsFix.reports.emptiesReturnedLabel')}
+                htmlFor="wi-empties"
+                hint={emptiesHint}
               >
-                {t('opsFix.walkIn.emptiesSame')}
-              </button>
-            </div>
-          </Field>
-        )}
-
-        <Field
-          label={t('opsFix.walkIn.voucher')}
-          htmlFor="wi-voucher"
-          hint={t('hrFix.walkIn.voucherHint')}
-        >
-          <Input
-            id="wi-voucher"
-            value={voucher}
-            onChange={(e) => setVoucher(e.target.value.toUpperCase())}
-            placeholder={t('opsFix.walkIn.voucherPlaceholder')}
-          />
-        </Field>
-        {offeredVouchers.length > 0 && (
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold text-muted">{t('opsFix.walkIn.grantedVouchers')}</p>
-            <div className="flex flex-wrap gap-2">
-              {offeredVouchers.map((v) => {
-                const picked = voucher === v.code;
-                const worth =
-                  v.discountType === 'FREE_SHIPPING'
-                    ? t('opsFix.walkIn.grantedVoucherFreeShipping')
-                    : v.discountType === 'PERCENTAGE'
-                      ? t('opsFix.walkIn.grantedVoucherPercent', { pct: v.value })
-                      : formatIDR(v.value);
-                return (
-                  <Button
-                    key={v.code}
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="wi-empties"
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    max={galonQty}
+                    value={emptiesReturned}
+                    onChange={(e) => setEmptiesReturned(e.target.value)}
+                    placeholder="0"
+                  />
+                  <button
                     type="button"
-                    variant={picked ? 'primary' : 'ghost'}
-                    aria-pressed={picked}
-                    onClick={() => setVoucher(picked ? '' : v.code)}
+                    onClick={() => setEmptiesReturned(String(galonQty))}
+                    className="shrink-0 rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold"
                   >
-                    {v.code} · {worth}
-                    {v.minSpend > 0 &&
-                      ` · ${t('opsFix.walkIn.grantedVoucherMin', { min: formatIDR(v.minSpend) })}`}
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                    {t('opsFix.walkIn.emptiesSame')}
+                  </button>
+                </div>
+              </Field>
+            )}
 
-        <Field
-          label={t('opsFix.walkIn.saleNote')}
-          htmlFor="wi-note"
-          hint={t('opsFix.walkIn.saleNoteHint')}
-        >
-          <Input
-            id="wi-note"
-            value={saleNote}
-            maxLength={255}
-            onChange={(e) => setSaleNote(e.target.value)}
-            placeholder={t('opsFix.walkIn.saleNotePlaceholder')}
-          />
-        </Field>
+            <details
+              className="rounded-xl border border-app p-3"
+              open={extrasOpen}
+              onToggle={(e) => setExtrasOpen(e.currentTarget.open)}
+            >
+              <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm font-bold">
+                <span>{t('opsFix.walkIn.extrasSection')}</span>
+                {(voucher.trim() || saleNote.trim()) && (
+                  <span className="truncate text-xs font-medium text-muted">
+                    {[voucher.trim(), saleNote.trim()].filter(Boolean).join(' · ')}
+                  </span>
+                )}
+              </summary>
+              <div className="mt-3 space-y-3">
+                <Field
+                  label={t('opsFix.walkIn.voucher')}
+                  htmlFor="wi-voucher"
+                  hint={t('hrFix.walkIn.voucherHint')}
+                >
+                  <Input
+                    id="wi-voucher"
+                    value={voucher}
+                    onChange={(e) => setVoucher(e.target.value.toUpperCase())}
+                    placeholder={t('opsFix.walkIn.voucherPlaceholder')}
+                  />
+                </Field>
+                {offeredVouchers.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-muted">
+                      {t('opsFix.walkIn.grantedVouchers')}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {offeredVouchers.map((v) => {
+                        const picked = voucher === v.code;
+                        const worth =
+                          v.discountType === 'FREE_SHIPPING'
+                            ? t('opsFix.walkIn.grantedVoucherFreeShipping')
+                            : v.discountType === 'PERCENTAGE'
+                              ? t('opsFix.walkIn.grantedVoucherPercent', { pct: v.value })
+                              : formatIDR(v.value);
+                        return (
+                          <Button
+                            key={v.code}
+                            type="button"
+                            variant={picked ? 'primary' : 'ghost'}
+                            aria-pressed={picked}
+                            onClick={() => setVoucher(picked ? '' : v.code)}
+                          >
+                            {v.code} · {worth}
+                            {v.minSpend > 0 &&
+                              ` · ${t('opsFix.walkIn.grantedVoucherMin', { min: formatIDR(v.minSpend) })}`}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-        {/* C12: shelf prices are now a subtotal. The discount below is the layer only the
+                <Field
+                  label={t('opsFix.walkIn.saleNote')}
+                  htmlFor="wi-note"
+                  hint={t('opsFix.walkIn.saleNoteHint')}
+                >
+                  <Input
+                    id="wi-note"
+                    value={saleNote}
+                    maxLength={255}
+                    onChange={(e) => setSaleNote(e.target.value)}
+                    placeholder={t('opsFix.walkIn.saleNotePlaceholder')}
+                  />
+                </Field>
+              </div>
+            </details>
+
+            {/* C12: shelf prices are now a subtotal. The discount below is the layer only the
             server knows — tier, agen band, voucher — and it is why this screen stopped
             adding anything up itself. */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted">{t('opsFix.walkIn.subtotal')}</span>
-          <span className="tabular-nums">
-            <Money amount={subtotal} />
-          </span>
-        </div>
-        {/* Why the total is not subtotal minus discount: a price promo is already out of the
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">{t('opsFix.walkIn.subtotal')}</span>
+              <span className="tabular-nums">
+                <Money amount={subtotal} />
+              </span>
+            </div>
+            {/* Why the total is not subtotal minus discount: a price promo is already out of the
             server's subtotal, so without these rows the screen reads as a sum that does not
             add up. PRICE rows are real deductions; the rest say what else the buyer got. */}
-        {appliedPromos
-          .filter((p) => p.effect === 'PRICE')
-          .map((p, i) => (
-            <div key={`${p.name}-${i}`} className="flex items-center justify-between text-sm">
-              <span className="text-muted">{p.name}</span>
-              <span className="tabular-nums text-[color:var(--success)]">
-                −<Money amount={p.amountIdr} />
-              </span>
-            </div>
-          ))}
-        {appliedPromos
-          .filter((p) => p.effect === 'FREE' || p.effect === 'GIFT' || p.effect === 'SHIPPING')
-          .map((p, i) => (
-            <div
-              key={`${p.name}-${i}`}
-              className="flex items-center justify-between text-[12.5px] text-[color:var(--success)]"
-            >
-              <span>{p.name}</span>
-              <span>
-                {p.effect === 'SHIPPING'
-                  ? t('opsFix.walkIn.promoShippingSaved', { amount: formatIDR(p.amountIdr) })
-                  : t('opsFix.walkIn.promoFreeValue', { amount: formatIDR(p.amountIdr) })}
-              </span>
-            </div>
-          ))}
-        {/* The bonus as GOODS, not only as a rupiah value: it leaves the shelf and the stock
+            {appliedPromos
+              .filter((p) => p.effect === 'PRICE')
+              .map((p, i) => (
+                <div key={`${p.name}-${i}`} className="flex items-center justify-between text-sm">
+                  <span className="text-muted">{p.name}</span>
+                  <span className="tabular-nums text-[color:var(--success)]">
+                    −<Money amount={p.amountIdr} />
+                  </span>
+                </div>
+              ))}
+            {appliedPromos
+              .filter((p) => p.effect === 'FREE' || p.effect === 'GIFT' || p.effect === 'SHIPPING')
+              .map((p, i) => (
+                <div
+                  key={`${p.name}-${i}`}
+                  className="flex items-center justify-between text-[12.5px] text-[color:var(--success)]"
+                >
+                  <span>{p.name}</span>
+                  <span>
+                    {p.effect === 'SHIPPING'
+                      ? t('opsFix.walkIn.promoShippingSaved', { amount: formatIDR(p.amountIdr) })
+                      : t('opsFix.walkIn.promoFreeValue', { amount: formatIDR(p.amountIdr) })}
+                  </span>
+                </div>
+              ))}
+            {/* The bonus as GOODS, not only as a rupiah value: it leaves the shelf and the stock
             count, so the cashier has to hand it over. */}
-        {freeItems.length > 0 && (
-          <div className="rounded-xl bg-[color:var(--success-bg)] px-3 py-2 text-sm" role="status">
-            <p className="font-semibold text-[color:var(--success)]">
-              {t('opsFix.walkIn.freeHandover')}
-            </p>
-            <p>
-              {freeItems
-                .map((f) => t('opsFix.walkIn.freeItemQty', { qty: f.quantity, name: freeName(f.productId) }))
-                .join(', ')}
-            </p>
-            {freeShort.map((s) => (
-              <p key={s.productId} className="mt-1 text-xs font-semibold text-[color:var(--danger)]">
-                {t('opsFix.walkIn.freeShort', { name: freeName(s.productId), need: s.need, have: s.have })}
+            {freeItems.length > 0 && (
+              <div
+                className="rounded-xl bg-[color:var(--success-bg)] px-3 py-2 text-sm"
+                role="status"
+              >
+                <p className="font-semibold text-[color:var(--success)]">
+                  {t('opsFix.walkIn.freeHandover')}
+                </p>
+                <p>
+                  {freeItems
+                    .map((f) =>
+                      t('opsFix.walkIn.freeItemQty', {
+                        qty: f.quantity,
+                        name: freeName(f.productId),
+                      }),
+                    )
+                    .join(', ')}
+                </p>
+                {freeShort.map((s) => (
+                  <p
+                    key={s.productId}
+                    className="mt-1 text-xs font-semibold text-[color:var(--danger)]"
+                  >
+                    {t('opsFix.walkIn.freeShort', {
+                      name: freeName(s.productId),
+                      need: s.need,
+                      have: s.have,
+                    })}
+                  </p>
+                ))}
+              </div>
+            )}
+            {(quote.data?.discountIdr ?? 0) > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2 text-muted">
+                  {t('opsFix.walkIn.discount')}
+                  {orderPromoNames && (
+                    <span className="text-[11.5px]">
+                      ({t('opsFix.walkIn.discountIncludes', { names: orderPromoNames })})
+                    </span>
+                  )}
+                  {quote.data?.agen && (
+                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700">
+                      {t('opsFix.walkIn.agenPrice')}
+                    </span>
+                  )}
+                </span>
+                <span className="tabular-nums text-[color:var(--success)]">
+                  −<Money amount={quote.data?.discountIdr ?? 0} />
+                </span>
+              </div>
+            )}
+
+            {(quote.data?.shippingIdr ?? 0) > 0 && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted">{t('opsFix.walkIn.shipping')}</span>
+                <span className="tabular-nums">
+                  <Money amount={quote.data?.shippingIdr ?? 0} />
+                </span>
+              </div>
+            )}
+
+            {/* The voucher is refused HERE, before Bayar, instead of after the goods have gone. */}
+            {quote.error && lines.length > 0 && (
+              <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+                {quote.error}
               </p>
-            ))}
-          </div>
-        )}
-        {(quote.data?.discountIdr ?? 0) > 0 && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="flex items-center gap-2 text-muted">
-              {t('opsFix.walkIn.discount')}
-              {orderPromoNames && (
-                <span className="text-[11.5px]">
-                  ({t('opsFix.walkIn.discountIncludes', { names: orderPromoNames })})
-                </span>
-              )}
-              {quote.data?.agen && (
-                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700">
-                  {t('opsFix.walkIn.agenPrice')}
-                </span>
-              )}
-            </span>
-            <span className="tabular-nums text-[color:var(--success)]">
-              −<Money amount={quote.data?.discountIdr ?? 0} />
-            </span>
-          </div>
-        )}
-
-        {(quote.data?.shippingIdr ?? 0) > 0 && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted">{t('opsFix.walkIn.shipping')}</span>
-            <span className="tabular-nums">
-              <Money amount={quote.data?.shippingIdr ?? 0} />
-            </span>
-          </div>
-        )}
-
-        {/* The voucher is refused HERE, before Bayar, instead of after the goods have gone. */}
-        {quote.error && lines.length > 0 && (
-          <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
-            {quote.error}
-          </p>
-        )}
-        {/* Unread resolved prices silently fall back to the catalog base price, so the
+            )}
+            {/* Unread resolved prices silently fall back to the catalog base price, so the
             depot's own override and any active rule vanish from the counter total. Not a
             refusal — the till has to keep working — but the cashier is told which number
             they are looking at. The struk still comes from `order.total`. */}
-        {resolved.error && (
-          <p role="alert" className="text-xs font-semibold text-[color:var(--danger)]">
-            {t('opsFix.walkIn.priceUnreadable')}{' '}
-            <button type="button" onClick={resolved.reload} className="underline">
-              {t('opsFix.walkIn.reload')}
-            </button>
-          </p>
-        )}
+            {resolved.error && (
+              <p role="alert" className="text-xs font-semibold text-[color:var(--danger)]">
+                {t('opsFix.walkIn.priceUnreadable')}{' '}
+                <button type="button" onClick={resolved.reload} className="underline">
+                  {t('opsFix.walkIn.reload')}
+                </button>
+              </p>
+            )}
 
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">{t('hrFix.walkIn.paymentMethod')}</legend>
-          <div className="flex flex-wrap gap-2">
-            {(['CASH', 'QRIS', 'TRANSFER'] as const).map((m) => (
-              <Button
-                key={m}
-                type="button"
-                variant={method === m ? 'primary' : 'ghost'}
-                disabled={!methodReady[m]}
-                aria-pressed={method === m}
-                onClick={() => setMethod(m)}
-              >
-                {m === 'CASH' ? t('hrFix.walkIn.cash') : m}
-              </Button>
-            ))}
-          </div>
-          {(!methodReady.QRIS || !methodReady.TRANSFER) && (
-            <p className="text-xs text-muted">{t('opsFix.walkIn.methodOffHint')}</p>
-          )}
-        </fieldset>
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">{t('hrFix.walkIn.paymentMethod')}</legend>
+              <div className="flex flex-wrap gap-2">
+                {(['CASH', 'QRIS', 'TRANSFER'] as const).map((m) => (
+                  <Button
+                    key={m}
+                    type="button"
+                    variant={method === m ? 'primary' : 'ghost'}
+                    disabled={!methodReady[m]}
+                    aria-pressed={method === m}
+                    onClick={() => setMethod(m)}
+                  >
+                    {m === 'CASH' ? t('hrFix.walkIn.cash') : m}
+                  </Button>
+                ))}
+              </div>
+              {(!methodReady.QRIS || !methodReady.TRANSFER) && (
+                <p className="text-xs text-muted">{t('opsFix.walkIn.methodOffHint')}</p>
+              )}
+            </fieldset>
 
-        {(method === 'QRIS' || method === 'TRANSFER') && (
-          // The buyer is about to type this number into their own app. Said once, large, at
-          // the exact spot they are looking at, instead of leaving it to the small total row.
-          <div className="text-center">
-            <p className="text-xs text-muted">{t('opsFix.walkIn.payThisAmount')}</p>
-            <p className="text-3xl font-extrabold tabular-nums">
-              {quoteFresh && total !== null ? <Money amount={total} /> : '…'}
-            </p>
-          </div>
-        )}
+            {(method === 'QRIS' || method === 'TRANSFER') && (
+              // The buyer is about to type this number into their own app. Said once, large, at
+              // the exact spot they are looking at, instead of leaving it to the small total row.
+              <div className="text-center">
+                <p className="text-xs text-muted">{t('opsFix.walkIn.payThisAmount')}</p>
+                <p className="text-3xl font-extrabold tabular-nums">
+                  {quoteFresh && total !== null ? <Money amount={total} /> : '…'}
+                </p>
+              </div>
+            )}
 
-        {method === 'QRIS' && qrisUrl && (
-          // A depot-uploaded URL, not a bundled asset — next/image would need the host
-          // whitelisted per depot storage bucket for no gain on a print-once QR.
-          <RemoteImage
-            src={qrisUrl}
-            alt={t('opsFix.walkIn.qrisAlt')}
-            className="mx-auto max-h-64 w-auto rounded-xl border border-app"
-          />
-        )}
-        {method === 'TRANSFER' && (
-          <div className="rounded-xl border border-app p-3 text-sm">
-            <p className="font-medium">{payTo.data?.paymentBankName}</p>
-            <p className="font-mono text-lg font-bold">{bankAccount}</p>
-            <p className="text-muted">
-              {t('opsFix.walkIn.accountHolder', {
-                name: payTo.data?.paymentBankAccountHolder ?? '—',
-              })}
-            </p>
-          </div>
-        )}
+            {method === 'QRIS' && qrisUrl && (
+              // A depot-uploaded URL, not a bundled asset — next/image would need the host
+              // whitelisted per depot storage bucket for no gain on a print-once QR.
+              <RemoteImage
+                src={qrisUrl}
+                alt={t('opsFix.walkIn.qrisAlt')}
+                className="mx-auto max-h-64 w-auto rounded-xl border border-app"
+              />
+            )}
+            {method === 'TRANSFER' && (
+              <div className="rounded-xl border border-app p-3 text-sm">
+                <p className="font-medium">{payTo.data?.paymentBankName}</p>
+                <p className="font-mono text-lg font-bold">{bankAccount}</p>
+                <p className="text-muted">
+                  {t('opsFix.walkIn.accountHolder', {
+                    name: payTo.data?.paymentBankAccountHolder ?? '—',
+                  })}
+                </p>
+              </div>
+            )}
 
-        {method === 'CASH' && (
-          <>
-            {/*
+            {method === 'CASH' && (
+              <>
+                {/*
               K3.6: the same three controls the courier's COD screen already has, on the
               screen that takes more cash than it does. Sanitising as it is typed matches
               both other cash-taking screens; the notes and "uang pas" are copied from
               driver/deliveries/detail/pay, which does this job better than the till did.
             */}
-            <Field
-              label={t('opsFix.walkIn.cashReceived')}
-              htmlFor="wi-cash"
-              error={
-                short ? t('opsFix.walkIn.cashShort', { amount: formatIDR(-change) }) : undefined
-              }
-            >
-              <Input
-                id="wi-cash"
-                value={cash}
-                onChange={(e) => setCash(e.target.value.replace(/[^0-9]/g, ''))}
-                onKeyDown={(e) => {
-                  // Same gate as the button: Enter can never sell what the button would refuse.
-                  if (e.key === 'Enter' && !payDisabled) {
-                    e.preventDefault();
-                    void submit();
+                <Field
+                  label={t('opsFix.walkIn.cashReceived')}
+                  htmlFor="wi-cash"
+                  error={
+                    short ? t('opsFix.walkIn.cashShort', { amount: formatIDR(-change) }) : undefined
                   }
-                }}
-                inputMode="numeric"
-                placeholder={t('opsFix.walkIn.cashPlaceholder')}
-              />
-            </Field>
-            {total !== null && (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setCash(String(total))}
-                  className="rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold"
                 >
-                  {t('opsFix.walkIn.exactCash')}
-                </button>
-                {NOTES.filter((n) => n >= total).map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setCash(String(n))}
-                    className="rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold tabular-nums"
+                  <Input
+                    id="wi-cash"
+                    value={cash}
+                    onChange={(e) => setCash(e.target.value.replace(/[^0-9]/g, ''))}
+                    onKeyDown={(e) => {
+                      // Same gate as the button: Enter can never sell what the button would refuse.
+                      if (e.key === 'Enter' && !payDisabled) {
+                        e.preventDefault();
+                        void submit();
+                      }
+                    }}
+                    inputMode="numeric"
+                    placeholder={t('opsFix.walkIn.cashPlaceholder')}
+                  />
+                </Field>
+                {total !== null && (
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCash(String(total))}
+                      className="rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold"
+                    >
+                      {t('opsFix.walkIn.exactCash')}
+                    </button>
+                    {NOTES.filter((n) => n >= total).map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setCash(String(n))}
+                        className="rounded-full bg-black/5 px-3 py-1.5 text-xs font-bold tabular-nums"
+                      >
+                        {n.toLocaleString('id-ID')}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted">
+                    {short ? t('opsFix.walkIn.stillShort') : t('opsFix.walkIn.change')}
+                  </span>
+                  <span
+                    className={`text-xl font-extrabold tabular-nums ${short ? 'text-[color:var(--danger)]' : ''}`}
                   >
-                    {n.toLocaleString('id-ID')}
-                  </button>
-                ))}
-              </div>
-            )}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted">
-                {short ? t('opsFix.walkIn.stillShort') : t('opsFix.walkIn.change')}
-              </span>
-              <span className={short ? 'font-bold text-[color:var(--danger)]' : 'font-bold'}>
-                {/*
+                    {/*
                   Was `Math.max(0, change)`: a short payment printed "Rp 0" in red and
                   never said how much more to ask for — the one number the cashier is
                   standing there needing. Now the shortfall is the number shown.
                 */}
-                <Money amount={Math.abs(change)} />
-              </span>
-            </div>
-          </>
-        )}
+                    <Money amount={Math.abs(change)} />
+                  </span>
+                </div>
+              </>
+            )}
 
-        {/*
+            {/*
           The total and Bayar stay on screen while the cashier scrolls the form above them.
           On a tablet the form is several screens long, and the button used to be at the very
           end of it. The bottom padding follows the safe-area inset (custom property first,
           env() as the fallback) so it is never under a system bar.
         */}
-        <div className="surface sticky bottom-0 z-10 -mx-4 -mb-4 space-y-2 rounded-b-2xl border-t border-app p-4 pb-[max(1rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-bold">{t('hrFix.walkIn.total')}</span>
-            <span className="text-lg font-extrabold">
-              {quote.loading ? '…' : total === null ? '—' : <Money amount={total} />}
-            </span>
-          </div>
-          <Button
-            className="w-full"
-            onClick={() => void submit()}
-            /*
+            <div className="surface sticky bottom-0 z-10 -mx-4 -mb-4 space-y-2 rounded-b-2xl border-t border-app p-4 pb-[max(1rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-bold">{t('hrFix.walkIn.total')}</span>
+                <span className="text-lg font-extrabold">
+                  {quote.loading ? '…' : total === null ? '—' : <Money amount={total} />}
+                </span>
+              </div>
+              <Button
+                className="w-full"
+                onClick={() => void submit()}
+                /*
               K3.3. `shiftOpen === undefined` — the bar has not answered yet — used to leave
               this ENABLED, defended as "a slow check never blocks a queue of buyers, and the
               server refuses anyway". The server does refuse, so nothing was sold twice; what
@@ -1580,22 +1739,24 @@ function WalkIn({ depotId }: { depotId: string }) {
               read had not landed. Waiting and saying so is the same protection with an
               explanation attached.
             */
-            // A name-based locator cannot find a button whose label changes with the state
-            // being diagnosed — which is exactly what K3.3 made this label do.
-            data-testid="counter-pay"
-            disabled={payDisabled}
-          >
-            <Printer size={18} className="mr-1" />
-            {shiftOpen === undefined
-              ? t('opsFix.walkIn.checkingShift')
-              : shiftOpen === false
-                ? t('opsFix.walkIn.openShiftFirst')
-                : method === 'CASH'
-                  ? t('opsFix.walkIn.saveAndPrint')
-                  : t('opsFix.walkIn.paidAndPrint')}
-          </Button>
+                // A name-based locator cannot find a button whose label changes with the state
+                // being diagnosed — which is exactly what K3.3 made this label do.
+                data-testid="counter-pay"
+                disabled={payDisabled}
+              >
+                <Printer size={18} className="mr-1" />
+                {shiftOpen === undefined
+                  ? t('opsFix.walkIn.checkingShift')
+                  : shiftOpen === false
+                    ? t('opsFix.walkIn.openShiftFirst')
+                    : method === 'CASH'
+                      ? t('opsFix.walkIn.saveAndPrint')
+                      : t('opsFix.walkIn.paidAndPrint')}
+              </Button>
+            </div>
+          </Card>
         </div>
-      </Card>
+      </div>
 
       {/*
         C6: the till's own recent counter sales.

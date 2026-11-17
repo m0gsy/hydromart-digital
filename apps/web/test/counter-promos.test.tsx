@@ -435,8 +435,9 @@ describe('the bonus and the total the till collects against', () => {
     quoteExtras = { freeItems: [{ productId: 'p-air', quantity: 1 }] };
     await openTill();
     await addOneGalon();
-    expect(await screen.findByText('Serahkan juga (gratis)')).toBeTruthy();
-    expect(screen.getByText('1× Air Galon 19L')).toBeTruthy();
+    // The same words also name the paid line in the basket; this is the hand-over box.
+    const box = (await screen.findByText('Serahkan juga (gratis)')).parentElement!;
+    expect(within(box).getByText('1× Air Galon 19L')).toBeTruthy();
   });
 
   it('warns before Bayar when the shelf cannot cover paid plus free units', async () => {
@@ -507,5 +508,46 @@ describe('the bonus and the total the till collects against', () => {
     expect(
       await screen.findByText(/Bonus tidak diberikan karena stok habis: 1× produk bonus/),
     ).toBeTruthy();
+  });
+});
+
+/*
+ * PR-B. The till reads like a till: a tile is "one more", the basket is listed the way it is
+ * read back to the buyer, the optional sections stay folded, and the change is the biggest
+ * number on screen once the sale is done.
+ */
+describe('the POS layout', () => {
+  it('adds one per tap on a product tile and lists the basket with its line total', async () => {
+    await openTill();
+    await userEvent.click(screen.getByRole('button', { name: 'Tambah 1 Air Galon 19L' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Tambah 1 Air Galon 19L' }));
+    const basket = screen.getByText('Keranjang').parentElement!;
+    expect(within(basket).getByText('2× Air Galon 19L')).toBeTruthy();
+    expect(within(basket).getAllByText('Rp 40.000').length).toBeGreaterThan(0);
+  });
+
+  it('folds the buyer section and says the sale is for a walk-in buyer until one is typed', async () => {
+    await openTill();
+    expect(screen.getByText('Pembeli umum')).toBeTruthy();
+    expect(screen.getByText('Pelanggan').closest('details')?.open).toBe(false);
+  });
+
+  it('keeps the item count and the total in a bar while products are being picked', async () => {
+    await openTill();
+    expect(screen.queryByRole('button', { name: 'Lanjut' })).toBeNull();
+    await addOneGalon();
+    expect(await screen.findByText(/1 item/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Lanjut' })).toBeTruthy();
+  });
+
+  it('shows the change, large, after a cash sale', async () => {
+    await openTill();
+    await addOneGalon();
+    await userEvent.type(screen.getByLabelText(/uang tunai diterima/i), '50000');
+    const pay = screen.getByTestId('counter-pay') as HTMLButtonElement;
+    await waitFor(() => expect(pay.disabled).toBe(false));
+    await userEvent.click(pay);
+    const label = await screen.findByText('Kembalian', { selector: 'p' });
+    expect(label.nextElementSibling?.textContent).toBe('Rp 30.000');
   });
 });
