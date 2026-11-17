@@ -48,6 +48,13 @@ export const geoReason = (err: unknown): GeoFailure => (err instanceof GeoError 
 const ask = (options: PositionOptions): Promise<GeolocationPosition> =>
   new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, options));
 
+/** Native first attempt per mode; the browser path reuses `precise` for its first try. */
+const OPTIONS = {
+  coarse: { enableHighAccuracy: false, timeout: 20_000, maximumAge: 300_000 },
+  // ponytail: 30 s covers a cold GPS indoors; raise it if couriers report timeouts.
+  precise: { enableHighAccuracy: true, timeout: 30_000, maximumAge: 10_000 },
+} as const satisfies Record<string, PositionOptions>;
+
 const reasonOf = (err: unknown): GeoFailure => {
   const code = (err as GeolocationPositionError | undefined)?.code;
   if (code === 1) return 'denied';
@@ -74,7 +81,7 @@ const reasonOf = (err: unknown): GeoFailure => {
  * plugin is an older binary, and a failing one must not be worse than not having tried.
  * The reason the caller shows still comes from the web API, which has the codes.
  */
-async function nativePosition(): Promise<GeolocationPosition | null> {
+async function nativePosition(precise: boolean): Promise<GeolocationPosition | null> {
   const state = await tryPlugin<{ location?: string; coarseLocation?: string }>(
     'Geolocation',
     'checkPermissions',
@@ -92,16 +99,17 @@ async function nativePosition(): Promise<GeolocationPosition | null> {
       throw new GeoError('denied');
     }
   }
-  // Coarse on purpose: a depot is picked by neighbourhood, and asking for high accuracy on
+  // Coarse by default: a depot is picked by neighbourhood, and asking for high accuracy on
   // a binary with no ACCESS_FINE_LOCATION is asking for a fix that cannot arrive.
+  // `precise` is for a PRESENCE check (shift check-in, attendance, proof of delivery): a
+  // network fix is off by a few hundred metres and a five-minute-old one may be from the
+  // road, so a courier standing in the depot read "526 m from the depot" against a 100 m
+  // fence. The plugin only asks for FINE where the manifest declares it (Ops), and falls
+  // back to the network provider itself when GPS has nothing.
   const fix = await tryPlugin<{
     coords?: { latitude?: number; longitude?: number; accuracy?: number };
     timestamp?: number;
-  }>('Geolocation', 'getCurrentPosition', {
-    enableHighAccuracy: false,
-    timeout: 20_000,
-    maximumAge: 300_000,
-  });
+  }>('Geolocation', 'getCurrentPosition', OPTIONS[precise ? 'precise' : 'coarse']);
   const lat = fix.ok ? fix.value.coords?.latitude : undefined;
   const lng = fix.ok ? fix.value.coords?.longitude : undefined;
   if (typeof lat !== 'number' || typeof lng !== 'number') return null;
@@ -121,20 +129,25 @@ async function nativePosition(): Promise<GeolocationPosition | null> {
   } as GeolocationPosition;
 }
 
-export async function currentPosition(): Promise<GeolocationPosition> {
-  const native = await nativePosition();
+export async function currentPosition(
+  { precise = false }: { precise?: boolean } = {},
+): Promise<GeolocationPosition> {
+  const native = await nativePosition(precise);
   if (native) return native;
   if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
     throw new GeoError('unsupported');
   }
   try {
-    return await ask({ enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 });
+    return await ask(
+      precise ? OPTIONS.precise : { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
+    );
   } catch (err) {
     // A refusal is final: retrying cannot turn it into a yes, and the second prompt is worse
     // than the first message.
     if (reasonOf(err) === 'denied') throw new GeoError('denied');
     try {
-      return await ask({ enableHighAccuracy: false, timeout: 20_000, maximumAge: 300_000 });
+      // A presence check never accepts a fix older than the precise one would have.
+      return await ask({ ...OPTIONS.coarse, maximumAge: precise ? OPTIONS.precise.maximumAge : OPTIONS.coarse.maximumAge });
     } catch (retry) {
       throw new GeoError(reasonOf(retry));
     }

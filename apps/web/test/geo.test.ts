@@ -188,3 +188,57 @@ describe('currentPosition inside the native shell', () => {
     expect(calls).toHaveLength(1);
   });
 });
+
+/*
+ * A presence check — shift check-in, attendance, proof of delivery — is measured against a
+ * 100 m fence. The default fix is coarse and may be five minutes old, so a courier standing
+ * in the depot was told "526 m from the depot". `precise` asks the GPS and refuses old fixes.
+ */
+describe('currentPosition({ precise: true })', () => {
+  it('asks the native plugin for a fresh high-accuracy fix', async () => {
+    const seen: unknown[] = [];
+    vi.stubGlobal('window', {
+      Capacitor: {
+        Plugins: {
+          Geolocation: {
+            checkPermissions: () => Promise.resolve({ location: 'granted', coarseLocation: 'granted' }),
+            getCurrentPosition: (o?: unknown) => {
+              seen.push(o);
+              return Promise.resolve({ coords: { latitude: -6.2, longitude: 106.8 } });
+            },
+          },
+        },
+      },
+    });
+    await currentPosition({ precise: true });
+    expect(seen[0]).toMatchObject({ enableHighAccuracy: true });
+    expect((seen[0] as PositionOptions).maximumAge).toBeLessThanOrEqual(10_000);
+  });
+
+  it('keeps the default coarse request for everything else', async () => {
+    const seen: unknown[] = [];
+    vi.stubGlobal('window', {
+      Capacitor: {
+        Plugins: {
+          Geolocation: {
+            checkPermissions: () => Promise.resolve({ coarseLocation: 'granted' }),
+            getCurrentPosition: (o?: unknown) => {
+              seen.push(o);
+              return Promise.resolve({ coords: { latitude: -6.2, longitude: 106.8 } });
+            },
+          },
+        },
+      },
+    });
+    await currentPosition();
+    expect(seen[0]).toMatchObject({ enableHighAccuracy: false });
+  });
+
+  it('never accepts an old fix in the browser, not even on the fallback leg', async () => {
+    const { leg } = withGeolocation(fail(3), position(-7.1));
+    await currentPosition({ precise: true });
+    expect(leg(0).enableHighAccuracy).toBe(true);
+    expect(leg(0).maximumAge).toBeLessThanOrEqual(10_000);
+    expect(leg(1).maximumAge).toBeLessThanOrEqual(10_000);
+  });
+});

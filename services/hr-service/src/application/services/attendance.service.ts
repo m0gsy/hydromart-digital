@@ -356,7 +356,8 @@ export class AttendanceService {
     const { ok, distanceM } = withinGeofence(this.config.geofence(depotId), punch.lat, punch.lng);
     if (!ok) {
       throw new ForbiddenException(
-        `Di luar area absen depot (${distanceM} m dari titik). Absen harus di lokasi.`,
+        `Di luar area absen depot (${distanceM} m dari titik). Absen harus di lokasi. ` +
+          'Nyalakan lokasi akurat (GPS), tunggu sebentar, lalu coba lagi.',
       );
     }
   }

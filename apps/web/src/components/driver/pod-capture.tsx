@@ -170,7 +170,7 @@ export function PodCapture({ deliveryId, orderNumber, onDone, onCancel }: Props)
 
     setSubmitting(true);
     try {
-      const position = await currentPosition();
+      const position = await currentPosition({ precise: true });
 
       // Photo (downscaled) is mandatory. Signature is optional: carried only if the
       // recipient actually drew one. Both travel as data URLs so the queue can survive a

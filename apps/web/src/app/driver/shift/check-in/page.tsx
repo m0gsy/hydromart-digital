@@ -68,7 +68,7 @@ function CheckIn() {
     setBusy(true);
     setError(null);
     try {
-      const pos = await currentPosition();
+      const pos = await currentPosition({ precise: true });
       // Depot wifi is not a given at 6am: queue the check-in rather than lose the shift start.
       const { outcome } = await runOrQueue({
         kind: 'shiftCheckIn',

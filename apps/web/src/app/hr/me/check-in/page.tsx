@@ -35,7 +35,7 @@ function getPosition(messages: {
   // only one an employee who granted "Perkiraan" (Android 12+) has. A precise-only request
   // on that phone times out and the employee is told to grant an already-granted permission
   // — a check-in they cannot complete because of a message that is not true.
-  return currentPosition().then(
+  return currentPosition({ precise: true }).then(
     (pos) => ({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
     (err: unknown) => {
       const reason = geoReason(err);

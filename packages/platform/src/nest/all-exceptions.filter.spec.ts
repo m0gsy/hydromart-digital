@@ -93,4 +93,34 @@ describe('AllExceptionsFilter', () => {
     filter.catch('just a string', host);
     expect(body()).toMatchObject({ statusCode: 500, code: 'INTERNAL_ERROR' });
   });
+
+  describe('a number too large for its column', () => {
+    const prisma = (code: string, meta?: Record<string, unknown>) =>
+      Object.assign(new Error('Invalid `prisma.$queryRaw()` invocation'), {
+        name: 'PrismaClientKnownRequestError',
+        code,
+        meta,
+      });
+
+    it.each([
+      ['raw query (P2010 + 22003)', prisma('P2010', { code: '22003', message: 'integer out of range' })],
+      ['typed query (P2020)', prisma('P2020')],
+      ['past 64 bits (P2033)', prisma('P2033')],
+      ['bare driver error', Object.assign(new Error('integer out of range'), { code: '22003' })],
+    ])('answers 422 NUMBER_OUT_OF_RANGE for a %s', (_label, err) => {
+      const warn = jest.spyOn(filter['logger'], 'warn').mockImplementation(() => undefined);
+      const { host, status, body } = hostFor('/api/v1/depots/d1/inventory');
+      filter.catch(err, host);
+      expect(status).toHaveBeenCalledWith(422);
+      expect(body()).toMatchObject({ statusCode: 422, code: 'NUMBER_OUT_OF_RANGE' });
+      expect(warn).toHaveBeenCalled();
+      expect(filter['logger'].error).not.toHaveBeenCalled();
+    });
+
+    it('leaves any other raw-query failure a 500', () => {
+      const { host, status } = hostFor();
+      filter.catch(prisma('P2010', { code: '42P01' }), host);
+      expect(status).toHaveBeenCalledWith(500);
+    });
+  });
 });
