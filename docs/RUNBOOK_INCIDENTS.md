@@ -71,6 +71,17 @@ terakhir. Tanyakan: apakah **Postgres** lambat (`docker exec $($DC ps -q postgre
 apakah service **yang dipanggilnya** yang mati (order → product/depot/payment), atau apakah baru saja
 ada deploy. Tanpa sebab lain yang jelas dalam 15 menit: rollback.
 
+`HighLatencyP95` dihitung gabungan semua rute; sebelum rollback, lihat rute mana yang lambat (Prometheus
+hanya mendengar di loopback box):
+
+```bash
+curl -s http://127.0.0.1:9090/api/v1/query --data-urlencode \
+  'query=topk(5, histogram_quantile(0.95, sum by (route, le)(rate(http_request_duration_seconds_bucket{service="<service>"}[5m]))))'
+```
+
+Rute wajah hr (`attendance/check-in`, `check-out`, `me/face`, enroll) tidak ikut dihitung: semuanya menunggu
+API wajah NEO, dan 1–2 detik memang normalnya.
+
 ## Postgres
 
 `PostgresDown`, `PostgresConnectionsNearMax`, `PostgresDeadlocks`.
@@ -162,6 +173,11 @@ $DC ps scheduler; $DC logs --tail 60 scheduler
 Buka `/hq/health`: sweep yang tidak pernah melapor tampil `NEVER RUN`, yang macet `OVERDUE`. Penyebab umum:
 `INTERNAL_SERVICE_KEY` di scheduler tidak cocok dengan service (setelah rotasi), atau `ADMIN_SERVICE_HOST`
 tak terisi. `$DC up -d scheduler` membuatnya ulang dengan env terkini.
+
+Ping Discord `Hydromart scheduler: sweep <job> on <host> FAILED` berbeda: satu sweep gagal. `sweep.sh` sudah
+mengulang permintaan yang ditolak cepat sampai 4× dalam semenit, jadi restart saat deploy tidak lagi
+memicunya. Ping ini berarti service itu tidak menjawab selama semenit penuh, atau menjawab `"ok":false`
+(satu putaran gagal semuanya). `$DC logs --tail 200 scheduler | grep <job>` menunjukkan yang mana.
 
 ## ExporterDown
 

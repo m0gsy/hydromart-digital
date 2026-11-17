@@ -87,6 +87,38 @@ report_run() {
     "http://${ADMIN_SERVICE_HOST}/api/v1/sweeps/internal/record" >/dev/null 2>&1 || true
 }
 
+# A deploy recreates every service at once, and each needs a few seconds before it listens
+# again. A tick that lands in that window is refused on the spot, and used to page Discord
+# as a FAILED sweep while nothing was wrong. Measured 2026-11-17: crm reported "Started" at
+# 09:57:59Z, its process-sending tick fired at 09:58:00Z, and the release smoke passed 32 s
+# later. Two of that day's five deploys paged this way.
+#
+# So a request that fails FAST is sent again, up to three more times, RETRY_DELAY apart: a
+# minute of grace, past the ~30 s a service takes to boot and inside the tightest cadence
+# (every 2 minutes). A service that is really down still pages, one minute later.
+#
+# A SLOW failure is not retried. A request that hung until the timeout reached a service that
+# took the work and never answered. Three more of those would hold this job's lock for four
+# timeouts, past the stale-lock age above, and the next tick would break the lock of a run
+# that is still going.
+RETRY_DELAY="${SWEEP_RETRY_DELAY:-20}"
+RETRY_WITHIN="${SWEEP_RETRY_WITHIN:-30}"   # a failure this quick is a refusal, not a hang
+attempt=1
+answered=0
+while :; do
+  started="$(date +%s)"
+  if body="$(wget -q -O- -T "$TIMEOUT" --header="x-internal-key: ${INTERNAL_SERVICE_KEY}" \
+      --post-data='' "http://${host}/api/v1/${path}")"; then
+    answered=1
+    break
+  fi
+  [ "$attempt" -ge 4 ] && break
+  [ $(( $(date +%s) - started )) -ge "$RETRY_WITHIN" ] && break
+  echo "${now} RETRY ${path} — request to ${host} failed (attempt ${attempt} of 4)" >&2
+  attempt=$((attempt + 1))
+  sleep "$RETRY_DELAY"
+done
+
 # J7 — a 200 is not a verdict.
 #
 # Every check above this line is about the TRANSPORT. The body went straight to the
@@ -104,8 +136,7 @@ report_run() {
 # `ok` absent means the endpoint makes no claim, and the exit code stands exactly as
 # before. No jq in this image; the field is a flat boolean, so a fixed-string grep is the
 # whole parser.
-if body="$(wget -q -O- -T "$TIMEOUT" --header="x-internal-key: ${INTERNAL_SERVICE_KEY}" \
-    --post-data='' "http://${host}/api/v1/${path}")"; then
+if [ "$answered" -eq 1 ]; then
   [ -n "$body" ] && echo "$body"
   if echo "$body" | tr -d ' ' | grep -q '"ok":false'; then
     echo "${now} FAILED ${path} — answered 200 but reported a dead round: ${body}" >&2

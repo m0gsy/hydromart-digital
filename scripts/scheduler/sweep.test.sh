@@ -18,15 +18,24 @@ trap 'rm -rf "$TMP"' EXIT
 
 export SWEEP_STATE_DIR="$TMP/state"
 export SWEEP_ENV_FILE="$TMP/sweep.env"
+export SWEEP_RETRY_DELAY=0   # the retries are under test, not the waiting between them
 printf 'export INTERNAL_SERVICE_KEY=test-key\n' > "$SWEEP_ENV_FILE"
 
 # wget stub: exits 0 or 1 depending on $TMP/wget-exit, prints whatever $TMP/wget-body
-# holds (the sweep endpoint's response), and records that it was called.
+# holds (the sweep endpoint's response), and records that it was called. $TMP/wget-exits,
+# when present, is a queue of exit codes, one per call — a service that refuses while it
+# restarts and answers a few seconds later.
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/wget" <<'STUB'
 #!/bin/sh
 echo called >> "$TMP/wget-calls"
 cat "$TMP/wget-body" 2>/dev/null
+if [ -s "$TMP/wget-exits" ]; then
+  code="$(head -n 1 "$TMP/wget-exits")"
+  tail -n +2 "$TMP/wget-exits" > "$TMP/wget-exits.rest"
+  mv "$TMP/wget-exits.rest" "$TMP/wget-exits"
+  exit "$code"
+fi
 exit "$(cat "$TMP/wget-exit" 2>/dev/null || echo 0)"
 STUB
 chmod +x "$TMP/bin/wget"
@@ -54,6 +63,40 @@ run orders/reminders/reorder
   || ok "a failed sweep leaves the heartbeat alone"
 [ -f "$SWEEP_STATE_DIR/orders-reminders-reorder.failed" ] && ok "failure is recorded per job" \
   || bad "expected a per-job .failed marker"
+
+# --- restart window --------------------------------------------------------------
+#
+# A deploy recreates every service at once, and a tick that lands in those seconds is
+# refused. 2026-11-17: two of five deploys paged Discord "FAILED" while nothing was wrong.
+calls() { wc -l < "$TMP/wget-calls" | tr -d ' '; }
+
+rm -rf "$SWEEP_STATE_DIR"; mkdir -p "$SWEEP_STATE_DIR"; rm -f "$TMP/wget-calls"
+printf '1\n1\n0\n' > "$TMP/wget-exits"
+run campaigns/internal/process-sending crm:3012
+[ -f "$SWEEP_STATE_DIR/campaigns-internal-process-sending.ok" ] \
+  && ok "a service that answers on the third try is a working sweep" \
+  || bad "a refusal while the service restarts must be retried, not reported"
+[ -f "$SWEEP_STATE_DIR/campaigns-internal-process-sending.failed" ] \
+  && bad "a retried success must not be recorded as failed" || ok "and nothing is recorded as failed"
+[ "$(calls)" = 3 ] && ok "it stops asking at the first answer" \
+  || bad "expected 3 requests, got $(calls)"
+
+# A service that is really down still pages, after four refusals rather than one.
+rm -rf "$SWEEP_STATE_DIR"; mkdir -p "$SWEEP_STATE_DIR"; rm -f "$TMP/wget-calls" "$TMP/wget-exits"
+echo 1 > "$TMP/wget-exit"
+run scheduled-reports/internal/run-due admin:3017
+[ -f "$SWEEP_STATE_DIR/scheduled-reports-internal-run-due.failed" ] \
+  && ok "a service refusing for the whole minute is still a failure" \
+  || bad "four refusals must be recorded as failed"
+[ "$(calls)" = 4 ] && ok "and it was asked four times, no more" \
+  || bad "expected 4 requests, got $(calls)"
+
+# A slow failure is a hang, not a refusal: retrying it would hold the lock for four timeouts.
+rm -rf "$SWEEP_STATE_DIR"; mkdir -p "$SWEEP_STATE_DIR"; rm -f "$TMP/wget-calls"
+SWEEP_RETRY_WITHIN=0 sh scripts/scheduler/sweep.sh scheduled-reports/internal/run-due admin:3017 \
+  >/dev/null 2>&1
+[ "$(calls)" = 1 ] && ok "a failure slower than the retry window is not retried" \
+  || bad "a slow failure must not be retried, got $(calls) requests"
 
 # --- J7: a 200 that reports a dead round is not a success -------------------------
 #

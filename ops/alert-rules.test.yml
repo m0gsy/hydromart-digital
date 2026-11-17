@@ -340,6 +340,51 @@ tests:
         alertname: HighLatencyP95
         exp_alerts: []
 
+  # 2026-11-17: three face check-ins a minute at 1-2 s (they wait on NEO) beside twenty fast
+  # requests. Summed with them, that is p95 1.62 s and a page; the face route is not counted.
+  - interval: 1m
+    name: face check-ins wait on NEO and do not page
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/attendance/check-in", le="0.05"}'
+        values: '0+0x20'
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/attendance/check-in", le="1"}'
+        values: '0+0x20'
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/attendance/check-in", le="2"}'
+        values: '0+3x20'
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/attendance/check-in", le="+Inf"}'
+        values: '0+3x20'
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/leave/me", le="0.05"}'
+        values: '0+20x20'
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/leave/me", le="1"}'
+        values: '0+20x20'
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/leave/me", le="2"}'
+        values: '0+20x20'
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/leave/me", le="+Inf"}'
+        values: '0+20x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighLatencyP95
+        exp_alerts: []
+
+  # The other half: leaving the face routes out must not blind the rest of hr-service.
+  - interval: 1m
+    name: a slow hr route that is not a face route still pages
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/leave/me", le="1"}'
+        values: '0+0x20'
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/leave/me", le="2"}'
+        values: '0+20x20'
+      - series: 'http_request_duration_seconds_bucket{service="hr-service", route="/api/v1/leave/me", le="+Inf"}'
+        values: '0+20x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighLatencyP95
+        exp_alerts:
+          - exp_labels: { severity: warning, service: hr-service }
+            exp_annotations:
+              summary: 'hr-service p95 latency above 1.5s'
+              description: 'hr-service p95 request latency is 1.95s over 5m.'
+
   # --- ExporterDown -----------------------------------------------------------------------
   - interval: 1m
     name: an exporter goes blind and takes its alerts with it

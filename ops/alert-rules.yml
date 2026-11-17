@@ -47,10 +47,18 @@ groups:
       - alert: HighLatencyP95
         # p95 request latency per service. Histogram tops out at the 5s bucket, so
         # treat a firing p95 near 5s as "at least this slow".
+        #
+        # The face routes are left out. Each one waits on BiznetGio's NEO face API (a
+        # check-in is verify-face, plus the liveness call while NEO_FR_LIVENESS is shadow or
+        # enforce, then the frame upload), so 1-2 s is their normal, not a slow service. HR
+        # traffic is thin enough that a few check-ins in a quiet five minutes ARE the p95:
+        # 2026-11-17 16:46 WIB this paged for ten minutes while every other hr route answered
+        # in under 0.1 s. NEO failing outright still pages — its 15 s timeout is a 503, and
+        # HighErrorRate counts those on every route.
         expr: |
           histogram_quantile(
             0.95,
-            sum by (service, le) (rate(http_request_duration_seconds_bucket[5m]))
+            sum by (service, le) (rate(http_request_duration_seconds_bucket{route!~"/api/v1/attendance/check-in|/api/v1/attendance/check-out|/api/v1/attendance/me/face(/enroll)?|/api/v1/employees/:id/face(/enroll)?"}[5m]))
           ) > 1.5
         for: 10m
         labels: { severity: warning }
