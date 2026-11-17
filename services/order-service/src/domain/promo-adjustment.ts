@@ -113,6 +113,8 @@ export type AppliedPromoEffect = 'PRICE' | 'FREE' | 'ORDER' | 'SHIPPING' | 'GIFT
 
 /** One promo that changed this basket, as the cashier's screen lists it. */
 export interface AppliedPromoSummary {
+  /** The rule, so the till can tick it on the list of promos running now. */
+  ruleId: string;
   name: string;
   effect: AppliedPromoEffect;
   /** Rupiah the promo took off (a free item is valued at what it would have cost). */
@@ -157,6 +159,6 @@ export function summarizeAppliedPromos(input: {
 
   return [...byRule.entries()]
     .filter(([id]) => input.ruleNames[id] !== undefined)
-    .map(([id, v]) => ({ name: input.ruleNames[id], effect: v.effect, amountIdr: money(v.amount) }))
+    .map(([id, v]) => ({ ruleId: id, name: input.ruleNames[id], effect: v.effect, amountIdr: money(v.amount) }))
     .sort((a, b) => b.amountIdr - a.amountIdr);
 }

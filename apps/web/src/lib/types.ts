@@ -3449,6 +3449,8 @@ export interface CounterShiftSummary {
 }
 
 export interface AppliedPromo {
+  /** The rule behind it, so the till ticks it on the strip. Absent from an older server. */
+  ruleId?: string;
   name: string;
   /** PRICE is already out of the subtotal; ORDER is inside discountIdr; SHIPPING inside the ongkir. */
   effect: 'PRICE' | 'FREE' | 'ORDER' | 'SHIPPING' | 'GIFT';

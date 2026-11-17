@@ -163,7 +163,10 @@ async function sellOne() {
   await userEvent.click(screen.getAllByRole('button', { name: /Increase quantity/i })[0]!);
   await waitFor(() => expect(screen.getByLabelText(/uang tunai diterima/i)).toBeTruthy());
   await userEvent.type(screen.getByLabelText(/uang tunai diterima/i), '20000');
-  await userEvent.click(screen.getByRole('button', { name: /simpan & cetak struk/i }));
+  const pay = screen.getByRole('button', { name: /simpan & cetak struk/i }) as HTMLButtonElement;
+  // The basket is priced once it has been still for a moment (PR-C); Bayar waits for it.
+  await waitFor(() => expect(pay.disabled).toBe(false));
+  await userEvent.click(pay);
 }
 
 describe('K3.2 · an unrecorded payment stays on the counter screen until it is settled', () => {

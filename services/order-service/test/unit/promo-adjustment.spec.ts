@@ -207,7 +207,7 @@ describe('summarizeAppliedPromos', () => {
       appliedLines: [line({ appliedRuleIds: ['r1'], unitPriceAfter: 6000 })],
       ruleNames: { r1: 'Jumat Berkah' },
     });
-    expect(out).toEqual([{ name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }]);
+    expect(out).toEqual([{ ruleId: 'r1', name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }]);
   });
 
   it('values free units at their post-discount price, the way apply() records them', () => {
@@ -216,7 +216,7 @@ describe('summarizeAppliedPromos', () => {
       appliedLines: [line({ appliedRuleIds: ['b1'], freeQty: 3, unitPriceAfter: 8000 })],
       ruleNames: { b1: 'Beli 1 Gratis 1' },
     });
-    expect(out).toEqual([{ name: 'Beli 1 Gratis 1', effect: 'FREE', amountIdr: 24000 }]);
+    expect(out).toEqual([{ ruleId: 'b1', name: 'Beli 1 Gratis 1', effect: 'FREE', amountIdr: 24000 }]);
   });
 
   it('keeps a price rule and a free-unit rule on the same line apart', () => {
@@ -226,8 +226,8 @@ describe('summarizeAppliedPromos', () => {
       ruleNames: { p1: 'Harga Khusus', b1: 'Beli 3 Gratis 1' },
     });
     expect(out).toEqual([
-      { name: 'Harga Khusus', effect: 'PRICE', amountIdr: 6000 },
-      { name: 'Beli 3 Gratis 1', effect: 'FREE', amountIdr: 6000 },
+      { ruleId: 'p1', name: 'Harga Khusus', effect: 'PRICE', amountIdr: 6000 },
+      { ruleId: 'b1', name: 'Beli 3 Gratis 1', effect: 'FREE', amountIdr: 6000 },
     ]);
   });
 
@@ -242,8 +242,8 @@ describe('summarizeAppliedPromos', () => {
       ruleNames: { r1: 'A', r2: 'B' },
     });
     expect(out).toEqual([
-      { name: 'A', effect: 'PRICE', amountIdr: 3000 },
-      { name: 'B', effect: 'PRICE', amountIdr: 500 },
+      { ruleId: 'r1', name: 'A', effect: 'PRICE', amountIdr: 3000 },
+      { ruleId: 'r2', name: 'B', effect: 'PRICE', amountIdr: 500 },
     ]);
   });
 
@@ -256,9 +256,9 @@ describe('summarizeAppliedPromos', () => {
       ruleNames: { o1: 'Belanja Hemat', s1: 'Ongkir Murah', g1: 'Bonus Tutup' },
     });
     expect(out).toEqual([
-      { name: 'Belanja Hemat', effect: 'ORDER', amountIdr: 5000 },
-      { name: 'Bonus Tutup', effect: 'GIFT', amountIdr: 3000 },
-      { name: 'Ongkir Murah', effect: 'SHIPPING', amountIdr: 1500 },
+      { ruleId: 'o1', name: 'Belanja Hemat', effect: 'ORDER', amountIdr: 5000 },
+      { ruleId: 'g1', name: 'Bonus Tutup', effect: 'GIFT', amountIdr: 3000 },
+      { ruleId: 's1', name: 'Ongkir Murah', effect: 'SHIPPING', amountIdr: 1500 },
     ]);
   });
 

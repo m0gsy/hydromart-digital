@@ -48,6 +48,7 @@ import { receiptToText, whatsappUrl } from '@/lib/receipt-text';
 import { openExternal } from '@/lib/platform';
 import { canRecordWalkInSale } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useDebounce } from '@/lib/use-debounce';
 import type {
   CounterCustomerLookup,
   CounterQuote,
@@ -345,10 +346,14 @@ function WalkIn({ depotId }: { depotId: string }) {
   // (design 16b). Without them the till quoted the list price for a 20-galon sale the order
   // then stored at the bulk price — the cashier collected Rp60.000 too much.
   const askQty = products.map((p) => qty[p.id] ?? 0);
+  // PR-C: five taps on "+" were ten requests (prices and quote, each per tap) on a screen
+  // with a 429 cascade in its history. Both now wait until the basket has been still for
+  // 300 ms; Bayar treats the wait as "not priced yet" (see `quoteFresh`).
+  const settledQty = useDebounce(askQty.join(','), 300);
   const resolved = useAsync<ResolvedPrice[]>(
     () =>
       ids.length ? api.get(endpoints.inventory.prices(depotId, ids, askQty)) : Promise.resolve([]),
-    [depotId, ids.join(','), askQty.join(',')],
+    [depotId, ids.join(','), settledQty],
   );
 
   // Prices shown here are the same ones checkout would charge: depot override + active rule.
@@ -441,6 +446,10 @@ function WalkIn({ depotId }: { depotId: string }) {
   // The phone is required by the sale DTO too, so an address without one is not sendable.
   const deliveryReady = deliveryAddress !== null && deliveryAddress.phone.length > 0;
 
+  // The basket and the voucher as typed, and the same once they have been still for a moment.
+  // A typed voucher was a quote per keystroke too.
+  const quoteKey = `${basketKey}#${voucher.trim()}`;
+  const settledQuoteKey = useDebounce(quoteKey, 300);
   const quote = useAsync<CounterQuote | null>(
     () =>
       lines.length === 0
@@ -460,9 +469,8 @@ function WalkIn({ depotId }: { depotId: string }) {
           ),
     [
       depotId,
-      lines.map((l) => `${l.product.id}:${l.quantity}`).join(','),
+      settledQuoteKey,
       buyerId,
-      voucher.trim(),
       // Re-quote when delivery is switched on or off, and when the address first becomes
       // complete — the fee is per galon, so it moves with the basket as well.
       deliveryReady,
@@ -494,7 +502,8 @@ function WalkIn({ depotId }: { depotId: string }) {
    * and the shortfall only surfaced when the payment was confirmed. The number may still be
    * shown (no flicker), but it may only be charged once it belongs to this basket.
    */
-  const quoteFresh = !quote.loading && !quote.error;
+  // ...and a basket still settling is not priced yet: the answer on screen is the last one.
+  const quoteFresh = !quote.loading && !quote.error && settledQuoteKey === quoteKey;
   // What the empties box means for the report: a swap of all, some, or none. Informational —
   // the sale is the same either way; only how it is counted differs.
   const emptiesNum = Number(emptiesReturned);
@@ -515,6 +524,10 @@ function WalkIn({ depotId }: { depotId: string }) {
   const payDisabled =
     busy || lines.length === 0 || shiftOpen !== true || total === null || !quoteFresh;
   const appliedPromos = quote.data?.appliedPromos ?? [];
+  // Ticked on the strip only for THIS basket: a stale quote would tick a promo it lost.
+  const appliedRuleIds = new Set(
+    quoteFresh ? appliedPromos.flatMap((p) => (p.ruleId ? [p.ruleId] : [])) : [],
+  );
   // What leaves the counter at no charge. Only from a quote for THIS basket: a stale answer
   // would tell the cashier to hand over a bonus the current basket does not earn.
   const freeItems = quoteFresh ? (quote.data?.freeItems ?? []) : [];
@@ -1093,7 +1106,15 @@ function WalkIn({ depotId }: { depotId: string }) {
 
       <div className="space-y-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,400px)] lg:items-start lg:gap-6 lg:space-y-0">
         <div className="space-y-5">
-          <CounterPromoStrip rules={livePromos.data ?? []} productName={productNameById} />
+          <CounterPromoStrip
+            rules={livePromos.data ?? []}
+            productName={productNameById}
+            appliedIds={appliedRuleIds}
+            basket={{
+              qtyOf: (id) => qty[id] ?? 0,
+              subtotal: quoteFresh ? (quote.data?.subtotalIdr ?? null) : null,
+            }}
+          />
           <CounterHeldBaskets
             held={held}
             canResume={lines.length === 0}
@@ -1579,6 +1600,13 @@ function WalkIn({ depotId }: { depotId: string }) {
               <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
                 {quote.error}
               </p>
+            )}
+            {/* A refused voucher took Bayar with it: no total, no sale, buyer waiting. The way out
+            is the sale without it, one tap away rather than a field to clear by hand. */}
+            {quote.error && lines.length > 0 && voucher.trim() && (
+              <Button type="button" variant="ghost" onClick={() => setVoucher('')}>
+                {t('opsFix.walkIn.sellWithoutVoucher')}
+              </Button>
             )}
             {/* Unread resolved prices silently fall back to the catalog base price, so the
             depot's own override and any active rule vanish from the counter total. Not a
