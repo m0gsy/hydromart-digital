@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import { useT } from '@/lib/locale-context';
 
-import { Button, LinkButton } from '@/components/ui';
+import { HomeLinkButton } from '@/components/home-link';
+import { Button } from '@/components/ui';
 
 // App Router error boundary: catches render-time throws in any route segment so an
 // unexpected error shows a recover-able screen instead of a blank white page.
@@ -40,9 +41,7 @@ export default function Error({
       )}
       <div className="flex gap-3">
         <Button onClick={reset}>{t('hrFix.errorPage.retry')}</Button>
-        <LinkButton href="/products" variant="secondary">
-          Ke katalog
-        </LinkButton>
+        <HomeLinkButton variant="secondary" />
       </div>
     </main>
   );

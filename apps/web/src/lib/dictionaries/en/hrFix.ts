@@ -1924,6 +1924,7 @@ export const hrFix = {
     body2: 'The page you are looking for does not exist, or has moved.',
     title: 'Page not found',
     toCatalog: 'Go to the catalogue',
+    toConsole: 'Back to the console',
   },
   referral: {
     yourCode: 'Your referral code',
@@ -2024,7 +2025,7 @@ export const hrFix = {
     title: 'Import depot prices',
   },
   errorPage: {
-    body2: 'Something unexpected went wrong. Try again, or go back to the catalogue.',
+    body2: 'Something unexpected went wrong. Try again, or go back to the home screen.',
     title: 'Something went wrong',
     retry: 'Try again',
   },
