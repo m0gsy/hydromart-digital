@@ -162,7 +162,9 @@ describe('promo-rule editor copy exists in both languages and both consoles', ()
   ].map((k) => `fields.${k}`);
   const ERROR_KEYS = ['needName', 'needPercent', 'needOrderDiscount', 'needGift', 'giftSameProduct'];
 
-  for (const ns of ['hq', 'dashboard']) {
+  // One console for both pages since the promo-rule unification: `dashboard.promoRules` was an
+  // identical copy of these strings and is gone.
+  for (const ns of ['hq']) {
     for (const [locale, dict] of Object.entries({ id, en })) {
       it(`${locale}: ${ns}.promoRules has every key`, () => {
         for (const key of [...FIELD_KEYS, ...ERROR_KEYS]) {

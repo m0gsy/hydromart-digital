@@ -81,10 +81,11 @@ describe('dashboard/vouchers for a depot-scoped manager', () => {
       voucher({ id: 'own', code: 'DEPOTKU', depotId: 'd-1' }),
     ]);
     await screen.findByText('NASIONAL');
-    expect(screen.getByText(/Semua depot/)).toBeTruthy();
-    expect(screen.getByText(/Berlaku di Depot Satu/)).toBeTruthy();
+    // Each row says where it is valid (the shared summary's badge).
+    expect(screen.getByText(idDict.hq.vouchers.list.allDepots)).toBeTruthy();
+    expect(screen.getByText('Depot Satu')).toBeTruthy();
     // Exactly one row is the manager's to edit.
-    expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: idDict.hq.vouchers.list.edit })).toHaveLength(1);
   });
 
   it('creates the voucher for the depot being worked in, valid to the end of the last WIB day', async () => {

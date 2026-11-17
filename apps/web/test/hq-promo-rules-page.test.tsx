@@ -132,12 +132,14 @@ describe('hq/promo-rules list', () => {
     renderPage();
     expect(await screen.findByText('Diskon Senin')).toBeTruthy();
     expect(screen.getByText('Gratis ongkir')).toBeTruthy();
-    expect(screen.getByText('SPECIAL_PRICE')).toBeTruthy();
-    expect(screen.getByText('SHIPPING_DISCOUNT')).toBeTruthy();
+    // The kind by its name, not the enum; where and on what by name, the id only when unknown.
+    // The filter bar offers the same names as <option>s; the badge is the one that is not.
+    expect(screen.getAllByText(T.fields.kindSpecialPrice).some((el) => el.tagName !== 'OPTION')).toBe(true);
+    expect(screen.getAllByText(T.fields.kindShipping).some((el) => el.tagName !== 'OPTION')).toBe(true);
     expect(screen.getByText(T.active)).toBeTruthy();
     expect(screen.getByText(T.inactive)).toBeTruthy();
     expect(screen.getByText('depot-b · prod-1')).toBeTruthy();
-    expect(screen.getByText('— · —')).toBeTruthy();
+    expect(screen.getByText(`${T.fields.anyDepot} · ${T.fields.anyProduct}`)).toBeTruthy();
     expect(get).toHaveBeenCalledWith(endpoints.promoRules.manage, true);
   });
 

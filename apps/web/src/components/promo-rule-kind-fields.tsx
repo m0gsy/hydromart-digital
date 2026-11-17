@@ -9,11 +9,10 @@ import type { RuleForm } from '@/lib/promo-rule-form';
 import type { PromoRuleKind } from '@/lib/types';
 
 /*
- * The kind-specific half of the promo-rule editor, shared by the HQ and depot-console pages.
- * `ns` is the dictionary namespace the page's own copy lives under ('hq' | 'dashboard'); the
- * keys are the same in both.
+ * The kind-specific half of the promo-rule editor (components/promo-rules-admin.tsx). Its copy
+ * lives under `hq.promoRules` — the depot console's identical `dashboard.promoRules` copy went
+ * when the two pages became one component.
  */
-type Ns = 'hq' | 'dashboard';
 type SetForm = Dispatch<SetStateAction<RuleForm>>;
 
 const SELECT_CLASS = 'w-full rounded-lg border border-app bg-surface px-3 py-2.5 text-sm';
@@ -27,7 +26,7 @@ export const PROMO_KINDS: PromoRuleKind[] = [
   'SHIPPING_DISCOUNT',
 ];
 
-/** The dictionary key (under `<ns>.promoRules.fields`) of a kind's display name. */
+/** The dictionary key (under `hq.promoRules.fields`) of a kind's display name. */
 export const KIND_KEY: Record<PromoRuleKind, string> = {
   SPECIAL_PRICE: 'kindSpecialPrice',
   PERCENTAGE_OFF: 'kindPercentOff',
@@ -37,10 +36,10 @@ export const KIND_KEY: Record<PromoRuleKind, string> = {
   SHIPPING_DISCOUNT: 'kindShipping',
 };
 
-export function PromoKindSelect({ ns, form, setForm }: { ns: Ns; form: RuleForm; setForm: SetForm }) {
+export function PromoKindSelect({ form, setForm }: { form: RuleForm; setForm: SetForm }) {
   const { t } = useT();
   return (
-    <Field label={t(`${ns}.promoRules.fields.kind`)}>
+    <Field label={t(`hq.promoRules.fields.kind`)}>
       <select
         className={SELECT_CLASS}
         value={form.kind}
@@ -48,7 +47,7 @@ export function PromoKindSelect({ ns, form, setForm }: { ns: Ns; form: RuleForm;
       >
         {PROMO_KINDS.map((kind) => (
           <option key={kind} value={kind}>
-            {t(`${ns}.promoRules.fields.${KIND_KEY[kind]}`)}
+            {t(`hq.promoRules.fields.${KIND_KEY[kind]}`)}
           </option>
         ))}
       </select>
@@ -56,9 +55,9 @@ export function PromoKindSelect({ ns, form, setForm }: { ns: Ns; form: RuleForm;
   );
 }
 
-export function PromoKindFields({ ns, form, setForm }: { ns: Ns; form: RuleForm; setForm: SetForm }) {
+export function PromoKindFields({ form, setForm }: { form: RuleForm; setForm: SetForm }) {
   const { t } = useT();
-  const label = (key: string) => t(`${ns}.promoRules.fields.${key}`);
+  const label = (key: string) => t(`hq.promoRules.fields.${key}`);
   const set = (k: keyof RuleForm) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
   const number = (k: keyof RuleForm, key: string, hint?: string) => (
@@ -119,17 +118,17 @@ export function PromoKindFields({ ns, form, setForm }: { ns: Ns; form: RuleForm;
   }
 }
 
-export function PromoFirstOrderField({ ns, form, setForm }: { ns: Ns; form: RuleForm; setForm: SetForm }) {
+export function PromoFirstOrderField({ form, setForm }: { form: RuleForm; setForm: SetForm }) {
   const { t } = useT();
   return (
-    <Field label={t(`${ns}.promoRules.fields.firstOrderOnly`)} hint={t(`${ns}.promoRules.fields.firstOrderOnlyHint`)}>
+    <Field label={t(`hq.promoRules.fields.firstOrderOnly`)} hint={t(`hq.promoRules.fields.firstOrderOnlyHint`)}>
       <label className="flex items-center gap-2 py-2 text-sm">
         <input
           type="checkbox"
           checked={form.firstOrderOnly}
           onChange={(e) => setForm((f) => ({ ...f, firstOrderOnly: e.target.checked }))}
         />
-        {t(`${ns}.promoRules.fields.firstOrderOnly`)}
+        {t(`hq.promoRules.fields.firstOrderOnly`)}
       </label>
     </Field>
   );
