@@ -72,6 +72,8 @@ export interface CreateVoucherData {
 
 /** Partial patch for an existing voucher; omitted keys are left unchanged. */
 export interface UpdateVoucherData {
+  /** Moving a voucher between depots, or to the whole network (null). */
+  depotId?: string | null;
   description?: string | null;
   discountType?: DiscountType;
   value?: number;

@@ -12,7 +12,9 @@ import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, 
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
-import { canManageVouchers, canViewVouchers } from '@/lib/roles';
+import { useDepot } from '@/lib/depot-context';
+import { canManageVouchers, canViewVouchers, canWriteVoucher, voucherNeedsDepot } from '@/lib/roles';
+import { dayEndWib, dayStartWib, todayWib } from '@/lib/wib';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, DiscountType, Page, Voucher, VoucherPayload } from '@/lib/types';
 
@@ -53,7 +55,9 @@ const EMPTY: VoucherForm = {
 };
 
 function formFrom(v: Voucher): VoucherForm {
-  const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
+  // The WIB day of the stored instant. `slice(0, 10)` read head office's 00:00 WIB start as
+  // the day before, and saving the form moved it back a day every time.
+  const day = (iso: string | null) => (iso ? todayWib(new Date(iso)) : '');
   const num = (n: number | null) => (n == null ? '' : String(n));
   return {
     code: v.code,
@@ -74,9 +78,8 @@ function formFrom(v: Voucher): VoucherForm {
 
 // `mode: create` omits `active` (CreateVoucherDto rejects it) and includes `code`;
 // `mode: edit` sends `active` and drops `code` (the backend never patches a code).
-function toPayload(f: VoucherForm, mode: 'create' | 'edit'): VoucherPayload {
+function toPayload(f: VoucherForm, mode: 'create' | 'edit', depotId: string | null = null): VoucherPayload {
   const int = (s: string) => (s.trim() === '' ? undefined : Number(s));
-  const dateOrNull = (s: string) => (s ? new Date(s).toISOString() : null);
   const payload: VoucherPayload = {
     description: f.description.trim() ? f.description.trim() : null,
     discountType: f.discountType,
@@ -84,15 +87,19 @@ function toPayload(f: VoucherForm, mode: 'create' | 'edit'): VoucherPayload {
     value: f.discountType === 'FREE_SHIPPING' ? 0 : Number(f.value),
     minSpend: int(f.minSpend) ?? 0,
     maxDiscount: f.discountType === 'PERCENTAGE' ? int(f.maxDiscount) ?? null : null,
-    validFrom: dateOrNull(f.validFrom),
-    validUntil: dateOrNull(f.validUntil),
+    // Whole WIB days, like the head-office form: "until the 30th" ended at 07:00 on the 30th.
+    validFrom: f.validFrom ? dayStartWib(f.validFrom) : null,
+    validUntil: f.validUntil ? dayEndWib(f.validUntil) : null,
     usageLimit: int(f.usageLimit) ?? null,
     perCustomerLimit: int(f.perCustomerLimit) ?? 1,
     // A free-shipping voucher has no goods to scope; the server refuses one that does.
     productId: f.discountType === 'FREE_SHIPPING' ? null : f.productId || null,
     categoryId: f.discountType === 'FREE_SHIPPING' ? null : f.categoryId || null,
   };
-  if (mode === 'create') payload.code = f.code.trim().toUpperCase();
+  if (mode === 'create') {
+    payload.code = f.code.trim().toUpperCase();
+    payload.depotId = depotId;
+  }
   else payload.active = f.active;
   return payload;
 }
@@ -119,6 +126,12 @@ function VoucherEditor({
   onCancel: () => void;
 }) {
   const { t } = useT();
+  const { customer } = useAuth();
+  const { scopedId, depots } = useDepot();
+  // A depot-scoped author's new code belongs to the depot they are working in; head office's
+  // are network codes, as they always were.
+  const ownDepot = voucherNeedsDepot(customer?.role) ? scopedId : null;
+  const ownDepotName = depots.find((d) => d.id === ownDepot)?.name ?? null;
   const [form, setForm] = useState<VoucherForm>(voucher ? formFrom(voucher) : EMPTY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,7 +164,11 @@ function VoucherEditor({
           true,
         );
       } else {
-        await api.post(endpoints.vouchers.create, toPayload(form, 'create'), true);
+        if (voucherNeedsDepot(customer?.role) && !ownDepot) {
+          setError(t('hrFix.vouchers.needDepot'));
+          return;
+        }
+        await api.post(endpoints.vouchers.create, toPayload(form, 'create', ownDepot), true);
       }
       onDone();
     } catch (err) {
@@ -164,6 +181,10 @@ function VoucherEditor({
   return (
     <Card className="flex flex-col gap-4 p-5">
       <h2 className="text-lg font-bold">{voucher ? `Edit ${voucher.code}` : 'Voucher baru'}</h2>
+      {/* Said before it is saved: a manager's code is spendable at this depot, not the network. */}
+      {!voucher && ownDepotName && (
+        <p className="text-sm text-muted">{t('hrFix.vouchers.scopeDepot', { name: ownDepotName })}</p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         {!voucher && (
           <Field label={t('hrFix.vouchers.code')} hint={t('hrFix.vouchers.codeHint')}>
@@ -364,6 +385,8 @@ function VouchersAdmin() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const canWrite = canManageVouchers(customer?.role);
+  const { depots } = useDepot();
+  const depotName = (id: string) => depots.find((d) => d.id === id)?.name ?? t('hrFix.vouchers.otherDepot');
   const [editing, setEditing] = useState<Voucher | null | undefined>(undefined); // undefined closed, null new
   const [granting, setGranting] = useState<Voucher | null>(null);
   // The denied screen below used to render AFTER this request had already gone out, so a role
@@ -452,9 +475,13 @@ function VouchersAdmin() {
                     {v.usedCount}
                     {v.usageLimit != null ? `/${v.usageLimit}` : ''} terpakai
                     {(v.productId || v.categoryId) && ` · ${t('hq.forms.voucher.scopedBadge')}`}
+                    {' · '}
+                    {v.depotId
+                      ? t('hrFix.vouchers.scopeDepot', { name: depotName(v.depotId) })
+                      : t('hrFix.vouchers.scopeAll')}
                   </span>
                 </div>
-                {canWrite && (
+                {canWriteVoucher(customer?.role, v) && (
                   <>
                     <Button variant="ghost" onClick={() => setGranting(granting?.id === v.id ? null : v)}>
                       Beri

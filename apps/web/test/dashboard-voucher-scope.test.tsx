@@ -10,6 +10,10 @@ vi.mock('@/lib/api', () => ({
   ApiError: class ApiError extends Error {},
 }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+// The page names where each voucher is valid; in the app the /dashboard layout provides this.
+vi.mock('@/lib/depot-context', () => ({
+  useDepot: () => ({ scopedId: 'd-1', depots: [{ id: 'd-1', name: 'Depot Satu' }], ready: true }),
+}));
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

@@ -28,6 +28,7 @@ describe('VoucherController', () => {
     deactivate: jest.fn().mockResolvedValue({ id: 'v1', active: false }),
     getByCode: jest.fn().mockResolvedValue({ id: 'v1', code: 'HEMAT' }),
     previewByCode: jest.fn().mockResolvedValue({ code: 'HEMAT' }),
+    getById: jest.fn().mockResolvedValue({ id: 'v1', depotId: null }),
   };
   const controller = new VoucherController(vouchers as unknown as VoucherService);
 
@@ -335,6 +336,7 @@ describe('VoucherController', () => {
       perCustomerLimit: 3,
       budgetCap: 1000000,
       active: true,
+      depotId: null,
     });
   });
 
@@ -358,6 +360,7 @@ describe('VoucherController', () => {
       perCustomerLimit: 1,
       budgetCap: null,
       active: false,
+      depotId: null,
     });
   });
 
@@ -458,5 +461,68 @@ describe('Voucher DTO @Type coercion', () => {
     const browse = plainToInstance(BrowseQueryDto, { page: '2', limit: '10' });
     expect(browse.page).toBe(2);
     expect(browse.limit).toBe(10);
+  });
+
+  /*
+   * 2026-11-17 owner decision. The write routes checked `voucherWrite` and nothing else: a
+   * MANAGER's code was spendable across the network, and the same manager could edit,
+   * deactivate or hand out head office's campaign codes. A scoped author now writes for the
+   * depots in their scope only; head office keeps the network.
+   */
+  describe('a depot-scoped author writes vouchers for their own depots only', () => {
+    const vouchers = {
+      create: jest.fn().mockResolvedValue({ id: 'v1' }),
+      update: jest.fn().mockResolvedValue({ id: 'v1' }),
+      deactivate: jest.fn().mockResolvedValue({ id: 'v1' }),
+      grant: jest.fn().mockResolvedValue({ voucher: { id: 'v1' }, granted: true }),
+      getById: jest.fn(),
+    };
+    const controller = new VoucherController(vouchers as unknown as VoucherService);
+    afterEach(() => jest.clearAllMocks());
+    const manager = {
+      sub: 'mgr-1',
+      role: 'MANAGER',
+      depotId: 'd-1',
+      depotIds: ['d-1', 'd-2'],
+    } as unknown as AuthenticatedUser;
+    const marketing = { sub: 'mkt-1', role: 'MARKETING' } as unknown as AuthenticatedUser;
+    const dto = (o: Record<string, unknown> = {}) =>
+      ({ code: 'DEPOT10', discountType: 'PERCENTAGE', value: 10, ...o }) as unknown as CreateVoucherDto;
+
+    it('refuses a network voucher from a manager, and takes one for a depot in scope', async () => {
+      expect(() => controller.create(dto(), manager)).toThrow(/hanya boleh mengakses depot/);
+      expect(() => controller.create(dto({ depotId: 'd-9' }), manager)).toThrow();
+      await controller.create(dto({ depotId: 'd-2' }), manager);
+      expect(vouchers.create).toHaveBeenCalledWith(expect.objectContaining({ depotId: 'd-2' }));
+    });
+
+    it('still lets head office create a network voucher', async () => {
+      await controller.create(dto(), marketing);
+      expect(vouchers.create).toHaveBeenCalledWith(expect.objectContaining({ depotId: null }));
+    });
+
+    it("keeps a manager's hands off a network voucher: no edit, no deactivate, no grant", async () => {
+      vouchers.getById.mockResolvedValue({ id: 'v1', depotId: null });
+      await expect(controller.update('v1', {} as UpdateVoucherDto, manager)).rejects.toThrow();
+      await expect(controller.deactivate('v1', manager)).rejects.toThrow();
+      await expect(
+        controller.grant('v1', { customerId: 'c1' } as GrantVoucherDto, manager),
+      ).rejects.toThrow();
+      expect(vouchers.update).not.toHaveBeenCalled();
+      expect(vouchers.deactivate).not.toHaveBeenCalled();
+      expect(vouchers.grant).not.toHaveBeenCalled();
+    });
+
+    it('lets a manager run a voucher of their own depot, but not move it to the network', async () => {
+      vouchers.getById.mockResolvedValue({ id: 'v1', depotId: 'd-1' });
+      await controller.deactivate('v1', manager);
+      await controller.grant('v1', { customerId: 'c1' } as GrantVoucherDto, manager);
+      await controller.update('v1', { value: 15 } as unknown as UpdateVoucherDto, manager);
+      expect(vouchers.deactivate).toHaveBeenCalledWith('v1');
+      expect(vouchers.grant).toHaveBeenCalledWith('v1', 'c1');
+      await expect(
+        controller.update('v1', { depotId: null } as unknown as UpdateVoucherDto, manager),
+      ).rejects.toThrow();
+    });
   });
 });

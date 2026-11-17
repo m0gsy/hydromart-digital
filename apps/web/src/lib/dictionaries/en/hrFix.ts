@@ -872,6 +872,10 @@ export const hrFix = {
     updateFailed: 'Could not update the order.',
   },
   vouchers: {
+    scopeAll: 'All depots',
+    scopeDepot: 'Valid at {name}',
+    otherDepot: 'another depot',
+    needDepot: 'Pick a depot first: your vouchers are valid only at the depots you run.',
     giveTitle: 'Give {code} to a customer',
     cancel3: 'Cancel',
     activeVouchers: 'Active vouchers',

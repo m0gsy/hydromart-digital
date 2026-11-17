@@ -146,8 +146,13 @@ export const CAPABILITIES = {
   // and the server refused it — the tab was a door to a denial screen. Reading which
   // promotions are live is what an operator at the counter needs; authoring stays with
   // marketing and the depot manager.
-  promotionRead: ['KEPALA_DEPOT', 'MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
-  promotionWrite: ['MARKETING', 'MANAGER', 'SUPER_ADMIN'],
+  //
+  // 2026-11-17 owner decision: the homepage banners are NETWORK content — every customer of
+  // every depot sees them — so they are written by head-office marketing only. The depot
+  // console no longer carries them at all (operator Promo tab and rail link removed with it),
+  // which is why KEPALA_DEPOT and MANAGER left READ as well as WRITE.
+  promotionRead: ['MARKETING', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  promotionWrite: ['MARKETING', 'SUPER_ADMIN'],
   // promo-service — voucher admin.
   voucherRead: ['MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   voucherWrite: ['MARKETING', 'MANAGER', 'SUPER_ADMIN'],

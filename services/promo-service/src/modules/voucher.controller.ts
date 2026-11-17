@@ -226,8 +226,20 @@ export class VoucherController {
   @Can('voucherWrite')
   @Post()
   @ApiOperation({ summary: 'Create a voucher (admin)' })
-  create(@Body() dto: CreateVoucherDto): Promise<VoucherRecord> {
+  create(
+    @Body() dto: CreateVoucherDto,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<VoucherRecord> {
+    /*
+     * 2026-11-17 owner decision: a depot-scoped author (MANAGER) writes vouchers for the
+     * depots in their scope only. The write routes checked `voucherWrite` and nothing else,
+     * so a manager's code was spendable across the whole network, and the same manager could
+     * edit, deactivate or hand out head office's campaign codes. `assertDepotAccess` refuses
+     * a scoped caller a null (network) depot, exactly as the promo-rule routes already do.
+     */
+    assertDepotAccess(user, dto.depotId ?? null);
     return this.vouchers.create({
+      depotId: dto.depotId ?? null,
       code: dto.code,
       description: dto.description ?? null,
       discountType: dto.discountType,
@@ -263,10 +275,12 @@ export class VoucherController {
   @Can('voucherWrite')
   @Post(':id/grant')
   @ApiOperation({ summary: "Grant a voucher to a customer's wallet (admin, spec 5h)" })
-  grant(
+  async grant(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: GrantVoucherDto,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<{ voucher: VoucherRecord; granted: boolean }> {
+    assertDepotAccess(user, (await this.vouchers.getById(id)).depotId);
     return this.vouchers.grant(id, dto.customerId);
   }
 
@@ -275,11 +289,17 @@ export class VoucherController {
   @Can('voucherWrite')
   @Patch(':id')
   @ApiOperation({ summary: 'Update a voucher (admin)' })
-  update(
+  async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateVoucherDto,
+    @CurrentUser() user?: AuthenticatedUser,
   ): Promise<VoucherRecord> {
+    // The voucher as it is, and where it would move to: a scoped author may do neither for a
+    // depot outside their reach, nor turn their own code into a network one.
+    assertDepotAccess(user, (await this.vouchers.getById(id)).depotId);
+    if (dto.depotId !== undefined) assertDepotAccess(user, dto.depotId ?? null);
     const patch: UpdateVoucherData = {
+      depotId: dto.depotId,
       description: dto.description,
       discountType: dto.discountType,
       value: dto.value,
@@ -305,7 +325,11 @@ export class VoucherController {
   @Can('voucherWrite')
   @Delete(':id')
   @ApiOperation({ summary: 'Deactivate a voucher (admin)' })
-  deactivate(@Param('id', ParseUUIDPipe) id: string): Promise<VoucherRecord> {
+  async deactivate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<VoucherRecord> {
+    assertDepotAccess(user, (await this.vouchers.getById(id)).depotId);
     return this.vouchers.deactivate(id);
   }
 

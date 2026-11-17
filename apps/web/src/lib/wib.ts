@@ -135,3 +135,17 @@ export function dayStartWib(date: string): string {
   const asIfUtc = Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
   return new Date(asIfUtc - wibOffsetMs(new Date(asIfUtc))).toISOString();
 }
+
+/**
+ * The last instant of a business day: `YYYY-MM-DD` -> 23:59:59.999 in the business zone.
+ *
+ * The other half of `dayStartWib`, for a window's LAST day. Three forms built it from
+ * `new Date('YYYY-MM-DD').toISOString()`, which is 07:00 WIB: a voucher or banner "until the
+ * 30th" stopped working at seven in the morning of the 30th.
+ */
+export function dayEndWib(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  // tz-ok: adds one calendar day to a plain YYYY-MM-DD; it is a date, not an instant
+  const next = new Date(Date.UTC(y!, m! - 1, d! + 1)).toISOString().slice(0, 10);
+  return new Date(new Date(dayStartWib(next)).getTime() - 1).toISOString();
+}
