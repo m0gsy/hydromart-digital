@@ -37,7 +37,8 @@ import { id as idDict } from '@/lib/dictionaries/id';
 import type { PromoRule } from '@/lib/types';
 import DashboardPromoRulesPage from '@/app/dashboard/promo-rules/page';
 
-const T = idDict.dashboard.promoRules;
+// One console for both pages now: the depot side reads head office's copy (they were identical).
+const T = idDict.hq.promoRules;
 const DAYS = Object.values(T.days);
 
 const RULE: PromoRule = {
@@ -135,12 +136,14 @@ describe('dashboard/promo-rules list', () => {
     renderPage();
     expect(await screen.findByText('Diskon Senin')).toBeTruthy();
     expect(screen.getByText('Gratis ongkir')).toBeTruthy();
-    expect(screen.getByText('SPECIAL_PRICE')).toBeTruthy();
-    expect(screen.getByText('SHIPPING_DISCOUNT')).toBeTruthy();
+    // The kind by its name, not the enum; where and on what by name, the id only when unknown.
+    // The filter bar offers the same names as <option>s; the badge is the one that is not.
+    expect(screen.getAllByText(T.fields.kindSpecialPrice).some((el) => el.tagName !== 'OPTION')).toBe(true);
+    expect(screen.getAllByText(T.fields.kindShipping).some((el) => el.tagName !== 'OPTION')).toBe(true);
     expect(screen.getByText(T.active)).toBeTruthy();
     expect(screen.getByText(T.inactive)).toBeTruthy();
     expect(screen.getByText('depot-b · prod-1')).toBeTruthy();
-    expect(screen.getByText('— · —')).toBeTruthy();
+    expect(screen.getByText(`${T.fields.anyDepot} · ${T.fields.anyProduct}`)).toBeTruthy();
     expect(get).toHaveBeenCalledWith(endpoints.promoRules.manage, true);
   });
 
@@ -416,7 +419,7 @@ describe('dashboard/promo-rules editor', () => {
     renderPage();
     await screen.findByText(RULE.name);
     await user.click(screen.getAllByRole('button', { name: T.edit })[1]!);
-    expect((screen.getByLabelText(T.fields.depotId) as HTMLInputElement).value).toBe('—');
+    expect((screen.getByLabelText(T.fields.depotId) as HTMLInputElement).value).toBe(T.fields.anyDepot);
     await user.click(screen.getByRole('button', { name: T.save }));
     await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
     expect(patch.mock.calls[0]?.[0]).toBe(endpoints.promoRules.detail('r-2'));
@@ -462,7 +465,7 @@ describe('dashboard/promo-rules delete', () => {
     del.mockRejectedValueOnce(new Error('x'));
     await user.click(screen.getAllByRole('button', { name: T.remove })[0]!);
     await user.click(await screen.findByRole('button', { name: /^Ya, hapus$/ }));
-    await waitFor(() => expect(toast).toHaveBeenCalledWith(idDict.common.error, 'error'));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(idDict.hq.common.actionFailed, 'error'));
   });
 });
 

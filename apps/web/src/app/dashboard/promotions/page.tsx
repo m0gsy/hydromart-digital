@@ -382,9 +382,12 @@ function PromotionsAdmin() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <Megaphone size={24} weight="fill" className="text-brand-600" /> Promo
-        </h1>
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <Megaphone size={24} weight="fill" className="text-brand-600" /> {t('hq.promotions.title')}
+          </h1>
+          <p className="text-sm text-muted">{t('hq.promotions.subtitle')}</p>
+        </div>
         {canWrite && editing === undefined && <Button onClick={() => setEditing(null)}>{t('hrFix.promotions.newPromo')}</Button>}
       </div>
 

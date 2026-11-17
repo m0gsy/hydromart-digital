@@ -6,18 +6,17 @@ import { Ticket } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, ErrorState, Input, LoadError, Money, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, Input, LoadError, Money, Skeleton } from '@/components/ui';
 import { VoucherForm } from '@/components/voucher-form';
+import { VoucherSummary } from '@/components/voucher-summary';
 import { fetchAllDepots } from '@/lib/all-depots';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
-import { formatDate, formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { canWriteVoucher } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useDebounce } from '@/lib/use-debounce';
-import { voucherState } from '@/lib/voucher-form';
 import type { Page, Voucher } from '@/lib/types';
 
 interface BurnSummary {
@@ -28,13 +27,6 @@ interface BurnSummary {
 type StatusTab = 'all' | 'active' | 'inactive';
 
 const PAGE = 20;
-
-const STATE_TONE = {
-  active: 'success',
-  upcoming: 'brand',
-  expired: 'neutral',
-  inactive: 'neutral',
-} as const;
 
 /**
  * Head office's voucher list (14b): the network's spend, and every code with where it stands.
@@ -76,21 +68,6 @@ export default function HqVouchersPage() {
   const byVoucher = burn.data?.byVoucher ?? {};
   const from = total === 0 ? 0 : (page - 1) * PAGE + 1;
   const to = Math.min(page * PAGE, total);
-
-  const discount = (v: Voucher) =>
-    v.discountType === 'FREE_SHIPPING'
-      ? t('hq.forms.voucher.freeShip')
-      : v.discountType === 'PERCENTAGE'
-        ? `${v.value}%${v.maxDiscount ? ` · ${t('hq.forms.voucher.maxDiscount')} ${formatIDR(v.maxDiscount)}` : ''}`
-        : formatIDR(v.value);
-  const validity = (v: Voucher) =>
-    v.validFrom && v.validUntil
-      ? L('validRange', { from: formatDate(v.validFrom), to: formatDate(v.validUntil) })
-      : v.validFrom
-        ? L('validFrom', { from: formatDate(v.validFrom) })
-        : v.validUntil
-          ? L('validUntil', { to: formatDate(v.validUntil) })
-          : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -154,78 +131,32 @@ export default function HqVouchersPage() {
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--border)]">
-            {vouchers.map((v) => {
-              const state = voucherState(v);
-              const burned = byVoucher[v.id] ?? 0;
-              const cap = v.budgetCap ?? null;
-              const when = validity(v);
-              return (
-                <li key={v.id} className="flex flex-col gap-2 py-3">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold">{v.code}</span>
-                        <Badge tone={STATE_TONE[state]}>
-                          {L(`state${state.charAt(0).toUpperCase()}${state.slice(1)}`)}
-                        </Badge>
-                        <Badge tone="neutral">{L(v.audience === 'GRANTED' ? 'granted' : 'public')}</Badge>
-                        <Badge tone="neutral">{v.depotId ? depotName(v.depotId) : L('allDepots')}</Badge>
-                      </p>
-                      {v.description && <p className="truncate text-sm text-muted">{v.description}</p>}
-                      <p className="text-sm">
-                        {discount(v)}
-                        {v.minSpend > 0 && ` · ${t('hq.forms.voucher.minOrder')} ${formatIDR(v.minSpend)}`}
-                      </p>
-                      {when && <p className="text-xs text-muted">{when}</p>}
-                    </div>
-                    {canWriteVoucher(customer?.role, v) && (
-                      <Button variant="ghost" onClick={() => setEditing(editing === v.id ? null : v.id)}>
-                        {L('edit')}
-                      </Button>
-                    )}
+            {vouchers.map((v) => (
+              <li key={v.id} className="flex flex-col gap-2 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <VoucherSummary voucher={v} depotName={depotName} burned={byVoucher[v.id] ?? 0} />
+                  {canWriteVoucher(customer?.role, v) && (
+                    <Button variant="ghost" onClick={() => setEditing(editing === v.id ? null : v.id)}>
+                      {L('edit')}
+                    </Button>
+                  )}
+                </div>
+                {editing === v.id && (
+                  <div className="rounded-xl border border-app p-4">
+                    <VoucherForm
+                      voucher={v}
+                      onCancel={() => setEditing(null)}
+                      onDone={() => {
+                        setEditing(null);
+                        toast(L('saved'), 'success');
+                        list.reload();
+                        burn.reload();
+                      }}
+                    />
                   </div>
-
-                  <p className="text-xs text-muted">
-                    {v.usageLimit != null
-                      ? L('usedOf', { n: v.usedCount, limit: v.usageLimit })
-                      : t('hq.vouchers.list.used', { n: v.usedCount })}
-                  </p>
-                  {/* The money is the budget, not the count: a bar only where there is a cap. */}
-                  {cap != null && cap > 0 ? (
-                    <>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--surface-muted)]">
-                        <div
-                          className="h-full rounded-full bg-brand-600"
-                          style={{ width: `${Math.min(100, Math.round((burned / cap) * 100))}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-muted">
-                        {L('budgetOf', { used: formatIDR(burned), cap: formatIDR(cap) })}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-xs text-muted">
-                      {t('hq.vouchers.list.burn')}: {formatIDR(burned)} · {L('noBudget')}
-                    </p>
-                  )}
-
-                  {editing === v.id && (
-                    <div className="rounded-xl border border-app p-4">
-                      <VoucherForm
-                        voucher={v}
-                        onCancel={() => setEditing(null)}
-                        onDone={() => {
-                          setEditing(null);
-                          toast(L('saved'), 'success');
-                          list.reload();
-                          burn.reload();
-                        }}
-                      />
-                    </div>
-                  )}
-                </li>
-              );
-            })}
+                )}
+              </li>
+            ))}
           </ul>
         )}
 

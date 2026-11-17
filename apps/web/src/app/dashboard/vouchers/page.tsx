@@ -7,8 +7,9 @@ import { Lock, Ticket } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { VoucherForm } from '@/components/voucher-form';
+import { VoucherSummary } from '@/components/voucher-summary';
 import { useToast } from '@/components/toast';
-import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
+import { Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -16,18 +17,6 @@ import { useDepot } from '@/lib/depot-context';
 import { canManageVouchers, canViewVouchers, canWriteVoucher, voucherNeedsDepot } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Customer, Page, Voucher } from '@/lib/types';
-
-function discountLabel(v: Voucher): string {
-  if (v.discountType === 'FREE_SHIPPING') {
-    const cap = v.maxDiscount ? ` (maks Rp ${v.maxDiscount.toLocaleString('id-ID')})` : '';
-    return `Gratis ongkir${cap}`;
-  }
-  if (v.discountType === 'PERCENTAGE') {
-    const cap = v.maxDiscount ? ` (maks Rp ${v.maxDiscount.toLocaleString('id-ID')})` : '';
-    return `${v.value}%${cap}`;
-  }
-  return `Rp ${v.value.toLocaleString('id-ID')}`;
-}
 
 function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => void }) {
   const { t } = useT();
@@ -116,14 +105,14 @@ function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => voi
           </Field>
           {found && (
             <p className="text-sm">
-              Ditemukan: <span className="font-semibold">{found.fullName ?? t('hrFix.vouchers.noName')}</span>{' '}
+              {t('hrFix.vouchers.found')} <span className="font-semibold">{found.fullName ?? t('hrFix.vouchers.noName')}</span>{' '}
               <span className="text-muted">{found.phone}</span>
             </p>
           )}
           <FormError message={error} />
           <div className="flex gap-2">
             <Button onClick={grant} loading={busy} disabled={!found}>
-              Beri voucher
+              {t('hrFix.vouchers.giveConfirm')}
             </Button>
             <Button variant="ghost" onClick={onClose}>
               {t('hrFix.vouchers.cancel3')}
@@ -189,9 +178,12 @@ function VouchersAdmin() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <Ticket size={24} weight="fill" className="text-brand-600" /> Voucher
-        </h1>
+        <div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold">
+            <Ticket size={24} weight="fill" className="text-brand-600" /> {t('hq.vouchers.title')}
+          </h1>
+          <p className="text-sm text-muted">{t('hq.vouchers.subtitle')}</p>
+        </div>
         {canWrite && editing === undefined && <Button onClick={() => setEditing(null)}>{t('hrFix.vouchers.newVoucher')}</Button>}
       </div>
 
@@ -224,32 +216,17 @@ function VouchersAdmin() {
         <div className="flex flex-col divide-y divide-[color:var(--border)]">
           {vouchers.map((v) => (
             <div key={v.id} className="flex flex-col gap-3 py-3">
-              <div className="flex items-center gap-3">
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="flex items-center gap-2 font-semibold">
-                    {v.code}
-                    <Badge tone={v.active ? 'success' : 'neutral'}>{v.active ? t('hrFix.vouchers.active') : t('hrFix.vouchers.inactive')}</Badge>
-                  </span>
-                  <span className="truncate text-sm text-muted">
-                    {discountLabel(v)}
-                    {v.minSpend > 0 && ` · min Rp ${v.minSpend.toLocaleString('id-ID')}`}
-                    {' · '}
-                    {v.usedCount}
-                    {v.usageLimit != null ? `/${v.usageLimit}` : ''} terpakai
-                    {(v.productId || v.categoryId) && ` · ${t('hq.forms.voucher.scopedBadge')}`}
-                    {' · '}
-                    {v.depotId
-                      ? t('hrFix.vouchers.scopeDepot', { name: depotName(v.depotId) })
-                      : t('hrFix.vouchers.scopeAll')}
-                  </span>
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <VoucherSummary voucher={v} depotName={depotName} />
                 </div>
                 {canWriteVoucher(customer?.role, v) && (
                   <>
                     <Button variant="ghost" onClick={() => setGranting(granting?.id === v.id ? null : v)}>
-                      Beri
+                      {t('hrFix.vouchers.give')}
                     </Button>
                     <Button variant="ghost" onClick={() => setEditing(v)}>
-                      Edit
+                      {t('hq.vouchers.list.edit')}
                     </Button>
                     {v.active && (
                       <Button variant="danger" onClick={() => deactivate(v)}>

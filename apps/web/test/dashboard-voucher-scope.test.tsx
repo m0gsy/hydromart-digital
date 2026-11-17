@@ -129,7 +129,7 @@ describe('dashboard/vouchers · item scope (item 5 B)', () => {
     const user = userEvent.setup();
     draw();
     await screen.findByText('GALON10');
-    await user.click(screen.getAllByRole('button', { name: 'Edit' })[1]!);
+    await user.click(screen.getAllByRole('button', { name: idDict.hq.vouchers.list.edit })[1]!);
     await screen.findByRole('option', { name: 'Galon 19L' });
     const select = screen.getByLabelText(S.scopeProduct) as HTMLSelectElement;
     expect(select.value).toBe(PRODUCT);

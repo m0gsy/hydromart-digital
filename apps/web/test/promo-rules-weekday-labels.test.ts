@@ -19,7 +19,9 @@ const lookup = (dict: unknown, key: string): unknown =>
     );
 
 describe('promo-rules weekday labels', () => {
-  for (const ns of ['hq', 'dashboard']) {
+  // One console for both pages since the promo-rule unification: `dashboard.promoRules` was an
+  // identical copy of these strings and is gone.
+  for (const ns of ['hq']) {
     for (const [locale, dict] of Object.entries({ id, en })) {
       it(`${locale}: ${ns}.promoRules.days.0..6 are all non-empty strings`, () => {
         for (let day = 0; day <= 6; day++) {
