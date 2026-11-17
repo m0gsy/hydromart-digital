@@ -62,7 +62,11 @@ import EditEmployeePage from '@/app/hr/employees/detail/edit/page';
 import NewEmployeePage from '@/app/hr/employees/new/page';
 
 beforeEach(() => {
-  get.mockReset().mockResolvedValue({ items: [], rows: [] });
+  // The department list is an array, as the API answers it: the employee form reads it even
+  // with no depot picked now (network-wide departments), and a page object there throws.
+  get.mockReset().mockImplementation(async (path: string) =>
+    String(path).includes('/departments') ? [] : { items: [], rows: [] },
+  );
 });
 afterEach(() => vi.clearAllMocks());
 

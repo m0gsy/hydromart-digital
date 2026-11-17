@@ -382,7 +382,6 @@ export const hrFix = {
     unchanged: 'Unchanged',
     pickRole: 'Select a position…',
     notSet: 'Not set',
-    pickDepotFirst: 'Select a depot first…',
     noName: '(no name)',
     chosenRole: 'the chosen position',
     useThatAccount: 'Yes, use that account',
