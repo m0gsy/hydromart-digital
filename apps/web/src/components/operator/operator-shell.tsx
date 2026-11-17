@@ -46,7 +46,7 @@ type Tab = {
 
 const primaryTabs: Tab[] = [
   { label: 'hrFix.opNav.summary', href: '/dashboard', match: (p) => p === '/dashboard' },
-  { label: 'hrFix.opNav.queue', href: '/dashboard/orders', match: (p) => p.startsWith('/dashboard/orders') },
+  { label: 'hrFix.opNav.queue', href: '/dashboard/orders', match: (p) => p.startsWith('/dashboard/orders'), show: (r) => can('orderManageRead', r) },
   // The operator IS the cashier — the counter sale belongs in their primary tabs, not the
   // manager's left rail (which this role never sees).
   { label: 'hrFix.opNav.sales', href: '/dashboard/walk-in', match: (p) => p.startsWith('/dashboard/walk-in') },
@@ -155,7 +155,7 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
         </div>
         {/* Tab bar */}
         <nav className="flex gap-1 overflow-x-auto px-3 pb-2 sm:px-5">
-          {primaryTabs.map((t) => (
+          {primaryTabs.filter((t) => !t.show || t.show(customer?.role)).map((t) => (
             <TabLink key={t.href} tab={t} active={t.match(pathname)} />
           ))}
           <span className="mx-1 my-1 w-px shrink-0 bg-[color:var(--border)]" />

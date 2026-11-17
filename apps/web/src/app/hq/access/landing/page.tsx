@@ -8,6 +8,7 @@ import { type Capability, type Role } from '@hydromart/access';
 import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
 import { Card, Chip } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
+import { consoleHome } from '@/lib/roles';
 
 import { useEffectiveCapabilities, type CapabilityHolders } from '@/lib/use-effective-capabilities';
 
@@ -27,23 +28,6 @@ const ROLES: Role[] = [
   'FINANCE',
   'MARKETING',
 ];
-
-// Post-login landing per role (mirrors nav.tsx + dashboard/page.tsx redirect logic).
-const LANDING: Record<Role, string> = {
-  SUPER_ADMIN: '/hq',
-  HEAD_OFFICE: '/hq',
-  DIREKTUR: '/hq',
-  MANAGER: '/dashboard',
-  SUPERVISOR: '/dashboard',
-  ASSISTANT_SUPERVISOR: '/dashboard',
-  KEPALA_DEPOT: '/dashboard/orders',
-  STAFF_DEPOT: '/dashboard/orders',
-  FRANCHISE_OWNER: '/dashboard/franchise',
-  FINANCE: '/hq/payments',
-  MARKETING: '/dashboard/campaigns',
-  HR: '/hr',
-  CUSTOMER: '/products',
-};
 
 function capCount(holdersByCap: CapabilityHolders, role: Role): number {
   return (Object.keys(holdersByCap) as Capability[]).filter((c) =>
@@ -122,7 +106,9 @@ export default function HqLandingPage() {
             </p>
             <span className="inline-flex w-fit items-center gap-2 rounded-lg bg-[color:var(--surface-soft)] px-3 py-2 font-mono text-sm">
               <MapPin size={16} weight="fill" className="text-brand-600" />
-              {LANDING[role]}
+              {/* Where sign-in really sends this role: the hand-kept table here had drifted
+                  (a courier shown /dashboard/orders, really /driver). */}
+              {consoleHome(role)}
             </span>
           </div>
 

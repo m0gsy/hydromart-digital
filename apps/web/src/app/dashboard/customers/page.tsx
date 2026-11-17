@@ -23,6 +23,7 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewDepotCrm, canWriteDepotCrm } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useQueryParam } from '@/lib/use-query-param';
 import type { DepotCustomer } from '@/lib/types';
 
 /** 3+ empties out at a customer is worth flagging in red (design 6a). */
@@ -105,8 +106,10 @@ function CustomersBody() {
   const { t } = useT();
   const { customer } = useAuth();
   const { scopedId, selected, depots, ready } = useDepot();
-  const [search, setSearch] = useState('');
-  const [q, setQ] = useState('');
+  // `?q=` is how the console search hands over the number it found.
+  const carried = useQueryParam('q');
+  const [search, setSearch] = useState(carried);
+  const [q, setQ] = useState(carried.trim());
 
   // Debounce the search box so we fetch once the operator pauses, not per keystroke.
   useEffect(() => {

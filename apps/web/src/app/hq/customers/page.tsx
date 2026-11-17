@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { UserCircle } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
@@ -13,6 +13,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import type { Customer, CustomerSummary, LoyaltyAccount } from '@/lib/types';
+import { useQueryParam } from '@/lib/use-query-param';
 import { roleLabel } from '@/lib/custom-role';
 
 // Design 17e — Customer 360. The phone lookup + profile are real (auth.customerLookup);
@@ -26,7 +27,10 @@ import { roleLabel } from '@/lib/custom-role';
 export default function HqCustomersPage() {
   const { t } = useT();
   const { toast } = useToast();
-  const [phone, setPhone] = useState('');
+  // `?phone=` is how head-office search hands over the number it found; looked up once.
+  const carriedPhone = useQueryParam('phone');
+  const carriedLooked = useRef(false);
+  const [phone, setPhone] = useState(carriedPhone);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [summary, setSummary] = useState<CustomerSummary | null>(null);
   const [loyalty, setLoyalty] = useState<LoyaltyAccount | null>(null);
@@ -40,15 +44,22 @@ export default function HqCustomersPage() {
   const [summaryFailed, setSummaryFailed] = useState(false);
   const [loyaltyFailed, setLoyaltyFailed] = useState(false);
 
-  async function lookup() {
-    if (!phone.trim()) return;
+  useEffect(() => {
+    if (!carriedPhone || carriedLooked.current) return;
+    carriedLooked.current = true;
+    void lookup(carriedPhone);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carriedPhone]);
+
+  async function lookup(target = phone) {
+    if (!target.trim()) return;
     setBusy(true);
     setError(null);
     setCustomer(null);
     setSummary(null);
     setLoyalty(null);
     try {
-      const c = await api.get<Customer>(endpoints.auth.customerLookup(phone.trim()), true);
+      const c = await api.get<Customer>(endpoints.auth.customerLookup(target.trim()), true);
       setCustomer(c);
       /*
        * DEFECT-01 — best-effort, but never silently.
@@ -172,7 +183,7 @@ export default function HqCustomersPage() {
             {summaryFailed && (
               <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
                 {t('hqFix.customers.historyUnavailable')}{' '}
-                <button type="button" onClick={lookup} className="font-bold underline">
+                <button type="button" onClick={() => lookup()} className="font-bold underline">
                   {t('hqFix.customers.retry')}
                 </button>
               </p>

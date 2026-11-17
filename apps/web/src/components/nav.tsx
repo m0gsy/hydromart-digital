@@ -11,7 +11,7 @@ import { useCart } from '@/lib/cart-context';
 import { useT } from '@/lib/locale-context';
 import { useUnreadCount } from '@/lib/unread';
 import { formatIDR } from '@/lib/format';
-import { canViewDashboard, isStaff } from '@/lib/roles';
+import { canViewDashboard, isStaff, opsDoor } from '@/lib/roles';
 
 export function Nav() {
   const { customer, ready } = useAuth();
@@ -71,7 +71,7 @@ export function Nav() {
             {ready && customer && canViewDashboard(customer.role) && pill('/dashboard', t('nav.ops'))}
             {ready && customer && customer.role === 'STAFF_DEPOT' && pill('/driver', 'Pengantaran')}
             {ready && customer && customer.role !== 'STAFF_DEPOT' && !canViewDashboard(customer.role) &&
-              isStaff(customer.role) && pill('/dashboard/orders', t('nav.ops'))}
+              isStaff(customer.role) && pill(opsDoor(customer.role), t('nav.ops'))}
           </div>
 
           {/* cart — ink button carrying the running subtotal + teal count badge (1c signature) */}

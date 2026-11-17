@@ -57,7 +57,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
-import { canViewDashboard, isStaff } from '@/lib/roles';
+import { isStaff, opsDoor } from '@/lib/roles';
 import { getPushState, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 import type { PushState } from '@/lib/push';
 import { useAsync } from '@/lib/use-async';
@@ -1116,7 +1116,7 @@ export default function AccountPage() {
     );
   }
 
-  const opsHref = canViewDashboard(customer.role) ? '/dashboard' : '/dashboard/orders';
+  const opsHref = opsDoor(customer.role);
   const showOps = isStaff(customer.role);
   const tier = loyalty?.tier;
   const memberSub = tier

@@ -85,6 +85,14 @@ describe('/account menu by who is looking', () => {
     expect(links).toContain('/help');
   });
 
+  it('a role with no depot home and no order queue is sent to its own console', async () => {
+    // HR holds neither `dashboard` nor `orderManageRead`: /dashboard/orders refused it.
+    auth.customer = { id: 's-4', role: 'HR', fullName: 'Sari', phone: '0814' };
+    render(<AccountPage />, { wrapper: LocaleProvider });
+    await waitFor(() => expect(hrefs()).toContain('/hr'));
+    expect(hrefs()).not.toContain('/dashboard/orders');
+  });
+
   /*
    * CA-3-50 — the sheets, which K1.3 did not reach.
    *

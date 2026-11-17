@@ -7,6 +7,7 @@ import { ArrowRight, MagnifyingGlass } from '@phosphor-icons/react';
 import { hqItemsForRole } from '@/lib/hq-nav';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { canOpenRoute } from '@/lib/route-access';
 
 // ⌘K / Ctrl+K command palette (design 23c), mounted once in the HQ layout so it's
 // available everywhere under /hq. Opening is triggered by the keyboard OR a window
@@ -79,7 +80,8 @@ export function CommandPalette() {
     // hides and the server refuses.
     const screens: Cmd[] = hqItemsForRole(customer?.role)
       .map((i) => ({ id: `s-${i.href}`, label: t(`hq.nav.${i.labelKey}`), href: i.href, group: 'screens' }));
-    const actions: Cmd[] = ACTION_DEFS.map((a) => ({
+    // The quick actions are doors too: head office was offered three forms that refuse it.
+    const actions: Cmd[] = ACTION_DEFS.filter((a) => canOpenRoute(a.href, customer?.role)).map((a) => ({
       id: a.id,
       label: t(`hq.common.actions.${a.labelKey}`),
       href: a.href,

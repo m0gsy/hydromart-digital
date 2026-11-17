@@ -11,6 +11,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { can, isStaff } from '@/lib/roles';
+import { canOpenRoute } from '@/lib/route-access';
 import { useAsync } from '@/lib/use-async';
 import { useDebounce } from '@/lib/use-debounce';
 import type { Customer, DepotAdmin, Order, Page, Product } from '@/lib/types';
@@ -115,6 +116,9 @@ function SearchBody() {
   // not hold `customerPhoneLookup` on purpose, so the source is not queried for them (it used
   // to be, and its 403 was swallowed into an empty result) and the screen says so.
   const mayLookupCustomer = can('customerPhoneLookup', customer?.role);
+  // MARKETING may look a number up but not read the depot directory the link would open.
+  const customerHref = (phone: string) => `/dashboard/customers?q=${encodeURIComponent(phone)}`;
+  const mayOpenCustomer = canOpenRoute('/dashboard/customers', customer?.role);
   // Typing searches by itself once it settles; Enter still searches at once.
   const settled = useDebounce(input, 300);
   useEffect(() => {
@@ -131,6 +135,14 @@ function SearchBody() {
       res.data.orders.length +
       (res.data.customer ? 1 : 0)
     : 0;
+
+  const found = res.data?.customer;
+  const foundCard = found && (
+    <Card className={mayOpenCustomer ? 'p-3.5 transition-colors hover:border-brand-600' : 'p-3.5'}>
+      <p className="font-semibold">{found.fullName || found.phone}</p>
+      <p className="text-xs text-muted">{found.phone}</p>
+    </Card>
+  );
 
   return (
     <div className="flex flex-col gap-5">
@@ -233,7 +245,8 @@ function SearchBody() {
             count={res.data!.orders.length}
           >
             {res.data!.orders.map((o) => (
-              <Link key={o.id} href={`/dashboard/orders/${o.id}`}>
+              // The queue opens an order in its panel; `/dashboard/orders/<id>` is no route.
+              <Link key={o.id} href={`/dashboard/orders?order=${encodeURIComponent(o.id)}`}>
                 <Card className="flex items-center justify-between gap-3 p-3.5 transition-colors hover:border-brand-600">
                   <div>
                     <p className="font-semibold">{o.orderNumber}</p>
@@ -251,12 +264,11 @@ function SearchBody() {
               icon={<User size={16} weight="fill" />}
               count={1}
             >
-              <Card className="p-3.5">
-                <p className="font-semibold">
-                  {res.data!.customer.fullName || res.data!.customer.phone}
-                </p>
-                <p className="text-xs text-muted">{res.data!.customer.phone}</p>
-              </Card>
+              {mayOpenCustomer ? (
+                <Link href={customerHref(res.data!.customer.phone)}>{foundCard}</Link>
+              ) : (
+                foundCard
+              )}
             </Section>
           )}
         </div>

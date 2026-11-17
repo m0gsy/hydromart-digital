@@ -21,6 +21,7 @@ import { Sheet } from '@/components/overlay';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import {
+  can,
   canManagePricing,
   canViewDashboard,
   canViewForecast,
@@ -48,7 +49,14 @@ const TABS: Tab[] = [
     show: canViewFranchise,
   },
   { href: '/dashboard', label: 'hrFix.opsNav.summary', icon: ChartLineUp, show: canViewDashboard },
-  { href: '/dashboard/orders', label: 'hrFix.opsNav.queue', icon: ClipboardText, show: isStaff },
+  // The queue page's own gate (`orders:511`): HR, marketing and the franchise owner were
+  // offered a tab that opened onto "no access".
+  {
+    href: '/dashboard/orders',
+    label: 'hrFix.opsNav.queue',
+    icon: ClipboardText,
+    show: (r) => can('orderManageRead', r),
+  },
   {
     href: '/dashboard/inventory',
     label: 'hrFix.opsNav.inventory',
@@ -71,7 +79,9 @@ export function OpsBottomNav() {
   const role = customer?.role;
 
   const visible = TABS.filter((t) => t.show(role)).slice(0, 4);
-  if (visible.length === 0) return null;
+  // A staff role with no tab of its own still needs "Lainnya": on a phone it is the whole menu
+  // and the only way out.
+  if (!isStaff(role)) return null;
 
   const isActive = (href: string) =>
     href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);

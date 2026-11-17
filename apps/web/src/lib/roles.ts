@@ -372,6 +372,19 @@ export function consoleHome(
 }
 
 /**
+ * The one "console" door on the shop chrome — the nav pill and the /account row.
+ *
+ * The depot home for a role that reads it, else the order queue for a role its page admits
+ * (`orderManageRead`, `orders:511`), else the role's own console. Both doors used to send
+ * every staff account without `dashboard` to /dashboard/orders, where HR, marketing and the
+ * franchise owner met a refusal.
+ */
+export function opsDoor(role: string | null | undefined): string {
+  if (canViewDashboard(role)) return '/dashboard';
+  return can('orderManageRead', role) ? '/dashboard/orders' : consoleHome(role);
+}
+
+/**
  * The notification feed a role can actually open.
  *
  * F2: `/notifications` is the CUSTOMER inbox — `GET /notifications/me` is `@Roles(CUSTOMER)`
