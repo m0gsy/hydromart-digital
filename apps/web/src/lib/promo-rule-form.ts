@@ -1,5 +1,5 @@
 import type { PromoRule, PromoRuleChannel, PromoRuleKind, PromoRulePayload } from './types';
-import { dayStartWib, todayWib } from './wib';
+import { dayEndWib, dayStartWib, todayWib } from './wib';
 
 /*
  * The promo-rule editor's form model, shared by /hq/promo-rules and /dashboard/promo-rules.
@@ -125,13 +125,7 @@ export function ruleFormToPayload(
   // the 1st began at seven. A window is the whole of its first day to the last millisecond of
   // its last, in the business zone.
   const startOfDay = (s: string) => (s ? dayStartWib(s) : null);
-  const endOfDay = (s: string) => {
-    if (!s) return null;
-    const [y, m, d] = s.split('-').map(Number);
-    // tz-ok: adds one calendar day to a plain YYYY-MM-DD; it is a date, not an instant
-    const next = new Date(Date.UTC(y!, m! - 1, d! + 1)).toISOString().slice(0, 10);
-    return new Date(new Date(dayStartWib(next)).getTime() - 1).toISOString();
-  };
+  const endOfDay = (s: string) => (s ? dayEndWib(s) : null);
   const orderLevel = isOrderLevelKind(f.kind);
   const orderPercent = f.kind === 'ORDER_DISCOUNT' && f.orderMode === 'PERCENT';
   const orderAmount = f.kind === 'ORDER_DISCOUNT' && f.orderMode === 'AMOUNT';

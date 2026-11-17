@@ -116,6 +116,15 @@ export const canViewPromotions = (role: string | null | undefined) => can('promo
 export const canManagePromotions = (role: string | null | undefined) => can('promotionWrite', role);
 export const canViewVouchers = (role: string | null | undefined) => can('voucherRead', role);
 export const canManageVouchers = (role: string | null | undefined) => can('voucherWrite', role);
+/**
+ * 2026-11-17: a depot-scoped author (MANAGER) runs only the vouchers of their own depots; a
+ * network voucher (depotId null) is head office's. The server refuses the rest, so the row's
+ * Beri/Edit/Nonaktifkan are hidden instead of offered and refused.
+ */
+export const canWriteVoucher = (role: string | null | undefined, v: { depotId?: string | null }) =>
+  canManageVouchers(role) && (v.depotId != null || !isDepotScopedRole(role));
+/** Whether this author's new voucher must name a depot (they may not create a network one). */
+export const voucherNeedsDepot = (role: string | null | undefined) => isDepotScopedRole(role);
 export const canManageDepots = (role: string | null | undefined) => can('depotAdmin', role);
 // Opening and closing a depot is a network decision (owner, 2026-10-15), apart from editing
 // the one you run. The server holds the same line: POST /depots and DELETE /depots/:id.

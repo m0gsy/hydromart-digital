@@ -135,6 +135,15 @@ export class CreateVoucherDto {
   @IsOptional()
   @IsUUID()
   categoryId?: string | null;
+
+  /**
+   * Where the code may be spent. Null/omitted = every depot, which only a network-wide role
+   * may create: a depot-scoped author (MANAGER) must name a depot in their own scope.
+   */
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string | null;
 }
 
 export class UpdateVoucherDto extends PartialType(CreateVoucherDto) {

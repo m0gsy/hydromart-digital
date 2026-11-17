@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { currentPeriod } from '@/lib/hr';
-import { dayStartWib, mondayWib, monthRangeWib, monthWib, todayWib, wibParts } from '@/lib/wib';
+import { dayEndWib, dayStartWib, mondayWib, monthRangeWib, monthWib, todayWib, wibParts } from '@/lib/wib';
 
 describe('dayStartWib', () => {
   it('starts a business day at 00:00 WIB, which is 17:00 UTC the evening before', () => {
@@ -125,5 +125,16 @@ describe('currentPeriod', () => {
   it('is still the same month later that day', () => {
     vi.useFakeTimers({ now: new Date('2026-10-01T10:00:00.000Z') });
     expect(currentPeriod()).toBe('2026-10');
+  });
+});
+
+describe('dayEndWib', () => {
+  it('is the last millisecond of the WIB day, not 07:00 of it', () => {
+    expect(dayEndWib('2026-11-30')).toBe('2026-11-30T16:59:59.999Z');
+  });
+
+  it('crosses a month and a year end', () => {
+    expect(dayEndWib('2026-12-31')).toBe('2026-12-31T16:59:59.999Z');
+    expect(dayEndWib('2026-02-28')).toBe('2026-02-28T16:59:59.999Z');
   });
 });

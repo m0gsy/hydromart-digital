@@ -16,6 +16,7 @@ import {
   canViewDepotCrm,
   canViewForecast,
   canViewMeterReading,
+  canViewPromotions,
   isStaff,
 } from '@/lib/roles';
 
@@ -59,7 +60,8 @@ const manageTabs: Tab[] = [
   { label: 'hrFix.opNav.insight', href: '/dashboard/insight', match: (p) => p.startsWith('/dashboard/insight'), show: canViewInsight },
   { label: 'hrFix.opNav.customers', href: '/dashboard/customers', match: (p) => p.startsWith('/dashboard/customers') },
   { label: 'hrFix.opNav.incidents', href: '/dashboard/incidents', match: (p) => p.startsWith('/dashboard/incidents') },
-  { label: 'hrFix.opNav.promotions', href: '/dashboard/promotions', match: (p) => p.startsWith('/dashboard/promotions') },
+  // Homepage banners are head office's (2026-11-17); the tab shows only for a role that may read them.
+  { label: 'hrFix.opNav.promotions', href: '/dashboard/promotions', match: (p) => p.startsWith('/dashboard/promotions'), show: canViewPromotions },
   { label: 'hrFix.opNav.rewards', href: '/dashboard/redemptions', match: (p) => p.startsWith('/dashboard/redemptions') },
   { label: 'hrFix.opNav.broadcast', href: '/dashboard/broadcast', match: (p) => p.startsWith('/dashboard/broadcast') },
   // Self-service absen (HRIS). This shell only ever renders for KEPALA_DEPOT, so the tab

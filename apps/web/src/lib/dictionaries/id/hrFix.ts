@@ -887,6 +887,10 @@ export const hrFix = {
     updateFailed: 'Gagal memperbarui pesanan.',
   },
   vouchers: {
+    scopeAll: 'Semua depot',
+    scopeDepot: 'Berlaku di {name}',
+    otherDepot: 'depot lain',
+    needDepot: 'Pilih depot dulu: voucher Anda hanya berlaku di depot yang Anda pegang.',
     giveTitle: 'Beri {code} ke pelanggan',
     cancel3: 'Batal',
     activeVouchers: 'Voucher aktif',

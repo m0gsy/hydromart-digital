@@ -102,6 +102,7 @@ import {
   isHq,
   isStaff,
   canViewResellers,
+  canViewPromotions,
 } from '@/lib/roles';
 import { canViewInsight } from '@/lib/insight/access';
 
@@ -215,7 +216,8 @@ export const GROUPS: RailGroup[] = [
   {
     headKey: 'marketing',
     items: [
-      { href: '/dashboard/promotions', labelKey: 'promo', icon: Megaphone, show: canViewCampaigns },
+      // Banners have their own capability (and are head office's since 2026-11-17), not CRM's.
+      { href: '/dashboard/promotions', labelKey: 'promo', icon: Megaphone, show: canViewPromotions },
       { href: '/dashboard/promo-rules', labelKey: 'promoRules', icon: Tag, show: canManagePromoRules },
       {
         href: '/dashboard/campaigns',

@@ -464,7 +464,8 @@ export class VoucherService {
       .filter((w) => w.status === 'AVAILABLE');
   }
 
-  private async getById(id: string): Promise<VoucherRecord> {
+  /** For the admin routes, which check the voucher's depot against the caller before writing. */
+  async getById(id: string): Promise<VoucherRecord> {
     const voucher = await this.repo.findById(id);
     if (!voucher) throw new VoucherNotFoundError();
     return voucher;

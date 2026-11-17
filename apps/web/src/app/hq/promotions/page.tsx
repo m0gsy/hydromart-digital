@@ -12,6 +12,7 @@ import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Promotion, PromotionPayload } from '@/lib/types';
+import { dayEndWib, dayStartWib, todayWib } from '@/lib/wib';
 
 interface PromoForm {
   title: string;
@@ -32,7 +33,8 @@ const EMPTY: PromoForm = {
 };
 
 function formFrom(p: Promotion): PromoForm {
-  const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
+  // The WIB day of the stored instant: `slice(0, 10)` read 00:00 WIB as the day before.
+  const day = (iso: string | null) => (iso ? todayWib(new Date(iso)) : '');
   return {
     title: p.title, subtitle: p.subtitle ?? '', imageUrl: p.imageUrl ?? '', ctaLabel: p.ctaLabel ?? '',
     ctaHref: p.ctaHref ?? '', voucherCode: p.voucherCode ?? '', sortOrder: String(p.sortOrder),
@@ -42,12 +44,13 @@ function formFrom(p: Promotion): PromoForm {
 
 function toPayload(f: PromoForm): PromotionPayload {
   const orNull = (s: string) => (s.trim() ? s.trim() : null);
-  const dateOrNull = (s: string) => (s ? new Date(s).toISOString() : null);
   return {
     title: f.title.trim(), subtitle: orNull(f.subtitle), imageUrl: orNull(f.imageUrl),
     ctaLabel: orNull(f.ctaLabel), ctaHref: orNull(f.ctaHref), voucherCode: orNull(f.voucherCode),
     sortOrder: Number(f.sortOrder) || 0, active: f.active,
-    startsAt: dateOrNull(f.startsAt), endsAt: dateOrNull(f.endsAt),
+    // Whole WIB days: a banner "until the 30th" used to vanish at 07:00 on the 30th.
+    startsAt: f.startsAt ? dayStartWib(f.startsAt) : null,
+    endsAt: f.endsAt ? dayEndWib(f.endsAt) : null,
   };
 }
 

@@ -792,6 +792,8 @@ export interface Voucher {
   perCustomerLimit: number;
   productId?: string | null;
   categoryId?: string | null;
+  /** Where it may be spent; null = every depot (head office only). */
+  depotId?: string | null;
   usedCount: number;
   active: boolean;
   createdAt: string;
@@ -815,6 +817,8 @@ export interface VoucherPayload {
   productId?: string | null;
   categoryId?: string | null;
   active?: boolean;
+  /** Create only: a depot-scoped author must name a depot in their scope. */
+  depotId?: string | null;
 }
 
 export type VoucherStatus = 'AVAILABLE' | 'USED' | 'EXPIRED' | 'UPCOMING' | 'SOLD_OUT';
