@@ -7,8 +7,8 @@ import { HIERARCHY_REPOSITORY, HierarchyRepository } from '../ports/hierarchy.re
 /**
  * Resolves a multi-depot role's depots, and records the hierarchy that decides them.
  *
- * The scope walk is DOWN the chain and written as explicit levels (see `derive`), so it
- * cannot be sent round a cycle at all. Cycles are refused at write time by `setSuperior`.
+ * The scope walk goes DOWN the chain (see `derive`), with a visited set and a depth cap, so
+ * it cannot be sent round a cycle. Cycles are also refused at write time by `setSuperior`.
  * An empty result means "sees nothing" — never "sees everything".
  */
 @Injectable()
@@ -30,26 +30,42 @@ export class HierarchyService {
   }
 
   /**
-   * The walk, written as explicit levels rather than a loop: each role sits at a known
-   * distance from the depots, so spelling it out is both clearer and impossible to send
-   * round a cycle. Depots only ever hang off an ASSISTANT_SUPERVISOR.
+   * Everything the account's whole team holds: depots where anyone in it is the assistant
+   * supervisor, plus the depots granted directly to anyone below.
+   *
+   * This used to be fixed levels — a manager saw exactly the depots of the assistants of
+   * their supervisors. Two real shapes fell through it: a supervisor covering a depot that
+   * has no assistant yet (the case direct grants exist for) gave that depot to the
+   * supervisor and NOT to the manager above them, and an assistant reporting straight to a
+   * manager gave the manager nothing. A manager with no placement depot then opened a
+   * console where every screen was empty. Walking the team covers any chain shape.
    */
   private async derive(staffId: string, role: string): Promise<string[]> {
-    if (role === Role.ASSISTANT_SUPERVISOR) {
-      return this.repo.depotsForAssistant(staffId);
+    // FRANCHISE_OWNER and everyone else resolve elsewhere (ownership, or unscoped); a custom
+    // RESOLVED role has no place in the chain and sees its direct grants only.
+    if (!HierarchyService.CHAIN_ROLES.has(role)) return [];
+    const team = new Set([staffId]);
+    let level = [staffId];
+    for (let depth = 0; depth < HierarchyService.MAX_DEPTH && level.length > 0; depth += 1) {
+      level = (await this.repo.subordinatesOfMany(level)).filter((id) => !team.has(id));
+      level.forEach((id) => team.add(id));
     }
-    if (role === Role.SUPERVISOR) {
-      const assistants = await this.repo.subordinatesOf(staffId);
-      return this.repo.depotsForAssistants(assistants);
-    }
-    if (role === Role.MANAGER) {
-      const supervisors = await this.repo.subordinatesOf(staffId);
-      const assistants = await this.repo.subordinatesOfMany(supervisors);
-      return this.repo.depotsForAssistants(assistants);
-    }
-    // FRANCHISE_OWNER and everyone else resolve elsewhere (ownership, or unscoped).
-    return [];
+    const below = [...team].filter((id) => id !== staffId);
+    const [held, granted] = await Promise.all([
+      this.repo.depotsForAssistants([...team]),
+      this.repo.directDepotsMany(below),
+    ]);
+    return [...new Set([...held, ...granted])];
   }
+
+  private static readonly CHAIN_ROLES: ReadonlySet<string> = new Set([
+    Role.ASSISTANT_SUPERVISOR,
+    Role.SUPERVISOR,
+    Role.MANAGER,
+  ]);
+
+  /** ponytail: deeper than any real chain (manager → spv → asisten → kepala → kurir). */
+  private static readonly MAX_DEPTH = 6;
 
   /** The ONLY writer of a depot's assistant supervisor — deliberately not the depot PATCH,
    *  which is depotAdmin: a manager must not be able to redraw the map that decides their

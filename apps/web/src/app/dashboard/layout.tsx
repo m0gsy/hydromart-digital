@@ -3,7 +3,7 @@
 import { OperatorShell } from '@/components/operator/operator-shell';
 import { OpsPushPrompt } from '@/components/dashboard/ops-push';
 import { OpsBottomNav } from '@/components/dashboard/ops-bottom-nav';
-import { AllDepotsNotice } from '@/components/dashboard/all-depots-notice';
+import { AllDepotsNotice, NoDepotScopeNotice } from '@/components/dashboard/all-depots-notice';
 import { OpsRail } from '@/components/dashboard/ops-rail';
 import { RequireAuth } from '@/components/require-auth';
 import { DepotProvider } from '@/lib/depot-context';
@@ -23,7 +23,12 @@ function ConsoleFrame({ children }: { children: React.ReactNode }) {
   if (wall) return <div className="px-6 py-6">{children}</div>;
 
   if (isDepotOperator(customer?.role)) {
-    return <OperatorShell>{children}</OperatorShell>;
+    return (
+      <OperatorShell>
+        <NoDepotScopeNotice />
+        {children}
+      </OperatorShell>
+    );
   }
 
   return (
@@ -31,6 +36,7 @@ function ConsoleFrame({ children }: { children: React.ReactNode }) {
       <div className="flex">
         <OpsRail />
         <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">
+          <NoDepotScopeNotice />
           <AllDepotsNotice />
           {children}
         </div>

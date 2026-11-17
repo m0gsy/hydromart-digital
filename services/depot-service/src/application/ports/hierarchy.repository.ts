@@ -18,6 +18,8 @@ export interface HierarchyRepository {
   subordinatesOfMany(superiorIds: readonly string[]): Promise<string[]>;
   /** Depots granted to `staffId` outside the hierarchy walk. */
   directDepots(staffId: string): Promise<string[]>;
+  /** Direct grants of several people at once (the walk's subordinates). */
+  directDepotsMany(staffIds: readonly string[]): Promise<string[]>;
 
   /** Put a depot under an assistant supervisor, or clear it with null. */
   setDepotAssistant(
