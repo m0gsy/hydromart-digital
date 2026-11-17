@@ -717,6 +717,12 @@ export class CounterIdentifyDto {
 
 /** C12: the priced basket. `total` is what the till charges — the screen stops adding up. */
 export class AppliedPromoDto {
+  @ApiProperty({
+    example: '3f1c2a9e-7b6d-4e5f-8a90-1b2c3d4e5f60',
+    description: 'The promo rule, so the till can mark it as applied on its list of live promos.',
+  })
+  ruleId!: string;
+
   @ApiProperty({ example: 'Jumat Berkah' })
   name!: string;
 
@@ -828,7 +834,12 @@ export class CounterQuoteResponseDto {
       freeItems: [...free].map(([productId, quantity]) => ({ productId, quantity })),
       firstOrder: quote.firstOrder,
       firstOrderCapped: quote.firstOrderCapped,
-      appliedPromos: quote.appliedPromos.map((p) => ({ name: p.name, effect: p.effect, amountIdr: p.amountIdr })),
+      appliedPromos: quote.appliedPromos.map((p) => ({
+        ruleId: p.ruleId,
+        name: p.name,
+        effect: p.effect,
+        amountIdr: p.amountIdr,
+      })),
       subtotalIdr: quote.subtotal,
       discountIdr: quote.discount,
       totalIdr: quote.total,

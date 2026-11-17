@@ -751,9 +751,9 @@ describe('OrderService.walkInSale', () => {
       const quote = await service.quoteCounterBasket(null, DEPOT, lines, null, '', true);
 
       expect(quote.appliedPromos).toEqual([
-        { name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 },
-        { name: 'Belanja Hemat', effect: 'ORDER', amountIdr: 2000 },
-        { name: 'Ongkir Murah', effect: 'SHIPPING', amountIdr: 300 },
+        { ruleId: 'price-1', name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 },
+        { ruleId: 'ord-1', name: 'Belanja Hemat', effect: 'ORDER', amountIdr: 2000 },
+        { ruleId: 'ship-1', name: 'Ongkir Murah', effect: 'SHIPPING', amountIdr: 300 },
       ]);
       // The numbers the names explain: price cut out of the subtotal, order discount inside
       // `discount`, ongkir already reduced by the override.

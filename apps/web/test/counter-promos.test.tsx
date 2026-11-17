@@ -551,3 +551,31 @@ describe('the POS layout', () => {
     expect(label.nextElementSibling?.textContent).toBe('Rp 30.000');
   });
 });
+
+/*
+ * PR-C. A refused voucher no longer strands the sale, and a burst of taps is one quote.
+ */
+describe('promos and vouchers at the till', () => {
+  it('offers the sale without the voucher when the voucher is refused', async () => {
+    await openTill();
+    await addOneGalon();
+    await userEvent.click(screen.getByText('Voucher & catatan'));
+    quoteGate = 'fail';
+    await userEvent.type(screen.getByLabelText(/kode voucher/i), 'SALAH');
+    const without = await screen.findByRole('button', { name: 'Jual tanpa voucher' });
+    await userEvent.click(without);
+    expect((screen.getByLabelText(/kode voucher/i) as HTMLInputElement).value).toBe('');
+  });
+
+  it('prices a burst of taps once, for the final basket', async () => {
+    await openTill();
+    const plus = screen.getAllByRole('button', { name: /Increase quantity/i })[0]!;
+    await userEvent.click(plus);
+    await userEvent.click(plus);
+    await userEvent.click(plus);
+    await waitFor(() =>
+      expect(quoteBodies.at(-1)?.lines).toEqual([{ productId: 'p-air', quantity: 3 }]),
+    );
+    expect(quoteBodies.length).toBeLessThan(3);
+  });
+});

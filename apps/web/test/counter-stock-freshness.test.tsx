@@ -198,7 +198,9 @@ describe('C14 · a stock refusal is readable, and retryable', () => {
 
     await userEvent.click(screen.getAllByRole('button', { name: /Increase quantity/i })[0]!);
     await userEvent.type(screen.getByLabelText(/Uang tunai diterima/i), '50000');
-    const pay = await screen.findByRole('button', { name: /Simpan & cetak/i });
+    const pay = (await screen.findByRole('button', { name: /Simpan & cetak/i })) as HTMLButtonElement;
+    // The basket is priced once it has been still for a moment (PR-C); Bayar waits for it.
+    await waitFor(() => expect(pay.disabled).toBe(false));
     const before = get.mock.calls.filter((c) => String(c[0]).includes('/inventory')).length;
     await userEvent.click(pay);
 
@@ -224,7 +226,12 @@ describe('C8 · a basket edit retires the till attempt key', () => {
     await waitFor(() => expect(screen.getByText('Galon 19L')).toBeTruthy());
 
     const increase = () => screen.getAllByRole('button', { name: /Increase quantity/i })[0]!;
-    const pay = () => screen.findByRole('button', { name: /Simpan & cetak/i });
+    // The basket is priced once it has been still for a moment (PR-C); Bayar waits for it.
+    const pay = async () => {
+      const b = (await screen.findByRole('button', { name: /Simpan & cetak/i })) as HTMLButtonElement;
+      await waitFor(() => expect(b.disabled).toBe(false));
+      return b;
+    };
     const keys = () =>
       post.mock.calls
         .filter((c) => String(c[0]).endsWith('/orders/walk-in'))

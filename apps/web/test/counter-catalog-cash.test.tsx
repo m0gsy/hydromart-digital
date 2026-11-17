@@ -175,7 +175,7 @@ describe('K3.6 · the cash column says how much is missing', () => {
     await waitFor(() => expect(screen.getByText('Air Galon 19L')).toBeTruthy());
     await userEvent.click(screen.getAllByRole('button', { name: /Increase quantity/i })[0]!);
     await waitFor(() => expect(screen.getByLabelText(/uang tunai diterima/i)).toBeTruthy());
-    await userEvent.click(screen.getByRole('button', { name: /uang pas/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /uang pas/i }));
     expect((screen.getByLabelText(/uang tunai diterima/i) as HTMLInputElement).value).toBe('20000');
     // A note smaller than the bill is not a note anybody hands over.
     expect(screen.queryByRole('button', { name: '10.000' })).toBeNull();
