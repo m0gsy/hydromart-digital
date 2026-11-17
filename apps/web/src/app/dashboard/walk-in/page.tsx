@@ -9,7 +9,7 @@ import { QuantityStepper } from '@/components/quantity-stepper';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
 import { formatIDR, parseIdr } from '@/lib/format';
-import { useT } from '@/lib/locale-context';
+import { useCounterStrings, useT } from '@/lib/locale-context';
 import {
   Button,
   Card,
@@ -1847,6 +1847,8 @@ function WalkIn({ depotId }: { depotId: string }) {
 
 export default function WalkInPage() {
   const { t } = useT();
+  // The till's copy is its own chunk (opsFixWalkIn.ts): every other route used to carry it.
+  const stringsReady = useCounterStrings();
   const { customer } = useAuth();
   const { scopedId, ready, error: depotError, reload: reloadDepots } = useDepot();
   // A depot-locked operator sells for their OWN depot — the switcher falls back to the first
@@ -1855,7 +1857,10 @@ export default function WalkInPage() {
 
   return (
     <RequireAuth>
-      {!canRecordWalkInSale(customer?.role) ? (
+      {/* Every branch below speaks the till's copy, the refusal included. */}
+      {!stringsReady ? (
+        <Skeleton className="h-64" />
+      ) : !canRecordWalkInSale(customer?.role) ? (
         <CenterState icon={<Lock size={32} />} title={t('opsFix.walkIn.gate')}>
           {t('opsFix.walkIn.gateBody')}
         </CenterState>

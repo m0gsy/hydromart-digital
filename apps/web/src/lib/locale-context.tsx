@@ -144,29 +144,65 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }
 
-let insightLoading: Promise<void> | null = null;
+/**
+ * Strings that ship as their own chunk instead of in the shared dictionary every route loads,
+ * because only one screen reads them. Each is fetched once, when that screen opens, and grafted
+ * onto `id`; `en` is a lazy chunk already and carries them inline.
+ */
+const CHUNKS = {
+  // The insight dashboard.
+  insight: {
+    loaded: () => 'insight' in id,
+    load: () =>
+      import('./dictionaries/id/insight').then((m) => {
+        Object.assign(id, { insight: m.insight });
+      }),
+  },
+  // The counter till (dashboard/walk-in), under `opsFix.walkIn`.
+  counter: {
+    loaded: () => 'walkIn' in id.opsFix,
+    load: () =>
+      import('./dictionaries/id/opsFixWalkIn').then((m) => {
+        Object.assign(id.opsFix, { walkIn: m.walkIn });
+      }),
+  },
+} as const;
+type Chunk = keyof typeof CHUNKS;
 
-/** Fetch the insight dashboard's Indonesian strings once and graft them onto the default dictionary. */
-function loadInsightStrings(): Promise<void> {
-  if ('insight' in id) return Promise.resolve();
-  insightLoading ??= import('./dictionaries/id/insight').then((m) => {
-    Object.assign(id, { insight: m.insight });
-  });
-  return insightLoading;
+const chunkLoading = new Map<Chunk, Promise<void>>();
+
+function loadChunk(name: Chunk): Promise<void> {
+  if (CHUNKS[name].loaded()) return Promise.resolve();
+  let pending = chunkLoading.get(name);
+  if (!pending) {
+    pending = CHUNKS[name].load();
+    chunkLoading.set(name, pending);
+  }
+  return pending;
+}
+
+/** True once the chunk's strings can be read; its screen draws nothing before that. */
+function useChunk(name: Chunk): boolean {
+  const [ready, setReady] = useState(() => CHUNKS[name].loaded());
+  useEffect(() => {
+    if (ready) return;
+    let alive = true;
+    void loadChunk(name).then(() => alive && setReady(true));
+    return () => {
+      alive = false;
+    };
+  }, [name, ready]);
+  return ready;
 }
 
 /** True once the insight strings can be read; the dashboard draws nothing before that. */
 export function useInsightStrings(): boolean {
-  const [ready, setReady] = useState('insight' in id);
-  useEffect(() => {
-    if (ready) return;
-    let alive = true;
-    void loadInsightStrings().then(() => alive && setReady(true));
-    return () => {
-      alive = false;
-    };
-  }, [ready]);
-  return ready;
+  return useChunk('insight');
+}
+
+/** True once the counter till's strings can be read; the till draws nothing before that. */
+export function useCounterStrings(): boolean {
+  return useChunk('counter');
 }
 
 export function useT(): LocaleValue {

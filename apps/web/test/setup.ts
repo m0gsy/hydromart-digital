@@ -4,6 +4,7 @@ import { afterEach } from 'vitest';
 
 import { id } from '@/lib/dictionaries/id';
 import { insight } from '@/lib/dictionaries/id/insight';
+import { walkIn } from '@/lib/dictionaries/id/opsFixWalkIn';
 
 // Vitest doesn't auto-register RTL cleanup (no globals) — do it once here so
 // mounted trees don't leak across tests.
@@ -11,6 +12,8 @@ afterEach(cleanup);
 
 // The insight strings are a lazy chunk in the app; tests read them straight off the default dictionary.
 Object.assign(id, { insight });
+// So are the counter till's (`opsFix.walkIn`).
+Object.assign(id.opsFix, { walkIn });
 
 // `findBy*` and `waitFor` give up after 1s by default. Under `--coverage` on a busy machine (and
 // on the shared CI runner) a render that fetches before it draws can take longer than that, and
