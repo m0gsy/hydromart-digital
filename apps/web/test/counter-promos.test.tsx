@@ -423,3 +423,89 @@ describe('what the till remembers between buyers', () => {
 });
 
 const pay2 = () => screen.getByTestId('counter-pay') as HTMLButtonElement;
+
+/*
+ * PR-A. A bonus is goods, not a rupiah figure: it leaves the shelf and the stock count. And the
+ * total the cashier collects against is the one the sale records, or the sale does not happen.
+ */
+describe('the bonus and the total the till collects against', () => {
+  const payButton = () => screen.getByTestId('counter-pay') as HTMLButtonElement;
+
+  it('lists the free units to hand over, by product', async () => {
+    quoteExtras = { freeItems: [{ productId: 'p-air', quantity: 1 }] };
+    await openTill();
+    await addOneGalon();
+    expect(await screen.findByText('Serahkan juga (gratis)')).toBeTruthy();
+    expect(screen.getByText('1× Air Galon 19L')).toBeTruthy();
+  });
+
+  it('warns before Bayar when the shelf cannot cover paid plus free units', async () => {
+    // One paid + twelve free against twelve on the shelf.
+    quoteExtras = { freeItems: [{ productId: 'p-air', quantity: 12 }] };
+    await openTill();
+    await addOneGalon();
+    expect(
+      await screen.findByText(/Stok Air Galon 19L kurang untuk bonus: perlu 13, sisa 12/),
+    ).toBeTruthy();
+  });
+
+  it('sends the total it showed, and on a different one looks the phone up and re-quotes', async () => {
+    const sales: Array<Record<string, unknown>> = [];
+    const identify: string[] = [];
+    const base = post.getMockImplementation()!;
+    post.mockImplementation(async (path: string, body: Record<string, unknown>) => {
+      const p = String(path);
+      if (p.endsWith('/orders/walk-in')) {
+        sales.push(body);
+        throw new ApiError(
+          409,
+          'Total penjualan berubah menjadi Rp18.000. Periksa lalu bayar lagi.',
+          'ORDER_COUNTER_TOTAL_CHANGED',
+        );
+      }
+      if (p.includes('/walk-in/identify')) identify.push(p);
+      return base(path, body);
+    });
+    await openTill();
+    await addOneGalon();
+    // A phone typed, never looked up: the quote priced nobody.
+    await userEvent.type(screen.getByLabelText(/nomor hp/i), '08123456789');
+    await userEvent.click(await screen.findByRole('button', { name: /uang pas/i }));
+    await waitFor(() => expect(payButton().disabled).toBe(false));
+    await userEvent.click(payButton());
+
+    await waitFor(() => expect(sales).toHaveLength(1));
+    expect(sales[0]!.expectedTotalIdr).toBe(20000);
+    expect(await screen.findByText(/Total penjualan berubah menjadi Rp18\.000/)).toBeTruthy();
+    await waitFor(() => expect(identify).toHaveLength(1));
+    // The buyer is now identified, so the next quote prices them.
+    await waitFor(() => expect(quoteBodies.at(-1)?.customerId).toBe('buyer-1'));
+  });
+
+  it('tells the cashier a promised bonus did not come with the sale', async () => {
+    quoteExtras = { freeItems: [{ productId: 'p-gift', quantity: 1 }] };
+    const base = post.getMockImplementation()!;
+    post.mockImplementation(async (path: string, body: Record<string, unknown>) => {
+      if (String(path).endsWith('/orders/walk-in')) {
+        return {
+          id: 'o-1',
+          orderNumber: 'WI-001',
+          total: 20000,
+          customerId: 'buyer-1',
+          status: 'COMPLETED',
+          items: [{ productId: 'p-air', unitPrice: 20000, quantity: 1 }],
+        };
+      }
+      return base(path, body);
+    });
+    await openTill();
+    await addOneGalon();
+    await userEvent.click(await screen.findByRole('button', { name: /uang pas/i }));
+    await waitFor(() => expect(payButton().disabled).toBe(false));
+    await userEvent.click(payButton());
+
+    expect(
+      await screen.findByText(/Bonus tidak diberikan karena stok habis: 1× produk bonus/),
+    ).toBeTruthy();
+  });
+});

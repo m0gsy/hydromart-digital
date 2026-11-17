@@ -16,6 +16,7 @@ import {
   DepotRequiredError,
   DepotUnavailableError,
   CounterBasketChangedError,
+  CounterTotalChangedError,
   CounterDeliveryUnavailableError,
   DuplicateCheckoutError,
   EmptiesReturnedExceedGallonsError,
@@ -209,6 +210,8 @@ export interface WalkInSaleInput {
    * validated against the priced basket's own galon count once that is known.
    */
   emptiesReturned?: number | null;
+  /** The total the till showed; a sale that now prices differently is refused (see CounterTotalChangedError). */
+  expectedTotalIdr?: number | null;
   /** The cashier's internal note on this sale; never shown to the buyer. */
   counterNote?: string | null;
 }
@@ -1215,6 +1218,7 @@ export class OrderService {
       items,
       subtotal,
       discount,
+      total,
       voucherCode,
       catalogFallback,
       appliedLines,
@@ -1234,6 +1238,11 @@ export class OrderService {
       wantsDelivery,
       user.sub,
     );
+    // Before anything is held or charged: the cashier collected against the number on the
+    // till, and a sale recorded at a different one is a drawer that cannot balance.
+    if (input.expectedTotalIdr != null && input.expectedTotalIdr !== total) {
+      throw new CounterTotalChangedError(total);
+    }
 
     // #27: validated against the PRICED basket's own galon count, not the raw line
     // quantities the DTO carried — a line priced down to 0 by stock or a catalogue miss

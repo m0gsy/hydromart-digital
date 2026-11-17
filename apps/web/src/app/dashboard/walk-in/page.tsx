@@ -26,6 +26,7 @@ import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
+import { droppedFree, freeShortfall } from '@/lib/counter-free';
 import { computeEffective } from '@/lib/pricing';
 import { buildReceiptModel, printReceipt } from '@/lib/receipt';
 import { useDepotContact } from '@/lib/use-depot-contact';
@@ -501,6 +502,15 @@ function WalkIn({ depotId }: { depotId: string }) {
   const payDisabled =
     busy || lines.length === 0 || shiftOpen !== true || total === null || !quoteFresh;
   const appliedPromos = quote.data?.appliedPromos ?? [];
+  // What leaves the counter at no charge. Only from a quote for THIS basket: a stale answer
+  // would tell the cashier to hand over a bonus the current basket does not earn.
+  const freeItems = quoteFresh ? (quote.data?.freeItems ?? []) : [];
+  const freeShort = freeShortfall(
+    freeItems,
+    new Map(lines.map((l) => [l.product.id, l.quantity])),
+    availableById,
+  );
+  const freeName = (id: string) => productNameById(id) ?? t('opsFix.walkIn.freeUnknown');
   // ORDER promos sit inside the discount line already; name them there rather than twice.
   const orderPromoNames = appliedPromos
     .filter((p) => p.effect === 'ORDER')
@@ -737,6 +747,8 @@ function WalkIn({ depotId }: { depotId: string }) {
     }
 
     setBusy(true);
+    // What the buyer was told they get for free, to check against what the sale recorded.
+    const promisedFree = quote.data?.freeItems ?? [];
     // B-13: one key per till attempt, kept across failed submits. A depot on a flaky link
     // gets a retried Bayar answered with the sale it already recorded, not a second one.
     if (!attemptKey.current) attemptKey.current = crypto.randomUUID();
@@ -762,6 +774,9 @@ function WalkIn({ depotId }: { depotId: string }) {
           // #27: empty string = not asked, sent as undefined rather than a false "0 brought".
           emptiesReturned:
             galonQty > 0 && emptiesReturned.trim() !== '' ? Number(emptiesReturned) : undefined,
+          // The number the cashier collected against. A sale that prices differently is
+          // refused before anything is held (ORDER_COUNTER_TOTAL_CHANGED).
+          expectedTotalIdr: total,
         },
         true,
         { 'Idempotency-Key': attemptKey.current },
@@ -780,6 +795,17 @@ function WalkIn({ depotId }: { depotId: string }) {
        * The refusal is now said in the cashier's language, and the stock is reloaded so the
        * steppers drop to what is really there — the retry can now succeed.
        */
+      /*
+       * The sale priced differently than the till. Almost always a phone typed without
+       * "Cek pelanggan": the quote priced nobody, the sale priced the agen or new buyer behind
+       * the number. Look them up now, which re-quotes for them, and let the cashier read the
+       * new total out before pressing Bayar again. Otherwise a promo hour moved: re-quote.
+       */
+      if (e instanceof ApiError && e.code === 'ORDER_COUNTER_TOTAL_CHANGED') {
+        if (!buyerId && phone.trim()) void identifyBuyer();
+        else void quote.reload();
+        return toast(e.message, 'error');
+      }
       if (e instanceof ApiError && e.code === 'ORDER_INSUFFICIENT_STOCK') {
         stockReloadRef.current();
         // C6: the sale just made belongs in the till's own list.
@@ -793,6 +819,19 @@ function WalkIn({ depotId }: { depotId: string }) {
     // receipt, so the struk prints either way — and K3.2 keeps the unsettled payment on
     // this screen, where the cashier is still holding the money, instead of in a toast.
     const attempt: Unpaid = { order, method, cashReceived, paymentId: null };
+    // A gift the shelf could not cover is dropped by the server rather than failing the sale.
+    // The buyer was told about it, so the cashier has to be told it is not coming.
+    const dropped = promisedFree.length > 0 ? droppedFree(promisedFree, order.items) : [];
+    if (dropped.length > 0) {
+      toast(
+        t('opsFix.walkIn.freeDropped', {
+          items: dropped
+            .map((d) => t('opsFix.walkIn.freeItemQty', { qty: d.quantity, name: freeName(d.productId) }))
+            .join(', '),
+        }),
+        'error',
+      );
+    }
     try {
       await settle(attempt);
       toast(t('opsFix.walkIn.saleSaved', { order: order.orderNumber }));
@@ -1329,6 +1368,25 @@ function WalkIn({ depotId }: { depotId: string }) {
               </span>
             </div>
           ))}
+        {/* The bonus as GOODS, not only as a rupiah value: it leaves the shelf and the stock
+            count, so the cashier has to hand it over. */}
+        {freeItems.length > 0 && (
+          <div className="rounded-xl bg-[color:var(--success-bg)] px-3 py-2 text-sm" role="status">
+            <p className="font-semibold text-[color:var(--success)]">
+              {t('opsFix.walkIn.freeHandover')}
+            </p>
+            <p>
+              {freeItems
+                .map((f) => t('opsFix.walkIn.freeItemQty', { qty: f.quantity, name: freeName(f.productId) }))
+                .join(', ')}
+            </p>
+            {freeShort.map((s) => (
+              <p key={s.productId} className="mt-1 text-xs font-semibold text-[color:var(--danger)]">
+                {t('opsFix.walkIn.freeShort', { name: freeName(s.productId), need: s.need, have: s.have })}
+              </p>
+            ))}
+          </div>
+        )}
         {(quote.data?.discountIdr ?? 0) > 0 && (
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-2 text-muted">

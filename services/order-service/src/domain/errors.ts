@@ -39,6 +39,22 @@ export class CounterDeliveryUnavailableError extends DomainError {
   }
 }
 
+/**
+ * The basket prices differently now than the total the cashier was shown and collected.
+ *
+ * A phone typed at the till without "Cek pelanggan" was quoted as an anonymous buyer, while
+ * the sale resolves that phone and prices it as the account behind it — agen band, tier,
+ * first-order promo. The cashier counted change from one number and the order recorded
+ * another. Refused before anything is held or charged; the till re-quotes and asks again.
+ */
+export class CounterTotalChangedError extends DomainError {
+  readonly code = 'ORDER_COUNTER_TOTAL_CHANGED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(total: number) {
+    super(`Total penjualan berubah menjadi Rp${total.toLocaleString('id-ID')}. Periksa lalu bayar lagi.`);
+  }
+}
+
 export class CounterBasketChangedError extends DomainError {
   readonly code = 'ORDER_COUNTER_BASKET_CHANGED';
   readonly status = HTTP_STATUS.CONFLICT;

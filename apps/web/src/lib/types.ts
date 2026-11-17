@@ -3458,6 +3458,11 @@ export interface CounterQuote {
   firstOrder?: boolean;
   /** A new buyer held back from that promo by this cashier's daily ceiling. */
   firstOrderCapped?: boolean;
+  /**
+   * Units handed over at no charge (buy-X-get-Y, bundle gifts), per product. They leave the
+   * depot and the stock like any other unit. Absent from a server that predates it.
+   */
+  freeItems?: { productId: string; quantity: number }[];
   subtotalIdr: number;
   discountIdr: number;
   totalIdr: number;

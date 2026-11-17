@@ -491,6 +491,11 @@ export const opsFix = {
     quoteUnavailable: 'Harga belum bisa dihitung server. Coba lagi sebentar.',
     stockShort:
       'Stok tidak cukup untuk sebagian barang. Jumlahnya sudah diperbarui — sesuaikan lalu coba lagi.',
+    freeHandover: 'Serahkan juga (gratis)',
+    freeItemQty: '{qty}× {name}',
+    freeUnknown: 'produk bonus',
+    freeShort: 'Stok {name} kurang untuk bonus: perlu {need}, sisa {have}. Kurangi jumlah, atau bonus tidak bisa diberikan.',
+    freeDropped: 'Bonus tidak diberikan karena stok habis: {items}. Beri tahu pembeli.',
     recentTitle: 'Penjualan konter terakhir',
     recentHint: 'Depot ini saja',
     recentEmpty: 'Belum ada penjualan konter.',
