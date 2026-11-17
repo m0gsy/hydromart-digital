@@ -10,6 +10,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { decimalMax } from '@hydromart/platform';
 
 /** Delivery-completion event pushed by delivery-service (internal auth). */
 export class DeliveryCompletedEventDto {
@@ -54,6 +55,7 @@ export class CashVarianceEventDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(decimalMax(14, 2))
   amount!: number;
 }
 

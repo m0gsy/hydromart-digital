@@ -14,7 +14,9 @@ import {
   MaxLength,
   MinLength,
   ValidateNested,
+  Max,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import { InventoryItemType } from '../../domain/inventory';
 import { PoStatus } from '../../domain/purchase-order';
@@ -83,6 +85,7 @@ export class PoLineDto {
   @ApiProperty({ example: 50 })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   quantity!: number;
 
   @ApiProperty({ example: 18000, description: 'Unit cost in whole IDR. Must be at least 1.' })
@@ -97,6 +100,7 @@ export class PoLineDto {
    * honestly than a form that silently priced them at nothing.
    */
   @Min(1, { message: 'unitCostIdr must be at least 1 — an empty price field is not a free line.' })
+  @Max(INT4_MAX)
   unitCostIdr!: number;
 }
 
@@ -202,6 +206,7 @@ export class CreatePurchaseOrderDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   shippingIdr?: number;
 
   @ApiPropertyOptional({ example: '2026-07-25', description: 'Expected delivery date.' })

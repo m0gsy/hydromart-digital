@@ -18,6 +18,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { decimalMax } from '@hydromart/platform';
 
 import { IsRoleKey } from '../../../common/validators/is-role-key';
 import { Role } from '../../../domain/customer/role.enum';
@@ -163,6 +164,7 @@ export class InviteStaffDto {
   @IsDefined({ message: 'dailyRate wajib diisi untuk tipe gaji DAILY' })
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   dailyRate?: number;
 
   @ApiPropertyOptional({ example: 4500000, description: 'Required when salaryType is MONTHLY.' })
@@ -170,6 +172,7 @@ export class InviteStaffDto {
   @IsDefined({ message: 'monthlyRate wajib diisi untuk tipe gaji MONTHLY' })
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   monthlyRate?: number;
 }
 

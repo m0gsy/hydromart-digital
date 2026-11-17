@@ -12,6 +12,7 @@ import {
   Min,
   NotEquals,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import { MembershipTier, benefitFor } from '../../domain/membership';
 import { PointsTxnType } from '../../domain/points';
@@ -61,6 +62,7 @@ export class AdjustPointsDto {
   @Type(() => Number)
   @IsInt()
   @NotEquals(0)
+  @Max(INT4_MAX)
   points!: number;
 
   @ApiProperty({ example: 'Goodwill credit for delayed delivery.' })
@@ -135,6 +137,7 @@ export class RewardPointsDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(INT4_MAX)
   points!: number;
 
   @ApiProperty({ example: 'Referral reward: referred a new customer.' })

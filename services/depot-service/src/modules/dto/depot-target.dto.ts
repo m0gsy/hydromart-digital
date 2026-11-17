@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsOptional,
   IsISO8601, IsInt, IsUUID, Matches, Max, Min } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -36,11 +37,13 @@ export class UpsertDepotTargetDto {
   @ApiProperty({ example: 45_000_000 })
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   revenueTargetIdr!: number;
 
   @ApiProperty({ example: 1200 })
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   ordersTarget!: number;
 
   @ApiProperty({ example: 96, description: 'On-time SLA target as a whole percent.' })
@@ -52,5 +55,6 @@ export class UpsertDepotTargetDto {
   @ApiProperty({ example: 80 })
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   newCustomersTarget!: number;
 }

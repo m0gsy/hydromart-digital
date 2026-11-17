@@ -15,6 +15,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { decimalMax } from '@hydromart/platform';
 
 import { PricingAdjustType } from '../../domain/pricing-rule';
 import { PriceOverrideStatus } from '../../domain/price-override-proposal';
@@ -44,6 +45,7 @@ export class ProposePriceOverrideDto {
   })
   @Type(() => Number)
   @IsNumber()
+  @Max(decimalMax(12, 2))
   value!: number;
 
   @ApiPropertyOptional({ example: 'Menyesuaikan harga pesaing sekitar.' })

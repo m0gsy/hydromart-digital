@@ -15,6 +15,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { decimalMax } from '@hydromart/platform';
 
 export class BrowseProductsQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
@@ -110,6 +111,7 @@ export class CreateProductDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(decimalMax(12, 2))
   basePrice!: number;
 
   @ApiPropertyOptional()

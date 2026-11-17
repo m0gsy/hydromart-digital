@@ -15,6 +15,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { INT4_MAX, MAX_DAYS } from '@hydromart/platform';
 
 import { CampaignChannel } from '../../domain/channel';
 import { CampaignStatus } from '../../domain/campaign-status';
@@ -67,6 +68,7 @@ export class CampaignSegmentDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_DAYS)
   recencyDays?: number;
 
   @ApiPropertyOptional({ minimum: 1, description: 'Last order OLDER than this many days (lapsed / at-risk).' })
@@ -74,6 +76,7 @@ export class CampaignSegmentDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_DAYS)
   lapsedDays?: number;
 
   @ApiPropertyOptional({ minimum: 1, description: 'First order within this many days (newly acquired).' })
@@ -81,6 +84,7 @@ export class CampaignSegmentDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_DAYS)
   newWithinDays?: number;
 
   @ApiPropertyOptional({ minimum: 1, description: 'At least this many non-cancelled orders.' })
@@ -88,6 +92,7 @@ export class CampaignSegmentDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   minOrders?: number;
 
   @ApiPropertyOptional({ format: 'uuid', description: 'Customers who have ordered at this depot.' })

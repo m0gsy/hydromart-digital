@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import { StockTransferStatus } from '../../domain/stock-transfer';
 
@@ -22,6 +23,7 @@ export class SendTransferDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   quantity!: number;
 
   @ApiPropertyOptional({ example: 'Titip lewat kurir sore' })

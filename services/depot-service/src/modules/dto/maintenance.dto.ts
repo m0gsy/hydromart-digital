@@ -8,7 +8,9 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Max,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 export class CreateMaintenanceDto {
   @ApiProperty({ format: 'uuid', description: 'Depot the equipment belongs to.' })
@@ -30,6 +32,7 @@ export class CreateMaintenanceDto {
   @ApiProperty({ example: 30, description: 'Days between services.' })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   intervalDays!: number;
 
   @ApiProperty({ format: 'date-time', description: 'When the item is next due for service.' })

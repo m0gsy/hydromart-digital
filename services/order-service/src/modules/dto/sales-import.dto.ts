@@ -13,7 +13,9 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  Max,
 } from 'class-validator';
+import { INT4_MAX, decimalMax } from '@hydromart/platform';
 
 /** One row of the historical sales-transaction import wizard. */
 export class ImportSalesTransactionRowDto {
@@ -41,18 +43,21 @@ export class ImportSalesTransactionRowDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   quantity!: number;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @IsPositive()
+  @Max(decimalMax(12, 2))
   unitPrice!: number;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @IsPositive()
+  @Max(decimalMax(12, 2))
   lineTotal!: number;
 
   @ApiProperty({ required: false, maxLength: 40 })

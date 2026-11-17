@@ -9,7 +9,9 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Max,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import { SubscriptionCadence, SubscriptionStatus } from '../../domain/subscription';
 
@@ -44,6 +46,7 @@ export class CreateSubscriptionDto {
   @ApiProperty({ example: 2 })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   quantity!: number;
 
   @ApiProperty({ enum: SubscriptionCadence })

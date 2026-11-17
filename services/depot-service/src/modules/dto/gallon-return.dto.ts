@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays, decimalMax } from '@hydromart/platform';
 import {
   IsDateString,
   IsEnum,
@@ -49,6 +49,7 @@ export class CreateGallonReturnDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   depositRefunded?: number;
 
   @ApiPropertyOptional({ example: 'Galon retak, tidak dipakai ulang' })

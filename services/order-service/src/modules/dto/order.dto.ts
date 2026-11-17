@@ -24,6 +24,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { INT4_MAX, decimalMax } from '@hydromart/platform';
 
 import { OrderStatus } from '../../domain/order-status';
 
@@ -302,6 +303,7 @@ export class InternalRefundDto {
   @ApiProperty({ example: 25000, description: 'Refunded amount in rupiah.' })
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   amount!: number;
 }
 
@@ -317,6 +319,7 @@ export class InternalPaymentNoticeDto {
   @ApiProperty({ example: 25000, description: 'The payment amount in rupiah.' })
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   amount!: number;
 
   @ApiPropertyOptional({ enum: ['REJECTED', 'EXPIRED'], description: 'Why a FAILED payment failed.' })
@@ -394,6 +397,7 @@ export class CreateSubscriptionDto {
   @ApiProperty({ minimum: 1, description: 'Units delivered each cycle.' })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   quantity!: number;
 
   @ApiProperty({ enum: ['WEEKLY', 'BIWEEKLY', 'MONTHLY'] })
@@ -452,6 +456,7 @@ export class CreateSubscriptionForCustomerDto {
   @ApiProperty({ minimum: 1, description: 'Units delivered each cycle.' })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   quantity!: number;
 
   @ApiProperty({ enum: ['WEEKLY', 'BIWEEKLY', 'MONTHLY'] })
@@ -499,6 +504,7 @@ export class CreateReviewDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   tipAmount?: number;
 }
 

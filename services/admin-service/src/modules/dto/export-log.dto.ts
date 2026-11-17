@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import { ExportFormat, ExportStatus } from '../../domain/export';
 import { ExportLogRecord } from '../../application/ports/export-log.repository';
@@ -64,6 +65,7 @@ export class IngestExportLogDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   rowCount?: number;
 
   @ApiPropertyOptional({ enum: ExportStatus, default: ExportStatus.PENDING })
@@ -87,6 +89,7 @@ export class RecordExportLogDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   rowCount?: number;
 }
 

@@ -27,7 +27,7 @@ import {
   StockMovementType,
 } from '../../domain/inventory';
 
-import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays, decimalMax } from '@hydromart/platform';
 
 export class ListInventoryQueryDto {
   @ApiPropertyOptional({ enum: InventoryItemType })
@@ -172,6 +172,7 @@ export class CreateInventoryItemDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   sellPrice?: number;
 }
 
@@ -206,6 +207,7 @@ export class UpdateInventoryItemDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   sellPrice?: number;
 }
 

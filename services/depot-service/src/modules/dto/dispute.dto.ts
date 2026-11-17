@@ -8,7 +8,9 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Max,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import { DisputeCategory, DisputeResolution, DisputeStatus } from '../../domain/order-dispute';
 
@@ -43,6 +45,7 @@ export class CreateDisputeDto {
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   amountIdr?: number;
 
   @ApiPropertyOptional({ example: 'Budi', description: 'Courier involved, if any.' })

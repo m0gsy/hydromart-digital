@@ -1,7 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  IsISO8601, IsBoolean, IsInt, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+  IsISO8601, IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import {
   RedemptionStatus,
@@ -49,6 +50,7 @@ export class CreateRewardItemDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   pointsCost!: number;
 
   @ApiPropertyOptional({ nullable: true })
@@ -66,6 +68,7 @@ export class CreateRewardItemDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   stock?: number | null;
 
   @ApiPropertyOptional({ default: true })
@@ -102,6 +105,7 @@ export class UpdateRewardItemDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   pointsCost?: number;
 
   @ApiPropertyOptional({ nullable: true })
@@ -115,6 +119,7 @@ export class UpdateRewardItemDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   stock?: number | null;
 
   @ApiPropertyOptional()

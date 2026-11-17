@@ -20,6 +20,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { decimalMax } from '@hydromart/platform';
 
 import {
   EMPLOYABLE_ROLES,
@@ -91,11 +92,13 @@ export class CreateEmployeeDto {
   @IsOptional()
   @IsNumber()
   @IsPositive()
+  @Max(decimalMax(12, 2))
   dailyRate?: number;
 
   @IsOptional()
   @IsNumber()
   @IsPositive()
+  @Max(decimalMax(12, 2))
   monthlyRate?: number;
 
   @IsOptional()

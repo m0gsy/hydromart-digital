@@ -17,7 +17,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays, INT4_MAX, MAX_DAYS } from '@hydromart/platform';
 
 /** PLP-13: order ids to filter down to those that still count as sales. */
 export class CountingOrdersDto {
@@ -83,6 +83,7 @@ export class SegmentEstimateQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_DAYS)
   recencyDays?: number;
 
   @ApiPropertyOptional({
@@ -93,6 +94,7 @@ export class SegmentEstimateQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_DAYS)
   lapsedDays?: number;
 
   @ApiPropertyOptional({
@@ -103,6 +105,7 @@ export class SegmentEstimateQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_DAYS)
   newWithinDays?: number;
 
   @ApiPropertyOptional({
@@ -113,6 +116,7 @@ export class SegmentEstimateQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   minOrders?: number;
 
   @ApiPropertyOptional({ format: 'uuid', description: 'Customers who ordered at this depot.' })

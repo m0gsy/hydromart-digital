@@ -18,6 +18,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { decimalMax } from '@hydromart/platform';
 
 import { FranchiseApplicationRecord } from '../../application/ports/franchise-application.repository';
 import {
@@ -143,12 +144,14 @@ export class SubmitFranchiseApplicationDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(decimalMax(14, 2))
   investmentAmount!: number;
 
   @ApiProperty({ example: 45_000_000, description: 'Projected monthly revenue in IDR.' })
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(decimalMax(14, 2))
   projectedMonthlyRevenue!: number;
 
   /*

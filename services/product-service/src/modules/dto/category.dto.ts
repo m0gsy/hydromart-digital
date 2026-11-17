@@ -12,7 +12,9 @@ import {
   MaxLength,
   Min,
   ValidateNested,
+  Max,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 export class CreateCategoryDto {
   @ApiProperty({ example: 'Air Minum' })
@@ -31,6 +33,7 @@ export class CreateCategoryDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   sortOrder?: number;
 }
 

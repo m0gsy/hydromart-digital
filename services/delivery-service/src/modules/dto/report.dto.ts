@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsInt, IsOptional, IsISO8601, IsUUID, Min } from 'class-validator';
+import { IsInt, IsOptional, IsISO8601, IsUUID, Min, Max } from 'class-validator';
 
-import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays, MAX_DAYS } from '@hydromart/platform';
 
 export class SlaReportQueryDto {
   @ApiPropertyOptional({ description: 'Inclusive lower bound on deliveredAt/failedAt (ISO 8601).' })
@@ -25,6 +25,7 @@ export class SlaReportQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_DAYS * 24 * 60)
   thresholdMinutes?: number;
 
   @ApiPropertyOptional({
