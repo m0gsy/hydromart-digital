@@ -53,8 +53,9 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
     () => api.getCached<Department[]>(endpoints.hr.departments(), true),
     [],
   );
-  // Only this depot's units plus the network-wide ones — the server rejects the rest anyway.
-  const deptOptions = form.depotId ? departmentsForDepot(departments.data ?? [], form.depotId) : [];
+  // This depot's units plus the network-wide ones, or only the network-wide ones without a
+  // depot — the server rejects the rest anyway.
+  const deptOptions = departmentsForDepot(departments.data ?? [], form.depotId || null);
 
   // D-12: `t(HR_ROLE_LABEL[role as HrManagedRole]) ?? role` asserted a type the value usually
   // is not — this account is nearly always a CUSTOMER. Runtime-safe via the `??`, but the
@@ -140,7 +141,20 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
         <Field label={t('hrFix.employeeForm.depot')}>
           <select
             value={form.depotId}
-            onChange={(e) => set('depotId', e.target.value)}
+            onChange={(e) => {
+              const depotId = e.target.value;
+              // A department of the depot just left does not follow the person: drop it rather
+              // than let the save be refused with "milik depot lain".
+              setForm((f) => ({
+                ...f,
+                depotId,
+                departmentId: departmentsForDepot(departments.data ?? [], depotId || null).some(
+                  (d) => d.id === f.departmentId,
+                )
+                  ? f.departmentId
+                  : '',
+              }));
+            }}
             className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
             <option value="">{t('hrFix.employeeForm.pickDepot')}</option>
@@ -249,10 +263,9 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
           <select
             value={form.departmentId}
             onChange={(e) => set('departmentId', e.target.value)}
-            disabled={!form.depotId}
-            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm disabled:opacity-50"
+            className="surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm"
           >
-            <option value="">{form.depotId ? t('hrFix.employeeForm.notSet') : t('hrFix.employeeForm.pickDepotFirst')}</option>
+            <option value="">{t('hrFix.employeeForm.notSet')}</option>
             {deptOptions.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.code} — {d.name}

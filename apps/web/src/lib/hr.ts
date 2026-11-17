@@ -426,9 +426,16 @@ export interface Department {
   active: boolean;
 }
 
-/** A depot's staff may sit in its own department or in a network-wide one — never another depot's. */
-export function departmentsForDepot(list: Department[], depotId: string): Department[] {
-  return list.filter((d) => d.active && (d.depotId === null || d.depotId === depotId));
+/**
+ * A depot's staff may sit in its own department or in a network-wide one — never another depot's.
+ *
+ * No depot (`null`/'') offers the network-wide ones only. Asisten SPV and up, and head-office
+ * staff, have no home depot on purpose (a placement depot would fence their attendance to it),
+ * and the form used to lock the department until a depot was picked: nobody without one could
+ * be put in Keuangan or HR, though the server has always accepted exactly that.
+ */
+export function departmentsForDepot(list: Department[], depotId: string | null): Department[] {
+  return list.filter((d) => d.active && (d.depotId === null || (!!depotId && d.depotId === depotId)));
 }
 
 export function departmentLabel(

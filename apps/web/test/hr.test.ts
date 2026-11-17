@@ -329,6 +329,11 @@ describe('departments (A1)', () => {
     expect(departmentsForDepot(rows, 'd2').map((d) => d.id)).toEqual(['g', 'b']);
   });
 
+  it('offers only the network-wide ones to a person with no depot', () => {
+    expect(departmentsForDepot(rows, null).map((d) => d.id)).toEqual(['g']);
+    expect(departmentsForDepot(rows, '').map((d) => d.id)).toEqual(['g']);
+  });
+
   it('labels an unassigned or unknown department as "Belum diatur"', () => {
     expect(departmentLabel(rows, null, t)).toBe('Belum diatur');
     expect(departmentLabel(rows, 'ghost', t)).toBe('Belum diatur');

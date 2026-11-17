@@ -395,7 +395,6 @@ export const hrFix = {
     unchanged: 'Tidak diubah',
     pickRole: 'Pilih jabatan…',
     notSet: 'Belum diatur',
-    pickDepotFirst: 'Pilih depot dulu…',
     noName: '(tanpa nama)',
     chosenRole: 'jabatan yang dipilih',
     useThatAccount: 'Ya, gunakan akun itu',
