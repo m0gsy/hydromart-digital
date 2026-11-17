@@ -1945,6 +1945,7 @@ export const hrFix = {
     body2: 'Halaman yang kamu cari tidak ada atau sudah dipindahkan.',
     title: 'Halaman tidak ditemukan',
     toCatalog: 'Ke katalog',
+    toConsole: 'Kembali ke konsol',
   },
   referral: {
     yourCode: 'Kode referral kamu',
@@ -2046,7 +2047,7 @@ export const hrFix = {
     title: 'Import Harga Depot',
   },
   errorPage: {
-    body2: 'Terjadi kesalahan tak terduga. Coba lagi, atau kembali ke katalog.',
+    body2: 'Terjadi kesalahan tak terduga. Coba lagi, atau kembali ke halaman utama.',
     title: 'Ada yang tidak beres',
     retry: 'Coba lagi',
   },
