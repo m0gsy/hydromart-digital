@@ -122,6 +122,22 @@ describe('head-office search', () => {
 });
 
 describe('the customer screen reads the phone it was sent', () => {
+  it('keeps the number looked up last in the URL, so a reload shows the same customer', async () => {
+    who.role = 'HEAD_OFFICE';
+    window.history.replaceState({}, '', '/hq/customers?phone=0811');
+    get.mockImplementation(async (url: string) => {
+      if (url.includes('lookup?phone=0811')) return { id: 'c1', fullName: 'Pertama', phone: '0811' };
+      if (url.includes('lookup?phone=0822')) return { id: 'c2', fullName: 'Kedua', phone: '0822' };
+      throw new Error('not under test');
+    });
+    render(<HqCustomersPage />);
+    await waitFor(() => expect(screen.getByText('Pertama')).toBeTruthy());
+    fireEvent.change(screen.getByPlaceholderText('hq.customers.lookupPh'), { target: { value: '0822' } });
+    fireEvent.click(screen.getByText('hq.customers.lookup'));
+    await waitFor(() => expect(screen.getByText('Kedua')).toBeTruthy());
+    expect(window.location.search).toBe('?phone=0822');
+  });
+
   it('looks the number up without being asked to', async () => {
     who.role = 'HEAD_OFFICE';
     window.history.replaceState({}, '', '/hq/customers?phone=%2B628123456789');
@@ -232,10 +248,10 @@ describe('every door to the order queue uses the queue page own gate', () => {
     expect(pill.getAttribute('href')).toBe('/hr');
   });
 
-  it('the shop pill still opens the queue for the depot head', () => {
+  it('the shop pill agrees with the phone bar: the depot head lands on its own console home', () => {
     who.role = 'KEPALA_DEPOT';
     render(<Nav />);
-    expect(screen.getByText('nav.ops').closest('a')!.getAttribute('href')).toBe('/dashboard/orders');
+    expect(screen.getByText('nav.ops').closest('a')!.getAttribute('href')).toBe('/dashboard');
   });
 });
 

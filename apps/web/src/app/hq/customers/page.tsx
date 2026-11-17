@@ -13,7 +13,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import type { Customer, CustomerSummary, LoyaltyAccount } from '@/lib/types';
-import { useQueryParam } from '@/lib/use-query-param';
+import { useQueryState } from '@/lib/use-query-param';
 import { roleLabel } from '@/lib/custom-role';
 
 // Design 17e — Customer 360. The phone lookup + profile are real (auth.customerLookup);
@@ -27,8 +27,9 @@ import { roleLabel } from '@/lib/custom-role';
 export default function HqCustomersPage() {
   const { t } = useT();
   const { toast } = useToast();
-  // `?phone=` is how head-office search hands over the number it found; looked up once.
-  const carriedPhone = useQueryParam('phone');
+  // `?phone=` is how head-office search hands over the number it found; looked up once on
+  // arrival, and rewritten to every number looked up after, so a reload shows the same one.
+  const [carriedPhone, setCarriedPhone] = useQueryState('phone');
   const carriedLooked = useRef(false);
   const [phone, setPhone] = useState(carriedPhone);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -53,6 +54,7 @@ export default function HqCustomersPage() {
 
   async function lookup(target = phone) {
     if (!target.trim()) return;
+    setCarriedPhone(target.trim());
     setBusy(true);
     setError(null);
     setCustomer(null);

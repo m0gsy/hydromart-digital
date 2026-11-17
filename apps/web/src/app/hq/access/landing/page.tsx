@@ -106,8 +106,10 @@ export default function HqLandingPage() {
             </p>
             <span className="inline-flex w-fit items-center gap-2 rounded-lg bg-[color:var(--surface-soft)] px-3 py-2 font-mono text-sm">
               <MapPin size={16} weight="fill" className="text-brand-600" />
-              {/* Where sign-in really sends this role: the hand-kept table here had drifted
-                  (a courier shown /dashboard/orders, really /driver). */}
+              {/* Where web sign-in sends this role, from the same gates sign-in uses: the
+                  hand-kept table here had drifted (a courier shown /dashboard/orders, really
+                  /driver). ponytail: compiled defaults — a matrix override on ANOTHER role is
+                  not reflected; the Ops app sends a manager to /m/manager instead. */}
               {consoleHome(role)}
             </span>
           </div>

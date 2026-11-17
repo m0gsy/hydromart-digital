@@ -69,7 +69,8 @@ describe('/account menu by who is looking', () => {
     render(<AccountPage />, { wrapper: LocaleProvider });
     await waitFor(() => expect(hrefs()).toContain('/notifications'));
     const links = hrefs();
-    expect(links).toContain('/dashboard/orders');
+    // The courier's console is the driver app, the same door the phone bar opens.
+    expect(links).toContain('/driver');
     for (const shopOnly of [
       '/rewards',
       '/vouchers',
