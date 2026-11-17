@@ -92,6 +92,11 @@ export const ops = {
     combined: '{n} locations · combined',
     perDepotNotice:
       'Showing {name}. This screen works one depot at a time, not combined. Pick a depot at the top left to switch.',
+    noScopeTitle: 'This account is not linked to any depot yet',
+    noScopeBody:
+      'That is why every screen here is empty. Ask a Super Admin to set up the Hierarchy (superior → supervisor → assistant supervisor → depot), grant you a depot directly, or set your placement depot.',
+    noScopeOwner:
+      'No depot is registered to you yet, so every screen here is empty. Contact head office.',
   },
   roles: {
     SUPER_ADMIN: 'Super admin',

@@ -59,7 +59,14 @@ describe('HierarchyPrismaRepository', () => {
     staffDepotAssignment.findMany.mockResolvedValue([{ depotId: 'dep-9' }]);
 
     await expect(repo.directDepots('spv-1')).resolves.toEqual(['dep-9']);
-    expect(staffDepotAssignment.findMany.mock.calls[0][0].where).toEqual({ staffId: 'spv-1' });
+    expect(staffDepotAssignment.findMany.mock.calls[0][0].where).toEqual({
+      staffId: { in: ['spv-1'] },
+    });
+  });
+
+  it('reads no grants without a query when the team is empty', async () => {
+    await expect(repo.directDepotsMany([])).resolves.toEqual([]);
+    expect(staffDepotAssignment.findMany).not.toHaveBeenCalled();
   });
 
   it('sets and clears a depot assistant on the depot row itself', async () => {

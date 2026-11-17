@@ -95,6 +95,11 @@ export const ops = {
     combined: '{n} lokasi · gabungan',
     perDepotNotice:
       'Menampilkan {name}. Layar ini bekerja per depot, bukan gabungan. Pilih depot di pojok kiri untuk beralih.',
+    noScopeTitle: 'Akun ini belum terhubung ke depot mana pun',
+    noScopeBody:
+      'Karena itu semua layar di sini kosong. Minta Super Admin mengatur Hierarki (atasan → supervisor → asisten SPV → depot), menambahkan depot langsung ke akun Anda, atau mengisi depot penempatan.',
+    noScopeOwner:
+      'Belum ada depot yang terdaftar atas nama Anda, jadi semua layar di sini kosong. Hubungi kantor pusat.',
   },
   roles: {
     SUPER_ADMIN: 'Super admin',

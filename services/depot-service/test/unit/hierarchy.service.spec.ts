@@ -72,6 +72,31 @@ describe('HierarchyService.scopedDepotIds', () => {
     expect(await service.scopedDepotIds('mgr-9', 'MANAGER')).toEqual(['orphan']);
   });
 
+  // The two chain shapes fixed levels missed: each left a manager with an empty console.
+  it("gives a manager the depot granted directly to a supervisor under them", async () => {
+    repo.direct.set('spv-1', ['orphan']);
+    expect(await service.scopedDepotIds('mgr-1', 'MANAGER')).toContain('orphan');
+  });
+
+  it('gives a manager the depots of an assistant who reports to them directly', async () => {
+    repo.assistantOfDepot.set('c0', 'asv-3');
+    repo.superiors.set('asv-3', 'mgr-1');
+    const ids = await service.scopedDepotIds('mgr-1', 'MANAGER');
+    expect(ids).toContain('c0');
+    expect(ids).toHaveLength(23);
+  });
+
+  it('does not hand a supervisor what is granted to their manager', async () => {
+    repo.direct.set('mgr-1', ['orphan']);
+    expect(await service.scopedDepotIds('spv-1', 'SUPERVISOR')).not.toContain('orphan');
+  });
+
+  it('terminates on a cycle that slipped past the write check', async () => {
+    repo.superiors.set('mgr-1', 'asv-1');
+    const ids = await service.scopedDepotIds('mgr-1', 'MANAGER');
+    expect(ids).toHaveLength(22);
+  });
+
   it('returns nothing for an account with no assignment — never everything', async () => {
     expect(await service.scopedDepotIds('spv-9', 'SUPERVISOR')).toEqual([]);
     expect(await service.scopedDepotIds('nobody', 'KEPALA_DEPOT')).toEqual([]);

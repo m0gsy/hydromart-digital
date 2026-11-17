@@ -34,8 +34,13 @@ export class HierarchyPrismaRepository implements HierarchyRepository {
   }
 
   async directDepots(staffId: string): Promise<string[]> {
+    return this.directDepotsMany([staffId]);
+  }
+
+  async directDepotsMany(staffIds: readonly string[]): Promise<string[]> {
+    if (staffIds.length === 0) return [];
     const rows = await this.prisma.staffDepotAssignment.findMany({
-      where: { staffId },
+      where: { staffId: { in: [...staffIds] } },
       select: { depotId: true },
     });
     return rows.map((r) => r.depotId);

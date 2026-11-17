@@ -114,6 +114,10 @@ export class InMemoryHierarchyRepository implements HierarchyRepository {
     return Promise.resolve(this.direct.get(staffId) ?? []);
   }
 
+  directDepotsMany(staffIds: readonly string[]): Promise<string[]> {
+    return Promise.resolve(staffIds.flatMap((id) => this.direct.get(id) ?? []));
+  }
+
   setDepotAssistant(depotId: string, staffId: string | null): Promise<void> {
     if (staffId === null) this.assistantOfDepot.delete(depotId);
     else this.assistantOfDepot.set(depotId, staffId);

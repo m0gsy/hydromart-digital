@@ -30,14 +30,33 @@ const SUPERVISOR = {
   status: 'ACTIVE',
 };
 
+const MANAGER = {
+  id: 'mgr-1',
+  fullName: 'Manajer Satu',
+  phone: '0803',
+  role: 'MANAGER',
+  status: 'ACTIVE',
+};
+const COURIER = {
+  id: 'kur-1',
+  fullName: 'Kurir Satu',
+  phone: '0804',
+  role: 'STAFF_DEPOT',
+  status: 'ACTIVE',
+};
+const LEADERS = [ASSISTANT, SUPERVISOR, MANAGER];
+
 /**
  * The staff SEARCH answers only what the query matches; the assistant read and the by-ids
  * read answer regardless. That asymmetry is the whole point of C-3 and C-4.
  */
 function routeReads(searchResults: unknown[]) {
   get.mockImplementation((path: string) => {
-    if (path.includes('role=ASSISTANT_SUPERVISOR')) {
-      return Promise.resolve({ items: [ASSISTANT], total: 1, page: 1, limit: 200 });
+    // The per-role leader reads: answered by role, whatever the search box says.
+    const role = /role=([A-Z_]+)/.exec(path)?.[1];
+    if (role) {
+      const items = LEADERS.filter((p) => p.role === role);
+      return Promise.resolve({ items, total: items.length, page: 1, limit: 100 });
     }
     if (path.includes('/auth/staff')) {
       return Promise.resolve({
@@ -86,7 +105,13 @@ describe('HqHierarchyPage', () => {
     render(<HqHierarchyPage />);
 
     await waitFor(() => expect(screen.getByText('JKT-01 · Depot Satu')).toBeTruthy());
-    expect(await screen.findByRole('option', { name: /Asisten Satu/ })).toBeTruthy();
+    // The staff picker lists leaders too now, so look only at the depot's own picker.
+    await waitFor(() => {
+      const depotPickers = screen.getAllByRole('combobox').filter(
+        (el) => el.querySelector('option')?.textContent !== 'hq.hierarchy.pickStaffNone',
+      );
+      expect(depotPickers.some((el) => el.querySelector('option[value="asv-1"]'))).toBe(true);
+    });
   });
 
   /*
@@ -119,5 +144,38 @@ describe('HqHierarchyPage', () => {
     await userEvent.type(screen.getByPlaceholderText('hq.hierarchy.searchHint'), 'zzz');
 
     await waitFor(() => expect(screen.getByText('hq.hierarchy.linkGrants')).toBeTruthy());
+  });
+
+  /*
+   * The superior picker was the 25-row search minus the selected person. With an empty box
+   * that is the 25 newest staff - couriers, after an import - so a supervisor could not be
+   * put under any manager. Leaders are read in full and always offered.
+   */
+  it('offers every manager as a superior even when the search shows only couriers', async () => {
+    routeReads([COURIER]);
+    render(<HqHierarchyPage />);
+
+    const staffSelect = await waitFor(() => {
+      const found = screen.getAllByRole('combobox').find((el) => {
+        const first = el.querySelector('option');
+        return first?.textContent === 'hq.hierarchy.pickStaffNone';
+      });
+      if (!found?.querySelector('option[value="spv-1"]')) throw new Error('staff picker not ready');
+      return found as HTMLSelectElement;
+    });
+    await userEvent.selectOptions(staffSelect, 'spv-1');
+
+    // Search for the courier: the manager is no longer anywhere in the search results.
+    await userEvent.type(screen.getByPlaceholderText('hq.hierarchy.searchHint'), 'Kurir');
+
+    const superiorSelect = await waitFor(() => {
+      const found = screen.getAllByRole('combobox').find((el) => {
+        const first = el.querySelector('option');
+        return first?.textContent === 'hq.hierarchy.noSuperior';
+      });
+      if (!found) throw new Error('superior picker not ready');
+      return found as HTMLSelectElement;
+    });
+    expect(superiorSelect.querySelector('option[value="mgr-1"]')).toBeTruthy();
   });
 });

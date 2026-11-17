@@ -60,10 +60,31 @@ async function readAllPages<T>(url: (page: number) => string): Promise<T[]> {
   }
 }
 
-const readAllAssistants = () =>
-  readAllPages<Customer>((page) =>
-    endpoints.auth.staff({ page, limit: PAGE, role: 'ASSISTANT_SUPERVISOR' }),
-  );
+/**
+ * Everyone who can have someone report to them, read in full and highest rank first.
+ *
+ * The superior picker used to be the 25-row name search minus the selected person. With an
+ * empty box that search is the 25 NEWEST staff - after a courier import, couriers only - so
+ * a supervisor could not be linked to any manager unless the operator re-typed the
+ * manager's name AFTER picking the supervisor. Nobody guesses that, and the chain that
+ * gives a manager their depots stayed empty. These roles are few (one kepala per depot at
+ * most), so reading them whole is cheap.
+ */
+const LEADER_ROLES = ['DIREKTUR', 'MANAGER', 'SUPERVISOR', 'ASSISTANT_SUPERVISOR', 'KEPALA_DEPOT'] as const;
+
+const readAllLeaders = async (): Promise<Customer[]> =>
+  (
+    await Promise.all(
+      LEADER_ROLES.map((role) =>
+        readAllPages<Customer>((page) => endpoints.auth.staff({ page, limit: PAGE, role })),
+      ),
+    )
+  ).flat();
+
+/** First occurrence wins, so the order of the parts is the order on screen. */
+const uniqueById = (list: Customer[]): Customer[] => [
+  ...new Map(list.map((p) => [p.id, p] as const)).values(),
+];
 
 const readAllDepots = () =>
   readAllPages<SupervisedDepot>((page) => endpoints.depots.manage({ page, limit: PAGE }));
@@ -99,7 +120,7 @@ export default function HqHierarchyPage() {
     () => (staffId ? api.get<Described>(endpoints.hierarchy.describe(staffId), true) : Promise.resolve(null)),
     [staffId],
   );
-  const assistantPage = useAsync<Customer[]>(() => readAllAssistants(), []);
+  const leaderPage = useAsync<Customer[]>(() => readAllLeaders(), []);
 
   const d = detail.data;
   /*
@@ -122,14 +143,21 @@ export default function HqHierarchyPage() {
   const selected = linked.data?.find((p) => p.id === staffId) ?? null;
   const superior = linked.data?.find((p) => p.id === d?.superiorId) ?? null;
 
-  const people = useMemo(() => staff.data?.items ?? [], [staff.data]);
+  const leaders = useMemo(() => leaderPage.data ?? [], [leaderPage.data]);
+  const found = useMemo(() => staff.data?.items ?? [], [staff.data]);
+  // An empty search box lists the leaders first: they are who this screen is mostly about,
+  // and the newest-25 alone hid every one of them behind a courier import.
+  const people = useMemo(
+    () => (search ? found : uniqueById([...leaders, ...found])),
+    [search, found, leaders],
+  );
   const depotRows = useMemo(() => depots.data ?? [], [depots.data]);
   const nameOf = useMemo(() => {
     const map = new Map(
-      [...people, ...(linked.data ?? [])].map((p) => [p.id, p.fullName || p.phone]),
+      [...people, ...leaders, ...(linked.data ?? [])].map((p) => [p.id, p.fullName || p.phone]),
     );
     return (id: string) => map.get(id) ?? id;
-  }, [people, linked.data]);
+  }, [people, leaders, linked.data]);
   const depotName = useMemo(() => {
     const map = new Map(depotRows.map((d) => [d.id, `${d.code} · ${d.name}`]));
     return (id: string) => map.get(id) ?? id;
@@ -142,12 +170,15 @@ export default function HqHierarchyPage() {
   // C-3: the recorded superior is always in the option set, even when they are outside the
   // current 25 results. A `<select value={id}>` with no matching `<option>` falls back to
   // the first one, so the screen read "Tanpa atasan" for somebody who has one.
+  //
+  // Leaders come from their own full read, never only from the search (see LEADER_ROLES);
+  // the search results follow, so a courier can still be recorded under anyone.
   const superiors = useMemo(() => {
-    const list = people.filter((p) => p.id !== staffId);
+    const list = uniqueById([...leaders, ...found]).filter((p) => p.id !== staffId);
     const current = d?.superiorId;
     if (current && !list.some((p) => p.id === current) && superior) list.unshift(superior);
     return list;
-  }, [people, staffId, d?.superiorId, superior]);
+  }, [leaders, found, staffId, d?.superiorId, superior]);
   const grantsDepots = (role: string) => (DEPOT_GRANTING_ROLES as readonly string[]).includes(role);
   /*
    * C-3: the depot → assistant picker reads for itself. Filtering the 25-row NAME SEARCH
@@ -155,7 +186,7 @@ export default function HqHierarchyPage() {
    * operator happened to have searched an assistant by name — a hard regression against the
    * `limit: 200` this page replaced, on the one control that must always be usable.
    */
-  const assistants = assistantPage.data ?? [];
+  const assistants = leaders.filter((p) => p.role === 'ASSISTANT_SUPERVISOR');
 
   if (!can('hierarchyAdmin', customer?.role)) return <AccessDeniedHq role={customer?.role} />;
 
@@ -192,7 +223,7 @@ export default function HqHierarchyPage() {
           <div className="flex flex-col gap-2">
             {/* Without the assistant roster every picker below is empty, which reads as a
                 network with no assistant supervisors to assign. */}
-            {assistantPage.error && <LoadError onRetry={assistantPage.reload} />}
+            {leaderPage.error && <LoadError onRetry={leaderPage.reload} />}
             {depotRows.map((depot) => (
               <DepotRow
                 key={depot.id}
@@ -255,9 +286,9 @@ export default function HqHierarchyPage() {
           {/* An empty picker is indistinguishable from a depot with no staff, and this is
               the screen that assigns who reports to whom. */}
           {staff.error && <LoadError onRetry={staff.reload} />}
-          {staff.data && staff.data.total > people.length && (
+          {staff.data && staff.data.total > found.length && (
             <span className="text-xs text-muted">
-              {t('hq.hierarchy.moreResults', { n: staff.data.total - people.length })}
+              {t('hq.hierarchy.moreResults', { n: staff.data.total - found.length })}
             </span>
           )}
         </label>

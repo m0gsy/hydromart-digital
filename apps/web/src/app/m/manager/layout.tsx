@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 
+import { NoDepotScopeNotice } from '@/components/dashboard/all-depots-notice';
 import { OpsPushPrompt } from '@/components/dashboard/ops-push';
 import { ManagerShell } from '@/components/manager-mobile/manager-shell';
 import { RequireAuth } from '@/components/require-auth';
@@ -21,7 +22,10 @@ export default function ManagerMobileLayout({ children }: { children: React.Reac
     <RequireAuth>
       <DepotProvider>
         <OpsPushPrompt />
-        <ManagerShell nav={!fullBleed}>{children}</ManagerShell>
+        <ManagerShell nav={!fullBleed}>
+          <NoDepotScopeNotice className="mx-4 mt-4" />
+          {children}
+        </ManagerShell>
       </DepotProvider>
     </RequireAuth>
   );
