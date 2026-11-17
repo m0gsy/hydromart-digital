@@ -118,13 +118,16 @@ const BACK: Record<string, string> = {
 /**
  * `trailingSlash: true` in the exported build means the router can hand us `/products/`
  * where the dev server hands us `/products`. Both name the same screen.
+ *
+ * Exported as THE path comparer: every new "is this the screen?" check goes through it, so
+ * the APK and the web build can never answer the same question two ways.
  */
-function normalise(pathname: string): string {
+export function normalisePath(pathname: string): string {
   return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
 }
 
 export function screenChrome(pathname: string): Chrome {
-  const path = normalise(pathname);
+  const path = normalisePath(pathname);
 
   if (path in ROOT) {
     return { kind: 'root', titleKey: ROOT[path], search: path === '/products', backHref: '/' };
