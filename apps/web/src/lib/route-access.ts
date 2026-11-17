@@ -10,6 +10,15 @@
  * Every gate is borrowed, never restated: the /hq table and its partial doors from
  * `hq-nav`, the depot rail's own `show()`, the HR rail's row gates and the console-entry
  * checks the phone shells use. A second copy of any of them is a door that drifts.
+ *
+ * ponytail: a screen is judged by the rail row it sits under. Two known ceilings, both closed
+ * by PR-3's "item gate = page gate" invariant rather than by a second table here:
+ * - a row stricter than its page hides a link that would have worked (`/dashboard/depots`
+ *   rows on `depotAdmin`, the page reads on `depotDirectory`);
+ * - a child stricter than its row is not seen (`/hr/attendance/import` needs `hrAdmin`).
+ *   Give such a child its own row before anything links to it.
+ * Importing the two rails also bundles their icons with every caller; PR-3a moves the ops
+ * table into `lib/ops-nav.ts`, and this import moves with it.
  */
 import { GROUPS } from '@/components/dashboard/ops-rail';
 import { HR_ITEMS } from '@/components/hr/hr-rail';
@@ -23,12 +32,19 @@ import {
   canViewHr,
   canViewResellers,
   dashboardLandingView,
+  isStaff,
 } from '@/lib/roles';
 import { normalisePath } from '@/lib/screen-chrome';
 
 type Role = string | null | undefined;
 
 const under = (path: string, prefix: string) => path === prefix || path.startsWith(`${prefix}/`);
+
+/** `[path, '?query#hash']`, the path with no trailing slash. */
+function splitHref(href: string): [string, string] {
+  const cut = href.search(/[?#]/);
+  return cut === -1 ? [normalisePath(href), ''] : [normalisePath(href.slice(0, cut)), href.slice(cut)];
+}
 
 /** The deepest row `path` sits under, so `/dashboard/franchise/attendance` beats its parent. */
 function deepest<T extends { href: string }>(items: readonly T[], path: string): T | undefined {
@@ -39,10 +55,16 @@ function deepest<T extends { href: string }>(items: readonly T[], path: string):
   return best;
 }
 
-// The rail's `/dashboard` row is a door for rail users only; the page itself has its own gate.
-const DEPOT_ROWS = GROUPS.flatMap((g) => g.items).filter(
-  (i) => i.href !== '/dashboard' && under(i.href, '/dashboard'),
-);
+/*
+ * The rail's `/dashboard` row is a door for rail users only; the page has its own gate.
+ * Read on first use, not at import: a rail that one day asks `canOpenRoute` would otherwise
+ * meet its own `GROUPS` before it exists.
+ */
+let depotRows: (typeof GROUPS)[number]['items'] | undefined;
+const depotRowsOnce = () =>
+  (depotRows ??= GROUPS.flatMap((g) => g.items).filter(
+    (i) => i.href !== '/dashboard' && under(i.href, '/dashboard'),
+  ));
 
 function pageAllows(path: string, role: Role): boolean {
   if (under(path, '/hq')) {
@@ -53,11 +75,11 @@ function pageAllows(path: string, role: Role): boolean {
   // The depot home serves the operator and the franchise owner too, neither holding `dashboard`.
   if (path === '/dashboard') return dashboardLandingView(role) !== 'denied';
   if (under(path, '/dashboard')) {
-    // ponytail: a screen with no rail row keeps its own gate; hiding its link would be a guess.
-    return deepest(DEPOT_ROWS, path)?.show(role) ?? true;
+    // A screen with no rail row keeps its own say; it is still a staff screen.
+    return isStaff(role) && (deepest(depotRowsOnce(), path)?.show(role) ?? true);
   }
-  // Self-service answers only for the caller's own employee record, so signed in is the gate.
-  if (under(path, '/hr/me')) return !!role;
+  // Self-service answers for the caller's own employee record: any staff account, no customer.
+  if (under(path, '/hr/me')) return isStaff(role);
   if (under(path, '/hr')) {
     const row = deepest(HR_ITEMS, path);
     return (
@@ -70,9 +92,13 @@ function pageAllows(path: string, role: Role): boolean {
   return true;
 }
 
-/** True only when `role` passes the page's gate AND this build serves the route. */
+/**
+ * True only when `href` is a path in this app, `role` passes its page's gate, and this build
+ * serves the route. Anything else — an absolute URL, a relative path — it cannot vouch for.
+ */
 export function canOpenRoute(href: string, role: Role): boolean {
-  const path = normalisePath(href.split(/[?#]/, 1)[0] ?? '');
+  if (!href.startsWith('/') || href.startsWith('//')) return false;
+  const [path] = splitHref(href);
   return isServedHere(path) && pageAllows(path, role);
 }
 
@@ -86,11 +112,13 @@ const TWINS: ReadonlyArray<readonly [hq: string, depot: string]> = [
   ['/hq/pnl', '/dashboard/monthly-pnl'],
 ];
 
-/** `href` as the console asking for it spells it: its twin when it has one, unchanged otherwise. */
+/**
+ * `href` as the console asking for it spells it: its twin when it has one, unchanged
+ * otherwise. Says nothing about whether the result opens — ask `canOpenRoute` of what it returns.
+ */
 export function twinFor(href: string, side: ConsoleSide): string {
-  const cut = href.search(/[?#]/);
-  const path = normalisePath(cut === -1 ? href : href.slice(0, cut));
+  const [path, rest] = splitHref(href);
   const pair = TWINS.find(([hq, depot]) => path === hq || path === depot);
   if (!pair) return href;
-  return (side === 'hq' ? pair[0] : pair[1]) + (cut === -1 ? '' : href.slice(cut));
+  return (side === 'hq' ? pair[0] : pair[1]) + rest;
 }

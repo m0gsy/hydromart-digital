@@ -18,6 +18,7 @@
  * than on a phone, which is what stops the next route rename from being found in
  * production.
  */
+import { normalisePath } from './screen-chrome';
 
 /**
  * Route prefixes whose next segment used to be an id. `/orders/abc` becomes
@@ -184,16 +185,12 @@ function pathAndQuery(raw: string): string | null {
   }
 }
 
-function splitQuery(target: string): [string, string] {
-  const at = target.indexOf('?');
-  if (at === -1) return [stripTrailingSlash(target), ''];
-  return [stripTrailingSlash(target.slice(0, at)), target.slice(at + 1)];
-}
-
 /**
  * `trailingSlash: true` means the exported files live at `orders/detail/index.html`, and
  * both `/orders/abc` and `/orders/abc/` reach this. The id must not come out as `abc/`.
  */
-function stripTrailingSlash(path: string): string {
-  return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+function splitQuery(target: string): [string, string] {
+  const at = target.indexOf('?');
+  if (at === -1) return [normalisePath(target), ''];
+  return [normalisePath(target.slice(0, at)), target.slice(at + 1)];
 }

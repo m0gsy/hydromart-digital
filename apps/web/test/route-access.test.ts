@@ -65,9 +65,26 @@ describe('canOpenRoute on the web build', () => {
     expect(canOpenRoute('/dashboard/', 'STAFF_DEPOT')).toBe(false);
   });
 
-  it('refuses a signed-out reader every console', () => {
-    for (const href of ['/hq/campaigns', '/dashboard/orders', '/hr/me', '/driver', '/m/manager']) {
+  it('refuses a signed-out reader and a shop customer every console', () => {
+    const consoles = [
+      '/hq/campaigns',
+      '/dashboard/orders',
+      // A console screen with no rail row is still a staff screen.
+      '/dashboard/operator-settings',
+      '/hr/me',
+      '/driver',
+      '/m/manager',
+    ];
+    for (const href of consoles) {
       expect(canOpenRoute(href, null)).toBe(false);
+      expect(canOpenRoute(href, 'CUSTOMER')).toBe(false);
+    }
+  });
+
+  it('vouches only for a path inside this app', () => {
+    // An absolute or protocol-relative URL, a relative path, or nothing at all.
+    for (const href of ['https://evil.example/hq', '//evil.example/hq', 'hq/flags', '', '?x=1']) {
+      expect(canOpenRoute(href, 'SUPER_ADMIN')).toBe(false);
     }
   });
 });
@@ -121,6 +138,10 @@ describe('twinFor', () => {
     expect(twinFor('/hq/compare', 'dashboard')).toBe('/dashboard/compare');
     expect(twinFor('/dashboard/monthly-pnl', 'hq')).toBe('/hq/pnl');
     expect(twinFor('/hq/pnl', 'dashboard')).toBe('/dashboard/monthly-pnl');
+  });
+
+  it('keeps a hash and a trailing slash out of the match', () => {
+    expect(twinFor('/hq/churn/#band', 'dashboard')).toBe('/dashboard/churn#band');
   });
 
   it('keeps the query and leaves an untwinned screen alone', () => {
