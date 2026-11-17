@@ -1,14 +1,23 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { Ticket } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
+import { useToast } from '@/components/toast';
+import { Badge, Button, Card, ErrorState, Input, LoadError, Money, Skeleton } from '@/components/ui';
+import { VoucherForm } from '@/components/voucher-form';
+import { fetchAllDepots } from '@/lib/all-depots';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
+import { formatDate, formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
+import { canWriteVoucher } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useDebounce } from '@/lib/use-debounce';
+import { voucherState } from '@/lib/voucher-form';
 import type { Page, Voucher } from '@/lib/types';
 
 interface BurnSummary {
@@ -16,20 +25,72 @@ interface BurnSummary {
   byVoucher: Record<string, number>;
 }
 
-// Design 14b — Tata kelola voucher. Everything is real: voucher list + network/per-voucher
-// burn (promo-service browse + burn-summary = SUM discountApplied).
-//
-// CA-2-42: the depot→HQ request queue that used to sit here is gone. See the note where it
-// was rendered — a depot manager may create vouchers for their own depot, and HQ watches
-// the list rather than gating it.
+type StatusTab = 'all' | 'active' | 'inactive';
+
+const PAGE = 20;
+
+const STATE_TONE = {
+  active: 'success',
+  upcoming: 'brand',
+  expired: 'neutral',
+  inactive: 'neutral',
+} as const;
+
+/**
+ * Head office's voucher list (14b): the network's spend, and every code with where it stands.
+ *
+ * It used to read page one (50 rows) and drop the inactive ones in the browser, with no way to
+ * edit anything. So a code saved as a draft vanished the moment it was saved, a live code past
+ * the 50th newest never showed, and fixing a typo meant leaving the console. Status and search
+ * are the server's now (the pages and the count are right), and a row opens the same editor the
+ * create page uses.
+ */
 export default function HqVouchersPage() {
   const { t } = useT();
-  const list = useAsync<Page<Voucher>>(() => api.get(endpoints.vouchers.browse(1, 50), true));
+  const L = (k: string, vars?: Record<string, string | number>) => t(`hq.vouchers.list.${k}`, vars);
+  const { toast } = useToast();
+  const { customer } = useAuth();
+  const [status, setStatus] = useState<StatusTab>('all');
+  const [query, setQuery] = useState('');
+  const q = useDebounce(query.trim(), 300);
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [status, q]);
+  const [editing, setEditing] = useState<string | null>(null);
+
+  const list = useAsync<Page<Voucher>>(
+    () =>
+      api.get(
+        endpoints.vouchers.browse(page, PAGE, { status: status === 'all' ? undefined : status, q }),
+        true,
+      ),
+    [page, status, q],
+  );
   const burn = useAsync<BurnSummary>(() => api.get(endpoints.vouchers.burnSummary, true));
+  // Names for the "where" badge. A failed read still lists the codes, as "Satu depot".
+  const depots = useAsync(() => fetchAllDepots(), []);
+  const names = useMemo(() => new Map((depots.data ?? []).map((d) => [d.id, d.name])), [depots.data]);
+  const depotName = (id: string) => names.get(id) ?? L('oneDepot');
+
   const vouchers = list.data?.items ?? [];
-  const active = vouchers.filter((v) => v.active);
-  const totalUsed = burn.data?.totalUsed ?? 0;
+  const total = list.data?.total ?? 0;
   const byVoucher = burn.data?.byVoucher ?? {};
+  const from = total === 0 ? 0 : (page - 1) * PAGE + 1;
+  const to = Math.min(page * PAGE, total);
+
+  const discount = (v: Voucher) =>
+    v.discountType === 'FREE_SHIPPING'
+      ? t('hq.forms.voucher.freeShip')
+      : v.discountType === 'PERCENTAGE'
+        ? `${v.value}%${v.maxDiscount ? ` · ${t('hq.forms.voucher.maxDiscount')} ${formatIDR(v.maxDiscount)}` : ''}`
+        : formatIDR(v.value);
+  const validity = (v: Voucher) =>
+    v.validFrom && v.validUntil
+      ? L('validRange', { from: formatDate(v.validFrom), to: formatDate(v.validUntil) })
+      : v.validFrom
+        ? L('validFrom', { from: formatDate(v.validFrom) })
+        : v.validUntil
+          ? L('validUntil', { to: formatDate(v.validUntil) })
+          : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -38,87 +99,146 @@ export default function HqVouchersPage() {
         title={t('hq.vouchers.title')}
         subtitle={t('hq.vouchers.subtitle')}
         action={
-          <>
-            <Link
-              href="/hq/forms/voucher"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-700"
-            >
-              ＋ {t('hq.vouchers.newVoucher')}
-            </Link>
-          </>
+          <Link
+            href="/hq/forms/voucher"
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-700"
+          >
+            ＋ {t('hq.vouchers.newVoucher')}
+          </Link>
         }
       />
 
       {/* Network voucher spend — REAL (promo-service burn-summary = SUM discountApplied) */}
       <Card className="flex flex-col gap-2 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold">{t('hq.vouchers.budget.title')}</h2>
-          <span className="text-sm text-muted">
-            {t('hq.vouchers.budget.active', { n: active.length })}
-          </span>
-        </div>
-        <p className="text-xs uppercase tracking-wide text-muted">
-          {t('hq.vouchers.budget.total')}
-        </p>
+        <h2 className="font-semibold">{t('hq.vouchers.budget.title')}</h2>
+        <p className="text-xs uppercase tracking-wide text-muted">{t('hq.vouchers.budget.total')}</p>
         {/* Rp 0 burned is a budget report. Say the read failed instead. */}
         <p className="text-2xl font-bold tabular-nums">
-          {burn.loading ? '…' : burn.error ? t('hq.common.dash') : <Money amount={totalUsed} />}
+          {burn.loading ? '…' : burn.error ? t('hq.common.dash') : <Money amount={burn.data?.totalUsed ?? 0} />}
         </p>
         {burn.error && <LoadError onRetry={burn.reload} />}
       </Card>
 
-      {/*
-       * CA-2-42: the depot→HQ voucher approval queue that used to sit here is gone, by the
-       * owner's decision on 2026-09-04. It never had a producer and could not get one: the
-       * role that would have raised a request (MANAGER, via `voucherWrite`) can already
-       * create a voucher directly on its own screen, so propose-then-approve was a second,
-       * slower route to a thing the same person was already trusted to do.
-       *
-       * The choice was between making depots ask first and letting them print their own.
-       * The owner chose the second: a depot manager may create vouchers for their depot,
-       * and HQ watches the list below rather than gating it.
-       */}
-      {/* Voucher aktif — real list + real per-voucher burn (burn-summary byVoucher) */}
-      <Card className="flex min-w-0 flex-col p-5">
-        <h2 className="mb-3 font-semibold">{t('hq.vouchers.list.title')}</h2>
-        {list.loading ? (
+      <Card className="flex min-w-0 flex-col gap-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-semibold">{L('title')}</h2>
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label={L('title')}>
+            {(['all', 'active', 'inactive'] as const).map((s) => (
+              <Button
+                key={s}
+                type="button"
+                role="tab"
+                aria-selected={status === s}
+                variant={status === s ? 'primary' : 'ghost'}
+                onClick={() => setStatus(s)}
+              >
+                {L(s === 'all' ? 'all' : s === 'active' ? 'activeTab' : 'inactiveTab')}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <Input
+          aria-label={L('search')}
+          placeholder={L('search')}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+
+        {list.loading && !list.data ? (
           <Skeleton className="h-48 w-full" />
         ) : list.error ? (
           <ErrorState message={list.error} onRetry={list.reload} />
-        ) : active.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted">{t('hq.vouchers.list.empty')}</p>
+        ) : vouchers.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted">
+            {status === 'all' && !q ? L('empty') : L('emptyFiltered')}
+          </p>
         ) : (
           <ul className="flex flex-col divide-y divide-[color:var(--border)]">
-            {active.map((v) => {
+            {vouchers.map((v) => {
+              const state = voucherState(v);
               const burned = byVoucher[v.id] ?? 0;
-              const cap = v.usageLimit ?? Math.max(v.usedCount, 50);
-              const burnPct = Math.min(100, Math.round((v.usedCount / cap) * 100));
+              const cap = v.budgetCap ?? null;
+              const when = validity(v);
               return (
                 <li key={v.id} className="flex flex-col gap-2 py-3">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <span className="min-w-0">
-                      <span className="font-semibold">{v.code}</span>
-                      {v.description && (
-                        <span className="ml-2 truncate text-sm text-muted">{v.description}</span>
-                      )}
-                    </span>
-                    <span className="shrink-0 text-xs text-muted">
-                      {t('hq.vouchers.list.used', { n: v.usedCount })}
-                    </span>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">{v.code}</span>
+                        <Badge tone={STATE_TONE[state]}>
+                          {L(`state${state.charAt(0).toUpperCase()}${state.slice(1)}`)}
+                        </Badge>
+                        <Badge tone="neutral">{L(v.audience === 'GRANTED' ? 'granted' : 'public')}</Badge>
+                        <Badge tone="neutral">{v.depotId ? depotName(v.depotId) : L('allDepots')}</Badge>
+                      </p>
+                      {v.description && <p className="truncate text-sm text-muted">{v.description}</p>}
+                      <p className="text-sm">
+                        {discount(v)}
+                        {v.minSpend > 0 && ` · ${t('hq.forms.voucher.minOrder')} ${formatIDR(v.minSpend)}`}
+                      </p>
+                      {when && <p className="text-xs text-muted">{when}</p>}
+                    </div>
+                    {canWriteVoucher(customer?.role, v) && (
+                      <Button variant="ghost" onClick={() => setEditing(editing === v.id ? null : v.id)}>
+                        {L('edit')}
+                      </Button>
+                    )}
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--surface-muted)]">
-                    <div
-                      className="h-full rounded-full bg-brand-600"
-                      style={{ width: `${burnPct}%` }}
-                    />
-                  </div>
-                  <p className="flex items-center gap-1.5 text-xs text-muted">
-                    {t('hq.vouchers.list.burn')}: <Money amount={burned} />
+
+                  <p className="text-xs text-muted">
+                    {v.usageLimit != null
+                      ? L('usedOf', { n: v.usedCount, limit: v.usageLimit })
+                      : t('hq.vouchers.list.used', { n: v.usedCount })}
                   </p>
+                  {/* The money is the budget, not the count: a bar only where there is a cap. */}
+                  {cap != null && cap > 0 ? (
+                    <>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-[color:var(--surface-muted)]">
+                        <div
+                          className="h-full rounded-full bg-brand-600"
+                          style={{ width: `${Math.min(100, Math.round((burned / cap) * 100))}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted">
+                        {L('budgetOf', { used: formatIDR(burned), cap: formatIDR(cap) })}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted">
+                      {t('hq.vouchers.list.burn')}: {formatIDR(burned)} · {L('noBudget')}
+                    </p>
+                  )}
+
+                  {editing === v.id && (
+                    <div className="rounded-xl border border-app p-4">
+                      <VoucherForm
+                        voucher={v}
+                        onCancel={() => setEditing(null)}
+                        onDone={() => {
+                          setEditing(null);
+                          toast(L('saved'), 'success');
+                          list.reload();
+                          burn.reload();
+                        }}
+                      />
+                    </div>
+                  )}
                 </li>
               );
             })}
           </ul>
+        )}
+
+        {total > PAGE && (
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <Button variant="ghost" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              {L('prev')}
+            </Button>
+            <span className="text-muted">{L('range', { from, to, total })}</span>
+            <Button variant="ghost" disabled={to >= total} onClick={() => setPage((p) => p + 1)}>
+              {L('next')}
+            </Button>
+          </div>
         )}
       </Card>
     </div>

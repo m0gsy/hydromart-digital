@@ -272,7 +272,16 @@ export const shop = {
     // Grant a voucher to a customer's wallet (marketing/admin) → fires VOUCHER_GRANTED.
     grant: (id: string) => `/vouchers/api/v1/vouchers/${id}/grant`,
     // Admin CRUD (marketing/depot-manager/super-admin). Browse includes inactive.
-    browse: (page = 1, limit = 50) => `/vouchers/api/v1/vouchers?page=${page}&limit=${limit}`,
+    browse: (
+      page = 1,
+      limit = 50,
+      filter: { status?: 'active' | 'inactive'; q?: string } = {},
+    ) => {
+      const p = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (filter.status) p.set('status', filter.status);
+      if (filter.q?.trim()) p.set('q', filter.q.trim());
+      return `/vouchers/api/v1/vouchers?${p.toString()}`;
+    },
     // HQ voucher governance (14b): real rupiah burned per voucher + network total.
     burnSummary: '/vouchers/api/v1/vouchers/burn-summary',
     create: '/vouchers/api/v1/vouchers',

@@ -71,7 +71,16 @@ export interface CreateVoucherData {
 }
 
 /** Partial patch for an existing voucher; omitted keys are left unchanged. */
+/** The admin list's filters (see `search`). */
+export interface VoucherListFilter {
+  active?: boolean;
+  /** Part of the code or the description, any case. */
+  q?: string;
+}
+
 export interface UpdateVoucherData {
+  /** PUBLIC = any buyer who has the code; GRANTED = only the customers it is given to. */
+  audience?: VoucherAudience;
   /** Moving a voucher between depots, or to the whole network (null). */
   depotId?: string | null;
   description?: string | null;
@@ -129,14 +138,16 @@ export interface VoucherRepository {
 
   /**
    * The admin voucher list. `depotIds` narrows it to a depot-scoped caller's reach: their own
-   * depots' vouchers PLUS the network-wide ones (no depot), which a manager may grant but
-   * never sees another depot's. Omitted is every voucher (head office).
+   * depots' vouchers PLUS the network-wide ones (no depot), which a manager may see but not
+   * write (2026-11-17), and never another depot's. Omitted is every voucher (head office).
+   * `filter` is the list's status and text search, applied before the page is cut.
    */
   search(
     page: number,
     limit: number,
     activeOnly: boolean,
     depotIds?: readonly string[],
+    filter?: VoucherListFilter,
   ): Promise<{ items: VoucherRecord[]; total: number }>;
 
   countRedemptions(voucherId: string, customerId?: string): Promise<number>;

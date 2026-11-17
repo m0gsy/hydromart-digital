@@ -5,8 +5,8 @@ import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
 import { Lock, Ticket } from '@phosphor-icons/react';
 
-import { CategorySelect, ProductSelect } from '@/components/catalog-select';
 import { RequireAuth } from '@/components/require-auth';
+import { VoucherForm } from '@/components/voucher-form';
 import { useToast } from '@/components/toast';
 import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -14,95 +14,8 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { canManageVouchers, canViewVouchers, canWriteVoucher, voucherNeedsDepot } from '@/lib/roles';
-import { dayEndWib, dayStartWib, todayWib } from '@/lib/wib';
 import { useAsync } from '@/lib/use-async';
-import type { Customer, DiscountType, Page, Voucher, VoucherPayload } from '@/lib/types';
-
-const SELECT_CLASS =
-  'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-brand-600';
-
-interface VoucherForm {
-  code: string;
-  description: string;
-  discountType: DiscountType;
-  value: string;
-  minSpend: string;
-  maxDiscount: string;
-  validFrom: string; // yyyy-mm-dd
-  validUntil: string;
-  usageLimit: string;
-  perCustomerLimit: string;
-  /** Item 5 (B): limit the discount to one product OR one category; empty = the whole order. */
-  productId: string;
-  categoryId: string;
-  active: boolean;
-}
-
-const EMPTY: VoucherForm = {
-  code: '',
-  description: '',
-  discountType: 'PERCENTAGE',
-  value: '',
-  minSpend: '',
-  maxDiscount: '',
-  validFrom: '',
-  validUntil: '',
-  usageLimit: '',
-  perCustomerLimit: '1',
-  productId: '',
-  categoryId: '',
-  active: true,
-};
-
-function formFrom(v: Voucher): VoucherForm {
-  // The WIB day of the stored instant. `slice(0, 10)` read head office's 00:00 WIB start as
-  // the day before, and saving the form moved it back a day every time.
-  const day = (iso: string | null) => (iso ? todayWib(new Date(iso)) : '');
-  const num = (n: number | null) => (n == null ? '' : String(n));
-  return {
-    code: v.code,
-    description: v.description ?? '',
-    discountType: v.discountType,
-    value: String(v.value),
-    minSpend: v.minSpend ? String(v.minSpend) : '',
-    maxDiscount: num(v.maxDiscount),
-    validFrom: day(v.validFrom),
-    validUntil: day(v.validUntil),
-    usageLimit: num(v.usageLimit),
-    perCustomerLimit: String(v.perCustomerLimit),
-    productId: v.productId ?? '',
-    categoryId: v.categoryId ?? '',
-    active: v.active,
-  };
-}
-
-// `mode: create` omits `active` (CreateVoucherDto rejects it) and includes `code`;
-// `mode: edit` sends `active` and drops `code` (the backend never patches a code).
-function toPayload(f: VoucherForm, mode: 'create' | 'edit', depotId: string | null = null): VoucherPayload {
-  const int = (s: string) => (s.trim() === '' ? undefined : Number(s));
-  const payload: VoucherPayload = {
-    description: f.description.trim() ? f.description.trim() : null,
-    discountType: f.discountType,
-    // FREE_SHIPPING waives the fee and carries no value; the server stores it as 0.
-    value: f.discountType === 'FREE_SHIPPING' ? 0 : Number(f.value),
-    minSpend: int(f.minSpend) ?? 0,
-    maxDiscount: f.discountType === 'PERCENTAGE' ? int(f.maxDiscount) ?? null : null,
-    // Whole WIB days, like the head-office form: "until the 30th" ended at 07:00 on the 30th.
-    validFrom: f.validFrom ? dayStartWib(f.validFrom) : null,
-    validUntil: f.validUntil ? dayEndWib(f.validUntil) : null,
-    usageLimit: int(f.usageLimit) ?? null,
-    perCustomerLimit: int(f.perCustomerLimit) ?? 1,
-    // A free-shipping voucher has no goods to scope; the server refuses one that does.
-    productId: f.discountType === 'FREE_SHIPPING' ? null : f.productId || null,
-    categoryId: f.discountType === 'FREE_SHIPPING' ? null : f.categoryId || null,
-  };
-  if (mode === 'create') {
-    payload.code = f.code.trim().toUpperCase();
-    payload.depotId = depotId;
-  }
-  else payload.active = f.active;
-  return payload;
-}
+import type { Customer, Page, Voucher } from '@/lib/types';
 
 function discountLabel(v: Voucher): string {
   if (v.discountType === 'FREE_SHIPPING') {
@@ -114,163 +27,6 @@ function discountLabel(v: Voucher): string {
     return `${v.value}%${cap}`;
   }
   return `Rp ${v.value.toLocaleString('id-ID')}`;
-}
-
-function VoucherEditor({
-  voucher,
-  onDone,
-  onCancel,
-}: {
-  voucher: Voucher | null;
-  onDone: () => void;
-  onCancel: () => void;
-}) {
-  const { t } = useT();
-  const { customer } = useAuth();
-  const { scopedId, depots } = useDepot();
-  // A depot-scoped author's new code belongs to the depot they are working in; head office's
-  // are network codes, as they always were.
-  const ownDepot = voucherNeedsDepot(customer?.role) ? scopedId : null;
-  const ownDepotName = depots.find((d) => d.id === ownDepot)?.name ?? null;
-  const [form, setForm] = useState<VoucherForm>(voucher ? formFrom(voucher) : EMPTY);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const set =
-    (k: keyof VoucherForm) =>
-    (e: { target: { value: string } }) =>
-      setForm((f) => ({ ...f, [k]: e.target.value }));
-
-  async function submit() {
-    if (!voucher && !form.code.trim()) {
-      setError(t('hrFix.vouchers.codeRequired'));
-      return;
-    }
-    if (form.discountType !== 'FREE_SHIPPING' && (!form.value.trim() || Number(form.value) <= 0)) {
-      setError(t('hrFix.vouchers.valuePositive'));
-      return;
-    }
-    if (form.productId && form.categoryId) {
-      setError(t('hq.forms.voucher.scopeBoth'));
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      if (voucher) {
-        await api.patch(
-          endpoints.vouchers.detail(voucher.id),
-          // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
-          { ...toPayload(form, 'edit'), seenUpdatedAt: voucher.updatedAt },
-          true,
-        );
-      } else {
-        if (voucherNeedsDepot(customer?.role) && !ownDepot) {
-          setError(t('hrFix.vouchers.needDepot'));
-          return;
-        }
-        await api.post(endpoints.vouchers.create, toPayload(form, 'create', ownDepot), true);
-      }
-      onDone();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('hrFix.vouchers.saveFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card className="flex flex-col gap-4 p-5">
-      <h2 className="text-lg font-bold">{voucher ? `Edit ${voucher.code}` : 'Voucher baru'}</h2>
-      {/* Said before it is saved: a manager's code is spendable at this depot, not the network. */}
-      {!voucher && ownDepotName && (
-        <p className="text-sm text-muted">{t('hrFix.vouchers.scopeDepot', { name: ownDepotName })}</p>
-      )}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {!voucher && (
-          <Field label={t('hrFix.vouchers.code')} hint={t('hrFix.vouchers.codeHint')}>
-            <Input value={form.code} onChange={set('code')} placeholder="HEMAT10" />
-          </Field>
-        )}
-        <Field label={t('hrFix.vouchers.description')}>
-          <Input value={form.description} onChange={set('description')} placeholder={t('hrFix.vouchers.descriptionHint')} />
-        </Field>
-        <Field label={t('hrFix.vouchers.discountType')}>
-          <select value={form.discountType} onChange={set('discountType')} className={SELECT_CLASS}>
-            <option value="PERCENTAGE">{t('hrFix.vouchers.percentage')}</option>
-            <option value="FIXED">{t('hrFix.vouchers.fixedAmount')}</option>
-            <option value="FREE_SHIPPING">{t('hrFix.vouchers.freeShipping')}</option>
-          </select>
-        </Field>
-        {form.discountType !== 'FREE_SHIPPING' && (
-          <Field
-            label={form.discountType === 'PERCENTAGE' ? t('hrFix.vouchers.valuePercent') : t('hrFix.vouchers.valueRupiah')}
-            hint={form.discountType === 'PERCENTAGE' ? '1–100' : t('hrFix.vouchers.rupiahOff')}
-          >
-            <Input type="number" value={form.value} onChange={set('value')} placeholder="10" />
-          </Field>
-        )}
-        {form.discountType === 'PERCENTAGE' && (
-          <Field label={t('hrFix.vouchers.maxDiscount')} hint={t('hrFix.vouchers.maxDiscountHint')}>
-            <Input type="number" value={form.maxDiscount} onChange={set('maxDiscount')} placeholder="20000" />
-          </Field>
-        )}
-        {form.discountType !== 'FREE_SHIPPING' && (
-          <>
-            <Field label={t('hq.forms.voucher.scopeProduct')} hint={t('hq.forms.voucher.scopeHint')}>
-              <ProductSelect
-                value={form.productId}
-                onChange={(v) => setForm((f) => ({ ...f, productId: v }))}
-                emptyLabel={t('hq.forms.voucher.scopeNone')}
-              />
-            </Field>
-            <Field label={t('hq.forms.voucher.scopeCategory')}>
-              <CategorySelect
-                value={form.categoryId}
-                onChange={(v) => setForm((f) => ({ ...f, categoryId: v }))}
-                emptyLabel={t('hq.forms.voucher.scopeNone')}
-              />
-            </Field>
-          </>
-        )}
-        <Field label={t('hrFix.vouchers.minSpend')} hint={t('hrFix.vouchers.minSpendHint')}>
-          <Input type="number" value={form.minSpend} onChange={set('minSpend')} placeholder="50000" />
-        </Field>
-        <Field label={t('hrFix.vouchers.totalQuota')} hint={t('hrFix.vouchers.totalQuotaHint')}>
-          <Input type="number" value={form.usageLimit} onChange={set('usageLimit')} placeholder="1000" />
-        </Field>
-        <Field label={t('hrFix.vouchers.perCustomerQuota')}>
-          <Input type="number" value={form.perCustomerLimit} onChange={set('perCustomerLimit')} placeholder="1" />
-        </Field>
-        <Field label={t('hrFix.vouchers.validFrom')} hint={t('hrFix.vouchers.validFromHint')}>
-          <Input type="date" value={form.validFrom} onChange={set('validFrom')} />
-        </Field>
-        <Field label={t('hrFix.vouchers.validUntil')} hint={t('hrFix.vouchers.validUntilHint')}>
-          <Input type="date" value={form.validUntil} onChange={set('validUntil')} />
-        </Field>
-        {voucher && (
-          <Field label={t('hrFix.vouchers.active')} hint={t('hrFix.vouchers.activeHint')}>
-            <label className="flex items-center gap-2 py-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.active}
-                onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
-              />
-              {t('hrFix.vouchers.activeVouchers')}
-            </label>
-          </Field>
-        )}
-      </div>
-      <FormError message={error} />
-      <div className="flex gap-2">
-        <Button onClick={submit} loading={busy}>
-          {voucher ? t('hrFix.vouchers.save') : t('hrFix.vouchers.create')}
-        </Button>
-        <Button variant="ghost" onClick={onCancel}>
-          {t('hrFix.vouchers.cancel2')}
-        </Button>
-      </div>
-    </Card>
-  );
 }
 
 function GrantPanel({ voucher, onClose }: { voucher: Voucher; onClose: () => void }) {
@@ -385,7 +141,7 @@ function VouchersAdmin() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const canWrite = canManageVouchers(customer?.role);
-  const { depots } = useDepot();
+  const { depots, scopedId } = useDepot();
   const depotName = (id: string) => depots.find((d) => d.id === id)?.name ?? t('hrFix.vouchers.otherDepot');
   const [editing, setEditing] = useState<Voucher | null | undefined>(undefined); // undefined closed, null new
   const [granting, setGranting] = useState<Voucher | null>(null);
@@ -440,14 +196,20 @@ function VouchersAdmin() {
       </div>
 
       {editing !== undefined && (
-        <VoucherEditor
-          voucher={editing}
-          onCancel={() => setEditing(undefined)}
-          onDone={() => {
-            setEditing(undefined);
-            reload();
-          }}
-        />
+        <Card className="p-5">
+          {/* The shared editor (components/voucher-form.tsx). A depot-scoped author picks among
+              their own depots; head office may also leave it to the whole network. */}
+          <VoucherForm
+            voucher={editing}
+            ownDepots={voucherNeedsDepot(customer?.role) ? depots : undefined}
+            defaultDepotId={scopedId ?? ''}
+            onCancel={() => setEditing(undefined)}
+            onDone={() => {
+              setEditing(undefined);
+              reload();
+            }}
+          />
+        </Card>
       )}
 
       {loading ? (

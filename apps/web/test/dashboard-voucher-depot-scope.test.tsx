@@ -27,6 +27,7 @@ import { LocaleProvider } from '@/lib/locale-context';
 import type { Voucher } from '@/lib/types';
 
 const H = idDict.hrFix.vouchers;
+const S = idDict.hq.forms.voucher;
 
 const voucher = (over: Partial<Voucher>): Voucher => ({
   id: 'v-1',
@@ -90,13 +91,14 @@ describe('dashboard/vouchers for a depot-scoped manager', () => {
     const user = userEvent.setup();
     const { container } = draw([]);
     await user.click(await screen.findByRole('button', { name: H.newVoucher }));
-    expect(screen.getByText('Berlaku di Depot Satu')).toBeTruthy();
+    // The depot being worked in is picked already, among the manager's own depots only.
+    expect((screen.getByLabelText(S.depot) as HTMLSelectElement).value).toBe('d-1');
     await user.type(screen.getByPlaceholderText('HEMAT10'), 'depot20');
     await user.type(screen.getByPlaceholderText('10'), '20');
     const [from, until] = container.querySelectorAll<HTMLInputElement>('input[type="date"]');
     fireEvent.change(from!, { target: { value: '2026-11-01' } });
     fireEvent.change(until!, { target: { value: '2026-11-30' } });
-    await user.click(screen.getByRole('button', { name: H.create }));
+    await user.click(screen.getByRole('button', { name: S.publish }));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(post.mock.calls[0]?.[1]).toMatchObject({
       code: 'DEPOT20',

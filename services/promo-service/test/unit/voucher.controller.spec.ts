@@ -40,11 +40,24 @@ describe('VoucherController', () => {
       { sub: 'hq-1', role: 'HEAD_OFFICE' } as unknown as AuthenticatedUser,
     );
     // Head office is network-wide, so the scope it passes is "no filter".
-    expect(vouchers.browse).toHaveBeenCalledWith(2, 10, false, undefined);
+    expect(vouchers.browse).toHaveBeenCalledWith(2, 10, false, undefined, { active: undefined, q: undefined });
   });
 
   // `voucherRead` admits MANAGER, a depot-scoped role: the list used to hand a manager every
   // depot's vouchers, with their budget caps and usage counters.
+  it('browse passes the status and the search on to the list', async () => {
+    await controller.browse(
+      { page: 1, limit: 20, status: 'inactive', q: 'HEMAT' } as unknown as BrowseQueryDto,
+      { sub: 'hq-1', role: 'HEAD_OFFICE' } as unknown as AuthenticatedUser,
+    );
+    expect(vouchers.browse).toHaveBeenCalledWith(1, 20, false, undefined, { active: false, q: 'HEMAT' });
+  });
+
+  it('update passes a change of audience on (it used to be dropped)', async () => {
+    await controller.update('v1', { audience: 'GRANTED' } as unknown as UpdateVoucherDto);
+    expect(vouchers.update).toHaveBeenCalledWith('v1', expect.objectContaining({ audience: 'GRANTED' }), undefined);
+  });
+
   it("browse narrows a manager's list to the depots they are responsible for", async () => {
     await controller.browse(
       { page: 1, limit: 20 } as unknown as BrowseQueryDto,
@@ -55,7 +68,10 @@ describe('VoucherController', () => {
         depotIds: ['d-1', 'd-2'],
       } as unknown as AuthenticatedUser,
     );
-    expect(vouchers.browse).toHaveBeenCalledWith(1, 20, false, ['d-1', 'd-2']);
+    expect(vouchers.browse).toHaveBeenCalledWith(1, 20, false, ['d-1', 'd-2'], {
+      active: undefined,
+      q: undefined,
+    });
   });
 
   it('browse refuses a scoped account that is responsible for no depot', () => {

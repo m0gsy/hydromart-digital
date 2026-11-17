@@ -37,7 +37,10 @@ beforeEach(() => {
   get.mockReset().mockImplementation(async (path: string) =>
     String(path).includes('categories')
       ? [{ id: CATEGORY, name: 'Air' }]
-      : { items: [{ id: PRODUCT, name: 'Galon 19L' }], total: 1, page: 1, limit: 100 },
+      : // The "Berlaku di" picker reads the depot list; it is not the product list.
+        String(path).includes('/depots')
+        ? { items: [{ id: 'd-1', name: 'Depot Satu' }], total: 1, page: 1, limit: 100 }
+        : { items: [{ id: PRODUCT, name: 'Galon 19L' }], total: 1, page: 1, limit: 100 },
   );
 });
 afterEach(() => vi.clearAllMocks());
