@@ -490,6 +490,11 @@ export const opsFix = {
     quoteUnavailable: 'The server has not priced this yet. Try again in a moment.',
     stockShort:
       'Not enough stock for some items. The numbers have been refreshed — adjust and try again.',
+    freeHandover: 'Also hand over (free)',
+    freeItemQty: '{qty}× {name}',
+    freeUnknown: 'bonus product',
+    freeShort: 'Not enough {name} for the bonus: need {need}, {have} left. Lower the quantity, or the bonus cannot be given.',
+    freeDropped: 'Bonus not given, out of stock: {items}. Tell the buyer.',
     recentTitle: 'Recent counter sales',
     recentHint: 'This depot only',
     recentEmpty: 'No counter sales yet.',

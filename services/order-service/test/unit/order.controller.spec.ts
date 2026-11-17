@@ -34,6 +34,7 @@ function makeService(): Mocked {
       agen: true,
       catalogFallback: null,
       items: [],
+      promoGifts: { items: [], audit: [] },
       voucherCode: null,
       appliedPromos: [{ name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }],
       firstOrder: true,
@@ -242,6 +243,7 @@ describe('OrderController', () => {
       firstOrder: true,
       firstOrderCapped: false,
       appliedPromos: [{ name: 'Jumat Berkah', effect: 'PRICE', amountIdr: 6000 }],
+      freeItems: [],
     });
     expect(service.quoteCounterBasket).toHaveBeenCalledWith(
       'buyer-9',
@@ -327,6 +329,7 @@ describe('OrderController', () => {
       voucherCode: null,
       idempotencyKey: null,
       emptiesReturned: null,
+      expectedTotalIdr: null,
       counterNote: null,
     });
   });

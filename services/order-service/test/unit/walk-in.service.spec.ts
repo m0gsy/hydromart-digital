@@ -9,6 +9,7 @@ import {
   CounterBuyerUnresolvedError,
   CounterBasketChangedError,
   CounterDeliveryUnavailableError,
+  CounterTotalChangedError,
   EmptyCartError,
   InsufficientStockError,
   InvalidStatusTransitionError,
@@ -1205,6 +1206,27 @@ describe('OrderService.walkInSale', () => {
       await sell(1, { customerPhone: '08123', customerName: '  Budi  ' });
 
       expect(directory.resolveCalls[0].fullName).toBe('Budi');
+    });
+
+    /*
+     * The till quoted an anonymous buyer (no "Cek pelanggan"), the sale resolved the phone and
+     * priced the account behind it. The cashier collected one number and the order recorded
+     * another. The till now sends the number it showed; a different one is refused before any
+     * stock is held.
+     */
+    it('refuses a sale that prices differently than the total the till showed', async () => {
+      directory.byPhone.set('08123', BUYER);
+
+      await expect(
+        sell(1, { customerPhone: '08123', expectedTotalIdr: 25000 }),
+      ).rejects.toBeInstanceOf(CounterTotalChangedError);
+      expect(inventory.reserveCalls).toHaveLength(0);
+    });
+
+    it("goes ahead when the sale's total is the one the till showed", async () => {
+      const order = await sell(2, { expectedTotalIdr: 40000 });
+
+      expect(order.total).toBe(40000);
     });
 
     it('leaves an id the caller already resolved alone', async () => {

@@ -626,6 +626,19 @@ export class WalkInSaleDto {
   @Min(0)
   @Max(1000)
   emptiesReturned?: number;
+
+  @ApiPropertyOptional({
+    example: 45000,
+    description:
+      'The total the till showed and collected against. When the sale prices differently ' +
+      '(the phone resolved to an agen or a new buyer the quote did not know), the sale is ' +
+      'refused with ORDER_COUNTER_TOTAL_CHANGED before anything is held. Omit = no check.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(2_147_483_647)
+  expectedTotalIdr?: number;
 }
 
 /** Reversing a counter sale. The reason is required: a short drawer needs its account. */
@@ -717,6 +730,14 @@ export class AppliedPromoDto {
   amountIdr!: number;
 }
 
+export class CounterFreeItemDto {
+  @ApiProperty({ example: '0b8f7c1e-5d0a-4c3e-9a51-2f7e1d6b9c40' })
+  productId!: string;
+
+  @ApiProperty({ example: 1 })
+  quantity!: number;
+}
+
 export class CounterQuoteResponseDto {
   @ApiProperty({
     example: 60000,
@@ -776,6 +797,14 @@ export class CounterQuoteResponseDto {
   })
   appliedPromos!: AppliedPromoDto[];
 
+  @ApiProperty({
+    type: () => [CounterFreeItemDto],
+    description:
+      'Units handed over at no charge, per product: buy-X-get-Y units and bundle gifts. ' +
+      'They come out of stock like any other unit, so the till has to hand them over and count them.',
+  })
+  freeItems!: CounterFreeItemDto[];
+
   static from(quote: {
     subtotal: number;
     discount: number;
@@ -786,8 +815,17 @@ export class CounterQuoteResponseDto {
     appliedPromos: AppliedPromoDto[];
     firstOrder: boolean;
     firstOrderCapped: boolean;
+    items: readonly { productId: string; unitPrice: number; quantity: number }[];
+    promoGifts: { items: readonly { productId: string; quantity: number }[] };
   }): CounterQuoteResponseDto {
+    // Free rows are the price-0 rows the promo layer added (BOGO), plus the gift rows kept
+    // apart until reserve. Summed per product: the till shows one "+N gratis" per product.
+    const free = new Map<string, number>();
+    for (const row of [...quote.items.filter((i) => i.unitPrice === 0), ...quote.promoGifts.items]) {
+      free.set(row.productId, (free.get(row.productId) ?? 0) + row.quantity);
+    }
     return {
+      freeItems: [...free].map(([productId, quantity]) => ({ productId, quantity })),
       firstOrder: quote.firstOrder,
       firstOrderCapped: quote.firstOrderCapped,
       appliedPromos: quote.appliedPromos.map((p) => ({ name: p.name, effect: p.effect, amountIdr: p.amountIdr })),

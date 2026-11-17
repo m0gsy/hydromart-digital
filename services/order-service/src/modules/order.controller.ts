@@ -223,6 +223,7 @@ export class OrderController {
         voucherCode: dto.voucherCode ?? null,
         idempotencyKey: idempotencyKey ?? null,
         emptiesReturned: dto.emptiesReturned ?? null,
+        expectedTotalIdr: dto.expectedTotalIdr ?? null,
         // Blank is no note: a stray space must not be stored as one.
         counterNote: dto.counterNote?.trim() || null,
         // C11: present = deliver it, absent = the counter behaviour that was always here.
