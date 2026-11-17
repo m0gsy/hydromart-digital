@@ -24,6 +24,24 @@ interface ErrorBody {
  * status (PRD §21). Domain errors carry their own status + machine-readable code;
  * validation/HTTP errors pass through; anything else is a masked 500.
  */
+/**
+ * Postgres `22003` (integer out of range / numeric field overflow), however Prisma wraps it:
+ * P2020 from a typed query, P2010 with `meta.code` from `$queryRaw`, P2033 past 64 bits, or the
+ * bare driver error. Every int4 column behind a DTO without `@Max` could raise it — a price
+ * typed with two extra zeros is enough — and each one was a masked 500 plus a Sentry page for
+ * what is a bad input (POST /depots/:id/inventory, 2026-11-16). Duck-typed: this package does
+ * not depend on any one service's generated Prisma client.
+ */
+function isNumberOutOfRange(exception: unknown): boolean {
+  const e = exception as { name?: unknown; code?: unknown; meta?: { code?: unknown } } | null;
+  if (!e || typeof e !== 'object') return false;
+  if (e.code === '22003') return true;
+  return (
+    e.name === 'PrismaClientKnownRequestError' &&
+    (e.code === 'P2020' || e.code === 'P2033' || e.meta?.code === '22003')
+  );
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -86,6 +104,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
         statusCode: client.status,
         code: client.type === 'request.aborted' ? 'REQUEST_ABORTED' : 'REQUEST_REJECTED',
         message: String(client.message ?? 'Request could not be read.'),
+        timestamp,
+        path,
+      };
+    }
+    if (isNumberOutOfRange(exception)) {
+      // Still logged: an overflow the server computed itself (a sum, a counter) is a bug, and
+      // this keeps its stack in the logs even though the caller is no longer told 500.
+      this.logger.warn(`Number out of range on ${path}: ${String((exception as Error)?.message)}`);
+      return {
+        statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+        code: 'NUMBER_OUT_OF_RANGE',
+        message: 'A number is larger than this field can hold. Check the amounts entered.',
         timestamp,
         path,
       };

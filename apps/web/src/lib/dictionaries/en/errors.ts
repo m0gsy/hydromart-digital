@@ -18,6 +18,9 @@ export const errors = {
     RATE_LIMITED_OTP: 'Too many code requests. Wait a moment, then ask for a new one.',
     ORDER_CATALOG_UNAVAILABLE:
       'The product catalogue is busy right now. Wait a moment and try again.',
+    // A 22003 overflow, any service (AllExceptionsFilter).
+    NUMBER_OUT_OF_RANGE: 'A number is larger than this field can hold. Check the amounts entered.',
+    INVENTORY_QUANTITY_OUT_OF_RANGE: 'The stock quantity is too large. Check the number entered.',
   },
   missingRouteId: 'This page was opened without the record it needs. Go back and pick one.',
   sessionLocked: 'Your session is not unlocked. Open it with your fingerprint or PIN to continue.',

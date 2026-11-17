@@ -36,6 +36,9 @@ export const errors = {
     // The server already answers this one in Indonesian; it is listed so the English
     // dictionary has somewhere to put its own sentence, not to translate anything.
     ORDER_CATALOG_UNAVAILABLE: 'Katalog produk sedang sibuk. Tunggu sebentar, lalu coba lagi.',
+    // A 22003 overflow, any service (AllExceptionsFilter).
+    NUMBER_OUT_OF_RANGE: 'Angka yang dimasukkan terlalu besar. Periksa lagi isiannya.',
+    INVENTORY_QUANTITY_OUT_OF_RANGE: 'Jumlah stok terlalu besar. Periksa lagi angka yang dimasukkan.',
   },
   // E3: a detail screen opened without its `?id=` used to build a URL with a hole in it
   // and show the server's 404, which reads as "this record was deleted" rather than

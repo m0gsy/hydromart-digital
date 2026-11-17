@@ -71,7 +71,7 @@ function ShiftStatusScreen() {
   // fix: `act` already owns the busy flag and the error line.
   const checkOut = () =>
     act(async () => {
-      const pos = await currentPosition();
+      const pos = await currentPosition({ precise: true });
       await api.post(
         endpoints.deliveries.shifts.checkOut(s.id),
         { lat: pos.coords.latitude, lng: pos.coords.longitude },

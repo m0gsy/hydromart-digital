@@ -205,7 +205,9 @@ export class NotAtDepotError extends DomainError {
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor(distanceMeters: number, radiusMeters: number) {
     super(
-      `You are ${Math.round(distanceMeters)} m from the depot. Check in within ${radiusMeters} m.`,
+      // Indonesian like the HR punch's own fence message; this reaches a courier verbatim.
+      `Kamu ${Math.round(distanceMeters)} m dari depot. Check-in harus dalam ${radiusMeters} m. ` +
+        'Nyalakan lokasi akurat (GPS), tunggu sebentar di depot, lalu coba lagi.',
     );
   }
 }
