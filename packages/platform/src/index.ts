@@ -1,6 +1,7 @@
 export { DomainError, HTTP_STATUS } from './domain/domain-error';
 export { StaleWriteError, assertFresh, isDecisionOnlyPatch } from './domain/stale-write';
 export { readAllPages } from './domain/read-all';
+export { INT4_MAX, MAX_DAYS, decimalMax } from './domain/number-bounds';
 export {
   pageArgs,
   nextCursor,

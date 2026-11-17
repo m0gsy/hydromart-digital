@@ -10,7 +10,9 @@ import {
   IsString,
   MaxLength,
   Min,
+  Max,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import { PromotionAnalytics } from '../../application/services/promotion.service';
 
@@ -56,6 +58,7 @@ export class CreatePromotionDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   sortOrder?: number;
 
   @ApiPropertyOptional({ type: String, format: 'date-time' })

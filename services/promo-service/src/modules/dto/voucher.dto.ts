@@ -20,6 +20,7 @@ import {
   MinLength,
   Min,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import { DiscountType, VoucherStatus } from '../../domain/voucher';
 import { WalletVoucher } from '../../application/services/voucher.service';
@@ -58,6 +59,7 @@ export class CreateVoucherDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   value!: number;
 
   @ApiPropertyOptional({ example: 50000, default: 0, description: 'Minimum order subtotal (IDR).' })
@@ -65,6 +67,7 @@ export class CreateVoucherDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   minSpend?: number;
 
   @ApiPropertyOptional({ example: 20000, description: 'Cap for PERCENTAGE discounts (IDR).' })
@@ -72,6 +75,7 @@ export class CreateVoucherDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(INT4_MAX)
   maxDiscount?: number;
 
   @ApiPropertyOptional({ type: String, format: 'date-time' })
@@ -89,6 +93,7 @@ export class CreateVoucherDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(INT4_MAX)
   usageLimit?: number;
 
   @ApiPropertyOptional({ example: 1, default: 1, minimum: 1 })
@@ -96,6 +101,7 @@ export class CreateVoucherDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   perCustomerLimit?: number = 1;
 
   @ApiPropertyOptional({
@@ -106,6 +112,7 @@ export class CreateVoucherDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(INT4_MAX)
   budgetCap?: number;
 
   @ApiPropertyOptional({ default: true, description: 'Set false to save the voucher as a draft.' })
@@ -177,6 +184,7 @@ export class VoucherLineDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   lineTotal!: number;
 }
 
@@ -190,6 +198,7 @@ export class QuoteVoucherDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(INT4_MAX)
   subtotal!: number;
 
   @ApiPropertyOptional({
@@ -200,6 +209,7 @@ export class QuoteVoucherDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   shippingFee?: number;
   /*
    * CA-2-65: the depot the order is being placed at.
@@ -261,6 +271,7 @@ export class RedeemVoucherDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(INT4_MAX)
   subtotal!: number;
 
   @ApiPropertyOptional({
@@ -271,6 +282,7 @@ export class RedeemVoucherDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   shippingFee?: number;
   /*
    * CA-2-65: the depot the order is being placed at.

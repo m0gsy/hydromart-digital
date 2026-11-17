@@ -21,6 +21,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 const KIND_VALUES = [
   'SPECIAL_PRICE',
@@ -67,6 +68,7 @@ export class CreatePromoRuleDto {
   // paid row by `unitPrice === 0`, so a SPECIAL_PRICE of exactly 0 would be misread as one.
   // A "free" product is a BUY_X_GET_Y, not a zero special price.
   @Min(1)
+  @Max(INT4_MAX)
   specialPrice?: number;
 
   @ApiPropertyOptional({ example: 1 })
@@ -74,6 +76,7 @@ export class CreatePromoRuleDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   buyQty?: number;
 
   @ApiPropertyOptional({ example: 1 })
@@ -81,6 +84,7 @@ export class CreatePromoRuleDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   getQty?: number;
 
   @ApiPropertyOptional({ example: 1000 })
@@ -88,6 +92,7 @@ export class CreatePromoRuleDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   shippingFeeOverride?: number;
 
   @ApiPropertyOptional({ example: 10, description: 'PERCENTAGE_OFF / ORDER_DISCOUNT: 1..99.' })
@@ -103,6 +108,7 @@ export class CreatePromoRuleDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   minSubtotal?: number;
 
   @ApiPropertyOptional({ example: 10000, description: 'ORDER_DISCOUNT: rupiah off (or percentOff).' })
@@ -110,6 +116,7 @@ export class CreatePromoRuleDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   discountAmount?: number;
 
   @ApiPropertyOptional({ format: 'uuid', description: 'BUNDLE_GIFT: the free (different) product.' })
@@ -157,6 +164,7 @@ export class CreatePromoRuleDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   minQty?: number;
 
   @ApiPropertyOptional({ example: 10 })
@@ -164,6 +172,7 @@ export class CreatePromoRuleDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   maxQty?: number;
 
   @ApiPropertyOptional({ enum: CHANNEL_VALUES, isArray: true })
@@ -216,6 +225,7 @@ export class UpdatePromoRuleDto extends PartialType(CreatePromoRuleDto) {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   minQty?: number;
 
   @ApiPropertyOptional({ type: [Number], example: [5], description: '0=Minggu..6=Sabtu' })
@@ -255,12 +265,14 @@ export class CartLineDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   quantity!: number;
 
   @ApiProperty({ example: 8000 })
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   unitPrice!: number;
 
   @ApiPropertyOptional({ description: 'A wholesale-band line: no promo applies, but it counts to the subtotal.' })
@@ -312,12 +324,14 @@ export class AppliedLineDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   unitPrice!: number;
 
   @ApiProperty({ example: 2 })
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   quantity!: number;
 
   @ApiProperty({ type: [String], description: "From the matching quote()'s LineResult." })
@@ -331,12 +345,14 @@ export class AppliedLineDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   unitPriceAfter!: number;
 
   @ApiProperty({ example: 0 })
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   freeQty!: number;
 }
 
@@ -354,6 +370,7 @@ export class AppliedGiftDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   value!: number;
 }
 
@@ -378,6 +395,7 @@ export class AutoApplyApplyDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   shippingFeeOverride?: number;
 
   @ApiPropertyOptional({ example: 2000, description: 'Fee in effect before any override.' })
@@ -385,6 +403,7 @@ export class AutoApplyApplyDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   originalShippingFee?: number;
 
   @ApiPropertyOptional({
@@ -399,6 +418,7 @@ export class AutoApplyApplyDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   shippingUnits?: number;
 
   @ApiPropertyOptional({ format: 'uuid', nullable: true, description: 'ORDER_DISCOUNT rule that applied.' })
@@ -411,6 +431,7 @@ export class AutoApplyApplyDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   orderDiscountAmount?: number;
 
   @ApiPropertyOptional({ type: [AppliedGiftDto] })

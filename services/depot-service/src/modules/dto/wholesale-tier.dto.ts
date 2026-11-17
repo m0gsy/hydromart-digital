@@ -9,7 +9,9 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Max,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 export class CreateWholesaleTierDto {
   @ApiProperty({ format: 'uuid', description: 'Depot the tier belongs to.' })
@@ -33,17 +35,20 @@ export class CreateWholesaleTierDto {
   @ApiProperty({ example: 20, description: 'Inclusive lower bound of the quantity band.' })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   minQty!: number;
 
   @ApiPropertyOptional({ example: 49, description: 'Inclusive upper bound; omit for open-ended.' })
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   maxQty?: number;
 
   @ApiProperty({ example: 16000, description: 'Unit price in whole IDR.' })
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   priceIdr!: number;
 }
 
@@ -68,18 +73,21 @@ export class UpdateWholesaleTierDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   minQty?: number;
 
   @ApiPropertyOptional({ example: 49 })
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   maxQty?: number;
 
   @ApiPropertyOptional({ example: 16000 })
   @IsOptional()
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   priceIdr?: number;
 
   @ApiPropertyOptional({ example: true })

@@ -8,12 +8,13 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Max,
 } from 'class-validator';
 import { IsUUID } from 'class-validator';
 
 import { CashDirection } from '../../domain/cashbook';
 
-import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays, INT4_MAX } from '@hydromart/platform';
 
 export class ListCashbookQueryDto {
   @ApiProperty({ format: 'uuid', description: 'Depot to list cashbook entries for.' })
@@ -57,6 +58,7 @@ export class CreateCashbookDto {
   @ApiProperty({ example: 250_000 })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   amountIdr!: number;
 
   @ApiPropertyOptional({ description: 'When the movement happened; defaults to now.' })

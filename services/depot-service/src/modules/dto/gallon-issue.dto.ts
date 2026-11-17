@@ -14,6 +14,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { INT4_MAX, decimalMax } from '@hydromart/platform';
 
 export class CreateGallonIssueDto {
   @ApiPropertyOptional({
@@ -28,6 +29,7 @@ export class CreateGallonIssueDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(INT4_MAX)
   quantity!: number;
 
   @ApiPropertyOptional({ example: 15000, default: 0, description: 'Deposit held in whole IDR.' })
@@ -35,6 +37,7 @@ export class CreateGallonIssueDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(decimalMax(12, 2))
   depositHeld?: number;
 
   @ApiPropertyOptional({ example: 'Galon dibawa pelanggan, deposit tunai' })
@@ -76,6 +79,7 @@ export class CreateGallonIssueFromOrderDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(INT4_MAX)
   quantity!: number;
 }
 

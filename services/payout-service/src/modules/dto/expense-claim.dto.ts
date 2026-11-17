@@ -13,6 +13,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { decimalMax } from '@hydromart/platform';
 
 import { ExpenseCategory, ExpenseClaimStatus } from '../../domain/expense-claim';
 
@@ -28,6 +29,7 @@ export class SubmitExpenseDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(decimalMax(14, 2))
   amount!: number;
 
   @ApiProperty({ example: 'Bensin motor shift pagi' })

@@ -23,6 +23,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { decimalMax } from '@hydromart/platform';
 
 import { OwnershipType } from '../../domain/inventory';
 import { DepotRecord } from '../../application/ports/depot.repository';
@@ -152,6 +153,7 @@ export class CreateDepotDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   deliveryFee!: number;
 
   @ApiPropertyOptional({ example: 20000, description: 'Minimum order amount in IDR.' })
@@ -159,6 +161,7 @@ export class CreateDepotDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   minOrderAmount?: number;
 
   @ApiPropertyOptional({ description: 'Franchise owner (account id) who manages this depot.' })

@@ -17,6 +17,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import { DeliveryStatus } from '../../domain/delivery-status';
 import { ContactMethod } from '../../domain/no-show';
@@ -45,6 +46,7 @@ export class DeliveryItemDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   qty!: number;
 }
 
@@ -156,6 +158,7 @@ export class AssignDeliveryDto {
   @Type(() => Number)
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   codAmount?: number;
 
   @ApiPropertyOptional({

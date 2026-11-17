@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsISO8601, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
-import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays, decimalMax } from '@hydromart/platform';
 
 /**
  * Partial write. The morning call sends `openingM3`, the evening one `closingM3`;
@@ -23,6 +23,7 @@ export class SaveMeterReadingDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
+  @Max(decimalMax(12, 3))
   openingM3?: number;
 
   @ApiPropertyOptional({ example: 1247.92, description: 'Closing dial reading in m³.' })
@@ -30,6 +31,7 @@ export class SaveMeterReadingDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
+  @Max(decimalMax(12, 3))
   closingM3?: number;
 
   @ApiPropertyOptional({ description: 'Raw-water intake meter, opening (m³). Optional.' })
@@ -37,6 +39,7 @@ export class SaveMeterReadingDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
+  @Max(decimalMax(12, 3))
   sourceOpeningM3?: number;
 
   @ApiPropertyOptional({ description: 'Raw-water intake meter, closing (m³). Optional.' })
@@ -44,6 +47,7 @@ export class SaveMeterReadingDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0)
+  @Max(decimalMax(12, 3))
   sourceClosingM3?: number;
 
   @ApiPropertyOptional({ example: 72, description: '#24: tank level at opening, 0..100%.' })

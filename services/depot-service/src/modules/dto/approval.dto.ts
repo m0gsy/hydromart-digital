@@ -8,7 +8,9 @@ import {
   IsUUID,
   MaxLength,
   MinLength,
+  Max,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 import { ApprovalPayload, ApprovalStatus, ApprovalType } from '../../domain/approval';
 import { ApprovalDecision } from '../../application/services/approval.service';
@@ -36,6 +38,7 @@ export class CreateApprovalDto {
 
   @ApiProperty({ example: -240000, description: 'Signed rupiah at stake (loss/refund/shortfall).' })
   @IsInt()
+  @Max(INT4_MAX)
   amountIdr!: number;
 
   @ApiPropertyOptional({

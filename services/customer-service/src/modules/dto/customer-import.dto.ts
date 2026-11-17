@@ -13,6 +13,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 export class ImportCustomerRowDto {
   @ApiProperty({ example: 'Siti Aminah' })
@@ -132,6 +133,7 @@ export class ImportResellerRowDto {
   @ApiProperty({ minimum: 0 })
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   monthlyTargetQty!: number;
 
   /**

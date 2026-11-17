@@ -20,12 +20,14 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { decimalMax } from '@hydromart/platform';
 
 export class RequestWithdrawalDto {
   @ApiProperty({ example: 8420000, description: 'IDR amount to withdraw (positive).' })
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(decimalMax(14, 2))
   amount!: number;
   /*
    * PYO-3: the destination used to be typed here, per request, and never checked. It now
@@ -128,6 +130,7 @@ export class OrderRevenueDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(decimalMax(14, 2))
   amountIdr!: number;
 
   @ApiPropertyOptional({
@@ -140,6 +143,7 @@ export class OrderRevenueDto {
   @Type(() => Number)
   @IsInt()
   @IsPositive()
+  @Max(decimalMax(14, 2))
   commissionBaseIdr?: number;
 
   @ApiPropertyOptional({

@@ -12,6 +12,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { INT4_MAX, decimalMax } from '@hydromart/platform';
 
 import { PricingAdjustType } from '../../domain/pricing-rule';
 
@@ -24,6 +25,7 @@ export class CreatePricingRuleDto {
   adjustType!: PricingAdjustType;
 
   @IsNumber()
+  @Max(decimalMax(12, 2))
   value!: number;
 
   @IsOptional()
@@ -56,6 +58,7 @@ export class CreatePricingRuleDto {
 
   @IsOptional()
   @IsInt()
+  @Max(INT4_MAX)
   priority?: number;
 
   @IsOptional()
@@ -79,6 +82,7 @@ export class UpdatePricingRuleDto {
 
   @IsOptional()
   @IsNumber()
+  @Max(decimalMax(12, 2))
   value?: number;
 
   @IsOptional()
@@ -111,6 +115,7 @@ export class UpdatePricingRuleDto {
 
   @IsOptional()
   @IsInt()
+  @Max(INT4_MAX)
   priority?: number;
 
   @IsOptional()

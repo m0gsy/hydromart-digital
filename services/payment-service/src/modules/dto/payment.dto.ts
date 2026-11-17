@@ -20,7 +20,7 @@ import {
 
 import { PaymentMethod, PaymentStatus } from '../../domain/payment';
 
-import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays, decimalMax } from '@hydromart/platform';
 
 export class InitiatePaymentDto {
   @ApiProperty({ format: 'uuid', description: 'The order being paid for.' })
@@ -256,6 +256,7 @@ export class RefundPaymentDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(decimalMax(12, 2))
   amountIdr?: number;
 }
 

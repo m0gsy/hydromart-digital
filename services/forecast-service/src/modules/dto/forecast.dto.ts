@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, IsUUID, Max, Min, ValidateNested } from 'class-validator';
+import { INT4_MAX } from '@hydromart/platform';
 
 /* ---------- Query DTOs ---------- */
 
@@ -138,6 +139,7 @@ export class IngestItemDto {
   @ApiProperty({ minimum: 1, description: 'Units sold (forecast aggregates units, not just order count).' })
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   quantity!: number;
 }
 
@@ -158,6 +160,7 @@ export class IngestDto {
   @ApiProperty({ minimum: 0, description: 'Order total in whole rupiah (drives the revenue forecast).' })
   @IsInt()
   @Min(0)
+  @Max(INT4_MAX)
   total!: number;
 
   @ApiProperty({ type: [IngestItemDto] })

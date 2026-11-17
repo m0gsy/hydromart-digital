@@ -12,6 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { INT4_MAX, decimalMax } from '@hydromart/platform';
 
 /** One rung of the monthly delivery-count incentive ladder (design 6b). */
 export class IncentiveTierDto {
@@ -23,12 +24,14 @@ export class IncentiveTierDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(INT4_MAX)
   deliveries!: number;
 
   @ApiProperty({ example: 25000, minimum: 0, description: 'One-off IDR credit for the rung.' })
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   bonus!: number;
 }
 
@@ -46,6 +49,7 @@ export class ApplyEarningRuleDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   baseFare!: number;
 
   @ApiProperty({
@@ -56,6 +60,7 @@ export class ApplyEarningRuleDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   peakBonus!: number;
 
   @ApiProperty({
@@ -66,6 +71,7 @@ export class ApplyEarningRuleDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(12, 2))
   onTimeBonus!: number;
 
   @ApiProperty({
@@ -101,6 +107,7 @@ export class ApplyEarningRuleDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0)
+  @Max(decimalMax(14, 2))
   monthlyTarget?: number;
 
   @ApiPropertyOptional({
