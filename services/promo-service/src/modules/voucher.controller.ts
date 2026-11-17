@@ -86,7 +86,10 @@ export class VoucherController {
   ): Promise<Page<VoucherRecord>> {
     // `voucherRead` admits MANAGER, a depot-scoped role: narrow to their own depots (plus the
     // network-wide vouchers); only a network-wide role lists every depot's.
-    return this.vouchers.browse(query.page, query.limit, false, depotScopeIds(user));
+    return this.vouchers.browse(query.page, query.limit, false, depotScopeIds(user), {
+      active: query.status === undefined ? undefined : query.status === 'active',
+      q: query.q,
+    });
   }
 
   // HQ voucher governance (14b): real burn per voucher + network total. Declared before the
@@ -300,6 +303,8 @@ export class VoucherController {
     if (dto.depotId !== undefined) assertDepotAccess(user, dto.depotId ?? null);
     const patch: UpdateVoucherData = {
       depotId: dto.depotId,
+      // Was never passed on: a code made PUBLIC by mistake could not be made the customers'.
+      audience: dto.audience,
       description: dto.description,
       discountType: dto.discountType,
       value: dto.value,

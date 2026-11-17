@@ -374,6 +374,22 @@ export class CounterVouchersQueryDto {
 }
 
 export class BrowseQueryDto {
+  /**
+   * The admin list's own filters. The HQ list used to read page one and drop inactive rows in
+   * the browser, so a draft vanished and a code past the 50th was unreachable; the count and
+   * the pages have to be the server's.
+   */
+  @ApiPropertyOptional({ enum: ['active', 'inactive'] })
+  @IsOptional()
+  @IsIn(['active', 'inactive'])
+  status?: 'active' | 'inactive';
+
+  @ApiPropertyOptional({ description: 'Part of the code or the description, any case.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  q?: string;
+
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsInt()
   @Min(1)

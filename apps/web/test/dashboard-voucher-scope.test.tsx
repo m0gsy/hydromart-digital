@@ -93,7 +93,7 @@ describe('dashboard/vouchers · item scope (item 5 B)', () => {
     await user.type(screen.getByPlaceholderText('10'), '20');
     await screen.findByRole('option', { name: 'Galon 19L' });
     await user.selectOptions(screen.getByLabelText(S.scopeProduct), PRODUCT);
-    await user.click(screen.getByRole('button', { name: H.create }));
+    await user.click(screen.getByRole('button', { name: S.publish }));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(post.mock.calls[0]?.[0]).toBe(endpoints.vouchers.create);
     expect(post.mock.calls[0]?.[1]).toMatchObject({ code: 'GALON20', productId: PRODUCT, categoryId: null });
@@ -105,7 +105,7 @@ describe('dashboard/vouchers · item scope (item 5 B)', () => {
     await user.click(await screen.findByRole('button', { name: H.newVoucher }));
     await user.type(screen.getByPlaceholderText('HEMAT10'), 'semua20');
     await user.type(screen.getByPlaceholderText('10'), '20');
-    await user.click(screen.getByRole('button', { name: H.create }));
+    await user.click(screen.getByRole('button', { name: S.publish }));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(post.mock.calls[0]?.[1]).toMatchObject({ productId: null, categoryId: null });
   });
@@ -114,13 +114,13 @@ describe('dashboard/vouchers · item scope (item 5 B)', () => {
     const user = userEvent.setup();
     draw();
     await user.click(await screen.findByRole('button', { name: H.newVoucher }));
-    await user.type(screen.getByPlaceholderText('HEMAT10'), 'dua20');
+    await user.type(screen.getByPlaceholderText('HEMAT10'), 'dua200');
     await user.type(screen.getByPlaceholderText('10'), '20');
     await screen.findByRole('option', { name: 'Galon 19L' });
     await screen.findByRole('option', { name: 'Air' });
     await user.selectOptions(screen.getByLabelText(S.scopeProduct), PRODUCT);
     await user.selectOptions(screen.getByLabelText(S.scopeCategory), CATEGORY);
-    await user.click(screen.getByRole('button', { name: H.create }));
+    await user.click(screen.getByRole('button', { name: S.publish }));
     expect(await screen.findByText(S.scopeBoth)).toBeTruthy();
     expect(post).not.toHaveBeenCalled();
   });
@@ -134,7 +134,7 @@ describe('dashboard/vouchers · item scope (item 5 B)', () => {
     const select = screen.getByLabelText(S.scopeProduct) as HTMLSelectElement;
     expect(select.value).toBe(PRODUCT);
     await user.selectOptions(select, '');
-    await user.click(screen.getByRole('button', { name: H.save }));
+    await user.click(screen.getByRole('button', { name: S.save }));
     await waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
     expect(patch.mock.calls[0]?.[1]).toMatchObject({ productId: null, categoryId: null });
   });

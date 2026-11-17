@@ -677,20 +677,49 @@ describe('VoucherPrismaRepository', () => {
   it('search narrows to the depots asked for plus the network-wide vouchers', async () => {
     $transaction.mockResolvedValue([[], 0]);
     await repo.search(1, 20, false, ['depot-a']);
+    const scope = { OR: [{ depotId: { in: ['depot-a'] } }, { depotId: null }] };
     expect(voucher.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        where: { OR: [{ depotId: { in: ['depot-a'] } }, { depotId: null }] },
-      }),
+      expect.objectContaining({ where: { AND: [scope] } }),
     );
     // Combined with the active-only filter, never replacing it.
     await repo.search(1, 20, true, ['depot-a']);
     expect(voucher.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        where: { active: true, OR: [{ depotId: { in: ['depot-a'] } }, { depotId: null }] },
-      }),
+      expect.objectContaining({ where: { active: true, AND: [scope] } }),
     );
     // No scope is still every voucher — head office reads the same list.
     await repo.search(1, 20, false);
+    expect(voucher.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: {} }));
+  });
+
+  /*
+   * The HQ list read page one and dropped inactive rows in the browser: a draft vanished and a
+   * code past the 50th was unreachable. Status and text search are the server's now, applied
+   * before the page is cut and counted in the total.
+   */
+  it('search filters by status and by part of the code or description, inside the scope', async () => {
+    $transaction.mockResolvedValue([[], 0]);
+    await repo.search(1, 20, false, ['depot-a'], { active: false, q: ' hemat ' });
+    expect(voucher.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: {
+          active: false,
+          AND: [
+            { OR: [{ depotId: { in: ['depot-a'] } }, { depotId: null }] },
+            {
+              OR: [
+                { code: { contains: 'hemat', mode: 'insensitive' } },
+                { description: { contains: 'hemat', mode: 'insensitive' } },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+    expect(voucher.count).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ active: false }) }),
+    );
+    // A blank search is no search.
+    await repo.search(1, 20, false, undefined, { q: '   ' });
     expect(voucher.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: {} }));
   });
 

@@ -794,6 +794,10 @@ export interface Voucher {
   categoryId?: string | null;
   /** Where it may be spent; null = every depot (head office only). */
   depotId?: string | null;
+  /** PUBLIC: anybody with the code. GRANTED: only the customers it is given to. */
+  audience?: 'PUBLIC' | 'GRANTED';
+  /** Total discount the code may give before it stops; null = no limit. */
+  budgetCap?: number | null;
   usedCount: number;
   active: boolean;
   createdAt: string;
@@ -817,8 +821,9 @@ export interface VoucherPayload {
   productId?: string | null;
   categoryId?: string | null;
   active?: boolean;
-  /** Create only: a depot-scoped author must name a depot in their scope. */
+  /** Where it may be spent; null = every depot. A depot-scoped author must name one of theirs. */
   depotId?: string | null;
+  audience?: 'PUBLIC' | 'GRANTED';
 }
 
 export type VoucherStatus = 'AVAILABLE' | 'USED' | 'EXPIRED' | 'UPCOMING' | 'SOLD_OUT';

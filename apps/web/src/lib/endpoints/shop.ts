@@ -25,6 +25,19 @@ function productQuery(q: ProductQuery): string {
   return qs ? `?${qs}` : '';
 }
 
+/** The admin voucher list's filters: status and a search, applied by the server. */
+interface VoucherListFilter {
+  status?: 'active' | 'inactive';
+  q?: string;
+}
+
+function voucherListQuery(page: number, limit: number, filter: VoucherListFilter): string {
+  const p = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (filter.status) p.set('status', filter.status);
+  if (filter.q?.trim()) p.set('q', filter.q.trim());
+  return `?${p.toString()}`;
+}
+
 /** `?depotId=` when there is one to send, and nothing at all when there is not. */
 function withDepot(path: string, depotId?: string | null): string {
   return depotId ? `${path}?depotId=${encodeURIComponent(depotId)}` : path;
@@ -272,7 +285,9 @@ export const shop = {
     // Grant a voucher to a customer's wallet (marketing/admin) → fires VOUCHER_GRANTED.
     grant: (id: string) => `/vouchers/api/v1/vouchers/${id}/grant`,
     // Admin CRUD (marketing/depot-manager/super-admin). Browse includes inactive.
-    browse: (page = 1, limit = 50) => `/vouchers/api/v1/vouchers?page=${page}&limit=${limit}`,
+    // One line on purpose: scripts/check-endpoint-contracts.mjs reads `name: (...) => path`,
+    // and a block body made both callers' HTTP verbs unverifiable (the gate's ratchet).
+    browse: (page = 1, limit = 50, filter: VoucherListFilter = {}) => `/vouchers/api/v1/vouchers${voucherListQuery(page, limit, filter)}`,
     // HQ voucher governance (14b): real rupiah burned per voucher + network total.
     burnSummary: '/vouchers/api/v1/vouchers/burn-summary',
     create: '/vouchers/api/v1/vouchers',

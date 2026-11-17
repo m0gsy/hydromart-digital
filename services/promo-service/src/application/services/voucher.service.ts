@@ -21,6 +21,7 @@ import { PromoRuleRepository } from '../ports/promo-rule.repository';
 import {
   CreateVoucherData,
   UpdateVoucherData,
+  VoucherListFilter,
   VoucherRecord,
   VoucherRepository,
 } from '../ports/voucher.repository';
@@ -280,10 +281,11 @@ export class VoucherService {
     limit = 20,
     activeOnly = false,
     depotIds?: readonly string[],
+    filter?: VoucherListFilter,
   ): Promise<Page<VoucherRecord>> {
     const p = Math.max(1, page);
     const l = Math.min(VoucherService.MAX_LIMIT, Math.max(1, limit));
-    const { items, total } = await this.repo.search(p, l, activeOnly, depotIds);
+    const { items, total } = await this.repo.search(p, l, activeOnly, depotIds, filter);
     return buildPage(items, total, p, l);
   }
 

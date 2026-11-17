@@ -9,6 +9,7 @@ import {
   RedemptionAnalytics,
   RedemptionInWindow,
   UpdateVoucherData,
+  VoucherListFilter,
   VoucherRecord,
   VoucherRedemptionRecord,
   VoucherRepository,
@@ -106,11 +107,27 @@ export class VoucherPrismaRepository implements VoucherRepository {
     limit: number,
     activeOnly: boolean,
     depotIds?: readonly string[],
+    filter: VoucherListFilter = {},
   ): Promise<{ items: VoucherRecord[]; total: number }> {
-    const where = {
-      ...(activeOnly ? { active: true } : {}),
+    const q = filter.q?.trim();
+    const and: Prisma.VoucherWhereInput[] = [
       // A scoped caller: own depots' vouchers + the network-wide ones. Never another depot's.
-      ...(depotIds ? { OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] } : {}),
+      ...(depotIds ? [{ OR: [{ depotId: { in: [...depotIds] } }, { depotId: null }] }] : []),
+      ...(q
+        ? [
+            {
+              OR: [
+                { code: { contains: q, mode: 'insensitive' as const } },
+                { description: { contains: q, mode: 'insensitive' as const } },
+              ],
+            },
+          ]
+        : []),
+    ];
+    const active = activeOnly ? true : filter.active;
+    const where: Prisma.VoucherWhereInput = {
+      ...(active === undefined ? {} : { active }),
+      ...(and.length > 0 ? { AND: and } : {}),
     };
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.voucher.findMany({
