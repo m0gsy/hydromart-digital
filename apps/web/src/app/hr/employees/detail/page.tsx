@@ -43,6 +43,7 @@ import {
 import { can, canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useQueryParam } from '@/lib/use-query-param';
+import { HrBack } from '@/components/hr/hr-back';
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -113,7 +114,8 @@ export default function EmployeeDetailPage() {
   if (emp.loading) return <Skeleton className="mx-auto h-96 max-w-3xl" />;
   if (emp.error)
     return (
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-3xl space-y-3">
+        <HrBack href="/hr/employees" label={t('hrFix.common.back')} />
         <ErrorState message={emp.error} onRetry={emp.reload} />
       </div>
     );
@@ -121,6 +123,7 @@ export default function EmployeeDetailPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
+      <HrBack href="/hr/employees" label={t('hrFix.common.back')} />
       <SectionHeader
         title={e.fullName}
         subtitle={`${e.employeeCode} · ${e.position}`}

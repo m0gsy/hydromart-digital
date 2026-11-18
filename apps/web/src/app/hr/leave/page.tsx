@@ -17,7 +17,9 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { EntityLink } from '@/components/entity-link';
 import { useAuth } from '@/lib/auth-context';
+import { entityHref } from '@/lib/entity-href';
 import { endpoints } from '@/lib/endpoints';
 import {
   LEAVE_STATUS_LABEL,
@@ -272,7 +274,9 @@ export default function LeaveQueuePage() {
                       reason, and offered Approve / Reject — with nothing naming the person
                       whose leave was being decided. */}
                   <span className="font-semibold">
-                    {r.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
+                    <EntityLink href={entityHref('employee', r.employeeName ? r.employeeId : null, 'hq', customer?.role)}>
+                      {r.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
+                    </EntityLink>
                   </span>
                   <Badge tone={TONE[r.status]}>{t(LEAVE_STATUS_LABEL[r.status])}</Badge>
                 </div>
