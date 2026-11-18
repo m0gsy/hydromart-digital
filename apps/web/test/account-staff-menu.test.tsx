@@ -34,6 +34,14 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { LocaleProvider } from '@/lib/locale-context';
+import { ToastProvider } from '@/components/toast';
+
+// The sheets' bodies toast; the page's own provider sits above it in the app.
+const withToast = ({ children }: { children: React.ReactNode }) => (
+  <LocaleProvider>
+    <ToastProvider>{children}</ToastProvider>
+  </LocaleProvider>
+);
 import AccountPage from '@/app/account/page';
 
 beforeEach(() => {
@@ -84,6 +92,24 @@ describe('/account menu by who is looking', () => {
     }
     // Help stays: a staff member needs the depot's number as much as a customer does.
     expect(links).toContain('/help');
+  });
+
+  it('opens the devices sheet when sent ?sheet=devices, and clears the URL', async () => {
+    auth.customer = { id: 's-5', role: 'STAFF_DEPOT', fullName: 'Andi', phone: '0812' };
+    window.history.replaceState({}, '', '/account?sheet=devices');
+    render(<AccountPage />, { wrapper: withToast });
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy());
+    expect(window.location.search).toBe('');
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('opens no sheet for any other value', async () => {
+    auth.customer = { id: 's-6', role: 'STAFF_DEPOT', fullName: 'Andi', phone: '0812' };
+    window.history.replaceState({}, '', '/account?sheet=payments');
+    render(<AccountPage />, { wrapper: withToast });
+    await waitFor(() => expect(screen.getByText('Andi')).toBeTruthy());
+    expect(screen.queryByRole('dialog')).toBeNull();
+    window.history.replaceState({}, '', '/');
   });
 
   it('a role with no depot home and no order queue is sent to its own console', async () => {

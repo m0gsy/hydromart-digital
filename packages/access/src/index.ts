@@ -569,12 +569,12 @@ export const CAPABILITIES = {
    * reason for this line.
    *
    * MARKETING is deliberately NOT here (owner decision, 2 September 2026). It already has
-   * a working depot console — campaigns, promotions, vouchers, churn, redemptions — and
-   * only two of its screens are HQ-only.
+   * a working depot console — campaigns, promotions, vouchers, churn, redemptions — and the
+   * few /hq screens it owns open through PARTIAL_HQ_DOOR in apps/web/src/lib/hq-nav.ts.
    *
-   * The rail decides what FINANCE actually sees: every one of the 61 /hq items now carries
-   * the capability its own page needs (`check-console-gates.mjs` holds that true), so this
-   * grant opens nine doors, not sixty-one.
+   * The rail decides what FINANCE actually sees: every /hq item carries the capability its
+   * own page needs (`check-console-gates.mjs` holds that true), so this grant opens only the
+   * doors whose capability FINANCE holds, not the whole console.
    */
   hqConsole: ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'],
   /*

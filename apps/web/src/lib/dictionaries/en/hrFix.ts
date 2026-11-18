@@ -2357,6 +2357,7 @@ export const hrFix = {
     inventory: 'Inventory',
     forecast: 'Forecast',
     pricing: 'Pricing',
+    franchise: 'Franchise',
   },
   mgrNav: {
     home: 'Home',

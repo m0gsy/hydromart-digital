@@ -61,6 +61,7 @@ import { canViewDashboard, consoleHome, isStaff } from '@/lib/roles';
 import { getPushState, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 import type { PushState } from '@/lib/push';
 import { useAsync } from '@/lib/use-async';
+import { useQueryState } from '@/lib/use-query-param';
 import { useFeatureFlag } from '@/lib/feature-flags';
 import { pdpDeadline, pdpOverdue } from '@/lib/pdp-sla';
 import { formatDateTime } from '@/lib/format';
@@ -1056,7 +1057,13 @@ export default function AccountPage() {
     () => (staff ? Promise.resolve(null as never) : api.get(endpoints.loyalty.me(depotId), true)),
     [depotId, staff],
   );
-  const [sheet, setSheet] = useState<SheetKey | null>(null);
+  // `?sheet=devices` — the staff settings' "Perangkat masuk" — opens that sheet at once. Only
+  // devices: it is the one sheet every account is offered. Cleared from the URL once read.
+  const [sheetParam, clearSheetParam] = useQueryState('sheet');
+  const [sheet, setSheet] = useState<SheetKey | null>(sheetParam === 'devices' ? 'devices' : null);
+  useEffect(() => {
+    if (sheetParam) clearSheetParam('');
+  }, [sheetParam, clearSheetParam]);
   // `subscriptions.galon` OFF: no entry point to a screen that can no longer create a plan.
   const subscriptionsOn = useFeatureFlag('subscriptions.galon');
 
