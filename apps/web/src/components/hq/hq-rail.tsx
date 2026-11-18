@@ -65,12 +65,12 @@ import {
 } from '@phosphor-icons/react';
 
 import { ConsoleSignOut } from '@/components/console-sign-out';
-import { hqGroupsForRole } from '@/lib/hq-nav';
+import { hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
 import { roleLabel } from '@/lib/custom-role';
-import { normalisePath } from '@/lib/screen-chrome';
+import { deepest, normalisePath } from '@/lib/screen-chrome';
 
 // Opening the ⌘K palette is decoupled via a window event so the rail doesn't import
 // the palette (which imports HQ_GROUPS from here) — keeps the module graph acyclic.
@@ -167,8 +167,10 @@ export function HqRail() {
   const pathname = normalisePath(usePathname() ?? '');
   const role = customer?.role;
 
-  const isActive = (href: string) =>
-    href === '/hq' ? pathname === '/hq' : pathname.startsWith(href);
+  // One current row: `/hq/staff/import` is not also `/hq/staff`, and `/hq/forecast-models`
+  // is not `/hq/forecast` at all.
+  const current = deepest(hqItemsForRole(role), pathname, '/hq')?.href;
+  const isActive = (href: string) => href === current;
 
   return (
     <aside className="surface sticky top-0 hidden h-dvh w-[242px] shrink-0 flex-col overflow-y-auto border-r border-app px-3.5 py-4 lg:flex">

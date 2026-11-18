@@ -10,7 +10,7 @@ import { useT } from '@/lib/locale-context';
 import { hasPartialHqDoor } from '@/lib/hq-nav';
 import { isHq } from '@/lib/roles';
 import { hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
-import { normalisePath } from '@/lib/screen-chrome';
+import { deepest, normalisePath } from '@/lib/screen-chrome';
 // The rail's table, not a second one: /hq/sitemap already reads it the same way, and the
 // bottom nav only ever renders on /hq pages where the rail module is loaded anyway.
 import { HQ_ICONS } from '@/components/hq/hq-rail';
@@ -52,14 +52,16 @@ export function HqBottomNav() {
   if (!isHq(role) && !hasPartialHqDoor(role as never)) return null;
 
   const groups = hqGroupsForRole(role);
-  const tabs = hqItemsForRole(role).slice(0, TAB_COUNT);
+  const items = hqItemsForRole(role);
+  const tabs = items.slice(0, TAB_COUNT);
   // A role with nothing to show gets no bar rather than an empty one. Not reachable
   // today — the console gate already refuses a role with no items — but a bar with a lone
   // "Lainnya" button opening an empty sheet is a worse answer than no bar.
   if (tabs.length === 0) return null;
 
-  const isActive = (href: string) =>
-    href === '/hq' ? pathname === '/hq' : pathname.startsWith(href);
+  // One current item across the bar and the sheet, by the rail's rule.
+  const current = deepest(items, pathname, '/hq')?.href;
+  const isActive = (href: string) => href === current;
 
   const item = (href: string, label: string, Ic: Icon, on: boolean, onClick?: () => void) => (
     <Link

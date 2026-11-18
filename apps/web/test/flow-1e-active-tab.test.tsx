@@ -61,10 +61,13 @@ import { OpsBottomNav } from '@/components/dashboard/ops-bottom-nav';
 import { OpsRail } from '@/components/dashboard/ops-rail';
 import { OperatorShell } from '@/components/operator/operator-shell';
 import ManagerMobileLayout from '@/app/m/manager/layout';
+import { deepest } from '@/lib/screen-chrome';
 
 afterEach(() => vi.clearAllMocks());
 
 const current = (href: string) => document.querySelector(`a[href="${href}"][aria-current="page"]`);
+const lit = () =>
+  Array.from(document.querySelectorAll('a[aria-current="page"]')).map((a) => a.getAttribute('href'));
 
 const CASES: Array<[name: string, role: string, path: string, home: string, ui: () => React.ReactElement]> = [
   ['courier shell', 'STAFF_DEPOT', '/driver/', '/driver', () => <DriverShell>x</DriverShell>],
@@ -102,8 +105,7 @@ describe('one current item, wherever the path sits', () => {
     who.role = 'SUPER_ADMIN';
     who.path = '/dashboard/franchise/attendance/';
     render(<OpsRail />);
-    const lit = Array.from(document.querySelectorAll('a[aria-current="page"]')).map((a) => a.getAttribute('href'));
-    expect(lit).toEqual(['/dashboard/franchise/attendance']);
+    expect(lit()).toEqual(['/dashboard/franchise/attendance']);
   });
 
   it('the "Lainnya" sheet follows the same rule as the rail, and says so to a screen reader', () => {
@@ -120,5 +122,62 @@ describe('one current item, wherever the path sits', () => {
     who.path = '/driver/settlement/';
     render(<DriverShell>x</DriverShell>);
     expect(current('/driver/earnings')).toBeTruthy();
+  });
+});
+
+describe('the phone bars agree with their sheets', () => {
+  it('ops: on attendance, the bar does not also light its franchise tab', () => {
+    who.role = 'SUPER_ADMIN';
+    who.path = '/dashboard/franchise/attendance/';
+    render(<OpsBottomNav />);
+    expect(lit()).toEqual([]);
+    fireEvent.click(screen.getByText('opsFix.nav.more'));
+    expect(lit()).toEqual(['/dashboard/franchise/attendance']);
+  });
+
+  it('HQ: the import screen lights alone, not the staff list too', () => {
+    who.role = 'SUPER_ADMIN';
+    who.path = '/hq/staff/import/';
+    render(<HqBottomNav />);
+    fireEvent.click(screen.getByText('hq.nav.more'));
+    expect(lit()).toEqual(['/hq/staff/import']);
+  });
+});
+
+describe('the HQ rail marks one row', () => {
+  it.each([
+    ['/hq/staff/import/', '/hq/staff/import'],
+    ['/hq/depots/import/', '/hq/depots/import'],
+    ['/hq/forecast-models/', '/hq/forecast-models'],
+  ])('at %s, only %s', (path, only) => {
+    who.role = 'SUPER_ADMIN';
+    who.path = path;
+    render(<HqRail />);
+    expect(lit()).toEqual([only]);
+  });
+});
+
+describe('deepest, the rule every nav marks its current row by', () => {
+  const rows = [
+    { href: '/hq' },
+    { href: '/hq/forecast' },
+    { href: '/hq/forecast-models' },
+    { href: '/hq/staff' },
+    { href: '/hq/staff/import' },
+  ];
+
+  it('a screen below a row is that row; a sibling that only shares letters is not', () => {
+    expect(deepest(rows, '/hq/forecast/detail', '/hq')?.href).toBe('/hq/forecast');
+    expect(deepest([{ href: '/hq/forecast' }], '/hq/forecast-models')).toBeUndefined();
+  });
+
+  it('the deepest row wins over its parent', () => {
+    expect(deepest(rows, '/hq/staff/import', '/hq')?.href).toBe('/hq/staff/import');
+  });
+
+  it('home claims only itself; without one, the root is a prefix like any other row', () => {
+    expect(deepest(rows, '/hq', '/hq')?.href).toBe('/hq');
+    expect(deepest(rows, '/hq/unlisted', '/hq')).toBeUndefined();
+    expect(deepest(rows, '/hq/unlisted')?.href).toBe('/hq');
   });
 });

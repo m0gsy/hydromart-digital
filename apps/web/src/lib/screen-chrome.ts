@@ -126,6 +126,29 @@ export function normalisePath(pathname: string): string {
   return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
 }
 
+/** `path` is `prefix` or a screen below it: `/hq/forecast-models` is not under `/hq/forecast`. */
+export const under = (path: string, prefix: string) =>
+  path === prefix || path.startsWith(`${prefix}/`);
+
+/**
+ * The item `path` belongs to: the deepest one it sits under, so a screen and its parent are
+ * never both current (`/dashboard/franchise/attendance` beats `/dashboard/franchise`).
+ * `home`, a console's root, claims only itself: otherwise every screen without a row of its
+ * own would light it. The rule every nav marks its current row by.
+ */
+export function deepest<T extends { href: string }>(
+  items: readonly T[],
+  path: string,
+  home?: string,
+): T | undefined {
+  let best: T | undefined;
+  for (const item of items) {
+    const hit = item.href === home ? path === home : under(path, item.href);
+    if (hit && (!best || item.href.length > best.href.length)) best = item;
+  }
+  return best;
+}
+
 export function screenChrome(pathname: string): Chrome {
   const path = normalisePath(pathname);
 

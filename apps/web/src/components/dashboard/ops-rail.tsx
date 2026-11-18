@@ -105,7 +105,7 @@ import {
   canViewPromotions,
 } from '@/lib/roles';
 import { canViewInsight } from '@/lib/insight/access';
-import { normalisePath } from '@/lib/screen-chrome';
+import { deepest, normalisePath } from '@/lib/screen-chrome';
 
 type Role = string | null | undefined;
 
@@ -480,20 +480,6 @@ export const GROUPS: RailGroup[] = [
   },
 ];
 
-/**
- * The one rail item `pathname` belongs to: the deepest href it sits under, on a segment
- * boundary, so `/dashboard/franchise/attendance` lights that item and not its parent too.
- * The depot home matches only itself. Shared by the rail and the phone's "Lainnya" sheet.
- */
-export function currentItemHref(pathname: string, hrefs: readonly string[]): string | undefined {
-  let best: string | undefined;
-  for (const h of hrefs) {
-    const under = pathname === h || (h !== '/dashboard' && pathname.startsWith(`${h}/`));
-    if (under && (!best || h.length > best.length)) best = h;
-  }
-  return best;
-}
-
 // B2: exported for the phone sheet. A depot-scoped console whose switcher only exists on
 // desktop is a console a depot manager cannot re-scope from the floor.
 export function DepotSwitcher() {
@@ -604,10 +590,12 @@ export function OpsRail() {
   // on every page load for a badge that must never appear.
   const opsUnread = useOpsUnreadCount(canViewOpsNotifications(role));
 
-  const current = currentItemHref(
+  // One current row: `/dashboard/franchise/attendance` lights that row, not its parent too.
+  const current = deepest(
+    GROUPS.flatMap((g) => g.items).filter((i) => i.show(role)),
     pathname,
-    GROUPS.flatMap((g) => g.items).filter((i) => i.show(role)).map((i) => i.href),
-  );
+    '/dashboard',
+  )?.href;
   const isActive = (href: string) => href === current;
 
   return (
