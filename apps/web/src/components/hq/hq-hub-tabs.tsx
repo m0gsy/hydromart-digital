@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 
-import { HubTabBar } from '@/components/dashboard/hub-tabs';
+import { HubTabBar } from '@/components/hub-tab-bar';
 import { useAuth } from '@/lib/auth-context';
 import { hqHubOf } from '@/lib/hq-nav';
 import { useT } from '@/lib/locale-context';
