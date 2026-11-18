@@ -8,6 +8,10 @@ const { get, patch, post } = vi.hoisted(() => ({
   post: vi.fn(),
 }));
 
+// PR-2a-ii: the order panel offers a courier link only for the console's own depot.
+vi.mock('@/lib/depot-context', () => ({
+  useDepot: () => ({ depots: [], selected: null, selectedId: null, scopedId: null, ready: true }),
+}));
 vi.mock('@/lib/api', () => ({
   api: { get, getCached: get, patch, post },
   ApiError: class ApiError extends Error {},
