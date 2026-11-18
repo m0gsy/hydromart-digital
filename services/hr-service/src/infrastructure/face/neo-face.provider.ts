@@ -18,6 +18,9 @@ import {
  */
 const FRAME_STATUSES = new Set([412, 413, 451, 490, 491, 492, 493, 494, 495]);
 
+/** How long NEO counts as down after it proved so, before one call probes it again. */
+const NEO_RETRY_MS = 60_000;
+
 interface NeoPayload {
   status?: string | number;
   status_message?: string;
@@ -52,6 +55,11 @@ interface NeoResponse {
 export class NeoFaceProvider implements FaceVerifier {
   private readonly logger = new Logger(NeoFaceProvider.name);
   private galleryReady: Promise<void> | null = null;
+  /**
+   * Until when NEO counts as down. While it does, every call fails at once instead of each one
+   * waiting out a dead provider (15 s) or spending a spent quota again; one call a minute probes.
+   */
+  private downUntil = 0;
 
   constructor(private readonly config: HrConfigService) {}
 
@@ -117,12 +125,10 @@ export class NeoFaceProvider implements FaceVerifier {
     // Only worth a second call when the face already matched: a non-match is refused anyway.
     const mode = this.config.neoLiveness.mode;
     if (result.matched && mode === 'enforce') {
-      result.live = await this.checkLiveness(image, id.userId).catch((err: unknown) => {
-        // Fail closed: an enforced liveness that cannot be asked refuses the punch with a
-        // plain 503. It must not become a punch held for HR with the spoof check skipped.
-        if (err instanceof FaceEngineUnavailableError) throw this.unavailable(err.message);
-        throw err;
-      });
+      // A liveness call that cannot be asked throws like any other engine-down call: attendance
+      // then holds the punch for HR with no score — the owner's rule for NEO being down
+      // (2026-11-18) — rather than accept it on the match alone.
+      result.live = await this.checkLiveness(image, id.userId);
     } else if (result.matched && mode === 'shadow') {
       // Observe only: record what the provider says and never let it change the outcome.
       try {
@@ -215,6 +221,9 @@ export class NeoFaceProvider implements FaceVerifier {
   ): Promise<NeoPayload> {
     const { token } = this.config.neoFr;
     if (!token) throw this.unavailable('NEO_FR_TOKEN belum diset');
+    if (Date.now() < this.downUntil) {
+      throw this.engineDown(`${label}: NEO sedang tidak tersedia, dicoba lagi sebentar lagi`);
+    }
     let res: Response;
     try {
       res = await fetch(url, {
@@ -225,11 +234,18 @@ export class NeoFaceProvider implements FaceVerifier {
         signal: AbortSignal.timeout(15_000),
       });
     } catch (err) {
-      throw this.engineDown(`tidak bisa menghubungi NEO (${label}): ${String(err)}`);
+      // A host that does not exist or a certificate that does not verify is OUR configuration
+      // (a mistyped NEO_FR_ENDPOINT): it pages. A timeout or a dropped connection is NEO down.
+      const code = String((err as { cause?: { code?: unknown } }).cause?.code ?? '');
+      if (code === 'ENOTFOUND' || /CERT|SSL|TLS/i.test(code)) {
+        throw this.unavailable(`NEO tidak bisa dihubungi (${label}, ${code}): periksa NEO_FR_ENDPOINT`);
+      }
+      throw this.markDown(`tidak bisa menghubungi NEO (${label}): ${String(err)}`);
     }
     // NEO always answers HTTP 200 and wraps the real verdict under `risetai` ("200" = ok), so
     // a 5xx at the HTTP level is its gateway falling over: the engine is down.
-    if (res.status >= 500) throw this.engineDown(`${label}: HTTP ${res.status}`);
+    if (res.status >= 500) throw this.markDown(`${label}: HTTP ${res.status}`);
+    this.downUntil = 0; // it answered; what it said is for the caller to judge
     return ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
   }
 
@@ -245,11 +261,12 @@ export class NeoFaceProvider implements FaceVerifier {
         'Wajah tidak terdeteksi, pastikan wajah terlihat jelas dan pencahayaan cukup',
       );
     }
-    // The quota (2026-11-18: "Not authorized: max api hit limit reached!") and NEO's own server
-    // error mean the engine cannot be asked. A bad token or a malformed request of ours is a
-    // misconfiguration: it stays a plain 503 that pages, never a punch quietly held for HR.
-    if (/hit\s+limit|limit\s+reached|quota/i.test(message) || code >= 500) {
-      throw this.engineDown(`${path}: ${message}`);
+    // The spent quota (2026-11-18: "Not authorized: max api hit limit reached!") means the engine
+    // cannot be asked. Anything else NEO says is a plain 503 that pages: a bad token or a request
+    // of ours it refused is a misconfiguration, and its in-band "500" may be one frame it choked
+    // on — letting that count as "down" would let one bad image hold everyone's punch for HR.
+    if (/hit\s+limit|limit\s+reached|quota/i.test(message)) {
+      throw this.markDown(`${path}: ${message}`);
     }
     throw this.unavailable(`${path}: ${message}`);
   }
@@ -260,6 +277,12 @@ export class NeoFaceProvider implements FaceVerifier {
 
   private engineDown(reason: string): FaceEngineUnavailableError {
     return new FaceEngineUnavailableError(`Face engine (NEO) gagal: ${reason}`);
+  }
+
+  /** The engine just proved down: fail fast for a minute, then let one call probe it. */
+  private markDown(reason: string): FaceEngineUnavailableError {
+    this.downUntil = Date.now() + NEO_RETRY_MS;
+    return this.engineDown(reason);
   }
 }
 

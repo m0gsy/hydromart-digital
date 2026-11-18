@@ -43,6 +43,10 @@ function make() {
   const checkOuts: Record<string, unknown>[] = [];
   const statuses: [string, string][] = [];
   const reasons: string[] = [];
+  const removed: string[] = [];
+  let trail: unknown[] = [];
+  let stored: string | null = 'hr/attendance/submitted.jpg';
+  let removeFails = false;
   let todays: Attendance | null = null;
   const repo = {
     findByEmployeeAndDate: async () => todays,
@@ -62,6 +66,7 @@ function make() {
     recordAdjustment: async (entry: { reason: string }) => {
       reasons.push(entry.reason);
     },
+    listAdjustments: async () => trail,
   } as unknown as AttendanceRepository;
   const verify = jest.fn<Promise<FaceVerifyResult>, unknown[]>();
   const verifier: FaceVerifier = {
@@ -85,8 +90,11 @@ function make() {
     geofence: () => ({ lat: null, lng: null, radiusM: 0 }),
   } as unknown as HrConfigService;
   const storage = {
-    put: async () => ({ key: 'hr/attendance/submitted.jpg' }),
-    remove: async () => undefined,
+    put: async () => ({ key: stored }),
+    remove: async (key: string) => {
+      if (removeFails) throw new Error('bucket down');
+      removed.push(key);
+    },
   } as unknown as StoragePort;
   const svc = new AttendanceService(repo, verifier, faces, employees, config, storage);
   const day = (patch: Partial<Attendance>) => {
@@ -96,23 +104,30 @@ function make() {
       depotId: 'd1',
       checkInAt: new Date('2026-11-18T01:00:00Z'),
       checkInScore: 0.9,
+      checkInPhotoUrl: 'hr/attendance/in.jpg',
       checkOutAt: null,
       checkOutScore: null,
+      checkOutPhotoUrl: null,
       lateMinutes: 0,
       status: 'PRESENT',
       ...patch,
     } as unknown as Attendance;
   };
-  return { svc, verify, created, checkOuts, statuses, reasons, day };
+  const storageFails = () => {
+    stored = null;
+  };
+  const hrRuled = () => {
+    trail = [{ id: 'adj1' }];
+  };
+  const bucketDown = () => {
+    removeFails = true;
+  };
+  return { svc, verify, created, checkOuts, statuses, reasons, removed, day, storageFails, hrRuled, bucketDown };
 }
 
 const alert = alertServerError as jest.Mock;
 
-beforeEach(() => {
-  alert.mockClear();
-  jest.useFakeTimers({ now: new Date('2026-11-18T01:10:00Z') });
-});
-afterEach(() => jest.useRealTimers());
+beforeEach(() => alert.mockClear());
 
 describe('check-in while the face engine cannot be asked', () => {
   it('records the punch, held PENDING with no score, instead of refusing it', async () => {
@@ -133,21 +148,14 @@ describe('check-in while the face engine cannot be asked', () => {
     expect(created[0]).toMatchObject({ checkInPhotoUrl: 'hr/attendance/submitted.jpg' });
   });
 
-  it('tells ops once per outage, does not wait on a dead engine per punch, and re-arms after it answers', async () => {
+  it('tells ops once per outage, and again after the engine answered', async () => {
     const { svc, verify } = make();
     verify.mockRejectedValue(QUOTA);
     await svc.checkIn(user, punch, AT);
-    await svc.checkIn(user, punch, AT); // inside the minute: held without asking again
-    expect(verify).toHaveBeenCalledTimes(1);
+    await svc.checkIn(user, punch, AT);
     expect(alert).toHaveBeenCalledTimes(1);
     expect(String(alert.mock.calls[0]?.[0]?.exception)).toMatch(/PENDING/);
 
-    jest.advanceTimersByTime(61_000);
-    await svc.checkIn(user, punch, AT); // asked again, still down: no second alert
-    expect(verify).toHaveBeenCalledTimes(2);
-    expect(alert).toHaveBeenCalledTimes(1);
-
-    jest.advanceTimersByTime(61_000);
     verify.mockResolvedValueOnce({ score: 0.9, matched: true });
     await svc.checkIn(user, punch, AT); // back up
     verify.mockRejectedValue(QUOTA);
@@ -159,13 +167,40 @@ describe('check-in while the face engine cannot be asked', () => {
     const { svc, verify } = make();
     verify.mockRejectedValueOnce(QUOTA);
     await svc.checkIn(user, punch, AT);
-    jest.advanceTimersByTime(61_000);
     verify.mockRejectedValueOnce(new BadRequestException('Wajah tidak terdeteksi'));
     await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(BadRequestException);
-    // Not inside a breaker window any more: the very next punch is asked.
-    verify.mockResolvedValueOnce({ score: 0.9, matched: true });
+    verify.mockRejectedValueOnce(QUOTA);
     await svc.checkIn(user, punch, AT);
-    expect(verify).toHaveBeenCalledTimes(3);
+    expect(alert).toHaveBeenCalledTimes(2);
+  });
+
+  it('with no frame stored there is nothing for HR to judge: refused for the device to retry', async () => {
+    const { svc, verify, created, storageFails } = make();
+    storageFails();
+    verify.mockRejectedValue(QUOTA);
+    await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(ServiceUnavailableException);
+    expect(created).toHaveLength(0);
+  });
+
+  it('drops the client upload a held punch did not keep, and only then', async () => {
+    const { svc, verify, removed } = make();
+    verify.mockRejectedValue(QUOTA);
+    await svc.checkIn(user, { ...punch, photoUrl: 'hr/attendance/uploaded.jpg' }, AT);
+    expect(removed).toEqual(['hr/attendance/uploaded.jpg']);
+
+    const ok = make();
+    ok.verify.mockResolvedValue({ score: 0.9, matched: true });
+    await ok.svc.checkIn(user, { ...punch, photoUrl: 'hr/attendance/uploaded.jpg' }, AT);
+    expect(ok.removed).toEqual([]);
+  });
+
+  it('a bucket that will not delete the unused upload does not undo the recorded punch', async () => {
+    const { svc, verify, created, bucketDown } = make();
+    bucketDown();
+    verify.mockRejectedValue(QUOTA);
+    const row = await svc.checkIn(user, { ...punch, photoUrl: 'hr/attendance/uploaded.jpg' }, AT);
+    expect(row.status).toBe('PENDING');
+    expect(created).toHaveLength(1);
   });
 
   it('a check-out it cannot judge puts the whole day in front of HR', async () => {
@@ -180,17 +215,24 @@ describe('check-in while the face engine cannot be asked', () => {
     expect(row.status).toBe('PENDING');
   });
 
-  it('a day HR already rejected stays rejected', async () => {
-    const { svc, verify, statuses, day } = make();
-    day({ status: 'ABSENT' });
-    verify.mockRejectedValue(QUOTA);
-    await svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
-    expect(statuses).toEqual([]);
+  it('a day HR already ruled on stays ruled: rejected, or approved and on the trail', async () => {
+    const rejected = make();
+    rejected.day({ status: 'ABSENT' });
+    rejected.verify.mockRejectedValue(QUOTA);
+    await rejected.svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
+    expect(rejected.statuses).toEqual([]);
+
+    const approved = make();
+    approved.day({ status: 'PRESENT' });
+    approved.hrRuled();
+    approved.verify.mockRejectedValue(QUOTA);
+    await approved.svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
+    expect(approved.statuses).toEqual([]);
   });
 
   it("HR's decision on such a punch is recorded as an unverified face, not an offline sync", async () => {
     const { svc, reasons, day } = make();
-    day({ status: 'PENDING', checkInScore: null });
+    day({ status: 'PENDING', checkInScore: null, checkInPhotoUrl: 'hr/attendance/f.jpg' });
     await svc.decide(user, 'a1', 'APPROVE');
     expect(reasons).toEqual(['Wajah belum diverifikasi: APPROVE']);
   });
@@ -229,8 +271,13 @@ describe('what is not the engine being down still decides', () => {
 
   it('an ordinary offline approval keeps its old wording', async () => {
     const { svc, reasons, day } = make();
-    day({ status: 'PENDING', checkInScore: 0.88 });
+    day({ status: 'PENDING', checkInScore: 0.88, checkInPhotoUrl: 'hr/attendance/f.jpg' });
     await svc.decide(user, 'a1', 'REJECT');
     expect(reasons).toEqual(['Absen offline: REJECT']);
+    // A time HR typed in has neither a score nor a frame: not an unverified face either.
+    const typed = make();
+    typed.day({ status: 'PENDING', checkInScore: 0.9, checkOutAt: new Date(), checkOutScore: null, checkOutPhotoUrl: null } as never);
+    await typed.svc.decide(user, 'a1', 'APPROVE');
+    expect(typed.reasons).toEqual(['Absen offline: APPROVE']);
   });
 });

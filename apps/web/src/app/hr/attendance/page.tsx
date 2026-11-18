@@ -116,7 +116,11 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
         {t('hrFix.attendance.pendingTitle', { count: list.total })}
         <p className="font-normal text-muted">{t('hrFix.attendance.pendingReason')}</p>
         {/* 2026-11-18: the third reason, said only when a row in the queue is one. */}
-        {list.rows.some((a) => a.checkInScore === null || (a.checkOutAt && a.checkOutScore === null)) && (
+        {list.rows.some(
+          (a) =>
+            (a.checkInScore === null && a.checkInPhotoUrl) ||
+            (a.checkOutScore === null && a.checkOutPhotoUrl),
+        ) && (
           <p className="font-normal text-muted">{t('hrFix.attendance.pendingReasonFace')}</p>
         )}
       </div>

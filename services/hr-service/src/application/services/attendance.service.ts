@@ -7,6 +7,7 @@ import {
   Logger,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
@@ -40,12 +41,6 @@ import {
   FaceVerifier,
   FaceVerifyResult,
 } from '../ports/face-verifier.port';
-
-/**
- * While the face engine is down it is asked at most this often; the punches in between are held
- * for HR at once instead of each waiting out a dead provider (a network outage is 15 s a call).
- */
-const FACE_ENGINE_RETRY_MS = 60_000;
 import {
   FACE_EMBEDDING_REPOSITORY,
   FaceEmbeddingRepository,
@@ -73,10 +68,10 @@ export interface FacePunch {
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
   /**
-   * When the face engine last could not be asked; null while it answers. Ops hear about an
-   * outage once, and the engine is asked at most once a minute while it is down.
+   * Set while the face engine cannot be asked, so ops hear about an outage once, not per punch.
+   * (Not asking a dead engine over and over is the provider's job: it fails fast for a minute.)
    */
-  private faceEngineDownAt: number | null = null;
+  private faceEngineDown = false;
 
   constructor(
     @Inject(ATTENDANCE_REPOSITORY) private readonly repo: AttendanceRepository,
@@ -194,11 +189,7 @@ export class AttendanceService {
       startMinutes,
       toleranceMinutes: this.config.lateToleranceMinutes(workDepotId),
     });
-    // A punch the engine could not judge is judged by HR from its frame, so the frame stored
-    // is the image submitted with it, never a key the client sent along (review #927).
-    const clientPhoto = score === null ? null : punch.photoUrl;
-    const photoUrl =
-      clientPhoto ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
+    const { photoUrl, clientPhoto } = await this.frameFor(punch, score);
 
     // A punch that reached us within the auto-accept window is indistinguishable from a live
     // one — face and geofence were re-checked here either way, and the clock gap is trivial.
@@ -247,6 +238,7 @@ export class AttendanceService {
       if (twin) return this.alreadyCheckedIn(twin, punch, at);
       throw err;
     }
+    await this.dropUnusedUpload(punch, score);
     // HR-18: an offline punch is recorded at the DEVICE's minute. Face and geofence were checked
     // live, so the person was there - but the minute is the device's claim, and inside the
     // auto-accept window nothing said so. Leave the gap on the row's trail where HR already looks.
@@ -356,10 +348,7 @@ export class AttendanceService {
       0,
       Math.round((at.getTime() - row.checkInAt.getTime()) / 60000),
     );
-    // Same rule as check-in: a frame HR must judge is the one submitted with the punch.
-    const clientPhoto = score === null ? null : punch.photoUrl;
-    const photoUrl =
-      clientPhoto ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
+    const { photoUrl } = await this.frameFor(punch, score);
     const updated = await this.repo.patchCheckOut(row.id, {
       checkOutAt: at,
       checkOutPhotoUrl: photoUrl,
@@ -371,10 +360,13 @@ export class AttendanceService {
     // A check-out taken away from every supervised site puts the whole day in front of HR,
     // not just the closing punch — the day is what payroll counts. Already-PENDING days stay
     // where they are rather than being re-queued. A check-out the engine could not judge sends
-    // the day to HR too, but only a day the punches decided (PRESENT/LATE): one HR already
-    // ruled on (rejected, so ABSENT) stays ruled.
+    // the day to HR too, but only a day the punches alone decided: one HR already ruled on
+    // (approved, rejected or corrected, so its trail has an entry) stays ruled.
+    await this.dropUnusedUpload(punch, score);
     const heldByEngine =
-      score === null && (updated.status === 'PRESENT' || updated.status === 'LATE');
+      score === null &&
+      (updated.status === 'PRESENT' || updated.status === 'LATE') &&
+      (await this.repo.listAdjustments(row.id)).length === 0;
     if ((holdForReview && updated.status !== 'PENDING') || heldByEngine) {
       return this.repo.patchStatus(row.id, 'PENDING');
     }
@@ -415,8 +407,8 @@ export class AttendanceService {
     // The trail names why the punch was held: a punch with a frame and no score is one the
     // face engine could not judge (2026-11-18), not a late offline sync.
     const unverified =
-      (row.checkInAt !== null && row.checkInScore === null) ||
-      (row.checkOutAt !== null && row.checkOutScore === null);
+      (row.checkInScore === null && Boolean(row.checkInPhotoUrl)) ||
+      (row.checkOutScore === null && Boolean(row.checkOutPhotoUrl));
     await this.repo.recordAdjustment({
       attendanceId: row.id,
       reason:
@@ -883,12 +875,6 @@ export class AttendanceService {
      * the engine DID answer still decides — no face found is a retake (400), a mismatch is
      * refused (401) — and a misconfiguration stays a plain 503 that pages.
      */
-    if (
-      this.faceEngineDownAt !== null &&
-      Date.now() - this.faceEngineDownAt < FACE_ENGINE_RETRY_MS
-    ) {
-      return null;
-    }
     let result: FaceVerifyResult;
     try {
       result = await this.verifier.verify(
@@ -901,10 +887,10 @@ export class AttendanceService {
         this.noteFaceEngineDown(err);
         return null;
       }
-      this.faceEngineDownAt = null; // it answered, even if with a refusal
+      this.noteFaceEngineUp(); // it answered, even if with a refusal
       throw err;
     }
-    this.faceEngineDownAt = null;
+    this.noteFaceEngineUp();
     if (!result.matched) {
       throw new UnauthorizedException('Wajah tidak cocok');
     }
@@ -923,9 +909,8 @@ export class AttendanceService {
    */
   private noteFaceEngineDown(err: FaceEngineUnavailableError): void {
     this.logger.warn(`Face engine unavailable, punch held PENDING for HR: ${err.message}`);
-    const alreadyDown = this.faceEngineDownAt !== null;
-    this.faceEngineDownAt = Date.now();
-    if (alreadyDown) return;
+    if (this.faceEngineDown) return;
+    this.faceEngineDown = true;
     alertServerError({
       method: 'POST',
       path: '/api/v1/attendance (face engine)',
@@ -934,6 +919,43 @@ export class AttendanceService {
         `Face engine unavailable; punches are held PENDING for HR until it answers again. ${err.message}`,
       ),
     });
+  }
+
+  /** It answered: the recovery is logged, and the next outage alerts again. */
+  private noteFaceEngineUp(): void {
+    if (!this.faceEngineDown) return;
+    this.faceEngineDown = false;
+    this.logger.log('Face engine answering again; punches are verified as usual');
+  }
+
+  /**
+   * The frame a punch keeps. One the engine judged keeps the client's upload if it sent one. One
+   * the engine could NOT judge is judged by HR from its frame, so that must be the image submitted
+   * with it, never a key the client sent along (review #927) — and with no frame there is nothing
+   * for HR to judge, so it is refused for the device to retry rather than held blind.
+   */
+  private async frameFor(
+    punch: FacePunch,
+    score: number | null,
+  ): Promise<{ photoUrl: string | null; clientPhoto: string | null }> {
+    const clientPhoto = score === null ? null : punch.photoUrl;
+    const photoUrl = clientPhoto ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
+    if (score === null && !photoUrl) {
+      throw new ServiceUnavailableException('Foto absen belum bisa disimpan. Coba lagi sebentar lagi.');
+    }
+    return { photoUrl, clientPhoto };
+  }
+
+  /**
+   * A held punch stored its own frame, so a frame the client uploaded for it belongs to no row —
+   * and the retention sweep, which reads rows, would never find it. Called once the row is written.
+   */
+  private async dropUnusedUpload(punch: FacePunch, score: number | null): Promise<void> {
+    if (score !== null || !punch.photoUrl) return;
+    const key = punch.photoUrl;
+    await this.storage?.remove(key).catch((e: unknown) =>
+      this.logger.warn(`Unused punch upload ${key} left behind: ${String(e)}`),
+    );
   }
 
   /**
