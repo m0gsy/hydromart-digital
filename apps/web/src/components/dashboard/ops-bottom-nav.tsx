@@ -20,6 +20,7 @@ import { DepotSwitcher, GROUPS } from '@/components/dashboard/ops-rail';
 import { Sheet } from '@/components/overlay';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { deepest, normalisePath } from '@/lib/screen-chrome';
 import {
   can,
   canManagePricing,
@@ -76,7 +77,8 @@ const TABS: Tab[] = [
 
 export function OpsBottomNav() {
   const { t } = useT();
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: a path with or without its final slash is one screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const { customer } = useAuth();
   const role = customer?.role;
 
@@ -85,8 +87,14 @@ export function OpsBottomNav() {
   // and the only way out.
   if (!isStaff(role)) return null;
 
-  const isActive = (href: string) =>
-    href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
+  // One current item across the bar and its "Lainnya" sheet, by the rail's rule: on
+  // `/dashboard/franchise/attendance` that is the sheet's attendance row, not the bar's
+  // franchise tab as well.
+  const current = deepest(
+    [...visible, ...GROUPS.flatMap((g) => g.items).filter((i) => i.show(role))],
+    pathname,
+    '/dashboard',
+  )?.href;
 
   return (
     /* Measured at 320px in English: five labels plus padding made the bar itself 338px
@@ -98,7 +106,7 @@ export function OpsBottomNav() {
       aria-label="Navigasi operasi"
     >
       {visible.map((tab) => {
-        const on = isActive(tab.href);
+        const on = tab.href === current;
         const Ic = tab.icon;
         return (
           <Link
@@ -122,7 +130,7 @@ export function OpsBottomNav() {
           doing nothing. The comment said "full menu is the desktop rail" — which meant a
           depot manager on a phone could reach four screens and no others, and could not
           re-scope the console to another depot at all. */}
-      <MoreSheetTab />
+      <MoreSheetTab current={current} />
     </nav>
   );
 }
@@ -135,10 +143,9 @@ export function OpsBottomNav() {
  * the symptom would be a screen that exists on desktop and is simply unreachable on a
  * phone — which is the defect this replaces.
  */
-function MoreSheetTab() {
+function MoreSheetTab({ current }: { current: string | undefined }) {
   const { customer } = useAuth();
   const { t } = useT();
-  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const role = customer?.role;
 
@@ -172,9 +179,10 @@ function MoreSheetTab() {
                 </p>
                 {items.map((item) => {
                   const Ic = item.icon;
-                  const on = pathname === item.href;
+                  const on = item.href === current;
                   return (
                     <Link
+                      aria-current={on ? 'page' : undefined}
                       key={item.href}
                       href={item.href}
                       onClick={() => setOpen(false)}

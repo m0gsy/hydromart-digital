@@ -10,6 +10,7 @@ import { CenterState, LinkButton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canUseCourierApp, consoleHome } from '@/lib/roles';
+import { normalisePath } from '@/lib/screen-chrome';
 
 const TABS = [
   { href: '/driver', labelKey: 'tabTasks', icon: ListChecks },
@@ -24,7 +25,8 @@ const WALLET_ROUTES = ['/driver/earnings', '/driver/settlement', '/driver/expens
 /** Bottom tab bar — 3 tabs per the courier design (+ Dompet on wallet screens). */
 function DriverNav() {
   const { t } = useT();
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: a path with or without its final slash is one screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const inWallet = WALLET_ROUTES.some((r) => pathname.startsWith(r));
   const tabs = inWallet ? [...TABS, WALLET_TAB] : TABS;
   // B1+E0. `env(safe-area-inset-bottom)` on its own reports 0 on any WebView older than
@@ -35,10 +37,17 @@ function DriverNav() {
   return (
     <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[max(0.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
       {tabs.map(({ href, labelKey, icon: Icon }) => {
-        const active = href === '/driver' ? pathname === href : pathname.startsWith(href);
+        // The Dompet tab appears for all three wallet screens, so it is current on all three.
+        const active =
+          href === WALLET_TAB.href
+            ? inWallet
+            : href === '/driver'
+              ? pathname === href
+              : pathname.startsWith(href);
         return (
           <Link
             key={href}
+            aria-current={active ? 'page' : undefined}
             href={href}
             className={`flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-bold ${
               active ? 'text-brand-700' : 'text-[color:var(--text-muted)]'

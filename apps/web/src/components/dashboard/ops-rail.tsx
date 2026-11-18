@@ -105,6 +105,7 @@ import {
   canViewPromotions,
 } from '@/lib/roles';
 import { canViewInsight } from '@/lib/insight/access';
+import { deepest, normalisePath } from '@/lib/screen-chrome';
 
 type Role = string | null | undefined;
 
@@ -582,14 +583,20 @@ function SwitcherRow({
 export function OpsRail() {
   const { customer } = useAuth();
   const { t, locale, setLocale } = useT();
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: a path with or without its final slash is one screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const role = customer?.role;
   // O4: only for roles that can see the ops feed at all — asking as anyone else is a 403
   // on every page load for a badge that must never appear.
   const opsUnread = useOpsUnreadCount(canViewOpsNotifications(role));
 
-  const isActive = (href: string) =>
-    href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
+  // One current row: `/dashboard/franchise/attendance` lights that row, not its parent too.
+  const current = deepest(
+    GROUPS.flatMap((g) => g.items).filter((i) => i.show(role)),
+    pathname,
+    '/dashboard',
+  )?.href;
+  const isActive = (href: string) => href === current;
 
   return (
     <aside className="surface sticky top-0 hidden h-dvh w-[242px] shrink-0 flex-col overflow-y-auto border-r border-app px-3.5 py-4 lg:flex">
@@ -609,6 +616,7 @@ export function OpsRail() {
                 const Ic = item.icon;
                 return (
                   <Link
+                    aria-current={on ? 'page' : undefined}
                     key={item.href}
                     href={item.href}
                     className={

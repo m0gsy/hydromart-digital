@@ -27,6 +27,7 @@ import { ConsoleSignOut } from '@/components/console-sign-out';
 import { useAuth } from '@/lib/auth-context';
 import { isServedHere } from '@/lib/deep-link';
 import { can, canManageHr, isHq } from '@/lib/roles';
+import { normalisePath } from '@/lib/screen-chrome';
 import type { Capability } from '@hydromart/access';
 
 export interface NavItem {
@@ -114,7 +115,8 @@ export function hrNavItems(role: string | null | undefined): NavItem[] {
 
 export function HrRail() {
   const { t } = useT();
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: a path with or without its final slash is one screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const { customer } = useAuth();
   /*
    * CA-2-17 — the way back out.
