@@ -7,7 +7,7 @@
 // the page gate and the landing, instead of three copies drifting apart.
 
 import { can, isHq, type Capability } from '@/lib/roles';
-import { normalisePath } from '@/lib/screen-chrome';
+import { deepest, normalisePath } from '@/lib/screen-chrome';
 
 /** Same shape `roles.ts` uses: whatever the session says, including nothing. */
 type Role = string | null | undefined;
@@ -55,10 +55,6 @@ export const HQ_GROUPS: HqRailGroup[] = [
     items: [
       { href: '/hq', labelKey: 'overview', cap: 'dashboard' },
       { href: '/hq/notifications', labelKey: 'notifications', cap: 'opsNotif' },
-      { href: '/hq/profile', labelKey: 'profile', cap: 'ownNotifPrefs' },
-      // The screen index. It renders `hqGroupsForRole` — it shows a role only what that
-      // role can already reach — so the door it needs is the console door itself.
-      { href: '/hq/sitemap', labelKey: 'sitemap', cap: 'hqConsole' },
     ],
   },
   {
@@ -191,6 +187,12 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/policy-changes', labelKey: 'policyChanges', cap: 'platformAdmin' },
       { href: '/hq/wizard', labelKey: 'wizard', cap: 'platformAdmin' },
       { href: '/hq/content', labelKey: 'content', cap: 'platformAdmin' },
+      // PR-3c review: personal and index screens close the Sistem hub, so a role without the
+      // overview is not sent to its profile by a row named Ringkasan.
+      { href: '/hq/profile', labelKey: 'profile', cap: 'ownNotifPrefs' },
+      // The screen index. It renders `hqGroupsForRole` — it shows a role only what that
+      // role can already reach — so the door it needs is the console door itself.
+      { href: '/hq/sitemap', labelKey: 'sitemap', cap: 'hqConsole' },
     ],
   },
   {
@@ -308,12 +310,40 @@ export function hqHubOf(path: string, role: Role): HqRailGroup | undefined {
  */
 export const HQ_WORK_HUB: Record<string, string | undefined> = { FINANCE: 'finance' };
 
-/** The role's HQ screens in landing order: its work hub first, then the rail's order. */
-export function hqLandingItems(role: Role): HqRailItem[] {
+/** The role's hubs in landing order: its work hub first, then the rail's order. */
+export function hqHubsInLandingOrder(role: Role): HqRailGroup[] {
   const work = HQ_WORK_HUB[role as string];
   const hubs = hqHubsFor(role);
-  return [
-    ...hubs.filter((g) => g.headKey === work),
-    ...hubs.filter((g) => g.headKey !== work),
-  ].flatMap((g) => g.items);
+  return [...hubs.filter((g) => g.headKey === work), ...hubs.filter((g) => g.headKey !== work)];
+}
+
+/** The role's HQ screens in landing order. */
+export function hqLandingItems(role: Role): HqRailItem[] {
+  return hqHubsInLandingOrder(role).flatMap((g) => g.items);
+}
+
+/**
+ * A form reached by a button belongs to the list the button is on. The imports already sit
+ * under their list's path; these four do not.
+ */
+const FORM_LIST: Record<string, string> = {
+  '/hq/forms/pricing-rule': '/hq/pricing',
+  '/hq/forms/voucher': '/hq/vouchers',
+  '/hq/forms/commission': '/hq/reconciliation',
+  '/hq/forms/segment': '/hq/campaigns',
+};
+
+/**
+ * The hub the screen at `path` belongs to, as `role` sees it: the hub of its deepest hub
+ * screen, and for a form, the hub of its list. One rule for the rail, the bar and its sheet.
+ */
+export function currentHqHub(path: string, role: Role): string | undefined {
+  const at = normalisePath(path);
+  const hubs = hqHubsFor(role);
+  const screen = deepest(
+    hubs.flatMap((g) => g.items),
+    FORM_LIST[at] ?? at,
+    '/hq',
+  )?.href;
+  return hubs.find((g) => g.items.some((i) => i.href === screen))?.headKey;
 }

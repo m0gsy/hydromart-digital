@@ -5,10 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import { Megaphone } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { LinkButton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { canOpenRoute } from '@/lib/route-access';
-import { Button, Card, Field, Input } from '@/components/ui';
+import { Button, Card, Field, Input, LinkButton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';

@@ -9,8 +9,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { hasPartialHqDoor } from '@/lib/hq-nav';
 import { isHq } from '@/lib/roles';
-import { hqHubsFor } from '@/lib/hq-nav';
-import { deepest, normalisePath } from '@/lib/screen-chrome';
+import { currentHqHub, hqHubsInLandingOrder } from '@/lib/hq-nav';
+import { normalisePath } from '@/lib/screen-chrome';
 // The rail's table, not a second one: /hq/sitemap already reads it the same way, and the
 // bottom nav only ever renders on /hq pages where the rail module is loaded anyway.
 import { hqHubIcon } from '@/components/hq/hq-rail';
@@ -51,8 +51,9 @@ export function HqBottomNav() {
   // Hooks first: an early return above them changes the hook order between renders.
   if (!isHq(role) && !hasPartialHqDoor(role as never)) return null;
 
-  // PR-3c: the bar and the sheet are the hubs, as on the rail.
-  const hubs = hqHubsFor(role);
+  // PR-3c: the bar and the sheet are the hubs, in landing order: the bar's first tab is the
+  // hub the role lands on (FINANCE: Keuangan).
+  const hubs = hqHubsInLandingOrder(role);
   const tabs = hubs.slice(0, TAB_COUNT);
   // A role with nothing to show gets no bar rather than an empty one. Not reachable
   // today — the console gate already refuses a role with no items — but a bar with a lone
@@ -60,12 +61,7 @@ export function HqBottomNav() {
   if (tabs.length === 0) return null;
 
   // One current item across the bar and the sheet, by the rail's rule.
-  const current = deepest(
-    hubs.flatMap((g) => g.items),
-    pathname,
-    '/hq',
-  )?.href;
-  const currentHub = hubs.find((g) => g.items.some((i) => i.href === current))?.headKey;
+  const currentHub = currentHqHub(pathname, role);
 
   const item = (href: string, label: string, Ic: Icon, on: boolean, onClick?: () => void) => (
     <Link
