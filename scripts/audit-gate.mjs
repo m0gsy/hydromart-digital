@@ -96,6 +96,22 @@ const ALLOWLIST = {
   // matched; no request data ever reaches a pattern argument in this gateway.
   'GHSA-vfj7-8cjw-p6xm':
     'braces stack-exhaustion DoS — no fix published yet; gateway only matches server-configured route segments, no attacker-controlled pattern',
+  // ── 2026-11-18 ────────────────────────────────────────────────────────────
+  // Accepted by the product owner (lwahyualdi) on 2026-11-18, after the advisory turned every
+  // PR's CI red at once (it was published after main's last green run).
+  // picomatch (GHSA-fc5q-39xc-vjpf, ReDoS through single-branch repeated extglobs, "<=4.0.7"):
+  // no fix to take. `npm view picomatch versions` tops out at 4.0.7, inside the range, and
+  // the 2.x line ends at 2.3.2. Two chains, and neither hands picomatch a pattern from a request:
+  // - gateway-service: http-proxy-middleware@3.0.7 -> micromatch@4.0.8 -> picomatch@2.3.2,
+  //   the same chain as braces above. micromatch is reached only from `matchPathFilter` for a
+  //   GLOB `pathFilter`; `gateway.setup.ts` passes none, so it defaults to the string '/' and
+  //   is matched with `indexOf` (node_modules/http-proxy-middleware/dist/path-filter.js).
+  // - web: @sentry/nextjs -> @rollup/plugin-commonjs -> picomatch@4.0.4, at build time only,
+  //   over the plugin's own include/exclude globs.
+  // The ReDoS needs attacker control of the PATTERN. Delete this entry once a patched release
+  // exists.
+  'GHSA-fc5q-39xc-vjpf':
+    'picomatch extglob ReDoS — no fix published; gateway passes no glob pathFilter (string "/" via indexOf), web copy is build-time only',
 };
 
 function audit() {
