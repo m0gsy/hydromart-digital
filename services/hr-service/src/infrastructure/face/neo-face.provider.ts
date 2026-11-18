@@ -143,10 +143,13 @@ export class NeoFaceProvider implements FaceVerifier {
 
   /**
    * Passive liveness from the SAME frame the match used. Real means the provider says
-   * `is_real` and does not say `is_spoof`; anything it does not say is not real. A transport
-   * failure throws (fail closed) — see `HrConfigService.neoLiveness`.
+   * `is_real` and does not say `is_spoof`; anything it does not say is not real. A call that
+   * cannot be made throws `FaceEngineUnavailableError`, never a verdict — see
+   * `HrConfigService.neoLiveness`; attendance holds such a punch for HR.
    */
   private async checkLiveness(image: Buffer, userId: string): Promise<boolean> {
+    // Its own API path: a liveness failure says nothing about the gallery the match uses, so it
+    // neither trips nor clears the fail-fast minute (review #927).
     const payload = (await this.post(
       `${this.config.neoFr.endpoint}${this.config.neoLiveness.path}`,
       'POST',
@@ -157,8 +160,9 @@ export class NeoFaceProvider implements FaceVerifier {
         image: toBase64(image),
         face_parameters: { spoof_detection: true },
       },
+      false,
     )) as NeoLivenessPayload;
-    this.ensureOk('liveness', payload);
+    this.ensureOk('liveness', payload, false);
     if (isTruthy(payload.results?.is_spoof)) return false;
     return isTruthy(payload.match_status?.is_real);
   }
@@ -218,11 +222,17 @@ export class NeoFaceProvider implements FaceVerifier {
     method: string,
     label: string,
     body: Record<string, unknown>,
+    breaker = true,
   ): Promise<NeoPayload> {
     const { token } = this.config.neoFr;
     if (!token) throw this.unavailable('NEO_FR_TOKEN belum diset');
-    if (Date.now() < this.downUntil) {
-      throw this.engineDown(`${label}: NEO sedang tidak tersedia, dicoba lagi sebentar lagi`);
+    if (breaker && this.downUntil !== 0) {
+      if (Date.now() < this.downUntil) {
+        throw this.engineDown(`${label}: NEO sedang tidak tersedia, dicoba lagi sebentar lagi`);
+      }
+      // The minute is up and THIS call is the probe: every other one keeps failing fast until
+      // it answers (or fails, which starts the minute again) instead of all queueing on NEO.
+      this.downUntil = Date.now() + NEO_RETRY_MS;
     }
     let res: Response;
     try {
@@ -234,22 +244,24 @@ export class NeoFaceProvider implements FaceVerifier {
         signal: AbortSignal.timeout(15_000),
       });
     } catch (err) {
-      // A host that does not exist or a certificate that does not verify is OUR configuration
-      // (a mistyped NEO_FR_ENDPOINT): it pages. A timeout or a dropped connection is NEO down.
+      // A host that does not exist is OUR configuration (a mistyped NEO_FR_ENDPOINT): it pages.
+      // A timeout, a dropped connection or a certificate NEO let lapse is NEO being down.
       const code = String((err as { cause?: { code?: unknown } }).cause?.code ?? '');
-      if (code === 'ENOTFOUND' || /CERT|SSL|TLS/i.test(code)) {
+      if (code === 'ENOTFOUND') {
         throw this.unavailable(`NEO tidak bisa dihubungi (${label}, ${code}): periksa NEO_FR_ENDPOINT`);
       }
-      throw this.markDown(`tidak bisa menghubungi NEO (${label}): ${String(err)}`);
+      throw this.down(`tidak bisa menghubungi NEO (${label}): ${String(err)}`, breaker);
     }
-    // NEO always answers HTTP 200 and wraps the real verdict under `risetai` ("200" = ok), so
-    // a 5xx at the HTTP level is its gateway falling over: the engine is down.
-    if (res.status >= 500) throw this.markDown(`${label}: HTTP ${res.status}`);
-    this.downUntil = 0; // it answered; what it said is for the caller to judge
+    // NEO always answers HTTP 200 and wraps the real verdict under `risetai` ("200" = ok), so a
+    // 5xx (or a 429 rate limit) at the HTTP level is its gateway refusing: the engine is down.
+    if (res.status >= 500 || res.status === 429) {
+      throw this.down(`${label}: HTTP ${res.status}`, breaker);
+    }
+    if (breaker) this.downUntil = 0; // it answered; what it said is for the caller to judge
     return ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
   }
 
-  private ensureOk(path: string, payload: NeoPayload): void {
+  private ensureOk(path: string, payload: NeoPayload, breaker = true): void {
     if (String(payload.status ?? '').startsWith('2')) return;
     const message = payload.status_message ?? 'unknown error';
     const code = Number(payload.status);
@@ -266,7 +278,7 @@ export class NeoFaceProvider implements FaceVerifier {
     // of ours it refused is a misconfiguration, and its in-band "500" may be one frame it choked
     // on — letting that count as "down" would let one bad image hold everyone's punch for HR.
     if (/hit\s+limit|limit\s+reached|quota/i.test(message)) {
-      throw this.markDown(`${path}: ${message}`);
+      throw this.down(`${path}: ${message}`, breaker);
     }
     throw this.unavailable(`${path}: ${message}`);
   }
@@ -279,9 +291,12 @@ export class NeoFaceProvider implements FaceVerifier {
     return new FaceEngineUnavailableError(`Face engine (NEO) gagal: ${reason}`);
   }
 
-  /** The engine just proved down: fail fast for a minute, then let one call probe it. */
-  private markDown(reason: string): FaceEngineUnavailableError {
-    this.downUntil = Date.now() + NEO_RETRY_MS;
+  /**
+   * The engine just proved down. A gallery call starts the fail-fast minute, after which one call
+   * probes; a liveness call (`breaker` false) reports down without touching the minute.
+   */
+  private down(reason: string, breaker: boolean): FaceEngineUnavailableError {
+    if (breaker) this.downUntil = Date.now() + NEO_RETRY_MS;
     return this.engineDown(reason);
   }
 }

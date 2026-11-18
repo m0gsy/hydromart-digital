@@ -238,7 +238,6 @@ export class AttendanceService {
       if (twin) return this.alreadyCheckedIn(twin, punch, at);
       throw err;
     }
-    await this.dropUnusedUpload(punch, score);
     // HR-18: an offline punch is recorded at the DEVICE's minute. Face and geofence were checked
     // live, so the person was there - but the minute is the device's claim, and inside the
     // auto-accept window nothing said so. Leave the gap on the row's trail where HR already looks.
@@ -361,12 +360,12 @@ export class AttendanceService {
     // not just the closing punch — the day is what payroll counts. Already-PENDING days stay
     // where they are rather than being re-queued. A check-out the engine could not judge sends
     // the day to HR too, but only a day the punches alone decided: one HR already ruled on
-    // (approved, rejected or corrected, so its trail has an entry) stays ruled.
-    await this.dropUnusedUpload(punch, score);
+    // (approved, rejected or corrected: a trail entry with an approver) stays ruled. The device
+    // clock note an offline punch leaves has no approver and is not a ruling.
     const heldByEngine =
       score === null &&
       (updated.status === 'PRESENT' || updated.status === 'LATE') &&
-      (await this.repo.listAdjustments(row.id)).length === 0;
+      !(await this.repo.listAdjustments(row.id)).some((a) => a.approvedBy !== null);
     if ((holdForReview && updated.status !== 'PENDING') || heldByEngine) {
       return this.repo.patchStatus(row.id, 'PENDING');
     }
@@ -887,7 +886,9 @@ export class AttendanceService {
         this.noteFaceEngineDown(err);
         return null;
       }
-      this.noteFaceEngineUp(); // it answered, even if with a refusal
+      // A refusal (no face, no match) is the engine answering. A plain 503 is our own
+      // misconfiguration and says nothing either way about whether the engine is up.
+      if (!(err instanceof ServiceUnavailableException)) this.noteFaceEngineUp();
       throw err;
     }
     this.noteFaceEngineUp();
@@ -944,18 +945,6 @@ export class AttendanceService {
       throw new ServiceUnavailableException('Foto absen belum bisa disimpan. Coba lagi sebentar lagi.');
     }
     return { photoUrl, clientPhoto };
-  }
-
-  /**
-   * A held punch stored its own frame, so a frame the client uploaded for it belongs to no row —
-   * and the retention sweep, which reads rows, would never find it. Called once the row is written.
-   */
-  private async dropUnusedUpload(punch: FacePunch, score: number | null): Promise<void> {
-    if (score !== null || !punch.photoUrl) return;
-    const key = punch.photoUrl;
-    await this.storage?.remove(key).catch((e: unknown) =>
-      this.logger.warn(`Unused punch upload ${key} left behind: ${String(e)}`),
-    );
   }
 
   /**

@@ -525,3 +525,60 @@ describe('NeoFaceProvider: a down engine is not asked again for a minute', () =>
   });
 });
 
+
+describe('NeoFaceProvider: review round 3 of #927', () => {
+  beforeEach(() => jest.useFakeTimers({ now: new Date('2026-11-18T09:00:00Z') }));
+  afterEach(() => jest.useRealTimers());
+
+  it('a lapsed NEO certificate and a 429 rate limit are NEO being down', async () => {
+    global.fetch = (async () => {
+      throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'CERT_HAS_EXPIRED' } });
+    }) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+
+    mockFetch(() => ({ status: 429, body: {} }));
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('a failing liveness call (its own API) does not shut the gallery for a minute', async () => {
+    const shadow = {
+      neoFr: { endpoint: 'https://fr.example', token: 'tok', galleryId: 'g1' },
+      neoLiveness: { mode: 'shadow', path: '/liveness' },
+    } as unknown as HrConfigService;
+    const calls = mockFetch((url) =>
+      url.includes('liveness')
+        ? { status: 502, body: {} }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const neo = new NeoFaceProvider(shadow);
+    expect((await neo.verify(Buffer.from('p'), [], identity)).matched).toBe(true);
+    expect((await neo.verify(Buffer.from('p'), [], identity)).matched).toBe(true);
+    expect(calls.filter((c) => !c.url.includes('liveness'))).toHaveLength(2);
+  });
+
+  it('when the minute is up, one call probes and the others still fail fast', async () => {
+    let release: () => void = () => undefined;
+    let fetches = 0;
+    global.fetch = (async () => {
+      fetches += 1;
+      if (fetches === 1) {
+        return { ok: true, status: 200, json: async () => ({ risetai: { status: '401', status_message: 'max api hit limit reached!' } }) } as Response;
+      }
+      await new Promise<void>((r) => (release = r)); // the probe hangs until released
+      return { ok: true, status: 200, json: async () => ({ risetai: { status: '200', verified: true, similarity: '90' } }) } as Response;
+    }) as unknown as typeof fetch;
+    const neo = new NeoFaceProvider(makeConfig());
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+
+    jest.advanceTimersByTime(61_000);
+    const probe = neo.verify(Buffer.from('p'), [], identity);
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(fetches).toBe(2); // the second punch did not queue on NEO behind the probe
+    release();
+    expect((await probe).matched).toBe(true);
+  });
+});

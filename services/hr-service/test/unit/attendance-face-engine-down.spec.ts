@@ -117,12 +117,15 @@ function make() {
     stored = null;
   };
   const hrRuled = () => {
-    trail = [{ id: 'adj1' }];
+    trail = [{ id: 'adj1', approvedBy: 'hr-1' }];
+  };
+  const deviceClockNoted = () => {
+    trail = [{ id: 'adj0', approvedBy: null }];
   };
   const bucketDown = () => {
     removeFails = true;
   };
-  return { svc, verify, created, checkOuts, statuses, reasons, removed, day, storageFails, hrRuled, bucketDown };
+  return { svc, verify, created, checkOuts, statuses, reasons, removed, day, storageFails, hrRuled, bucketDown, deviceClockNoted };
 }
 
 const alert = alertServerError as jest.Mock;
@@ -182,25 +185,23 @@ describe('check-in while the face engine cannot be asked', () => {
     expect(created).toHaveLength(0);
   });
 
-  it('drops the client upload a held punch did not keep, and only then', async () => {
-    const { svc, verify, removed } = make();
+  it('a frame key the client named is neither kept nor deleted: only the submitted image counts', async () => {
+    const { svc, verify, created, removed } = make();
     verify.mockRejectedValue(QUOTA);
-    await svc.checkIn(user, { ...punch, photoUrl: 'hr/attendance/uploaded.jpg' }, AT);
-    expect(removed).toEqual(['hr/attendance/uploaded.jpg']);
-
-    const ok = make();
-    ok.verify.mockResolvedValue({ score: 0.9, matched: true });
-    await ok.svc.checkIn(user, { ...punch, photoUrl: 'hr/attendance/uploaded.jpg' }, AT);
-    expect(ok.removed).toEqual([]);
+    await svc.checkIn(user, { ...punch, photoUrl: 'hr/documents/someone-else.pdf' }, AT);
+    expect(created[0]).toMatchObject({ checkInPhotoUrl: 'hr/attendance/submitted.jpg' });
+    expect(removed).toEqual([]);
   });
 
-  it('a bucket that will not delete the unused upload does not undo the recorded punch', async () => {
-    const { svc, verify, created, bucketDown } = make();
-    bucketDown();
-    verify.mockRejectedValue(QUOTA);
-    const row = await svc.checkIn(user, { ...punch, photoUrl: 'hr/attendance/uploaded.jpg' }, AT);
-    expect(row.status).toBe('PENDING');
-    expect(created).toHaveLength(1);
+  it('a plain 503 (our misconfiguration) does not end an outage: still one alert', async () => {
+    const { svc, verify } = make();
+    verify.mockRejectedValueOnce(QUOTA);
+    await svc.checkIn(user, punch, AT);
+    verify.mockRejectedValueOnce(new ServiceUnavailableException('NEO_FR_TOKEN belum diset'));
+    await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(ServiceUnavailableException);
+    verify.mockRejectedValueOnce(QUOTA);
+    await svc.checkIn(user, punch, AT);
+    expect(alert).toHaveBeenCalledTimes(1);
   });
 
   it('a check-out it cannot judge puts the whole day in front of HR', async () => {
@@ -228,6 +229,15 @@ describe('check-in while the face engine cannot be asked', () => {
     approved.verify.mockRejectedValue(QUOTA);
     await approved.svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
     expect(approved.statuses).toEqual([]);
+  });
+
+  it('the device-clock note an offline punch leaves is not a ruling: the day still goes to HR', async () => {
+    const { svc, verify, statuses, day, deviceClockNoted } = make();
+    day({ status: 'PRESENT' });
+    deviceClockNoted();
+    verify.mockRejectedValue(QUOTA);
+    await svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
+    expect(statuses).toEqual([['a1', 'PENDING']]);
   });
 
   it("HR's decision on such a punch is recorded as an unverified face, not an offline sync", async () => {
