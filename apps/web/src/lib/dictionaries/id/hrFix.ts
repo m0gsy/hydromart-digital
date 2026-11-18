@@ -642,6 +642,7 @@ export const hrFix = {
     photoIn: 'Foto masuk',
     photoOut: 'Foto pulang',
     matchScore: 'cocok {score}%',
+    matchUnverified: 'wajah belum diverifikasi',
     photoFailed: 'Foto absensi tidak tersedia.',
     unnamed: 'Karyawan dianonimkan',
     fillIdDate: 'Isi employeeId & tanggal',

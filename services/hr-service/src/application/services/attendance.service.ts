@@ -7,11 +7,13 @@ import {
   Logger,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
   AuthenticatedUser,
   ImportSummary,
+  alertServerError,
   assertDepotAccess,
   depotScopeIds,
   localDayKey,
@@ -33,7 +35,7 @@ import {
 import { storeFrame } from '../../infrastructure/storage/upload-frame';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { hrStorageKey } from '../storage-key';
-import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
+import { FACE_VERIFIER, FaceVerifier, FaceVerifyResult } from '../ports/face-verifier.port';
 import {
   FACE_EMBEDDING_REPOSITORY,
   FaceEmbeddingRepository,
@@ -60,6 +62,8 @@ export interface FacePunch {
 @Injectable()
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
+  /** Set while the face engine is failing, so ops hear about an outage once, not per punch. */
+  private faceEngineDown = false;
 
   constructor(
     @Inject(ATTENDANCE_REPOSITORY) private readonly repo: AttendanceRepository,
@@ -188,7 +192,8 @@ export class AttendanceService {
       now.getTime() - offlineAt.getTime() >
         this.config.offlineAutoAcceptMinutes(workDepotId) * 60_000;
 
-    const status = stale || holdForReview ? 'PENDING' : late ? 'LATE' : 'PRESENT';
+    // A punch the face engine could not judge (score null) is held for HR the same way.
+    const status = stale || holdForReview || score === null ? 'PENDING' : late ? 'LATE' : 'PRESENT';
     let created: Attendance;
     try {
       created = await this.repo.create({
@@ -348,7 +353,7 @@ export class AttendanceService {
     // A check-out taken away from every supervised site puts the whole day in front of HR,
     // not just the closing punch — the day is what payroll counts. Already-PENDING days stay
     // where they are rather than being re-queued.
-    if (holdForReview && updated.status !== 'PENDING') {
+    if ((holdForReview || score === null) && updated.status !== 'PENDING') {
       return this.repo.patchStatus(row.id, 'PENDING');
     }
     return updated;
@@ -837,16 +842,31 @@ export class AttendanceService {
    * ever stopped honest clients. The face match is the control; the PWA's blink challenge
    * stays a capture-quality gate on the device.
    */
-  private async assertFace(employee: Employee, punch: FacePunch): Promise<number> {
+  private async assertFace(employee: Employee, punch: FacePunch): Promise<number | null> {
     const enrolled = await this.faces.listActiveByEmployee(employee.id);
     if (enrolled.length === 0) {
       throw new BadRequestException('Wajah belum di-enroll');
     }
-    const result = await this.verifier.verify(
-      punch.image,
-      enrolled.map((e) => e.vector),
-      { userId: employee.id, userName: employee.fullName },
-    );
+    let result: FaceVerifyResult;
+    try {
+      result = await this.verifier.verify(
+        punch.image,
+        enrolled.map((e) => e.vector),
+        { userId: employee.id, userName: employee.fullName },
+      );
+    } catch (err) {
+      /*
+       * 2026-11-18: the NEO quota ran out at 14:31 WIB and every punch after it was a 503 —
+       * nobody's day recorded until the quota came back. Owner's rule since: a punch the engine
+       * cannot judge is still RECORDED, held PENDING with no score (null), and HR decides from
+       * the photo. What the engine DID answer still decides: no face found is a retake (400),
+       * a mismatch is refused (401). Only "could not ask" (503) lands here.
+       */
+      if (!(err instanceof ServiceUnavailableException)) throw err;
+      this.noteFaceEngineDown(err);
+      return null;
+    }
+    this.faceEngineDown = false;
     if (!result.matched) {
       throw new UnauthorizedException('Wajah tidak cocok');
     }
@@ -857,6 +877,24 @@ export class AttendanceService {
       throw new UnauthorizedException('Wajah terdeteksi bukan wajah asli (foto/layar)');
     }
     return result.score;
+  }
+
+  /**
+   * One message when the engine goes down — the punches themselves now succeed (PENDING), so
+   * no 5xx would page anyone. Every held punch is still logged.
+   */
+  private noteFaceEngineDown(err: ServiceUnavailableException): void {
+    this.logger.warn(`Face engine unavailable, punch held PENDING for HR: ${err.message}`);
+    if (this.faceEngineDown) return;
+    this.faceEngineDown = true;
+    alertServerError({
+      method: 'POST',
+      path: '/api/v1/attendance (face engine)',
+      status: 503,
+      exception: new Error(
+        `Face engine unavailable; punches are held PENDING for HR until it answers again. ${err.message}`,
+      ),
+    });
   }
 
   /**

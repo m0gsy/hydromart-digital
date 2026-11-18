@@ -190,11 +190,14 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
 function PunchProof({ attendance }: { attendance: Attendance }) {
   const { t } = useT();
   const { toast } = useToast();
-  const shots: { which: 'in' | 'out'; score: number | null; at: string | null }[] = [
-    { which: 'in', score: attendance.checkInScore, at: attendance.checkInAt },
-    { which: 'out', score: attendance.checkOutScore, at: attendance.checkOutAt },
+  const shots: { which: 'in' | 'out'; score: number | null; photo?: string | null }[] = [
+    { which: 'in', score: attendance.checkInScore, photo: attendance.checkInPhotoUrl },
+    { which: 'out', score: attendance.checkOutScore, photo: attendance.checkOutPhotoUrl },
   ];
-  const shown = shots.filter((s) => s.score !== null);
+  // A frame with no score is a punch the face engine could not judge, held PENDING for HR
+  // (2026-11-18): exactly the one whose photo HR has to look at. No frame and no score is a
+  // manual entry, with nothing to show.
+  const shown = shots.filter((s) => s.score !== null || s.photo);
   if (shown.length === 0) return null;
 
   async function open(which: 'in' | 'out') {
@@ -217,7 +220,9 @@ function PunchProof({ attendance }: { attendance: Attendance }) {
           className="rounded-lg border border-app px-2 py-1 font-medium hover:underline"
         >
           {s.which === 'in' ? t('hrFix.attendance.photoIn') : t('hrFix.attendance.photoOut')} ·{' '}
-          {t('hrFix.attendance.matchScore', { score: Math.round((s.score ?? 0) * 100) })}
+          {s.score === null
+            ? t('hrFix.attendance.matchUnverified')
+            : t('hrFix.attendance.matchScore', { score: Math.round(s.score * 100) })}
         </button>
       ))}
     </div>

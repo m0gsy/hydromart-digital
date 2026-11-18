@@ -629,6 +629,7 @@ export const hrFix = {
     photoIn: 'Check-in photo',
     photoOut: 'Check-out photo',
     matchScore: '{score}% match',
+    matchUnverified: 'face not verified',
     photoFailed: 'That attendance photo is not available.',
     unnamed: 'Anonymised employee',
     fillIdDate: 'Enter an employeeId and a date',

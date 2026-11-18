@@ -123,6 +123,12 @@ export interface Attendance {
    * shape `Payroll.employeeName` (PG-01) already carries.
    */
   employeeName?: string | null;
+  /**
+   * Storage KEYS of the punch frames, never URLs: a frame is read through the API. A punch the
+   * face engine could not judge (2026-11-18) has a frame and no score; null on manual entries.
+   */
+  checkInPhotoUrl?: string | null;
+  checkOutPhotoUrl?: string | null;
 }
 
 /**
