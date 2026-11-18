@@ -1,8 +1,14 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { alertServerError } from '@hydromart/platform';
 
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { FaceEngineUnavailableError } from '../../src/application/ports/face-verifier.port';
 import { NeoFaceProvider } from '../../src/infrastructure/face/neo-face.provider';
+
+jest.mock('@hydromart/platform', () => ({
+  ...jest.requireActual('@hydromart/platform'),
+  alertServerError: jest.fn(),
+}));
 
 const identity = { userId: 'e1', userName: 'Budi' };
 
@@ -448,12 +454,13 @@ describe('NeoFaceProvider: engine down vs everything else', () => {
     }
   });
 
-  it('a bad token or a missing one is a plain 503 that pages, not a punch held for HR', async () => {
-    const bad = verifyWith({ status: '401', status_message: 'Accestoken not authorized' });
-    await expect(bad).rejects.toBeInstanceOf(ServiceUnavailableException);
+  it('an account NEO refuses (401/403, any wording) is down; a token we never set is ours and pages', async () => {
     await expect(
       verifyWith({ status: '401', status_message: 'Accestoken not authorized' }),
-    ).rejects.not.toBeInstanceOf(FaceEngineUnavailableError);
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    await expect(
+      verifyWith({ status: '403', status_message: 'API usage exceeded for this token' }),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
     await expect(
       new NeoFaceProvider(makeConfig('')).verify(Buffer.from('p'), [], identity),
     ).rejects.not.toBeInstanceOf(FaceEngineUnavailableError);
@@ -475,18 +482,16 @@ describe('NeoFaceProvider: engine down vs everything else', () => {
     ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
   });
 
-  it('a host that does not exist is our configuration (pages), not NEO being down', async () => {
-    global.fetch = (async () => {
-      throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } });
-    }) as unknown as typeof fetch;
-    const attempt = new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity);
-    await expect(attempt).rejects.toBeInstanceOf(ServiceUnavailableException);
+  it('a host that does not resolve is NEO unreachable too, and the reason names the code', async () => {
     global.fetch = (async () => {
       throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } });
     }) as unknown as typeof fetch;
     await expect(
       new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
-    ).rejects.not.toBeInstanceOf(FaceEngineUnavailableError);
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toThrow(/ENOTFOUND/);
   });
 });
 
@@ -580,5 +585,69 @@ describe('NeoFaceProvider: review round 3 of #927', () => {
     expect(fetches).toBe(2); // the second punch did not queue on NEO behind the probe
     release();
     expect((await probe).matched).toBe(true);
+  });
+});
+
+describe('NeoFaceProvider: one alert per outage, from the one place that knows', () => {
+  const alert = alertServerError as jest.Mock;
+  beforeEach(() => {
+    alert.mockClear();
+    jest.useFakeTimers({ now: new Date('2026-11-18T10:00:00Z') });
+  });
+  afterEach(() => jest.useRealTimers());
+
+  it('one slow frame is not an outage: three unanswered calls in a row are', async () => {
+    let fetches = 0;
+    global.fetch = (async () => {
+      fetches += 1;
+      throw new Error('The operation was aborted due to timeout');
+    }) as unknown as typeof fetch;
+    const neo = new NeoFaceProvider(makeConfig());
+    for (let i = 0; i < 2; i += 1) {
+      await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    }
+    expect(alert).not.toHaveBeenCalled();
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(String(alert.mock.calls[0]?.[0]?.exception)).toMatch(/PENDING/);
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(fetches).toBe(3); // the fourth failed fast
+    expect(alert).toHaveBeenCalledTimes(1);
+  });
+
+  it('an answer in between starts the count again', async () => {
+    let n = 0;
+    global.fetch = (async () => {
+      n += 1;
+      if (n === 3) {
+        return { ok: true, status: 200, json: async () => ({ risetai: { status: '200', verified: true, similarity: '90' } }) } as Response;
+      }
+      throw new Error('ECONNRESET');
+    }) as unknown as typeof fetch;
+    const neo = new NeoFaceProvider(makeConfig());
+    for (let i = 0; i < 5; i += 1) await neo.verify(Buffer.from('p'), [], identity).catch(() => undefined);
+    expect(alert).not.toHaveBeenCalled(); // 2 down, 1 answer, 2 down: never 3 in a row
+  });
+
+  it('the spent quota alerts at once; the recovery is logged and the next outage alerts again', async () => {
+    let quota = true;
+    mockFetch(() =>
+      quota
+        ? { body: { status: '401', status_message: 'Not authorized: max api hit limit reached!' } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const neo = new NeoFaceProvider(makeConfig());
+    const log = jest.spyOn((neo as unknown as { logger: { log: (m: string) => void } }).logger, 'log');
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(alert).toHaveBeenCalledTimes(1);
+
+    jest.advanceTimersByTime(61_000);
+    quota = false;
+    expect((await neo.verify(Buffer.from('p'), [], identity)).matched).toBe(true);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/answering again/));
+
+    quota = true;
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(alert).toHaveBeenCalledTimes(2);
   });
 });

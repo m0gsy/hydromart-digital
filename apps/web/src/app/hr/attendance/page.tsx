@@ -115,14 +115,9 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
       <div className="p-3 text-sm font-bold">
         {t('hrFix.attendance.pendingTitle', { count: list.total })}
         <p className="font-normal text-muted">{t('hrFix.attendance.pendingReason')}</p>
-        {/* 2026-11-18: the third reason, said only when a row in the queue is one. */}
-        {list.rows.some(
-          (a) =>
-            (a.checkInScore === null && a.checkInPhotoUrl) ||
-            (a.checkOutScore === null && a.checkOutPhotoUrl),
-        ) && (
-          <p className="font-normal text-muted">{t('hrFix.attendance.pendingReasonFace')}</p>
-        )}
+        {/* 2026-11-18: the third reason a punch waits here. Said always: a row it applies to may
+            sit past the first page of the queue. */}
+        <p className="font-normal text-muted">{t('hrFix.attendance.pendingReasonFace')}</p>
       </div>
       {list.rows.map((a) => (
         <div key={a.id} className="p-3 text-sm">

@@ -13,7 +13,6 @@ import {
 import {
   AuthenticatedUser,
   ImportSummary,
-  alertServerError,
   assertDepotAccess,
   depotScopeIds,
   localDayKey,
@@ -67,11 +66,6 @@ export interface FacePunch {
 @Injectable()
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
-  /**
-   * Set while the face engine cannot be asked, so ops hear about an outage once, not per punch.
-   * (Not asking a dead engine over and over is the provider's job: it fails fast for a minute.)
-   */
-  private faceEngineDown = false;
 
   constructor(
     @Inject(ATTENDANCE_REPOSITORY) private readonly repo: AttendanceRepository,
@@ -358,14 +352,11 @@ export class AttendanceService {
     });
     // A check-out taken away from every supervised site puts the whole day in front of HR,
     // not just the closing punch — the day is what payroll counts. Already-PENDING days stay
-    // where they are rather than being re-queued. A check-out the engine could not judge sends
-    // the day to HR too, but only a day the punches alone decided: one HR already ruled on
-    // (approved, rejected or corrected: a trail entry with an approver) stays ruled. The device
-    // clock note an offline punch leaves has no approver and is not a ruling.
+    // where they are rather than being re-queued. A check-out the engine could not judge sends a
+    // counted day (PRESENT/LATE) to HR too — even one HR approved earlier, since nobody has seen
+    // THIS frame — while a day HR rejected (ABSENT) stays rejected.
     const heldByEngine =
-      score === null &&
-      (updated.status === 'PRESENT' || updated.status === 'LATE') &&
-      !(await this.repo.listAdjustments(row.id)).some((a) => a.approvedBy !== null);
+      score === null && (updated.status === 'PRESENT' || updated.status === 'LATE');
     if ((holdForReview && updated.status !== 'PENDING') || heldByEngine) {
       return this.repo.patchStatus(row.id, 'PENDING');
     }
@@ -882,16 +873,12 @@ export class AttendanceService {
         { userId: employee.id, userName: employee.fullName },
       );
     } catch (err) {
-      if (err instanceof FaceEngineUnavailableError) {
-        this.noteFaceEngineDown(err);
-        return null;
-      }
-      // A refusal (no face, no match) is the engine answering. A plain 503 is our own
-      // misconfiguration and says nothing either way about whether the engine is up.
-      if (!(err instanceof ServiceUnavailableException)) this.noteFaceEngineUp();
-      throw err;
+      if (!(err instanceof FaceEngineUnavailableError)) throw err;
+      // Every held punch is logged; telling ops (once per outage) is the provider's job, as the
+      // one place that knows when the engine went down and when it came back.
+      this.logger.warn(`Face engine unavailable, punch held PENDING for HR: ${err.message}`);
+      return null;
     }
-    this.noteFaceEngineUp();
     if (!result.matched) {
       throw new UnauthorizedException('Wajah tidak cocok');
     }
@@ -902,31 +889,6 @@ export class AttendanceService {
       throw new UnauthorizedException('Wajah terdeteksi bukan wajah asli (foto/layar)');
     }
     return result.score;
-  }
-
-  /**
-   * One message when the engine goes down — the punches themselves now succeed (PENDING), so
-   * no 5xx would page anyone. Every held punch is still logged.
-   */
-  private noteFaceEngineDown(err: FaceEngineUnavailableError): void {
-    this.logger.warn(`Face engine unavailable, punch held PENDING for HR: ${err.message}`);
-    if (this.faceEngineDown) return;
-    this.faceEngineDown = true;
-    alertServerError({
-      method: 'POST',
-      path: '/api/v1/attendance (face engine)',
-      status: 503,
-      exception: new Error(
-        `Face engine unavailable; punches are held PENDING for HR until it answers again. ${err.message}`,
-      ),
-    });
-  }
-
-  /** It answered: the recovery is logged, and the next outage alerts again. */
-  private noteFaceEngineUp(): void {
-    if (!this.faceEngineDown) return;
-    this.faceEngineDown = false;
-    this.logger.log('Face engine answering again; punches are verified as usual');
   }
 
   /**

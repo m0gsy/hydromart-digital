@@ -142,6 +142,8 @@ describe('check-in while the face engine cannot be asked', () => {
     expect(row.status).toBe('PENDING');
     expect(created).toHaveLength(1);
     expect(created[0]).toMatchObject({ status: 'PENDING', checkInScore: null });
+    // Telling ops is the provider's job (it knows when NEO went down); the service only logs.
+    expect(alert).not.toHaveBeenCalled();
   });
 
   it('stores the image submitted with the punch, never a frame key the client sent along', async () => {
@@ -149,32 +151,6 @@ describe('check-in while the face engine cannot be asked', () => {
     verify.mockRejectedValue(QUOTA);
     await svc.checkIn(user, { ...punch, photoUrl: 'hr/attendance/someone-else.jpg' }, AT);
     expect(created[0]).toMatchObject({ checkInPhotoUrl: 'hr/attendance/submitted.jpg' });
-  });
-
-  it('tells ops once per outage, and again after the engine answered', async () => {
-    const { svc, verify } = make();
-    verify.mockRejectedValue(QUOTA);
-    await svc.checkIn(user, punch, AT);
-    await svc.checkIn(user, punch, AT);
-    expect(alert).toHaveBeenCalledTimes(1);
-    expect(String(alert.mock.calls[0]?.[0]?.exception)).toMatch(/PENDING/);
-
-    verify.mockResolvedValueOnce({ score: 0.9, matched: true });
-    await svc.checkIn(user, punch, AT); // back up
-    verify.mockRejectedValue(QUOTA);
-    await svc.checkIn(user, punch, AT); // a new outage: a new alert
-    expect(alert).toHaveBeenCalledTimes(2);
-  });
-
-  it('an engine that answered at all, even with a retake, counts as up again', async () => {
-    const { svc, verify } = make();
-    verify.mockRejectedValueOnce(QUOTA);
-    await svc.checkIn(user, punch, AT);
-    verify.mockRejectedValueOnce(new BadRequestException('Wajah tidak terdeteksi'));
-    await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(BadRequestException);
-    verify.mockRejectedValueOnce(QUOTA);
-    await svc.checkIn(user, punch, AT);
-    expect(alert).toHaveBeenCalledTimes(2);
   });
 
   it('with no frame stored there is nothing for HR to judge: refused for the device to retry', async () => {
@@ -193,17 +169,6 @@ describe('check-in while the face engine cannot be asked', () => {
     expect(removed).toEqual([]);
   });
 
-  it('a plain 503 (our misconfiguration) does not end an outage: still one alert', async () => {
-    const { svc, verify } = make();
-    verify.mockRejectedValueOnce(QUOTA);
-    await svc.checkIn(user, punch, AT);
-    verify.mockRejectedValueOnce(new ServiceUnavailableException('NEO_FR_TOKEN belum diset'));
-    await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(ServiceUnavailableException);
-    verify.mockRejectedValueOnce(QUOTA);
-    await svc.checkIn(user, punch, AT);
-    expect(alert).toHaveBeenCalledTimes(1);
-  });
-
   it('a check-out it cannot judge puts the whole day in front of HR', async () => {
     const { svc, verify, checkOuts, statuses, day } = make();
     day({});
@@ -216,25 +181,18 @@ describe('check-in while the face engine cannot be asked', () => {
     expect(row.status).toBe('PENDING');
   });
 
-  it('a day HR already ruled on stays ruled: rejected, or approved and on the trail', async () => {
-    const rejected = make();
-    rejected.day({ status: 'ABSENT' });
-    rejected.verify.mockRejectedValue(QUOTA);
-    await rejected.svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
-    expect(rejected.statuses).toEqual([]);
-
-    const approved = make();
-    approved.day({ status: 'PRESENT' });
-    approved.hrRuled();
-    approved.verify.mockRejectedValue(QUOTA);
-    await approved.svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
-    expect(approved.statuses).toEqual([]);
+  it('a day HR rejected stays rejected', async () => {
+    const { svc, verify, statuses, day } = make();
+    day({ status: 'ABSENT' });
+    verify.mockRejectedValue(QUOTA);
+    await svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
+    expect(statuses).toEqual([]);
   });
 
-  it('the device-clock note an offline punch leaves is not a ruling: the day still goes to HR', async () => {
-    const { svc, verify, statuses, day, deviceClockNoted } = make();
+  it('a counted day goes back to HR even if HR approved it earlier: nobody has seen this frame', async () => {
+    const { svc, verify, statuses, day, hrRuled } = make();
     day({ status: 'PRESENT' });
-    deviceClockNoted();
+    hrRuled();
     verify.mockRejectedValue(QUOTA);
     await svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
     expect(statuses).toEqual([['a1', 'PENDING']]);
@@ -254,7 +212,6 @@ describe('what is not the engine being down still decides', () => {
     verify.mockRejectedValue(new ServiceUnavailableException('NEO_FR_TOKEN belum diset'));
     await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(ServiceUnavailableException);
     expect(created).toHaveLength(0);
-    expect(alert).not.toHaveBeenCalled();
   });
 
   it('a face it could not find is the employee retaking the photo (400), nothing recorded', async () => {

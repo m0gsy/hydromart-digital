@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { alertServerError } from '@hydromart/platform';
 
 import { HrConfigService } from '../../config/hr-config.service';
 import {
@@ -20,6 +21,12 @@ const FRAME_STATUSES = new Set([412, 413, 451, 490, 491, 492, 493, 494, 495]);
 
 /** How long NEO counts as down after it proved so, before one call probes it again. */
 const NEO_RETRY_MS = 60_000;
+/**
+ * Unanswered calls in a row before NEO counts as down. One slow or oversized frame times out on
+ * its own; it must not hold every other punch for a minute. The spent quota (or a refused token)
+ * is account-wide and no frame can cause it, so that counts at once.
+ */
+const NEO_DOWN_AFTER = 3;
 
 interface NeoPayload {
   status?: string | number;
@@ -58,8 +65,12 @@ export class NeoFaceProvider implements FaceVerifier {
   /**
    * Until when NEO counts as down. While it does, every call fails at once instead of each one
    * waiting out a dead provider (15 s) or spending a spent quota again; one call a minute probes.
+   * The one place that knows NEO's state, so it is also the one that tells ops: once when it goes
+   * down, a log line when it answers again.
    */
   private downUntil = 0;
+  /** Gallery calls in a row that got no answer (see NEO_DOWN_AFTER). */
+  private unanswered = 0;
 
   constructor(private readonly config: HrConfigService) {}
 
@@ -244,20 +255,18 @@ export class NeoFaceProvider implements FaceVerifier {
         signal: AbortSignal.timeout(15_000),
       });
     } catch (err) {
-      // A host that does not exist is OUR configuration (a mistyped NEO_FR_ENDPOINT): it pages.
-      // A timeout, a dropped connection or a certificate NEO let lapse is NEO being down.
+      // No answer at all — a timeout, a dropped connection, a host that does not resolve, a
+      // certificate that does not verify — is NEO unreachable. The alert names the cause, so a
+      // mistyped NEO_FR_ENDPOINT still reaches ops, without losing anyone's day meanwhile.
       const code = String((err as { cause?: { code?: unknown } }).cause?.code ?? '');
-      if (code === 'ENOTFOUND') {
-        throw this.unavailable(`NEO tidak bisa dihubungi (${label}, ${code}): periksa NEO_FR_ENDPOINT`);
-      }
-      throw this.down(`tidak bisa menghubungi NEO (${label}): ${String(err)}`, breaker);
+      throw this.down(`tidak bisa menghubungi NEO (${label}${code ? `, ${code}` : ''}): ${String(err)}`, breaker);
     }
     // NEO always answers HTTP 200 and wraps the real verdict under `risetai` ("200" = ok), so a
     // 5xx (or a 429 rate limit) at the HTTP level is its gateway refusing: the engine is down.
     if (res.status >= 500 || res.status === 429) {
       throw this.down(`${label}: HTTP ${res.status}`, breaker);
     }
-    if (breaker) this.downUntil = 0; // it answered; what it said is for the caller to judge
+    if (breaker) this.answered();
     return ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
   }
 
@@ -273,12 +282,12 @@ export class NeoFaceProvider implements FaceVerifier {
         'Wajah tidak terdeteksi, pastikan wajah terlihat jelas dan pencahayaan cukup',
       );
     }
-    // The spent quota (2026-11-18: "Not authorized: max api hit limit reached!") means the engine
-    // cannot be asked. Anything else NEO says is a plain 503 that pages: a bad token or a request
-    // of ours it refused is a misconfiguration, and its in-band "500" may be one frame it choked
-    // on — letting that count as "down" would let one bad image hold everyone's punch for HR.
-    if (/hit\s+limit|limit\s+reached|quota/i.test(message)) {
-      throw this.down(`${path}: ${message}`, breaker);
+    // NEO refusing the ACCOUNT — 401/403, the spent quota (2026-11-18: "Not authorized: max api
+    // hit limit reached!") or a token it no longer takes — means it cannot be asked, whatever the
+    // wording. No frame can cause it, so it counts at once. Anything else is a plain 503 that
+    // pages: a request of ours it refused, or an in-band "500" that may be one frame it choked on.
+    if (code === 401 || code === 403 || /hit\s+limit|limit\s+reached|quota/i.test(message)) {
+      throw this.down(`${path}: ${message}`, breaker, true);
     }
     throw this.unavailable(`${path}: ${message}`);
   }
@@ -292,12 +301,36 @@ export class NeoFaceProvider implements FaceVerifier {
   }
 
   /**
-   * The engine just proved down. A gallery call starts the fail-fast minute, after which one call
-   * probes; a liveness call (`breaker` false) reports down without touching the minute.
+   * A gallery call got no usable answer. NEO counts as down after NEO_DOWN_AFTER of them in a row,
+   * or at once for an account refusal (`now`): the fail-fast minute starts, and the first time it
+   * does ops get ONE message. A liveness call (`breaker` false) only reports it.
    */
-  private down(reason: string, breaker: boolean): FaceEngineUnavailableError {
-    if (breaker) this.downUntil = Date.now() + NEO_RETRY_MS;
+  private down(reason: string, breaker: boolean, now = false): FaceEngineUnavailableError {
+    if (!breaker) return this.engineDown(reason);
+    this.unanswered += 1;
+    if (now || this.unanswered >= NEO_DOWN_AFTER) {
+      const wasUp = this.downUntil === 0;
+      this.downUntil = Date.now() + NEO_RETRY_MS;
+      if (wasUp) {
+        alertServerError({
+          method: 'POST',
+          path: '/api/v1/attendance (face engine NEO)',
+          status: 503,
+          exception: new Error(
+            `NEO unavailable: punches are held PENDING for HR and enroll is refused until it answers. ${reason}`,
+          ),
+        });
+      }
+    }
     return this.engineDown(reason);
+  }
+
+  /** NEO answered (whatever it said): the outage, if any, is over. */
+  private answered(): void {
+    this.unanswered = 0;
+    if (this.downUntil === 0) return;
+    this.downUntil = 0;
+    this.logger.log('NEO answering again; punches are verified as usual');
   }
 }
 
