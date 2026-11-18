@@ -1,6 +1,7 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 
 import { HrConfigService } from '../../src/config/hr-config.service';
+import { FaceEngineUnavailableError } from '../../src/application/ports/face-verifier.port';
 import { NeoFaceProvider } from '../../src/infrastructure/face/neo-face.provider';
 
 const identity = { userId: 'e1', userName: 'Budi' };
@@ -399,5 +400,73 @@ describe('NeoFaceProvider liveness', () => {
     await expect(
       new NeoFaceProvider(withLiveness('enforce')).verify(Buffer.from('p'), [], identity),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+});
+
+/*
+ * Review of #927. Attendance holds a punch for HR only on `FaceEngineUnavailableError`, so this
+ * class must mean "the engine could not be asked" and nothing else: never a frame the employee
+ * controls (that would let a garbage image skip the face check), never a misconfiguration (that
+ * must page), and never an enforced liveness that could not run (that is fail-closed).
+ */
+describe('NeoFaceProvider: engine down vs everything else', () => {
+  const verifyWith = (body: unknown, status = 200) => {
+    mockFetch(() => ({ status, body }));
+    return new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity);
+  };
+
+  it('the spent quota, a NEO server error and a 5xx gateway are the engine being down', async () => {
+    await expect(
+      verifyWith({ status: '401', status_message: 'Not authorized: max api hit limit reached!' }),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    await expect(verifyWith({ status: '500', status_message: 'Server error' })).rejects.toBeInstanceOf(
+      FaceEngineUnavailableError,
+    );
+    await expect(verifyWith({}, 502)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('a request that never got an answer is the engine being down', async () => {
+    global.fetch = (async () => {
+      throw new Error('The operation was aborted due to timeout');
+    }) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('a frame NEO cannot read is a retake (400), never the engine being down', async () => {
+    for (const status of ['451', '490', '493', '495']) {
+      await expect(verifyWith({ status, status_message: 'image error' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    }
+  });
+
+  it('a bad token or a missing one is a plain 503 that pages, not a punch held for HR', async () => {
+    const bad = verifyWith({ status: '401', status_message: 'Accestoken not authorized' });
+    await expect(bad).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(
+      verifyWith({ status: '401', status_message: 'Accestoken not authorized' }),
+    ).rejects.not.toBeInstanceOf(FaceEngineUnavailableError);
+    await expect(
+      new NeoFaceProvider(makeConfig('')).verify(Buffer.from('p'), [], identity),
+    ).rejects.not.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('an enforced liveness that cannot be asked refuses the punch: plain 503, fail closed', async () => {
+    mockFetch((url) =>
+      url.includes('liveness')
+        ? { body: { status: '401', status_message: 'max api hit limit reached!' } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const enforce = {
+      neoFr: { endpoint: 'https://fr.example', token: 'tok', galleryId: 'g1' },
+      neoLiveness: { mode: 'enforce', path: '/liveness' },
+    } as unknown as HrConfigService;
+    const attempt = new NeoFaceProvider(enforce).verify(Buffer.from('p'), [], identity);
+    await expect(attempt).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(
+      new NeoFaceProvider(enforce).verify(Buffer.from('p'), [], identity),
+    ).rejects.not.toBeInstanceOf(FaceEngineUnavailableError);
   });
 });

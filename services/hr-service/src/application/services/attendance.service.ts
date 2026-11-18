@@ -7,7 +7,6 @@ import {
   Logger,
   NotFoundException,
   Optional,
-  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
@@ -35,7 +34,18 @@ import {
 import { storeFrame } from '../../infrastructure/storage/upload-frame';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { hrStorageKey } from '../storage-key';
-import { FACE_VERIFIER, FaceVerifier, FaceVerifyResult } from '../ports/face-verifier.port';
+import {
+  FACE_VERIFIER,
+  FaceEngineUnavailableError,
+  FaceVerifier,
+  FaceVerifyResult,
+} from '../ports/face-verifier.port';
+
+/**
+ * While the face engine is down it is asked at most this often; the punches in between are held
+ * for HR at once instead of each waiting out a dead provider (a network outage is 15 s a call).
+ */
+const FACE_ENGINE_RETRY_MS = 60_000;
 import {
   FACE_EMBEDDING_REPOSITORY,
   FaceEmbeddingRepository,
@@ -62,8 +72,11 @@ export interface FacePunch {
 @Injectable()
 export class AttendanceService {
   private readonly logger = new Logger(AttendanceService.name);
-  /** Set while the face engine is failing, so ops hear about an outage once, not per punch. */
-  private faceEngineDown = false;
+  /**
+   * When the face engine last could not be asked; null while it answers. Ops hear about an
+   * outage once, and the engine is asked at most once a minute while it is down.
+   */
+  private faceEngineDownAt: number | null = null;
 
   constructor(
     @Inject(ATTENDANCE_REPOSITORY) private readonly repo: AttendanceRepository,
@@ -181,8 +194,11 @@ export class AttendanceService {
       startMinutes,
       toleranceMinutes: this.config.lateToleranceMinutes(workDepotId),
     });
+    // A punch the engine could not judge is judged by HR from its frame, so the frame stored
+    // is the image submitted with it, never a key the client sent along (review #927).
+    const clientPhoto = score === null ? null : punch.photoUrl;
     const photoUrl =
-      punch.photoUrl ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
+      clientPhoto ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
 
     // A punch that reached us within the auto-accept window is indistinguishable from a live
     // one — face and geofence were re-checked here either way, and the clock gap is trivial.
@@ -219,7 +235,7 @@ export class AttendanceService {
       // The row was never written, so a frame THIS request stored belongs to nothing and the
       // retention sweep (which reads rows) would never find it. A client-uploaded photo is left
       // alone: the twin's row may point at the very same one.
-      if (photoUrl && !punch.photoUrl) {
+      if (photoUrl && !clientPhoto) {
         await this.storage?.remove(photoUrl).catch((e: unknown) =>
           this.logger.warn(`Check-in frame ${photoUrl} left behind: ${String(e)}`),
         );
@@ -340,8 +356,10 @@ export class AttendanceService {
       0,
       Math.round((at.getTime() - row.checkInAt.getTime()) / 60000),
     );
+    // Same rule as check-in: a frame HR must judge is the one submitted with the punch.
+    const clientPhoto = score === null ? null : punch.photoUrl;
     const photoUrl =
-      punch.photoUrl ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
+      clientPhoto ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
     const updated = await this.repo.patchCheckOut(row.id, {
       checkOutAt: at,
       checkOutPhotoUrl: photoUrl,
@@ -352,8 +370,12 @@ export class AttendanceService {
     });
     // A check-out taken away from every supervised site puts the whole day in front of HR,
     // not just the closing punch — the day is what payroll counts. Already-PENDING days stay
-    // where they are rather than being re-queued.
-    if ((holdForReview || score === null) && updated.status !== 'PENDING') {
+    // where they are rather than being re-queued. A check-out the engine could not judge sends
+    // the day to HR too, but only a day the punches decided (PRESENT/LATE): one HR already
+    // ruled on (rejected, so ABSENT) stays ruled.
+    const heldByEngine =
+      score === null && (updated.status === 'PRESENT' || updated.status === 'LATE');
+    if ((holdForReview && updated.status !== 'PENDING') || heldByEngine) {
       return this.repo.patchStatus(row.id, 'PENDING');
     }
     return updated;
@@ -390,9 +412,15 @@ export class AttendanceService {
     const status: AttendanceStatus =
       decision === 'APPROVE' ? (row.lateMinutes > 0 ? 'LATE' : 'PRESENT') : 'ABSENT';
     const updated = await this.repo.patchStatus(row.id, status);
+    // The trail names why the punch was held: a punch with a frame and no score is one the
+    // face engine could not judge (2026-11-18), not a late offline sync.
+    const unverified =
+      (row.checkInAt !== null && row.checkInScore === null) ||
+      (row.checkOutAt !== null && row.checkOutScore === null);
     await this.repo.recordAdjustment({
       attendanceId: row.id,
-      reason: note?.trim() || `Absen offline: ${decision}`,
+      reason:
+        note?.trim() || `${unverified ? 'Wajah belum diverifikasi' : 'Absen offline'}: ${decision}`,
       before: snapshot(row),
       after: snapshot(updated),
       approvedBy: user.sub,
@@ -847,6 +875,20 @@ export class AttendanceService {
     if (enrolled.length === 0) {
       throw new BadRequestException('Wajah belum di-enroll');
     }
+    /*
+     * 2026-11-18: the NEO quota ran out at 14:31 WIB and every punch after it was a 503 —
+     * nobody's day recorded until the quota came back. Owner's rule since: a punch the engine
+     * cannot be ASKED about (`FaceEngineUnavailableError`: quota, outage, timeout) is still
+     * RECORDED, held PENDING with no score (null), and HR decides from the stored frame. What
+     * the engine DID answer still decides — no face found is a retake (400), a mismatch is
+     * refused (401) — and a misconfiguration stays a plain 503 that pages.
+     */
+    if (
+      this.faceEngineDownAt !== null &&
+      Date.now() - this.faceEngineDownAt < FACE_ENGINE_RETRY_MS
+    ) {
+      return null;
+    }
     let result: FaceVerifyResult;
     try {
       result = await this.verifier.verify(
@@ -855,18 +897,14 @@ export class AttendanceService {
         { userId: employee.id, userName: employee.fullName },
       );
     } catch (err) {
-      /*
-       * 2026-11-18: the NEO quota ran out at 14:31 WIB and every punch after it was a 503 —
-       * nobody's day recorded until the quota came back. Owner's rule since: a punch the engine
-       * cannot judge is still RECORDED, held PENDING with no score (null), and HR decides from
-       * the photo. What the engine DID answer still decides: no face found is a retake (400),
-       * a mismatch is refused (401). Only "could not ask" (503) lands here.
-       */
-      if (!(err instanceof ServiceUnavailableException)) throw err;
-      this.noteFaceEngineDown(err);
-      return null;
+      if (err instanceof FaceEngineUnavailableError) {
+        this.noteFaceEngineDown(err);
+        return null;
+      }
+      this.faceEngineDownAt = null; // it answered, even if with a refusal
+      throw err;
     }
-    this.faceEngineDown = false;
+    this.faceEngineDownAt = null;
     if (!result.matched) {
       throw new UnauthorizedException('Wajah tidak cocok');
     }
@@ -883,10 +921,11 @@ export class AttendanceService {
    * One message when the engine goes down — the punches themselves now succeed (PENDING), so
    * no 5xx would page anyone. Every held punch is still logged.
    */
-  private noteFaceEngineDown(err: ServiceUnavailableException): void {
+  private noteFaceEngineDown(err: FaceEngineUnavailableError): void {
     this.logger.warn(`Face engine unavailable, punch held PENDING for HR: ${err.message}`);
-    if (this.faceEngineDown) return;
-    this.faceEngineDown = true;
+    const alreadyDown = this.faceEngineDownAt !== null;
+    this.faceEngineDownAt = Date.now();
+    if (alreadyDown) return;
     alertServerError({
       method: 'POST',
       path: '/api/v1/attendance (face engine)',

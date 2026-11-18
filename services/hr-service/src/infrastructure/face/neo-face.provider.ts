@@ -5,10 +5,18 @@ import { BadRequestException, Injectable, Logger, ServiceUnavailableException } 
 import { HrConfigService } from '../../config/hr-config.service';
 import {
   FaceEmbeddingResult,
+  FaceEngineUnavailableError,
   FaceIdentity,
   FaceVerifier,
   FaceVerifyResult,
 } from '../../application/ports/face-verifier.port';
+
+/**
+ * NEO statuses a bad FRAME causes (documented list): 412 face not detected, 413 face too small,
+ * 451 image is null, 490-495 image cannot be decoded / type not recognised. The employee
+ * retakes the photo; it is not the engine being down, and it must not be able to look like it.
+ */
+const FRAME_STATUSES = new Set([412, 413, 451, 490, 491, 492, 493, 494, 495]);
 
 interface NeoPayload {
   status?: string | number;
@@ -109,7 +117,12 @@ export class NeoFaceProvider implements FaceVerifier {
     // Only worth a second call when the face already matched: a non-match is refused anyway.
     const mode = this.config.neoLiveness.mode;
     if (result.matched && mode === 'enforce') {
-      result.live = await this.checkLiveness(image, id.userId);
+      result.live = await this.checkLiveness(image, id.userId).catch((err: unknown) => {
+        // Fail closed: an enforced liveness that cannot be asked refuses the punch with a
+        // plain 503. It must not become a punch held for HR with the spoof check skipped.
+        if (err instanceof FaceEngineUnavailableError) throw this.unavailable(err.message);
+        throw err;
+      });
     } else if (result.matched && mode === 'shadow') {
       // Observe only: record what the provider says and never let it change the outcome.
       try {
@@ -212,27 +225,41 @@ export class NeoFaceProvider implements FaceVerifier {
         signal: AbortSignal.timeout(15_000),
       });
     } catch (err) {
-      throw this.unavailable(`tidak bisa menghubungi NEO (${label}): ${String(err)}`);
+      throw this.engineDown(`tidak bisa menghubungi NEO (${label}): ${String(err)}`);
     }
-    // NEO always answers HTTP 200 and wraps the real verdict under `risetai` ("200" = ok).
+    // NEO always answers HTTP 200 and wraps the real verdict under `risetai` ("200" = ok), so
+    // a 5xx at the HTTP level is its gateway falling over: the engine is down.
+    if (res.status >= 500) throw this.engineDown(`${label}: HTTP ${res.status}`);
     return ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
   }
 
   private ensureOk(path: string, payload: NeoPayload): void {
-    if (!String(payload.status ?? '').startsWith('2')) {
-      // Seen in production 2026-11-08: "Procedural Error - Face Not Detected" (blurry/no-face
-      // frame) was a 503, which paged Discord for what is the employee's retake, not an outage.
-      if (/face\s+not\s+detected|image\s+clarity/i.test(payload.status_message ?? '')) {
-        throw new BadRequestException(
-          'Wajah tidak terdeteksi, pastikan wajah terlihat jelas dan pencahayaan cukup',
-        );
-      }
-      throw this.unavailable(`${path}: ${payload.status_message ?? 'unknown error'}`);
+    if (String(payload.status ?? '').startsWith('2')) return;
+    const message = payload.status_message ?? 'unknown error';
+    const code = Number(payload.status);
+    // Seen in production 2026-11-08: "Procedural Error - Face Not Detected" (blurry/no-face
+    // frame) was a 503, which paged Discord for what is the employee's retake, not an outage.
+    // Every status a bad frame causes is the same retake.
+    if (FRAME_STATUSES.has(code) || /face\s+not\s+detected|image\s+clarity/i.test(message)) {
+      throw new BadRequestException(
+        'Wajah tidak terdeteksi, pastikan wajah terlihat jelas dan pencahayaan cukup',
+      );
     }
+    // The quota (2026-11-18: "Not authorized: max api hit limit reached!") and NEO's own server
+    // error mean the engine cannot be asked. A bad token or a malformed request of ours is a
+    // misconfiguration: it stays a plain 503 that pages, never a punch quietly held for HR.
+    if (/hit\s+limit|limit\s+reached|quota/i.test(message) || code >= 500) {
+      throw this.engineDown(`${path}: ${message}`);
+    }
+    throw this.unavailable(`${path}: ${message}`);
   }
 
   private unavailable(reason: string): ServiceUnavailableException {
     return new ServiceUnavailableException(`Face engine (NEO) gagal: ${reason}`);
+  }
+
+  private engineDown(reason: string): FaceEngineUnavailableError {
+    return new FaceEngineUnavailableError(`Face engine (NEO) gagal: ${reason}`);
   }
 }
 

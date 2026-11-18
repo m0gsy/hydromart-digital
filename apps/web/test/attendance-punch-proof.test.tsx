@@ -151,6 +151,8 @@ describe('CA-1-66 the punch shows what it was accepted on', () => {
     await waitFor(() => expect(screen.getByText('Budi Santoso')).toBeTruthy());
     const button = screen.getByRole('button', { name: /photoIn/ });
     expect(button.textContent).toContain('hrFix.attendance.matchUnverified');
+    // The queue says why such a punch is there, which the two older reasons did not cover.
+    expect(screen.getByText('hrFix.attendance.pendingReasonFace')).toBeTruthy();
 
     await userEvent.click(button);
     await waitFor(() => expect(getBlob).toHaveBeenCalled());

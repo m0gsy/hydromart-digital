@@ -1,4 +1,13 @@
+import { ServiceUnavailableException } from '@nestjs/common';
+
 export const FACE_VERIFIER = Symbol('FACE_VERIFIER');
+
+/**
+ * The engine could not be ASKED: quota spent, provider down, a timeout. Nothing the employee
+ * sent causes it, and no misconfiguration does either (those stay a plain 503 that pages).
+ * Attendance holds such a punch PENDING for HR instead of refusing it (owner, 2026-11-18).
+ */
+export class FaceEngineUnavailableError extends ServiceUnavailableException {}
 
 export interface FaceEmbeddingResult {
   /** L2-normalized 512-d ArcFace embedding (mean of the enrolled frames). */

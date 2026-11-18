@@ -622,6 +622,8 @@ export const hrFix = {
     pendingTitle: 'Absen menunggu persetujuan ({count})',
     pendingReason:
       'Terkirim jauh setelah waktu absen sehingga jamnya berasal dari perangkat, atau diambil di luar area semua depot yang jadi tanggung jawabnya. Belum dihitung hadir.',
+    pendingReasonFace:
+      'Atau wajahnya belum bisa diverifikasi karena layanan verifikasi wajah sedang tidak tersedia: buka fotonya sebelum memutuskan.',
     title: 'Absensi',
     correctStatus: 'Koreksi status',
     reject: 'Tolak',

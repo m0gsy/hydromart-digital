@@ -115,6 +115,10 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
       <div className="p-3 text-sm font-bold">
         {t('hrFix.attendance.pendingTitle', { count: list.total })}
         <p className="font-normal text-muted">{t('hrFix.attendance.pendingReason')}</p>
+        {/* 2026-11-18: the third reason, said only when a row in the queue is one. */}
+        {list.rows.some((a) => a.checkInScore === null || (a.checkOutAt && a.checkOutScore === null)) && (
+          <p className="font-normal text-muted">{t('hrFix.attendance.pendingReasonFace')}</p>
+        )}
       </div>
       {list.rows.map((a) => (
         <div key={a.id} className="p-3 text-sm">
