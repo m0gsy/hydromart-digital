@@ -9,7 +9,9 @@ import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, 
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useConfirm } from '@/components/confirm';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { canManagePromotions } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { Promotion, PromotionPayload } from '@/lib/types';
 import { dayEndWib, dayStartWib, todayWib } from '@/lib/wib';
@@ -177,6 +179,10 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
 // Design 17d — homepage carousel slots. Real: promotions.manage + create/detail.
 export default function HqPromotionsPage() {
   const { t } = useT();
+  const { customer } = useAuth();
+  // Banners are written by `promotionWrite` (MARKETING, SUPER_ADMIN). Head office and the
+  // director read them here; New/Edit/Remove used to be drawn for them and refused on save.
+  const mayWrite = canManagePromotions(customer?.role);
   const { toast } = useToast();
   const [editing, setEditing] = useState<Promotion | null | undefined>(undefined);
   const { data, error, loading, reload } = useAsync<Promotion[]>(
@@ -212,7 +218,9 @@ export default function HqPromotionsPage() {
         subtitle={t('hq.promotions.subtitle')}
         action={
           <>
-            {editing === undefined && <Button onClick={() => setEditing(null)}>{t('hq.promotions.newBanner')}</Button>}
+            {mayWrite && editing === undefined && (
+              <Button onClick={() => setEditing(null)}>{t('hq.promotions.newBanner')}</Button>
+            )}
           </>
         }
       />
@@ -250,12 +258,16 @@ export default function HqPromotionsPage() {
                 </span>
                 {p.subtitle && <span className="truncate text-sm text-muted">{p.subtitle}</span>}
               </div>
-              <Button variant="ghost" onClick={() => setEditing(p)}>
-                {t('hq.promotions.edit')}
-              </Button>
-              <Button variant="danger" onClick={() => remove(p.id)}>
-                {t('hq.promotions.remove')}
-              </Button>
+              {mayWrite && (
+                <>
+                  <Button variant="ghost" onClick={() => setEditing(p)}>
+                    {t('hq.promotions.edit')}
+                  </Button>
+                  <Button variant="danger" onClick={() => remove(p.id)}>
+                    {t('hq.promotions.remove')}
+                  </Button>
+                </>
+              )}
             </div>
           ))}
         </Card>

@@ -6,7 +6,7 @@ import { UserGear } from '@phosphor-icons/react';
 import { useConfirm } from '@/components/confirm';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { StaffInvite } from '@/components/hq/staff-invite';
-import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Card, CenterState, ErrorState, LinkButton, Skeleton } from '@/components/ui';
 import { HR_MANAGED_ROLES } from '@hydromart/access';
 
 import { api, ApiError } from '@/lib/api';
@@ -148,7 +148,17 @@ export default function HqStaffPage() {
          * screen never warned them about. Guarded once, here and at each control, rather
          * than per-symptom.
          */
-        action={canAdminStaff ? <StaffInvite onSaved={reloadAll} /> : null}
+        action={
+          canAdminStaff ? (
+            <div className="flex flex-wrap gap-2">
+              {/* The import wizard was reachable only from the HQ rail's forms group. */}
+              <LinkButton href="/hq/staff/import" variant="secondary">
+                {t('hq.nav.staffImport')}
+              </LinkButton>
+              <StaffInvite onSaved={reloadAll} />
+            </div>
+          ) : null
+        }
       />
 
       {/* Role filter chips */}

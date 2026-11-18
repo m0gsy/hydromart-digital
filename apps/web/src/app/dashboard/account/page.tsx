@@ -2,10 +2,8 @@
 
 import {
   Bell,
-  CaretRight,
   DeviceMobile,
   Gear,
-  Key,
   Lock,
   Sun,
   WarningCircle,
@@ -90,26 +88,9 @@ function AccountBody() {
               ))}
             </div>
           </div>
-          <StaticRow icon={Key} label={t('dashA.account.pin.label')} sub={t('dashA.account.pin.sub')} />
-          <StaticRow icon={DeviceMobile} label={t('dashA.account.devices.label')} sub={t('dashA.account.devices.sub')} />
         </Card>
       </div>
     </div>
-  );
-}
-
-function StaticRow({ icon: RIcon, label, sub }: { icon: Icon; label: string; sub: string }) {
-  return (
-    <button type="button" className="flex w-full items-center gap-3 p-4 text-left">
-      <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-        <RIcon size={18} weight="fill" />
-      </span>
-      <div className="flex-1">
-        <p className="text-sm font-semibold">{label}</p>
-        <p className="text-[11px] text-[color:var(--text-muted)]">{sub}</p>
-      </div>
-      <CaretRight size={15} className="text-[color:var(--text-muted)]" />
-    </button>
   );
 }
 

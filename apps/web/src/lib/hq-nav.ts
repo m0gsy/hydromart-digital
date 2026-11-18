@@ -17,7 +17,7 @@ export interface HqRailItem {
   // i18n key under hq.nav.*
   labelKey: string;
   /**
-   * The capability this screen needs. REQUIRED — every one of the sixty-one carries one.
+   * The capability this screen needs. REQUIRED — every item in HQ_GROUPS carries one.
    *
    * It was optional, and the comment here used to say items "don't carry finer gates in
    * Milestone A". A browser pass as a real HEAD_OFFICE proved that wrong (six platformAdmin
@@ -128,8 +128,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/promotions', labelKey: 'promotions', cap: 'promotionRead' },
       { href: '/hq/promo-rules', labelKey: 'promoRules', cap: 'promoRuleRead' },
       { href: '/hq/customers', labelKey: 'customers', cap: 'customerPhoneLookup' },
-      // ponytail: depot managers reach /resellers by direct URL for now — no manager-rail
-      // entry yet (out of scope for this pass).
+      // Depot managers reach the same screen from the ops rail (J10).
       { href: '/resellers', labelKey: 'resellers', cap: 'resellerView' },
     ],
   },

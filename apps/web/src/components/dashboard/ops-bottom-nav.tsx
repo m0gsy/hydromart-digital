@@ -42,9 +42,10 @@ interface Tab {
 // small screens this carries dashboard navigation. Role-filtered; capped at the
 // first 4 the role can see so the bar never overflows.
 const TABS: Tab[] = [
+  // Not "Ringkasan": a role holding both (the super admin) saw two tabs with one name.
   {
     href: '/dashboard/franchise',
-    label: 'hrFix.opsNav.summary',
+    label: 'ops.nav.myFranchise',
     icon: Buildings,
     show: canViewFranchise,
   },
