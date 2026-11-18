@@ -5,6 +5,7 @@ import { CaretRight } from '@phosphor-icons/react';
 
 import { Badge, Card } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { useDepot } from '@/lib/depot-context';
 import { queuesFor, type DecisionQueue } from '@/lib/decision-queues';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
@@ -23,7 +24,7 @@ export function DecisionInbox() {
   return (
     <Card className="p-4">
       <p className="text-sm font-bold">{t('opsFix.inbox.title')}</p>
-      <ul className="mt-1 divide-y divide-app">
+      <ul className="mt-1 divide-y divide-[color:var(--border)]">
         {queues.map((q) => (
           <QueueRow key={q.key} q={q} role={role} />
         ))}
@@ -34,10 +35,11 @@ export function DecisionInbox() {
 
 function QueueRow({ q, role }: { q: DecisionQueue; role: string | null | undefined }) {
   const { t } = useT();
+  const { scopedId } = useDepot();
   // A count that cannot be read is no count: the row falls back to "Buka", never to 0.
   const count = useAsync<number | null>(
-    () => (q.count ? q.count(role).catch(() => null) : Promise.resolve(null)),
-    [q.key, role],
+    () => (q.count ? q.count(role, scopedId ?? null).catch(() => null) : Promise.resolve(null)),
+    [q.key, role, scopedId],
   );
   return (
     <li>

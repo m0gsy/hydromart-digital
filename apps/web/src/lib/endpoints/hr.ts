@@ -81,8 +81,6 @@ export const hr = {
     myLoanRequests: '/loan-requests/api/v1/loan-requests/me',
     submitLoanRequest: '/loan-requests/api/v1/loan-requests/me',
     cancelLoanRequest: (id: string) => `/loan-requests/api/v1/loan-requests/me/${id}/cancel`,
-    // Flow PR-4: how many kasbon requests wait (the envelope's total), for the decision inbox.
-    loanRequestsPendingCount: '/loan-requests/api/v1/loan-requests?status=PENDING&pageSize=1',
     loanRequestQueue: (q: { page?: number; pageSize?: number; status?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));

@@ -16,6 +16,9 @@ vi.mock('@/lib/api', () => ({ api: { get, getCached: get }, ApiError: class exte
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 'u1', role: who.role }, ready: true, signOut: vi.fn() }),
 }));
+vi.mock('@/lib/depot-context', () => ({
+  useDepot: () => ({ depots: [], selected: null, scopedId: 'd1', ready: true }),
+}));
 vi.mock('@/lib/locale-context', () => ({
   useT: () => ({ t: (k: string) => k, locale: 'id', setLocale: vi.fn() }),
   translate: (k: string) => k,
@@ -116,29 +119,41 @@ afterEach(() => {
 });
 
 describe('each adapter reads its own answer', () => {
-  it('kasbon, leave and expense claims count from the total their list carries', async () => {
+  it('leave and expense claims count from the total their list carries', async () => {
     serveQueues();
     const { DECISION_QUEUES } = await import('@/lib/decision-queues');
     const by = (k: string) => DECISION_QUEUES.find((q) => q.key === k)!;
-    await expect(by('kasbon').count!('MANAGER')).resolves.toBe(4);
-    await expect(by('leave').count!('MANAGER')).resolves.toBe(2);
-    await expect(by('expenses').count!('MANAGER')).resolves.toBe(0);
+    await expect(by('leave').count!('MANAGER', 'd1')).resolves.toBe(2);
+    await expect(by('expenses').count!('MANAGER', 'd1')).resolves.toBe(0);
+  });
+
+  it('expense claims are counted at the depot the claims screen lists, and not without one', async () => {
+    serveQueues();
+    const { DECISION_QUEUES } = await import('@/lib/decision-queues');
+    const expenses = DECISION_QUEUES.find((q) => q.key === 'expenses')!;
+    await expenses.count!('MANAGER', 'd1');
+    expect(get).toHaveBeenCalledWith(
+      '/payout/api/v1/expenses?status=PENDING&limit=1&depotId=d1',
+      true,
+    );
+    await expect(expenses.count!('MANAGER', null)).rejects.toThrow();
   });
 
   it('leave asks for the stage the role decides', async () => {
     serveQueues();
     const { DECISION_QUEUES } = await import('@/lib/decision-queues');
     const leave = DECISION_QUEUES.find((q) => q.key === 'leave')!;
-    await leave.count!('MANAGER');
-    await leave.count!('HR');
+    await leave.count!('MANAGER', 'd1');
+    await leave.count!('HR', 'd1');
     const asked = get.mock.calls.map(([u]) => String(u));
     expect(asked).toContain('/leave/api/v1/leave?status=PENDING_MANAGER&pageSize=1');
     expect(asked).toContain('/leave/api/v1/leave?status=PENDING_HR&pageSize=1');
   });
 
-  it('a list with no total offers no count', async () => {
+  it('a list with no total, or whose total is not what waits for the reader, offers no count', async () => {
     const { DECISION_QUEUES } = await import('@/lib/decision-queues');
-    for (const key of ['payouts', 'franchiseApplications', 'dataRequests'])
+    // kasbon: under K2 a depot with an assistant supervisor decides its own kasbon
+    for (const key of ['kasbon', 'payouts', 'franchiseApplications', 'dataRequests'])
       expect(DECISION_QUEUES.find((q) => q.key === key)!.count).toBeUndefined();
   });
 });
@@ -173,8 +188,12 @@ describe('the card', () => {
     const { DecisionInbox } = await import('@/components/dashboard/decision-inbox');
     render(<DecisionInbox />);
     expect(screen.getByText('opsFix.inbox.title')).toBeTruthy();
-    await waitFor(() => expect(screen.getByText('4')).toBeTruthy());
-    expect(screen.getByText('2')).toBeTruthy();
+    await waitFor(() => expect(screen.getByText('2')).toBeTruthy());
+    expect(screen.getByText('0')).toBeTruthy();
+    // kasbon: a door, no badge
+    expect(screen.getByText('ops.nav.hrLoans').closest('a')?.textContent).toContain(
+      'opsFix.inbox.open',
+    );
     expect(screen.getByText('ops.nav.hrLeave').closest('a')?.getAttribute('href')).toBe(
       '/hr/leave',
     );

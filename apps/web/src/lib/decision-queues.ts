@@ -27,11 +27,20 @@ export interface DecisionQueue {
   href: string;
   /** May this role decide what waits here? */
   decides: (role: Role) => boolean;
-  /** How many wait, when the list answers with a total. Absent: the card offers "Buka". */
-  count?: (role: Role) => Promise<number>;
+  /**
+   * How many wait, when the list answers with a total that IS what waits for this reader, at
+   * the depot the screen it opens will list. Absent: the card offers "Buka".
+   */
+  count?: (role: Role, depotId: string | null) => Promise<number>;
 }
 
 const leaveStage = (role: Role) => (canManageHr(role) ? 'PENDING_HR' : 'PENDING_MANAGER');
+
+async function expensesWaiting(depotId: string | null): Promise<number> {
+  if (!depotId) throw new Error('no depot to count at');
+  const page = await api.get<Totalled>(endpoints.expenseApprovals.pendingCountAt(depotId), true);
+  return totalOf(page);
+}
 
 export const DECISION_QUEUES: DecisionQueue[] = [
   {
@@ -39,7 +48,9 @@ export const DECISION_QUEUES: DecisionQueue[] = [
     label: 'ops.nav.hrLoans',
     href: '/hr/loans/requests',
     decides: (role) => can('kasbonApprove', role),
-    count: () => api.get<Totalled>(endpoints.hr.loanRequestsPendingCount, true).then(totalOf),
+    // No count: under K2 a depot with an assistant supervisor has its kasbon decided by that
+    // assistant alone, so the list's total is not what waits for a manager (decide() answers
+    // 403 for the rest). The door stays; a badge of decisions that are not theirs would not.
   },
   {
     // Two stages: a manager decides PENDING_MANAGER, HR admin PENDING_HR (the screen's default).
@@ -55,7 +66,8 @@ export const DECISION_QUEUES: DecisionQueue[] = [
     label: 'ops.nav.expenseClaims',
     href: '/dashboard/expense-claims',
     decides: (role) => can('expenseApprove', role),
-    count: () => api.get<Totalled>(endpoints.expenseApprovals.pendingCount, true).then(totalOf),
+    // The claims screen lists one depot (the switcher's, else the first): count that one.
+    count: (_role, depotId) => expensesWaiting(depotId),
   },
   // A bare list, no total: owners with a balance to release.
   {
