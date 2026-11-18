@@ -70,6 +70,7 @@ import HqOrderDetailPage from '@/app/hq/orders/detail/page';
 import HrEmployeeDetailPage from '@/app/hr/employees/detail/page';
 
 const ANON = '00000000-0000-0000-0000-000000000000';
+const REFERRAL = { code: { code: 'REF1' }, referredCount: 0, qualifiedCount: 0, pointsEarned: 0 };
 const hrefOf = (text: string | RegExp) =>
   screen.getByText(text).closest('a')?.getAttribute('href') ?? null;
 /** Route every GET by the first matching URL fragment; anything unmatched answers `[]`. */
@@ -346,7 +347,9 @@ describe('customer detail: recent orders', () => {
 
   it('each one opens in the order queue', async () => {
     at('/dashboard/customers/detail?id=c1');
-    serve([['/depot-detail', DETAIL], ['referral', { code: { code: 'REF1' }, referredCount: 0, qualifiedCount: 0, pointsEarned: 0 }]]);
+    // The detail screen also asks for the customer's referral card; served an empty list it
+    // read `code` of undefined after the test had passed, failing the file at random in CI.
+    serve([['/depot-detail', DETAIL], ['referral', REFERRAL]]);
     render(<CustomerDetailPage />);
     await screen.findByText('DELIVERED');
     expect(hrefOf('DELIVERED')).toBe('/dashboard/orders?order=o1');
@@ -355,7 +358,9 @@ describe('customer detail: recent orders', () => {
   it('stays text for HR, which reads the directory but not the order queue', async () => {
     who.role = 'HR';
     at('/dashboard/customers/detail?id=c1');
-    serve([['/depot-detail', DETAIL], ['referral', { code: { code: 'REF1' }, referredCount: 0, qualifiedCount: 0, pointsEarned: 0 }]]);
+    // The detail screen also asks for the customer's referral card; served an empty list it
+    // read `code` of undefined after the test had passed, failing the file at random in CI.
+    serve([['/depot-detail', DETAIL], ['referral', REFERRAL]]);
     render(<CustomerDetailPage />);
     await screen.findByText('DELIVERED');
     expect(hrefOf('DELIVERED')).toBeNull();
