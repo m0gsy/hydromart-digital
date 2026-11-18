@@ -172,7 +172,9 @@ export const GROUPS: RailGroup[] = [
   {
     headKey: 'daily',
     items: [
-      { href: '/dashboard/orders', labelKey: 'orders', icon: ClipboardText, show: (role) => can('orderQueue', role) },
+      // The page's own gate (`orders:511`), not `orderQueue`: FINANCE reads the queue to refund
+      // and reconcile, and its rail had no door to it.
+      { href: '/dashboard/orders', labelKey: 'orders', icon: ClipboardText, show: (role) => can('orderManageRead', role) },
       {
         href: '/dashboard/walk-in',
         labelKey: 'walkIn',

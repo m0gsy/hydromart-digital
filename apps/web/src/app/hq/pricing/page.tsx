@@ -11,7 +11,9 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { computeEffective } from '@/lib/pricing';
 import { useConfirm } from '@/components/confirm';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { canOpenRoute } from '@/lib/route-access';
 import { useAsync } from '@/lib/use-async';
 import type { Page, PriceOverrideProposalItem, Product } from '@/lib/types';
 
@@ -22,6 +24,9 @@ export default function HqPricingPage() {
   const { t } = useT();
   const { toast } = useToast();
   const { askReason } = useConfirm();
+  const { customer } = useAuth();
+  // The rule form is depotAdmin's: head office decides overrides here but cannot write rules.
+  const mayWriteRule = canOpenRoute('/hq/forms/pricing-rule', customer?.role);
   const catalog = useAsync<Page<Product>>(() => api.get(endpoints.products.browse({ limit: 50 })));
   const queueQ = useAsync<Page<PriceOverrideProposalItem>>(() =>
     api.get(endpoints.priceOverrides.queue({ limit: 50 }), true),
@@ -74,14 +79,14 @@ export default function HqPricingPage() {
         title={t('hq.pricing.title')}
         subtitle={t('hq.pricing.subtitle')}
         action={
-          <>
+          mayWriteRule ? (
             <Link
               href="/hq/forms/pricing-rule"
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-700"
             >
               ＋ {t('hq.pricing.newRule')}
             </Link>
-          </>
+          ) : undefined
         }
       />
 

@@ -231,7 +231,11 @@ export default function HqSearchPage() {
           )}
           {results.customer && (
             <Group icon={<User size={16} weight="fill" />} title={t('hq.search.groups.customers')}>
-              <Link href="/hq/customers" className="block">
+              {/* The phone travels with the link: /hq/customers looks it up on arrival. */}
+              <Link
+                href={`/hq/customers?phone=${encodeURIComponent(results.customer.phone)}`}
+                className="block"
+              >
                 <ResultRow
                   title={results.customer.fullName || results.customer.phone}
                   meta={results.customer.phone}
@@ -241,8 +245,15 @@ export default function HqSearchPage() {
           )}
           {results.orders.length > 0 && (
             <Group icon={<Receipt size={16} weight="fill" />} title={t('hq.search.groups.orders')}>
+              {/* Rows come back only for orderManageRead, which is what the detail needs. */}
               {results.orders.map((o) => (
-                <ResultRow key={o.id} title={o.orderNumber} meta={o.status} />
+                <Link
+                  key={o.id}
+                  href={`/hq/orders/detail?id=${encodeURIComponent(o.id)}`}
+                  className="block"
+                >
+                  <ResultRow title={o.orderNumber} meta={o.status} />
+                </Link>
               ))}
             </Group>
           )}

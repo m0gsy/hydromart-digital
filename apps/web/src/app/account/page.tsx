@@ -57,7 +57,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
-import { canViewDashboard, isStaff } from '@/lib/roles';
+import { canViewDashboard, consoleHome, isStaff } from '@/lib/roles';
 import { getPushState, subscribeToPush, unsubscribeFromPush } from '@/lib/push';
 import type { PushState } from '@/lib/push';
 import { useAsync } from '@/lib/use-async';
@@ -1116,7 +1116,9 @@ export default function AccountPage() {
     );
   }
 
-  const opsHref = canViewDashboard(customer.role) ? '/dashboard' : '/dashboard/orders';
+  // The same door the phone bar opens: the depot home for a role that reads it, else the
+  // role's own console. /dashboard/orders refused HR, marketing and the franchise owner.
+  const opsHref = canViewDashboard(customer.role) ? '/dashboard' : consoleHome(customer.role);
   const showOps = isStaff(customer.role);
   const tier = loyalty?.tier;
   const memberSub = tier

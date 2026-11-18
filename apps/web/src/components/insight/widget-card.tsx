@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useRef, useState, type ReactNode } from 'react';
 import { DotsThree } from '@phosphor-icons/react';
 
@@ -9,7 +10,9 @@ import { downloadCsv, toCsv } from '@/lib/csv';
 import { exportTable } from '@/lib/insight/export';
 import type { InsightData } from '@/lib/insight/use-insight-data';
 import { useWallScreen } from '@/lib/insight/wall-screen';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { canOpenRoute, twinFor } from '@/lib/route-access';
 import { todayWib } from '@/lib/wib';
 
 /**
@@ -41,8 +44,16 @@ export function WidgetCard<T>({
   children: (data: T) => ReactNode;
 }) {
   const { t } = useT();
+  const { customer } = useAuth();
+  const pathname = usePathname() ?? '';
   // A wall screen has nobody to click: the menu and the link out are clutter there.
   const wall = useWallScreen();
+  // The same tabs render in both consoles: link to the twin this console owns, and draw no
+  // link the reader would be refused (or that this binary does not carry).
+  const detail = detailHref
+    ? twinFor(detailHref, pathname.startsWith('/hq') ? 'hq' : 'dashboard')
+    : null;
+  const openDetail = detail && canOpenRoute(detail, customer?.role) ? detail : null;
   const cardRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showData, setShowData] = useState(false);
@@ -87,8 +98,8 @@ export function WidgetCard<T>({
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">{title}</h2>
           <div className="relative flex items-center gap-2">
-            {detailHref && !wall && (
-              <Link href={detailHref} className="text-xs font-semibold text-brand-700 underline">
+            {openDetail && !wall && (
+              <Link href={openDetail} className="text-xs font-semibold text-brand-700 underline">
                 {t('insight.seeDetail')}
               </Link>
             )}
