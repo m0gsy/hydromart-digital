@@ -147,7 +147,9 @@ export class AttendanceService {
     const workDepotId = await this.workDepotOn(employee, localDayKey(at, this.config.timeZone));
     const { holdForReview } = this.geofenceOutcome({ depotId: workDepotId }, user, punch);
     const existing = await this.repo.findByEmployeeAndDate(employee.id, workDate);
-    if (existing?.checkInAt) {
+    // Any row for the day stops a new one: (employeeId, workDate) is unique, so a row with no
+    // check-in (approved leave, an HR entry) used to fail the write below with a 500 every time.
+    if (existing) {
       /*
        * The replay of a punch that already landed.
        *
@@ -209,11 +211,19 @@ export class AttendanceService {
        * and (employeeId, workDate) is unique, so the second write fails. Answer it as if it had
        * arrived a moment later, instead of as a 500 carrying the Prisma error.
        */
+      // The row was never written, so a frame THIS request stored belongs to nothing and the
+      // retention sweep (which reads rows) would never find it. A client-uploaded photo is left
+      // alone: the twin's row may point at the very same one.
+      if (photoUrl && !punch.photoUrl) {
+        await this.storage?.remove(photoUrl).catch((e: unknown) =>
+          this.logger.warn(`Check-in frame ${photoUrl} left behind: ${String(e)}`),
+        );
+      }
       const twin =
         err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
-          ? await this.repo.findByEmployeeAndDate(employee.id, workDate)
+          ? await this.repo.findByEmployeeAndDate(employee.id, workDate).catch(() => null)
           : null;
-      if (twin?.checkInAt) return this.alreadyCheckedIn(twin, punch, at);
+      if (twin) return this.alreadyCheckedIn(twin, punch, at);
       throw err;
     }
     // HR-18: an offline punch is recorded at the DEVICE's minute. Face and geofence were checked
@@ -233,7 +243,14 @@ export class AttendanceService {
    * a live one, and a second live punch is a genuine second attempt.
    */
   private alreadyCheckedIn(existing: Attendance, punch: FacePunch, at: Date): Attendance {
-    if (punch.capturedAt && existing.checkInAt?.getTime() === at.getTime()) return existing;
+    if (!existing.checkInAt) {
+      throw new BadRequestException(
+        existing.status === 'LEAVE'
+          ? 'Hari ini tercatat cuti. Minta HR membatalkan cuti hari ini bila Anda masuk kerja.'
+          : 'Hari ini sudah tercatat tanpa jam masuk. Minta HR mengoreksi absensi Anda.',
+      );
+    }
+    if (punch.capturedAt && existing.checkInAt.getTime() === at.getTime()) return existing;
     throw new BadRequestException('Sudah check-in hari ini');
   }
 

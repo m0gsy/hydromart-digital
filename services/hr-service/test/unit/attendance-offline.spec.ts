@@ -466,3 +466,102 @@ describe('AttendanceService check-in that loses the race to its twin', () => {
     );
   });
 });
+
+/*
+ * Review of the race fix. A day can hold a row with NO check-in: approved leave writes
+ * {status: LEAVE, checkInAt: null}, and HR's manual entries can too. The pre-check let a
+ * punch through to `create`, which then hit the same unique index on every attempt — the
+ * same 500 the Sentry issue shows, and nothing the employee could do about it.
+ */
+describe('AttendanceService check-in on a day that already has a row without one', () => {
+  it('tells an employee on leave to have HR cancel the day, without writing', async () => {
+    const att = new FakeAtt();
+    att.row = { id: 'leave-1', status: 'LEAVE', checkInAt: null } as unknown as Attendance;
+    const { svc } = make({ att });
+    await expect(svc.checkIn(user, punchAt(), AT_0830)).rejects.toThrow(/cuti/);
+    expect(att.created).toBeUndefined();
+  });
+
+  it('refuses any other row with no check-in the same way, naming HR', async () => {
+    const att = new FakeAtt();
+    att.row = { id: 'abs-1', status: 'ABSENT', checkInAt: null } as unknown as Attendance;
+    const { svc } = make({ att });
+    await expect(svc.checkIn(user, punchAt(), AT_0830)).rejects.toThrow(/HR/);
+    expect(att.created).toBeUndefined();
+  });
+});
+
+describe('AttendanceService check-in write that fails after the frame was stored', () => {
+  const dup = () =>
+    new Prisma.PrismaClientKnownRequestError('dup', {
+      code: 'P2002',
+      clientVersion: 'x',
+      meta: { target: ['employeeId', 'workDate'] },
+    });
+
+  /** Stores frames and remembers what it was asked to delete. */
+  function storage() {
+    const removed: string[] = [];
+    return {
+      removed,
+      put: async () => ({ url: 'https://s/hr/attendance/f1.jpg', key: 'hr/attendance/f1.jpg' }),
+      remove: async (key: string) => {
+        removed.push(key);
+      },
+    };
+  }
+
+  class Failing extends FakeAtt {
+    reads = 0;
+    constructor(
+      private readonly winner: Partial<Attendance> | null,
+      private readonly rereadFails = false,
+    ) {
+      super();
+    }
+    async findByEmployeeAndDate(): Promise<Attendance | null> {
+      this.reads += 1;
+      if (this.reads > 1 && this.rereadFails) throw new Error('pool exhausted');
+      return this.row;
+    }
+    async create(): Promise<Attendance> {
+      if (this.winner) this.row = { id: 'a-twin', ...this.winner } as Attendance;
+      throw dup();
+    }
+  }
+
+  it('deletes the frame this request stored when its row was never written', async () => {
+    const s = storage();
+    const { svc } = make({ att: new Failing({ checkInAt: AT_0810 }), storage: s as never });
+    await svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 60_000));
+    expect(s.removed).toEqual(['hr/attendance/f1.jpg']);
+  });
+
+  it('leaves a client-uploaded photo alone: the twin row may point at the same one', async () => {
+    const s = storage();
+    const { svc } = make({ att: new Failing({ checkInAt: AT_0810 }), storage: s as never });
+    const punch = { ...punchAt(AT_0810), photoUrl: 'hr/attendance/shared.jpg' };
+    await svc.checkIn(user, punch, new Date(AT_0810.getTime() + 60_000));
+    expect(s.removed).toEqual([]);
+  });
+
+  it('still answers the twin when deleting the stray frame fails', async () => {
+    const s = {
+      put: async () => ({ url: 'u', key: 'hr/attendance/f2.jpg' }),
+      remove: async () => {
+        throw new Error('AccessDenied');
+      },
+    };
+    const { svc } = make({ att: new Failing({ checkInAt: AT_0810 }), storage: s as never });
+    await expect(
+      svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 60_000)),
+    ).resolves.toMatchObject({ id: 'a-twin' });
+  });
+
+  it('keeps the unique violation as the error when the re-read itself fails', async () => {
+    const { svc } = make({ att: new Failing({ checkInAt: AT_0810 }, true) });
+    await expect(
+      svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 60_000)),
+    ).rejects.toThrow(Prisma.PrismaClientKnownRequestError);
+  });
+});
