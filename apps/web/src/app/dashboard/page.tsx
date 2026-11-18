@@ -126,7 +126,7 @@ function LowStockWidget() {
               </li>
             ))}
           </ul>
-          <Link href="/dashboard/inventory" className="mt-3 flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
+          <Link href="/dashboard/inventory?low=1" className="mt-3 flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline">
             {t('dashboard.landing.lowStock.viewAll')} <CaretRight size={13} weight="bold" />
           </Link>
         </>

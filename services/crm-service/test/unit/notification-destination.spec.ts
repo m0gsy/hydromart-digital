@@ -87,10 +87,16 @@ describe('destinationFor', () => {
     expect(destinationFor(event, {})).toBe(url);
   });
 
-  it('opens the payments screen for a receipt waiting to be verified', () => {
+  // The receipt is checked beside its order (order-detail's proof panel), not on the QRIS
+  // settings screen, which the depot head cannot even open (`depotAdmin`).
+  it('opens the order whose receipt waits to be verified', () => {
     expect(destinationFor(NotificationEvent.DEPOT_PAYMENT_PROOF, { orderId: 'o1' })).toBe(
-      '/dashboard/payments',
+      '/dashboard/orders?order=o1',
     );
+  });
+
+  it('falls back to the queue for a receipt with no order id', () => {
+    expect(destinationFor(NotificationEvent.DEPOT_PAYMENT_PROOF, {})).toBe('/dashboard/orders');
   });
 
   it('leaves staff-facing events on the inbox, which is where they are never pushed from', () => {

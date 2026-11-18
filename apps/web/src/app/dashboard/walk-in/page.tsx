@@ -48,6 +48,7 @@ import { receiptToText, whatsappUrl } from '@/lib/receipt-text';
 import { openExternal } from '@/lib/platform';
 import { canRecordWalkInSale } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useQueryParam } from '@/lib/use-query-param';
 import { useDebounce } from '@/lib/use-debounce';
 import type {
   CounterCustomerLookup,
@@ -119,7 +120,9 @@ function WalkIn({ depotId }: { depotId: string }) {
   const thermalFailed = (f: { code: string }) => toast(t(thermalErrorKey(f.code)), 'error');
   const [qty, setQty] = useState<Record<string, number>>({});
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  // `?phone=` is how a customer's page hands its number over ("Buat pesanan"); read once.
+  const carriedPhone = useQueryParam('phone');
+  const [phone, setPhone] = useState(carriedPhone);
   const [cash, setCash] = useState('');
   const [voucher, setVoucher] = useState('');
   // The cashier's own note on this sale. Staff only; the server never sends it to the buyer.

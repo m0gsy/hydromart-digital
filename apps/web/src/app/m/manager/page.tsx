@@ -188,8 +188,9 @@ export default function ManagerHomePage() {
       )}
 
       <div className="flex gap-3">
+        {/* The low lines themselves, not the notification feed that mentions them. */}
         <StatTile
-          href="/m/manager/notifications"
+          href="/dashboard/inventory?low=1"
           icon={<WarningOctagon size={20} weight="fill" className="text-[color:var(--danger)]" />}
           count={stockCritical}
           label={t('mgrFix.mMgr.stockCritical')}

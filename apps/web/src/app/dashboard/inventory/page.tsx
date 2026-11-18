@@ -28,6 +28,7 @@ import { canViewInventory, canWriteInventory } from '@/lib/roles';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useToast } from '@/components/toast';
 import { useAsync } from '@/lib/use-async';
+import { useQueryParam } from '@/lib/use-query-param';
 import type {
   DepotStockMovement,
   InventoryItem,
@@ -536,7 +537,7 @@ function Chip({
       ? 'bg-brand-800 text-on-brand'
       : 'bg-[color:var(--surface-soft)] text-[color:var(--text-muted)] hover:bg-brand-50';
   return (
-    <button type="button" onClick={onClick} className={`${base} ${tone}`}>
+    <button type="button" onClick={onClick} aria-pressed={active} className={`${base} ${tone}`}>
       {children}
     </button>
   );
@@ -1005,7 +1006,10 @@ function InventoryBody() {
   const { customer } = useAuth();
   const canWrite = canWriteInventory(customer?.role);
   const { scopedId, selected, depots, ready } = useDepot();
-  const [lowOnly, setLowOnly] = useState(false);
+  // `?low=1` is how every low-stock door (the depot home card, the manager's phone tile, the
+  // stock push) lands here: on the lines running out, not on the whole shelf.
+  const carriedLow = useQueryParam('low') === '1';
+  const [lowOnly, setLowOnly] = useState(carriedLow);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [entry, setEntry] = useState<Entry>({ mode: 'none', receipt: false });
