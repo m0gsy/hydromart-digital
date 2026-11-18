@@ -1991,6 +1991,18 @@ describe('BonusRulePrismaRepository', () => {
 });
 
 // ── EmployeePrismaRepository ───────────────────────────────────────────
+describe('EmployeePrismaRepository list by login (flow PR-2a-ii)', () => {
+  it('narrows to the employee behind one login', async () => {
+    const p = makePrisma();
+    m(p, 'employee').findMany.mockResolvedValue([]);
+    m(p, 'employee').count.mockResolvedValue(0);
+    await new EmployeePrismaRepository(p as never).list({ authSubjectId: 'auth-9', skip: 0, take: 1 });
+    expect(m(p, 'employee').findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ authSubjectId: 'auth-9' }) }),
+    );
+  });
+});
+
 describe('EmployeePrismaRepository retention (M23-21)', () => {
   const CUTOFF = new Date('2026-01-01T00:00:00.000Z');
   const DEPARTED = { status: { in: ['RESIGNED', 'INACTIVE'] }, updatedAt: { lt: CUTOFF } };

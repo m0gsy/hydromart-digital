@@ -213,6 +213,7 @@ export const hrFix = {
   },
   common: {
     periodLabel: 'Period {period}',
+    back: 'Back',
     notSet: 'Not set',
     years: '{n} years',
     readRate: '{read} of {total} read ({pct}%)',

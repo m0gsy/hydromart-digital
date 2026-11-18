@@ -14,7 +14,15 @@ import { canOpenRoute, type ConsoleSide } from '@/lib/route-access';
 
 type Role = string | null | undefined;
 
-export type EntityKind = 'order' | 'customer' | 'courier' | 'depot' | 'supplier' | 'stock' | 'gallon';
+export type EntityKind =
+  | 'order'
+  | 'customer'
+  | 'courier'
+  | 'depot'
+  | 'supplier'
+  | 'stock'
+  | 'gallon'
+  | 'employee';
 
 /** order-service `domain/anonymous.ts`: the buyer on a counter sale with no account. */
 const ANONYMOUS_CUSTOMER_ID = '00000000-0000-0000-0000-000000000000';
@@ -36,6 +44,11 @@ const TARGETS: Record<EntityKind, Partial<Record<ConsoleSide, (ref: string) => s
   supplier: { dashboard: () => '/dashboard/suppliers' },
   stock: { dashboard: () => '/dashboard/inventory' },
   gallon: { dashboard: () => '/dashboard/returns' },
+  // HR is its own console: the same record whichever console asks.
+  employee: {
+    dashboard: (id) => `/hr/employees/detail?id=${q(id)}`,
+    hq: (id) => `/hr/employees/detail?id=${q(id)}`,
+  },
 };
 
 export function entityHref(

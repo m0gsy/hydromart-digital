@@ -9,6 +9,7 @@ import { endpoints } from '@/lib/endpoints';
 import { PAYROLL_STATUS_LABEL, type Payroll, type PayrollStatus } from '@/lib/hr';
 import { useAsync } from '@/lib/use-async';
 import { useQueryParam } from '@/lib/use-query-param';
+import { HrBack } from '@/components/hr/hr-back';
 
 const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = {
   DRAFT: 'neutral',
@@ -49,7 +50,8 @@ export default function MyPayrollDetailPage() {
   if (loading) return <Skeleton className="mx-auto h-96 max-w-md" />;
   if (error) {
     return (
-      <div className="mx-auto max-w-md px-4 py-6">
+      <div className="mx-auto max-w-md space-y-3 px-4 py-6">
+        <HrBack href="/hr/me/payroll" label={t('hrFix.common.back')} />
         <ErrorState message={error} onRetry={reload} />
       </div>
     );
@@ -58,6 +60,7 @@ export default function MyPayrollDetailPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-5 px-4 py-6">
+      <HrBack href="/hr/me/payroll" label={t('hrFix.common.back')} />
       <SectionHeader
         title={t('hrFix.myPayrollDetail.slipTitle', { period: p.periodMonth })}
         subtitle={t('hrFix.myPayrollDetail.presentDays', { n: p.presentDays })}

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get, getCached, post } = vi.hoisted(() => ({
@@ -129,5 +129,34 @@ describe('H15 — one account, one loyalty scope', () => {
     renderRewards();
     await waitFor(() => expect(loyaltyPaths().length).toBeGreaterThan(0));
     for (const p of loyaltyPaths()) expect(p).not.toContain('depotId=');
+  });
+});
+
+// Flow PR-2c: points earned on an order open that order; a correction has no order to open.
+describe('points activity', () => {
+  it('a line from an order opens it, and one with no order stays text', async () => {
+    const txns = {
+      items: [
+        { id: 't1', type: 'EARN', points: 20, orderId: 'o-9', reason: null, expiresAt: null, createdAt: '2026-11-18T02:00:00.000Z' },
+        { id: 't2', type: 'ADJUST', points: 5, orderId: null, reason: 'koreksi', expiresAt: null, createdAt: '2026-11-18T03:00:00.000Z' },
+      ],
+      total: 2,
+    };
+    const base = get.getMockImplementation()!;
+    const impl = (path: string) =>
+      String(path).includes('/loyalty/me/transactions') ? Promise.resolve(txns) : base(path);
+    get.mockImplementation(impl);
+    getCached.mockImplementation(impl);
+    render(
+      <LocaleProvider>
+        <ToastProvider>
+          <RewardsPage />
+        </ToastProvider>
+      </LocaleProvider>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /Lihat aktivitas poin|Show points activity/ }));
+    const earned = await screen.findByText(/Poin masuk|Points earned/);
+    expect(earned.closest('a')?.getAttribute('href')).toBe('/orders/detail?id=o-9');
+    expect(screen.getByText(/Penyesuaian|Adjustment/).closest('a')).toBeNull();
   });
 });

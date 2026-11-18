@@ -19,6 +19,8 @@ export interface EmployeeListFilter {
   status?: EmployeeStatus;
   /** Restrict to one org unit. Undefined = every department, including the unassigned. */
   departmentId?: string;
+  /** The employee behind one login (`authSubjectId` is unique). */
+  authSubjectId?: string;
   /** Case-insensitive match on fullName / employeeCode / phone. */
   search?: string;
   skip: number;

@@ -232,9 +232,11 @@ function AttendanceInner() {
   const { toast } = useToast();
   const { askReason } = useConfirm();
   const isAdmin = canManageHr(customer?.role);
-  const employeeId = useSearchParams().get('employeeId') ?? undefined;
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const params = useSearchParams();
+  const employeeId = params.get('employeeId') ?? undefined;
+  // PR-2b: a payroll slip's PENDING warning opens this on its own month (`?from=&to=`).
+  const [from, setFrom] = useState(() => params.get('from') ?? '');
+  const [to, setTo] = useState(() => params.get('to') ?? '');
 
   // manual entry
   const [mEmp, setMEmp] = useState(employeeId ?? '');
