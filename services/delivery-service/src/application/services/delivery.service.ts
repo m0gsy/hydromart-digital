@@ -109,6 +109,8 @@ export interface ListDeliveriesInput {
   cursor?: string;
   /** Depot scope for staff lists; set by the controller from depotScopeIds (undefined = all). */
   depotIds?: readonly string[];
+  /** One order's delivery (flow PR-2a-ii: the order panel names its courier from it). */
+  orderId?: string;
 }
 
 /** No-show gate view for the app timer (design 5a). */
@@ -1382,6 +1384,7 @@ export class DeliveryService {
       cursor: input.cursor,
       driverId: input.driverId,
       depotIds: input.depotIds,
+      orderId: input.orderId,
       status: input.status,
       statuses: input.statuses,
     });

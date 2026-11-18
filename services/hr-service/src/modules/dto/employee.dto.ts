@@ -358,6 +358,11 @@ export class ListEmployeesDto {
   @IsUUID()
   depotId?: string;
 
+  /** The employee behind one login (flow PR-2a-ii: a courier's name opens their HR record). */
+  @IsOptional()
+  @IsUUID()
+  authSubjectId?: string;
+
   @IsOptional()
   @IsEnum(EmployeeStatus)
   status?: EmployeeStatus;

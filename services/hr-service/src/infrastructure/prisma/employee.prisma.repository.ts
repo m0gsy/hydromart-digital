@@ -192,6 +192,7 @@ export class EmployeePrismaRepository implements EmployeeRepository {
         : {}),
       ...(filter.status ? { status: filter.status } : {}),
       ...(filter.departmentId ? { departmentId: filter.departmentId } : {}),
+      ...(filter.authSubjectId ? { authSubjectId: filter.authSubjectId } : {}),
       ...(filter.search
         ? {
             OR: [

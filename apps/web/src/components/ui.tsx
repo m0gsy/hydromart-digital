@@ -269,7 +269,8 @@ export function SectionHeader({
   action,
   className,
 }: {
-  title: string;
+  /** A node, so a detail screen can make the name it is about a link (flow PR-2b). */
+  title: ReactNode;
   subtitle?: string;
   action?: ReactNode;
   className?: string;

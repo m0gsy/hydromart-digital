@@ -224,6 +224,7 @@ export const hrFix = {
   },
   common: {
     periodLabel: 'Periode {period}',
+    back: 'Kembali',
     notSet: 'Belum diatur',
     years: '{n} tahun',
     readRate: '{read} dari {total} dibaca ({pct}%)',
