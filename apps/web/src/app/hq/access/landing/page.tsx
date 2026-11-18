@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ArrowLeft, MapPin, SquaresFour } from '@phosphor-icons/react';
 
 import { type Capability, type Role } from '@hydromart/access';
-import { HQ_GROUPS, hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
+import { HQ_GROUPS, hqHubsFor, hqItemsForRole } from '@/lib/hq-nav';
 import { Card, Chip } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
 import { consoleHome } from '@/lib/roles';
@@ -48,7 +48,8 @@ export default function HqLandingPage() {
   // see", so a private copy of the filter would let it answer wrongly the moment the two
   // drift — which is exactly what happened when items gained per-capability gates.
   // Non-HQ roles get no groups → noMenu.
-  const railGroups = hqGroupsForRole(role);
+  // PR-3c: the rail is hubs now; forms are buttons on their lists, not rail rows.
+  const railGroups = hqHubsFor(role);
   const visibleCount = hqItemsForRole(role).length;
 
   return (

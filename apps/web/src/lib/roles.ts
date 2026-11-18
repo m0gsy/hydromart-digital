@@ -303,7 +303,8 @@ export function staffDoor(pathname: string | null | undefined): string {
 }
 
 /**
- * The /hq screens a role may open, in rail order.
+ * The /hq screens a role may open, in landing order: its work hub first (`HQ_WORK_HUB`), then
+ * the rail's order; page-only forms are never a landing.
  *
  * `lib/hq-nav.ts` imports `can` and `isHq` from here, so this is a cycle — and a safe one:
  * neither module CALLS the other while it is being evaluated. `HQ_GROUPS` is a table of

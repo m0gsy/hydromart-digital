@@ -24,7 +24,7 @@ vi.mock('@/lib/locale-context', () => ({
 }));
 
 import { HqHubTabs } from '@/components/hq/hq-hub-tabs';
-import { HQ_GROUPS, hqHubsFor } from '@/lib/hq-nav';
+import { HQ_GROUPS, currentHqHub, hqHubsFor, hqHubsInLandingOrder } from '@/lib/hq-nav';
 import { consoleHome } from '@/lib/roles';
 import { canOpenRoute } from '@/lib/route-access';
 
@@ -87,6 +87,18 @@ describe('the HQ hub table', () => {
     const home = consoleHome('FINANCE', false);
     expect(home).not.toBe('/hq/search');
     expect(finance.items.map((i) => i.href)).toContain(home);
+  });
+
+  it('a form lights the hub of the list its button is on', () => {
+    expect(currentHqHub('/hq/forms/commission/', 'FINANCE')).toBe('franchise');
+    expect(currentHqHub('/hq/forms/segment', 'MARKETING')).toBe('marketing');
+    expect(currentHqHub('/hq/forms/pricing-rule', 'HEAD_OFFICE')).toBe('catalog');
+    expect(currentHqHub('/hq/staff/import', 'SUPER_ADMIN')).toBe('staff');
+  });
+
+  it('a role without the overview has no Ringkasan row leading to its profile', () => {
+    expect(hqHubsFor('FINANCE').map((h) => h.headKey)).not.toContain('overview');
+    expect(hqHubsInLandingOrder('FINANCE')[0]!.headKey).toBe('finance');
   });
 
   it('head office and the director still land on the overview', () => {

@@ -65,12 +65,12 @@ import {
 } from '@phosphor-icons/react';
 
 import { ConsoleSignOut } from '@/components/console-sign-out';
-import { HQ_GROUPS, hqHubsFor } from '@/lib/hq-nav';
+import { HQ_GROUPS, currentHqHub, hqHubsFor } from '@/lib/hq-nav';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
 import { roleLabel } from '@/lib/custom-role';
-import { deepest, normalisePath } from '@/lib/screen-chrome';
+import { normalisePath } from '@/lib/screen-chrome';
 
 // Opening the ⌘K palette is decoupled via a window event so the rail doesn't import
 // the palette (which imports HQ_GROUPS from here) — keeps the module graph acyclic.
@@ -175,15 +175,10 @@ export function HqRail() {
 
   // One current row: `/hq/staff/import` is not also `/hq/staff`, and `/hq/forecast-models`
   // is not `/hq/forecast` at all.
-  // PR-3c: one row per hub; the current row is the hub holding the deepest hub screen, so a
-  // page reached by a button (an import, a form) lights the hub of the list it belongs to.
+  // PR-3c: one row per hub; a page reached by a button (an import, a form) lights the hub of
+  // the list it belongs to.
   const hubs = hqHubsFor(role);
-  const current = deepest(
-    hubs.flatMap((g) => g.items),
-    pathname,
-    '/hq',
-  )?.href;
-  const currentHub = hubs.find((g) => g.items.some((i) => i.href === current))?.headKey;
+  const currentHub = currentHqHub(pathname, role);
 
   return (
     <aside className="surface sticky top-0 hidden h-dvh w-[242px] shrink-0 flex-col overflow-y-auto border-r border-app px-3.5 py-4 lg:flex">

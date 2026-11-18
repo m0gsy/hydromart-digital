@@ -15,7 +15,7 @@ export const hq = {
     search: 'Cari',
     network: 'Jaringan',
     franchise: 'Fee waralaba',
-    opsConsole: 'Console depot',
+    opsConsole: 'Konsol depot',
     staff: 'Staf & akses',
     hr: 'HR',
     operations: 'Operasional',
