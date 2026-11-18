@@ -1,6 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+
+import { EntityLink } from '@/components/entity-link';
+import { entityHref } from '@/lib/entity-href';
 import { useState } from 'react';
 import { CurrencyCircleDollar } from '@phosphor-icons/react';
 
@@ -24,6 +27,7 @@ import {
   type LoanRequestListView,
   type LoanRequestStatus,
 } from '@/lib/hr';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { usePagedList } from '@/lib/use-paged-list';
 
@@ -45,6 +49,7 @@ const TONE: Record<LoanRequestStatus, 'success' | 'neutral' | 'danger' | 'brand'
  */
 export default function KasbonQueuePage() {
   const { t } = useT();
+  const { customer } = useAuth();
   const { toast } = useToast();
   const [status, setStatus] = useState<LoanRequestStatus | ''>('PENDING');
   const [busy, setBusy] = useState<string | null>(null);
@@ -168,7 +173,9 @@ export default function KasbonQueuePage() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">
-                    {r.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
+                    <EntityLink href={entityHref('employee', r.employeeId, 'hq', customer?.role)}>
+                      {r.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
+                    </EntityLink>
                     {r.employeeCode ? ` · ${r.employeeCode}` : ''}
                   </p>
                   <p className="text-xs text-muted">{fmtDate(r.createdAt)}</p>

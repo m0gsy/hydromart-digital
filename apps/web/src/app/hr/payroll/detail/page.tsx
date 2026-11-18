@@ -7,6 +7,8 @@ import { WarningCircle } from '@phosphor-icons/react';
 import { useConfirm } from '@/components/confirm';
 import { PayrollShareEditor } from '@/components/hr/payroll-share-editor';
 import { useToast } from '@/components/toast';
+import { EntityLink } from '@/components/entity-link';
+import { HrBack } from '@/components/hr/hr-back';
 import { Badge, Button, Card, ErrorState, Money, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -15,7 +17,9 @@ import { downloadBlob } from '@/lib/csv';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { PAYROLL_STATUS_LABEL, fmtDate, type Payroll, type PayrollStatus } from '@/lib/hr';
-import { canRunPayroll } from '@/lib/roles';
+import { entityHref } from '@/lib/entity-href';
+import { canManageHr, canRunPayroll } from '@/lib/roles';
+import { canOpenRoute } from '@/lib/route-access';
 import { useAsync } from '@/lib/use-async';
 import { useQueryParam } from '@/lib/use-query-param';
 
@@ -95,14 +99,21 @@ export default function PayrollDetailPage() {
     );
   const p = data!;
   const canRun = canRunPayroll(customer?.role);
+  const pendingHref = `/hr/attendance?employeeId=${encodeURIComponent(p.employeeId)}`;
+  const ptkpHref = `/hr/employees/detail/edit?id=${encodeURIComponent(p.employeeId)}`;
 
 
   return (
     <div className="mx-auto max-w-2xl space-y-5">
       {/* PG-01: the slip named nobody, and the Approve / Mark paid buttons below act on
           real money. The name is the title now; the period is the subtitle it always was. */}
+      <HrBack href="/hr/payroll" label={t('hrFix.common.back')} />
       <SectionHeader
-        title={p.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
+        title={
+          <EntityLink href={entityHref('employee', p.employeeId, 'hq', customer?.role)}>
+            {p.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
+          </EntityLink>
+        }
         subtitle={`${t('hrFix.myPayrollDetail.slipTitle', { period: p.periodMonth })} · ${t('hrFix.payrollDetail.presentDays', { days: p.presentDays })}`}
         action={
           <div className="flex flex-wrap items-center gap-2">
@@ -220,7 +231,12 @@ export default function PayrollDetailPage() {
             weight="fill"
             className="mt-0.5 flex-shrink-0 text-[color:var(--warning)]"
           />
-          <p className="text-sm">{t('hrFix.payrollDetail.pendingWarning', { n: p.pendingDays ?? 0 })}</p>
+            <p className="text-sm">
+              {/* PR-2b: the warning opens the very days it counts. */}
+              <EntityLink href={canOpenRoute(pendingHref, customer?.role) ? pendingHref : null}>
+                {t('hrFix.payrollDetail.pendingWarning', { n: p.pendingDays ?? 0 })}
+              </EntityLink>
+            </p>
         </Card>
       )}
 
@@ -232,7 +248,14 @@ export default function PayrollDetailPage() {
             weight="fill"
             className="mt-0.5 flex-shrink-0 text-[color:var(--warning)]"
           />
-          <p className="text-sm">{t('hrFix.payrollDetail.ptkpMissing')}</p>
+            <p className="text-sm">
+              {/* The PTKP status is set on the employee's form, which only HR admins may edit. */}
+              <EntityLink
+                href={canManageHr(customer?.role) && canOpenRoute(ptkpHref, customer?.role) ? ptkpHref : null}
+              >
+                {t('hrFix.payrollDetail.ptkpMissing')}
+              </EntityLink>
+            </p>
         </Card>
       )}
 
