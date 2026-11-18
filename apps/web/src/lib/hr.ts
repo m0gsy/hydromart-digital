@@ -132,6 +132,21 @@ export interface Attendance {
 }
 
 /**
+ * The punch frames worth offering on a day: one with a match score, or one with a frame and no
+ * score — a punch the face engine could not judge (2026-11-18), the one HR most needs to see. A
+ * manual entry has neither and offers nothing. `score: null` reads as "not verified".
+ */
+export function punchShots(a: Attendance): { which: 'in' | 'out'; score: number | null }[] {
+  const shots = [
+    { which: 'in' as const, score: a.checkInScore, photo: a.checkInPhotoUrl },
+    { which: 'out' as const, score: a.checkOutScore, photo: a.checkOutPhotoUrl },
+  ];
+  return shots
+    .filter((s) => s.score !== null || Boolean(s.photo))
+    .map(({ which, score }) => ({ which, score }));
+}
+
+/**
  * CA-1-24: one recorded attendance correction.
  *
  * `before`/`after` are the row snapshots the correction path has been writing all along —

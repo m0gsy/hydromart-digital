@@ -9,7 +9,15 @@ import { Badge, Button, Card, CenterState, ErrorState, Input, ListFooter, Skelet
 import { api, ApiError, getBlob } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
-import { ATTENDANCE_STATUS_LABEL, fmtDate, fmtTime, type Attendance, type AttendanceStatus, type HrPage } from '@/lib/hr';
+import {
+  ATTENDANCE_STATUS_LABEL,
+  fmtDate,
+  fmtTime,
+  punchShots,
+  type Attendance,
+  type AttendanceStatus,
+  type HrPage,
+} from '@/lib/hr';
 import { useT } from '@/lib/locale-context';
 import { canViewOwnAttendance } from '@/lib/roles';
 import { usePagedList } from '@/lib/use-paged-list';
@@ -56,13 +64,7 @@ function PunchPhotos({ attendance }: { attendance: Attendance }) {
   const { t } = useT();
   const { toast } = useToast();
   const [shown, setShown] = useState<{ which: 'in' | 'out'; url: string } | null>(null);
-  const shots: { which: 'in' | 'out'; score: number | null; photo?: string | null }[] = [
-    { which: 'in', score: attendance.checkInScore, photo: attendance.checkInPhotoUrl },
-    { which: 'out', score: attendance.checkOutScore, photo: attendance.checkOutPhotoUrl },
-  ];
-  // A frame with no score is a punch the face engine could not judge (2026-11-18): its frame
-  // is all there is to go on, so it is offered too.
-  const withFrame = shots.filter((s) => s.score !== null || s.photo);
+  const withFrame = punchShots(attendance);
   if (withFrame.length === 0) return <span className="text-muted">—</span>;
 
   async function open(which: 'in' | 'out') {

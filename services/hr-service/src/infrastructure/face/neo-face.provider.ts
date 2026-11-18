@@ -173,7 +173,7 @@ export class NeoFaceProvider implements FaceVerifier {
       },
       false,
     )) as NeoLivenessPayload;
-    this.ensureOk('liveness', payload, false);
+    this.ensureOk('liveness', payload);
     if (isTruthy(payload.results?.is_spoof)) return false;
     return isTruthy(payload.match_status?.is_real);
   }
@@ -266,11 +266,20 @@ export class NeoFaceProvider implements FaceVerifier {
     if (res.status >= 500 || res.status === 429) {
       throw this.down(`${label}: HTTP ${res.status}`, breaker);
     }
+    const payload = ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
+    // NEO refusing the ACCOUNT arrives as HTTP 200 with an in-band 401/403 — the spent quota
+    // (2026-11-18: "Not authorized: max api hit limit reached!") or a token it no longer takes.
+    // That is NEO saying it will not be asked, not an answer: read it BEFORE counting the call as
+    // answered, or each probe of a spent quota would log a recovery and alert all over again.
+    // No frame can cause it, so it counts at once, whatever the wording.
+    if (isAccountRefusal(payload)) {
+      throw this.down(`${label}: ${payload.status_message ?? `status ${String(payload.status)}`}`, breaker, true);
+    }
     if (breaker) this.answered();
-    return ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
+    return payload;
   }
 
-  private ensureOk(path: string, payload: NeoPayload, breaker = true): void {
+  private ensureOk(path: string, payload: NeoPayload): void {
     if (String(payload.status ?? '').startsWith('2')) return;
     const message = payload.status_message ?? 'unknown error';
     const code = Number(payload.status);
@@ -282,13 +291,9 @@ export class NeoFaceProvider implements FaceVerifier {
         'Wajah tidak terdeteksi, pastikan wajah terlihat jelas dan pencahayaan cukup',
       );
     }
-    // NEO refusing the ACCOUNT — 401/403, the spent quota (2026-11-18: "Not authorized: max api
-    // hit limit reached!") or a token it no longer takes — means it cannot be asked, whatever the
-    // wording. No frame can cause it, so it counts at once. Anything else is a plain 503 that
-    // pages: a request of ours it refused, or an in-band "500" that may be one frame it choked on.
-    if (code === 401 || code === 403 || /hit\s+limit|limit\s+reached|quota/i.test(message)) {
-      throw this.down(`${path}: ${message}`, breaker, true);
-    }
+    // (An account refusal never gets here: `post` already threw it as NEO being down.) Anything
+    // else is a plain 503 that pages: a request of ours it refused, or an in-band "500" that may
+    // be one frame it choked on — letting that count as down would let one image hold everyone.
     throw this.unavailable(`${path}: ${message}`);
   }
 
@@ -332,6 +337,17 @@ export class NeoFaceProvider implements FaceVerifier {
     this.downUntil = 0;
     this.logger.log('NEO answering again; punches are verified as usual');
   }
+}
+
+/**
+ * NEO refusing the ACCOUNT rather than this request: an in-band 401/403 (status list: "Accestoken
+ * not authorized", "Requested resource denied") or the quota wording, whatever the status.
+ */
+function isAccountRefusal(payload: NeoPayload): boolean {
+  const code = Number(payload.status);
+  return (
+    code === 401 || code === 403 || /hit\s+limit|limit\s+reached|quota/i.test(payload.status_message ?? '')
+  );
 }
 
 /** NEO's refusal when the `user_id` is already in the gallery. */

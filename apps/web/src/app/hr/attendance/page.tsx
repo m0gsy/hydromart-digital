@@ -25,6 +25,7 @@ import {
   ATTENDANCE_STATUS_LABEL,
   fmtDate,
   fmtTime,
+  punchShots,
   type Attendance,
   type AttendanceAdjustment,
   type AttendanceStatus,
@@ -193,14 +194,7 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
 function PunchProof({ attendance }: { attendance: Attendance }) {
   const { t } = useT();
   const { toast } = useToast();
-  const shots: { which: 'in' | 'out'; score: number | null; photo?: string | null }[] = [
-    { which: 'in', score: attendance.checkInScore, photo: attendance.checkInPhotoUrl },
-    { which: 'out', score: attendance.checkOutScore, photo: attendance.checkOutPhotoUrl },
-  ];
-  // A frame with no score is a punch the face engine could not judge, held PENDING for HR
-  // (2026-11-18): exactly the one whose photo HR has to look at. No frame and no score is a
-  // manual entry, with nothing to show.
-  const shown = shots.filter((s) => s.score !== null || s.photo);
+  const shown = punchShots(attendance);
   if (shown.length === 0) return null;
 
   async function open(which: 'in' | 'out') {

@@ -629,6 +629,19 @@ describe('NeoFaceProvider: one alert per outage, from the one place that knows',
     expect(alert).not.toHaveBeenCalled(); // 2 down, 1 answer, 2 down: never 3 in a row
   });
 
+  it('a probe that still meets the spent quota neither logs a recovery nor alerts again', async () => {
+    mockFetch(() => ({ body: { status: '401', status_message: 'Not authorized: max api hit limit reached!' } }));
+    const neo = new NeoFaceProvider(makeConfig());
+    const log = jest.spyOn((neo as unknown as { logger: { log: (m: string) => void } }).logger, 'log');
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    for (let minute = 0; minute < 3; minute += 1) {
+      jest.advanceTimersByTime(61_000);
+      await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    }
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(log).not.toHaveBeenCalledWith(expect.stringMatching(/answering again/));
+  });
+
   it('the spent quota alerts at once; the recovery is logged and the next outage alerts again', async () => {
     let quota = true;
     mockFetch(() =>

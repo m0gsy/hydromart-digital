@@ -117,7 +117,10 @@ function make() {
     stored = null;
   };
   const hrRuled = () => {
-    trail = [{ id: 'adj1', approvedBy: 'hr-1' }];
+    trail = [{ id: 'adj1', approvedBy: 'hr-1', before: { status: 'PENDING' } }];
+  };
+  const hrCorrected = () => {
+    trail = [{ id: 'adj2', approvedBy: 'hr-1', before: { status: 'PRESENT' } }];
   };
   const deviceClockNoted = () => {
     trail = [{ id: 'adj0', approvedBy: null }];
@@ -125,7 +128,7 @@ function make() {
   const bucketDown = () => {
     removeFails = true;
   };
-  return { svc, verify, created, checkOuts, statuses, reasons, removed, day, storageFails, hrRuled, bucketDown, deviceClockNoted };
+  return { svc, verify, created, checkOuts, statuses, reasons, removed, day, storageFails, hrRuled, hrCorrected, bucketDown, deviceClockNoted };
 }
 
 const alert = alertServerError as jest.Mock;
@@ -189,13 +192,29 @@ describe('check-in while the face engine cannot be asked', () => {
     expect(statuses).toEqual([]);
   });
 
-  it('a counted day goes back to HR even if HR approved it earlier: nobody has seen this frame', async () => {
+  it('a day HR already approved from the queue is not pulled back out of payroll', async () => {
     const { svc, verify, statuses, day, hrRuled } = make();
     day({ status: 'PRESENT' });
     hrRuled();
     verify.mockRejectedValue(QUOTA);
     await svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
-    expect(statuses).toEqual([['a1', 'PENDING']]);
+    expect(statuses).toEqual([]);
+  });
+
+  it('an unrelated correction or a device-clock note does not keep the day from HR', async () => {
+    const corrected = make();
+    corrected.day({ status: 'PRESENT' });
+    corrected.hrCorrected();
+    corrected.verify.mockRejectedValue(QUOTA);
+    await corrected.svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
+    expect(corrected.statuses).toEqual([['a1', 'PENDING']]);
+
+    const offline = make();
+    offline.day({ status: 'PRESENT' });
+    offline.deviceClockNoted();
+    offline.verify.mockRejectedValue(QUOTA);
+    await offline.svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
+    expect(offline.statuses).toEqual([['a1', 'PENDING']]);
   });
 
   it("HR's decision on such a punch is recorded as an unverified face, not an offline sync", async () => {

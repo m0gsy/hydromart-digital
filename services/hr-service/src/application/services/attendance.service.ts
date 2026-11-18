@@ -353,10 +353,13 @@ export class AttendanceService {
     // A check-out taken away from every supervised site puts the whole day in front of HR,
     // not just the closing punch — the day is what payroll counts. Already-PENDING days stay
     // where they are rather than being re-queued. A check-out the engine could not judge sends a
-    // counted day (PRESENT/LATE) to HR too — even one HR approved earlier, since nobody has seen
-    // THIS frame — while a day HR rejected (ABSENT) stays rejected.
+    // counted day (PRESENT/LATE) to HR too, unless HR already ruled on this day from the queue:
+    // re-queueing an approved day would pull it out of a payroll HR believes settled. Its frame
+    // still shows on the day as "not verified". A rejected day (ABSENT) stays rejected.
     const heldByEngine =
-      score === null && (updated.status === 'PRESENT' || updated.status === 'LATE');
+      score === null &&
+      (updated.status === 'PRESENT' || updated.status === 'LATE') &&
+      !(await this.ruledFromQueue(row.id));
     if ((holdForReview && updated.status !== 'PENDING') || heldByEngine) {
       return this.repo.patchStatus(row.id, 'PENDING');
     }
@@ -889,6 +892,18 @@ export class AttendanceService {
       throw new UnauthorizedException('Wajah terdeteksi bukan wajah asli (foto/layar)');
     }
     return result.score;
+  }
+
+  /**
+   * Did HR decide this day from the PENDING queue? `decide()` leaves a trail entry with an approver
+   * whose `before` was PENDING. An unrelated correction (before was PRESENT/LATE) and the device
+   * clock note an offline punch leaves (no approver) are not that.
+   */
+  private async ruledFromQueue(attendanceId: string): Promise<boolean> {
+    const trail = await this.repo.listAdjustments(attendanceId);
+    return trail.some(
+      (a) => a.approvedBy !== null && (a.before as { status?: string } | null)?.status === 'PENDING',
+    );
   }
 
   /**
