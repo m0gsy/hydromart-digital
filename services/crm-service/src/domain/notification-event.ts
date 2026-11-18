@@ -194,7 +194,7 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED]:
     'Pembayaran {{amount}} untuk pesanan {{orderNumber}} sudah lunas tetapi pesanan belum dikonfirmasi. Buka pesanan dan konfirmasi manual.',
   [NotificationEvent.DEPOT_PAYMENT_PROOF]:
-    'Bukti pembayaran masuk untuk pesanan {{orderNumber}} ({{amount}}). Buka menu Pembayaran untuk memverifikasinya.',
+    'Bukti pembayaran masuk untuk pesanan {{orderNumber}} ({{amount}}). Buka pesanan untuk memeriksa bukti dan mengonfirmasi lunas.',
   [NotificationEvent.DEPOT_ORDER_CANCELLED]:
     'Pesanan {{orderNumber}} ({{total}}) dibatalkan oleh pelanggan. Stok dikembalikan; tidak perlu diproses lagi.',
   [NotificationEvent.COURIER_DELIVERY_ASSIGNED]:
@@ -392,7 +392,7 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
   [NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED]:
     'The {{amount}} payment for order {{orderNumber}} is settled but the order is still unconfirmed. Open the order and confirm it manually.',
   [NotificationEvent.DEPOT_PAYMENT_PROOF]:
-    'A payment receipt arrived for order {{orderNumber}} ({{amount}}). Open Payments to verify it.',
+    'A payment receipt arrived for order {{orderNumber}} ({{amount}}). Open the order to check the receipt and confirm payment.',
   [NotificationEvent.DEPOT_ORDER_CANCELLED]:
     'The customer cancelled order {{orderNumber}} ({{total}}). Stock is released; no need to process it.',
   [NotificationEvent.COURIER_DELIVERY_ASSIGNED]:

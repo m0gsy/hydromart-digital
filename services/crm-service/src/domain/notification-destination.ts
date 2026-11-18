@@ -107,12 +107,13 @@ export function destinationFor(
     case NotificationEvent.DEPOT_ORDER_RESCHEDULED:
     case NotificationEvent.DEPOT_ORDER_CANCELLED:
     case NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED:
+    // The receipt is checked beside its order (order-detail's proof panel, then "Konfirmasi
+    // lunas"). `/dashboard/payments` is the depot's QRIS settings, `depotAdmin` only, so the
+    // depot head who gets this push was opening a screen that refused them.
+    case NotificationEvent.DEPOT_PAYMENT_PROOF:
       return vars.orderId
         ? `/dashboard/orders?order=${encodeURIComponent(vars.orderId)}`
         : '/dashboard/orders';
-    // The receipt is verified from the payments screen, not the order queue.
-    case NotificationEvent.DEPOT_PAYMENT_PROOF:
-      return '/dashboard/payments';
     case NotificationEvent.LOAN_REQUEST_APPROVED:
     case NotificationEvent.LOAN_REQUEST_REJECTED:
       return '/hr/me/kasbon';

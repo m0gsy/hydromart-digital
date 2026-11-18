@@ -48,6 +48,7 @@ import { receiptToText, whatsappUrl } from '@/lib/receipt-text';
 import { openExternal } from '@/lib/platform';
 import { canRecordWalkInSale } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useQueryState } from '@/lib/use-query-param';
 import { useDebounce } from '@/lib/use-debounce';
 import type {
   CounterCustomerLookup,
@@ -119,7 +120,14 @@ function WalkIn({ depotId }: { depotId: string }) {
   const thermalFailed = (f: { code: string }) => toast(t(thermalErrorKey(f.code)), 'error');
   const [qty, setQty] = useState<Record<string, number>>({});
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
+  // `?phone=` is how a customer's page hands its number over ("Buat pesanan"). Read once and
+  // taken out of the URL: left there, a reload after the sale would fill the next buyer in as
+  // the same customer, and their points or voucher would go to the wrong person.
+  const [carriedPhone, clearCarriedPhone] = useQueryState('phone');
+  const [phone, setPhone] = useState(carriedPhone);
+  useEffect(() => {
+    if (carriedPhone) clearCarriedPhone('');
+  }, [carriedPhone, clearCarriedPhone]);
   const [cash, setCash] = useState('');
   const [voucher, setVoucher] = useState('');
   // The cashier's own note on this sale. Staff only; the server never sends it to the buyer.
@@ -156,7 +164,8 @@ function WalkIn({ depotId }: { depotId: string }) {
    * Those fields stay one tap away instead of standing between the basket and Bayar. They
    * open themselves whenever they hold something (a resumed basket, a looked-up buyer).
    */
-  const [buyerOpen, setBuyerOpen] = useState(false);
+  // A number handed over opens the section it sits in, where "Cek pelanggan" is.
+  const [buyerOpen, setBuyerOpen] = useState(Boolean(carriedPhone));
   const [extrasOpen, setExtrasOpen] = useState(false);
   // Baskets set aside while a buyer fetches their money. Read after mount: this is a browser
   // store, and the page is also rendered once on the server.

@@ -2570,3 +2570,28 @@ describe('a cancelled order in the feed', () => {
     expect(live.querySelector('p.text-muted')).not.toBeNull();
   });
 });
+
+describe('the stock tab', () => {
+  // The harness renders the HQ console (`/hq/dashboard`), so the card links to the twin this
+  // console owns, and the low filter travels with it (twinFor keeps the query).
+  it('links its low-stock card to the low lines, not the whole shelf (PR-1c)', async () => {
+    asRole('HEAD_OFFICE');
+    openTab('stock');
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    serve({
+      '/inventory/low-stock': () => [
+        { id: 'i1', productId: 'p1', label: 'Galon 19L', available: 1, minimumStock: 5, unit: 'galon', hidden: false },
+      ],
+    });
+    renderPage();
+    await screen.findAllByText('Stok menipis');
+    const hrefs = await waitFor(() => {
+      const found = Array.from(document.querySelectorAll('a'))
+        .filter((a) => a.textContent === 'Lihat detail')
+        .map((a) => a.getAttribute('href'));
+      expect(found).toContain('/hq/inventory?low=1');
+      return found;
+    });
+    expect(hrefs).not.toContain('/hq/inventory');
+  });
+});

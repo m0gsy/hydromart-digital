@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewDepotCrm, canUseManagerConsole, canViewResellers } from '@/lib/roles';
+import { canOpenRoute } from '@/lib/route-access';
 import { CustomerReferralCard } from '@/components/dashboard/customer-referral-card';
 import { useAsync } from '@/lib/use-async';
 import type { Reseller } from '@/lib/reseller';
@@ -272,11 +273,25 @@ function DetailBody({ id }: { id: string }) {
                     Hubungi
                   </Button>
                 )}
-                {/* CA-3-70: was <Link><Button> — a control inside a control. */}
-                <LinkButton href="/dashboard/orders" className="w-full flex-1">
+                {/* CA-3-70: was <Link><Button> — a control inside a control. The order is made
+                    at the till, which opens with this customer on it; the queue it used to
+                    open creates nothing, and refuses a role that only reads the directory. */}
+                {/* The till sells for `assignedDepotId ?? scopedId`: a manager viewing another
+                    depot's customer would book the sale at their own depot. */}
+                {canOpenRoute('/dashboard/walk-in', customer?.role) &&
+                  (customer?.assignedDepotId ?? scopedId) === scopedId && (
+                  <LinkButton
+                    href={
+                      profile.phone
+                        ? `/dashboard/walk-in?phone=${encodeURIComponent(profile.phone)}`
+                        : '/dashboard/walk-in'
+                    }
+                    className="w-full flex-1"
+                  >
                     <ShoppingCart size={16} className="mr-1" />
-                  {t('dashA.customerDetail.createOrder')}
-                </LinkButton>
+                    {t('dashA.customerDetail.createOrder')}
+                  </LinkButton>
+                )}
               </div>
             </>
           );

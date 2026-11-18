@@ -123,7 +123,7 @@ export function StockTab({ ctx }: { ctx: InsightCtx }) {
           source={low}
           isEmpty={() => lowItems.length === 0}
           emptyText={t('insight.stock.lowEmpty')}
-          detailHref="/dashboard/inventory"
+          detailHref="/dashboard/inventory?low=1"
         >
           {() => (
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
