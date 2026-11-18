@@ -131,4 +131,31 @@ describe('CA-1-66 the punch shows what it was accepted on', () => {
     await waitFor(() => expect(screen.getByText('Budi Santoso')).toBeTruthy());
     expect(screen.queryByRole('button', { name: /photoIn/ })).toBeNull();
   });
+
+  /*
+   * 2026-11-18: when the face engine cannot answer, the punch is held PENDING with a frame and
+   * no score, and the frame is all HR has to decide on. It used to be hidden with the score.
+   */
+  it('offers the frame of a punch the face engine could not judge, saying it was not verified', async () => {
+    const held = { ...ROW, status: 'PENDING', checkInScore: null, checkInPhotoUrl: 'hr/attendance/f.jpg' };
+    get.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.includes('status=PENDING')
+          ? { rows: [held], total: 1 }
+          : path.includes('/adjustments')
+            ? []
+            : { rows: [], total: 0 },
+      ),
+    );
+    mount();
+    await waitFor(() => expect(screen.getByText('Budi Santoso')).toBeTruthy());
+    const button = screen.getByRole('button', { name: /photoIn/ });
+    expect(button.textContent).toContain('hrFix.attendance.matchUnverified');
+    // The queue says why such a punch is there, which the two older reasons did not cover.
+    expect(screen.getByText('hrFix.attendance.pendingReasonFace')).toBeTruthy();
+
+    await userEvent.click(button);
+    await waitFor(() => expect(getBlob).toHaveBeenCalled());
+    expect(getBlob.mock.calls[0]?.[0]).toBe('/attendance/api/v1/attendance/a1/photo/in');
+  });
 });

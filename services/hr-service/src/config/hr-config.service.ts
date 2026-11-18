@@ -373,8 +373,10 @@ export class HrConfigService {
    *
    * `off` asks nothing. `shadow` asks on every punch and only LOGS the verdict — it never
    * blocks and swallows its own failures — so real traffic can be read before it is allowed
-   * to refuse anyone. `enforce` rejects a frame the provider calls spoof, and FAILS CLOSED
-   * when the provider cannot be reached, because 'could not check' must not read as 'is live'.
+   * to refuse anyone. `enforce` rejects a frame the provider calls spoof. When the provider cannot
+   * be reached it never reads 'could not check' as 'is live': the punch is held PENDING with no
+   * score for HR to judge from the frame (owner, 2026-11-18), never accepted on the match alone.
+   * Both modes cost a second NEO hit on every matched punch, which is why the default is `off`.
    * The route exists on fr.neoapi.id (answers 401 without a token, 404 elsewhere); what a real
    * face returns for `is_real` has not been seen, which is why `shadow` comes first.
    */

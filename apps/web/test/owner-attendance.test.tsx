@@ -149,6 +149,22 @@ describe('owner attendance screen', () => {
     expect(screen.queryByRole('button', { name: /Foto|photo/ })).toBeNull();
   });
 
+  // 2026-11-18: a punch the face engine could not judge has a frame and no score; the frame is
+  // the only evidence there is, so it is offered, marked as not verified.
+  it('a frame with no score is offered, marked as not verified', async () => {
+    route({
+      list: {
+        rows: [row({ checkInScore: null, checkInPhotoUrl: 'hr/attendance/f.jpg' })],
+        total: 1,
+        page: 1,
+        pageSize: 50,
+      },
+    });
+    wrap();
+    const button = await screen.findByRole('button', { name: /Foto masuk|Check-in photo/ });
+    expect(button.textContent).toMatch(/wajah belum diverifikasi|face not verified/);
+  });
+
   it('an owner with no depots sees an explanation, not an empty table', async () => {
     route({ depots: [] });
     wrap();

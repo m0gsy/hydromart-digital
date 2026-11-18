@@ -53,8 +53,9 @@ groups:
         # enforce, then the frame upload), so 1-2 s is their normal, not a slow service. HR
         # traffic is thin enough that a few check-ins in a quiet five minutes ARE the p95:
         # 2026-11-17 16:46 WIB this paged for ten minutes while every other hr route answered
-        # in under 0.1 s. NEO failing outright still pages — its 15 s timeout is a 503, and
-        # HighErrorRate counts those on every route.
+        # in under 0.1 s. NEO failing outright still pages: an enroll answers 503, which
+        # HighErrorRate counts, and since 2026-11-18 a punch is held PENDING instead and
+        # hr-service sends one webhook message when the engine first fails.
         expr: |
           histogram_quantile(
             0.95,

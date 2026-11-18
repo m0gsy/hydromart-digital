@@ -123,6 +123,27 @@ export interface Attendance {
    * shape `Payroll.employeeName` (PG-01) already carries.
    */
   employeeName?: string | null;
+  /**
+   * Storage KEYS of the punch frames, never URLs: a frame is read through the API. A punch the
+   * face engine could not judge (2026-11-18) has a frame and no score; null on manual entries.
+   */
+  checkInPhotoUrl?: string | null;
+  checkOutPhotoUrl?: string | null;
+}
+
+/**
+ * The punch frames worth offering on a day: one with a match score, or one with a frame and no
+ * score — a punch the face engine could not judge (2026-11-18), the one HR most needs to see. A
+ * manual entry has neither and offers nothing. `score: null` reads as "not verified".
+ */
+export function punchShots(a: Attendance): { which: 'in' | 'out'; score: number | null }[] {
+  const shots = [
+    { which: 'in' as const, score: a.checkInScore, photo: a.checkInPhotoUrl },
+    { which: 'out' as const, score: a.checkOutScore, photo: a.checkOutPhotoUrl },
+  ];
+  return shots
+    .filter((s) => s.score !== null || Boolean(s.photo))
+    .map(({ which, score }) => ({ which, score }));
 }
 
 /**

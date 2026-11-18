@@ -25,6 +25,7 @@ import {
   ATTENDANCE_STATUS_LABEL,
   fmtDate,
   fmtTime,
+  punchShots,
   type Attendance,
   type AttendanceAdjustment,
   type AttendanceStatus,
@@ -115,6 +116,9 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
       <div className="p-3 text-sm font-bold">
         {t('hrFix.attendance.pendingTitle', { count: list.total })}
         <p className="font-normal text-muted">{t('hrFix.attendance.pendingReason')}</p>
+        {/* 2026-11-18: the third reason a punch waits here. Said always: a row it applies to may
+            sit past the first page of the queue. */}
+        <p className="font-normal text-muted">{t('hrFix.attendance.pendingReasonFace')}</p>
       </div>
       {list.rows.map((a) => (
         <div key={a.id} className="p-3 text-sm">
@@ -190,11 +194,7 @@ function PendingQueue({ onDecided }: { onDecided: () => void }) {
 function PunchProof({ attendance }: { attendance: Attendance }) {
   const { t } = useT();
   const { toast } = useToast();
-  const shots: { which: 'in' | 'out'; score: number | null; at: string | null }[] = [
-    { which: 'in', score: attendance.checkInScore, at: attendance.checkInAt },
-    { which: 'out', score: attendance.checkOutScore, at: attendance.checkOutAt },
-  ];
-  const shown = shots.filter((s) => s.score !== null);
+  const shown = punchShots(attendance);
   if (shown.length === 0) return null;
 
   async function open(which: 'in' | 'out') {
@@ -217,7 +217,9 @@ function PunchProof({ attendance }: { attendance: Attendance }) {
           className="rounded-lg border border-app px-2 py-1 font-medium hover:underline"
         >
           {s.which === 'in' ? t('hrFix.attendance.photoIn') : t('hrFix.attendance.photoOut')} ·{' '}
-          {t('hrFix.attendance.matchScore', { score: Math.round((s.score ?? 0) * 100) })}
+          {s.score === null
+            ? t('hrFix.attendance.matchUnverified')
+            : t('hrFix.attendance.matchScore', { score: Math.round(s.score * 100) })}
         </button>
       ))}
     </div>

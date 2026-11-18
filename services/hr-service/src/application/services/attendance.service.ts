@@ -7,6 +7,7 @@ import {
   Logger,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import {
@@ -33,7 +34,12 @@ import {
 import { storeFrame } from '../../infrastructure/storage/upload-frame';
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance.repository';
 import { hrStorageKey } from '../storage-key';
-import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
+import {
+  FACE_VERIFIER,
+  FaceEngineUnavailableError,
+  FaceVerifier,
+  FaceVerifyResult,
+} from '../ports/face-verifier.port';
 import {
   FACE_EMBEDDING_REPOSITORY,
   FaceEmbeddingRepository,
@@ -177,8 +183,7 @@ export class AttendanceService {
       startMinutes,
       toleranceMinutes: this.config.lateToleranceMinutes(workDepotId),
     });
-    const photoUrl =
-      punch.photoUrl ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
+    const { photoUrl, clientPhoto } = await this.frameFor(punch, score);
 
     // A punch that reached us within the auto-accept window is indistinguishable from a live
     // one — face and geofence were re-checked here either way, and the clock gap is trivial.
@@ -188,7 +193,8 @@ export class AttendanceService {
       now.getTime() - offlineAt.getTime() >
         this.config.offlineAutoAcceptMinutes(workDepotId) * 60_000;
 
-    const status = stale || holdForReview ? 'PENDING' : late ? 'LATE' : 'PRESENT';
+    // A punch the face engine could not judge (score null) is held for HR the same way.
+    const status = stale || holdForReview || score === null ? 'PENDING' : late ? 'LATE' : 'PRESENT';
     let created: Attendance;
     try {
       created = await this.repo.create({
@@ -214,7 +220,7 @@ export class AttendanceService {
       // The row was never written, so a frame THIS request stored belongs to nothing and the
       // retention sweep (which reads rows) would never find it. A client-uploaded photo is left
       // alone: the twin's row may point at the very same one.
-      if (photoUrl && !punch.photoUrl) {
+      if (photoUrl && !clientPhoto) {
         await this.storage?.remove(photoUrl).catch((e: unknown) =>
           this.logger.warn(`Check-in frame ${photoUrl} left behind: ${String(e)}`),
         );
@@ -335,8 +341,7 @@ export class AttendanceService {
       0,
       Math.round((at.getTime() - row.checkInAt.getTime()) / 60000),
     );
-    const photoUrl =
-      punch.photoUrl ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
+    const { photoUrl } = await this.frameFor(punch, score);
     const updated = await this.repo.patchCheckOut(row.id, {
       checkOutAt: at,
       checkOutPhotoUrl: photoUrl,
@@ -347,8 +352,15 @@ export class AttendanceService {
     });
     // A check-out taken away from every supervised site puts the whole day in front of HR,
     // not just the closing punch — the day is what payroll counts. Already-PENDING days stay
-    // where they are rather than being re-queued.
-    if (holdForReview && updated.status !== 'PENDING') {
+    // where they are rather than being re-queued. A check-out the engine could not judge sends a
+    // counted day (PRESENT/LATE) to HR too, unless HR already ruled on this day from the queue:
+    // re-queueing an approved day would pull it out of a payroll HR believes settled. Its frame
+    // still shows on the day as "not verified". A rejected day (ABSENT) stays rejected.
+    const heldByEngine =
+      score === null &&
+      (updated.status === 'PRESENT' || updated.status === 'LATE') &&
+      !(await this.ruledFromQueue(row.id));
+    if ((holdForReview && updated.status !== 'PENDING') || heldByEngine) {
       return this.repo.patchStatus(row.id, 'PENDING');
     }
     return updated;
@@ -385,9 +397,15 @@ export class AttendanceService {
     const status: AttendanceStatus =
       decision === 'APPROVE' ? (row.lateMinutes > 0 ? 'LATE' : 'PRESENT') : 'ABSENT';
     const updated = await this.repo.patchStatus(row.id, status);
+    // The trail names why the punch was held: a punch with a frame and no score is one the
+    // face engine could not judge (2026-11-18), not a late offline sync.
+    const unverified =
+      (row.checkInScore === null && Boolean(row.checkInPhotoUrl)) ||
+      (row.checkOutScore === null && Boolean(row.checkOutPhotoUrl));
     await this.repo.recordAdjustment({
       attendanceId: row.id,
-      reason: note?.trim() || `Absen offline: ${decision}`,
+      reason:
+        note?.trim() || `${unverified ? 'Wajah belum diverifikasi' : 'Absen offline'}: ${decision}`,
       before: snapshot(row),
       after: snapshot(updated),
       approvedBy: user.sub,
@@ -837,16 +855,33 @@ export class AttendanceService {
    * ever stopped honest clients. The face match is the control; the PWA's blink challenge
    * stays a capture-quality gate on the device.
    */
-  private async assertFace(employee: Employee, punch: FacePunch): Promise<number> {
+  private async assertFace(employee: Employee, punch: FacePunch): Promise<number | null> {
     const enrolled = await this.faces.listActiveByEmployee(employee.id);
     if (enrolled.length === 0) {
       throw new BadRequestException('Wajah belum di-enroll');
     }
-    const result = await this.verifier.verify(
-      punch.image,
-      enrolled.map((e) => e.vector),
-      { userId: employee.id, userName: employee.fullName },
-    );
+    /*
+     * 2026-11-18: the NEO quota ran out at 14:31 WIB and every punch after it was a 503 —
+     * nobody's day recorded until the quota came back. Owner's rule since: a punch the engine
+     * cannot be ASKED about (`FaceEngineUnavailableError`: quota, outage, timeout) is still
+     * RECORDED, held PENDING with no score (null), and HR decides from the stored frame. What
+     * the engine DID answer still decides — no face found is a retake (400), a mismatch is
+     * refused (401) — and a misconfiguration stays a plain 503 that pages.
+     */
+    let result: FaceVerifyResult;
+    try {
+      result = await this.verifier.verify(
+        punch.image,
+        enrolled.map((e) => e.vector),
+        { userId: employee.id, userName: employee.fullName },
+      );
+    } catch (err) {
+      if (!(err instanceof FaceEngineUnavailableError)) throw err;
+      // Every held punch is logged; telling ops (once per outage) is the provider's job, as the
+      // one place that knows when the engine went down and when it came back.
+      this.logger.warn(`Face engine unavailable, punch held PENDING for HR: ${err.message}`);
+      return null;
+    }
     if (!result.matched) {
       throw new UnauthorizedException('Wajah tidak cocok');
     }
@@ -857,6 +892,36 @@ export class AttendanceService {
       throw new UnauthorizedException('Wajah terdeteksi bukan wajah asli (foto/layar)');
     }
     return result.score;
+  }
+
+  /**
+   * Did HR decide this day from the PENDING queue? `decide()` leaves a trail entry with an approver
+   * whose `before` was PENDING. An unrelated correction (before was PRESENT/LATE) and the device
+   * clock note an offline punch leaves (no approver) are not that.
+   */
+  private async ruledFromQueue(attendanceId: string): Promise<boolean> {
+    const trail = await this.repo.listAdjustments(attendanceId);
+    return trail.some(
+      (a) => a.approvedBy !== null && (a.before as { status?: string } | null)?.status === 'PENDING',
+    );
+  }
+
+  /**
+   * The frame a punch keeps. One the engine judged keeps the client's upload if it sent one. One
+   * the engine could NOT judge is judged by HR from its frame, so that must be the image submitted
+   * with it, never a key the client sent along (review #927) — and with no frame there is nothing
+   * for HR to judge, so it is refused for the device to retry rather than held blind.
+   */
+  private async frameFor(
+    punch: FacePunch,
+    score: number | null,
+  ): Promise<{ photoUrl: string | null; clientPhoto: string | null }> {
+    const clientPhoto = score === null ? null : punch.photoUrl;
+    const photoUrl = clientPhoto ?? (await storeFrame(this.storage, punch.image, 'hr/attendance'));
+    if (score === null && !photoUrl) {
+      throw new ServiceUnavailableException('Foto absen belum bisa disimpan. Coba lagi sebentar lagi.');
+    }
+    return { photoUrl, clientPhoto };
   }
 
   /**

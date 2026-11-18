@@ -1,7 +1,14 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { alertServerError } from '@hydromart/platform';
 
 import { HrConfigService } from '../../src/config/hr-config.service';
+import { FaceEngineUnavailableError } from '../../src/application/ports/face-verifier.port';
 import { NeoFaceProvider } from '../../src/infrastructure/face/neo-face.provider';
+
+jest.mock('@hydromart/platform', () => ({
+  ...jest.requireActual('@hydromart/platform'),
+  alertServerError: jest.fn(),
+}));
 
 const identity = { userId: 'e1', userName: 'Budi' };
 
@@ -399,5 +406,282 @@ describe('NeoFaceProvider liveness', () => {
     await expect(
       new NeoFaceProvider(withLiveness('enforce')).verify(Buffer.from('p'), [], identity),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+});
+
+/*
+ * Review of #927. Attendance holds a punch for HR only on `FaceEngineUnavailableError`, so this
+ * class must mean "the engine could not be asked" and nothing else: never a frame the employee
+ * controls (that would let a garbage image skip the face check), never a misconfiguration (that
+ * must page), and never an enforced liveness that could not run (that is fail-closed).
+ */
+describe('NeoFaceProvider: engine down vs everything else', () => {
+  const verifyWith = (body: unknown, status = 200) => {
+    mockFetch(() => ({ status, body }));
+    return new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity);
+  };
+
+  it('the spent quota and a 5xx gateway are the engine being down', async () => {
+    await expect(
+      verifyWith({ status: '401', status_message: 'Not authorized: max api hit limit reached!' }),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    await expect(verifyWith({}, 502)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it("NEO's in-band 500 pages instead: one bad frame must not hold everyone's punch", async () => {
+    await expect(verifyWith({ status: '500', status_message: 'Server error' })).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    await expect(
+      verifyWith({ status: '500', status_message: 'Server error' }),
+    ).rejects.not.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('a request that never got an answer is the engine being down', async () => {
+    global.fetch = (async () => {
+      throw new Error('The operation was aborted due to timeout');
+    }) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('a frame NEO cannot read is a retake (400), never the engine being down', async () => {
+    for (const status of ['451', '490', '493', '495']) {
+      await expect(verifyWith({ status, status_message: 'image error' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    }
+  });
+
+  it('an account NEO refuses (401/403, any wording) is down; a token we never set is ours and pages', async () => {
+    await expect(
+      verifyWith({ status: '401', status_message: 'Accestoken not authorized' }),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    await expect(
+      verifyWith({ status: '403', status_message: 'API usage exceeded for this token' }),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    await expect(
+      new NeoFaceProvider(makeConfig('')).verify(Buffer.from('p'), [], identity),
+    ).rejects.not.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('an enforced liveness that cannot be asked is the engine being down, like any other call', async () => {
+    mockFetch((url) =>
+      url.includes('liveness')
+        ? { body: { status: '401', status_message: 'max api hit limit reached!' } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const enforce = {
+      neoFr: { endpoint: 'https://fr.example', token: 'tok', galleryId: 'g1' },
+      neoLiveness: { mode: 'enforce', path: '/liveness' },
+    } as unknown as HrConfigService;
+    // Attendance holds it for HR with no score (owner, 2026-11-18): never accepted on the match.
+    await expect(
+      new NeoFaceProvider(enforce).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('a host that does not resolve is NEO unreachable too, and the reason names the code', async () => {
+    global.fetch = (async () => {
+      throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } });
+    }) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toThrow(/ENOTFOUND/);
+  });
+});
+
+describe('NeoFaceProvider: a down engine is not asked again for a minute', () => {
+  beforeEach(() => jest.useFakeTimers({ now: new Date('2026-11-18T08:00:00Z') }));
+  afterEach(() => jest.useRealTimers());
+
+  it('fails fast without calling NEO, then lets one call probe it', async () => {
+    const calls = mockFetch(() => ({ body: { status: '401', status_message: 'Not authorized: max api hit limit reached!' } }));
+    const neo = new NeoFaceProvider(makeConfig());
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(calls).toHaveLength(1);
+
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(calls).toHaveLength(1); // the spent quota is not spent again
+
+    jest.advanceTimersByTime(61_000);
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('an answer of any kind ends it at once', async () => {
+    let quota = true;
+    const calls = mockFetch(() =>
+      quota
+        ? { body: { status: '401', status_message: 'max api hit limit reached!' } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const neo = new NeoFaceProvider(makeConfig());
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    jest.advanceTimersByTime(61_000);
+    quota = false;
+    expect((await neo.verify(Buffer.from('p'), [], identity)).matched).toBe(true);
+    expect((await neo.verify(Buffer.from('p'), [], identity)).matched).toBe(true);
+    expect(calls).toHaveLength(3);
+  });
+});
+
+
+describe('NeoFaceProvider: review round 3 of #927', () => {
+  beforeEach(() => jest.useFakeTimers({ now: new Date('2026-11-18T09:00:00Z') }));
+  afterEach(() => jest.useRealTimers());
+
+  it('a lapsed NEO certificate and a 429 rate limit are NEO being down', async () => {
+    global.fetch = (async () => {
+      throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'CERT_HAS_EXPIRED' } });
+    }) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+
+    mockFetch(() => ({ status: 429, body: {} }));
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('a failing liveness call (its own API) does not shut the gallery for a minute', async () => {
+    const shadow = {
+      neoFr: { endpoint: 'https://fr.example', token: 'tok', galleryId: 'g1' },
+      neoLiveness: { mode: 'shadow', path: '/liveness' },
+    } as unknown as HrConfigService;
+    const calls = mockFetch((url) =>
+      url.includes('liveness')
+        ? { status: 502, body: {} }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const neo = new NeoFaceProvider(shadow);
+    expect((await neo.verify(Buffer.from('p'), [], identity)).matched).toBe(true);
+    expect((await neo.verify(Buffer.from('p'), [], identity)).matched).toBe(true);
+    expect(calls.filter((c) => !c.url.includes('liveness'))).toHaveLength(2);
+  });
+
+  it('when the minute is up, one call probes and the others still fail fast', async () => {
+    let release: () => void = () => undefined;
+    let fetches = 0;
+    global.fetch = (async () => {
+      fetches += 1;
+      if (fetches === 1) {
+        return { ok: true, status: 200, json: async () => ({ risetai: { status: '401', status_message: 'max api hit limit reached!' } }) } as Response;
+      }
+      await new Promise<void>((r) => (release = r)); // the probe hangs until released
+      return { ok: true, status: 200, json: async () => ({ risetai: { status: '200', verified: true, similarity: '90' } }) } as Response;
+    }) as unknown as typeof fetch;
+    const neo = new NeoFaceProvider(makeConfig());
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+
+    jest.advanceTimersByTime(61_000);
+    const probe = neo.verify(Buffer.from('p'), [], identity);
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(fetches).toBe(2); // the second punch did not queue on NEO behind the probe
+    release();
+    expect((await probe).matched).toBe(true);
+  });
+});
+
+describe('NeoFaceProvider: one alert per outage, from the one place that knows', () => {
+  const alert = alertServerError as jest.Mock;
+  beforeEach(() => {
+    alert.mockClear();
+    jest.useFakeTimers({ now: new Date('2026-11-18T10:00:00Z') });
+  });
+  afterEach(() => jest.useRealTimers());
+
+  it('one slow frame is not an outage: three unanswered calls in a row are', async () => {
+    let fetches = 0;
+    global.fetch = (async () => {
+      fetches += 1;
+      throw new Error('The operation was aborted due to timeout');
+    }) as unknown as typeof fetch;
+    const neo = new NeoFaceProvider(makeConfig());
+    for (let i = 0; i < 2; i += 1) {
+      await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    }
+    expect(alert).not.toHaveBeenCalled();
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(String(alert.mock.calls[0]?.[0]?.exception)).toMatch(/PENDING/);
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(fetches).toBe(3); // the fourth failed fast
+    expect(alert).toHaveBeenCalledTimes(1);
+  });
+
+  it('an answer in between starts the count again', async () => {
+    let n = 0;
+    global.fetch = (async () => {
+      n += 1;
+      if (n === 3) {
+        return { ok: true, status: 200, json: async () => ({ risetai: { status: '200', verified: true, similarity: '90' } }) } as Response;
+      }
+      throw new Error('ECONNRESET');
+    }) as unknown as typeof fetch;
+    const neo = new NeoFaceProvider(makeConfig());
+    for (let i = 0; i < 5; i += 1) await neo.verify(Buffer.from('p'), [], identity).catch(() => undefined);
+    expect(alert).not.toHaveBeenCalled(); // 2 down, 1 answer, 2 down: never 3 in a row
+  });
+
+  it('a probe that still meets the spent quota neither logs a recovery nor alerts again', async () => {
+    mockFetch(() => ({ body: { status: '401', status_message: 'Not authorized: max api hit limit reached!' } }));
+    const neo = new NeoFaceProvider(makeConfig());
+    const log = jest.spyOn((neo as unknown as { logger: { log: (m: string) => void } }).logger, 'log');
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    for (let minute = 0; minute < 3; minute += 1) {
+      jest.advanceTimersByTime(61_000);
+      await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    }
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(log).not.toHaveBeenCalledWith(expect.stringMatching(/answering again/));
+  });
+
+  it('the spent quota alerts at once; the recovery is logged and the next outage alerts again', async () => {
+    let quota = true;
+    mockFetch(() =>
+      quota
+        ? { body: { status: '401', status_message: 'Not authorized: max api hit limit reached!' } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const neo = new NeoFaceProvider(makeConfig());
+    const log = jest.spyOn((neo as unknown as { logger: { log: (m: string) => void } }).logger, 'log');
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(alert).toHaveBeenCalledTimes(1);
+
+    jest.advanceTimersByTime(61_000);
+    quota = false;
+    expect((await neo.verify(Buffer.from('p'), [], identity)).matched).toBe(true);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/answering again/));
+
+    quota = true;
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(alert).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('NeoFaceProvider: a body that is not an answer (review round 6)', () => {
+  const alert = alertServerError as jest.Mock;
+  beforeEach(() => alert.mockClear());
+
+  it('an HTML maintenance page is NEO down, not an answer that refuses the punch', async () => {
+    global.fetch = (async () =>
+      ({ ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } }) as unknown as Response) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('the gateway refusing the token (HTTP 401) is an account refusal: down at once, one alert', async () => {
+    mockFetch(() => ({ ok: false, status: 401, body: {} }));
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(alert).toHaveBeenCalledTimes(1);
   });
 });

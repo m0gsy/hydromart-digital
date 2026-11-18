@@ -9,7 +9,8 @@ export interface CreateAttendanceInput {
   workDate: Date;
   checkInAt: Date;
   checkInPhotoUrl: string | null;
-  checkInScore: number;
+  /** Null when the face engine could not be asked; such a punch is held PENDING for HR. */
+  checkInScore: number | null;
   checkInLat: number;
   checkInLng: number;
   lateMinutes: number;
@@ -19,7 +20,7 @@ export interface CreateAttendanceInput {
 export interface CheckOutPatch {
   checkOutAt: Date;
   checkOutPhotoUrl: string | null;
-  checkOutScore: number;
+  checkOutScore: number | null;
   checkOutLat: number;
   checkOutLng: number;
   workingMinutes: number;

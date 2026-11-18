@@ -609,6 +609,8 @@ export const hrFix = {
     pendingTitle: 'Attendance awaiting approval ({count})',
     pendingReason:
       'Submitted long after the clock-in time, so the hour came from the device, or captured outside every depot they are responsible for. Not counted as present yet.',
+    pendingReasonFace:
+      'Or the face could not be verified because the face service was unavailable: open the photo before deciding.',
     title: 'Attendance',
     correctStatus: 'Correct the status',
     reject: 'Reject',
@@ -629,6 +631,7 @@ export const hrFix = {
     photoIn: 'Check-in photo',
     photoOut: 'Check-out photo',
     matchScore: '{score}% match',
+    matchUnverified: 'face not verified',
     photoFailed: 'That attendance photo is not available.',
     unnamed: 'Anonymised employee',
     fillIdDate: 'Enter an employeeId and a date',

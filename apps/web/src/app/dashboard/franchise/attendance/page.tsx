@@ -9,7 +9,15 @@ import { Badge, Button, Card, CenterState, ErrorState, Input, ListFooter, Skelet
 import { api, ApiError, getBlob } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
-import { ATTENDANCE_STATUS_LABEL, fmtDate, fmtTime, type Attendance, type AttendanceStatus, type HrPage } from '@/lib/hr';
+import {
+  ATTENDANCE_STATUS_LABEL,
+  fmtDate,
+  fmtTime,
+  punchShots,
+  type Attendance,
+  type AttendanceStatus,
+  type HrPage,
+} from '@/lib/hr';
 import { useT } from '@/lib/locale-context';
 import { canViewOwnAttendance } from '@/lib/roles';
 import { usePagedList } from '@/lib/use-paged-list';
@@ -56,11 +64,7 @@ function PunchPhotos({ attendance }: { attendance: Attendance }) {
   const { t } = useT();
   const { toast } = useToast();
   const [shown, setShown] = useState<{ which: 'in' | 'out'; url: string } | null>(null);
-  const shots: { which: 'in' | 'out'; score: number | null }[] = [
-    { which: 'in', score: attendance.checkInScore },
-    { which: 'out', score: attendance.checkOutScore },
-  ];
-  const withFrame = shots.filter((s) => s.score !== null);
+  const withFrame = punchShots(attendance);
   if (withFrame.length === 0) return <span className="text-muted">—</span>;
 
   async function open(which: 'in' | 'out') {
@@ -91,7 +95,7 @@ function PunchPhotos({ attendance }: { attendance: Attendance }) {
             className="min-h-11 rounded-lg border border-app px-2 py-1 text-xs font-medium hover:underline"
           >
             {s.which === 'in' ? t('hrFix.ownerAttendance.photoIn') : t('hrFix.ownerAttendance.photoOut')} ·{' '}
-            {Math.round((s.score ?? 0) * 100)}%
+            {s.score === null ? t('hrFix.attendance.matchUnverified') : `${Math.round(s.score * 100)}%`}
           </button>
         ))}
       </div>
