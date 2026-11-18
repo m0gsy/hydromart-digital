@@ -19,6 +19,15 @@ vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock('@/components/dashboard/ops-push', () => ({ DevicePushRow: () => null }));
+// PR-3d: the account screen now also signs out (a router) and names your depot.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/dashboard/account',
+  useSearchParams: () => new URLSearchParams(),
+}));
+vi.mock('@/lib/depot-context', () => ({
+  useDepot: () => ({ depots: [], selected: null, selectedId: null, scopedId: null, ready: true }),
+}));
 
 import { ToastProvider } from '@/components/toast';
 import AccountSettingsPage from '@/app/dashboard/account/page';

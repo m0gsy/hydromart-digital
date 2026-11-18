@@ -95,7 +95,6 @@ import {
   canHandOverRewards,
   canPunchAttendance,
   canUseManagerConsole,
-  canUseOperatorConsole,
   isDepotOperator,
   canViewMeterReading,
   can,
@@ -548,28 +547,7 @@ export const GROUPS: RailGroup[] = [
     items: [
       { href: '/dashboard/settings', labelKey: 'settings', icon: GearSix, show: canManageDepots },
       { href: '/dashboard/depots', labelKey: 'depots', icon: Storefront, show: canManageDepots },
-      // Also unreachable before: the depot config screen and the staff account screen.
-      {
-        href: '/dashboard/depot-settings',
-        labelKey: 'depotSettings',
-        icon: GearSix,
-        show: canManageDepots,
-      },
       { href: '/dashboard/payments', labelKey: 'payments', icon: QrCode, show: canManageDepots },
-      {
-        href: '/dashboard/profile',
-        labelKey: 'profile',
-        icon: UserGear,
-        show: canUseManagerConsole,
-      },
-      // Flow PR-3b: the operator console's own settings screen, a row of the table like every
-      // other tab it shows (its page gate is canUseOperatorConsole). 3d folds it into account.
-      {
-        href: '/dashboard/operator-settings',
-        labelKey: 'operatorSettings',
-        icon: GearSix,
-        show: canUseOperatorConsole,
-      },
       { href: '/dashboard/account', labelKey: 'account', icon: UserGear, show: isStaff },
       // Shows the caller their OWN effective capabilities. Gating that on a capability would
       // be a screen you need permission to be told what you have permission for.

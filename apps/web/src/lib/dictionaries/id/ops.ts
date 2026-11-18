@@ -94,7 +94,6 @@ export const ops = {
     depotSettings: 'Pengaturan depot',
     account: 'Akun saya',
     settings: 'Pengaturan',
-    operatorSettings: 'Pengaturan operator',
   },
   switcher: {
     all: 'Semua depot',

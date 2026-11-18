@@ -16,8 +16,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  */
 const ADDED: Record<string, string[]> = {
   // and the head of depot's /dashboard (their operator home) is a row with the page's gate.
-  KEPALA_DEPOT: ['operatorSettings /dashboard/operator-settings', 'operations /dashboard'],
-  SUPER_ADMIN: ['operatorSettings /dashboard/operator-settings'],
+  KEPALA_DEPOT: ['operations /dashboard'],
+};
+// PR-3d merged three screens into their twins; their rows went with them (the routes redirect).
+const REMOVED: Record<string, string[]> = {
+  MANAGER: ['depotSettings /dashboard/depot-settings', 'profile /dashboard/profile'],
+  SUPER_ADMIN: ['depotSettings /dashboard/depot-settings', 'profile /dashboard/profile'],
 };
 const MOVED: Record<string, [from: string, to: string]> = {
   FINANCE: ['hqConsole /hq', 'hqConsole /hq/search'],
@@ -34,7 +38,8 @@ const expectedOf = (m: Menus) =>
     Object.entries(screensOf(m)).map(([role, screens]) => {
       const moved = MOVED[role];
       const kept = moved ? screens.map((s) => (s === moved[0] ? moved[1] : s)) : screens;
-      return [role, [...kept, ...(ADDED[role] ?? [])].sort()];
+      const gone = new Set(REMOVED[role] ?? []);
+      return [role, [...kept.filter((s) => !gone.has(s)), ...(ADDED[role] ?? [])].sort()];
     }),
   );
 const ROLES = [

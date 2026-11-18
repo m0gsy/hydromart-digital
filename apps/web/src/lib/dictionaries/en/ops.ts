@@ -91,7 +91,6 @@ export const ops = {
     depotSettings: 'Depot settings',
     account: 'My account',
     settings: 'Settings',
-    operatorSettings: 'Operator settings',
   },
   switcher: {
     all: 'All depots',

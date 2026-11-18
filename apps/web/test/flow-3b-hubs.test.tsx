@@ -86,6 +86,10 @@ function dashboardRoutes(): string[] {
 const PAGE_ONLY: Record<string, string> = {
   '/dashboard/resellers/import': '/resellers (Impor)',
   '/dashboard/sales-import': '/hq/reports/export (PR #925)',
+  // PR-3d: merged into their twins; the old routes redirect.
+  '/dashboard/profile': 'redirects to /dashboard/account',
+  '/dashboard/operator-settings': 'redirects to /dashboard/account',
+  '/dashboard/depot-settings': 'redirects to /dashboard/settings',
 };
 
 describe('the hub table', () => {
@@ -201,7 +205,8 @@ describe('the rail and the operator console read the table', () => {
     );
     // "Kelola depot" led a head of depot to a page that refuses them.
     expect(tabs).not.toContain('/dashboard/depots');
-    expect(tabs).toContain('/dashboard/operator-settings');
+    // their settings are the account screen now (PR-3d merged operator-settings into it)
+    expect(tabs).toContain('/dashboard/account');
     expect(tabs.filter((h) => !canOpenRoute(h, 'KEPALA_DEPOT'))).toEqual([]);
   });
 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { GearSix, Lock } from '@phosphor-icons/react';
 
+import { DepotSettingsSummary } from '@/components/dashboard/depot-settings-summary';
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -245,6 +246,9 @@ function SettingsBody() {
           <p className="text-sm text-muted">{t('settings.subtitle')}</p>
         </div>
       </div>
+
+      {/* PR-3d: what /dashboard/depot-settings showed, read-only, above the forms that set it. */}
+      <DepotSettingsSummary />
 
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap gap-2">
