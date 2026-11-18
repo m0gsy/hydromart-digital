@@ -115,7 +115,7 @@ export function hrNavItems(role: string | null | undefined): NavItem[] {
 
 export function HrRail() {
   const { t } = useT();
-  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  // The APK export runs with `trailingSlash: true`: a path with or without its final slash is one screen.
   const pathname = normalisePath(usePathname() ?? '');
   const { customer } = useAuth();
   /*

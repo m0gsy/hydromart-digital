@@ -22,7 +22,7 @@ const TABS = [
 /** Bottom tab bar — 5 tabs per the Depot Manager Mobile design (cells 1b–3a). */
 function ManagerNav() {
   const { t } = useT();
-  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  // The APK export runs with `trailingSlash: true`: a path with or without its final slash is one screen.
   const pathname = normalisePath(usePathname() ?? '');
   return (
     <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[max(0.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">

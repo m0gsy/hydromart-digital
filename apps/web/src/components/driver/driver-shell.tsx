@@ -25,7 +25,7 @@ const WALLET_ROUTES = ['/driver/earnings', '/driver/settlement', '/driver/expens
 /** Bottom tab bar — 3 tabs per the courier design (+ Dompet on wallet screens). */
 function DriverNav() {
   const { t } = useT();
-  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  // The APK export runs with `trailingSlash: true`: a path with or without its final slash is one screen.
   const pathname = normalisePath(usePathname() ?? '');
   const inWallet = WALLET_ROUTES.some((r) => pathname.startsWith(r));
   const tabs = inWallet ? [...TABS, WALLET_TAB] : TABS;

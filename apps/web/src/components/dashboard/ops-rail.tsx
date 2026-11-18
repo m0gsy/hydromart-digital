@@ -583,7 +583,7 @@ function SwitcherRow({
 export function OpsRail() {
   const { customer } = useAuth();
   const { t, locale, setLocale } = useT();
-  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  // The APK export runs with `trailingSlash: true`: a path with or without its final slash is one screen.
   const pathname = normalisePath(usePathname() ?? '');
   const role = customer?.role;
   // O4: only for roles that can see the ops feed at all — asking as anyone else is a 403
