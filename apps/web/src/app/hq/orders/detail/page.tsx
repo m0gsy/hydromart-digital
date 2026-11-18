@@ -30,10 +30,13 @@ async function lookupBuyer(id: string): Promise<Customer[] | null> {
   }
 }
 
-/** The depot's public record (no auth), for its name. Never fatal either. */
+/**
+ * The depot's public record, for its name. Never fatal either. Sent with the session like every
+ * staff call (`unauthenticated-calls.test`): a phone build sends no bearer token otherwise.
+ */
 async function lookupDepot(id: string): Promise<Depot | null> {
   try {
-    return await api.getCached<Depot>(endpoints.depots.detail(id));
+    return await api.getCached<Depot>(endpoints.depots.detail(id), true);
   } catch {
     return null;
   }
