@@ -266,7 +266,17 @@ export class NeoFaceProvider implements FaceVerifier {
     if (res.status >= 500 || res.status === 429) {
       throw this.down(`${label}: HTTP ${res.status}`, breaker);
     }
-    const payload = ((await res.json().catch(() => ({}))) as NeoResponse).risetai ?? {};
+    // The gateway refusing the token outright is an account refusal like the in-band one below.
+    if (res.status === 401 || res.status === 403) {
+      throw this.down(`${label}: HTTP ${res.status}`, breaker, true);
+    }
+    // No `risetai` envelope at all (an HTML maintenance page, a body that is not JSON) is not an
+    // answer either: counting it as one would end a real outage and refuse the punch with a 503.
+    const parsed = (await res.json().catch(() => null)) as NeoResponse | null;
+    if (!parsed?.risetai) {
+      throw this.down(`${label}: jawaban NEO tidak terbaca (HTTP ${res.status})`, breaker);
+    }
+    const payload = parsed.risetai;
     // NEO refusing the ACCOUNT arrives as HTTP 200 with an in-band 401/403 — the spent quota
     // (2026-11-18: "Not authorized: max api hit limit reached!") or a token it no longer takes.
     // That is NEO saying it will not be asked, not an answer: read it BEFORE counting the call as

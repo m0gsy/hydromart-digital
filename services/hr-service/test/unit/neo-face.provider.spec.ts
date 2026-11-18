@@ -664,3 +664,24 @@ describe('NeoFaceProvider: one alert per outage, from the one place that knows',
     expect(alert).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('NeoFaceProvider: a body that is not an answer (review round 6)', () => {
+  const alert = alertServerError as jest.Mock;
+  beforeEach(() => alert.mockClear());
+
+  it('an HTML maintenance page is NEO down, not an answer that refuses the punch', async () => {
+    global.fetch = (async () =>
+      ({ ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } }) as unknown as Response) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+  });
+
+  it('the gateway refusing the token (HTTP 401) is an account refusal: down at once, one alert', async () => {
+    mockFetch(() => ({ ok: false, status: 401, body: {} }));
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(alert).toHaveBeenCalledTimes(1);
+  });
+});
