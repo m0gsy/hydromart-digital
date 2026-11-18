@@ -17,8 +17,8 @@
  *   rows on `depotAdmin`, the page reads on `depotDirectory`);
  * - a child stricter than its row is not seen (`/hr/attendance/import` needs `hrAdmin`).
  *   Give such a child its own row before anything links to it.
- * Importing the two rails also bundles their icons with every caller; PR-3a moves the ops
- * table into `lib/ops-nav.ts`, and this import moves with it.
+ * The ops table is data in `lib/ops-nav.ts` (PR-3a), icons included, so every caller still
+ * bundles them; HR_ITEMS is still read from the HR rail component.
  */
 import { GROUPS } from '@/lib/ops-nav';
 import { HR_ITEMS } from '@/components/hr/hr-rail';

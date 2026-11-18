@@ -39,7 +39,9 @@ vi.mock('@/lib/depot-context', () => ({
 }));
 vi.mock('@/lib/unread', () => ({ useUnreadCount: () => 0, useOpsUnreadCount: () => 0 }));
 vi.mock('@/components/require-auth', () => ({
-  RequireAuth: ({ children }: { children: React.ReactNode }) => <div data-testid="auth-wall">{children}</div>,
+  RequireAuth: ({ children }: { children: React.ReactNode }) => (
+    <div data-testid="auth-wall">{children}</div>
+  ),
 }));
 vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: async () => true }) }));
 vi.mock('@/lib/theme-context', () => ({
@@ -67,18 +69,36 @@ afterEach(() => vi.clearAllMocks());
 
 const current = (href: string) => document.querySelector(`a[href="${href}"][aria-current="page"]`);
 const lit = () =>
-  Array.from(document.querySelectorAll('a[aria-current="page"]')).map((a) => a.getAttribute('href'));
+  Array.from(document.querySelectorAll('a[aria-current="page"]')).map((a) =>
+    a.getAttribute('href'),
+  );
+const litText = () =>
+  Array.from(document.querySelectorAll('a[aria-current="page"]')).map((a) => a.textContent);
 
-const CASES: Array<[name: string, role: string, path: string, home: string, ui: () => React.ReactElement]> = [
+const CASES: Array<
+  [name: string, role: string, path: string, home: string, ui: () => React.ReactElement]
+> = [
   ['courier shell', 'STAFF_DEPOT', '/driver/', '/driver', () => <DriverShell>x</DriverShell>],
   ['HQ phone bar', 'HEAD_OFFICE', '/hq/', '/hq', () => <HqBottomNav />],
   ['HQ rail', 'HEAD_OFFICE', '/hq/', '/hq', () => <HqRail />],
   ['HR phone bar', 'HR', '/hr/', '/hr', () => <HrBottomNav />],
   ['HR rail', 'HR', '/hr/', '/hr', () => <HrRail />],
-  ['manager phone shell', 'MANAGER', '/m/manager/', '/m/manager', () => <ManagerShell nav>x</ManagerShell>],
+  [
+    'manager phone shell',
+    'MANAGER',
+    '/m/manager/',
+    '/m/manager',
+    () => <ManagerShell nav>x</ManagerShell>,
+  ],
   ['ops phone bar', 'MANAGER', '/dashboard/', '/dashboard', () => <OpsBottomNav />],
   ['ops rail', 'MANAGER', '/dashboard/', '/dashboard', () => <OpsRail />],
-  ['operator shell', 'KEPALA_DEPOT', '/dashboard/', '/dashboard', () => <OperatorShell>x</OperatorShell>],
+  [
+    'operator shell',
+    'KEPALA_DEPOT',
+    '/dashboard/',
+    '/dashboard',
+    () => <OperatorShell>x</OperatorShell>,
+  ],
 ];
 
 describe('the home tab is current at the path the APK hands over', () => {
@@ -105,7 +125,9 @@ describe('one current item, wherever the path sits', () => {
     who.role = 'SUPER_ADMIN';
     who.path = '/dashboard/franchise/attendance/';
     render(<OpsRail />);
-    expect(lit()).toEqual(['/dashboard/franchise/attendance']);
+    // PR-3b: one row per hub. Attendance is a Tim screen and its parent a Ringkasan one: only
+    // the Tim row is lit.
+    expect(litText()).toEqual(['ops.groups.team']);
   });
 
   it('the "Lainnya" sheet follows the same rule as the rail, and says so to a screen reader', () => {
@@ -114,7 +136,9 @@ describe('one current item, wherever the path sits', () => {
     render(<OpsBottomNav />);
     fireEvent.click(screen.getByText('opsFix.nav.more'));
     const sheet = screen.getByRole('dialog');
-    expect(within(sheet).getByText('ops.nav.orders').closest('a')?.getAttribute('aria-current')).toBe('page');
+    expect(
+      within(sheet).getByText('ops.groups.orders').closest('a')?.getAttribute('aria-current'),
+    ).toBe('page');
   });
 
   it('the courier Dompet tab is current on every wallet screen it appears for', () => {
@@ -132,7 +156,7 @@ describe('the phone bars agree with their sheets', () => {
     render(<OpsBottomNav />);
     expect(lit()).toEqual([]);
     fireEvent.click(screen.getByText('opsFix.nav.more'));
-    expect(lit()).toEqual(['/dashboard/franchise/attendance']);
+    expect(litText()).toEqual(['ops.groups.team']);
   });
 
   it('HQ: the import screen lights alone, not the staff list too', () => {

@@ -17,7 +17,7 @@ import {
 import { ConsoleSignOut } from '@/components/console-sign-out';
 
 import { DepotSwitcher } from '@/components/dashboard/ops-rail';
-import { GROUPS } from '@/lib/ops-nav';
+import { GROUPS, hubsFor } from '@/lib/ops-nav';
 import { Sheet } from '@/components/overlay';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
@@ -170,36 +170,24 @@ function MoreSheetTab({ current }: { current: string | undefined }) {
           <div className="pb-2">
             <DepotSwitcher />
           </div>
-          {GROUPS.map((group) => {
-            const items = group.items.filter((i) => i.show(role));
-            if (items.length === 0) return null;
+          {/* PR-3b: one row per hub, as on the rail; the hub's screens are tabs on its pages. */}
+          {hubsFor(role).map(({ hub, items }) => {
+            const Ic = hub.icon;
+            const on = items.some((i) => i.href === current);
             return (
-              <div key={group.headKey}>
-                <p className="px-1 pb-1 pt-3 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[color:var(--text-muted)]">
-                  {t(`ops.groups.${group.headKey}`)}
-                </p>
-                {items.map((item) => {
-                  const Ic = item.icon;
-                  const on = item.href === current;
-                  return (
-                    <Link
-                      aria-current={on ? 'page' : undefined}
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setOpen(false)}
-                      className={
-                        'flex items-center gap-2.5 rounded-[10px] px-2 py-2.5 text-[14px] transition-colors ' +
-                        (on
-                          ? 'bg-brand-50 font-extrabold text-brand-800'
-                          : 'text-[color:var(--text)]')
-                      }
-                    >
-                      <Ic size={19} weight={on ? 'fill' : 'regular'} />
-                      {t(`ops.nav.${item.labelKey}`)}
-                    </Link>
-                  );
-                })}
-              </div>
+              <Link
+                aria-current={on ? 'page' : undefined}
+                key={hub.headKey}
+                href={items[0]!.href}
+                onClick={() => setOpen(false)}
+                className={
+                  'flex items-center gap-2.5 rounded-[10px] px-2 py-2.5 text-[14px] transition-colors ' +
+                  (on ? 'bg-brand-50 font-extrabold text-brand-800' : 'text-[color:var(--text)]')
+                }
+              >
+                <Ic size={19} weight={on ? 'fill' : 'regular'} />
+                {t(`ops.groups.${hub.headKey}`)}
+              </Link>
             );
           })}
           {/* CA-2-61: on a phone the rail is hidden, so this sheet is the only place an

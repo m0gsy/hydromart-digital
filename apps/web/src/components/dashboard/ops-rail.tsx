@@ -17,7 +17,7 @@ import { useT } from '@/lib/locale-context';
 import { useOpsUnreadCount } from '@/lib/unread';
 import { canViewOpsNotifications } from '@/lib/roles';
 import { deepest, normalisePath } from '@/lib/screen-chrome';
-import { GROUPS } from '@/lib/ops-nav';
+import { GROUPS, hubsFor } from '@/lib/ops-nav';
 
 // B2: exported for the phone sheet. A depot-scoped console whose switcher only exists on
 // desktop is a console a depot manager cannot re-scope from the floor.
@@ -135,56 +135,48 @@ export function OpsRail() {
     pathname,
     '/dashboard',
   )?.href;
-  const isActive = (href: string) => href === current;
+  // PR-3b: one row per hub; the current row is the hub that holds the current screen.
+  const hubs = hubsFor(role);
+  const currentHub = hubs.find((h) => h.items.some((i) => i.href === current))?.hub.headKey;
 
   return (
     <aside className="surface sticky top-0 hidden h-dvh w-[242px] shrink-0 flex-col overflow-y-auto border-r border-app px-3.5 py-4 lg:flex">
       <DepotSwitcher />
 
       <nav className="mt-3.5 flex flex-col gap-px">
-        {GROUPS.map((group) => {
-          const items = group.items.filter((i) => i.show(role));
-          if (items.length === 0) return null;
+        {hubs.map(({ hub, items }) => {
+          const on = hub.headKey === currentHub;
+          const Ic = hub.icon;
           return (
-            <div key={group.headKey}>
-              <p className="px-3 pb-1.5 pt-3.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[color:var(--text-muted)]">
-                {t(`ops.groups.${group.headKey}`)}
-              </p>
-              {items.map((item) => {
-                const on = isActive(item.href);
-                const Ic = item.icon;
-                return (
-                  <Link
-                    aria-current={on ? 'page' : undefined}
-                    key={item.href}
-                    href={item.href}
-                    className={
-                      'flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-[13.5px] transition-colors ' +
-                      (on
-                        ? 'bg-brand-50 font-extrabold text-brand-800'
-                        : 'font-semibold text-muted hover:bg-[color:var(--surface-soft)]')
-                    }
-                  >
-                    <Ic
-                      size={18}
-                      weight="fill"
-                      className={on ? 'text-brand-600' : 'text-[color:var(--text-muted)]'}
-                    />
-                    <span className="flex-1">{t(`ops.nav.${item.labelKey}`)}</span>
-                    {/*
-                      O4: the ops half of the unread badge. An operational alert has always
-                      had a screen and never had a way of announcing itself — low stock and
-                      a courier incident sat in a feed until somebody happened to open it.
-                    */}
-                    {item.labelKey === 'notifications' && opsUnread > 0 && (
-                      <span className="min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-extrabold leading-[18px] text-white">
-                        {opsUnread > 9 ? '9+' : opsUnread}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
+            <Link
+              aria-current={on ? 'page' : undefined}
+              key={hub.headKey}
+              href={items[0]!.href}
+              className={
+                'flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-[13.5px] transition-colors ' +
+                (on
+                  ? 'bg-brand-50 font-extrabold text-brand-800'
+                  : 'font-semibold text-muted hover:bg-[color:var(--surface-soft)]')
+              }
+            >
+              <Ic
+                size={18}
+                weight="fill"
+                className={on ? 'text-brand-600' : 'text-[color:var(--text-muted)]'}
+              />
+              <span className="flex-1">{t(`ops.groups.${hub.headKey}`)}</span>
+              {/*
+                O4: the ops half of the unread badge, on the row of the hub that holds the
+                feed. An operational alert has always had a screen and never had a way of
+                announcing itself — low stock and a courier incident sat in a feed until
+                somebody happened to open it.
+              */}
+              {items.some((i) => i.labelKey === 'notifications') && opsUnread > 0 && (
+                <span className="min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-extrabold leading-[18px] text-white">
+                  {opsUnread > 9 ? '9+' : opsUnread}
+                </span>
+              )}
+            </Link>
           );
         })}
       </nav>

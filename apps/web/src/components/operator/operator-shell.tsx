@@ -6,20 +6,11 @@ import { usePathname } from 'next/navigation';
 import { Bell, Drop } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
-import { canViewInsight } from '@/lib/insight/access';
 import { useOpsNotifications } from '@/lib/ops-notifications';
 import { useDepot } from '@/lib/depot-context';
+import { GROUPS } from '@/lib/ops-nav';
 import { normalisePath } from '@/lib/screen-chrome';
-import {
-  can,
-  canManageDepots,
-  canManagePromoRules,
-  canViewDepotCrm,
-  canViewForecast,
-  canViewMeterReading,
-  canViewPromotions,
-  isStaff,
-} from '@/lib/roles';
+import { can } from '@/lib/roles';
 
 function initials(name: string): string {
   return name
@@ -57,38 +48,19 @@ const primaryTabs: Tab[] = [
   { label: 'hrFix.opNav.settlements', href: '/dashboard/settlements', match: (p) => p.startsWith('/dashboard/settlements') },
 ];
 
-const manageTabs: Tab[] = [
-  { label: 'hrFix.opNav.insight', href: '/dashboard/insight', match: (p) => p.startsWith('/dashboard/insight'), show: canViewInsight },
-  { label: 'hrFix.opNav.customers', href: '/dashboard/customers', match: (p) => p.startsWith('/dashboard/customers') },
-  { label: 'hrFix.opNav.incidents', href: '/dashboard/incidents', match: (p) => p.startsWith('/dashboard/incidents') },
-  // Homepage banners are head office's (2026-11-17); the tab shows only for a role that may read them.
-  { label: 'hrFix.opNav.promotions', href: '/dashboard/promotions', match: (p) => p.startsWith('/dashboard/promotions'), show: canViewPromotions },
-  { label: 'hrFix.opNav.rewards', href: '/dashboard/redemptions', match: (p) => p.startsWith('/dashboard/redemptions') },
-  { label: 'hrFix.opNav.broadcast', href: '/dashboard/broadcast', match: (p) => p.startsWith('/dashboard/broadcast') },
-  // Self-service absen (HRIS). This shell only ever renders for KEPALA_DEPOT, so the tab
-  // needs no role check of its own — /hr/me answers for the linked employee behind it.
-  { label: 'hrFix.opNav.myAttendance', href: '/hr/me', match: (p) => p.startsWith('/hr/me') },
-  { label: 'hrFix.opNav.shift', href: '/dashboard/shift', match: (p) => p.startsWith('/dashboard/shift') },
-  { label: 'hrFix.opNav.huddle', href: '/dashboard/huddle', match: (p) => p.startsWith('/dashboard/huddle') },
-  { label: 'hrFix.opNav.handover', href: '/dashboard/handover', match: (p) => p.startsWith('/dashboard/handover') },
-  { label: 'hrFix.opNav.maintenance', href: '/dashboard/maintenance', match: (p) => p.startsWith('/dashboard/maintenance') },
-  { label: 'hrFix.opNav.depots', href: '/dashboard/depots', match: (p) => p.startsWith('/dashboard/depots') },
-  // The page behind this gates on depotAdmin (MANAGER/SUPER_ADMIN): without `show` the head saw a tab
-  // that only ever led to a denial page.
-  { label: 'hrFix.opNav.payments', href: '/dashboard/payments', match: (p) => p.startsWith('/dashboard/payments'), show: canManageDepots },
-  // Reachable only by typing the URL before: the head holds each of these capabilities.
-  { label: 'hrFix.opNav.meter', href: '/dashboard/meter', match: (p) => p.startsWith('/dashboard/meter'), show: canViewMeterReading },
-  { label: 'hrFix.opNav.forecast', href: '/dashboard/forecast', match: (p) => p.startsWith('/dashboard/forecast'), show: canViewForecast },
-  { label: 'hrFix.opNav.promoRules', href: '/dashboard/promo-rules', match: (p) => p.startsWith('/dashboard/promo-rules'), show: canManagePromoRules },
-  { label: 'hrFix.opNav.disputes', href: '/dashboard/disputes', match: (p) => p.startsWith('/dashboard/disputes'), show: (r) => can('depotDisputes', r) },
-  { label: 'hrFix.opNav.crm', href: '/dashboard/crm', match: (p) => p.startsWith('/dashboard/crm'), show: canViewDepotCrm },
-  { label: 'hrFix.opNav.roles', href: '/dashboard/roles', match: (p) => p.startsWith('/dashboard/roles'), show: isStaff },
-  { label: 'hrFix.opNav.account', href: '/dashboard/account', match: (p) => p.startsWith('/dashboard/account'), show: isStaff },
-  { label: 'hrFix.opNav.notifications', href: '/dashboard/notifications', match: (p) => p.startsWith('/dashboard/notifications') },
-  { label: 'hrFix.opNav.reports', href: '/dashboard/reports', match: (p) => p.startsWith('/dashboard/reports') },
-  { label: 'hrFix.opNav.audit', href: '/dashboard/audit', match: (p) => p.startsWith('/dashboard/audit') },
-  { label: 'hrFix.opNav.settings', href: '/dashboard/operator-settings', match: (p) => p.startsWith('/dashboard/operator-settings') },
-];
+// Flow PR-3b: the "Kelola" tabs ARE the depot-console table (lib/ops-nav), less what the
+// primary row above already holds, so each carries the gate of its row. Kept by hand, 21 of
+// them had no gate at all, and one (Kelola depot) led a head of depot to a page they may not
+// open. A new screen in the table now reaches this console too, with its gate.
+const PRIMARY = new Set(primaryTabs.map((tab) => tab.href));
+const manageTabs: Tab[] = GROUPS.flatMap((g) => g.items)
+  .filter((item) => !PRIMARY.has(item.href))
+  .map((item) => ({
+    label: `ops.nav.${item.labelKey}`,
+    href: item.href,
+    match: (p) => p === item.href || p.startsWith(`${item.href}/`),
+    show: item.show,
+  }));
 
 function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
   const { t } = useT();
