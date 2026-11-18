@@ -303,6 +303,15 @@ describe('DeliveryPrismaRepository', () => {
     );
   });
 
+  it('search narrows to one order when asked (flow PR-2a-ii)', async () => {
+    delivery.findMany.mockResolvedValue([]);
+    delivery.count.mockResolvedValue(0);
+    await repo.search({ orderId: 'o-1', page: 1, limit: 1 } as never);
+    expect(delivery.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { orderId: 'o-1' } }),
+    );
+  });
+
   it('lets the set win over a single status when both arrive', async () => {
     delivery.findMany.mockResolvedValue([]);
     delivery.count.mockResolvedValue(0);

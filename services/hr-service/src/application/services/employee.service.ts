@@ -274,6 +274,7 @@ export class EmployeeService {
       depotId?: string;
       status?: Employee['status'];
       departmentId?: string;
+      authSubjectId?: string;
       search?: string;
       /** List by the depot people belong to, not the one they are lent to (payroll batch). */
       byHome?: boolean;
@@ -288,6 +289,7 @@ export class EmployeeService {
       byHome: query.byHome,
       status: query.status,
       departmentId: query.departmentId,
+      authSubjectId: query.authSubjectId,
       search: query.search,
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,

@@ -359,6 +359,15 @@ export class ListDeliveriesQueryDto {
   @IsUUID()
   depotId?: string;
 
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      "One order's delivery (an order has at most one), e.g. for the order panel to name its courier.",
+  })
+  @IsOptional()
+  @IsUUID()
+  orderId?: string;
+
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)
