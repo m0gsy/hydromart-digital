@@ -630,6 +630,14 @@ describe('courier links (2a-ii)', () => {
     );
   });
 
+  it('an order from another depot keeps the courier as text (the team screen reports on its own depot)', async () => {
+    serve(courierRoutes);
+    render(<OrderDetail order={{ ...ORDER, depotId: 'd-2' } as never} onClose={vi.fn()} onChanged={vi.fn()} />);
+    await screen.findByText(/hrFix.orderDetail.courier/);
+    expect(hrefOf(/hrFix.orderDetail.courier/)).toBeNull();
+    expect(get.mock.calls.some(([url]) => String(url).includes('/deliveries?orderId='))).toBe(false);
+  });
+
   it('a role that may not read deliveries never asks, and keeps the name as text', async () => {
     who.role = 'FINANCE';
     serve(courierRoutes);
@@ -665,5 +673,27 @@ describe('HR record by login (2a-ii)', () => {
     await waitFor(() =>
       expect(get.mock.calls.some(([url]) => String(url).endsWith('/employees/api/v1/employees/e1'))).toBe(true),
     );
+  });
+
+  it('a login with no record says not found, and leads back', async () => {
+    who.role = 'HR';
+    at('/hr/employees/detail?account=k9');
+    serve([['authSubjectId=k9', { rows: [], total: 0, page: 1, pageSize: 1 }]]);
+    render(<HrEmployeeDetailPage />);
+    await screen.findByText('hrFix.deliveryDetail.notFound');
+    expect(hrefOf('hrFix.common.back')).toBe('/hr/employees');
+  });
+
+  it('a lookup that fails is an error with retry, not "not found"', async () => {
+    who.role = 'HR';
+    at('/hr/employees/detail?account=k1');
+    get.mockImplementation(async (url: string) => {
+      if (String(url).includes('authSubjectId=k1')) throw new Error('gateway down');
+      return [];
+    });
+    render(<HrEmployeeDetailPage />);
+    // a plain failure reads as useAsync's generic message; the point is it is not "not found"
+    await screen.findByText('Something went wrong.');
+    expect(screen.queryByText('hrFix.deliveryDetail.notFound')).toBeNull();
   });
 });

@@ -16,6 +16,7 @@ import { formatDateTime, mediaUrl, parseIdr } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
 import { printReceipt } from '@/lib/receipt';
 import { thermalErrorKey } from '@/lib/receipt-thermal';
+import { useDepot } from '@/lib/depot-context';
 import { useDepotContact } from '@/lib/use-depot-contact';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
@@ -414,8 +415,11 @@ export function OrderDetail({
   // Picking a courier needs the roster; a role that may open the order without it has nothing
   // to pick from, and the dropdown used to fail with a 403 it could never recover from.
   const canAssign = order.status === 'PREPARING' && canReadRoster(customer?.role);
+  // The team screen reports on the console's own depot: an order from another depot (under
+  // "Semua depot") would open a card that says the courier delivered nothing this month.
+  const { scopedId } = useDepot();
   const courierId = useOrderCourierId(
-    order.driverName ? order.id : undefined,
+    order.driverName && order.depotId === scopedId ? order.id : undefined,
     '/dashboard/team-performance',
     customer?.role,
   );

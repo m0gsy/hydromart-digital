@@ -128,10 +128,22 @@ export default function EmployeeDetailPage() {
     }
   }
 
-  if (emp.loading || byAccount.loading) return <Skeleton className="mx-auto h-96 max-w-3xl" />;
-  if (!emp.error && !emp.data)
+  // A login that could not be looked up is not a person without a record: say so, with retry.
+  if (byAccount.error)
     return (
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-3xl space-y-3">
+        <HrBack href="/hr/employees" label={t('hrFix.common.back')} />
+        <ErrorState message={byAccount.error} onRetry={byAccount.reload} />
+      </div>
+    );
+  // `emp` resolves null only for "no id yet"; a real id either loads or errors. Until the
+  // record for the resolved id is in, this is still loading, not "not found".
+  if (emp.loading || byAccount.loading || (id && !emp.data && !emp.error))
+    return <Skeleton className="mx-auto h-96 max-w-3xl" />;
+  if (!id)
+    return (
+      <div className="mx-auto max-w-3xl space-y-3">
+        <HrBack href="/hr/employees" label={t('hrFix.common.back')} />
         <ErrorState message={t('hrFix.deliveryDetail.notFound')} />
       </div>
     );
