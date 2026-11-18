@@ -381,6 +381,9 @@ const livesUnderOf = (rel) =>
 const NAV_SOURCES = [
   { rel: 'src/components/require-auth.tsx', livesUnder: null },
   { rel: 'src/components/console-sign-out.tsx', livesUnder: null },
+  // The depot-console menu DATA (flow PR-3a moved it out of ops-rail.tsx): its literals are
+  // the rail's links, so it is scanned like the rail it feeds.
+  { rel: 'src/lib/ops-nav.ts', livesUnder: '/dashboard' },
   ...NAV_FILES.map((rel) => ({ rel, livesUnder: livesUnderOf(rel) })),
 ];
 const served = (route) =>

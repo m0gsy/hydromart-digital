@@ -16,7 +16,8 @@ import {
 
 import { ConsoleSignOut } from '@/components/console-sign-out';
 
-import { DepotSwitcher, GROUPS } from '@/components/dashboard/ops-rail';
+import { DepotSwitcher } from '@/components/dashboard/ops-rail';
+import { GROUPS } from '@/lib/ops-nav';
 import { Sheet } from '@/components/overlay';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
@@ -138,7 +139,7 @@ export function OpsBottomNav() {
 /**
  * The rest of the console, on a phone.
  *
- * Renders `GROUPS` from `ops-rail` rather than its own copy: one list, two surfaces. A
+ * Renders `GROUPS` from `lib/ops-nav` rather than its own copy: one list, two surfaces. A
  * second copy would drift the first time a route is added to one and not the other, and
  * the symptom would be a screen that exists on desktop and is simply unreachable on a
  * phone — which is the defect this replaces.

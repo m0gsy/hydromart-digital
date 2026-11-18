@@ -40,7 +40,7 @@ import HqCustomersPage from '@/app/hq/customers/page';
 import HqPricingPage from '@/app/hq/pricing/page';
 import LandingPage from '@/app/hq/access/landing/page';
 import { OpsBottomNav } from '@/components/dashboard/ops-bottom-nav';
-import { GROUPS } from '@/components/dashboard/ops-rail';
+import { GROUPS } from '@/lib/ops-nav';
 import { CommandPalette, HQ_COMMAND_EVENT } from '@/components/hq/command-palette';
 import { WidgetCard } from '@/components/insight/widget-card';
 import { Nav } from '@/components/nav';
