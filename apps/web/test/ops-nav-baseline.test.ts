@@ -86,9 +86,17 @@ describe('ops menu after the move to lib/ops-nav', () => {
 
   it('Ops APK: every role sees exactly the menu it saw before', async () => {
     // The Ops build's prune list, as `canOpenRoute per binary` in route-access.test pins it.
-    vi.stubEnv('NEXT_PUBLIC_MOBILE_PRUNED', '/hq/*,/hr,/hr/employees/*,/hr/payroll/*,/hr/leave/*');
+    vi.stubEnv('NEXT_PUBLIC_MOBILE_PRUNED', '/hq/*,/hr,/hr/employees/*,/hr/payroll/*');
     vi.stubEnv('NEXT_PUBLIC_MOBILE_SEGMENTS', 'dashboard,driver,hr,m,resellers,login,products');
     vi.resetModules();
-    expect(screensOf(await menus())).toEqual(expectedOf(baseline.ops));
+    // PR-4: leave ships in the Ops APK, so whoever had the leave row on the web has it there.
+    const leave = 'hrLeave /hr/leave';
+    const expected = Object.fromEntries(
+      Object.entries(expectedOf(baseline.ops)).map(([role, screens]) => [
+        role,
+        screensOf(baseline.web)[role]?.includes(leave) ? [...screens, leave].sort() : screens,
+      ]),
+    );
+    expect(screensOf(await menus())).toEqual(expected);
   });
 });

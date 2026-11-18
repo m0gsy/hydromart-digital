@@ -52,7 +52,7 @@ const BINARIES: Array<[name: string, pruned: string, segments: string]> = [
   ['web', '', ''],
   [
     'ops',
-    '/hq/*,/hr,/hr/employees/*,/hr/payroll/*,/hr/leave/*',
+    '/hq/*,/hr,/hr/employees/*,/hr/payroll/*',
     'dashboard,driver,hr,m,resellers,login,products',
   ],
 ];
