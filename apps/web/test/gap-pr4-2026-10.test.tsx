@@ -33,8 +33,10 @@ describe('/m/manager approvals', () => {
   it('asks for HELD items as well as PENDING, so a held item does not vanish', async () => {
     get.mockResolvedValue([]);
     render(<ManagerApprovalsPage />);
-    await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
-    const urls = get.mock.calls.map((c) => String(c[0]));
+    // PR-4: the decision inbox on this screen asks its own queues too; count the approvals list.
+    const listCalls = () => get.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith('/approvals/'));
+    await waitFor(() => expect(listCalls()).toHaveLength(2));
+    const urls = listCalls();
     expect(urls.some((u) => u.includes('status=PENDING'))).toBe(true);
     expect(urls.some((u) => u.includes('status=HELD'))).toBe(true);
   });
