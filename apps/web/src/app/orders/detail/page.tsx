@@ -456,7 +456,11 @@ function OrderDetailInner({ id }: { id: string }) {
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold">
-                    {item.quantity}× {item.productName}
+                    {item.quantity}×{' '}
+                    {/* Flow PR-2c: the product is one tap away, to buy it again or read it. */}
+                    <Link href={`/products/detail?id=${item.productId}`} className="hover:underline">
+                      {item.productName}
+                    </Link>
                   </p>
                   <p className="text-[12.5px] text-muted">{item.unit}</p>
                 </div>

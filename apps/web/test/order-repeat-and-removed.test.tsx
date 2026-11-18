@@ -229,3 +229,13 @@ describe('the cart names the line it dropped (CA-3-23)', () => {
     expect(screen.queryByText(/tidak lagi dijual/)).toBeNull();
   });
 });
+
+// Flow PR-2c: a line of the order is a door to its product.
+describe('order lines', () => {
+  it('each product name opens that product', async () => {
+    render(<OrderDetailPage />, { wrapper: Wrap });
+    await screen.findAllByText(/HM-0001/);
+    expect(screen.getByText('Galon 19L').closest('a')?.getAttribute('href')).toBe('/products/detail?id=p-1');
+    expect(screen.getByText('Botol 600ml').closest('a')?.getAttribute('href')).toBe('/products/detail?id=p-2');
+  });
+});

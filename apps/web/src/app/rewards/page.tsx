@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   ArrowRight,
   ArrowsClockwise,
@@ -584,7 +585,16 @@ function LedgerCard({ open, onToggle }: { open: boolean; onToggle: () => void })
             {items.map((txn) => (
               <li key={txn.id} className="flex items-center justify-between py-2.5 text-sm">
                 <span>
-                  <span className="block font-semibold">{t(`profile.rewards.txn.${txn.type}`)}</span>
+                  <span className="block font-semibold">
+                    {/* Flow PR-2c: points earned on an order open that order. */}
+                    {txn.orderId ? (
+                      <Link href={`/orders/detail?id=${txn.orderId}`} className="hover:underline">
+                        {t(`profile.rewards.txn.${txn.type}`)}
+                      </Link>
+                    ) : (
+                      t(`profile.rewards.txn.${txn.type}`)
+                    )}
+                  </span>
                   <span className="block text-xs text-muted">{formatDateTime(txn.createdAt)}</span>
                 </span>
                 <span className={`font-extrabold tabular-nums ${txn.points < 0 ? 'text-[color:var(--danger)]' : 'text-[color:var(--success)]'}`}>
