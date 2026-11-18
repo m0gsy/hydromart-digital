@@ -347,3 +347,13 @@ export function currentHqHub(path: string, role: Role): string | undefined {
   )?.href;
   return hubs.find((g) => g.items.some((i) => i.href === screen))?.headKey;
 }
+
+/**
+ * May this role open this /hq screen? The HQ layout's own gate (console door, partial door,
+ * the screen's capability), without lib/route-access, which bundles every rail's icons into
+ * the page that asks (flow PR-4: +44-53 kB on the screens that asked through it).
+ */
+export function canOpenHqPath(role: Role, path: string): boolean {
+  const cap = capForHqPath(path);
+  return mayOpenHqPath(role, path) && (!cap || can(cap, role));
+}

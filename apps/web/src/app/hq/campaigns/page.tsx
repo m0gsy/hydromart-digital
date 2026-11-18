@@ -6,7 +6,7 @@ import { Megaphone } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { useAuth } from '@/lib/auth-context';
-import { canOpenRoute } from '@/lib/route-access';
+import { canOpenHqPath } from '@/lib/hq-nav';
 import { Button, Card, Field, Input, LinkButton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -125,7 +125,7 @@ export default function HqCampaignBuilderPage() {
         subtitle={t('hq.campaigns.subtitle')}
         // PR-3c: the segment builder was a rail row under "Formulir"; it is this list's button now.
         action={
-          canOpenRoute('/hq/forms/segment', customer?.role) ? (
+          canOpenHqPath(customer?.role, '/hq/forms/segment') ? (
             <LinkButton href="/hq/forms/segment" variant="secondary">
               {t('hq.nav.formSegment')}
             </LinkButton>

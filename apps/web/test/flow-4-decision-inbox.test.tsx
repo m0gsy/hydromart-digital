@@ -181,6 +181,57 @@ describe('which queues a role is shown', () => {
   });
 });
 
+describe('the light gate is the real gate', () => {
+  const ROLES = [
+    'STAFF_DEPOT',
+    'KEPALA_DEPOT',
+    'ASSISTANT_SUPERVISOR',
+    'SUPERVISOR',
+    'MANAGER',
+    'DIREKTUR',
+    'FRANCHISE_OWNER',
+    'HEAD_OFFICE',
+    'FINANCE',
+    'HR',
+    'MARKETING',
+    'SUPER_ADMIN',
+  ];
+  it.each([
+    ['web', '', ''],
+    [
+      'ops',
+      '/hq/*,/hr,/hr/employees/*,/hr/payroll/*',
+      'dashboard,driver,hr,m,resellers,login,products',
+    ],
+  ])(
+    '%s: every role gets exactly the queues canOpenRoute would allow',
+    async (_b, pruned, segments) => {
+      vi.stubEnv('NEXT_PUBLIC_MOBILE_PRUNED', pruned);
+      vi.stubEnv('NEXT_PUBLIC_MOBILE_SEGMENTS', segments);
+      vi.resetModules();
+      const { DECISION_QUEUES, queuesFor } = await import('@/lib/decision-queues');
+      const { canOpenRoute } = await import('@/lib/route-access');
+      for (const role of ROLES)
+        expect(queuesFor(role).map((q) => q.key)).toEqual(
+          DECISION_QUEUES.filter((q) => q.decides(role) && canOpenRoute(q.href, role)).map(
+            (q) => q.key,
+          ),
+        );
+    },
+  );
+
+  it('keeps route-access (every rail and its icons) out of the screens that carry the card or a form button', () => {
+    for (const f of [
+      'src/lib/decision-queues.ts',
+      'src/app/hq/campaigns/page.tsx',
+      'src/app/hq/reconciliation/page.tsx',
+    ])
+      expect(readFileSync(join(process.cwd(), f), 'utf8')).not.toContain(
+        "from '@/lib/route-access'",
+      );
+  });
+});
+
 describe('the card', () => {
   it('names each queue, with its count, as a door to where it is decided', async () => {
     serveQueues();

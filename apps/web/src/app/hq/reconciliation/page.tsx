@@ -5,7 +5,7 @@ import { Scales, DownloadSimple } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, ErrorState, LinkButton, Money, Skeleton } from '@/components/ui';
-import { canOpenRoute } from '@/lib/route-access';
+import { canOpenHqPath } from '@/lib/hq-nav';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -303,7 +303,7 @@ export default function HqReconciliationPage() {
         // PR-3c: the per-depot commission form was a rail row under "Formulir"; it is this
         // report's button now (the same commissionRead gate).
         action={
-          canOpenRoute('/hq/forms/commission', customer?.role) ? (
+          canOpenHqPath(customer?.role, '/hq/forms/commission') ? (
             <LinkButton href="/hq/forms/commission" variant="secondary">
               {t('hq.nav.formCommission')}
             </LinkButton>

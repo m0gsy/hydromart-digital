@@ -8,8 +8,9 @@
 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { can, canManageHr } from '@/lib/roles';
-import { canOpenRoute } from '@/lib/route-access';
+import { isServedHere } from '@/lib/deep-link';
+import { canOpenHqPath } from '@/lib/hq-nav';
+import { can, canManageHr, canViewHr } from '@/lib/roles';
 
 type Role = string | null | undefined;
 
@@ -92,7 +93,19 @@ export const DECISION_QUEUES: DecisionQueue[] = [
   },
 ];
 
+/**
+ * The door of the screen a queue is decided on, without `route-access` (it bundles every
+ * rail's icons): the HQ layout's gate for /hq, the HR console's for /hr; a /dashboard screen's
+ * row gate is the queue's own `decides`.
+ */
+function opens(href: string, role: Role): boolean {
+  if (!isServedHere(href)) return false;
+  if (href.startsWith('/hq/')) return canOpenHqPath(role, href);
+  if (href.startsWith('/hr/')) return canViewHr(role);
+  return true;
+}
+
 /** The queues this role decides, that this binary serves and the role may open. */
 export function queuesFor(role: Role): DecisionQueue[] {
-  return DECISION_QUEUES.filter((q) => q.decides(role) && canOpenRoute(q.href, role));
+  return DECISION_QUEUES.filter((q) => q.decides(role) && opens(q.href, role));
 }
