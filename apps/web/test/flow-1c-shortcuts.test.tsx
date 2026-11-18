@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  *   notification feed) instead of the low lines.
  */
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
-const who = { role: 'MANAGER' };
+const who = { role: 'MANAGER', depot: 'd-1' as string | null };
 
 vi.mock('@/lib/api', () => ({
   api: { get, getCached: get, post: vi.fn(), patch: vi.fn(), put: vi.fn(), del: vi.fn() },
@@ -26,7 +26,7 @@ vi.mock('@/lib/locale-context', () => ({
 }));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({
-    customer: { id: 'u1', role: who.role, assignedDepotId: 'd-1' },
+    customer: { id: 'u1', role: who.role, assignedDepotId: who.depot },
     ready: true,
     signOut: vi.fn(),
   }),
@@ -65,6 +65,7 @@ const hrefOf = (text: string) => screen.queryByText(text)?.closest('a')?.getAttr
 
 beforeEach(() => {
   who.role = 'MANAGER';
+  who.depot = 'd-1';
   window.history.replaceState({}, '', '/');
   get.mockReset().mockResolvedValue([]);
 });
@@ -102,6 +103,14 @@ describe('"Buat pesanan" on a customer', () => {
     expect(hrefOf('dashA.customerDetail.createOrder')).toBe('/dashboard/walk-in?phone=081234567890');
   });
 
+  it('is not offered when the till would sell at another depot than the one being viewed', async () => {
+    // The till sells for the manager's OWN depot; this customer is being viewed under d-1.
+    who.depot = 'd-9';
+    render(<CustomerDetailPage />);
+    await waitFor(() => expect(screen.getByText('Budi')).toBeTruthy());
+    expect(screen.queryByText('dashA.customerDetail.createOrder')).toBeNull();
+  });
+
   it('is not offered to a role that cannot sell (HR reads the directory only)', async () => {
     who.role = 'HR';
     render(<CustomerDetailPage />);
@@ -120,6 +129,15 @@ describe('low stock doors land on the low lines', () => {
       return el!;
     });
     expect(chip.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('keeps the URL in step with the chip, so Back returns to what was chosen', async () => {
+    window.history.replaceState({}, '', '/dashboard/inventory?low=1');
+    render(<InventoryPage />);
+    const chip = await waitFor(() => screen.getByText(/opsFix\.inv\.filterLow/).closest('button')!);
+    chip.click();
+    await waitFor(() => expect(chip.getAttribute('aria-pressed')).toBe('false'));
+    expect(window.location.search).toBe('');
   });
 
   it('and starts on everything without it', async () => {

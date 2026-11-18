@@ -80,6 +80,22 @@ describe('the till reads the customer it was sent', () => {
     );
   });
 
+  it('takes the number out of the URL once read, so a reload cannot sell to that customer again', async () => {
+    window.history.replaceState({}, '', '/dashboard/walk-in?phone=081234567890');
+    const { default: WalkInPage } = await import('@/app/dashboard/walk-in/page');
+    render(<WalkInPage />, { wrapper });
+    await waitFor(() => expect(window.location.search).toBe(''));
+    expect((document.getElementById('wi-phone') as HTMLInputElement).value).toBe('081234567890');
+  });
+
+  it('opens the buyer section it filled, where "Cek pelanggan" is', async () => {
+    window.history.replaceState({}, '', '/dashboard/walk-in?phone=081234567890');
+    const { default: WalkInPage } = await import('@/app/dashboard/walk-in/page');
+    render(<WalkInPage />, { wrapper });
+    await waitFor(() => expect(document.getElementById('wi-phone')).toBeTruthy());
+    expect(document.getElementById('wi-phone')!.closest('details')?.open).toBe(true);
+  });
+
   it('starts empty without it', async () => {
     window.history.replaceState({}, '', '/dashboard/walk-in');
     const { default: WalkInPage } = await import('@/app/dashboard/walk-in/page');

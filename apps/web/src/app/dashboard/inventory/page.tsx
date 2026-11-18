@@ -28,7 +28,7 @@ import { canViewInventory, canWriteInventory } from '@/lib/roles';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useToast } from '@/components/toast';
 import { useAsync } from '@/lib/use-async';
-import { useQueryParam } from '@/lib/use-query-param';
+import { useQueryState } from '@/lib/use-query-param';
 import type {
   DepotStockMovement,
   InventoryItem,
@@ -1007,9 +1007,10 @@ function InventoryBody() {
   const canWrite = canWriteInventory(customer?.role);
   const { scopedId, selected, depots, ready } = useDepot();
   // `?low=1` is how every low-stock door (the depot home card, the manager's phone tile, the
-  // stock push) lands here: on the lines running out, not on the whole shelf.
-  const carriedLow = useQueryParam('low') === '1';
-  const [lowOnly, setLowOnly] = useState(carriedLow);
+  // Insight card) lands here: on the lines running out, not on the whole shelf. The chip writes
+  // it back, so Back returns to the filter that was chosen (CA-1-35).
+  const [low, setLow] = useQueryState('low');
+  const lowOnly = low === '1';
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [entry, setEntry] = useState<Entry>({ mode: 'none', receipt: false });
@@ -1223,7 +1224,7 @@ function InventoryBody() {
         <Chip active={typeFilter === 'produk'} onClick={() => setTypeFilter('produk')}>
           {t('opsFix.inv.filterProduct')}
         </Chip>
-        <Chip active={lowOnly} danger onClick={() => setLowOnly((v) => !v)}>
+        <Chip active={lowOnly} danger onClick={() => setLow(lowOnly ? '' : '1')}>
           <Warning size={12} weight="fill" /> {t('opsFix.inv.filterLow')} · {lowCount}
         </Chip>
       </div>

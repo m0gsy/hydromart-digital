@@ -1,7 +1,7 @@
 import { NotificationService } from '../../src/application/services/notification.service';
 import { PushService } from '../../src/application/services/push.service';
 import { destinationFor, storedDestinationFor } from '../../src/domain/notification-destination';
-import { NotificationEvent } from '../../src/domain/notification-event';
+import { NotificationEvent, templateFor } from '../../src/domain/notification-event';
 import { PushPayload } from '../../src/application/ports/push-sender.port';
 import { InMemoryNotificationRepository } from '../support/fakes';
 
@@ -93,6 +93,12 @@ describe('destinationFor', () => {
     expect(destinationFor(NotificationEvent.DEPOT_PAYMENT_PROOF, { orderId: 'o1' })).toBe(
       '/dashboard/orders?order=o1',
     );
+  });
+
+  it('says to open the order, the screen the push now lands on', () => {
+    expect(templateFor(NotificationEvent.DEPOT_PAYMENT_PROOF, 'id')).toMatch(/Buka pesanan/);
+    expect(templateFor(NotificationEvent.DEPOT_PAYMENT_PROOF, 'id')).not.toMatch(/menu Pembayaran/);
+    expect(templateFor(NotificationEvent.DEPOT_PAYMENT_PROOF, 'en')).toMatch(/Open the order/);
   });
 
   it('falls back to the queue for a receipt with no order id', () => {
