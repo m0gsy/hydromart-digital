@@ -636,6 +636,7 @@ const opsFixShared = {
     pickDepotBody: 'Pilih depot di switcher untuk melihat rating pelanggan.',
     gate: 'Akses terbatas',
     gateBody: 'Rating & ulasan pelanggan hanya untuk Manajer depot.',
+    openOrder: 'Lihat pesanan',
   },
   // dashboard/settlements — PR-8. Sebelumnya seluruhnya hardcoded.
   settlements: {

@@ -775,6 +775,7 @@ export const opsFix = {
     pickDepotBody: 'Pick a depot in the switcher to see its customer ratings.',
     gate: 'Depot managers only',
     gateBody: 'Customer ratings and reviews are for depot managers only.',
+    openOrder: 'View order',
   },
   // dashboard/settlements — PR-8. Mirrors id/opsFix.settlements key for key.
   settlements: {

@@ -1990,15 +1990,33 @@ describe('OrderPrismaRepository', () => {
         { rating: 4, n: BigInt(1) },
       ])
       .mockResolvedValueOnce([
-        { customerName: 'Budi', stars: 5, comment: 'great', createdAt: new Date('2026-01-02') },
+        {
+          orderId: 'o-1',
+          customerId: 'c-1',
+          customerName: 'Budi',
+          stars: 5,
+          comment: 'great',
+          createdAt: new Date('2026-01-02'),
+        },
       ]);
     const out = await repo.depotRatings('depot-1', {});
     expect(out.count).toBe(4);
     expect(out.average).toBeCloseTo((5 * 3 + 4 * 1) / 4);
     expect(out.distribution).toEqual({ '1': 0, '2': 0, '3': 0, '4': 1, '5': 3 });
     expect(out.recent).toEqual([
-      { customerName: 'Budi', stars: 5, comment: 'great', createdAt: new Date('2026-01-02') },
+      {
+        orderId: 'o-1',
+        customerId: 'c-1',
+        customerName: 'Budi',
+        stars: 5,
+        comment: 'great',
+        createdAt: new Date('2026-01-02'),
+      },
     ]);
+    // The SQL itself selects both ids; the mocked rows above cannot prove that on their own.
+    const sql = ($queryRaw.mock.calls[1]?.[0] as { strings: string[] }).strings.join('?');
+    expect(sql).toContain('o.id AS "orderId"');
+    expect(sql).toContain('o."customerId" AS "customerId"');
   });
 
   it('returns a null average when a depot has no reviews', async () => {

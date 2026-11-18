@@ -1388,11 +1388,12 @@ describe('ReportService', () => {
         comment,
         tipAmount: 0,
       });
+      return o;
     };
     await review(depot, 5, 'Mantap!');
     await review(depot, 5, 'Cepat');
     await review(depot, 4, null);
-    await review(depot, 2, 'Galon bocor');
+    const newest = await review(depot, 2, 'Galon bocor');
     await review(other, 1, 'not this depot'); // different depot, excluded
 
     const rep = await svc.depotRatings(depot, {});
@@ -1404,6 +1405,8 @@ describe('ReportService', () => {
     expect(rep.recent).toHaveLength(4);
     expect(rep.recent[0]).toMatchObject({ stars: 2, comment: 'Galon bocor' });
     expect(rep.recent[0].customerName).toBe('x');
+    // Flow PR-2a: the card names the order and the buyer, so the depot screen can open both.
+    expect(rep.recent[0]).toMatchObject({ orderId: newest.id, customerId: newest.customerId });
   });
 
   it('returns a null average and zeroed distribution for a depot with no reviews', async () => {

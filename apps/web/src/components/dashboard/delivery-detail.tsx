@@ -1,9 +1,12 @@
 'use client';
 
 import { DetailRow, DetailSheet } from '@/components/detail-sheet';
+import { EntityLink } from '@/components/entity-link';
 import { Money } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
+import { entityHref } from '@/lib/entity-href';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import type { Delivery } from '@/lib/types';
@@ -18,6 +21,7 @@ import type { Delivery } from '@/lib/types';
  */
 export function DeliveryDetail({ deliveryId }: { deliveryId: string }) {
   const { t } = useT();
+  const { customer } = useAuth();
   return (
     <DetailSheet<Delivery>
       load={() => api.get<Delivery>(endpoints.deliveries.detail(deliveryId), true)}
@@ -26,7 +30,11 @@ export function DeliveryDetail({ deliveryId }: { deliveryId: string }) {
     >
       {(d) => (
         <div className="divide-y divide-[color:var(--border-soft)]">
-          <DetailRow label={t('dashC.tracking.detailOrder')}>{d.orderNumber}</DetailRow>
+          <DetailRow label={t('dashC.tracking.detailOrder')}>
+            <EntityLink href={entityHref('order', d.orderId, 'dashboard', customer?.role)}>
+              {d.orderNumber}
+            </EntityLink>
+          </DetailRow>
           <DetailRow label={t('dashC.tracking.detailStatus')}>
             {t(`delivery.status.${d.status}`)}
           </DetailRow>

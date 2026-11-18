@@ -59,6 +59,7 @@ export const mgrFix = {
     emptyBody: 'Belum ada pengantaran atau setoran terverifikasi bulan ini.',
     noCouriers: 'Belum ada aktivitas kurir.',
     noOperators: 'Belum ada setoran terverifikasi.',
+    notThisMonth: 'Kurir ini belum mengantar bulan ini.',
   },
   // 5b — Pengaturan depot.
   depotSettings: {

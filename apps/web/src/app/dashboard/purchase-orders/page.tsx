@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ClipboardText, Lock, Sparkle, Truck, Warning } from '@phosphor-icons/react';
 
@@ -25,7 +25,9 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canManageProcurement } from '@/lib/roles';
+import { canOpenRoute } from '@/lib/route-access';
 import { useAsync } from '@/lib/use-async';
+import { useQueryState } from '@/lib/use-query-param';
 import type { InventoryItem, PoStatus, PurchaseOrder, Supplier } from '@/lib/types';
 
 // Dictionary KEYS — module scope, so t() runs at the call site.
@@ -121,6 +123,7 @@ function LowStockDraft({
   onClose: () => void;
 }) {
   const { t } = useT();
+  const { customer } = useAuth();
   const low = useAsync<InventoryItem[]>(
     () => api.get(endpoints.inventory.lines(depotId, { lowStockOnly: true }), true),
     [depotId],
@@ -224,7 +227,13 @@ function LowStockDraft({
         <LoadError onRetry={suppliers.reload} />
       ) : suppliers.data && suppliers.data.length === 0 ? (
         <p className="rounded-lg bg-[color:var(--surface-soft)] px-3 py-2 text-sm text-muted">
-          {t('opsFix.poDraft.noSuppliers')}
+          {canOpenRoute('/dashboard/suppliers', customer?.role) ? (
+            <Link href="/dashboard/suppliers" className="text-brand-700 underline-offset-2 hover:underline">
+              {t('opsFix.poDraft.noSuppliers')}
+            </Link>
+          ) : (
+            t('opsFix.poDraft.noSuppliers')
+          )}
         </p>
       ) : items.length === 0 ? (
         <CenterState
@@ -320,7 +329,13 @@ function Body() {
   const { scopedId, selected, depots, ready } = useDepot();
   const { t } = useT();
   const [status, setStatus] = useState<PoStatus | ''>('');
-  const [draftOpen, setDraftOpen] = useState(false);
+  // `?draft=1` is how the low-stock filter on the stock screen hands over (PR-2a). Read once
+  // and taken out of the URL, so closing the draft and reloading does not open it again.
+  const [carriedDraft, clearCarriedDraft] = useQueryState('draft');
+  const [draftOpen, setDraftOpen] = useState(carriedDraft === '1');
+  useEffect(() => {
+    if (carriedDraft) clearCarriedDraft('');
+  }, [carriedDraft, clearCarriedDraft]);
 
   const orders = useAsync<PurchaseOrder[]>(
     () =>

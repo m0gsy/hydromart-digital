@@ -957,6 +957,8 @@ export const hq = {
     driver: 'Kurir',
     noDriver: 'Belum ditugaskan',
     timeline: 'Riwayat status',
+    depot: 'Depot',
+    openDepot: 'Buka depot',
   },
   orders: {
     title: 'Pesanan jaringan',

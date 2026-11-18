@@ -3,13 +3,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { UserCircle } from '@phosphor-icons/react';
 
+import { EntityLink } from '@/components/entity-link';
 import { ExternalLink } from '@/components/external-link';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, Field, FormError, Input, Money } from '@/components/ui';
 import { Sheet } from '@/components/overlay';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
+import { entityHref } from '@/lib/entity-href';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import type { Customer, CustomerSummary, LoyaltyAccount } from '@/lib/types';
@@ -27,6 +30,8 @@ import { roleLabel } from '@/lib/custom-role';
 export default function HqCustomersPage() {
   const { t } = useT();
   const { toast } = useToast();
+  // The signed-in reader; `customer` below is the person being looked up.
+  const { customer: me } = useAuth();
   // `?phone=` is how head-office search hands over the number it found; looked up once on
   // arrival, and rewritten to every number looked up after, so a reload shows the same one.
   const [carriedPhone, setCarriedPhone] = useQueryState('phone');
@@ -240,7 +245,9 @@ export default function HqCustomersPage() {
                   {summary.recentOrders.map((o) => (
                     <li key={o.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                       <div className="min-w-0">
-                        <p className="truncate font-medium">{o.orderNumber}</p>
+                        <p className="truncate font-medium">
+                          <EntityLink href={entityHref('order', o.id, 'hq', me?.role)}>{o.orderNumber}</EntityLink>
+                        </p>
                         <p className="text-xs text-muted">{formatDateTime(o.createdAt)}</p>
                       </div>
                       <Money amount={o.total} className="shrink-0 font-semibold" />

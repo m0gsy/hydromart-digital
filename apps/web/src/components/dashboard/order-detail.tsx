@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
 import { useConfirm } from '@/components/confirm';
+import { EntityLink } from '@/components/entity-link';
 import { ExternalLink } from '@/components/external-link';
 import { RemoteImage } from '@/components/remote-image';
 import { Sheet } from '@/components/overlay';
 import { Badge, Button, Field, Input, LoadError, Money } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { entityHref } from '@/lib/entity-href';
 import { formatDateTime, mediaUrl, parseIdr } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
 import { printReceipt } from '@/lib/receipt';
@@ -422,7 +424,11 @@ export function OrderDetail({
         </div>
 
         <div className="rounded-2xl border border-app p-3 text-sm">
-          <p className="font-semibold">{order.recipientName}</p>
+          <p className="font-semibold">
+            <EntityLink href={entityHref('customer', order.customerId, 'dashboard', customer?.role)}>
+              {order.recipientName}
+            </EntityLink>
+          </p>
           <p className="text-muted">{order.phone}</p>
           <p className="text-muted">
             {order.addressLine}, {order.city}

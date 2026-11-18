@@ -3065,7 +3065,15 @@ export interface DepotRatingsReport {
   average: number | null;
   count: number;
   distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
-  recent: { customerName: string; stars: number; comment: string | null; createdAt: string }[];
+  recent: {
+    /** Flow PR-2a. Optional: absent from a server older than this screen. */
+    orderId?: string;
+    customerId?: string;
+    customerName: string;
+    stars: number;
+    comment: string | null;
+    createdAt: string;
+  }[];
 }
 
 /** The four terms behind `netProfitIdr`; each null when its owning service could not be read. */

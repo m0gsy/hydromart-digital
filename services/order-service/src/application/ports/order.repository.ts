@@ -420,6 +420,10 @@ export interface DepotRating {
 
 /** One recent review card for the depot ratings screen (design 14b). */
 export interface DepotRatingRecent {
+  /** The reviewed order, so the card can open it (flow PR-2a). */
+  orderId: string;
+  /** Who placed it; order-service's anonymous id for a counter sale with no account. */
+  customerId: string;
   /** The order's recipient name (customer name is not stored on the review). */
   customerName: string;
   stars: number;

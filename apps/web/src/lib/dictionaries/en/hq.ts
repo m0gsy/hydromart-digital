@@ -953,6 +953,8 @@ export const hq = {
     driver: 'Courier',
     noDriver: 'Not assigned',
     timeline: 'Status timeline',
+    depot: 'Depot',
+    openDepot: 'Open depot',
   },
   orders: {
     title: 'Network orders',

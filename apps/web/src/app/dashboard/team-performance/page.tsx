@@ -13,9 +13,13 @@ import { useT } from '@/lib/locale-context';
 import { canViewTeamPerformance } from '@/lib/roles';
 import type { Customer, DepotTeamReport, Page } from '@/lib/types';
 import { useAsync } from '@/lib/use-async';
+import { useQueryParam } from '@/lib/use-query-param';
 import { monthRangeWib } from '@/lib/wib';
 
 const AVATAR_COLORS = ['#0b4d57', '#e2681c', '#1d4e89', '#0c97ac', '#6b4ea8'];
+
+/** Module-level so the ref callback keeps one identity: it scrolls once, not every render. */
+const scrollIntoCenter = (el: HTMLElement | null) => el?.scrollIntoView?.({ block: 'center' });
 
 function initials(name: string): string {
   return name
@@ -63,6 +67,8 @@ function TeamPerformanceBody() {
 
   const report = result.data?.report;
   const names = result.data?.names ?? new Map<string, string>();
+  // PR-2a: a courier's name on another screen opens this one at their card (`?driver=`).
+  const driver = useQueryParam('driver');
   const totalDelivered = report?.couriers.reduce((sum, courier) => sum + courier.delivered, 0) ?? 0;
   const avgSla =
     totalDelivered === 0
@@ -125,47 +131,58 @@ function TeamPerformanceBody() {
             <p className="text-xs font-bold uppercase tracking-wide text-muted">
               {t('mgrFix.teamPerf.couriers')}
             </p>
+            {driver && report.couriers.every((c) => c.driverId !== driver) && (
+              <p className="text-sm text-muted">{t('mgrFix.teamPerf.notThisMonth')}</p>
+            )}
             {report.couriers.length === 0 ? (
               <p className="text-sm text-muted">{t('mgrFix.teamPerf.noCouriers')}</p>
             ) : (
               report.couriers.map((courier, index) => {
                 const name = names.get(courier.driverId) ?? courier.driverId;
                 const sla = Math.round(courier.onTimeRate * 100);
+                const current = courier.driverId === driver;
                 return (
-                  <Card key={courier.driverId} className="flex items-center gap-3 p-4">
-                    <span className="w-5 text-center text-sm font-bold text-brand-600 tabular-nums">
-                      {index + 1}
-                    </span>
-                    <Avatar name={name} color={AVATAR_COLORS[index % AVATAR_COLORS.length]!} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-bold">{name}</p>
-                        {(sla < 90 || courier.failed >= 5) && (
-                          <Chip tone="amber">{t('mgrFix.teamPerf.needsAttention')}</Chip>
-                        )}
+                  <div
+                    key={courier.driverId}
+                    ref={current ? scrollIntoCenter : undefined}
+                    aria-current={current ? 'true' : undefined}
+                    className={current ? 'rounded-2xl ring-2 ring-brand-500' : undefined}
+                  >
+                    <Card className="flex items-center gap-3 p-4">
+                      <span className="w-5 text-center text-sm font-bold text-brand-600 tabular-nums">
+                        {index + 1}
+                      </span>
+                      <Avatar name={name} color={AVATAR_COLORS[index % AVATAR_COLORS.length]!} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-bold">{name}</p>
+                          {(sla < 90 || courier.failed >= 5) && (
+                            <Chip tone="amber">{t('mgrFix.teamPerf.needsAttention')}</Chip>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted">
+                          {t('mgrFix.teamPerf.delivered', { n: courier.delivered, sla })}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted">
-                        {t('mgrFix.teamPerf.delivered', { n: courier.delivered, sla })}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-semibold text-muted">{t('mgrFix.teamPerf.failed')}</p>
-                      <p
-                        className={`text-sm font-bold tabular-nums ${courier.failed >= 5 ? 'text-[color:var(--danger)]' : ''}`}
-                      >
-                        {courier.failed}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-semibold text-muted">{t('mgrFix.teamPerf.rating')}</p>
-                      <p className="flex items-center justify-end gap-0.5 text-sm font-bold tabular-nums">
-                        {courier.rating === null ? '—' : courier.rating.toFixed(1)}
-                        {courier.rating !== null && (
-                          <Star size={12} weight="fill" className="text-[color:var(--warning)]" />
-                        )}
-                      </p>
-                    </div>
-                  </Card>
+                      <div className="text-right">
+                        <p className="text-[10px] font-semibold text-muted">{t('mgrFix.teamPerf.failed')}</p>
+                        <p
+                          className={`text-sm font-bold tabular-nums ${courier.failed >= 5 ? 'text-[color:var(--danger)]' : ''}`}
+                        >
+                          {courier.failed}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-semibold text-muted">{t('mgrFix.teamPerf.rating')}</p>
+                        <p className="flex items-center justify-end gap-0.5 text-sm font-bold tabular-nums">
+                          {courier.rating === null ? '—' : courier.rating.toFixed(1)}
+                          {courier.rating !== null && (
+                            <Star size={12} weight="fill" className="text-[color:var(--warning)]" />
+                          )}
+                        </p>
+                      </div>
+                    </Card>
+                  </div>
                 );
               })
             )}

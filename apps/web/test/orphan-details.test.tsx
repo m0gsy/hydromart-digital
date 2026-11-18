@@ -17,6 +17,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock('@/lib/api', () => ({ api: { get }, ApiError: class extends Error {} }));
+// DeliveryDetail asks who is reading before it links the order (flow PR-2a); the root layout
+// always mounts the provider this stands in for.
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: { id: 'u1', role: 'MANAGER' }, ready: true }),
+}));
 
 import { LocaleProvider } from '@/lib/locale-context';
 import { TicketDetail } from '@/components/hq/ticket-detail';

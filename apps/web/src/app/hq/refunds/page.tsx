@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { Receipt } from '@phosphor-icons/react';
 
+import { EntityLink } from '@/components/entity-link';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Card, Chip, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { entityHref } from '@/lib/entity-href';
 import { formatDate, formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
@@ -130,7 +132,10 @@ export default function HqRefundsPage() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">
-                    {t('hq.refunds.order')} {r.orderNumber ?? r.orderId.slice(0, 8)}
+                    {t('hq.refunds.order')}{' '}
+                    <EntityLink href={entityHref('order', r.orderId, 'hq', customer?.role)}>
+                      {r.orderNumber ?? r.orderId.slice(0, 8)}
+                    </EntityLink>
                   </span>
                   <Chip tone="outline">{r.method}</Chip>
                 </div>

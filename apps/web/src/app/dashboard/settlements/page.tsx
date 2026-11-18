@@ -3,10 +3,12 @@
 import { useMemo, useState } from 'react';
 import { CaretDown, Lock, Money, Wallet } from '@phosphor-icons/react';
 
+import { EntityLink } from '@/components/entity-link';
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { entityHref } from '@/lib/entity-href';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
@@ -142,7 +144,11 @@ function SettlementRow({
             {initials(s.driverId)}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold">{driverName(s.driverId)}</p>
+            <p className="truncate text-sm font-bold">
+              <EntityLink href={entityHref('courier', s.driverId, 'dashboard', customer?.role)}>
+                {driverName(s.driverId)}
+              </EntityLink>
+            </p>
             <p className="text-xs text-[color:var(--text-muted)]">
               {t('opsFix.settlements.ordersLine', {
                 n: s.orderIds.length,

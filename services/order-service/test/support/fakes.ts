@@ -762,6 +762,8 @@ export class InMemoryOrderRepository implements OrderRepository {
       .sort((a, b) => b.rev.createdAt.getTime() - a.rev.createdAt.getTime())
       .slice(0, 8)
       .map(({ rev, order }) => ({
+        orderId: order.id,
+        customerId: order.customerId,
         customerName: order.recipientName,
         stars: rev.rating,
         comment: rev.comment,

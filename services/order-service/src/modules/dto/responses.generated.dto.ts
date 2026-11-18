@@ -27,6 +27,10 @@ export class SalesReportResponseDto {
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class DepotRatingsReportRecentResponseDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  orderId!: string;
+  @ApiProperty({ type: String, format: 'uuid' })
+  customerId!: string;
   @ApiProperty({ type: String })
   customerName!: string;
   @ApiProperty({ type: Number })
