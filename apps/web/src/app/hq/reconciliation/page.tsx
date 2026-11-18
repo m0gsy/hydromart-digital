@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { Scales, DownloadSimple } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, LinkButton, Money, Skeleton } from '@/components/ui';
+import { canOpenRoute } from '@/lib/route-access';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -299,6 +300,15 @@ export default function HqReconciliationPage() {
         icon={Scales}
         title={t('hq.reconciliation.title')}
         subtitle={t('hq.reconciliation.subtitle')}
+        // PR-3c: the per-depot commission form was a rail row under "Formulir"; it is this
+        // report's button now (the same commissionRead gate).
+        action={
+          canOpenRoute('/hq/forms/commission', customer?.role) ? (
+            <LinkButton href="/hq/forms/commission" variant="secondary">
+              {t('hq.nav.formCommission')}
+            </LinkButton>
+          ) : undefined
+        }
       />
 
       <div className="max-w-sm">

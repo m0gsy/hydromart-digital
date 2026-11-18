@@ -164,20 +164,23 @@ describe('the phone bars agree with their sheets', () => {
     who.path = '/hq/staff/import/';
     render(<HqBottomNav />);
     fireEvent.click(screen.getByText('hq.nav.more'));
-    expect(lit()).toEqual(['/hq/staff/import']);
+    // PR-3c: rows are hubs. The import is a button on the staff list: its hub alone is lit.
+    expect(litText()).toEqual(['hq.groups.staff']);
   });
 });
 
 describe('the HQ rail marks one row', () => {
   it.each([
-    ['/hq/staff/import/', '/hq/staff/import'],
-    ['/hq/depots/import/', '/hq/depots/import'],
-    ['/hq/forecast-models/', '/hq/forecast-models'],
+    // PR-3c: one row per hub. A screen lights its hub; a hub screen nested in a sibling's
+    // name (forecast-models, forecast) lights its own hub only.
+    ['/hq/staff/import/', 'hq.groups.staff'],
+    ['/hq/depots/import/', 'hq.groups.network'],
+    ['/hq/forecast-models/', 'hq.groups.system'],
   ])('at %s, only %s', (path, only) => {
     who.role = 'SUPER_ADMIN';
     who.path = path;
     render(<HqRail />);
-    expect(lit()).toEqual([only]);
+    expect(litText()).toEqual([only]);
   });
 });
 

@@ -6,7 +6,7 @@
 // together. Covered by test/roles.test.ts.
 import { CAPABILITIES, can as compiledCan, canGrantRole, type Capability } from '@hydromart/access';
 
-import { hqItemsForRole } from './hq-nav';
+import { hqLandingItems } from './hq-nav';
 import { isServedHere } from './deep-link';
 import { isNativeShell } from './platform';
 
@@ -25,7 +25,8 @@ export function loadSessionCapabilities(
   capabilities: string[] | null | undefined,
   scope?: string | null,
 ): void {
-  session = role && capabilities ? { role, caps: new Set(capabilities), scope: scope ?? undefined } : null;
+  session =
+    role && capabilities ? { role, caps: new Set(capabilities), scope: scope ?? undefined } : null;
 }
 
 /**
@@ -90,13 +91,18 @@ export const canWriteInventory = (role: string | null | undefined) => can('inven
 export const canViewReturns = (role: string | null | undefined) => can('returnsRead', role);
 export const canWriteReturns = (role: string | null | undefined) => can('returnsWrite', role);
 export const canViewCampaigns = (role: string | null | undefined) => can('campaignRead', role);
-export const canManagePromoRules = (role: string | null | undefined) =>
-  can('promoRuleRead', role);
+export const canManagePromoRules = (role: string | null | undefined) => can('promoRuleRead', role);
 export const canWritePromoRules = (role: string | null | undefined) => can('promoRuleWrite', role);
 // Mirrors DEPOT_LOCKED_ROLES + DEPOT_SCOPED_ROLES in @hydromart/platform (a Nest package the web
 // cannot import). promo-service answers 403 to a scoped role touching a network-wide rule
 // (depotId null), so the row's Edit/Remove are hidden instead of offered and refused.
-const DEPOT_SCOPED = ['STAFF_DEPOT', 'KEPALA_DEPOT', 'ASSISTANT_SUPERVISOR', 'SUPERVISOR', 'MANAGER'];
+const DEPOT_SCOPED = [
+  'STAFF_DEPOT',
+  'KEPALA_DEPOT',
+  'ASSISTANT_SUPERVISOR',
+  'SUPERVISOR',
+  'MANAGER',
+];
 /**
  * Whether a role is limited to some depots. For the SIGNED-IN role the server says so (a super
  * admin can change a built-in role's reach, and a custom role declares its own); for any other
@@ -106,8 +112,10 @@ const isDepotScopedRole = (role: string | null | undefined): boolean =>
   session && role === session.role && session.scope
     ? session.scope !== 'GLOBAL'
     : DEPOT_SCOPED.includes(role ?? '');
-export const canWritePromoRule = (role: string | null | undefined, rule: { depotId: string | null }) =>
-  canWritePromoRules(role) && (rule.depotId !== null || !isDepotScopedRole(role));
+export const canWritePromoRule = (
+  role: string | null | undefined,
+  rule: { depotId: string | null },
+) => canWritePromoRules(role) && (rule.depotId !== null || !isDepotScopedRole(role));
 export const canManageCampaigns = (role: string | null | undefined) => can('campaignWrite', role);
 // Promotions are their own capability now, not CRM campaigns: /dashboard/promotions gated
 // on campaignRead (marketing-only) while promo-service answered a different list entirely,
@@ -149,14 +157,17 @@ export const canViewForecast = (role: string | null | undefined) => can('forecas
 // Each of these three pages was gated on a broader capability than its API enforces
 // (depotFinance / dashboard), so a role passed the nav and then met a 403. They name what
 // the server checks.
-export const canViewCourierCommission = (role: string | null | undefined) => can('courierSettle', role);
+export const canViewCourierCommission = (role: string | null | undefined) =>
+  can('courierSettle', role);
 export const canViewMonthlyClose = (role: string | null | undefined) => can('dailyClose', role);
-export const canViewTeamPerformance = (role: string | null | undefined) => can('deliveryReports', role);
+export const canViewTeamPerformance = (role: string | null | undefined) =>
+  can('deliveryReports', role);
 export const canViewChurn = (role: string | null | undefined) => can('churn', role);
 export const canConfirmPayment = (role: string | null | undefined) => can('paymentSettle', role);
 export const canVerifySettlement = (role: string | null | undefined) => can('courierSettle', role);
 export const canApproveExpense = (role: string | null | undefined) => can('expenseApprove', role);
-export const canBroadcastToCouriers = (role: string | null | undefined) => can('depotBroadcast', role);
+export const canBroadcastToCouriers = (role: string | null | undefined) =>
+  can('depotBroadcast', role);
 // Courier earning-rule editor (design 6b). Follows the server's `earningRules` capability (WEB-02),
 // so a custom role granted it sees the screen and one stripped of it does not.
 export const canManageEarningRules = (role: string | null | undefined) => can('earningRules', role);
@@ -300,7 +311,7 @@ export function staffDoor(pathname: string | null | undefined): string {
  * next person to see two files importing each other will want to know it was checked.
  */
 function hqLanding(role: string | null | undefined): string[] {
-  return hqItemsForRole(role).map((i) => i.href);
+  return hqLandingItems(role).map((i) => i.href);
 }
 
 /** A screen INSIDE the HQ console, as opposed to a door the rail carries out of it. */
@@ -411,5 +422,7 @@ export function notificationHome(
  * every role for everyone, so head office could pick SUPER_ADMIN or FINANCE and learn from
  * a 403 that it may not. Order is the form's own.
  */
-export const grantableRoles = <R extends string>(roles: readonly R[], actor: string | null | undefined): R[] =>
-  roles.filter((role) => canGrantRole(actor, role));
+export const grantableRoles = <R extends string>(
+  roles: readonly R[],
+  actor: string | null | undefined,
+): R[] => roles.filter((role) => canGrantRole(actor, role));

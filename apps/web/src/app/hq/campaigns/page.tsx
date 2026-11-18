@@ -5,6 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import { Megaphone } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
+import { LinkButton } from '@/components/ui';
+import { useAuth } from '@/lib/auth-context';
+import { canOpenRoute } from '@/lib/route-access';
 import { Button, Card, Field, Input } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
@@ -22,7 +25,10 @@ const STEPS = ['segment', 'message', 'send'] as const;
 // Each preset maps to activity conditions the order-service segment-estimate endpoint
 // honours (frequency / lapsed-recency / first-order recency). `all` = every reachable
 // customer. Tier isn't joinable here, so "loyalty" is a frequency proxy (≥5 orders).
-const SEGMENT_CONDITIONS: Record<Segment, { minOrders?: number; lapsedDays?: number; newWithinDays?: number }> = {
+const SEGMENT_CONDITIONS: Record<
+  Segment,
+  { minOrders?: number; lapsedDays?: number; newWithinDays?: number }
+> = {
   all: {},
   loyalty: { minOrders: 5 },
   atRisk: { lapsedDays: 60 },
@@ -36,6 +42,7 @@ const SEGMENT_CONDITIONS: Record<Segment, { minOrders?: number; lapsedDays?: num
 // sekarang" and "Jadwalkan" both only drafted.
 export default function HqCampaignBuilderPage() {
   const { t } = useT();
+  const { customer } = useAuth();
   const { toast } = useToast();
   const params = useSearchParams();
   const [step, setStep] = useState(0);
@@ -113,7 +120,19 @@ export default function HqCampaignBuilderPage() {
 
   return (
     <div className="flex max-w-2xl flex-col gap-6">
-      <HqPageHeader icon={Megaphone} title={t('hq.campaigns.title')} subtitle={t('hq.campaigns.subtitle')} />
+      <HqPageHeader
+        icon={Megaphone}
+        title={t('hq.campaigns.title')}
+        subtitle={t('hq.campaigns.subtitle')}
+        // PR-3c: the segment builder was a rail row under "Formulir"; it is this list's button now.
+        action={
+          canOpenRoute('/hq/forms/segment', customer?.role) ? (
+            <LinkButton href="/hq/forms/segment" variant="secondary">
+              {t('hq.nav.formSegment')}
+            </LinkButton>
+          ) : undefined
+        }
+      />
 
       {/* Stepper */}
       <ol className="flex items-center gap-2">
@@ -121,7 +140,9 @@ export default function HqCampaignBuilderPage() {
           <li key={s} className="flex flex-1 items-center gap-2">
             <span
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                i <= step ? 'bg-brand-600 text-on-brand' : 'bg-[color:var(--surface-muted)] text-muted'
+                i <= step
+                  ? 'bg-brand-600 text-on-brand'
+                  : 'bg-[color:var(--surface-muted)] text-muted'
               }`}
             >
               {i + 1}
@@ -152,7 +173,9 @@ export default function HqCampaignBuilderPage() {
                   onClick={() => setSegment(s)}
                   aria-pressed={handoff === null && segment === s}
                   className={`min-h-11 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                    segment === s ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-app text-muted hover:bg-[color:var(--surface-soft)]'
+                    segment === s
+                      ? 'border-brand-600 bg-brand-50 text-brand-800'
+                      : 'border-app text-muted hover:bg-[color:var(--surface-soft)]'
                   }`}
                 >
                   {t(`hq.campaigns.chips.${s}`)}
@@ -178,7 +201,12 @@ export default function HqCampaignBuilderPage() {
         {step === 1 && (
           <>
             <Field label={t('hq.campaigns.nameLabel')} htmlFor="c-name">
-              <Input id="c-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('hq.campaigns.namePh')} />
+              <Input
+                id="c-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t('hq.campaigns.namePh')}
+              />
             </Field>
             <Field label={t('hq.campaigns.messageLabel')} htmlFor="c-msg">
               <textarea
@@ -197,11 +225,24 @@ export default function HqCampaignBuilderPage() {
           <div className="flex flex-col gap-2 text-sm">
             <p>
               <span className="text-muted">{t('hq.campaigns.segmentLabel')}:</span>{' '}
-              <strong>{handoff ? t('hq.campaigns.fromSegmentBuilder') : t(`hq.campaigns.chips.${segment}`)}</strong>
+              <strong>
+                {handoff
+                  ? t('hq.campaigns.fromSegmentBuilder')
+                  : t(`hq.campaigns.chips.${segment}`)}
+              </strong>
             </p>
-            <p><span className="text-muted">{t('hq.campaigns.nameLabel')}:</span> <strong>{name || '—'}</strong></p>
-            <p className="whitespace-pre-wrap rounded-xl border border-app p-3 text-muted">{message || '—'}</p>
-            <Field label={t('hq.campaigns.scheduleLabel')} htmlFor="c-when" hint={t('hq.campaigns.scheduleHint')}>
+            <p>
+              <span className="text-muted">{t('hq.campaigns.nameLabel')}:</span>{' '}
+              <strong>{name || '—'}</strong>
+            </p>
+            <p className="whitespace-pre-wrap rounded-xl border border-app p-3 text-muted">
+              {message || '—'}
+            </p>
+            <Field
+              label={t('hq.campaigns.scheduleLabel')}
+              htmlFor="c-when"
+              hint={t('hq.campaigns.scheduleHint')}
+            >
               <Input
                 id="c-when"
                 type="datetime-local"
@@ -213,7 +254,11 @@ export default function HqCampaignBuilderPage() {
         )}
 
         <div className="flex justify-between gap-2 border-t border-app pt-3">
-          <Button variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0 || busy}>
+          <Button
+            variant="ghost"
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+            disabled={step === 0 || busy}
+          >
             {t('hq.campaigns.back')}
           </Button>
           {step < 2 ? (

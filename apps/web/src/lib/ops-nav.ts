@@ -175,7 +175,7 @@ export const GROUPS: RailGroup[] = [
         icon: Buildings,
         // PR-3b: the overview is a `dashboard` screen (`capForHqPath`); a console role without
         // it (FINANCE) was offered a door to the one HQ page that refuses it. It gets the
-        // next one instead, the first HQ screen it may open, as `consoleHome` lands it.
+        // next one instead: a screen it may open (its landing is its Keuangan hub, PR-3c).
         show: (role) => isHq(role) && can('dashboard', role) && isServedHere('/hq'),
       },
       {

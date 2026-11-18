@@ -2,7 +2,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { hqItemsForRole } from '@/lib/hq-nav';
+import { hqItemsForRole, HQ_GROUPS, hqHubsFor } from '@/lib/hq-nav';
 
 /**
  * CA-2-61: on a phone, the HQ tab bar WAS the console's whole navigation.
@@ -49,10 +49,17 @@ describe('HQ mobile navigation (CA-2-61)', () => {
     fireEvent.click(screen.getByRole('button', { name: /hq\.nav\.more/ }));
     const drawer = screen.getByRole('dialog');
     const reachable = new Set(hrefs(drawer));
-    const expected = hqItemsForRole('SUPER_ADMIN').map((i) => i.href);
-
-    expect(expected.length).toBeGreaterThan(50);
-    for (const href of expected) expect(reachable.has(href)).toBe(true);
+    // PR-3c: the drawer holds one row per hub; every screen is a tab of the hub its row opens.
+    const hubs = hqHubsFor('SUPER_ADMIN');
+    for (const hub of hubs) expect(reachable.has(hub.items[0]!.href)).toBe(true);
+    const screens = hubs.flatMap((h) => h.items.map((i) => i.href));
+    expect(screens.length).toBeGreaterThan(50);
+    // and every screen the role may open, but the forms that are buttons on their lists, is in one
+    const pageOnly = new Set(
+      HQ_GROUPS.filter((g) => g.pageOnly).flatMap((g) => g.items.map((i) => i.href)),
+    );
+    for (const item of hqItemsForRole('SUPER_ADMIN'))
+      if (!pageOnly.has(item.href)) expect(screens).toContain(item.href);
   });
 
   /*

@@ -9,11 +9,11 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { hasPartialHqDoor } from '@/lib/hq-nav';
 import { isHq } from '@/lib/roles';
-import { hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
+import { hqHubsFor } from '@/lib/hq-nav';
 import { deepest, normalisePath } from '@/lib/screen-chrome';
 // The rail's table, not a second one: /hq/sitemap already reads it the same way, and the
 // bottom nav only ever renders on /hq pages where the rail module is loaded anyway.
-import { HQ_ICONS } from '@/components/hq/hq-rail';
+import { hqHubIcon } from '@/components/hq/hq-rail';
 import { ConsoleSignOut } from '@/components/console-sign-out';
 
 /*
@@ -51,17 +51,21 @@ export function HqBottomNav() {
   // Hooks first: an early return above them changes the hook order between renders.
   if (!isHq(role) && !hasPartialHqDoor(role as never)) return null;
 
-  const groups = hqGroupsForRole(role);
-  const items = hqItemsForRole(role);
-  const tabs = items.slice(0, TAB_COUNT);
+  // PR-3c: the bar and the sheet are the hubs, as on the rail.
+  const hubs = hqHubsFor(role);
+  const tabs = hubs.slice(0, TAB_COUNT);
   // A role with nothing to show gets no bar rather than an empty one. Not reachable
   // today — the console gate already refuses a role with no items — but a bar with a lone
   // "Lainnya" button opening an empty sheet is a worse answer than no bar.
   if (tabs.length === 0) return null;
 
   // One current item across the bar and the sheet, by the rail's rule.
-  const current = deepest(items, pathname, '/hq')?.href;
-  const isActive = (href: string) => href === current;
+  const current = deepest(
+    hubs.flatMap((g) => g.items),
+    pathname,
+    '/hq',
+  )?.href;
+  const currentHub = hubs.find((g) => g.items.some((i) => i.href === current))?.headKey;
 
   const item = (href: string, label: string, Ic: Icon, on: boolean, onClick?: () => void) => (
     <Link
@@ -111,31 +115,24 @@ export function HqBottomNav() {
           </div>
 
           <nav className="px-2 py-2" aria-label={t('hq.nav.allScreens')}>
-            {groups.map((group) => (
-              <div key={group.headKey} className="mb-2">
-                <p className="px-2 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-[color:var(--text-muted)]">
-                  {t(`hq.groups.${group.headKey}`)}
-                </p>
-                {group.items.map((i) => {
-                  const Ic = HQ_ICONS[i.href] ?? List;
-                  const on = isActive(i.href);
-                  return (
-                    <Link
-                      key={i.href}
-                      href={i.href}
-                      aria-current={on ? 'page' : undefined}
-                      className={
-                        'flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 text-sm font-semibold ' +
-                        (on ? 'bg-brand-50 text-brand-600' : 'text-[color:var(--text)]')
-                      }
-                    >
-                      <Ic size={18} weight={on ? 'fill' : 'regular'} aria-hidden />
-                      <span className="truncate">{t(`hq.nav.${i.labelKey}`)}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            ))}
+            {hubs.map((hub) => {
+              const Ic = hqHubIcon(hub.headKey);
+              const on = hub.headKey === currentHub;
+              return (
+                <Link
+                  key={hub.headKey}
+                  href={hub.items[0]!.href}
+                  aria-current={on ? 'page' : undefined}
+                  className={
+                    'flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 text-sm font-semibold ' +
+                    (on ? 'bg-brand-50 text-brand-600' : 'text-[color:var(--text)]')
+                  }
+                >
+                  <Ic size={18} weight={on ? 'fill' : 'regular'} aria-hidden />
+                  <span className="truncate">{t(`hq.groups.${hub.headKey}`)}</span>
+                </Link>
+              );
+            })}
             {/*
              * CA-2-61: the way out. The rail carries a sign-out and the rail is desktop-only,
              * so on a phone the HQ console had no way to end a session at all.
@@ -151,12 +148,12 @@ export function HqBottomNav() {
         className="fixed inset-x-0 bottom-0 z-40 flex max-w-[100vw] items-end justify-around overflow-hidden border-t border-app bg-[color:var(--surface)]/95 px-2 pb-[max(16px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] lg:hidden"
         aria-label={t('hq.nav.aria')}
       >
-        {tabs.map((tab) =>
+        {tabs.map((hub) =>
           item(
-            tab.href,
-            t(`hq.nav.${tab.labelKey}`),
-            HQ_ICONS[tab.href] ?? List,
-            isActive(tab.href),
+            hub.items[0]!.href,
+            t(`hq.groups.${hub.headKey}`),
+            hqHubIcon(hub.headKey),
+            hub.headKey === currentHub,
           ),
         )}
         <button
