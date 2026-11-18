@@ -43,8 +43,11 @@ export class SalesImportController {
   @ApiOkResponse({ description: 'Imported rows for the depot within the window.' })
   @Get()
   @ApiOperation({ summary: 'List a depot’s imported historical sales transactions' })
-  list(@Query() q: ListImportedSalesQueryDto): Promise<ImportedSalesTransactionRecord[]> {
-    return this.imports.listByDepot(q.depotId, new Date(q.from), new Date(q.to));
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() q: ListImportedSalesQueryDto,
+  ): Promise<ImportedSalesTransactionRecord[]> {
+    return this.imports.listByDepot(user, q.depotId, new Date(q.from), new Date(q.to));
   }
 
   /**

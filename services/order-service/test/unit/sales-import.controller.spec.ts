@@ -22,13 +22,14 @@ describe('SalesImportController', () => {
     const listByDepot = jest.fn().mockResolvedValue([{ id: 'r1' }]);
     const controller = makeController({ listByDepot });
 
-    const result = await controller.list({
+    const result = await controller.list(user, {
       depotId: DEPOT_A,
       from: '2026-01-01T00:00:00.000Z',
       to: '2026-02-01T00:00:00.000Z',
     } as never);
 
     expect(listByDepot).toHaveBeenCalledWith(
+      user,
       DEPOT_A,
       new Date('2026-01-01T00:00:00.000Z'),
       new Date('2026-02-01T00:00:00.000Z'),

@@ -4,14 +4,16 @@ import { useMemo, useState } from 'react';
 import { Export } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Button, Card, ErrorState, LinkButton, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import type { ExportRow } from '@/lib/hq/stubs';
 import { api, postBlob } from '@/lib/api';
 import { downloadBlob, downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
 import { downloadXlsx } from '@/lib/xlsx';
 import { endpoints } from '@/lib/endpoints';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { dateInDaysWib } from '@/lib/wib';
 import type { NetworkDashboard, RevenueByProduct, UnsettledMethodBucket } from '@/lib/types';
@@ -38,6 +40,8 @@ function isoDay(offsetDays = 0): string {
 // (payment-service collected-by-method). The export job itself has no endpoint → toast.
 export default function HqReportsExportPage() {
   const { t } = useT();
+  const { customer } = useAuth();
+  const mayImportSales = can('salesImportAdmin', customer?.role);
   const { toast } = useToast();
 
   const [rangeKey, setRangeKey] = useState<RangeKey>('d30');
@@ -182,7 +186,20 @@ export default function HqReportsExportPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <HqPageHeader icon={Export} title={t('hq.reportsExport.title')} subtitle={t('hq.reportsExport.subtitle')} />
+      <HqPageHeader
+        icon={Export}
+        title={t('hq.reportsExport.title')}
+        subtitle={t('hq.reportsExport.subtitle')}
+        /* The pre-Hydromart sales import (owner, 2026-11-18): its history is read here, in the
+           top-depot and revenue-by-product figures, and nowhere in the depot reports. */
+        action={
+          mayImportSales ? (
+            <LinkButton href="/dashboard/sales-import" variant="secondary">
+              {t('hrFix.imports.salesHistory')}
+            </LinkButton>
+          ) : undefined
+        }
+      />
 
       <Card className="flex flex-col gap-4 p-5">
         {/* Range chips + custom dates */}
