@@ -24,7 +24,13 @@ import { Button, Card, CenterState, Chip, Toggle } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canUseManagerConsole, canUseOperatorConsole, isStaff, staffDoor } from '@/lib/roles';
+import {
+  canUseManagerConsole,
+  canUseOperatorConsole,
+  isDepotOperator,
+  isStaff,
+  staffDoor,
+} from '@/lib/roles';
 import { usePushPrefs } from '@/lib/notif-prefs';
 import { useEffectiveCapabilities } from '@/lib/use-effective-capabilities';
 
@@ -70,6 +76,7 @@ function AccountBody() {
   const caps = useEffectiveCapabilities();
   const role = customer?.role ?? '';
   const depot = selected ?? depots[0] ?? null;
+  const assigned = canUseManagerConsole(role) || isDepotOperator(role);
   const alerts = canUseOperatorConsole(role) ? [...ALERTS, ...OPERATOR_ALERTS] : ALERTS;
   // The capability list was the manager's profile; it stays theirs.
   const myCaps = canUseManagerConsole(role)
@@ -103,19 +110,23 @@ function AccountBody() {
         </div>
       </Card>
 
-      <Card className="flex items-start gap-3 p-4">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
-          <Buildings size={22} weight="fill" />
-        </span>
-        <div>
-          <p className="text-xs font-semibold text-[color:var(--text-muted)]">
-            {t('dashC.profile.depotAssigned')}
-          </p>
-          <p className="mt-0.5 font-semibold">
-            {depot ? `${depot.name} · ${depot.code}` : t('dashC.profile.noDepot')}
-          </p>
-        </div>
-      </Card>
+      {/* Only a role that runs a depot has one assigned. For a network role the list is every
+          depot, and its first one is not an assignment. */}
+      {assigned && (
+        <Card className="flex items-start gap-3 p-4">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+            <Buildings size={22} weight="fill" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold text-[color:var(--text-muted)]">
+              {t('dashC.profile.depotAssigned')}
+            </p>
+            <p className="mt-0.5 font-semibold">
+              {depot ? `${depot.name} · ${depot.code}` : t('dashC.profile.noDepot')}
+            </p>
+          </div>
+        </Card>
+      )}
 
       {myCaps.length > 0 && (
         <Card className="flex flex-col gap-3 p-4">

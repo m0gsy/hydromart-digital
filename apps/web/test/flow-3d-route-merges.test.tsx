@@ -50,14 +50,12 @@ vi.mock('@/lib/use-effective-capabilities', () => ({
 vi.mock('@/lib/api', () => ({
   api: {
     get: vi.fn().mockResolvedValue({}),
-    getCached: vi
-      .fn()
-      .mockResolvedValue({
-        id: 'd1',
-        name: 'Depot Satu',
-        serviceRadiusKm: 5,
-        operatingHours: null,
-      }),
+    getCached: vi.fn().mockResolvedValue({
+      id: 'd1',
+      name: 'Depot Satu',
+      serviceRadiusKm: 5,
+      operatingHours: null,
+    }),
   },
   ApiError: class extends Error {},
 }));
@@ -77,7 +75,7 @@ describe('the old routes redirect', () => {
   it.each([
     ['/dashboard/profile', ProfilePage, '/dashboard/account'],
     ['/dashboard/operator-settings', OperatorSettingsPage, '/dashboard/account'],
-    ['/dashboard/depot-settings', DepotSettingsPage, '/dashboard/settings'],
+    ['/dashboard/depot-settings', DepotSettingsPage, '/dashboard/settings?mode=read'],
   ])('%s goes to its twin', (_from, Page, to) => {
     render(<Page />);
     expect(replace).toHaveBeenCalledWith(to);
@@ -103,6 +101,12 @@ describe('the merged account screen', () => {
     expect(screen.queryByText('dashC.profile.access')).toBeNull();
   });
 
+  it('names an assigned depot only for a role that runs one', () => {
+    who.role = 'HEAD_OFFICE';
+    render(<AccountPage />);
+    expect(screen.queryByText('dashC.profile.depotAssigned')).toBeNull();
+  });
+
   it('keeps the way out the merged screens had', () => {
     who.role = 'KEPALA_DEPOT';
     render(<AccountPage />);
@@ -125,6 +129,8 @@ describe('settings carries the depot read view', () => {
       (await import('node:path')).join(process.cwd(), 'src/app/dashboard/settings/page.tsx'),
       'utf8',
     );
+    // its read mode, not a strip above the forms (it went stale there on every save)
+    expect(src).toContain("useQueryParam('mode') === 'read'");
     expect(src).toContain('<DepotSettingsSummary />');
   });
 });
