@@ -85,7 +85,7 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
   const hubs = hubsFor(role);
   const kelola = hubs.filter((h) => !h.items.some((i) => PRIMARY.has(i.href)));
   // One current tab across both rows, by the rail's rule (flow-1e): the deepest screen wins,
-  // so `/dashboard/orders/detail` lights Antrean and nothing else.
+  // so an order detail screen lights Antrean and nothing else.
   const current = deepest(
     hubs.flatMap((h) => h.items),
     pathname,
