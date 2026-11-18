@@ -25,6 +25,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewInventory, canWriteInventory } from '@/lib/roles';
+import { canOpenRoute } from '@/lib/route-access';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useToast } from '@/components/toast';
 import { useAsync } from '@/lib/use-async';
@@ -1001,6 +1002,8 @@ function StockTransfers({
   );
 }
 
+const PO_DRAFT = '/dashboard/purchase-orders?draft=1';
+
 function InventoryBody() {
   const { t } = useT();
   const { customer } = useAuth();
@@ -1228,6 +1231,13 @@ function InventoryBody() {
           <Warning size={12} weight="fill" /> {t('opsFix.inv.filterLow')} · {lowCount}
         </Chip>
       </div>
+      {/* PR-2a: the low lines are what a purchase order is drafted from; the draft opens there. */}
+      {lowOnly && canOpenRoute(PO_DRAFT, customer?.role) && (
+        <LinkButton href={PO_DRAFT} variant="secondary" className="self-start">
+          <ClipboardText size={16} weight="fill" />
+          {t('opsFix.poDraft.open')}
+        </LinkButton>
+      )}
 
       {ready && depots.length === 0 ? (
         <CenterState title={t('dashboard.inventory.noDepots')} icon={<Package size={40} weight="fill" />}>

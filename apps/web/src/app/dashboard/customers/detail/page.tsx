@@ -12,12 +12,14 @@ import {
 } from '@phosphor-icons/react';
 
 import { OverdueGallons } from '@/components/dashboard/overdue-gallons';
+import { EntityLink } from '@/components/entity-link';
 import { ExternalLink } from '@/components/external-link';
 import { RemoteImage } from '@/components/remote-image';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, Chip, ErrorState, LinkButton, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { entityHref } from '@/lib/entity-href';
 import { formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -221,7 +223,11 @@ function DetailBody({ id }: { id: string }) {
                       {recentOrders.map((o) => (
                         <li key={o.id} className="flex items-center justify-between gap-3 text-sm">
                           <div>
-                            <span className="font-medium">{o.status}</span>
+                            <span className="font-medium">
+                              <EntityLink href={entityHref('order', o.id, 'dashboard', customer?.role)}>
+                                {o.status}
+                              </EntityLink>
+                            </span>
                             <p className="text-xs text-[color:var(--text-muted)]">{formatDateTime(o.placedAt)}</p>
                           </div>
                           <Money amount={o.totalIdr} className="font-semibold" />

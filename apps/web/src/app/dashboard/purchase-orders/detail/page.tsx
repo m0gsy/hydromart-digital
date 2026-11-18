@@ -5,10 +5,12 @@ import { useT } from '@/lib/locale-context';
 import Link from 'next/link';
 import { ArrowLeft, CheckCircle, Info, Lock } from '@phosphor-icons/react';
 
+import { EntityLink } from '@/components/entity-link';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { entityHref } from '@/lib/entity-href';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { canManageProcurement } from '@/lib/roles';
@@ -62,6 +64,7 @@ function Stepper({ status }: { status: PoStatus }) {
 
 function Detail({ id }: { id: string }) {
   const { t } = useT();
+  const { customer } = useAuth();
   const detail = useAsync<PurchaseOrder>(
     () => api.get(endpoints.procurement.purchaseOrders.detail(id), true),
     [id],
@@ -158,7 +161,10 @@ function Detail({ id }: { id: string }) {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-bold">{po.poNumber}</h1>
           <p className="truncate text-xs text-muted">
-            {po.supplierName} · {formatDateTime(po.createdAt)}
+            <EntityLink href={entityHref('supplier', po.supplierId, 'dashboard', customer?.role)}>
+              {po.supplierName}
+            </EntityLink>{' '}
+            · {formatDateTime(po.createdAt)}
           </p>
         </div>
         <Badge tone={STATUS_TONE[po.status]}>

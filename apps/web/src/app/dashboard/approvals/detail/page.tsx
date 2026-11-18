@@ -17,15 +17,27 @@ import {
   Money,
   Skeleton,
 } from '@/components/ui';
+import { EntityLink } from '@/components/entity-link';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { entityHref, type EntityKind } from '@/lib/entity-href';
 import { formatDateTime } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canReviewApprovals } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { Approval, ApprovalStatus, Customer } from '@/lib/types';
+import type { Approval, ApprovalStatus, ApprovalType, Customer } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
+
+/**
+ * PR-2a: no screen shows one stock count or one gallon record, so the subject opens the list
+ * it belongs to (owner decision 2026-11-18). A cashier shift has no screen at all: text.
+ */
+const SUBJECT_LIST: Partial<Record<ApprovalType, EntityKind>> = {
+  OPNAME_VARIANCE: 'stock',
+  GALLON_VARIANCE: 'gallon',
+  DEPOSIT_REFUND: 'gallon',
+};
 
 const STATUS_TONE: Record<ApprovalStatus, 'brand' | 'success' | 'danger' | 'warning'> = {
   PENDING: 'brand',
@@ -136,6 +148,7 @@ function RowLine({
 
 function Detail({ id }: { id: string }) {
   const { t } = useT();
+  const { customer } = useAuth();
   const router = useRouter();
   const detail = useAsync<Approval>(() => api.get(endpoints.approvals.detail(id), true), [id]);
   const [note, setNote] = useState('');
@@ -206,6 +219,7 @@ function Detail({ id }: { id: string }) {
   }
 
   const a = detail.data;
+  const subjectKind = SUBJECT_LIST[a.type];
   const payload = a.payload ?? {};
   const pending = a.status === 'PENDING' || a.status === 'HELD';
 
@@ -223,7 +237,16 @@ function Detail({ id }: { id: string }) {
           <h1 className="truncate text-lg font-bold">{a.title}</h1>
           <p className="truncate text-xs text-[color:var(--text-muted)]">
             {formatDateTime(a.createdAt)}
-            {a.subjectRef ? ` · ${a.subjectRef}` : ''}
+            {a.subjectRef && (
+              <>
+                {' · '}
+                <EntityLink
+                  href={subjectKind ? entityHref(subjectKind, a.subjectRef, 'dashboard', customer?.role) : null}
+                >
+                  {a.subjectRef}
+                </EntityLink>
+              </>
+            )}
           </p>
         </div>
         <Badge tone={STATUS_TONE[a.status]}>{t(`dashA.approvalDetail.type.${a.type}`)}</Badge>

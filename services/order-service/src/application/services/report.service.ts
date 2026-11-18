@@ -191,7 +191,14 @@ export interface DepotRatingsReport extends ReportRangeView {
   average: number | null;
   count: number;
   distribution: Record<'1' | '2' | '3' | '4' | '5', number>;
-  recent: { customerName: string; stars: number; comment: string | null; createdAt: string }[];
+  recent: {
+    orderId: string;
+    customerId: string;
+    customerName: string;
+    stars: number;
+    comment: string | null;
+    createdAt: string;
+  }[];
 }
 
 /** One courier's line in the depot daily report (design 2d). */
@@ -696,6 +703,8 @@ export class ReportService {
       count: d.count,
       distribution: d.distribution,
       recent: d.recent.map((r) => ({
+        orderId: r.orderId,
+        customerId: r.customerId,
         customerName: r.customerName,
         stars: r.stars,
         comment: r.comment,

@@ -56,6 +56,7 @@ export const mgrFix = {
     emptyBody: 'There are no deliveries or verified settlements this month.',
     noCouriers: 'No courier activity yet.',
     noOperators: 'No verified settlements yet.',
+    notThisMonth: 'This courier has made no deliveries this month.',
   },
   // 5b — Depot settings.
   depotSettings: {

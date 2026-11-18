@@ -3,10 +3,12 @@
 import { useMemo } from 'react';
 import { Lock, Star } from '@phosphor-icons/react';
 
+import { EntityLink } from '@/components/entity-link';
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { entityHref } from '@/lib/entity-href';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { canUseManagerConsole } from '@/lib/roles';
@@ -49,6 +51,7 @@ function Stars({ value, size = 14 }: { value: number; size?: number }) {
 
 function RatingsView({ data }: { data: DepotRatingsReport }) {
   const { t } = useT();
+  const { customer } = useAuth();
   const max = Math.max(...STAR_ROWS.map((s) => data.distribution[s]), 1);
   const average = data.average ?? 0;
 
@@ -95,29 +98,41 @@ function RatingsView({ data }: { data: DepotRatingsReport }) {
         </CenterState>
       ) : (
         <div className="flex flex-col gap-3">
-          {data.recent.map((r, i) => (
-            <Card key={`${r.createdAt}-${i}`} className="flex gap-3 p-4">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 font-bold text-brand-700">
-                {r.customerName.charAt(0)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-semibold">{r.customerName}</p>
-                  <span className="text-xs text-[color:var(--text-muted)]">
-                    {relativeDay(r.createdAt)}
-                  </span>
+          {data.recent.map((r, i) => {
+            const orderHref = entityHref('order', r.orderId, 'dashboard', customer?.role);
+            return (
+              <Card key={`${r.createdAt}-${i}`} className="flex gap-3 p-4">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 font-bold text-brand-700">
+                  {r.customerName.charAt(0)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-semibold">
+                      <EntityLink href={entityHref('customer', r.customerId, 'dashboard', customer?.role)}>
+                        {r.customerName}
+                      </EntityLink>
+                    </p>
+                    <span className="text-xs text-[color:var(--text-muted)]">
+                      {relativeDay(r.createdAt)}
+                    </span>
+                  </div>
+                  <Stars value={r.stars} />
+                  {r.comment && (
+                    <p className="mt-1.5 text-sm text-[color:var(--text)]">“{r.comment}”</p>
+                  )}
+                  {orderHref && (
+                    <p className="mt-1.5 text-xs font-semibold">
+                      <EntityLink href={orderHref}>{t('opsFix.ratings.openOrder')}</EntityLink>
+                    </p>
+                  )}
+                  {/* "Balas →" was a button with no onClick under every low rating. There is no
+                      reply route to call — order-service has POST :id/review and nothing that
+                      answers one — so an operator who tapped it learned only that the console
+                      ignores them. Gone until a reply endpoint exists. */}
                 </div>
-                <Stars value={r.stars} />
-                {r.comment && (
-                  <p className="mt-1.5 text-sm text-[color:var(--text)]">“{r.comment}”</p>
-                )}
-                {/* "Balas →" was a button with no onClick under every low rating. There is no
-                    reply route to call — order-service has POST :id/review and nothing that
-                    answers one — so an operator who tapped it learned only that the console
-                    ignores them. Gone until a reply endpoint exists. */}
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
     </>

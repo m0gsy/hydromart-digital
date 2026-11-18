@@ -1166,9 +1166,17 @@ export class OrderPrismaRepository implements OrderRepository {
         GROUP BY r.rating
       `),
       this.prisma.$queryRaw<
-        { customerName: string; stars: number; comment: string | null; createdAt: Date }[]
+        {
+          orderId: string;
+          customerId: string;
+          customerName: string;
+          stars: number;
+          comment: string | null;
+          createdAt: Date;
+        }[]
       >(Prisma.sql`
-        SELECT o."recipientName" AS "customerName", r.rating AS stars,
+        SELECT o.id AS "orderId", o."customerId" AS "customerId",
+               o."recipientName" AS "customerName", r.rating AS stars,
                r.comment AS comment, r."createdAt" AS "createdAt"
         FROM "order_reviews" r JOIN "orders" o ON o.id = r."orderId"
         WHERE ${where}
@@ -1191,6 +1199,8 @@ export class OrderPrismaRepository implements OrderRepository {
       count,
       distribution,
       recent: recent.map((x) => ({
+        orderId: x.orderId,
+        customerId: x.customerId,
         customerName: x.customerName,
         stars: Number(x.stars),
         comment: x.comment,

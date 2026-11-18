@@ -5,18 +5,30 @@ import { ArrowLeft } from '@phosphor-icons/react';
 
 import { Badge, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { PaymentSettle } from '@/components/dashboard/order-detail';
+import { EntityLink } from '@/components/entity-link';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/roles';
 import { endpoints } from '@/lib/endpoints';
+import { entityHref } from '@/lib/entity-href';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { statusLabel, tone } from '@/lib/order-status';
+import { canOpenRoute } from '@/lib/route-access';
 import { useAsync } from '@/lib/use-async';
-import type { Order, Page, Payment } from '@/lib/types';
+import type { Customer, Depot, Order, Page, Payment } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
+
+/** The buyer's account, for its phone. Never fatal: the name still shows if this fails. */
+async function lookupBuyer(id: string): Promise<Customer[] | null> {
+  try {
+    return await api.getCached<Customer[]>(endpoints.auth.customersByIds([id]), true);
+  } catch {
+    return null;
+  }
+}
 
 // Design 16d — order drill-down: items, timeline, payment & delivery. Real: orders.get
 // + payments.forOrderStaff (both staff-readable). Delivery is read off the order itself.
@@ -33,6 +45,23 @@ export default function HqOrderDetailPage() {
   // Staff read, not the customer one: `orders.get` filters by owner, so HQ always got 404.
   const order = useAsync<Order>(() => api.get(endpoints.orders.manageGet(id), true), [id]);
   const payments = useAsync<Page<Payment>>(() => api.get(endpoints.payments.forOrderStaff(id), true), [id]);
+
+  // PR-2a: the HQ customer screen looks a buyer up by their ACCOUNT phone, and the order only
+  // carries the recipient's, which can be anyone's. So the account is resolved first, and only
+  // for a role that may both read names and open that screen; anyone else keeps the plain name.
+  const role = customer?.role;
+  const buyerId = order.data?.customerId;
+  const mayResolve = can('customerNameLookup', role) && canOpenRoute('/hq/customers', role);
+  const buyer = useAsync<Customer[] | null>(
+    () => (buyerId && mayResolve ? lookupBuyer(buyerId) : Promise.resolve(null)),
+    [buyerId, mayResolve],
+  );
+  // The depot is named off the public directory, read only when there is a door to open.
+  const depotHref = entityHref('depot', order.data?.depotId, 'hq', role);
+  const depots = useAsync<Page<Depot> | null>(
+    () => (depotHref ? api.getCached<Page<Depot>>(endpoints.depots.browse({ limit: 100 })) : Promise.resolve(null)),
+    [depotHref],
+  );
 
   const back = (
     <Link
@@ -71,6 +100,7 @@ export default function HqOrderDetailPage() {
   }
 
   const payment = payments.data?.items[0];
+  const buyerPhone = buyer.data?.find((c) => c.id === o.customerId)?.phone;
 
   return (
     <div className="flex flex-col gap-6">
@@ -89,7 +119,9 @@ export default function HqOrderDetailPage() {
         <Card className="flex flex-col gap-4 p-5">
           <div>
             <h2 className="mb-1.5 text-sm font-semibold">{t('hq.orderDetail.recipient')}</h2>
-            <p className="font-medium">{o.recipientName}</p>
+            <p className="font-medium">
+              <EntityLink href={entityHref('customer', buyerPhone, 'hq', role)}>{o.recipientName}</EntityLink>
+            </p>
             <p className="text-sm text-muted">{o.phone}</p>
             <p className="text-sm text-muted">
               {o.addressLine}, {o.city}
@@ -157,6 +189,14 @@ export default function HqOrderDetailPage() {
           </div>
           <div>
             <h2 className="mb-1.5 text-sm font-semibold">{t('hq.orderDetail.delivery')}</h2>
+            {depotHref && (
+              <p className="text-sm">
+                {t('hq.orderDetail.depot')}:{' '}
+                <EntityLink href={depotHref}>
+                  {depots.data?.items.find((d) => d.id === o.depotId)?.name ?? t('hq.orderDetail.openDepot')}
+                </EntityLink>
+              </p>
+            )}
             <p className="text-sm">
               {t('hq.orderDetail.driver')}:{' '}
               <span className="font-medium">{o.driverName || t('hq.orderDetail.noDriver')}</span>
