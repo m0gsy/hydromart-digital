@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
@@ -94,5 +94,31 @@ describe('the manager phone layout reads the APK path too', () => {
     const { queryByTestId, getByText } = render(<ManagerMobileLayout>login</ManagerMobileLayout>);
     expect(getByText('login')).toBeTruthy();
     expect(queryByTestId('auth-wall')).toBeNull();
+  });
+});
+
+describe('one current item, wherever the path sits', () => {
+  it('the ops rail lights only the deepest item, not its parent too', () => {
+    who.role = 'SUPER_ADMIN';
+    who.path = '/dashboard/franchise/attendance/';
+    render(<OpsRail />);
+    const lit = Array.from(document.querySelectorAll('a[aria-current="page"]')).map((a) => a.getAttribute('href'));
+    expect(lit).toEqual(['/dashboard/franchise/attendance']);
+  });
+
+  it('the "Lainnya" sheet follows the same rule as the rail, and says so to a screen reader', () => {
+    who.role = 'MANAGER';
+    who.path = '/dashboard/orders/detail/';
+    render(<OpsBottomNav />);
+    fireEvent.click(screen.getByText('opsFix.nav.more'));
+    const sheet = screen.getByRole('dialog');
+    expect(within(sheet).getByText('ops.nav.orders').closest('a')?.getAttribute('aria-current')).toBe('page');
+  });
+
+  it('the courier Dompet tab is current on every wallet screen it appears for', () => {
+    who.role = 'STAFF_DEPOT';
+    who.path = '/driver/settlement/';
+    render(<DriverShell>x</DriverShell>);
+    expect(current('/driver/earnings')).toBeTruthy();
   });
 });

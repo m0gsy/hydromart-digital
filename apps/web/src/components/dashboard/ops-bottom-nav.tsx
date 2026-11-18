@@ -16,7 +16,7 @@ import {
 
 import { ConsoleSignOut } from '@/components/console-sign-out';
 
-import { DepotSwitcher, GROUPS } from '@/components/dashboard/ops-rail';
+import { currentItemHref, DepotSwitcher, GROUPS } from '@/components/dashboard/ops-rail';
 import { Sheet } from '@/components/overlay';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
@@ -144,6 +144,10 @@ function MoreSheetTab() {
   const pathname = normalisePath(usePathname() ?? '');
   const [open, setOpen] = useState(false);
   const role = customer?.role;
+  const current = currentItemHref(
+    pathname,
+    GROUPS.flatMap((g) => g.items).filter((i) => i.show(role)).map((i) => i.href),
+  );
 
   return (
     <>
@@ -175,9 +179,10 @@ function MoreSheetTab() {
                 </p>
                 {items.map((item) => {
                   const Ic = item.icon;
-                  const on = pathname === item.href;
+                  const on = item.href === current;
                   return (
                     <Link
+                      aria-current={on ? 'page' : undefined}
                       key={item.href}
                       href={item.href}
                       onClick={() => setOpen(false)}

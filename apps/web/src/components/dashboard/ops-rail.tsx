@@ -480,6 +480,20 @@ export const GROUPS: RailGroup[] = [
   },
 ];
 
+/**
+ * The one rail item `pathname` belongs to: the deepest href it sits under, on a segment
+ * boundary, so `/dashboard/franchise/attendance` lights that item and not its parent too.
+ * The depot home matches only itself. Shared by the rail and the phone's "Lainnya" sheet.
+ */
+export function currentItemHref(pathname: string, hrefs: readonly string[]): string | undefined {
+  let best: string | undefined;
+  for (const h of hrefs) {
+    const under = pathname === h || (h !== '/dashboard' && pathname.startsWith(`${h}/`));
+    if (under && (!best || h.length > best.length)) best = h;
+  }
+  return best;
+}
+
 // B2: exported for the phone sheet. A depot-scoped console whose switcher only exists on
 // desktop is a console a depot manager cannot re-scope from the floor.
 export function DepotSwitcher() {
@@ -590,8 +604,11 @@ export function OpsRail() {
   // on every page load for a badge that must never appear.
   const opsUnread = useOpsUnreadCount(canViewOpsNotifications(role));
 
-  const isActive = (href: string) =>
-    href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
+  const current = currentItemHref(
+    pathname,
+    GROUPS.flatMap((g) => g.items).filter((i) => i.show(role)).map((i) => i.href),
+  );
+  const isActive = (href: string) => href === current;
 
   return (
     <aside className="surface sticky top-0 hidden h-dvh w-[242px] shrink-0 flex-col overflow-y-auto border-r border-app px-3.5 py-4 lg:flex">

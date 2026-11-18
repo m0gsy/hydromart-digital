@@ -37,7 +37,13 @@ function DriverNav() {
   return (
     <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[max(0.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
       {tabs.map(({ href, labelKey, icon: Icon }) => {
-        const active = href === '/driver' ? pathname === href : pathname.startsWith(href);
+        // The Dompet tab appears for all three wallet screens, so it is current on all three.
+        const active =
+          href === WALLET_TAB.href
+            ? inWallet
+            : href === '/driver'
+              ? pathname === href
+              : pathname.startsWith(href);
         return (
           <Link
             key={href}
