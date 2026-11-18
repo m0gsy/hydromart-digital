@@ -5,13 +5,14 @@ import { GearSix, Lock } from '@phosphor-icons/react';
 
 import { DepotSettingsSummary } from '@/components/dashboard/depot-settings-summary';
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
+import { Button, Card, CenterState, ErrorState, Field, FormError, Input, LinkButton, Skeleton } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { can, canManageDepots, isSuperAdmin } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { useQueryParam } from '@/lib/use-query-param';
 import {
   fetchSettingsSchema,
   putSetting,
@@ -236,6 +237,20 @@ function SettingsBody() {
   const [scope, setScope] = useState<'GLOBAL' | 'DEPOT'>('GLOBAL');
   const [depotId, setDepotId] = useState<string | null>(null);
   const canWriteGlobal = isSuperAdmin(customer?.role);
+  // PR-3d: `?mode=read` is the read view /dashboard/depot-settings was (it redirects here). A
+  // view of its own, not a strip above the forms: there it went stale on every save and named
+  // the switcher's depot over a form scoped elsewhere.
+  const readMode = useQueryParam('mode') === 'read';
+
+  if (readMode)
+    return (
+      <div className="mx-auto flex max-w-xl flex-col gap-5">
+        <DepotSettingsSummary />
+        <LinkButton href="/dashboard/settings" variant="secondary">
+          {t('settings.title')}
+        </LinkButton>
+      </div>
+    );
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5">
@@ -247,8 +262,9 @@ function SettingsBody() {
         </div>
       </div>
 
-      {/* PR-3d: what /dashboard/depot-settings showed, read-only, above the forms that set it. */}
-      <DepotSettingsSummary />
+      <LinkButton href="/dashboard/settings?mode=read" variant="secondary">
+        {t('mgrFix.depotSettings.title')}
+      </LinkButton>
 
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap gap-2">

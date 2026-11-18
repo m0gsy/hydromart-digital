@@ -19,9 +19,8 @@ import { fetchSettingsSchema, type SettingsSchema } from '@/lib/settings';
 import type { DepotAdmin } from '@/lib/types';
 
 /**
- * Flow PR-3d: the read view that was /dashboard/depot-settings, now the top of the settings
- * page it duplicated (same gate, canManageDepots): the four figures a manager checks,
- * read-only, above the forms that change them.
+ * Flow PR-3d: the read view that was /dashboard/depot-settings, now the read mode of the
+ * settings page it duplicated (same gate, canManageDepots): the four figures a manager checks.
  */
 function firstHours(d: DepotAdmin): string | null {
   const hours = d.operatingHours;
