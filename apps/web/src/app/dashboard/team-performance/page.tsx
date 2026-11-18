@@ -12,6 +12,8 @@ import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { canViewTeamPerformance } from '@/lib/roles';
 import type { Customer, DepotTeamReport, Page } from '@/lib/types';
+import { EntityLink } from '@/components/entity-link';
+import { entityHref } from '@/lib/entity-href';
 import { useAsync } from '@/lib/use-async';
 import { useQueryParam } from '@/lib/use-query-param';
 import { monthRangeWib } from '@/lib/wib';
@@ -43,6 +45,7 @@ function Avatar({ name, color }: { name: string; color: string }) {
 
 function TeamPerformanceBody() {
   const { t } = useT();
+  const { customer } = useAuth();
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((item) => item.id === scopedId) ?? null;
   // Current business-calendar month, read at render so a long-open app does not keep last month's.
@@ -155,7 +158,11 @@ function TeamPerformanceBody() {
                       <Avatar name={name} color={AVATAR_COLORS[index % AVATAR_COLORS.length]!} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-bold">{name}</p>
+                          <p className="truncate text-sm font-bold">
+                            <EntityLink href={entityHref('staffAccount', courier.driverId, 'dashboard', customer?.role)}>
+                              {name}
+                            </EntityLink>
+                          </p>
                           {(sla < 90 || courier.failed >= 5) && (
                             <Chip tone="amber">{t('mgrFix.teamPerf.needsAttention')}</Chip>
                           )}

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft } from '@phosphor-icons/react';
 
 import { Badge, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
-import { PaymentSettle } from '@/components/dashboard/order-detail';
+import { PaymentSettle, useOrderCourierId } from '@/components/dashboard/order-detail';
 import { EntityLink } from '@/components/entity-link';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -64,6 +64,11 @@ export default function HqOrderDetailPage() {
   const role = customer?.role;
   const buyerId = order.data?.customerId;
   const mayResolve = can('customerNameLookup', role) && canOpenRoute('/hq/customers', role);
+  const courierId = useOrderCourierId(
+    order.data?.driverName ? order.data.id : undefined,
+    '/hr/employees/detail',
+    role,
+  );
   const buyer = useAsync<Customer[] | null>(
     () => (buyerId && mayResolve ? lookupBuyer(buyerId) : Promise.resolve(null)),
     [buyerId, mayResolve],
@@ -212,7 +217,11 @@ export default function HqOrderDetailPage() {
             )}
             <p className="text-sm">
               {t('hq.orderDetail.driver')}:{' '}
-              <span className="font-medium">{o.driverName || t('hq.orderDetail.noDriver')}</span>
+              <span className="font-medium">
+                <EntityLink href={entityHref('courier', courierId, 'hq', role)}>
+                  {o.driverName || t('hq.orderDetail.noDriver')}
+                </EntityLink>
+              </span>
             </p>
           </div>
           {o.history.length > 0 && (
