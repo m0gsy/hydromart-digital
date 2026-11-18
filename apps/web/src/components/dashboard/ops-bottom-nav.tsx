@@ -43,9 +43,10 @@ interface Tab {
 // first 4 the role can see so the bar never overflows.
 const TABS: Tab[] = [
   // Not "Ringkasan": a role holding both (the super admin) saw two tabs with one name.
+  // Neutral, because the super admin owns no franchise of their own.
   {
     href: '/dashboard/franchise',
-    label: 'ops.nav.myFranchise',
+    label: 'hrFix.opsNav.franchise',
     icon: Buildings,
     show: canViewFranchise,
   },

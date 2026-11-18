@@ -56,7 +56,6 @@ vi.mock('@/lib/depot-context', () => ({
 vi.mock('@/lib/unread', () => ({ useUnreadCount: () => 0, useOpsUnreadCount: () => 0 }));
 
 import DepotAccountPage from '@/app/dashboard/account/page';
-import ReportsPage from '@/app/dashboard/reports/page';
 import HqPromotionsPage from '@/app/hq/promotions/page';
 import HqStaffPage from '@/app/hq/staff/page';
 import { OpsBottomNav } from '@/components/dashboard/ops-bottom-nav';
@@ -115,47 +114,10 @@ describe('the staff list links its own import', () => {
   });
 });
 
-describe('the sales-history import has a door', () => {
-  // The report bodies are not under test; an empty day keeps them quiet.
-  const emptyDay = {
-    orders: 0,
-    revenueIdr: 0,
-    codCollectedIdr: 0,
-    failedDeliveries: 0,
-    gallonsDamaged: 0,
-    gallonsDelivered: 0,
-    gallonsReturned: 0,
-    avgPerDayIdr: 0,
-    slaOnTimePct: null,
-    byHour: [],
-    perCashier: [],
-    perCourier: [],
-    refillSplit: { refill: 0, partial: 0, beli: 0 },
-    revenueByDay: [],
-    topCourier: null,
-    topProducts: [],
-  };
-  beforeEach(() => get.mockImplementation(async () => emptyDay));
-
-  it('is linked from the depot report for a role that may import', async () => {
-    who.role = 'MANAGER';
-    render(<ReportsPage />);
-    await waitFor(() => expect(screen.getByText('hrFix.imports.salesHistory')).toBeTruthy());
-    expect(hrefOf('hrFix.imports.salesHistory')).toBe('/dashboard/sales-import');
-  });
-
-  it('is not offered to the depot head, who may not (salesImportAdmin)', async () => {
-    who.role = 'KEPALA_DEPOT';
-    render(<ReportsPage />);
-    await waitFor(() => expect(screen.getByText('opsFix.reports.tabDaily')).toBeTruthy());
-    expect(screen.queryByText('hrFix.imports.salesHistory')).toBeNull();
-  });
-});
-
 describe('the phone bar names its two summaries apart', () => {
-  it('a role with both sees "my franchise" and "summary", not "summary" twice', () => {
+  it('a role with both sees "franchise" and "summary", not "summary" twice', () => {
     render(<OpsBottomNav />);
     expect(screen.getAllByText('hrFix.opsNav.summary')).toHaveLength(1);
-    expect(screen.getByText('ops.nav.myFranchise')).toBeTruthy();
+    expect(screen.getByText('hrFix.opsNav.franchise')).toBeTruthy();
   });
 });

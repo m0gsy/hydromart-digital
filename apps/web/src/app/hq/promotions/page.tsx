@@ -180,8 +180,9 @@ function PromoEditor({ promo, onDone, onCancel }: { promo: Promotion | null; onD
 export default function HqPromotionsPage() {
   const { t } = useT();
   const { customer } = useAuth();
-  // Banners are written by `promotionWrite` (MARKETING, SUPER_ADMIN). Head office and the
-  // director read them here; New/Edit/Remove used to be drawn for them and refused on save.
+  // Banners are written by `promotionWrite`. Of the roles that reach /hq, only the super admin
+  // holds it (MARKETING writes from /dashboard/promotions); head office and the director read
+  // them here, and New/Edit/Remove used to be drawn for them and refused on save.
   const mayWrite = canManagePromotions(customer?.role);
   const { toast } = useToast();
   const [editing, setEditing] = useState<Promotion | null | undefined>(undefined);

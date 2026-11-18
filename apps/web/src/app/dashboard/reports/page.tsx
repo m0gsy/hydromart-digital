@@ -7,7 +7,7 @@ import { CashierSales } from '@/components/dashboard/cashier-sales';
 import { RefillSplit } from '@/components/dashboard/refill-split';
 import { HourChart } from '@/components/dashboard/hour-chart';
 import { RequireAuth } from '@/components/require-auth';
-import { Button, Card, CenterState, ErrorState, LinkButton, Skeleton } from '@/components/ui';
+import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError, getBlob } from '@/lib/api';
 import { downloadBlob, downloadCsv, toCsv, type CsvCell } from '@/lib/csv';
 import { downloadXlsx } from '@/lib/xlsx';
@@ -16,7 +16,6 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { can, canViewDashboard, isStaff } from '@/lib/roles';
-import { canOpenRoute } from '@/lib/route-access';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { DepotDailyReport, DepotWeeklyReport } from '@/lib/types';
@@ -536,9 +535,6 @@ function Body() {
   const { t } = useT();
   const { scopedId, selected, depots } = useDepot();
   const [tab, setTab] = useState<'harian' | 'mingguan'>('harian');
-  const { customer } = useAuth();
-  const canImportSales =
-    can('salesImportAdmin', customer?.role) && canOpenRoute('/dashboard/sales-import', customer?.role);
 
   if (!scopedId) {
     return (
@@ -553,7 +549,6 @@ function Body() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="inline-flex w-fit rounded-xl bg-[color:var(--surface-soft)] p-1">
         {(['harian', 'mingguan'] as const).map((name) => (
           <button
@@ -566,14 +561,6 @@ function Body() {
             {t(`opsFix.reports.${TAB_KEY[name]}`)}
           </button>
         ))}
-      </div>
-      {/* The pre-Hydromart sales import: built, gated (`salesImportAdmin`) and linked from
-          nowhere until now. Its history lands in these same reports. */}
-      {canImportSales && (
-        <LinkButton href="/dashboard/sales-import" variant="secondary">
-          {t('hrFix.imports.salesHistory')}
-        </LinkButton>
-      )}
       </div>
       {selected && (
         <p className="-mt-2 text-xs text-muted">

@@ -2378,6 +2378,7 @@ export const hrFix = {
     inventory: 'Inventori',
     forecast: 'Perkiraan',
     pricing: 'Harga',
+    franchise: 'Waralaba',
   },
   mgrNav: {
     home: 'Beranda',
