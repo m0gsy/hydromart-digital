@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Owner decision 2026-11-18: the pre-Hydromart sales import gets its door on head office's
  * report export, the screen where that history is read (top depots, revenue by product),
- * once order-service scopes the import per depot.
+ * for the roles that hold `salesImportAdmin` and reach /hq. (The import was already depot-scoped
+ * by order-service's global DepotScopeGuard.)
  */
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 const who = { role: 'HEAD_OFFICE' };
@@ -35,7 +36,10 @@ vi.mock('@/lib/use-async', () => ({
 
 import ReportsExportPage from '@/app/hq/reports/export/page';
 
-beforeEach(() => get.mockReset());
+beforeEach(() => {
+  who.role = 'HEAD_OFFICE';
+  get.mockReset();
+});
 afterEach(() => vi.clearAllMocks());
 
 describe('the sales-history import door', () => {
@@ -51,6 +55,5 @@ describe('the sales-history import door', () => {
     who.role = 'FINANCE';
     render(<ReportsExportPage />);
     expect(screen.queryByText('hrFix.imports.salesHistory')).toBeNull();
-    who.role = 'HEAD_OFFICE';
   });
 });

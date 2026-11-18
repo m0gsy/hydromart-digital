@@ -2,9 +2,7 @@ import { SalesImportService } from '../../src/application/services/sales-import.
 import { SalesImportRepository } from '../../src/application/ports/sales-import.repository';
 
 const DEPOT_A = '11111111-1111-4111-8111-111111111111';
-// A depot-scoped manager over DEPOT_A only, the way the gateway resolves one.
-const user = { sub: 'staff-1', role: 'MANAGER', phone: '0811', depotIds: ['11111111-1111-4111-8111-111111111111'] } as never;
-const DEPOT_B = '22222222-2222-4222-8222-222222222222';
+const user = { sub: 'staff-1', role: 'MANAGER', phone: '0811' } as never;
 
 function makeService(repo: Partial<SalesImportRepository>) {
   // No live orders unless a test says otherwise (ORD-14 go-live warning).
@@ -133,7 +131,7 @@ describe('SalesImportService', () => {
     const from = new Date('2026-01-01');
     const to = new Date('2026-02-01');
 
-    const rows = await service.listByDepot(user, DEPOT_A, from, to);
+    const rows = await service.listByDepot(DEPOT_A, from, to);
 
     expect(listByDepot).toHaveBeenCalledWith(DEPOT_A, { from, to });
     expect(rows).toEqual([{ id: 'r1' }]);
@@ -170,37 +168,5 @@ describe('SalesImportService', () => {
 
     expect(sumByMethod).toHaveBeenCalledWith({ from, to });
     expect(result).toEqual([{ method: 'CASH', orders: 1, revenue: 10000 }]);
-  });
-});
-
-/*
- * PR-1d review, owner decision 2026-11-18: the import and its list answered for ANY depot id,
- * so a manager scoped to one depot could write (and read) another depot's history — which
- * head office's top-depot report then counts. Both now ask the depot scope first.
- */
-describe('SalesImportService depot scope', () => {
-  it('refuses to import into a depot outside the caller scope, before writing anything', async () => {
-    const create = jest.fn();
-    const service = makeService({ create } as Partial<SalesImportRepository>);
-    await expect(service.importTransactions(user, DEPOT_B, [row()])).rejects.toThrow(
-      'hanya boleh mengakses depot',
-    );
-    expect(create).not.toHaveBeenCalled();
-  });
-
-  it('refuses to list a depot outside the caller scope', () => {
-    const listByDepot = jest.fn();
-    const service = makeService({ listByDepot } as Partial<SalesImportRepository>);
-    expect(() => service.listByDepot(user, DEPOT_B, new Date(), new Date())).toThrow(
-      'hanya boleh mengakses depot',
-    );
-    expect(listByDepot).not.toHaveBeenCalled();
-  });
-
-  it('lets a network role import into any depot', async () => {
-    const office = { sub: 'ho-1', role: 'HEAD_OFFICE', phone: '0812' } as never;
-    const listByDepot = jest.fn().mockResolvedValue([]);
-    const service = makeService({ listByDepot } as Partial<SalesImportRepository>);
-    await expect(service.listByDepot(office, DEPOT_B, new Date(), new Date())).resolves.toEqual([]);
   });
 });

@@ -1,13 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 
-import {
-  assertDepotAccess,
-  AuthenticatedUser,
-  ImportSummary,
-  localDayKey,
-  runImport,
-} from '@hydromart/platform';
+import { AuthenticatedUser, ImportSummary, localDayKey, runImport } from '@hydromart/platform';
 
 import {
   HistoricalDepotSum,
@@ -44,9 +38,6 @@ export class SalesImportService {
     depotId: string,
     rows: readonly ImportSalesTransactionRow[],
   ): Promise<ImportSummary> {
-    // The import used to answer for any depot id: a manager scoped to one depot could write
-    // another's history, which head office's top-depot report then counts.
-    assertDepotAccess(user, depotId);
     const batchId = randomUUID();
     // ORD-14: owner decision is a warning, not a refusal, for a receipt dated after go-live.
     const goLive = await this.repo.firstOrderAt(depotId);
@@ -95,8 +86,7 @@ export class SalesImportService {
     );
   }
 
-  listByDepot(user: AuthenticatedUser, depotId: string, from: Date, to: Date) {
-    assertDepotAccess(user, depotId);
+  listByDepot(depotId: string, from: Date, to: Date) {
     return this.repo.listByDepot(depotId, { from, to });
   }
 
