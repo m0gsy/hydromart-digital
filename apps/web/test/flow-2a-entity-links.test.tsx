@@ -552,7 +552,7 @@ describe('head office order detail: the buyer and the depot', () => {
     ['by-ids', [{ id: 'c-1', fullName: 'Wahyu', phone: '+62811' }]],
     ['/manage/', ORDER],
     ['/payments', { items: [], total: 0, page: 1, limit: 10 }],
-    ['/depots', { items: [{ id: 'd-1', name: 'Depot Satu' }], total: 1, page: 1, limit: 100 }],
+    ['/depots/api/v1/depots/d-1', { id: 'd-1', name: 'Depot Satu' }],
   ];
 
   it("opens the buyer by their ACCOUNT phone, not the recipient's, and names the depot", async () => {

@@ -30,6 +30,15 @@ async function lookupBuyer(id: string): Promise<Customer[] | null> {
   }
 }
 
+/** The depot's public record (no auth), for its name. Never fatal either. */
+async function lookupDepot(id: string): Promise<Depot | null> {
+  try {
+    return await api.getCached<Depot>(endpoints.depots.detail(id));
+  } catch {
+    return null;
+  }
+}
+
 // Design 16d — order drill-down: items, timeline, payment & delivery. Real: orders.get
 // + payments.forOrderStaff (both staff-readable). Delivery is read off the order itself.
 export default function HqOrderDetailPage() {
@@ -56,11 +65,12 @@ export default function HqOrderDetailPage() {
     () => (buyerId && mayResolve ? lookupBuyer(buyerId) : Promise.resolve(null)),
     [buyerId, mayResolve],
   );
-  // The depot is named off the public directory, read only when there is a door to open.
-  const depotHref = entityHref('depot', order.data?.depotId, 'hq', role);
-  const depots = useAsync<Page<Depot> | null>(
-    () => (depotHref ? api.getCached<Page<Depot>>(endpoints.depots.browse({ limit: 100 })) : Promise.resolve(null)),
-    [depotHref],
+  // The depot is named off its public record, read only when there is a door to open.
+  const depotId = order.data?.depotId;
+  const depotHref = entityHref('depot', depotId, 'hq', role);
+  const depot = useAsync<Depot | null>(
+    () => (depotHref && depotId ? lookupDepot(depotId) : Promise.resolve(null)),
+    [depotHref, depotId],
   );
 
   const back = (
@@ -193,7 +203,7 @@ export default function HqOrderDetailPage() {
               <p className="text-sm">
                 {t('hq.orderDetail.depot')}:{' '}
                 <EntityLink href={depotHref}>
-                  {depots.data?.items.find((d) => d.id === o.depotId)?.name ?? t('hq.orderDetail.openDepot')}
+                  {depot.data?.name ?? t('hq.orderDetail.openDepot')}
                 </EntityLink>
               </p>
             )}
