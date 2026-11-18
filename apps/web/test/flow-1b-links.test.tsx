@@ -44,6 +44,7 @@ import { GROUPS } from '@/components/dashboard/ops-rail';
 import { CommandPalette, HQ_COMMAND_EVENT } from '@/components/hq/command-palette';
 import { WidgetCard } from '@/components/insight/widget-card';
 import { Nav } from '@/components/nav';
+import OrdersPage from '@/app/dashboard/orders/page';
 
 const page = (items: unknown[]) => ({ items, total: items.length, page: 1, limit: 10 });
 const hrefOf = (text: string) => screen.getByText(text).closest('a')?.getAttribute('href') ?? null;
@@ -262,5 +263,26 @@ describe('the access landing preview says where a role really lands', () => {
     fireEvent.click(screen.getByText('hq.roles.STAFF_DEPOT'));
     expect(screen.getByText('/driver')).toBeTruthy();
     expect(screen.queryByText('/dashboard/orders')).toBeNull();
+  });
+});
+
+describe('the order queue FINANCE now reaches from its rail', () => {
+  const deliveryReads = () =>
+    get.mock.calls.filter(([u]) => String(u).includes('/deliveries/api/v1/deliveries')).length;
+
+  it('does not ask for the courier load it may not read (trackingRead)', async () => {
+    who.role = 'FINANCE';
+    who.path = '/dashboard/orders';
+    render(<OrdersPage />);
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    await act(async () => {});
+    expect(deliveryReads()).toBe(0);
+  });
+
+  it('still reads it for a role that assigns couriers', async () => {
+    who.role = 'MANAGER';
+    who.path = '/dashboard/orders';
+    render(<OrdersPage />);
+    await waitFor(() => expect(deliveryReads()).toBeGreaterThan(0));
   });
 });

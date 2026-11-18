@@ -291,7 +291,10 @@ function QueueBody() {
   const { selectedId: depotFilterId, selected: scopedDepot } = useDepot();
   const driversEndpoint = useDriversUrl();
   const { customer } = useAuth();
-  const rosterReadable = canReadRoster(customer?.role);
+  // The load panel reads the roster AND the live deliveries (`trackingRead`). FINANCE holds the
+  // first only: it reads this queue to refund and reconcile, assigns nobody, and was handed a
+  // 403 on every visit once the rail gave it a door here.
+  const rosterReadable = canReadRoster(customer?.role) && can('trackingRead', customer?.role);
 
   /*
    * CA-2-40. The queue read 100 orders and grouped them into four tabs client-side, so on a
