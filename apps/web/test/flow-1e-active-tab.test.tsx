@@ -27,6 +27,7 @@ vi.mock('@/lib/locale-context', () => ({
   translate: (k: string) => k,
 }));
 vi.mock('@/lib/depot-context', () => ({
+  DepotProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useDepot: () => ({
     depots: [],
     selected: null,
@@ -37,6 +38,9 @@ vi.mock('@/lib/depot-context', () => ({
   }),
 }));
 vi.mock('@/lib/unread', () => ({ useUnreadCount: () => 0, useOpsUnreadCount: () => 0 }));
+vi.mock('@/components/require-auth', () => ({
+  RequireAuth: ({ children }: { children: React.ReactNode }) => <div data-testid="auth-wall">{children}</div>,
+}));
 vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: async () => true }) }));
 vi.mock('@/lib/theme-context', () => ({
   useTheme: () => ({ theme: 'light', resolved: 'light', setTheme: vi.fn() }),
@@ -56,6 +60,7 @@ import { ManagerShell } from '@/components/manager-mobile/manager-shell';
 import { OpsBottomNav } from '@/components/dashboard/ops-bottom-nav';
 import { OpsRail } from '@/components/dashboard/ops-rail';
 import { OperatorShell } from '@/components/operator/operator-shell';
+import ManagerMobileLayout from '@/app/m/manager/layout';
 
 afterEach(() => vi.clearAllMocks());
 
@@ -79,5 +84,15 @@ describe('the home tab is current at the path the APK hands over', () => {
     who.path = path;
     render(ui());
     expect(current(home)).toBeTruthy();
+  });
+});
+
+describe('the manager phone layout reads the APK path too', () => {
+  it('serves its OTP login bare at /m/manager/login/, outside the sign-in wall', () => {
+    who.role = 'MANAGER';
+    who.path = '/m/manager/login/';
+    const { queryByTestId, getByText } = render(<ManagerMobileLayout>login</ManagerMobileLayout>);
+    expect(getByText('login')).toBeTruthy();
+    expect(queryByTestId('auth-wall')).toBeNull();
   });
 });
