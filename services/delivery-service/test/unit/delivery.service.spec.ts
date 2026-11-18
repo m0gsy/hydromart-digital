@@ -1107,6 +1107,15 @@ describe('DeliveryService', () => {
     expect(others.total).toBe(0);
   });
 
+  // Flow PR-2a-ii: the order panel asks for ONE order's delivery to name and link its courier.
+  it('lists one order’s delivery when asked by order', async () => {
+    const d = await assign(driver);
+    const hit = await service.listAll({ orderId: d.orderId });
+    const miss = await service.listAll({ orderId: randomUUID() });
+    expect(hit.items.map((x) => x.driverId)).toEqual([driver]);
+    expect(miss.total).toBe(0);
+  });
+
   it('purges proof-of-delivery records past the retention window (UU PDP)', async () => {
     const d = await assign();
     await service.pickup(driver, d.id, AUTH);
