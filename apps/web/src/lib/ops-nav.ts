@@ -602,7 +602,7 @@ export function hubsFor(role: Role): VisibleHub[] {
 }
 
 /**
- * The hub whose screen `path` IS (normalised, so the APK's `/x/` is `/x`), as `role` sees
+ * The hub whose screen `path` IS (normalised for the APK's final slash), as `role` sees
  * it. Only an exact member: a detail screen below one is not a hub page and gets no tabs.
  */
 export function hubOf(path: string, role: Role): VisibleHub | undefined {
