@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { CaretRight, Coins, Gavel, HandCoins, Lock, Package, Wallet } from '@phosphor-icons/react';
 
+import { DecisionInbox } from '@/components/dashboard/decision-inbox';
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
@@ -102,6 +103,8 @@ function Body() {
         <Gavel size={24} weight="fill" className="text-brand-500" />
         <h1 className="text-2xl font-bold">{t('dashA.approvals.title')}</h1>
       </div>
+      {/* Flow PR-4: the other queues waiting for this role, above the depot's own. */}
+      <DecisionInbox />
       <div>
         <p className="text-sm font-semibold">{t('dashA.approvals.waiting', { n: count })}</p>
         <p className="text-[12.5px] text-[color:var(--text-muted)]">

@@ -3,6 +3,8 @@
 import type { walkIn } from './opsFixWalkIn';
 
 const opsFixShared = {
+  // Flow PR-4: the decision inbox on the approvals screens.
+  inbox: { title: 'Menunggu keputusan Anda', open: 'Buka' },
   payoutAccount: {
     title: 'Rekening tujuan pencairan',
     hint: 'Saldo hanya bisa dicairkan ke rekening yang sudah diverifikasi kantor pusat.',

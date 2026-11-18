@@ -1,6 +1,8 @@
 // Depot-operator design-fidelity fixes (batch AB) — English mirror of id/opsFix.ts.
 // NO `as const` — values must widen to string so both locales share one key shape.
 export const opsFix = {
+  // Flow PR-4: the decision inbox on the approvals screens.
+  inbox: { title: 'Waiting for your decision', open: 'Open' },
   payoutAccount: {
     title: 'Payout destination',
     hint: 'A balance can only be paid to an account head office has verified.',
