@@ -6,6 +6,7 @@ import {
   AttendanceStatus,
   Employee,
   FaceEmbedding,
+  Prisma,
 } from '../../prisma/generated/client';
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { AttendanceService, FacePunch } from '../../src/application/services/attendance.service';
@@ -405,5 +406,63 @@ describe('AttendanceService.decide', () => {
       depotId: 'd2',
     };
     await expect(svc.decide(otherDepot, 'a1', 'APPROVE')).rejects.toThrow(ForbiddenException);
+  });
+});
+
+/*
+ * Sentry 2026-11-18 01:14 UTC: `Unique constraint failed on (employeeId, workDate)` from
+ * POST /attendance/check-in, a 500.
+ *
+ * The replay guard above handles a twin that arrives AFTER the first punch's row exists. The
+ * one that arrives while the first is still in flight — face check against NEO (~2 s), photo
+ * upload — reads "no row yet" too, and both write. The unique index keeps the data right; the
+ * loser used to surface the bare Prisma error. It is now answered exactly as if it had arrived
+ * a moment later.
+ */
+describe('AttendanceService check-in that loses the race to its twin', () => {
+  /** The other request's row lands between this request's read and its write. */
+  class RacingAtt extends FakeAtt {
+    constructor(
+      private readonly winner: Partial<Attendance> | null,
+      private readonly failure: unknown = new Prisma.PrismaClientKnownRequestError('dup', {
+        code: 'P2002',
+        clientVersion: 'x',
+        meta: { target: ['employeeId', 'workDate'] },
+      }),
+    ) {
+      super();
+    }
+    async create(): Promise<Attendance> {
+      if (this.winner) this.row = { id: 'a-twin', ...this.winner } as Attendance;
+      throw this.failure;
+    }
+  }
+
+  it('answers the twin of a queued punch with the row that punch wrote', async () => {
+    const att = new RacingAtt({ checkInAt: AT_0810 });
+    const { svc } = make({ att });
+    await expect(
+      svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 60_000)),
+    ).resolves.toMatchObject({ id: 'a-twin', checkInAt: AT_0810 });
+  });
+
+  it('refuses a different punch that lost the race, as "already checked in"', async () => {
+    const att = new RacingAtt({ checkInAt: AT_0810 });
+    const { svc } = make({ att });
+    await expect(svc.checkIn(user, punchAt(), AT_0830)).rejects.toThrow(BadRequestException);
+  });
+
+  it('still surfaces a write failure that is not the day already taken', async () => {
+    const att = new RacingAtt(null, new Error('database unreachable'));
+    const { svc } = make({ att });
+    await expect(svc.checkIn(user, punchAt(), AT_0830)).rejects.toThrow('database unreachable');
+  });
+
+  it('still surfaces a unique violation with no row behind it', async () => {
+    const att = new RacingAtt(null);
+    const { svc } = make({ att });
+    await expect(svc.checkIn(user, punchAt(), AT_0830)).rejects.toThrow(
+      Prisma.PrismaClientKnownRequestError,
+    );
   });
 });

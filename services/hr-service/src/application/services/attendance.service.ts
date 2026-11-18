@@ -19,7 +19,7 @@ import {
   runImport,
 } from '@hydromart/platform';
 
-import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
+import { Attendance, AttendanceStatus, Employee, Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { addDays, depotOn } from '../../domain/depot-on';
 import { withinGeofence } from '../../domain/geofence';
@@ -163,8 +163,7 @@ export class AttendanceService {
        * twice. A punch with no `capturedAt` is a live one, and a second live punch is a
        * genuine second attempt that must still be refused.
        */
-      if (punch.capturedAt && existing.checkInAt.getTime() === at.getTime()) return existing;
-      throw new BadRequestException('Sudah check-in hari ini');
+      return this.alreadyCheckedIn(existing, punch, at);
     }
 
     // Late is measured against THIS employee's shift for THIS day (C3), falling back to the
@@ -188,18 +187,35 @@ export class AttendanceService {
         this.config.offlineAutoAcceptMinutes(workDepotId) * 60_000;
 
     const status = stale || holdForReview ? 'PENDING' : late ? 'LATE' : 'PRESENT';
-    const created = await this.repo.create({
-      employeeId: employee.id,
-      depotId: workDepotId,
-      workDate,
-      checkInAt: at,
-      checkInPhotoUrl: photoUrl,
-      checkInScore: score,
-      checkInLat: punch.lat,
-      checkInLng: punch.lng,
-      lateMinutes,
-      status,
-    });
+    let created: Attendance;
+    try {
+      created = await this.repo.create({
+        employeeId: employee.id,
+        depotId: workDepotId,
+        workDate,
+        checkInAt: at,
+        checkInPhotoUrl: photoUrl,
+        checkInScore: score,
+        checkInLat: punch.lat,
+        checkInLng: punch.lng,
+        lateMinutes,
+        status,
+      });
+    } catch (err) {
+      /*
+       * The twin that arrives while the first punch is still in flight (Sentry 2026-11-18): the
+       * queue's retry of a request whose answer it never got, or a double tap. Both read "no row
+       * yet" above — the face check and the photo upload sit between that read and this write —
+       * and (employeeId, workDate) is unique, so the second write fails. Answer it as if it had
+       * arrived a moment later, instead of as a 500 carrying the Prisma error.
+       */
+      const twin =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
+          ? await this.repo.findByEmployeeAndDate(employee.id, workDate)
+          : null;
+      if (twin?.checkInAt) return this.alreadyCheckedIn(twin, punch, at);
+      throw err;
+    }
     // HR-18: an offline punch is recorded at the DEVICE's minute. Face and geofence were checked
     // live, so the person was there - but the minute is the device's claim, and inside the
     // auto-accept window nothing said so. Leave the gap on the row's trail where HR already looks.
@@ -208,6 +224,17 @@ export class AttendanceService {
     // and a replayed punch returned above before reaching here.
     if (status === 'LATE') await this.notifyLate(employee, lateMinutes, workDate);
     return created;
+  }
+
+  /**
+   * The day's row is already there: this punch's own replay gets it back, anything else is
+   * refused. `offlineAt` is `min(capturedAt, now)`, so a queued punch replaying the same
+   * `capturedAt` computes the same instant to the millisecond; a punch with no `capturedAt` is
+   * a live one, and a second live punch is a genuine second attempt.
+   */
+  private alreadyCheckedIn(existing: Attendance, punch: FacePunch, at: Date): Attendance {
+    if (punch.capturedAt && existing.checkInAt?.getTime() === at.getTime()) return existing;
+    throw new BadRequestException('Sudah check-in hari ini');
   }
 
   /** Clock skew below this is not worth a trail entry. */
