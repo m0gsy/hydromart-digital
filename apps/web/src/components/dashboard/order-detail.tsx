@@ -16,6 +16,7 @@ import { formatDateTime, mediaUrl, parseIdr } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
 import { printReceipt } from '@/lib/receipt';
 import { thermalErrorKey } from '@/lib/receipt-thermal';
+import { useDepot } from '@/lib/depot-context';
 import { useDepotContact } from '@/lib/use-depot-contact';
 import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
@@ -23,7 +24,8 @@ import { canReadRoster } from '@/lib/drivers-scope';
 import { can, canConfirmPayment } from '@/lib/roles';
 import { dispatchableDrivers, type CourierShift } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
-import type { Customer, Order, Page, Payment } from '@/lib/types';
+import { canOpenRoute } from '@/lib/route-access';
+import type { Customer, Delivery, Order, Page, Payment } from '@/lib/types';
 import { dayStartWib, todayWib } from '@/lib/wib';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
@@ -368,6 +370,28 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
   );
 }
 
+/**
+ * Flow PR-2a-ii: an order knows its courier by NAME only; its one delivery knows who. Asked only
+ * when the reader may read deliveries AND open where the courier link goes, so the lookup never
+ * costs a 403. Null until known, or when it is not.
+ */
+export function useOrderCourierId(orderId: string | undefined, target: string, role?: string | null): string | null {
+  const enabled = Boolean(orderId) && can('trackingRead', role) && canOpenRoute(target, role);
+  const found = useAsync<Page<Delivery> | null>(
+    () => (enabled && orderId ? deliveryForOrder(orderId) : Promise.resolve(null)),
+    [orderId, enabled],
+  );
+  return found.data?.items[0]?.driverId ?? null;
+}
+
+async function deliveryForOrder(orderId: string): Promise<Page<Delivery> | null> {
+  try {
+    return await api.get<Page<Delivery>>(endpoints.deliveries.forOrder(orderId), true);
+  } catch {
+    return null;
+  }
+}
+
 /** Full order drill-down (7a/3i): items, address, status timeline, advance + assign. */
 export function OrderDetail({
   order,
@@ -391,6 +415,14 @@ export function OrderDetail({
   // Picking a courier needs the roster; a role that may open the order without it has nothing
   // to pick from, and the dropdown used to fail with a 403 it could never recover from.
   const canAssign = order.status === 'PREPARING' && canReadRoster(customer?.role);
+  // The team screen reports on the console's own depot: an order from another depot (under
+  // "Semua depot") would open a card that says the courier delivered nothing this month.
+  const { scopedId } = useDepot();
+  const courierId = useOrderCourierId(
+    order.driverName && order.depotId === scopedId ? order.id : undefined,
+    '/dashboard/team-performance',
+    customer?.role,
+  );
 
   async function advance() {
     if (!next) return;
@@ -452,7 +484,9 @@ export function OrderDetail({
           )}
           {order.driverName && (
             <p className="mt-1 font-medium">
-              {t('hrFix.orderDetail.courier', { name: order.driverName })}
+              <EntityLink href={entityHref('courier', courierId, 'dashboard', customer?.role)}>
+                {t('hrFix.orderDetail.courier', { name: order.driverName })}
+              </EntityLink>
             </p>
           )}
         </div>

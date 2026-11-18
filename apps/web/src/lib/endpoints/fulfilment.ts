@@ -33,6 +33,8 @@ deliveries: {
     const qs = p.toString();
     return `/deliveries/api/v1/deliveries${qs ? `?${qs}` : ''}`;
   },
+  // Flow PR-2a-ii: the one delivery of an order (an order has at most one), to name its courier.
+  forOrder: (orderId: string) => `/deliveries/api/v1/deliveries?orderId=${encodeURIComponent(orderId)}&limit=1`,
   // CA-4-49: time-limited links to a delivery's proof images. The stored value no longer
   // resolves — the bucket is private — so the screen asks for a link that expires.
   proofLinks: (id: string) => `/deliveries/api/v1/deliveries/${encodeURIComponent(id)}/proof-links`,

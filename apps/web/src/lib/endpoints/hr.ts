@@ -12,6 +12,8 @@ export interface HrEmployeeQuery {
   depotId?: string;
   status?: string;
   departmentId?: string;
+  /** The employee behind one login (flow PR-2a-ii). */
+  authSubjectId?: string;
   search?: string;
   page?: number;
   pageSize?: number;

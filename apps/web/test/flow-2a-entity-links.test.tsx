@@ -67,6 +67,7 @@ import PurchaseOrderDetailPage from '@/app/dashboard/purchase-orders/detail/page
 import HqCustomersPage from '@/app/hq/customers/page';
 import HqRefundsPage from '@/app/hq/refunds/page';
 import HqOrderDetailPage from '@/app/hq/orders/detail/page';
+import HrEmployeeDetailPage from '@/app/hr/employees/detail/page';
 
 const ANON = '00000000-0000-0000-0000-000000000000';
 const REFERRAL = { code: { code: 'REF1' }, referredCount: 0, qualifiedCount: 0, pointsEarned: 0 };
@@ -108,7 +109,6 @@ describe('entityHref', () => {
     expect(entityHref('order', null, 'dashboard', 'MANAGER')).toBeNull();
     expect(entityHref('order', '', 'dashboard', 'MANAGER')).toBeNull();
     expect(entityHref('customer', ANON, 'dashboard', 'MANAGER')).toBeNull();
-    expect(entityHref('courier', 'k1', 'hq', 'HEAD_OFFICE')).toBeNull();
     expect(entityHref('depot', 'dp1', 'dashboard', 'MANAGER')).toBeNull();
   });
 });
@@ -578,5 +578,122 @@ describe('head office order detail: the buyer and the depot', () => {
     await screen.findByText('HM-0001');
     expect(hrefOf('Wahyu')).toBeNull();
     expect(get.mock.calls.some(([url]) => String(url).includes('by-ids'))).toBe(false);
+  });
+});
+
+/*
+ * Flow PR-2a-ii: a courier is a login. The depot opens their card on the team screen (via the
+ * order's own delivery, asked only of roles that may read deliveries), head office and the team
+ * screen open their HR record by that login, which the HR screen resolves itself.
+ */
+describe('courier links (2a-ii)', () => {
+  it('entityHref: a courier on the head-office side, and any staff login, open the HR record', () => {
+    expect(entityHref('courier', 'k1', 'hq', 'HEAD_OFFICE')).toBe('/hr/employees/detail?account=k1');
+    expect(entityHref('staffAccount', 'k1', 'dashboard', 'MANAGER')).toBe('/hr/employees/detail?account=k1');
+    expect(entityHref('staffAccount', 'k1', 'dashboard', 'KEPALA_DEPOT')).toBeNull();
+  });
+
+  const ORDER = {
+    id: 'o-1',
+    orderNumber: 'HM-0001',
+    status: 'DELIVERED',
+    depotId: 'd-1',
+    customerId: 'c-1',
+    recipientName: 'Wahyu',
+    phone: '0811',
+    addressLine: 'Jl. Mawar 1',
+    city: 'Jakarta',
+    province: null,
+    postalCode: null,
+    notes: null,
+    deliveryWindow: null,
+    subtotal: 20000,
+    deliveryFee: 0,
+    discount: 0,
+    total: 20000,
+    items: [],
+    history: [],
+    isWalkIn: false,
+    driverName: 'Andi Kurir',
+    createdAt: '2026-11-18T02:00:00.000Z',
+  };
+  const courierRoutes: [string, unknown][] = [
+    ['/deliveries?orderId=o-1', { items: [{ id: 'dl1', orderId: 'o-1', driverId: 'k1' }], total: 1, page: 1, limit: 1 }],
+    ['/payments', { items: [], total: 0, page: 1, limit: 10 }],
+  ];
+
+  it("the depot order panel opens the courier's card on the team screen", async () => {
+    serve(courierRoutes);
+    render(<OrderDetail order={ORDER as never} onClose={vi.fn()} onChanged={vi.fn()} />);
+    await waitFor(() =>
+      expect(hrefOf(/hrFix\.orderDetail\.courier/)).toBe('/dashboard/team-performance?driver=k1'),
+    );
+  });
+
+  it('an order from another depot keeps the courier as text (the team screen reports on its own depot)', async () => {
+    serve(courierRoutes);
+    render(<OrderDetail order={{ ...ORDER, depotId: 'd-2' } as never} onClose={vi.fn()} onChanged={vi.fn()} />);
+    await screen.findByText(/hrFix.orderDetail.courier/);
+    expect(hrefOf(/hrFix.orderDetail.courier/)).toBeNull();
+    expect(get.mock.calls.some(([url]) => String(url).includes('/deliveries?orderId='))).toBe(false);
+  });
+
+  it('a role that may not read deliveries never asks, and keeps the name as text', async () => {
+    who.role = 'FINANCE';
+    serve(courierRoutes);
+    render(<OrderDetail order={ORDER as never} onClose={vi.fn()} onChanged={vi.fn()} />);
+    await screen.findByText(/hrFix\.orderDetail\.courier/);
+    expect(hrefOf(/hrFix\.orderDetail\.courier/)).toBeNull();
+    expect(get.mock.calls.some(([url]) => String(url).includes('/deliveries?orderId='))).toBe(false);
+  });
+
+  it('head office opens the courier’s HR record', async () => {
+    who.role = 'HEAD_OFFICE';
+    at('/hq/orders/detail?id=o-1');
+    serve([
+      ...courierRoutes,
+      ['/manage/', ORDER],
+      ['/payments', { items: [], total: 0, page: 1, limit: 10 }],
+    ]);
+    render(<HqOrderDetailPage />);
+    await screen.findByText('HM-0001');
+    await waitFor(() => expect(hrefOf('Andi Kurir')).toBe('/hr/employees/detail?account=k1'));
+  });
+});
+
+describe('HR record by login (2a-ii)', () => {
+  it('resolves `?account=` to the employee and loads that record', async () => {
+    who.role = 'HR';
+    at('/hr/employees/detail?account=k1');
+    serve([
+      ['authSubjectId=k1', { rows: [{ id: 'e1', fullName: 'Andi Kurir' }], total: 1, page: 1, pageSize: 1 }],
+      ['/employees/api/v1/employees/e1', { id: 'e1', fullName: 'Andi Kurir', employeeCode: 'K-01', status: 'ACTIVE' }],
+    ]);
+    render(<HrEmployeeDetailPage />);
+    await waitFor(() =>
+      expect(get.mock.calls.some(([url]) => String(url).endsWith('/employees/api/v1/employees/e1'))).toBe(true),
+    );
+  });
+
+  it('a login with no record says not found, and leads back', async () => {
+    who.role = 'HR';
+    at('/hr/employees/detail?account=k9');
+    serve([['authSubjectId=k9', { rows: [], total: 0, page: 1, pageSize: 1 }]]);
+    render(<HrEmployeeDetailPage />);
+    await screen.findByText('hrFix.deliveryDetail.notFound');
+    expect(hrefOf('hrFix.common.back')).toBe('/hr/employees');
+  });
+
+  it('a lookup that fails is an error with retry, not "not found"', async () => {
+    who.role = 'HR';
+    at('/hr/employees/detail?account=k1');
+    get.mockImplementation(async (url: string) => {
+      if (String(url).includes('authSubjectId=k1')) throw new Error('gateway down');
+      return [];
+    });
+    render(<HrEmployeeDetailPage />);
+    // a plain failure reads as useAsync's generic message; the point is it is not "not found"
+    await screen.findByText('Something went wrong.');
+    expect(screen.queryByText('hrFix.deliveryDetail.notFound')).toBeNull();
   });
 });

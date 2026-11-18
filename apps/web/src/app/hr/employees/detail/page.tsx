@@ -39,6 +39,7 @@ import {
   type Department,
   type Employee,
   type EmploymentHistory,
+  type HrPage,
 } from '@/lib/hr';
 import { can, canManageHr } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
@@ -54,18 +55,34 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+/** One read each; kept as statements so the endpoint-contract check can read them. */
+function fetchEmployee(id: string): Promise<Employee> {
+  return api.get<Employee>(endpoints.hr.employee(id), true);
+}
+function employeeByAccount(account: string): Promise<HrPage<Employee>> {
+  return api.get<HrPage<Employee>>(endpoints.hr.employees({ authSubjectId: account, pageSize: 1 }), true);
+}
+
 export default function EmployeeDetailPage() {
   const { t } = useT();
   const { depots } = useDepot();
-  const id = useQueryParam('id');
+  const idParam = useQueryParam('id');
+  // Flow PR-2a-ii: a courier's name elsewhere opens this by LOGIN (`?account=`): HR keys people
+  // by employee id, the rest of the app knows a courier by their account.
+  const account = useQueryParam('account');
+  const byAccount = useAsync<HrPage<Employee> | null>(
+    () => (idParam || !account ? Promise.resolve(null) : employeeByAccount(account)),
+    [idParam, account],
+  );
+  const id = idParam || byAccount.data?.rows[0]?.id || '';
   const { customer } = useAuth();
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const isAdmin = canManageHr(customer?.role);
 
-  const emp = useAsync<Employee>(() => api.get<Employee>(endpoints.hr.employee(id), true), [id]);
+  const emp = useAsync<Employee | null>(() => (id ? fetchEmployee(id) : Promise.resolve(null)), [id]);
   const history = useAsync<EmploymentHistory[]>(
-    () => api.get<EmploymentHistory[]>(endpoints.hr.employeeHistory(id), true),
+    () => (id ? api.get<EmploymentHistory[]>(endpoints.hr.employeeHistory(id), true) : Promise.resolve([])),
     [id],
   );
   const departments = useAsync<Department[]>(
@@ -111,7 +128,25 @@ export default function EmployeeDetailPage() {
     }
   }
 
-  if (emp.loading) return <Skeleton className="mx-auto h-96 max-w-3xl" />;
+  // A login that could not be looked up is not a person without a record: say so, with retry.
+  if (byAccount.error)
+    return (
+      <div className="mx-auto max-w-3xl space-y-3">
+        <HrBack href="/hr/employees" label={t('hrFix.common.back')} />
+        <ErrorState message={byAccount.error} onRetry={byAccount.reload} />
+      </div>
+    );
+  // `emp` resolves null only for "no id yet"; a real id either loads or errors. Until the
+  // record for the resolved id is in, this is still loading, not "not found".
+  if (emp.loading || byAccount.loading || (id && !emp.data && !emp.error))
+    return <Skeleton className="mx-auto h-96 max-w-3xl" />;
+  if (!id)
+    return (
+      <div className="mx-auto max-w-3xl space-y-3">
+        <HrBack href="/hr/employees" label={t('hrFix.common.back')} />
+        <ErrorState message={t('hrFix.deliveryDetail.notFound')} />
+      </div>
+    );
   if (emp.error)
     return (
       <div className="mx-auto max-w-3xl space-y-3">

@@ -18,6 +18,10 @@ const { get, role } = vi.hoisted(() => ({
   role: { current: 'STAFF_DEPOT' },
 }));
 
+// PR-2a-ii: the order panel offers a courier link only for the console's own depot.
+vi.mock('@/lib/depot-context', () => ({
+  useDepot: () => ({ depots: [], selected: null, selectedId: null, scopedId: null, ready: true }),
+}));
 vi.mock('@/lib/api', () => ({
   api: { get, getCached: get, patch: vi.fn(), post: vi.fn() },
   ApiError: class ApiError extends Error {},

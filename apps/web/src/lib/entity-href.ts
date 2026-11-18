@@ -22,7 +22,8 @@ export type EntityKind =
   | 'supplier'
   | 'stock'
   | 'gallon'
-  | 'employee';
+  | 'employee'
+  | 'staffAccount';
 
 /** order-service `domain/anonymous.ts`: the buyer on a counter sale with no account. */
 const ANONYMOUS_CUSTOMER_ID = '00000000-0000-0000-0000-000000000000';
@@ -39,7 +40,12 @@ const TARGETS: Record<EntityKind, Partial<Record<ConsoleSide, (ref: string) => s
     dashboard: (id) => `/dashboard/customers/detail?id=${q(id)}`,
     hq: (phone) => `/hq/customers?phone=${q(phone)}`,
   },
-  courier: { dashboard: (id) => `/dashboard/team-performance?driver=${q(id)}` },
+  // A courier is a login: the depot opens their card on the team screen, head office their HR
+  // record, found by that login (flow PR-2a-ii).
+  courier: {
+    dashboard: (id) => `/dashboard/team-performance?driver=${q(id)}`,
+    hq: (id) => `/hr/employees/detail?account=${q(id)}`,
+  },
   depot: { hq: (id) => `/hq/depots/detail?id=${q(id)}` },
   supplier: { dashboard: () => '/dashboard/suppliers' },
   stock: { dashboard: () => '/dashboard/inventory' },
@@ -48,6 +54,11 @@ const TARGETS: Record<EntityKind, Partial<Record<ConsoleSide, (ref: string) => s
   employee: {
     dashboard: (id) => `/hr/employees/detail?id=${q(id)}`,
     hq: (id) => `/hr/employees/detail?id=${q(id)}`,
+  },
+  // Any staff login's HR record, resolved by that login on the HR screen.
+  staffAccount: {
+    dashboard: (id) => `/hr/employees/detail?account=${q(id)}`,
+    hq: (id) => `/hr/employees/detail?account=${q(id)}`,
   },
 };
 

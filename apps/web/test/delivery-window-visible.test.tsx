@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get, post, patch } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), patch: vi.fn() }));
 
+// PR-2a-ii: the order panel offers a courier link only for the console's own depot.
+vi.mock('@/lib/depot-context', () => ({
+  useDepot: () => ({ depots: [], selected: null, selectedId: null, scopedId: null, ready: true }),
+}));
 vi.mock('@/lib/api', () => ({
   api: { get, getCached: get, post, patch },
   ApiError: class extends Error {},
