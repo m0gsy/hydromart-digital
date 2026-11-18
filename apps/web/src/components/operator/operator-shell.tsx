@@ -6,20 +6,11 @@ import { usePathname } from 'next/navigation';
 import { Bell, Drop } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
-import { canViewInsight } from '@/lib/insight/access';
 import { useOpsNotifications } from '@/lib/ops-notifications';
 import { useDepot } from '@/lib/depot-context';
-import { normalisePath } from '@/lib/screen-chrome';
-import {
-  can,
-  canManageDepots,
-  canManagePromoRules,
-  canViewDepotCrm,
-  canViewForecast,
-  canViewMeterReading,
-  canViewPromotions,
-  isStaff,
-} from '@/lib/roles';
+import { hubsFor } from '@/lib/ops-nav';
+import { deepest, normalisePath } from '@/lib/screen-chrome';
+import { can } from '@/lib/roles';
 
 function initials(name: string): string {
   return name
@@ -40,55 +31,28 @@ function initials(name: string): string {
 type Tab = {
   label: string;
   href: string;
-  match: (p: string) => boolean;
   /** Hide the tab when the role lacks what the page behind it needs. */
   show?: (role: string | null | undefined) => boolean;
 };
 
 const primaryTabs: Tab[] = [
-  { label: 'hrFix.opNav.summary', href: '/dashboard', match: (p) => p === '/dashboard' },
-  { label: 'hrFix.opNav.queue', href: '/dashboard/orders', match: (p) => p.startsWith('/dashboard/orders'), show: (r) => can('orderManageRead', r) },
+  { label: 'hrFix.opNav.summary', href: '/dashboard' },
+  { label: 'hrFix.opNav.queue', href: '/dashboard/orders', show: (r) => can('orderManageRead', r) },
   // The operator IS the cashier — the counter sale belongs in their primary tabs, not the
   // manager's left rail (which this role never sees).
-  { label: 'hrFix.opNav.sales', href: '/dashboard/walk-in', match: (p) => p.startsWith('/dashboard/walk-in') },
-  { label: 'hrFix.opNav.couriers', href: '/dashboard/tracking', match: (p) => p.startsWith('/dashboard/tracking') },
-  { label: 'hrFix.opNav.inventory', href: '/dashboard/inventory', match: (p) => p.startsWith('/dashboard/inventory') },
-  { label: 'hrFix.opNav.returns', href: '/dashboard/returns', match: (p) => p.startsWith('/dashboard/returns') },
-  { label: 'hrFix.opNav.settlements', href: '/dashboard/settlements', match: (p) => p.startsWith('/dashboard/settlements') },
+  { label: 'hrFix.opNav.sales', href: '/dashboard/walk-in' },
+  { label: 'hrFix.opNav.couriers', href: '/dashboard/tracking' },
+  { label: 'hrFix.opNav.inventory', href: '/dashboard/inventory' },
+  { label: 'hrFix.opNav.returns', href: '/dashboard/returns' },
+  { label: 'hrFix.opNav.settlements', href: '/dashboard/settlements' },
 ];
 
-const manageTabs: Tab[] = [
-  { label: 'hrFix.opNav.insight', href: '/dashboard/insight', match: (p) => p.startsWith('/dashboard/insight'), show: canViewInsight },
-  { label: 'hrFix.opNav.customers', href: '/dashboard/customers', match: (p) => p.startsWith('/dashboard/customers') },
-  { label: 'hrFix.opNav.incidents', href: '/dashboard/incidents', match: (p) => p.startsWith('/dashboard/incidents') },
-  // Homepage banners are head office's (2026-11-17); the tab shows only for a role that may read them.
-  { label: 'hrFix.opNav.promotions', href: '/dashboard/promotions', match: (p) => p.startsWith('/dashboard/promotions'), show: canViewPromotions },
-  { label: 'hrFix.opNav.rewards', href: '/dashboard/redemptions', match: (p) => p.startsWith('/dashboard/redemptions') },
-  { label: 'hrFix.opNav.broadcast', href: '/dashboard/broadcast', match: (p) => p.startsWith('/dashboard/broadcast') },
-  // Self-service absen (HRIS). This shell only ever renders for KEPALA_DEPOT, so the tab
-  // needs no role check of its own — /hr/me answers for the linked employee behind it.
-  { label: 'hrFix.opNav.myAttendance', href: '/hr/me', match: (p) => p.startsWith('/hr/me') },
-  { label: 'hrFix.opNav.shift', href: '/dashboard/shift', match: (p) => p.startsWith('/dashboard/shift') },
-  { label: 'hrFix.opNav.huddle', href: '/dashboard/huddle', match: (p) => p.startsWith('/dashboard/huddle') },
-  { label: 'hrFix.opNav.handover', href: '/dashboard/handover', match: (p) => p.startsWith('/dashboard/handover') },
-  { label: 'hrFix.opNav.maintenance', href: '/dashboard/maintenance', match: (p) => p.startsWith('/dashboard/maintenance') },
-  { label: 'hrFix.opNav.depots', href: '/dashboard/depots', match: (p) => p.startsWith('/dashboard/depots') },
-  // The page behind this gates on depotAdmin (MANAGER/SUPER_ADMIN): without `show` the head saw a tab
-  // that only ever led to a denial page.
-  { label: 'hrFix.opNav.payments', href: '/dashboard/payments', match: (p) => p.startsWith('/dashboard/payments'), show: canManageDepots },
-  // Reachable only by typing the URL before: the head holds each of these capabilities.
-  { label: 'hrFix.opNav.meter', href: '/dashboard/meter', match: (p) => p.startsWith('/dashboard/meter'), show: canViewMeterReading },
-  { label: 'hrFix.opNav.forecast', href: '/dashboard/forecast', match: (p) => p.startsWith('/dashboard/forecast'), show: canViewForecast },
-  { label: 'hrFix.opNav.promoRules', href: '/dashboard/promo-rules', match: (p) => p.startsWith('/dashboard/promo-rules'), show: canManagePromoRules },
-  { label: 'hrFix.opNav.disputes', href: '/dashboard/disputes', match: (p) => p.startsWith('/dashboard/disputes'), show: (r) => can('depotDisputes', r) },
-  { label: 'hrFix.opNav.crm', href: '/dashboard/crm', match: (p) => p.startsWith('/dashboard/crm'), show: canViewDepotCrm },
-  { label: 'hrFix.opNav.roles', href: '/dashboard/roles', match: (p) => p.startsWith('/dashboard/roles'), show: isStaff },
-  { label: 'hrFix.opNav.account', href: '/dashboard/account', match: (p) => p.startsWith('/dashboard/account'), show: isStaff },
-  { label: 'hrFix.opNav.notifications', href: '/dashboard/notifications', match: (p) => p.startsWith('/dashboard/notifications') },
-  { label: 'hrFix.opNav.reports', href: '/dashboard/reports', match: (p) => p.startsWith('/dashboard/reports') },
-  { label: 'hrFix.opNav.audit', href: '/dashboard/audit', match: (p) => p.startsWith('/dashboard/audit') },
-  { label: 'hrFix.opNav.settings', href: '/dashboard/operator-settings', match: (p) => p.startsWith('/dashboard/operator-settings') },
-];
+// Flow PR-3b: the "Kelola" tabs ARE the depot-console table (lib/ops-nav): one tab per hub
+// the role sees that the primary row does not already stand for. Each opens the hub's first
+// screen, where HubTabs lists the rest, and each screen carries the gate of its row. Kept by
+// hand, 21 tabs had no gate at all, and one (Kelola depot) led a head of depot to a page they
+// may not open. A primary tab stands for its whole hub: on Meteran, Inventory is lit.
+const PRIMARY = new Set(primaryTabs.map((tab) => tab.href));
 
 function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
   const { t } = useT();
@@ -116,6 +80,22 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
   const depot = selected ?? depots[0] ?? null;
   const { unreadCount: unread } = useOpsNotifications();
   const name = customer?.fullName ?? 'Operator';
+  const role = customer?.role;
+  const primary = primaryTabs.filter((tab) => !tab.show || tab.show(role));
+  const hubs = hubsFor(role);
+  const kelola = hubs.filter((h) => !h.items.some((i) => PRIMARY.has(i.href)));
+  // One current tab across both rows, by the rail's rule (flow-1e): the deepest screen wins,
+  // so an order detail screen lights Antrean and nothing else.
+  const current = deepest(
+    hubs.flatMap((h) => h.items),
+    pathname,
+    '/dashboard',
+  )?.href;
+  const hubOfScreen = (href: string | undefined) =>
+    hubs.find((h) => h.items.some((i) => i.href === href))?.hub.headKey;
+  const lit =
+    primary.find((tab) => tab.href === current) ??
+    primary.find((tab) => hubOfScreen(tab.href) === hubOfScreen(current));
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -137,7 +117,11 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
                 to find out. Real count, real destination. */}
             <Link
               href="/dashboard/notifications"
-              aria-label={unread > 0 ? t('hrFix.operatorShell.notifUnreadAria', { n: unread }) : t('hrFix.operatorShell.notifAria')}
+              aria-label={
+                unread > 0
+                  ? t('hrFix.operatorShell.notifUnreadAria', { n: unread })
+                  : t('hrFix.operatorShell.notifAria')
+              }
               className="relative flex h-11 w-11 items-center justify-center rounded-[10px] bg-[color:var(--surface-soft)] hover:bg-brand-50"
             >
               <Bell size={18} className="text-[color:var(--text-muted)]" />
@@ -151,19 +135,25 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
               </span>
               <span className="hidden sm:block">
                 <span className="block text-[12.5px] font-extrabold leading-tight">{name}</span>
-                <span className="block text-[10.5px] text-[color:var(--text-muted)]">{t('hrFix.operatorShell.title')}</span>
+                <span className="block text-[10.5px] text-[color:var(--text-muted)]">
+                  {t('hrFix.operatorShell.title')}
+                </span>
               </span>
             </span>
           </div>
         </div>
         {/* Tab bar */}
         <nav className="flex gap-1 overflow-x-auto px-3 pb-2 sm:px-5">
-          {primaryTabs.filter((t) => !t.show || t.show(customer?.role)).map((t) => (
-            <TabLink key={t.href} tab={t} active={t.match(pathname)} />
+          {primary.map((tab) => (
+            <TabLink key={tab.href} tab={tab} active={tab === lit} />
           ))}
           <span className="mx-1 my-1 w-px shrink-0 bg-[color:var(--border)]" />
-          {manageTabs.filter((t) => !t.show || t.show(customer?.role)).map((t) => (
-            <TabLink key={t.href} tab={t} active={t.match(pathname)} />
+          {kelola.map(({ hub, items }) => (
+            <TabLink
+              key={hub.headKey}
+              tab={{ label: `ops.groups.${hub.headKey}`, href: items[0]!.href }}
+              active={!lit && items.some((i) => i.href === current)}
+            />
           ))}
         </nav>
       </header>

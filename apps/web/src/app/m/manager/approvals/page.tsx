@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useT } from '@/lib/locale-context';
 import { CaretRight, Gavel } from '@phosphor-icons/react';
 
+import { DecisionInbox } from '@/components/dashboard/decision-inbox';
 import { Badge, Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -86,6 +87,9 @@ export default function ApprovalsPage() {
           {t('hrFix.managerApprovals.subtitle2')}
         </p>
       </header>
+
+      {/* Flow PR-4: leave, kasbon and the rest that wait, decided from the phone. */}
+      <DecisionInbox />
 
       {list.loading ? (
         <Skeleton className="h-40 w-full" />

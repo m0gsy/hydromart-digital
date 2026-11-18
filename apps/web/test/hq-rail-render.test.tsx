@@ -47,7 +47,7 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 import { HqRail } from '@/components/hq/hq-rail';
-import { hqItemsForRole } from '@/lib/hq-nav';
+import { hqHubsFor } from '@/lib/hq-nav';
 import { LocaleProvider } from '@/lib/locale-context';
 import { ThemeProvider } from '@/lib/theme-context';
 
@@ -77,30 +77,28 @@ afterEach(() => cleanup());
 describe('HqRail', () => {
   it('draws exactly the links the model allows the role', () => {
     draw('HEAD_OFFICE');
-    const expected = hqItemsForRole('HEAD_OFFICE').map((i) => i.href);
+    // PR-3c: one row per hub, leading to the hub's first screen the role may open.
+    const expected = hqHubsFor('HEAD_OFFICE').map((h) => h.items[0]!.href);
     // Not a subset check: a link the model withheld and the rail drew anyway is the same
     // defect as one it withheld and never drew, pointing the other way.
     expect(drawn().sort()).toEqual([...expected].sort());
   });
 
-  it('draws a director fewer doors than head office, and FINANCE fewer still', () => {
-    draw('HEAD_OFFICE');
-    const headOffice = drawn().length;
-    draw('DIREKTUR');
-    const direktur = drawn().length;
+  it('opens a director fewer screens than head office, and FINANCE fewer still', () => {
+    // PR-3c: the rows are hubs; the doors are the screens inside them.
+    const screens = (r: string) => hqHubsFor(r).flatMap((h) => h.items.map((i) => i.href));
+    expect(screens('DIREKTUR').length).toBeLessThan(screens('HEAD_OFFICE').length);
+    expect(screens('FINANCE').length).toBeLessThan(screens('DIREKTUR').length);
+    // The money screens FINANCE was let in for, behind its Keuangan row.
+    expect(screens('FINANCE')).toContain('/hq/payments');
+    expect(screens('FINANCE')).toContain('/hq/refunds');
     draw('FINANCE');
-    const finance = drawn().length;
-
-    expect(direktur).toBeLessThan(headOffice);
-    expect(finance).toBeLessThan(direktur);
-    expect(finance).toBeGreaterThan(0);
-    // The seven money screens FINANCE was let in for.
     expect(drawn()).toContain('/hq/payments');
-    expect(drawn()).toContain('/hq/refunds');
   });
 
   it('marks the screen you are on, and only that one', () => {
-    draw('HEAD_OFFICE', '/hq/payments');
+    // On a Keuangan screen, the Keuangan row (which leads to its first screen) is the one lit.
+    draw('HEAD_OFFICE', '/hq/refunds');
     const active = Array.from(document.querySelectorAll('a[aria-current="page"]'));
     expect(active.map((a) => a.getAttribute('href'))).toEqual(['/hq/payments']);
   });

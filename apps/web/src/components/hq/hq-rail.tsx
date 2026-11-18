@@ -65,12 +65,12 @@ import {
 } from '@phosphor-icons/react';
 
 import { ConsoleSignOut } from '@/components/console-sign-out';
-import { hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
+import { HQ_GROUPS, currentHqHub, hqHubsFor } from '@/lib/hq-nav';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
 import { roleLabel } from '@/lib/custom-role';
-import { deepest, normalisePath } from '@/lib/screen-chrome';
+import { normalisePath } from '@/lib/screen-chrome';
 
 // Opening the ⌘K palette is decoupled via a window event so the rail doesn't import
 // the palette (which imports HQ_GROUPS from here) — keeps the module graph acyclic.
@@ -159,6 +159,12 @@ export const HQ_ICONS: Record<string, Icon> = {
   '/hq/sitemap': SquaresFour,
 };
 
+/** A hub's icon: its first screen's, from the full table, so it is the same for every role. */
+export function hqHubIcon(key: string): Icon {
+  const first = HQ_GROUPS.find((g) => g.headKey === key)?.items[0]?.href;
+  return (first && HQ_ICONS[first]) || Drop;
+}
+
 export function HqRail() {
   const { customer } = useAuth();
   const { t, locale, setLocale } = useT();
@@ -169,8 +175,10 @@ export function HqRail() {
 
   // One current row: `/hq/staff/import` is not also `/hq/staff`, and `/hq/forecast-models`
   // is not `/hq/forecast` at all.
-  const current = deepest(hqItemsForRole(role), pathname, '/hq')?.href;
-  const isActive = (href: string) => href === current;
+  // PR-3c: one row per hub; a page reached by a button (an import, a form) lights the hub of
+  // the list it belongs to.
+  const hubs = hqHubsFor(role);
+  const currentHub = currentHqHub(pathname, role);
 
   return (
     <aside className="surface sticky top-0 hidden h-dvh w-[242px] shrink-0 flex-col overflow-y-auto border-r border-app px-3.5 py-4 lg:flex">
@@ -190,41 +198,28 @@ export function HqRail() {
       </div>
 
       <nav className="mt-3.5 flex flex-col gap-px">
-        {hqGroupsForRole(role).map((group) => {
-          const items = group.items;
+        {hubs.map((hub) => {
+          const on = hub.headKey === currentHub;
+          const Ic = hqHubIcon(hub.headKey);
           return (
-            <div key={group.headKey}>
-              <p className="px-3 pb-1.5 pt-3.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-[color:var(--text-muted)]">
-                {t(`hq.groups.${group.headKey}`)}
-              </p>
-              {items.map((item) => {
-                const on = isActive(item.href);
-                const Ic = HQ_ICONS[item.href] ?? Drop;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    // The active screen was marked by colour and weight alone, which says
-                    // nothing to a screen reader — the whole rail read as sixty
-                    // indistinguishable links.
-                    aria-current={on ? 'page' : undefined}
-                    className={
-                      'flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-[13.5px] transition-colors ' +
-                      (on
-                        ? 'bg-brand-50 font-extrabold text-brand-800'
-                        : 'font-semibold text-muted hover:bg-[color:var(--surface-soft)]')
-                    }
-                  >
-                    <Ic
-                      size={18}
-                      weight="fill"
-                      className={on ? 'text-brand-600' : 'text-[color:var(--text-muted)]'}
-                    />
-                    <span className="flex-1">{t(`hq.nav.${item.labelKey}`)}</span>
-                  </Link>
-                );
-              })}
-            </div>
+            <Link
+              key={hub.headKey}
+              href={hub.items[0]!.href}
+              aria-current={on ? 'page' : undefined}
+              className={
+                'flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-[13.5px] transition-colors ' +
+                (on
+                  ? 'bg-brand-50 font-extrabold text-brand-800'
+                  : 'font-semibold text-muted hover:bg-[color:var(--surface-soft)]')
+              }
+            >
+              <Ic
+                size={18}
+                weight="fill"
+                className={on ? 'text-brand-600' : 'text-[color:var(--text-muted)]'}
+              />
+              <span className="flex-1">{t(`hq.groups.${hub.headKey}`)}</span>
+            </Link>
           );
         })}
       </nav>

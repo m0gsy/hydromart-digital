@@ -176,6 +176,8 @@ export const money = {
 
   // Courier expense-claim approvals (payout-service, design 6a; expenseApprove cap).
   expenseApprovals: {
+    // Flow PR-4: how many claims wait at one depot: the depot the claims screen lists.
+    pendingCountAt: (depotId: string) => `/payout/api/v1/expenses?status=PENDING&limit=1&depotId=${encodeURIComponent(depotId)}`,
     list: (q: { depotId?: string; status?: string; page?: number; limit?: number } = {}) => {
       const p = new URLSearchParams();
       if (q.depotId) p.set('depotId', q.depotId);

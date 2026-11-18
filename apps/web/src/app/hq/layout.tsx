@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 
 import { AccessDeniedHq } from '@/components/hq/access-denied';
 import { HqBottomNav } from '@/components/hq/hq-bottom-nav';
+import { HqHubTabs } from '@/components/hq/hq-hub-tabs';
 import { HqRail } from '@/components/hq/hq-rail';
 import { capForHqPath } from '@/lib/hq-nav';
 import { RequireAuth } from '@/components/require-auth';
@@ -66,7 +67,10 @@ export default function HqLayout({ children }: { children: React.ReactNode }) {
       <HqGate>
         <div className="flex">
           <HqRail />
-          <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">{children}</div>
+          <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">
+            <HqHubTabs />
+            {children}
+          </div>
         </div>
         <HqBottomNav />
         <CommandPalette />

@@ -64,10 +64,14 @@ const BUILT = join(WEB, 'mobile-out');
  * arrives, and the person never finds the screen. `hr/loans/import` rides along as a child
  * — pruning some children of a kept folder adds a rule without adding any safety.
  */
+/*
+ * `leave` is the third (flow PR-4, owner decision 2026-11-17): a manager approves leave from
+ * the phone, and the leave decision's push will land there (PR-6).
+ */
 const HR_CONSOLE_ONLY = () =>
   readdirSync(join(APP, 'hr'), { withFileTypes: true })
     .filter((e) =>
-      e.isDirectory() ? !['me', 'loans', 'attendance'].includes(e.name) : e.name === 'page.tsx',
+      e.isDirectory() ? !['me', 'loans', 'attendance', 'leave'].includes(e.name) : e.name === 'page.tsx',
     )
     .map((e) => `hr/${e.name}`);
 
@@ -107,6 +111,8 @@ const SURFACES = {
       'hr/attendance',
       'hr/attendance/import',
       'hr/loans/requests',
+      // Flow PR-4 (owner decision 2026-11-17): a manager approves leave from the phone.
+      'hr/leave',
       'm/manager',
     ],
     withholds: ['hq', 'hr/payroll', 'hr/employees'],

@@ -104,7 +104,7 @@ describe('canOpenRoute per binary', () => {
 
   it('Ops: no /hq at all, and only the HR screens the build keeps', async () => {
     const open = await inBinary(
-      '/hq/*,/hr,/hr/employees/*,/hr/payroll/*,/hr/leave/*',
+      '/hq/*,/hr,/hr/employees/*,/hr/payroll/*',
       'dashboard,driver,hr,m,resellers,login,products',
     );
     // A role that may open the page still cannot land on a route the bundle does not have.
@@ -113,7 +113,8 @@ describe('canOpenRoute per binary', () => {
     expect(open('/hr/payroll', 'HR')).toBe(false);
     // The HR index is pruned on its own, and the APK spells it with a slash.
     expect(open('/hr/', 'HR')).toBe(false);
-    expect(open('/hr/leave', 'MANAGER')).toBe(false);
+    // PR-4: leave ships in the Ops APK, so a manager can approve it from the phone.
+    expect(open('/hr/leave', 'MANAGER')).toBe(true);
     expect(open('/hr/attendance', 'HR')).toBe(true);
     expect(open('/hr/me/check-in', 'STAFF_DEPOT')).toBe(true);
     expect(open('/dashboard/walk-in', 'MANAGER')).toBe(true);

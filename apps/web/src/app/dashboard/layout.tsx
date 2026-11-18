@@ -3,6 +3,7 @@
 import { OperatorShell } from '@/components/operator/operator-shell';
 import { OpsPushPrompt } from '@/components/dashboard/ops-push';
 import { OpsBottomNav } from '@/components/dashboard/ops-bottom-nav';
+import { HubTabs } from '@/components/dashboard/hub-tabs';
 import { AllDepotsNotice, NoDepotScopeNotice } from '@/components/dashboard/all-depots-notice';
 import { OpsRail } from '@/components/dashboard/ops-rail';
 import { RequireAuth } from '@/components/require-auth';
@@ -26,6 +27,7 @@ function ConsoleFrame({ children }: { children: React.ReactNode }) {
     return (
       <OperatorShell>
         <NoDepotScopeNotice />
+        <HubTabs />
         {children}
       </OperatorShell>
     );
@@ -38,6 +40,7 @@ function ConsoleFrame({ children }: { children: React.ReactNode }) {
         <div className="min-w-0 flex-1 px-4 pb-24 pt-6 sm:px-8 sm:pb-10">
           <NoDepotScopeNotice />
           <AllDepotsNotice />
+          <HubTabs />
           {children}
         </div>
       </div>

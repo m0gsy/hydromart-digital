@@ -7,7 +7,41 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * `lib/ops-nav.ts`. A move changes nothing anyone sees: for each of the 13 roles, in the web
  * build and in the Ops APK, the menu is the one recorded from the rail BEFORE the move
  * (`fixtures/ops-menu-baseline.json`, written from `components/dashboard/ops-rail` on main).
+ *
+ * PR-3b regrouped the screens into hubs, so the screens are compared as a set per role. It
+ * added one row on purpose: the operator console's own settings screen, which its bar always
+ * showed, became a row of the table with its page's gate (`canUseOperatorConsole`). And the
+ * HQ door of a console role without the overview (FINANCE, web only: Ops has no /hq) leads
+ * to the first HQ screen it may open instead of the overview that refuses it.
  */
+const ADDED: Record<string, string[]> = {
+  // and the head of depot's /dashboard (their operator home) is a row with the page's gate.
+  KEPALA_DEPOT: ['operations /dashboard'],
+};
+// PR-3d merged three screens into their twins; their rows went with them (the routes redirect).
+const REMOVED: Record<string, string[]> = {
+  MANAGER: ['depotSettings /dashboard/depot-settings', 'profile /dashboard/profile'],
+  SUPER_ADMIN: ['depotSettings /dashboard/depot-settings', 'profile /dashboard/profile'],
+};
+const MOVED: Record<string, [from: string, to: string]> = {
+  FINANCE: ['hqConsole /hq', 'hqConsole /hq/search'],
+};
+type Menus = Record<string, Record<string, string[]>>;
+/** A role's screens as a set, whatever hub holds them. */
+const screensOf = (m: Menus) =>
+  Object.fromEntries(
+    Object.entries(m).map(([role, groups]) => [role, Object.values(groups).flat().sort()]),
+  );
+/** The baseline's screens with the rows 3b changed on purpose. */
+const expectedOf = (m: Menus) =>
+  Object.fromEntries(
+    Object.entries(screensOf(m)).map(([role, screens]) => {
+      const moved = MOVED[role];
+      const kept = moved ? screens.map((s) => (s === moved[0] ? moved[1] : s)) : screens;
+      const gone = new Set(REMOVED[role] ?? []);
+      return [role, [...kept.filter((s) => !gone.has(s)), ...(ADDED[role] ?? [])].sort()];
+    }),
+  );
 const ROLES = [
   'CUSTOMER',
   'STAFF_DEPOT',
@@ -47,14 +81,22 @@ afterEach(() => {
 
 describe('ops menu after the move to lib/ops-nav', () => {
   it('web: every role sees exactly the menu it saw before', async () => {
-    expect(await menus()).toEqual(baseline.web);
+    expect(screensOf(await menus())).toEqual(expectedOf(baseline.web));
   });
 
   it('Ops APK: every role sees exactly the menu it saw before', async () => {
     // The Ops build's prune list, as `canOpenRoute per binary` in route-access.test pins it.
-    vi.stubEnv('NEXT_PUBLIC_MOBILE_PRUNED', '/hq/*,/hr,/hr/employees/*,/hr/payroll/*,/hr/leave/*');
+    vi.stubEnv('NEXT_PUBLIC_MOBILE_PRUNED', '/hq/*,/hr,/hr/employees/*,/hr/payroll/*');
     vi.stubEnv('NEXT_PUBLIC_MOBILE_SEGMENTS', 'dashboard,driver,hr,m,resellers,login,products');
     vi.resetModules();
-    expect(await menus()).toEqual(baseline.ops);
+    // PR-4: leave ships in the Ops APK, so whoever had the leave row on the web has it there.
+    const leave = 'hrLeave /hr/leave';
+    const expected = Object.fromEntries(
+      Object.entries(expectedOf(baseline.ops)).map(([role, screens]) => [
+        role,
+        screensOf(baseline.web)[role]?.includes(leave) ? [...screens, leave].sort() : screens,
+      ]),
+    );
+    expect(screensOf(await menus())).toEqual(expected);
   });
 });

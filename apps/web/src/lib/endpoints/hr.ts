@@ -323,6 +323,8 @@ export const hr = {
     // CA-1-16: `page`/`pageSize` are read by `listForApproval` and were missing here, so the
     // approvals queue could only ever ask for the server's default first 20 — there was no
     // page 2 to reach, because the URL had no way to name one.
+    // Flow PR-4: how many leave requests wait at one stage (the envelope's total).
+    leavePendingCount: (status: 'PENDING_MANAGER' | 'PENDING_HR') => `/leave/api/v1/leave?status=${status}&pageSize=1`,
     leaveQueue: (
       q: { depotId?: string; status?: string; page?: number; pageSize?: number } = {},
     ) => {

@@ -21,6 +21,7 @@ vi.mock('@/lib/depot-context', () => ({
 vi.mock('@/lib/ops-notifications', () => ({ useOpsNotifications: () => ({ unreadCount: 0 }) }));
 
 import { OperatorShell } from '@/components/operator/operator-shell';
+import { HubTabs } from '@/components/dashboard/hub-tabs';
 import { useWallScreen } from '@/lib/insight/wall-screen';
 import { LocaleProvider } from '@/lib/locale-context';
 
@@ -56,7 +57,9 @@ describe('the depot head’s console', () => {
     path.current = '/dashboard';
     render(
       <LocaleProvider>
+        {/* As the layout renders it: the hub's tabs sit inside the operator console (PR-3b). */}
         <OperatorShell>
+          <HubTabs />
           <p>isi</p>
         </OperatorShell>
       </LocaleProvider>,

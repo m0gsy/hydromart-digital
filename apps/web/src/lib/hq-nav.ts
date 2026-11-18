@@ -6,8 +6,8 @@
 // `can`/`isHq` from roles. Splitting the table out is what lets one table answer the rail,
 // the page gate and the landing, instead of three copies drifting apart.
 
-
 import { can, isHq, type Capability } from '@/lib/roles';
+import { deepest, normalisePath } from '@/lib/screen-chrome';
 
 /** Same shape `roles.ts` uses: whatever the session says, including nothing. */
 type Role = string | null | undefined;
@@ -33,8 +33,10 @@ export interface HqRailItem {
   cap: Capability;
 }
 export interface HqRailGroup {
-  // i18n key under hq.groups.*
+  // i18n key under hq.groups.* — the hub's name (flow PR-3c).
   headKey: string;
+  /** PR-3c: a group no rail shows; its screens are buttons on the lists they add to. */
+  pageOnly?: true;
   items: HqRailItem[];
 }
 
@@ -52,64 +54,6 @@ export const HQ_GROUPS: HqRailGroup[] = [
     headKey: 'overview',
     items: [
       { href: '/hq', labelKey: 'overview', cap: 'dashboard' },
-      { href: '/hq/search', labelKey: 'search', cap: 'depotDirectoryFinance' },
-      { href: '/hq/access', labelKey: 'access', cap: 'accessMatrixWrite' },
-    ],
-  },
-  {
-    headKey: 'network',
-    items: [
-      { href: '/hq/depots', labelKey: 'depots', cap: 'depotDirectory' },
-      { href: '/hq/hierarchy', labelKey: 'hierarchy', cap: 'hierarchyAdmin' },
-      // The depot console, which HQ can open but had no door to: the shop nav that
-      // carries its link is stripped on console routes, so from here /dashboard was
-      // reachable only by typing the URL — and with it the pelanggan/stok/harga imports.
-      { href: '/dashboard', labelKey: 'opsConsole', cap: 'dashboard' },
-    ],
-  },
-  {
-    headKey: 'staff',
-    items: [
-      { href: '/hq/staff', labelKey: 'staff', cap: 'staffAdmin' },
-      { href: '/hr', labelKey: 'hr', cap: 'hrView' },
-    ],
-  },
-  {
-    headKey: 'franchise',
-    items: [
-      { href: '/hq/applications', labelKey: 'applications', cap: 'franchiseApplications' },
-      { href: '/hq/franchise', labelKey: 'franchise', cap: 'hqPayoutRead' },
-    ],
-  },
-  {
-    headKey: 'finance',
-    items: [
-      { href: '/hq/payments', labelKey: 'payments', cap: 'hqPayoutRead' },
-      { href: '/hq/pricing', labelKey: 'pricing', cap: 'priceOverrideDecide' },
-      { href: '/hq/vouchers', labelKey: 'vouchers', cap: 'voucherRead' },
-      { href: '/hq/refunds', labelKey: 'refunds', cap: 'refundQueueRead' },
-      { href: '/hq/reconciliation', labelKey: 'reconciliation', cap: 'commissionRead' },
-      // The finance work screens live under /dashboard (the depot console's own screens,
-      // network-wide for FINANCE). The rail had no door to them, so they were reachable only
-      // by typing the URL. `cap` is what each page's server calls check.
-      { href: '/dashboard/settlements', labelKey: 'settlements', cap: 'courierSettle' },
-      { href: '/dashboard/expense-claims', labelKey: 'expenseClaims', cap: 'expenseApprove' },
-      { href: '/dashboard/earning-rules', labelKey: 'earningRules', cap: 'earningRules' },
-      { href: '/dashboard/cashbook', labelKey: 'cashbook', cap: 'depotFinance' },
-      // CA-2-59: the network P&L. Same capability as the revenue roll-up it completes —
-      // whoever may read what the network SOLD may read what it cost to make.
-      { href: '/hq/pnl', labelKey: 'pnl', cap: 'dashboard' },
-      { href: '/hq/reports/export', labelKey: 'reportsExport', cap: 'orderReports' },
-      { href: '/hq/tax', labelKey: 'tax', cap: 'taxSettings' },
-    ],
-  },
-  {
-    headKey: 'daily',
-    items: [
-      { href: '/hq/inventory', labelKey: 'inventory', cap: 'inventoryRead' },
-      { href: '/hq/returns', labelKey: 'returns', cap: 'returnsRead' },
-      { href: '/hq/roster', labelKey: 'roster', cap: 'driverRoster' },
-      { href: '/hq/orders', labelKey: 'orders', cap: 'orderManageRead' },
       { href: '/hq/notifications', labelKey: 'notifications', cap: 'opsNotif' },
     ],
   },
@@ -124,24 +68,138 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/compare', labelKey: 'compare', cap: 'dashboard' },
       { href: '/hq/forecast', labelKey: 'forecast', cap: 'forecast' },
       { href: '/hq/churn', labelKey: 'churn', cap: 'churn' },
-      { href: '/hq/campaigns', labelKey: 'campaigns', cap: 'campaignRead' },
-      { href: '/hq/promotions', labelKey: 'promotions', cap: 'promotionRead' },
-      { href: '/hq/promo-rules', labelKey: 'promoRules', cap: 'promoRuleRead' },
-      { href: '/hq/customers', labelKey: 'customers', cap: 'customerPhoneLookup' },
-      // Depot managers reach the same screen from the ops rail (J10).
-      { href: '/resellers', labelKey: 'resellers', cap: 'resellerView' },
+    ],
+  },
+  {
+    headKey: 'search',
+    items: [{ href: '/hq/search', labelKey: 'search', cap: 'depotDirectoryFinance' }],
+  },
+  {
+    headKey: 'network',
+    items: [
+      { href: '/hq/depots', labelKey: 'depots', cap: 'depotDirectory' },
+      { href: '/hq/hierarchy', labelKey: 'hierarchy', cap: 'hierarchyAdmin' },
+      { href: '/hq/applications', labelKey: 'applications', cap: 'franchiseApplications' },
+      { href: '/hq/onboarding', labelKey: 'onboarding', cap: 'depotDirectory' },
+    ],
+  },
+  {
+    headKey: 'franchise',
+    items: [
+      { href: '/hq/franchise', labelKey: 'franchise', cap: 'hqPayoutRead' },
+      { href: '/hq/reconciliation', labelKey: 'reconciliation', cap: 'commissionRead' },
+    ],
+  },
+  {
+    headKey: 'opsConsole',
+    items: [
+      // The depot console, which HQ can open but had no door to: the shop nav that
+      // carries its link is stripped on console routes, so from here /dashboard was
+      // reachable only by typing the URL — and with it the pelanggan/stok/harga imports.
+      { href: '/dashboard', labelKey: 'opsConsole', cap: 'dashboard' },
+    ],
+  },
+  {
+    headKey: 'staff',
+    items: [
+      { href: '/hq/staff', labelKey: 'staff', cap: 'staffAdmin' },
+      { href: '/hq/access', labelKey: 'access', cap: 'accessMatrixWrite' },
+    ],
+  },
+  {
+    headKey: 'hr',
+    items: [{ href: '/hr', labelKey: 'hr', cap: 'hrView' }],
+  },
+  {
+    headKey: 'operations',
+    items: [
+      { href: '/hq/orders', labelKey: 'orders', cap: 'orderManageRead' },
+      { href: '/hq/inventory', labelKey: 'inventory', cap: 'inventoryRead' },
+      { href: '/hq/returns', labelKey: 'returns', cap: 'returnsRead' },
+      { href: '/hq/roster', labelKey: 'roster', cap: 'driverRoster' },
+    ],
+  },
+  {
+    headKey: 'finance',
+    items: [
+      { href: '/hq/payments', labelKey: 'payments', cap: 'hqPayoutRead' },
+      { href: '/hq/refunds', labelKey: 'refunds', cap: 'refundQueueRead' },
+      // The finance work screens live under /dashboard (the depot console's own screens,
+      // network-wide for FINANCE). The rail had no door to them, so they were reachable only
+      // by typing the URL. `cap` is what each page's server calls check.
+      { href: '/dashboard/settlements', labelKey: 'settlements', cap: 'courierSettle' },
+      { href: '/dashboard/expense-claims', labelKey: 'expenseClaims', cap: 'expenseApprove' },
+      { href: '/dashboard/earning-rules', labelKey: 'earningRules', cap: 'earningRules' },
+      { href: '/dashboard/cashbook', labelKey: 'cashbook', cap: 'depotFinance' },
+      // CA-2-59: the network P&L. Same capability as the revenue roll-up it completes —
+      // whoever may read what the network SOLD may read what it cost to make.
+      { href: '/hq/pnl', labelKey: 'pnl', cap: 'dashboard' },
+      { href: '/hq/reports/export', labelKey: 'reportsExport', cap: 'orderReports' },
+      { href: '/hq/tax', labelKey: 'tax', cap: 'taxSettings' },
+      { href: '/hq/invoice-template', labelKey: 'invoiceTemplate', cap: 'taxSettings' },
     ],
   },
   {
     headKey: 'catalog',
     items: [
       { href: '/hq/catalog', labelKey: 'catalog', cap: 'catalogWrite' },
+      { href: '/hq/pricing', labelKey: 'pricing', cap: 'priceOverrideDecide' },
       { href: '/hq/loyalty', labelKey: 'loyalty', cap: 'rewardCatalog' },
       { href: '/hq/subscriptions', labelKey: 'subscriptions', cap: 'hqBackOffice' },
     ],
   },
   {
+    headKey: 'marketing',
+    items: [
+      { href: '/hq/campaigns', labelKey: 'campaigns', cap: 'campaignRead' },
+      { href: '/hq/promotions', labelKey: 'promotions', cap: 'promotionRead' },
+      { href: '/hq/promo-rules', labelKey: 'promoRules', cap: 'promoRuleRead' },
+      { href: '/hq/vouchers', labelKey: 'vouchers', cap: 'voucherRead' },
+      { href: '/hq/broadcast', labelKey: 'broadcast', cap: 'campaignWrite' },
+      // Depot managers reach the same screen from the ops rail (J10).
+      { href: '/resellers', labelKey: 'resellers', cap: 'resellerView' },
+    ],
+  },
+  {
+    headKey: 'service',
+    items: [
+      { href: '/hq/customers', labelKey: 'customers', cap: 'customerPhoneLookup' },
+      { href: '/hq/tickets', labelKey: 'tickets', cap: 'hqBackOffice' },
+      { href: '/hq/fraud', labelKey: 'fraud', cap: 'fraudReview' },
+      { href: '/hq/pdp', labelKey: 'pdp', cap: 'pdpRequests' },
+    ],
+  },
+  {
+    headKey: 'system',
+    items: [
+      { href: '/hq/incidents', labelKey: 'incidents', cap: 'hqBackOffice' },
+      { href: '/hq/health', labelKey: 'health', cap: 'hqBackOffice' },
+      { href: '/hq/audit', labelKey: 'audit', cap: 'hqBackOffice' },
+      { href: '/hq/exports', labelKey: 'exports', cap: 'hqBackOffice' },
+      { href: '/hq/scheduled-reports', labelKey: 'scheduledReports', cap: 'hqBackOffice' },
+      { href: '/hq/sla-policy', labelKey: 'slaPolicy', cap: 'hqBackOffice' },
+      { href: '/hq/forecast-models', labelKey: 'forecastModels', cap: 'forecast' },
+      { href: '/hq/flags', labelKey: 'flags', cap: 'platformAdmin' },
+      { href: '/hq/api-keys', labelKey: 'apiKeys', cap: 'platformAdmin' },
+      { href: '/hq/webhooks', labelKey: 'webhooks', cap: 'platformAdmin' },
+      { href: '/hq/retention', labelKey: 'retention', cap: 'platformAdmin' },
+      { href: '/hq/security', labelKey: 'security', cap: 'platformAdmin' },
+      { href: '/hq/policy-changes', labelKey: 'policyChanges', cap: 'platformAdmin' },
+      { href: '/hq/wizard', labelKey: 'wizard', cap: 'platformAdmin' },
+      { href: '/hq/content', labelKey: 'content', cap: 'platformAdmin' },
+      // PR-3c review: personal and index screens close the Sistem hub, so a role without the
+      // overview is not sent to its profile by a row named Ringkasan.
+      { href: '/hq/profile', labelKey: 'profile', cap: 'ownNotifPrefs' },
+      // The screen index. It renders `hqGroupsForRole` — it shows a role only what that
+      // role can already reach — so the door it needs is the console door itself.
+      { href: '/hq/sitemap', labelKey: 'sitemap', cap: 'hqConsole' },
+    ],
+  },
+  {
     headKey: 'forms',
+    // PR-3c: "Formulir" is gone from the rail — each form is a button on the list it adds to.
+    // The rows stay here so the gate of each is still this one table.
+    pageOnly: true,
     items: [
       { href: '/hq/forms/pricing-rule', labelKey: 'formPricingRule', cap: 'depotAdmin' },
       { href: '/hq/forms/voucher', labelKey: 'formVoucher', cap: 'voucherWrite' },
@@ -149,46 +207,6 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/forms/segment', labelKey: 'formSegment', cap: 'campaignWrite' },
       { href: '/hq/staff/import', labelKey: 'staffImport', cap: 'staffAdmin' },
       { href: '/hq/depots/import', labelKey: 'depotImport', cap: 'depotLifecycle' },
-      { href: '/hq/broadcast', labelKey: 'broadcast', cap: 'campaignWrite' },
-    ],
-  },
-  {
-    headKey: 'flow',
-    items: [
-      { href: '/hq/incidents', labelKey: 'incidents', cap: 'hqBackOffice' },
-      { href: '/hq/tickets', labelKey: 'tickets', cap: 'hqBackOffice' },
-      { href: '/hq/fraud', labelKey: 'fraud', cap: 'fraudReview' },
-      { href: '/hq/scheduled-reports', labelKey: 'scheduledReports', cap: 'hqBackOffice' },
-      { href: '/hq/onboarding', labelKey: 'onboarding', cap: 'depotDirectory' },
-    ],
-  },
-  {
-    headKey: 'system',
-    items: [
-      { href: '/hq/audit', labelKey: 'audit', cap: 'hqBackOffice' },
-      { href: '/hq/flags', labelKey: 'flags', cap: 'platformAdmin' },
-      { href: '/hq/health', labelKey: 'health', cap: 'hqBackOffice' },
-      { href: '/hq/exports', labelKey: 'exports', cap: 'hqBackOffice' },
-      { href: '/hq/api-keys', labelKey: 'apiKeys', cap: 'platformAdmin' },
-      { href: '/hq/webhooks', labelKey: 'webhooks', cap: 'platformAdmin' },
-      { href: '/hq/sla-policy', labelKey: 'slaPolicy', cap: 'hqBackOffice' },
-      { href: '/hq/forecast-models', labelKey: 'forecastModels', cap: 'forecast' },
-      { href: '/hq/retention', labelKey: 'retention', cap: 'platformAdmin' },
-      { href: '/hq/pdp', labelKey: 'pdp', cap: 'pdpRequests' },
-      { href: '/hq/security', labelKey: 'security', cap: 'platformAdmin' },
-      { href: '/hq/policy-changes', labelKey: 'policyChanges', cap: 'platformAdmin' },
-    ],
-  },
-  {
-    headKey: 'admin',
-    items: [
-      { href: '/hq/profile', labelKey: 'profile', cap: 'ownNotifPrefs' },
-      { href: '/hq/wizard', labelKey: 'wizard', cap: 'platformAdmin' },
-      { href: '/hq/invoice-template', labelKey: 'invoiceTemplate', cap: 'taxSettings' },
-      { href: '/hq/content', labelKey: 'content', cap: 'platformAdmin' },
-      // The screen index. It renders `hqGroupsForRole` — it shows a role only what that
-      // role can already reach — so the door it needs is the console door itself.
-      { href: '/hq/sitemap', labelKey: 'sitemap', cap: 'hqConsole' },
     ],
   },
 ];
@@ -270,4 +288,72 @@ export function capForHqPath(pathname: string | null | undefined): Capability | 
     }
   }
   return best?.cap ?? null;
+}
+
+/**
+ * Flow PR-3c: the HQ hubs a role sees. The rail and the phone bar show one row per hub; the
+ * hub's screens are tabs on top of each of them (`components/hq/hq-hub-tabs.tsx`).
+ */
+export function hqHubsFor(role: Role): HqRailGroup[] {
+  return hqGroupsForRole(role).filter((g) => !g.pageOnly);
+}
+
+/** The hub whose screen `path` IS (normalised), as `role` sees it; a detail below one is not. */
+export function hqHubOf(path: string, role: Role): HqRailGroup | undefined {
+  const at = normalisePath(path);
+  return hqHubsFor(role).find((g) => g.items.some((i) => i.href === at));
+}
+
+/**
+ * PR-3c: where a console role's day starts, its hub of work, ahead of the rest. FINANCE used to
+ * land on `/hq/search`, merely the first screen in table order it could open.
+ */
+export const HQ_WORK_HUB: Record<string, string | undefined> = { FINANCE: 'finance' };
+
+/** The role's hubs in landing order: its work hub first, then the rail's order. */
+export function hqHubsInLandingOrder(role: Role): HqRailGroup[] {
+  const work = HQ_WORK_HUB[role as string];
+  const hubs = hqHubsFor(role);
+  return [...hubs.filter((g) => g.headKey === work), ...hubs.filter((g) => g.headKey !== work)];
+}
+
+/** The role's HQ screens in landing order. */
+export function hqLandingItems(role: Role): HqRailItem[] {
+  return hqHubsInLandingOrder(role).flatMap((g) => g.items);
+}
+
+/**
+ * A form reached by a button belongs to the list the button is on. The imports already sit
+ * under their list's path; these four do not.
+ */
+const FORM_LIST: Record<string, string> = {
+  '/hq/forms/pricing-rule': '/hq/pricing',
+  '/hq/forms/voucher': '/hq/vouchers',
+  '/hq/forms/commission': '/hq/reconciliation',
+  '/hq/forms/segment': '/hq/campaigns',
+};
+
+/**
+ * The hub the screen at `path` belongs to, as `role` sees it: the hub of its deepest hub
+ * screen, and for a form, the hub of its list. One rule for the rail, the bar and its sheet.
+ */
+export function currentHqHub(path: string, role: Role): string | undefined {
+  const at = normalisePath(path);
+  const hubs = hqHubsFor(role);
+  const screen = deepest(
+    hubs.flatMap((g) => g.items),
+    FORM_LIST[at] ?? at,
+    '/hq',
+  )?.href;
+  return hubs.find((g) => g.items.some((i) => i.href === screen))?.headKey;
+}
+
+/**
+ * May this role open this /hq screen? The HQ layout's own gate (console door, partial door,
+ * the screen's capability), without lib/route-access, which bundles every rail's icons into
+ * the page that asks (flow PR-4: +44-53 kB on the screens that asked through it).
+ */
+export function canOpenHqPath(role: Role, path: string): boolean {
+  const cap = capForHqPath(path);
+  return mayOpenHqPath(role, path) && (!cap || can(cap, role));
 }

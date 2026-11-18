@@ -45,6 +45,7 @@ vi.mock('@/lib/api', () => ({
 
 import { LocaleProvider } from '@/lib/locale-context';
 import { OpsRail } from '@/components/dashboard/ops-rail';
+import { hubsFor } from '@/lib/ops-nav';
 
 const hrefs = () =>
   Array.from(document.querySelectorAll('a[href]')).map((a) => a.getAttribute('href'));
@@ -57,12 +58,18 @@ afterEach(() => vi.clearAllMocks());
 describe('J10 · the agen registry has a door', () => {
   it('a depot manager finds /resellers in their own rail', () => {
     render(<OpsRail />, { wrapper: LocaleProvider });
-    expect(hrefs()).toContain('/resellers');
+    // PR-3b: the rail holds one row per hub; /resellers is a tab of the marketing hub, whose
+    // row is on this rail.
+    const marketing = hubsFor('MANAGER').find((h) => h.hub.headKey === 'marketing')!;
+    expect(marketing.items.map((i) => i.href)).toContain('/resellers');
+    expect(hrefs()).toContain(marketing.items[0]!.href);
   });
 
   it('a courier does not', () => {
     role.current = 'STAFF_DEPOT';
     render(<OpsRail />, { wrapper: LocaleProvider });
-    expect(hrefs()).not.toContain('/resellers');
+    expect(hubsFor('STAFF_DEPOT').flatMap((h) => h.items.map((i) => i.href))).not.toContain(
+      '/resellers',
+    );
   });
 });
