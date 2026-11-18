@@ -20,6 +20,7 @@ import { DepotSwitcher, GROUPS } from '@/components/dashboard/ops-rail';
 import { Sheet } from '@/components/overlay';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { normalisePath } from '@/lib/screen-chrome';
 import {
   can,
   canManagePricing,
@@ -76,7 +77,8 @@ const TABS: Tab[] = [
 
 export function OpsBottomNav() {
   const { t } = useT();
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const { customer } = useAuth();
   const role = customer?.role;
 
@@ -138,7 +140,8 @@ export function OpsBottomNav() {
 function MoreSheetTab() {
   const { customer } = useAuth();
   const { t } = useT();
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const [open, setOpen] = useState(false);
   const role = customer?.role;
 

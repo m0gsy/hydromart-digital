@@ -105,6 +105,7 @@ import {
   canViewPromotions,
 } from '@/lib/roles';
 import { canViewInsight } from '@/lib/insight/access';
+import { normalisePath } from '@/lib/screen-chrome';
 
 type Role = string | null | undefined;
 
@@ -582,7 +583,8 @@ function SwitcherRow({
 export function OpsRail() {
   const { customer } = useAuth();
   const { t, locale, setLocale } = useT();
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const role = customer?.role;
   // O4: only for roles that can see the ops feed at all — asking as anyone else is a 403
   // on every page load for a badge that must never appear.
@@ -609,6 +611,7 @@ export function OpsRail() {
                 const Ic = item.icon;
                 return (
                   <Link
+                    aria-current={on ? 'page' : undefined}
                     key={item.href}
                     href={item.href}
                     className={

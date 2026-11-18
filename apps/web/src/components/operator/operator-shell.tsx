@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { canViewInsight } from '@/lib/insight/access';
 import { useOpsNotifications } from '@/lib/ops-notifications';
 import { useDepot } from '@/lib/depot-context';
+import { normalisePath } from '@/lib/screen-chrome';
 import {
   can,
   canManageDepots,
@@ -94,6 +95,7 @@ function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
   return (
     <Link
       href={tab.href}
+      aria-current={active ? 'page' : undefined}
       className={`inline-flex min-h-11 shrink-0 items-center rounded-lg px-3 py-2 text-[12.5px] font-semibold transition ${
         active
           ? 'bg-brand-50 text-brand-800'
@@ -107,7 +109,8 @@ function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
 
 export function OperatorShell({ children }: { children: React.ReactNode }) {
   const { t } = useT();
-  const pathname = usePathname() ?? '/dashboard';
+  // `trailingSlash: true` in the APK export: compare `/dashboard`, never `/dashboard/`.
+  const pathname = normalisePath(usePathname() ?? '/dashboard');
   const { customer } = useAuth();
   const { selected, depots } = useDepot();
   const depot = selected ?? depots[0] ?? null;

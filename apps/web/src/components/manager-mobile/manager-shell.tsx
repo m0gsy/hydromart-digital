@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canUseManagerConsole } from '@/lib/roles';
+import { normalisePath } from '@/lib/screen-chrome';
 
 const TABS = [
   { href: '/m/manager', label: 'hrFix.mgrNav.home', icon: House },
@@ -21,7 +22,8 @@ const TABS = [
 /** Bottom tab bar — 5 tabs per the Depot Manager Mobile design (cells 1b–3a). */
 function ManagerNav() {
   const { t } = useT();
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  const pathname = normalisePath(usePathname() ?? '');
   return (
     <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[max(0.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
       {TABS.map(({ href, label, icon: Icon }) => {
@@ -29,6 +31,7 @@ function ManagerNav() {
         return (
           <Link
             key={href}
+            aria-current={active ? 'page' : undefined}
             href={href}
             className={`flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-bold ${
               active ? 'text-brand-700' : 'text-[color:var(--text-muted)]'

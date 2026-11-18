@@ -7,6 +7,7 @@ import { List, X } from '@phosphor-icons/react';
 
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { normalisePath } from '@/lib/screen-chrome';
 // The rail's own table, not a second one: two copies of a nav model is how a door gets
 // hidden in one place and offered in another. Same gates, same order.
 import { hrNavItems } from '@/components/hr/hr-rail';
@@ -26,7 +27,8 @@ import { ConsoleSignOut } from '@/components/console-sign-out';
 const TAB_COUNT = 3;
 
 export function HrBottomNav() {
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const { customer } = useAuth();
   const { t } = useT();
   const [menuOpen, setMenuOpen] = useState(false);

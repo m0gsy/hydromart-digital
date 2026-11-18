@@ -70,6 +70,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { useTheme } from '@/lib/theme-context';
 import { roleLabel } from '@/lib/custom-role';
+import { normalisePath } from '@/lib/screen-chrome';
 
 // Opening the ⌘K palette is decoupled via a window event so the rail doesn't import
 // the palette (which imports HQ_GROUPS from here) — keeps the module graph acyclic.
@@ -162,7 +163,8 @@ export function HqRail() {
   const { customer } = useAuth();
   const { t, locale, setLocale } = useT();
   const { resolved, toggle: toggleTheme } = useTheme();
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const role = customer?.role;
 
   const isActive = (href: string) =>

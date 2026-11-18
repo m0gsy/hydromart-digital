@@ -10,6 +10,7 @@ import { CenterState, LinkButton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canUseCourierApp, consoleHome } from '@/lib/roles';
+import { normalisePath } from '@/lib/screen-chrome';
 
 const TABS = [
   { href: '/driver', labelKey: 'tabTasks', icon: ListChecks },
@@ -24,7 +25,8 @@ const WALLET_ROUTES = ['/driver/earnings', '/driver/settlement', '/driver/expens
 /** Bottom tab bar — 3 tabs per the courier design (+ Dompet on wallet screens). */
 function DriverNav() {
   const { t } = useT();
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const inWallet = WALLET_ROUTES.some((r) => pathname.startsWith(r));
   const tabs = inWallet ? [...TABS, WALLET_TAB] : TABS;
   // B1+E0. `env(safe-area-inset-bottom)` on its own reports 0 on any WebView older than
@@ -39,6 +41,7 @@ function DriverNav() {
         return (
           <Link
             key={href}
+            aria-current={active ? 'page' : undefined}
             href={href}
             className={`flex min-h-11 flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-bold ${
               active ? 'text-brand-700' : 'text-[color:var(--text-muted)]'

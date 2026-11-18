@@ -10,6 +10,7 @@ import { useT } from '@/lib/locale-context';
 import { hasPartialHqDoor } from '@/lib/hq-nav';
 import { isHq } from '@/lib/roles';
 import { hqGroupsForRole, hqItemsForRole } from '@/lib/hq-nav';
+import { normalisePath } from '@/lib/screen-chrome';
 // The rail's table, not a second one: /hq/sitemap already reads it the same way, and the
 // bottom nav only ever renders on /hq pages where the rail module is loaded anyway.
 import { HQ_ICONS } from '@/components/hq/hq-rail';
@@ -36,7 +37,8 @@ import { ConsoleSignOut } from '@/components/console-sign-out';
 const TAB_COUNT = 3;
 
 export function HqBottomNav() {
-  const pathname = usePathname();
+  // The APK export runs with `trailingSlash: true`: `/x/` and `/x` are the same screen.
+  const pathname = normalisePath(usePathname() ?? '');
   const { customer } = useAuth();
   const { t } = useT();
   const [menuOpen, setMenuOpen] = useState(false);
