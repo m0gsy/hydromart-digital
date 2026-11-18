@@ -20,7 +20,7 @@
  * Importing the two rails also bundles their icons with every caller; PR-3a moves the ops
  * table into `lib/ops-nav.ts`, and this import moves with it.
  */
-import { GROUPS } from '@/components/dashboard/ops-rail';
+import { GROUPS } from '@/lib/ops-nav';
 import { HR_ITEMS } from '@/components/hr/hr-rail';
 import { isServedHere } from '@/lib/deep-link';
 import { capForHqPath, mayOpenHqPath } from '@/lib/hq-nav';
@@ -43,7 +43,9 @@ const under = (path: string, prefix: string) => path === prefix || path.startsWi
 /** `[path, '?query#hash']`, the path with no trailing slash. */
 function splitHref(href: string): [string, string] {
   const cut = href.search(/[?#]/);
-  return cut === -1 ? [normalisePath(href), ''] : [normalisePath(href.slice(0, cut)), href.slice(cut)];
+  return cut === -1
+    ? [normalisePath(href), '']
+    : [normalisePath(href.slice(0, cut)), href.slice(cut)];
 }
 
 /** The deepest row `path` sits under, so `/dashboard/franchise/attendance` beats its parent. */

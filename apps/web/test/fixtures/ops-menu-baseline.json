@@ -1,0 +1,974 @@
+{
+  "web": {
+    "CUSTOMER": {},
+    "STAFF_DEPOT": {
+      "summary": [
+        "insight /dashboard/insight"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications"
+      ],
+      "people": [
+        "selfService /hr/me"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "account /dashboard/account"
+      ]
+    },
+    "KEPALA_DEPOT": {
+      "summary": [
+        "insight /dashboard/insight",
+        "search /dashboard/search"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "walkIn /dashboard/walk-in",
+        "tracking /dashboard/tracking",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "settlements /dashboard/settlements",
+        "forecast /dashboard/forecast"
+      ],
+      "marketing": [
+        "promoRules /dashboard/promo-rules"
+      ],
+      "approvals": [
+        "incidents /dashboard/incidents",
+        "disputes /dashboard/disputes"
+      ],
+      "people": [
+        "selfService /hr/me",
+        "shift /dashboard/shift",
+        "huddle /dashboard/huddle",
+        "handover /dashboard/handover",
+        "maintenance /dashboard/maintenance"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm",
+        "broadcast /dashboard/broadcast",
+        "redemptions /dashboard/redemptions"
+      ],
+      "finance": [
+        "commission /dashboard/commission",
+        "reports /dashboard/reports",
+        "monthlyReview /dashboard/monthly-review"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "account /dashboard/account"
+      ]
+    },
+    "ASSISTANT_SUPERVISOR": {
+      "summary": [
+        "operations /dashboard",
+        "insight /dashboard/insight"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "tracking /dashboard/tracking",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "meter /dashboard/meter",
+        "forecast /dashboard/forecast"
+      ],
+      "people": [
+        "selfService /hr/me",
+        "hrLoans /hr/loans"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm"
+      ],
+      "finance": [
+        "monthlyPnl /dashboard/monthly-pnl"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "account /dashboard/account"
+      ]
+    },
+    "SUPERVISOR": {
+      "summary": [
+        "operations /dashboard",
+        "insight /dashboard/insight"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "tracking /dashboard/tracking",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "forecast /dashboard/forecast"
+      ],
+      "marketing": [
+        "resellers /resellers"
+      ],
+      "approvals": [
+        "incidents /dashboard/incidents",
+        "disputes /dashboard/disputes"
+      ],
+      "people": [
+        "selfService /hr/me",
+        "targets /dashboard/targets",
+        "hrDepotRequests /hr/depot-requests"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm"
+      ],
+      "finance": [
+        "cashbook /dashboard/cashbook",
+        "paymentRecon /dashboard/payment-recon",
+        "monthlyPnl /dashboard/monthly-pnl"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "account /dashboard/account"
+      ]
+    },
+    "MANAGER": {
+      "summary": [
+        "operations /dashboard",
+        "insight /dashboard/insight",
+        "search /dashboard/search"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "walkIn /dashboard/walk-in",
+        "tracking /dashboard/tracking",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "wastage /dashboard/wastage",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "settlements /dashboard/settlements",
+        "forecast /dashboard/forecast"
+      ],
+      "network": [
+        "depots /dashboard/depots",
+        "pricing /dashboard/pricing",
+        "settings /dashboard/settings"
+      ],
+      "marketing": [
+        "promoRules /dashboard/promo-rules",
+        "vouchers /dashboard/vouchers",
+        "churn /dashboard/churn",
+        "resellers /resellers"
+      ],
+      "approvals": [
+        "approvalsQueue /dashboard/approvals",
+        "incidents /dashboard/incidents",
+        "disputes /dashboard/disputes"
+      ],
+      "procurement": [
+        "purchaseOrders /dashboard/purchase-orders",
+        "suppliers /dashboard/suppliers"
+      ],
+      "people": [
+        "shift /dashboard/shift",
+        "targets /dashboard/targets",
+        "huddle /dashboard/huddle",
+        "handover /dashboard/handover",
+        "maintenance /dashboard/maintenance",
+        "hrLeave /hr/leave",
+        "hrLoans /hr/loans",
+        "hrDepotRequests /hr/depot-requests",
+        "staffOnboarding /dashboard/onboarding"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm",
+        "broadcast /dashboard/broadcast",
+        "loyalty /dashboard/loyalty",
+        "redemptions /dashboard/redemptions",
+        "referral /dashboard/referral",
+        "recommendations /dashboard/recommendations",
+        "ratings /dashboard/ratings",
+        "subscriptions /dashboard/subscriptions"
+      ],
+      "catalog": [
+        "manageProducts /dashboard/products/manage",
+        "wholesale /dashboard/wholesale",
+        "payments /dashboard/payments"
+      ],
+      "finance": [
+        "expenseClaims /dashboard/expense-claims",
+        "cashbook /dashboard/cashbook",
+        "paymentRecon /dashboard/payment-recon",
+        "commission /dashboard/commission",
+        "reports /dashboard/reports",
+        "monthlyReview /dashboard/monthly-review",
+        "compare /dashboard/compare",
+        "monthlyPnl /dashboard/monthly-pnl",
+        "teamPerformance /dashboard/team-performance"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "profile /dashboard/profile",
+        "depotSettings /dashboard/depot-settings",
+        "account /dashboard/account"
+      ]
+    },
+    "DIREKTUR": {
+      "summary": [
+        "operations /dashboard",
+        "insight /dashboard/insight",
+        "search /dashboard/search",
+        "hqConsole /hq"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "forecast /dashboard/forecast"
+      ],
+      "marketing": [
+        "promo /dashboard/promotions",
+        "promoRules /dashboard/promo-rules",
+        "campaign /dashboard/campaigns",
+        "vouchers /dashboard/vouchers",
+        "churn /dashboard/churn",
+        "resellers /resellers"
+      ],
+      "approvals": [
+        "disputes /dashboard/disputes"
+      ],
+      "people": [
+        "shift /dashboard/shift",
+        "targets /dashboard/targets"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm"
+      ],
+      "finance": [
+        "cashbook /dashboard/cashbook",
+        "paymentRecon /dashboard/payment-recon",
+        "monthlyReview /dashboard/monthly-review",
+        "monthlyPnl /dashboard/monthly-pnl"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "account /dashboard/account"
+      ]
+    },
+    "FRANCHISE_OWNER": {
+      "summary": [
+        "myFranchise /dashboard/franchise",
+        "ownerAttendance /dashboard/franchise/attendance",
+        "insight /dashboard/insight",
+        "search /dashboard/search"
+      ],
+      "daily": [
+        "returns /dashboard/returns",
+        "forecast /dashboard/forecast"
+      ],
+      "finance": [
+        "payout /dashboard/payout"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "account /dashboard/account"
+      ]
+    },
+    "HEAD_OFFICE": {
+      "summary": [
+        "operations /dashboard",
+        "insight /dashboard/insight",
+        "search /dashboard/search",
+        "hqConsole /hq"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "forecast /dashboard/forecast"
+      ],
+      "network": [
+        "staff /dashboard/staff"
+      ],
+      "marketing": [
+        "promo /dashboard/promotions",
+        "promoRules /dashboard/promo-rules",
+        "campaign /dashboard/campaigns",
+        "vouchers /dashboard/vouchers",
+        "churn /dashboard/churn",
+        "resellers /resellers"
+      ],
+      "approvals": [
+        "disputes /dashboard/disputes"
+      ],
+      "people": [
+        "shift /dashboard/shift",
+        "targets /dashboard/targets"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm"
+      ],
+      "finance": [
+        "reports /dashboard/reports",
+        "monthlyReview /dashboard/monthly-review",
+        "monthlyPnl /dashboard/monthly-pnl",
+        "teamPerformance /dashboard/team-performance"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "account /dashboard/account"
+      ]
+    },
+    "FINANCE": {
+      "summary": [
+        "insight /dashboard/insight",
+        "hqConsole /hq"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "settlements /dashboard/settlements"
+      ],
+      "finance": [
+        "expenseClaims /dashboard/expense-claims",
+        "earningRules /dashboard/earning-rules",
+        "cashbook /dashboard/cashbook",
+        "paymentRecon /dashboard/payment-recon",
+        "commission /dashboard/commission"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "account /dashboard/account"
+      ]
+    },
+    "HR": {
+      "summary": [
+        "insight /dashboard/insight"
+      ],
+      "marketing": [
+        "resellers /resellers"
+      ],
+      "people": [
+        "hrLeave /hr/leave",
+        "hrLoans /hr/loans"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "account /dashboard/account"
+      ]
+    },
+    "MARKETING": {
+      "summary": [
+        "insight /dashboard/insight",
+        "hqConsole /hq/campaigns"
+      ],
+      "marketing": [
+        "promo /dashboard/promotions",
+        "promoRules /dashboard/promo-rules",
+        "campaign /dashboard/campaigns",
+        "vouchers /dashboard/vouchers",
+        "churn /dashboard/churn"
+      ],
+      "customers": [
+        "redemptions /dashboard/redemptions"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "account /dashboard/account"
+      ]
+    },
+    "SUPER_ADMIN": {
+      "summary": [
+        "myFranchise /dashboard/franchise",
+        "ownerAttendance /dashboard/franchise/attendance",
+        "operations /dashboard",
+        "insight /dashboard/insight",
+        "search /dashboard/search",
+        "hqConsole /hq"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "walkIn /dashboard/walk-in",
+        "tracking /dashboard/tracking",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "wastage /dashboard/wastage",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "settlements /dashboard/settlements",
+        "forecast /dashboard/forecast"
+      ],
+      "network": [
+        "depots /dashboard/depots",
+        "pricing /dashboard/pricing",
+        "staff /dashboard/staff",
+        "settings /dashboard/settings"
+      ],
+      "marketing": [
+        "promo /dashboard/promotions",
+        "promoRules /dashboard/promo-rules",
+        "campaign /dashboard/campaigns",
+        "vouchers /dashboard/vouchers",
+        "churn /dashboard/churn",
+        "resellers /resellers"
+      ],
+      "approvals": [
+        "approvalsQueue /dashboard/approvals",
+        "incidents /dashboard/incidents",
+        "disputes /dashboard/disputes"
+      ],
+      "procurement": [
+        "purchaseOrders /dashboard/purchase-orders",
+        "suppliers /dashboard/suppliers"
+      ],
+      "people": [
+        "selfService /hr/me",
+        "shift /dashboard/shift",
+        "targets /dashboard/targets",
+        "huddle /dashboard/huddle",
+        "handover /dashboard/handover",
+        "maintenance /dashboard/maintenance",
+        "hrLeave /hr/leave",
+        "hrLoans /hr/loans",
+        "hrDepotRequests /hr/depot-requests",
+        "staffOnboarding /dashboard/onboarding"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm",
+        "broadcast /dashboard/broadcast",
+        "loyalty /dashboard/loyalty",
+        "redemptions /dashboard/redemptions",
+        "referral /dashboard/referral",
+        "recommendations /dashboard/recommendations",
+        "ratings /dashboard/ratings",
+        "subscriptions /dashboard/subscriptions"
+      ],
+      "catalog": [
+        "manageProducts /dashboard/products/manage",
+        "wholesale /dashboard/wholesale",
+        "payments /dashboard/payments"
+      ],
+      "finance": [
+        "payout /dashboard/payout",
+        "expenseClaims /dashboard/expense-claims",
+        "earningRules /dashboard/earning-rules",
+        "cashbook /dashboard/cashbook",
+        "paymentRecon /dashboard/payment-recon",
+        "commission /dashboard/commission",
+        "reports /dashboard/reports",
+        "monthlyReview /dashboard/monthly-review",
+        "compare /dashboard/compare",
+        "monthlyPnl /dashboard/monthly-pnl",
+        "teamPerformance /dashboard/team-performance"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "profile /dashboard/profile",
+        "depotSettings /dashboard/depot-settings",
+        "account /dashboard/account"
+      ]
+    }
+  },
+  "ops": {
+    "CUSTOMER": {},
+    "STAFF_DEPOT": {
+      "summary": [
+        "insight /dashboard/insight"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications"
+      ],
+      "people": [
+        "selfService /hr/me"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "account /dashboard/account"
+      ]
+    },
+    "KEPALA_DEPOT": {
+      "summary": [
+        "insight /dashboard/insight",
+        "search /dashboard/search"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "walkIn /dashboard/walk-in",
+        "tracking /dashboard/tracking",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "settlements /dashboard/settlements",
+        "forecast /dashboard/forecast"
+      ],
+      "marketing": [
+        "promoRules /dashboard/promo-rules"
+      ],
+      "approvals": [
+        "incidents /dashboard/incidents",
+        "disputes /dashboard/disputes"
+      ],
+      "people": [
+        "selfService /hr/me",
+        "shift /dashboard/shift",
+        "huddle /dashboard/huddle",
+        "handover /dashboard/handover",
+        "maintenance /dashboard/maintenance"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm",
+        "broadcast /dashboard/broadcast",
+        "redemptions /dashboard/redemptions"
+      ],
+      "finance": [
+        "commission /dashboard/commission",
+        "reports /dashboard/reports",
+        "monthlyReview /dashboard/monthly-review"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "account /dashboard/account"
+      ]
+    },
+    "ASSISTANT_SUPERVISOR": {
+      "summary": [
+        "operations /dashboard",
+        "insight /dashboard/insight"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "tracking /dashboard/tracking",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "meter /dashboard/meter",
+        "forecast /dashboard/forecast"
+      ],
+      "people": [
+        "selfService /hr/me",
+        "hrLoans /hr/loans"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm"
+      ],
+      "finance": [
+        "monthlyPnl /dashboard/monthly-pnl"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "account /dashboard/account"
+      ]
+    },
+    "SUPERVISOR": {
+      "summary": [
+        "operations /dashboard",
+        "insight /dashboard/insight"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "tracking /dashboard/tracking",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "forecast /dashboard/forecast"
+      ],
+      "marketing": [
+        "resellers /resellers"
+      ],
+      "approvals": [
+        "incidents /dashboard/incidents",
+        "disputes /dashboard/disputes"
+      ],
+      "people": [
+        "selfService /hr/me",
+        "targets /dashboard/targets",
+        "hrDepotRequests /hr/depot-requests"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm"
+      ],
+      "finance": [
+        "cashbook /dashboard/cashbook",
+        "paymentRecon /dashboard/payment-recon",
+        "monthlyPnl /dashboard/monthly-pnl"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "account /dashboard/account"
+      ]
+    },
+    "MANAGER": {
+      "summary": [
+        "operations /dashboard",
+        "insight /dashboard/insight",
+        "search /dashboard/search"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "walkIn /dashboard/walk-in",
+        "tracking /dashboard/tracking",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "wastage /dashboard/wastage",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "settlements /dashboard/settlements",
+        "forecast /dashboard/forecast"
+      ],
+      "network": [
+        "depots /dashboard/depots",
+        "pricing /dashboard/pricing",
+        "settings /dashboard/settings"
+      ],
+      "marketing": [
+        "promoRules /dashboard/promo-rules",
+        "vouchers /dashboard/vouchers",
+        "churn /dashboard/churn",
+        "resellers /resellers"
+      ],
+      "approvals": [
+        "approvalsQueue /dashboard/approvals",
+        "incidents /dashboard/incidents",
+        "disputes /dashboard/disputes"
+      ],
+      "procurement": [
+        "purchaseOrders /dashboard/purchase-orders",
+        "suppliers /dashboard/suppliers"
+      ],
+      "people": [
+        "shift /dashboard/shift",
+        "targets /dashboard/targets",
+        "huddle /dashboard/huddle",
+        "handover /dashboard/handover",
+        "maintenance /dashboard/maintenance",
+        "hrLoans /hr/loans",
+        "hrDepotRequests /hr/depot-requests",
+        "staffOnboarding /dashboard/onboarding"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm",
+        "broadcast /dashboard/broadcast",
+        "loyalty /dashboard/loyalty",
+        "redemptions /dashboard/redemptions",
+        "referral /dashboard/referral",
+        "recommendations /dashboard/recommendations",
+        "ratings /dashboard/ratings",
+        "subscriptions /dashboard/subscriptions"
+      ],
+      "catalog": [
+        "manageProducts /dashboard/products/manage",
+        "wholesale /dashboard/wholesale",
+        "payments /dashboard/payments"
+      ],
+      "finance": [
+        "expenseClaims /dashboard/expense-claims",
+        "cashbook /dashboard/cashbook",
+        "paymentRecon /dashboard/payment-recon",
+        "commission /dashboard/commission",
+        "reports /dashboard/reports",
+        "monthlyReview /dashboard/monthly-review",
+        "compare /dashboard/compare",
+        "monthlyPnl /dashboard/monthly-pnl",
+        "teamPerformance /dashboard/team-performance"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "profile /dashboard/profile",
+        "depotSettings /dashboard/depot-settings",
+        "account /dashboard/account"
+      ]
+    },
+    "DIREKTUR": {
+      "summary": [
+        "operations /dashboard",
+        "insight /dashboard/insight",
+        "search /dashboard/search"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "forecast /dashboard/forecast"
+      ],
+      "marketing": [
+        "promo /dashboard/promotions",
+        "promoRules /dashboard/promo-rules",
+        "campaign /dashboard/campaigns",
+        "vouchers /dashboard/vouchers",
+        "churn /dashboard/churn",
+        "resellers /resellers"
+      ],
+      "approvals": [
+        "disputes /dashboard/disputes"
+      ],
+      "people": [
+        "shift /dashboard/shift",
+        "targets /dashboard/targets"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm"
+      ],
+      "finance": [
+        "cashbook /dashboard/cashbook",
+        "paymentRecon /dashboard/payment-recon",
+        "monthlyReview /dashboard/monthly-review",
+        "monthlyPnl /dashboard/monthly-pnl"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "account /dashboard/account"
+      ]
+    },
+    "FRANCHISE_OWNER": {
+      "summary": [
+        "myFranchise /dashboard/franchise",
+        "ownerAttendance /dashboard/franchise/attendance",
+        "insight /dashboard/insight",
+        "search /dashboard/search"
+      ],
+      "daily": [
+        "returns /dashboard/returns",
+        "forecast /dashboard/forecast"
+      ],
+      "finance": [
+        "payout /dashboard/payout"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "account /dashboard/account"
+      ]
+    },
+    "HEAD_OFFICE": {
+      "summary": [
+        "operations /dashboard",
+        "insight /dashboard/insight",
+        "search /dashboard/search"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "forecast /dashboard/forecast"
+      ],
+      "network": [
+        "staff /dashboard/staff"
+      ],
+      "marketing": [
+        "promo /dashboard/promotions",
+        "promoRules /dashboard/promo-rules",
+        "campaign /dashboard/campaigns",
+        "vouchers /dashboard/vouchers",
+        "churn /dashboard/churn",
+        "resellers /resellers"
+      ],
+      "approvals": [
+        "disputes /dashboard/disputes"
+      ],
+      "people": [
+        "shift /dashboard/shift",
+        "targets /dashboard/targets"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm"
+      ],
+      "finance": [
+        "reports /dashboard/reports",
+        "monthlyReview /dashboard/monthly-review",
+        "monthlyPnl /dashboard/monthly-pnl",
+        "teamPerformance /dashboard/team-performance"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "account /dashboard/account"
+      ]
+    },
+    "FINANCE": {
+      "summary": [
+        "insight /dashboard/insight"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "settlements /dashboard/settlements"
+      ],
+      "finance": [
+        "expenseClaims /dashboard/expense-claims",
+        "earningRules /dashboard/earning-rules",
+        "cashbook /dashboard/cashbook",
+        "paymentRecon /dashboard/payment-recon",
+        "commission /dashboard/commission"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "account /dashboard/account"
+      ]
+    },
+    "HR": {
+      "summary": [
+        "insight /dashboard/insight"
+      ],
+      "marketing": [
+        "resellers /resellers"
+      ],
+      "people": [
+        "hrLoans /hr/loans"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "account /dashboard/account"
+      ]
+    },
+    "MARKETING": {
+      "summary": [
+        "insight /dashboard/insight"
+      ],
+      "marketing": [
+        "promo /dashboard/promotions",
+        "promoRules /dashboard/promo-rules",
+        "campaign /dashboard/campaigns",
+        "vouchers /dashboard/vouchers",
+        "churn /dashboard/churn"
+      ],
+      "customers": [
+        "redemptions /dashboard/redemptions"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "account /dashboard/account"
+      ]
+    },
+    "SUPER_ADMIN": {
+      "summary": [
+        "myFranchise /dashboard/franchise",
+        "ownerAttendance /dashboard/franchise/attendance",
+        "operations /dashboard",
+        "insight /dashboard/insight",
+        "search /dashboard/search"
+      ],
+      "daily": [
+        "orders /dashboard/orders",
+        "walkIn /dashboard/walk-in",
+        "tracking /dashboard/tracking",
+        "inventory /dashboard/inventory",
+        "returns /dashboard/returns",
+        "wastage /dashboard/wastage",
+        "meter /dashboard/meter",
+        "notifications /dashboard/notifications",
+        "settlements /dashboard/settlements",
+        "forecast /dashboard/forecast"
+      ],
+      "network": [
+        "depots /dashboard/depots",
+        "pricing /dashboard/pricing",
+        "staff /dashboard/staff",
+        "settings /dashboard/settings"
+      ],
+      "marketing": [
+        "promo /dashboard/promotions",
+        "promoRules /dashboard/promo-rules",
+        "campaign /dashboard/campaigns",
+        "vouchers /dashboard/vouchers",
+        "churn /dashboard/churn",
+        "resellers /resellers"
+      ],
+      "approvals": [
+        "approvalsQueue /dashboard/approvals",
+        "incidents /dashboard/incidents",
+        "disputes /dashboard/disputes"
+      ],
+      "procurement": [
+        "purchaseOrders /dashboard/purchase-orders",
+        "suppliers /dashboard/suppliers"
+      ],
+      "people": [
+        "selfService /hr/me",
+        "shift /dashboard/shift",
+        "targets /dashboard/targets",
+        "huddle /dashboard/huddle",
+        "handover /dashboard/handover",
+        "maintenance /dashboard/maintenance",
+        "hrLoans /hr/loans",
+        "hrDepotRequests /hr/depot-requests",
+        "staffOnboarding /dashboard/onboarding"
+      ],
+      "customers": [
+        "customers /dashboard/customers",
+        "crm /dashboard/crm",
+        "broadcast /dashboard/broadcast",
+        "loyalty /dashboard/loyalty",
+        "redemptions /dashboard/redemptions",
+        "referral /dashboard/referral",
+        "recommendations /dashboard/recommendations",
+        "ratings /dashboard/ratings",
+        "subscriptions /dashboard/subscriptions"
+      ],
+      "catalog": [
+        "manageProducts /dashboard/products/manage",
+        "wholesale /dashboard/wholesale",
+        "payments /dashboard/payments"
+      ],
+      "finance": [
+        "payout /dashboard/payout",
+        "expenseClaims /dashboard/expense-claims",
+        "earningRules /dashboard/earning-rules",
+        "cashbook /dashboard/cashbook",
+        "paymentRecon /dashboard/payment-recon",
+        "commission /dashboard/commission",
+        "reports /dashboard/reports",
+        "monthlyReview /dashboard/monthly-review",
+        "compare /dashboard/compare",
+        "monthlyPnl /dashboard/monthly-pnl",
+        "teamPerformance /dashboard/team-performance"
+      ],
+      "reference": [
+        "roles /dashboard/roles",
+        "audit /dashboard/audit",
+        "profile /dashboard/profile",
+        "depotSettings /dashboard/depot-settings",
+        "account /dashboard/account"
+      ]
+    }
+  }
+}
