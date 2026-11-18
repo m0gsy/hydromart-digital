@@ -274,7 +274,7 @@ export default function LeaveQueuePage() {
                       reason, and offered Approve / Reject — with nothing naming the person
                       whose leave was being decided. */}
                   <span className="font-semibold">
-                    <EntityLink href={entityHref('employee', r.employeeId, 'hq', customer?.role)}>
+                    <EntityLink href={entityHref('employee', r.employeeName ? r.employeeId : null, 'hq', customer?.role)}>
                       {r.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
                     </EntityLink>
                   </span>

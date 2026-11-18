@@ -173,7 +173,7 @@ export default function KasbonQueuePage() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">
-                    <EntityLink href={entityHref('employee', r.employeeId, 'hq', customer?.role)}>
+                    <EntityLink href={entityHref('employee', r.employeeName ? r.employeeId : null, 'hq', customer?.role)}>
                       {r.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
                     </EntityLink>
                     {r.employeeCode ? ` · ${r.employeeCode}` : ''}

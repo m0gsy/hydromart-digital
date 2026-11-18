@@ -29,6 +29,14 @@ const TONE: Record<PayrollStatus, 'neutral' | 'success' | 'brand'> = {
   PAID: 'success',
 };
 
+/** The slip's month as the attendance filter's two dates: `YYYY-MM-01` to its last day. */
+function monthDays(period: string): { from: string; to: string } {
+  const [y, m] = period.split('-').map(Number);
+  // tz-ok: calendar arithmetic on the slip's own YYYY-MM; no instant is read
+  const last = new Date(Date.UTC(y!, m!, 0)).getUTCDate();
+  return { from: `${period}-01`, to: `${period}-${String(last).padStart(2, '0')}` };
+}
+
 export default function PayrollDetailPage() {
   const { t } = useT();
   const id = useQueryParam('id');
@@ -93,13 +101,14 @@ export default function PayrollDetailPage() {
   if (loading) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
   if (error)
     return (
-      <div className="mx-auto max-w-2xl">
+      <div className="mx-auto max-w-2xl space-y-3">
+        <HrBack href="/hr/payroll" label={t('hrFix.common.back')} />
         <ErrorState message={error} onRetry={reload} />
       </div>
     );
   const p = data!;
   const canRun = canRunPayroll(customer?.role);
-  const pendingHref = `/hr/attendance?employeeId=${encodeURIComponent(p.employeeId)}`;
+  const pendingHref = `/hr/attendance?${new URLSearchParams({ employeeId: p.employeeId, ...monthDays(p.periodMonth) })}`;
   const ptkpHref = `/hr/employees/detail/edit?id=${encodeURIComponent(p.employeeId)}`;
 
 
@@ -110,7 +119,7 @@ export default function PayrollDetailPage() {
       <HrBack href="/hr/payroll" label={t('hrFix.common.back')} />
       <SectionHeader
         title={
-          <EntityLink href={entityHref('employee', p.employeeId, 'hq', customer?.role)}>
+          <EntityLink href={entityHref('employee', p.employeeName ? p.employeeId : null, 'hq', customer?.role)}>
             {p.employeeName ?? t('hrFix.payroll.unnamedEmployee')}
           </EntityLink>
         }

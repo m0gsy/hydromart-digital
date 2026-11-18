@@ -82,9 +82,25 @@ describe('payroll detail', () => {
     render(<PayrollDetailPage />);
     await waitFor(() => expect(screen.getByText('Budi')).toBeTruthy());
     expect(hrefOf('Budi')).toBe('/hr/employees/detail?id=e1');
-    expect(hrefOf('hrFix.payrollDetail.pendingWarning:2')).toBe('/hr/attendance?employeeId=e1');
+    // the very month the slip counts, not the employee's whole history
+    expect(hrefOf('hrFix.payrollDetail.pendingWarning:2')).toBe(
+      '/hr/attendance?employeeId=e1&from=2026-11-01&to=2026-11-30',
+    );
     expect(hrefOf('hrFix.payrollDetail.ptkpMissing')).toBe('/hr/employees/detail/edit?id=e1');
     expect(hrefOf('hrFix.common.back')).toBe('/hr/payroll');
+  });
+
+  it('an anonymised employee (no name) is plain text, not a door to a scrubbed record', async () => {
+    get.mockResolvedValue({ ...PAYROLL, employeeName: null });
+    render(<PayrollDetailPage />);
+    await waitFor(() => expect(screen.getByText('hrFix.payroll.unnamedEmployee')).toBeTruthy());
+    expect(hrefOf('hrFix.payroll.unnamedEmployee')).toBeNull();
+  });
+
+  it('a slip that fails to load still leads back to the list', async () => {
+    get.mockRejectedValue(new Error('boom'));
+    render(<PayrollDetailPage />);
+    await waitFor(() => expect(hrefOf('hrFix.common.back')).toBe('/hr/payroll'));
   });
 
   it('a role that runs payroll but may not edit employees gets the PTKP warning as text', async () => {

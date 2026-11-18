@@ -50,7 +50,8 @@ export default function MyPayrollDetailPage() {
   if (loading) return <Skeleton className="mx-auto h-96 max-w-md" />;
   if (error) {
     return (
-      <div className="mx-auto max-w-md px-4 py-6">
+      <div className="mx-auto max-w-md space-y-3 px-4 py-6">
+        <HrBack href="/hr/me/payroll" label={t('hrFix.common.back')} />
         <ErrorState message={error} onRetry={reload} />
       </div>
     );
