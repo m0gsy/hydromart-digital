@@ -1,7 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import {
   Bell,
+  CaretRight,
   DeviceMobile,
   Gear,
   Lock,
@@ -88,6 +90,18 @@ function AccountBody() {
               ))}
             </div>
           </div>
+          {/* Signed-in devices live in /account's Perangkat sheet (sign out everywhere included);
+              this row used to look like a door and open nothing. */}
+          <Link href="/account?sheet=devices" className="flex w-full items-center gap-3 p-4 text-left">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+              <DeviceMobile size={18} weight="fill" />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold">{t('dashA.account.devices.label')}</p>
+              <p className="text-[11px] text-[color:var(--text-muted)]">{t('dashA.account.devices.sub')}</p>
+            </div>
+            <CaretRight size={15} className="text-[color:var(--text-muted)]" />
+          </Link>
         </Card>
       </div>
     </div>

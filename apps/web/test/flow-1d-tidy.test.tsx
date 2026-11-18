@@ -70,12 +70,18 @@ beforeEach(() => {
 afterEach(() => vi.clearAllMocks());
 
 describe('the staff account screen', () => {
-  it('no longer lists a PIN row and a devices row that do nothing', async () => {
+  it('no longer lists a PIN row for a PIN that does not exist', async () => {
     who.role = 'MANAGER';
     render(<DepotAccountPage />);
     await waitFor(() => expect(document.body.textContent).toContain('dashA'));
     expect(screen.queryByText('dashA.account.pin.label')).toBeNull();
-    expect(screen.queryByText('dashA.account.devices.label')).toBeNull();
+  });
+
+  it('turns "Perangkat masuk" into a door to the devices sheet that works', async () => {
+    who.role = 'MANAGER';
+    render(<DepotAccountPage />);
+    await waitFor(() => expect(screen.getByText('dashA.account.devices.label')).toBeTruthy());
+    expect(hrefOf('dashA.account.devices.label')).toBe('/account?sheet=devices');
   });
 });
 
