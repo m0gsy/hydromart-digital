@@ -19,7 +19,7 @@ import {
   runImport,
 } from '@hydromart/platform';
 
-import { Attendance, AttendanceStatus, Employee } from '../../../prisma/generated/client';
+import { Attendance, AttendanceStatus, Employee, Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { addDays, depotOn } from '../../domain/depot-on';
 import { withinGeofence } from '../../domain/geofence';
@@ -147,7 +147,9 @@ export class AttendanceService {
     const workDepotId = await this.workDepotOn(employee, localDayKey(at, this.config.timeZone));
     const { holdForReview } = this.geofenceOutcome({ depotId: workDepotId }, user, punch);
     const existing = await this.repo.findByEmployeeAndDate(employee.id, workDate);
-    if (existing?.checkInAt) {
+    // Any row for the day stops a new one: (employeeId, workDate) is unique, so a row with no
+    // check-in (approved leave, an HR entry) used to fail the write below with a 500 every time.
+    if (existing) {
       /*
        * The replay of a punch that already landed.
        *
@@ -163,8 +165,7 @@ export class AttendanceService {
        * twice. A punch with no `capturedAt` is a live one, and a second live punch is a
        * genuine second attempt that must still be refused.
        */
-      if (punch.capturedAt && existing.checkInAt.getTime() === at.getTime()) return existing;
-      throw new BadRequestException('Sudah check-in hari ini');
+      return this.alreadyCheckedIn(existing, punch, at);
     }
 
     // Late is measured against THIS employee's shift for THIS day (C3), falling back to the
@@ -188,18 +189,43 @@ export class AttendanceService {
         this.config.offlineAutoAcceptMinutes(workDepotId) * 60_000;
 
     const status = stale || holdForReview ? 'PENDING' : late ? 'LATE' : 'PRESENT';
-    const created = await this.repo.create({
-      employeeId: employee.id,
-      depotId: workDepotId,
-      workDate,
-      checkInAt: at,
-      checkInPhotoUrl: photoUrl,
-      checkInScore: score,
-      checkInLat: punch.lat,
-      checkInLng: punch.lng,
-      lateMinutes,
-      status,
-    });
+    let created: Attendance;
+    try {
+      created = await this.repo.create({
+        employeeId: employee.id,
+        depotId: workDepotId,
+        workDate,
+        checkInAt: at,
+        checkInPhotoUrl: photoUrl,
+        checkInScore: score,
+        checkInLat: punch.lat,
+        checkInLng: punch.lng,
+        lateMinutes,
+        status,
+      });
+    } catch (err) {
+      /*
+       * The twin that arrives while the first punch is still in flight (Sentry 2026-11-18): the
+       * queue's retry of a request whose answer it never got, or a double tap. Both read "no row
+       * yet" above — the face check and the photo upload sit between that read and this write —
+       * and (employeeId, workDate) is unique, so the second write fails. Answer it as if it had
+       * arrived a moment later, instead of as a 500 carrying the Prisma error.
+       */
+      // The row was never written, so a frame THIS request stored belongs to nothing and the
+      // retention sweep (which reads rows) would never find it. A client-uploaded photo is left
+      // alone: the twin's row may point at the very same one.
+      if (photoUrl && !punch.photoUrl) {
+        await this.storage?.remove(photoUrl).catch((e: unknown) =>
+          this.logger.warn(`Check-in frame ${photoUrl} left behind: ${String(e)}`),
+        );
+      }
+      const twin =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002'
+          ? await this.repo.findByEmployeeAndDate(employee.id, workDate).catch(() => null)
+          : null;
+      if (twin) return this.alreadyCheckedIn(twin, punch, at);
+      throw err;
+    }
     // HR-18: an offline punch is recorded at the DEVICE's minute. Face and geofence were checked
     // live, so the person was there - but the minute is the device's claim, and inside the
     // auto-accept window nothing said so. Leave the gap on the row's trail where HR already looks.
@@ -208,6 +234,24 @@ export class AttendanceService {
     // and a replayed punch returned above before reaching here.
     if (status === 'LATE') await this.notifyLate(employee, lateMinutes, workDate);
     return created;
+  }
+
+  /**
+   * The day's row is already there: this punch's own replay gets it back, anything else is
+   * refused. `offlineAt` is `min(capturedAt, now)`, so a queued punch replaying the same
+   * `capturedAt` computes the same instant to the millisecond; a punch with no `capturedAt` is
+   * a live one, and a second live punch is a genuine second attempt.
+   */
+  private alreadyCheckedIn(existing: Attendance, punch: FacePunch, at: Date): Attendance {
+    if (!existing.checkInAt) {
+      throw new BadRequestException(
+        existing.status === 'LEAVE'
+          ? 'Hari ini tercatat cuti. Minta HR membatalkan cuti hari ini bila Anda masuk kerja.'
+          : 'Hari ini sudah tercatat tanpa jam masuk. Minta HR mengoreksi absensi Anda.',
+      );
+    }
+    if (punch.capturedAt && existing.checkInAt.getTime() === at.getTime()) return existing;
+    throw new BadRequestException('Sudah check-in hari ini');
   }
 
   /** Clock skew below this is not worth a trail entry. */
