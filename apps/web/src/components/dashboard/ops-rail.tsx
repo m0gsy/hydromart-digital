@@ -147,11 +147,14 @@ export function OpsRail() {
         {hubs.map(({ hub, items }) => {
           const on = hub.headKey === currentHub;
           const Ic = hub.icon;
+          // O4: the row that carries the unread badge opens the feed it counts.
+          const feed = items.find((i) => i.labelKey === 'notifications');
+          const badge = feed !== undefined && opsUnread > 0;
           return (
             <Link
               aria-current={on ? 'page' : undefined}
               key={hub.headKey}
-              href={items[0]!.href}
+              href={badge ? feed.href : items[0]!.href}
               className={
                 'flex items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-[13.5px] transition-colors ' +
                 (on
@@ -171,7 +174,7 @@ export function OpsRail() {
                 announcing itself — low stock and a courier incident sat in a feed until
                 somebody happened to open it.
               */}
-              {items.some((i) => i.labelKey === 'notifications') && opsUnread > 0 && (
+              {badge && (
                 <span className="min-w-[18px] rounded-full bg-red-600 px-1 text-center text-[10px] font-extrabold leading-[18px] text-white">
                   {opsUnread > 9 ? '9+' : opsUnread}
                 </span>

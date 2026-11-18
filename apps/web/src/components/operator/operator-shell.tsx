@@ -8,8 +8,8 @@ import { Bell, Drop } from '@phosphor-icons/react';
 import { useAuth } from '@/lib/auth-context';
 import { useOpsNotifications } from '@/lib/ops-notifications';
 import { useDepot } from '@/lib/depot-context';
-import { GROUPS } from '@/lib/ops-nav';
-import { normalisePath } from '@/lib/screen-chrome';
+import { hubsFor } from '@/lib/ops-nav';
+import { deepest, normalisePath } from '@/lib/screen-chrome';
 import { can } from '@/lib/roles';
 
 function initials(name: string): string {
@@ -31,36 +31,28 @@ function initials(name: string): string {
 type Tab = {
   label: string;
   href: string;
-  match: (p: string) => boolean;
   /** Hide the tab when the role lacks what the page behind it needs. */
   show?: (role: string | null | undefined) => boolean;
 };
 
 const primaryTabs: Tab[] = [
-  { label: 'hrFix.opNav.summary', href: '/dashboard', match: (p) => p === '/dashboard' },
-  { label: 'hrFix.opNav.queue', href: '/dashboard/orders', match: (p) => p.startsWith('/dashboard/orders'), show: (r) => can('orderManageRead', r) },
+  { label: 'hrFix.opNav.summary', href: '/dashboard' },
+  { label: 'hrFix.opNav.queue', href: '/dashboard/orders', show: (r) => can('orderManageRead', r) },
   // The operator IS the cashier — the counter sale belongs in their primary tabs, not the
   // manager's left rail (which this role never sees).
-  { label: 'hrFix.opNav.sales', href: '/dashboard/walk-in', match: (p) => p.startsWith('/dashboard/walk-in') },
-  { label: 'hrFix.opNav.couriers', href: '/dashboard/tracking', match: (p) => p.startsWith('/dashboard/tracking') },
-  { label: 'hrFix.opNav.inventory', href: '/dashboard/inventory', match: (p) => p.startsWith('/dashboard/inventory') },
-  { label: 'hrFix.opNav.returns', href: '/dashboard/returns', match: (p) => p.startsWith('/dashboard/returns') },
-  { label: 'hrFix.opNav.settlements', href: '/dashboard/settlements', match: (p) => p.startsWith('/dashboard/settlements') },
+  { label: 'hrFix.opNav.sales', href: '/dashboard/walk-in' },
+  { label: 'hrFix.opNav.couriers', href: '/dashboard/tracking' },
+  { label: 'hrFix.opNav.inventory', href: '/dashboard/inventory' },
+  { label: 'hrFix.opNav.returns', href: '/dashboard/returns' },
+  { label: 'hrFix.opNav.settlements', href: '/dashboard/settlements' },
 ];
 
-// Flow PR-3b: the "Kelola" tabs ARE the depot-console table (lib/ops-nav), less what the
-// primary row above already holds, so each carries the gate of its row. Kept by hand, 21 of
-// them had no gate at all, and one (Kelola depot) led a head of depot to a page they may not
-// open. A new screen in the table now reaches this console too, with its gate.
+// Flow PR-3b: the "Kelola" tabs ARE the depot-console table (lib/ops-nav): one tab per hub
+// the role sees that the primary row does not already stand for. Each opens the hub's first
+// screen, where HubTabs lists the rest, and each screen carries the gate of its row. Kept by
+// hand, 21 tabs had no gate at all, and one (Kelola depot) led a head of depot to a page they
+// may not open. A primary tab stands for its whole hub: on Meteran, Inventory is lit.
 const PRIMARY = new Set(primaryTabs.map((tab) => tab.href));
-const manageTabs: Tab[] = GROUPS.flatMap((g) => g.items)
-  .filter((item) => !PRIMARY.has(item.href))
-  .map((item) => ({
-    label: `ops.nav.${item.labelKey}`,
-    href: item.href,
-    match: (p) => p === item.href || p.startsWith(`${item.href}/`),
-    show: item.show,
-  }));
 
 function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
   const { t } = useT();
@@ -88,6 +80,22 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
   const depot = selected ?? depots[0] ?? null;
   const { unreadCount: unread } = useOpsNotifications();
   const name = customer?.fullName ?? 'Operator';
+  const role = customer?.role;
+  const primary = primaryTabs.filter((tab) => !tab.show || tab.show(role));
+  const hubs = hubsFor(role);
+  const kelola = hubs.filter((h) => !h.items.some((i) => PRIMARY.has(i.href)));
+  // One current tab across both rows, by the rail's rule (flow-1e): the deepest screen wins,
+  // so `/dashboard/orders/detail` lights Antrean and nothing else.
+  const current = deepest(
+    hubs.flatMap((h) => h.items),
+    pathname,
+    '/dashboard',
+  )?.href;
+  const hubOfScreen = (href: string | undefined) =>
+    hubs.find((h) => h.items.some((i) => i.href === href))?.hub.headKey;
+  const lit =
+    primary.find((tab) => tab.href === current) ??
+    primary.find((tab) => hubOfScreen(tab.href) === hubOfScreen(current));
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -109,7 +117,11 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
                 to find out. Real count, real destination. */}
             <Link
               href="/dashboard/notifications"
-              aria-label={unread > 0 ? t('hrFix.operatorShell.notifUnreadAria', { n: unread }) : t('hrFix.operatorShell.notifAria')}
+              aria-label={
+                unread > 0
+                  ? t('hrFix.operatorShell.notifUnreadAria', { n: unread })
+                  : t('hrFix.operatorShell.notifAria')
+              }
               className="relative flex h-11 w-11 items-center justify-center rounded-[10px] bg-[color:var(--surface-soft)] hover:bg-brand-50"
             >
               <Bell size={18} className="text-[color:var(--text-muted)]" />
@@ -123,19 +135,25 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
               </span>
               <span className="hidden sm:block">
                 <span className="block text-[12.5px] font-extrabold leading-tight">{name}</span>
-                <span className="block text-[10.5px] text-[color:var(--text-muted)]">{t('hrFix.operatorShell.title')}</span>
+                <span className="block text-[10.5px] text-[color:var(--text-muted)]">
+                  {t('hrFix.operatorShell.title')}
+                </span>
               </span>
             </span>
           </div>
         </div>
         {/* Tab bar */}
         <nav className="flex gap-1 overflow-x-auto px-3 pb-2 sm:px-5">
-          {primaryTabs.filter((t) => !t.show || t.show(customer?.role)).map((t) => (
-            <TabLink key={t.href} tab={t} active={t.match(pathname)} />
+          {primary.map((tab) => (
+            <TabLink key={tab.href} tab={tab} active={tab === lit} />
           ))}
           <span className="mx-1 my-1 w-px shrink-0 bg-[color:var(--border)]" />
-          {manageTabs.filter((t) => !t.show || t.show(customer?.role)).map((t) => (
-            <TabLink key={t.href} tab={t} active={t.match(pathname)} />
+          {kelola.map(({ hub, items }) => (
+            <TabLink
+              key={hub.headKey}
+              tab={{ label: `ops.groups.${hub.headKey}`, href: items[0]!.href }}
+              active={!lit && items.some((i) => i.href === current)}
+            />
           ))}
         </nav>
       </header>

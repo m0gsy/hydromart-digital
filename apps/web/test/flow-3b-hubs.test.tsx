@@ -204,4 +204,32 @@ describe('the rail and the operator console read the table', () => {
     expect(tabs).toContain('/dashboard/operator-settings');
     expect(tabs.filter((h) => !canOpenRoute(h, 'KEPALA_DEPOT'))).toEqual([]);
   });
+
+  it('the operator bar holds one Kelola tab per hub, and one current tab', async () => {
+    const { OperatorShell } = await import('@/components/operator/operator-shell');
+    who.role = 'KEPALA_DEPOT';
+    who.path = '/dashboard/meter/';
+    const { container } = render(<OperatorShell>x</OperatorShell>);
+    const lit = Array.from(container.querySelectorAll('nav a[aria-current="page"]'));
+    // Meteran is a Stok screen; Inventory, a primary tab, stands for the Stok hub.
+    expect(lit.map((a) => a.textContent)).toEqual(['hrFix.opNav.inventory']);
+    // and the Stok hub is not a Kelola tab of its own beside it
+    expect(container.querySelector('nav a[href="/dashboard/meter"]')).toBeNull();
+    const labels = Array.from(container.querySelectorAll('nav a')).map((a) => a.textContent);
+    expect(labels.filter((l) => l?.startsWith('ops.nav.'))).toEqual([]);
+  });
+
+  it('the row with the unread badge opens the feed it counts', async () => {
+    vi.doMock('@/lib/unread', () => ({ useUnreadCount: () => 0, useOpsUnreadCount: () => 3 }));
+    vi.resetModules();
+    const { OpsRail } = await import('@/components/dashboard/ops-rail');
+    who.role = 'MANAGER';
+    who.path = '/dashboard/orders';
+    const { container } = render(<OpsRail />);
+    const row = Array.from(container.querySelectorAll('nav a')).find((a) =>
+      a.textContent?.startsWith('ops.groups.summary'),
+    );
+    expect(row?.getAttribute('href')).toBe('/dashboard/notifications');
+    vi.doUnmock('@/lib/unread');
+  });
 });

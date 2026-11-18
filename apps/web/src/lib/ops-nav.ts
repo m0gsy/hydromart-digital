@@ -96,6 +96,7 @@ import {
   canPunchAttendance,
   canUseManagerConsole,
   canUseOperatorConsole,
+  isDepotOperator,
   canViewMeterReading,
   can,
   isHq,
@@ -132,7 +133,15 @@ export const GROUPS: RailGroup[] = [
     headKey: 'summary',
     icon: ChartLineUp,
     items: [
-      { href: '/dashboard', labelKey: 'operations', icon: ChartLineUp, show: canViewDashboard },
+      // PR-3b: the head of depot's /dashboard is their operator home, so it is a screen of this
+      // hub for them too (the operator bar's Ringkasan stands for it). Narrower than the page
+      // (dashboardLandingView), which also answers a franchise owner: their row stays Waralabaku.
+      {
+        href: '/dashboard',
+        labelKey: 'operations',
+        icon: ChartLineUp,
+        show: (role) => canViewDashboard(role) || isDepotOperator(role),
+      },
       {
         href: '/dashboard/franchise',
         labelKey: 'myFranchise',

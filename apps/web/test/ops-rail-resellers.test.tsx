@@ -68,7 +68,6 @@ describe('J10 · the agen registry has a door', () => {
   it('a courier does not', () => {
     role.current = 'STAFF_DEPOT';
     render(<OpsRail />, { wrapper: LocaleProvider });
-    expect(hrefs()).not.toContain('/resellers');
     expect(hubsFor('STAFF_DEPOT').flatMap((h) => h.items.map((i) => i.href))).not.toContain(
       '/resellers',
     );

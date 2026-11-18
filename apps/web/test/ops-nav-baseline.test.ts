@@ -15,7 +15,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * to the first HQ screen it may open instead of the overview that refuses it.
  */
 const ADDED: Record<string, string[]> = {
-  KEPALA_DEPOT: ['operatorSettings /dashboard/operator-settings'],
+  // and the head of depot's /dashboard (their operator home) is a row with the page's gate.
+  KEPALA_DEPOT: ['operatorSettings /dashboard/operator-settings', 'operations /dashboard'],
   SUPER_ADMIN: ['operatorSettings /dashboard/operator-settings'],
 };
 const MOVED: Record<string, [from: string, to: string]> = {
