@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { OrderFeedPort } from '../ports/order-feed.port';
-import { RecommendationRepository } from '../ports/recommendation.repository';
+import { LastQuantityFill, RecommendationRepository } from '../ports/recommendation.repository';
+import { orderedUnitsByProduct } from '../../domain/reorder';
 import { RECOMMENDATION_TOKENS } from '../tokens';
 import { RecommendationService } from './recommendation.service';
 
@@ -45,6 +46,35 @@ export class RebuildService {
     if (orders === 0) return { orders: 0, rows: 0 };
     await this.repo.replaceDailySales([...totals.values()]);
     return { orders, rows: totals.size };
+  }
+
+  /**
+   * Owner decision 2026-11-19: "Beli lagi" for purchases recorded before lastQuantity existed.
+   * The ingest skips orders it has seen, so a rebuild could not reach those rows. This walks the
+   * completed-order feed, keeps each customer's LATEST order of each product (what was ordered,
+   * by the ingest's own rule), and fills only rows still empty.
+   */
+  async backfillLastQuantity(limit: number): Promise<{ orders: number; rows: number }> {
+    const latest = new Map<string, LastQuantityFill>();
+    let orders = 0;
+    let cursor: string | null = null;
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const result = await this.feed.fetchCompleted(cursor, limit);
+      for (const order of result.orders) {
+        orders += 1;
+        for (const [productId, quantity] of orderedUnitsByProduct(order.items)) {
+          const key = `${order.customerId}|${productId}`;
+          const seen = latest.get(key);
+          if (!seen || seen.at < order.at) {
+            latest.set(key, { customerId: order.customerId, productId, at: order.at, quantity });
+          }
+        }
+      }
+      if (result.nextCursor === null) break;
+      cursor = result.nextCursor;
+    }
+    if (latest.size === 0) return { orders, rows: 0 };
+    return { orders, rows: await this.repo.fillLastQuantity([...latest.values()]) };
   }
 
   async run(limit: number): Promise<{ ingested: number }> {

@@ -29,6 +29,14 @@ export interface IngestCommand {
   day?: Date;
 }
 
+/** One customer's latest order of one product, as the backfill read it from the feed. */
+export interface LastQuantityFill {
+  customerId: string;
+  productId: string;
+  at: Date;
+  quantity: number;
+}
+
 export interface RecommendationRepository {
   hasIngested(orderId: string): Promise<boolean>;
 
@@ -46,6 +54,13 @@ export interface RecommendationRepository {
   applyIngest(cmd: IngestCommand): Promise<void>;
 
   reorderRows(customerId: string): Promise<PurchaseRow[]>;
+
+  /**
+   * Fills lastQuantity on rows that have none (written before the column existed). A row a real
+   * ingest already filled, or one bought again after the order read, is left alone. Returns the
+   * number of rows filled.
+   */
+  fillLastQuantity(entries: LastQuantityFill[]): Promise<number>;
 
   /** baseCount = ProductRef.buyCount for productId (times productId itself was bought), 0 if unknown. */
   relatedRows(productId: string): Promise<{ rows: CoBuyRow[]; baseCount: number }>;

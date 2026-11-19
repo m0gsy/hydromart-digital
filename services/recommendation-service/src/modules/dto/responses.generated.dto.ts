@@ -25,6 +25,14 @@ export class RecItemResponseDto {
   lastQuantity?: number;
 }
 
+/** Mirrors the backfill's response: orders read from the feed, rows filled. */
+export class BackfillLastQuantityResponseDto {
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  rows!: number;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class RebuildNowResponseDto {
   @ApiProperty({ type: Number })
