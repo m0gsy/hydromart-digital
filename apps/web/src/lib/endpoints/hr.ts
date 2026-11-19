@@ -83,6 +83,8 @@ export const hr = {
     myLoanRequests: '/loan-requests/api/v1/loan-requests/me',
     submitLoanRequest: '/loan-requests/api/v1/loan-requests/me',
     cancelLoanRequest: (id: string) => `/loan-requests/api/v1/loan-requests/me/${id}/cancel`,
+    // How many PENDING kasbon the caller may decide (K1/K2), for the decision inbox.
+    loanRequestsDecidableCount: '/loan-requests/api/v1/loan-requests/pending/decidable-count',
     loanRequestQueue: (q: { page?: number; pageSize?: number; status?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));

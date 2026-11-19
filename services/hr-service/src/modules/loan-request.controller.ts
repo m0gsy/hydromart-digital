@@ -24,6 +24,7 @@ import { LoanRequest } from '../../prisma/generated/client';
 import { LoanService, LoanReportTable } from '../application/services/loan.service';
 import { LoanRequestService } from '../application/services/loan-request.service';
 import {
+  DecidableCountResponseDto,
   DecideLoanRequestDto,
   ListLoanRequestDto,
   LoanReportTableQueryDto,
@@ -99,6 +100,14 @@ export class LoanRequestController {
   @ApiOperation({ summary: 'Kasbon balance table for a scheduled report (internal service auth)' })
   internalReportTable(@Query() q: LoanReportTableQueryDto): Promise<LoanReportTable> {
     return this.loans.reportTable(new Date(q.to));
+  }
+
+  @ApiOkResponse({ type: DecidableCountResponseDto })
+  @Can('kasbonApprove')
+  @Get('pending/decidable-count')
+  @ApiOperation({ summary: 'How many PENDING kasbon the caller may decide (K1/K2)' })
+  decidableCount(@CurrentUser() user: AuthenticatedUser): Promise<{ total: number }> {
+    return this.requests.decidableCount(user);
   }
 
   @ApiOkResponse({ type: PagedLoanRequestResponseDto })

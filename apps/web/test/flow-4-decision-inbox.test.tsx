@@ -105,6 +105,8 @@ const EXPENSE_PAGE = {
 
 function serveQueues() {
   get.mockImplementation(async (url: string) => {
+    // hr-service DecidableCountResponseDto (modules/dto/loan-request.dto.ts)
+    if (url.includes('/loan-requests/pending/decidable-count')) return { total: 4 };
     if (url.startsWith('/loan-requests/')) return LOAN_PAGE;
     if (url.startsWith('/leave/')) return LEAVE_PAGE;
     if (url.startsWith('/payout/api/v1/expenses')) return EXPENSE_PAGE;
@@ -123,6 +125,7 @@ describe('each adapter reads its own answer', () => {
     serveQueues();
     const { DECISION_QUEUES } = await import('@/lib/decision-queues');
     const by = (k: string) => DECISION_QUEUES.find((q) => q.key === k)!;
+    await expect(by('kasbon').count!('MANAGER', 'd1')).resolves.toBe(4);
     await expect(by('leave').count!('MANAGER', 'd1')).resolves.toBe(2);
     await expect(by('expenses').count!('MANAGER', 'd1')).resolves.toBe(0);
   });
@@ -150,10 +153,9 @@ describe('each adapter reads its own answer', () => {
     expect(asked).toContain('/leave/api/v1/leave?status=PENDING_HR&pageSize=1');
   });
 
-  it('a list with no total, or whose total is not what waits for the reader, offers no count', async () => {
+  it('a list with no total offers no count', async () => {
     const { DECISION_QUEUES } = await import('@/lib/decision-queues');
-    // kasbon: under K2 a depot with an assistant supervisor decides its own kasbon
-    for (const key of ['kasbon', 'payouts', 'franchiseApplications', 'dataRequests'])
+    for (const key of ['payouts', 'franchiseApplications', 'dataRequests'])
       expect(DECISION_QUEUES.find((q) => q.key === key)!.count).toBeUndefined();
   });
 });
@@ -241,10 +243,9 @@ describe('the card', () => {
     expect(screen.getByText('opsFix.inbox.title')).toBeTruthy();
     await waitFor(() => expect(screen.getByText('2')).toBeTruthy());
     expect(screen.getByText('0')).toBeTruthy();
-    // kasbon: a door, no badge
-    expect(screen.getByText('ops.nav.hrLoans').closest('a')?.textContent).toContain(
-      'opsFix.inbox.open',
-    );
+    // kasbon counts only what this manager may decide (K1/K2, server-side)
+    expect(screen.getByText('4')).toBeTruthy();
+    expect(screen.getByText('ops.nav.hrLoans').closest('a')?.textContent).toContain('4');
     expect(screen.getByText('ops.nav.hrLeave').closest('a')?.getAttribute('href')).toBe(
       '/hr/leave',
     );

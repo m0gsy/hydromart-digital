@@ -49,9 +49,10 @@ export const DECISION_QUEUES: DecisionQueue[] = [
     label: 'ops.nav.hrLoans',
     href: '/hr/loans/requests',
     decides: (role) => can('kasbonApprove', role),
-    // No count: under K2 a depot with an assistant supervisor has its kasbon decided by that
-    // assistant alone, so the list's total is not what waits for a manager (decide() answers
-    // 403 for the rest). The door stays; a badge of decisions that are not theirs would not.
+    // K1/K2: a depot's own assistant supervisor decides its kasbon; the server counts only the
+    // requests THIS caller may decide (not their own, not another assistant's depot), so the
+    // badge is never a request that would answer 403.
+    count: () => api.get<Totalled>(endpoints.hr.loanRequestsDecidableCount, true).then(totalOf),
   },
   {
     // Two stages: a manager decides PENDING_MANAGER, HR admin PENDING_HR (the screen's default).

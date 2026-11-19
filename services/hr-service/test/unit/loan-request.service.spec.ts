@@ -95,6 +95,21 @@ class FakeRepo implements LoanRequestRepository {
   async listByEmployee(employeeId: string): Promise<LoanRequest[]> {
     return this.rows.filter((r) => r.employeeId === employeeId).map((r) => ({ ...r }));
   }
+  async pendingCountsByDepot(
+    depotIds: readonly string[] | undefined,
+    excludeEmployeeId: string | null,
+  ): Promise<Array<{ depotId: string; count: number }>> {
+    const by = new Map<string, number>();
+    for (const r of this.rows)
+      if (
+        r.status === 'PENDING' &&
+        (!depotIds || depotIds.includes(r.depotId)) &&
+        r.employeeId !== excludeEmployeeId
+      )
+        by.set(r.depotId, (by.get(r.depotId) ?? 0) + 1);
+    return [...by].map(([depotId, count]) => ({ depotId, count }));
+  }
+
   async listAll(
     filter: LoanRequestListFilter,
   ): Promise<{ rows: LoanRequestListRow[]; total: number }> {
@@ -680,5 +695,49 @@ describe('LoanRequestInternalController (HR-15)', () => {
     const requests = { reopenOrphaned: jest.fn().mockResolvedValue({ reopened: 2 }) };
     const controller = new LoanRequestInternalController(requests as never);
     expect(await controller.reopenOrphaned()).toEqual({ reopened: 2 });
+  });
+});
+
+/*
+ * The decision inbox's kasbon count (flow follow-up, owner 2026-11-19): the same K1/K2 rule as
+ * `decide`, so the badge never counts a request that would answer 403.
+ */
+describe('LoanRequestService.decidableCount', () => {
+  async function seed(repo: FakeRepo) {
+    await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 100000, reason: 'a' });
+    await repo.create({ employeeId: 'emp-2', depotId: DEPOT_A, amount: 100000, reason: 'b' });
+    // the caller's own request: never theirs to decide
+    await repo.create({ employeeId: 'emp-asv', depotId: DEPOT_A, amount: 100000, reason: 'mine' });
+  }
+
+  it("counts a depot's requests for its own assistant supervisor, never their own", async () => {
+    const { svc, repo } = make({ assistant: ASV });
+    await seed(repo);
+    await expect(svc.decidableCount(asv)).resolves.toEqual({ total: 2 });
+  });
+
+  it('counts none where another assistant decides (K2: decide would answer 403)', async () => {
+    const { svc, repo } = make({ assistant: 'someone-else' });
+    await seed(repo);
+    await expect(svc.decidableCount(asv)).resolves.toEqual({ total: 0 });
+  });
+
+  it('counts a depot with no assistant recorded for whoever reaches it', async () => {
+    const { svc, repo } = make({ assistant: null });
+    await seed(repo);
+    await expect(svc.decidableCount(asv)).resolves.toEqual({ total: 2 });
+  });
+
+  it('fails closed when depot-service cannot say who decides', async () => {
+    const { svc, repo } = make({ assistant: 'THROW' });
+    await seed(repo);
+    await expect(svc.decidableCount(asv)).rejects.toThrow();
+  });
+
+  it('counts only PENDING requests', async () => {
+    const { svc, repo } = make({ assistant: ASV });
+    const done = await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 1, reason: 'x' });
+    repo.rows.find((r) => r.id === done.id)!.status = 'REJECTED' as never;
+    await expect(svc.decidableCount(asv)).resolves.toEqual({ total: 0 });
   });
 });

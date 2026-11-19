@@ -248,6 +248,24 @@ export class LoanRequestService {
     return cancelled;
   }
 
+  /**
+   * How many PENDING kasbon THIS caller may decide: the decision inbox's count. The same
+   * K1/K2 rule `decide` enforces, so the badge never counts a request that would answer
+   * 403: a depot's own assistant supervisor decides there; a depot with none recorded, anyone
+   * whose scope reaches it; and nobody their own. Fails closed like `decide`: an unreachable
+   * depot-service is an error (the inbox then says "Buka"), not "nobody decides".
+   */
+  async decidableCount(user: AuthenticatedUser): Promise<{ total: number }> {
+    const me = await this.employees.findByAuthSubjectId(user.sub);
+    const groups = await this.repo.pendingCountsByDepot(depotScopeIds(user), me?.id ?? null);
+    let total = 0;
+    for (const g of groups) {
+      const decider = await this.supervision.assistantOfDepot(g.depotId);
+      if (!decider || decider === user.sub) total += g.count;
+    }
+    return { total };
+  }
+
   /** The decision queue, depot-scoped and paged like every other HR list. */
   async listAll(
     user: AuthenticatedUser,

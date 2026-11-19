@@ -350,7 +350,7 @@ describe('HolidayController / ShiftController', () => {
    * person's own rows. The decision side carries `kasbonApprove`.
    */
   it('kasbon controllers delegate, self and decision sides apart', () => {
-    const requests = svcMock(['listSelf', 'submit', 'cancel', 'listAll', 'decide']);
+    const requests = svcMock(['listSelf', 'submit', 'cancel', 'listAll', 'decide', 'decidableCount']);
     const self = new SelfLoanRequestController(requests as never);
     const loans = svcMock(['reportTable']);
     const queue = new LoanRequestController(requests as never, loans as never);
@@ -366,6 +366,8 @@ describe('HolidayController / ShiftController', () => {
     const q = { status: 'PENDING', page: 1, pageSize: 20 } as never;
     queue.list(q, user);
     expect(requests.listAll).toHaveBeenCalledWith(user, q);
+    queue.decidableCount(user);
+    expect(requests.decidableCount).toHaveBeenCalledWith(user);
     // The whole decision body travels as one: the terms are the approver's to set (K3),
     // and `seenUpdatedAt` rides along so two approvers cannot both write.
     const decision = {
