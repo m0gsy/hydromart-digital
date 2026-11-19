@@ -475,6 +475,11 @@ services:
       DELIVERY_SERVICE_URL: http://delivery:3006
       DEPOT_SERVICE_URL: http://depot:3007
       ADMIN_SERVICE_URL: http://admin:3017
+      # The network P&L's payroll line and the HR card of the depot and franchise dashboards.
+      # Without it both read "unavailable" for every depot, and so did every depot's net profit.
+      HR_SERVICE_URL: http://hr:3018
+      # The franchise dashboard's CRM section (customer-service crm-summaries).
+      CUSTOMER_SERVICE_URL: http://customer:3002
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3008/api/v1/health"]
       interval: 30s
@@ -605,6 +610,8 @@ services:
       FORECAST_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_forecast?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       CHURN_WINDOW_DAYS: 45
       DEPOT_SERVICE_URL: http://depot:3007
+      # A rebuild reads completed orders from order-service; without this it ingests nothing.
+      ORDER_SERVICE_URL: http://order:3004
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3014/api/v1/health"]
       interval: 30s
@@ -689,6 +696,9 @@ services:
       # HR notifications (leave decisions, announcements) ride crm's internal endpoint.
       # Missing here = every HR notification silently skipped, so keep it wired.
       CRM_SERVICE_URL: http://crm:3012
+      # Payroll's SALES_TOTAL bonus and the daily gallon-target bonus read depot sales from
+      # order-service. Missing here = both bonuses silently skipped in every payroll run.
+      ORDER_SERVICE_URL: http://order:3004
       # Attendance/payroll boot defaults (per-depot override via /hr/settings).
       HR_WORK_START_TIME: ${HR_WORK_START_TIME:-08:00}
       # Cross-depot assignments (planning routes + the apply sweep). Off until the rollout checklist is done.

@@ -97,14 +97,21 @@ if (failed) {
  *
  * Rule: a schema key that is neither `.default(...)` nor `.optional()` has no safe unset
  * value, so production must supply it. The other two say in the schema itself that being
- * unset is fine, and this check takes them at their word. Everything already missing today
+ * unset is fine, and this check takes them at their word — except a `*_SERVICE_URL`, which
+ * must be supplied whatever its schema says (see keysThatMustBeSupplied). Everything already missing today
  * is listed in `MISSING_BASELINE` and this fails only on a NEW one, exactly like the
  * api-response ratchet: the point is to stop the hole growing, not to hold this branch
  * responsible for the whole backlog.
  */
 
 /** Keys known-missing today, per compose service. Shrink this; never grow it. */
-const MISSING_BASELINE = {};
+const MISSING_BASELINE = {
+  // Recorded when the *_SERVICE_URL rule below arrived (2026-11-19). Its getter
+  // (`faceServiceUrl`) has no caller: FACE_VERIFIER_DRIVER accepts 'http' but hr.module.ts has
+  // no 'http' case, so nothing would use an address supplied today. It leaves this list with
+  // the face-service container and the driver that calls it.
+  'hr-service': ['FACE_SERVICE_URL'],
+};
 
 /** `KEY:` lines under a `x-*` anchor or a service's `environment:` block. */
 function composeEnv(text) {
@@ -162,7 +169,17 @@ function composeEnv(text) {
   return services;
 }
 
-/** Schema keys the service cannot boot correctly without: no `.default(...)`, no `.optional()`. */
+/**
+ * Schema keys the service cannot boot correctly without: no `.default(...)`, no `.optional()`.
+ *
+ * A `*_SERVICE_URL` is wiring, not a tunable, so it must be supplied even when the schema
+ * calls it `.optional()` or gives it a default. Where that default is '', the adapters read
+ * '' as "that source is down": the service boots, logs nothing, and the screen shows "—" or
+ * the payroll leaves a line out. That is how /hq/pnl's payroll line, and with it every
+ * depot's net profit, read "—" in production from the day it shipped (dashboard had no
+ * HR_SERVICE_URL), and why payroll would have skipped every sales and gallon bonus (hr had
+ * no ORDER_SERVICE_URL) — the J-1 hole again, through the default this rule used to trust.
+ */
 function keysThatMustBeSupplied(source) {
   const out = new Set();
   // One declaration may wrap over several lines: read from the key to the next key.
@@ -170,7 +187,8 @@ function keysThatMustBeSupplied(source) {
   let current = null;
   let buffer = '';
   const flush = () => {
-    if (current && !/\.default\s*\(|\.optional\s*\(/.test(buffer)) out.add(current);
+    if (current && (/_SERVICE_URL$/.test(current) || !/\.default\s*\(|\.optional\s*\(/.test(buffer)))
+      out.add(current);
   };
   for (const line of body) {
     const key = line.match(/^ {2}([A-Z][A-Z0-9_]*):/);
