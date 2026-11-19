@@ -2463,14 +2463,19 @@ describe('FaceEmbeddingPrismaRepository', () => {
     m(p, 'faceEmbedding').findMany.mockResolvedValue([]);
     const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
     await repo.listActiveWithoutLocalTemplate(50);
-    expect(m(p, 'faceEmbedding').findMany).toHaveBeenCalledWith({
-      where: {
-        active: true,
-        vectorEnc: null,
-        vector: { isEmpty: true },
-        sourcePhotoUrl: { not: null },
-        employee: { status: 'ACTIVE', faceConsentAt: { not: null } },
-      },
+    await repo.listActiveWithoutLocalTemplate(50, ['set-aside']);
+    const where = {
+      active: true,
+      vectorEnc: null,
+      vector: { isEmpty: true },
+      sourcePhotoUrl: { startsWith: 'hr/faces/' },
+      employee: { status: 'ACTIVE', faceConsentAt: { not: null } },
+    };
+    expect(m(p, 'faceEmbedding').findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { ...where, id: { notIn: ['set-aside'] } } }),
+    );
+    expect(m(p, 'faceEmbedding').findMany).toHaveBeenNthCalledWith(1, {
+      where,
       select: { id: true, employeeId: true, sourcePhotoUrl: true },
       orderBy: { createdAt: 'asc' },
       take: 50,
@@ -2485,7 +2490,11 @@ describe('FaceEmbeddingPrismaRepository', () => {
     const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
     await expect(repo.setVectorIfActive('fe1', [0.6, 0.8])).resolves.toBe(true);
     const { where, data } = m(p, 'faceEmbedding').updateMany.mock.calls[0][0];
-    expect(where).toEqual({ id: 'fe1', active: true });
+    expect(where).toEqual({
+      id: 'fe1',
+      active: true,
+      employee: { status: 'ACTIVE', faceConsentAt: { not: null } },
+    });
     expect(data.vector).toEqual([]);
     expect(decryptVector(data.vectorEnc, 'unit-test-face-key')).toEqual([0.6, 0.8]);
     await expect(repo.setVectorIfActive('gone', [1])).resolves.toBe(false);

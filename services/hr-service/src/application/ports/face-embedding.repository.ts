@@ -25,8 +25,12 @@ export interface FaceEmbeddingRepository {
    */
   listActiveWithoutLocalTemplate(
     limit: number,
+    exclude?: string[],
   ): Promise<{ id: string; employeeId: string; sourcePhotoUrl: string | null }[]>;
-  /** Store a local template on a row that is STILL active (a withdrawn face stays withdrawn). */
+  /**
+   * Store a local template on a row that is STILL active, of an employee still ACTIVE and
+   * consenting (a withdrawn face, or a leaver, stays without one).
+   */
   setVectorIfActive(id: string, vector: number[]): Promise<boolean>;
   /** Active vectors of every OTHER employee (dup-check on enroll). */
   listActiveVectorsExcept(employeeId: string): Promise<OwnedVector[]>;

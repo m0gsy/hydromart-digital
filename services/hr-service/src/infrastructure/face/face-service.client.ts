@@ -1,24 +1,18 @@
-/** face-service could not give an answer: not configured, down, busy, too slow, or odd. */
-export class LocalEngineUnavailableError extends Error {}
-
-/** face-service looked and found no face (its 422 NO_FACE). */
-export class LocalNoFaceError extends Error {}
-
-export interface LocalEmbedding {
-  /** Unit-length 128-d SFace embedding. */
-  vector: number[];
-  detScore: number;
-}
-
-/** The dimension of a local (SFace) template — what tells it apart from a legacy 512-d one. */
-export const LOCAL_TEMPLATE_DIM = 128;
+import {
+  LOCAL_TEMPLATE_DIM,
+  type LocalEmbedding,
+  LocalBadImageError,
+  LocalEngineUnavailableError,
+  type LocalFaceEngine,
+  LocalNoFaceError,
+} from '../../application/ports/local-face-engine.port';
 
 /**
  * hr-service's side of face-service: `POST /api/v1/internal/embed` with the raw JPEG and the
- * service key. Every failure is one of two errors, so a caller decides on two cases, not on
- * transport details: no face, or no answer. Face plan §4.4: hr's deadline is 3 s.
+ * service key. Every failure is one of three errors (see the port): no face, a bad image, or
+ * no answer. Face plan §4.4: hr's deadline is 3 s.
  */
-export class FaceServiceClient {
+export class FaceServiceClient implements LocalFaceEngine {
   constructor(
     private readonly target: { url: string; internalKey: string },
     private readonly fetchImpl: typeof fetch = fetch,
@@ -54,9 +48,14 @@ export class FaceServiceClient {
       }
       return { vector: body.vector as number[], detScore: body.detScore };
     }
-    if (res.status === 422 && body?.code === 'NO_FACE') throw new LocalNoFaceError('no face');
-    throw new LocalEngineUnavailableError(
-      `face-service ${res.status}${typeof body?.code === 'string' ? ` ${body.code}` : ''}`,
-    );
+    const code = typeof body?.code === 'string' ? body.code : '';
+    if (res.status === 422 && code === 'NO_FACE') throw new LocalNoFaceError('no face');
+    const said = `face-service ${res.status}${code ? ` ${code}` : ''}`;
+    // 400 / 413 / 422: the bytes were the problem (unreadable, too small, too large) — not the
+    // engine. 401 stays "no answer": a wrong service key is a misconfiguration, not a photo.
+    if (res.status === 400 || res.status === 413 || res.status === 422) {
+      throw new LocalBadImageError(said);
+    }
+    throw new LocalEngineUnavailableError(said);
   }
 }

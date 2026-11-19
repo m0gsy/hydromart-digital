@@ -27,10 +27,8 @@ import { OnnxArcFaceVerifier } from '../infrastructure/face/onnx-arcface.verifie
 import { StubFaceVerifier } from '../infrastructure/face/stub-face.verifier';
 import { FaceServiceClient } from '../infrastructure/face/face-service.client';
 import { ShadowFaceVerifier } from '../infrastructure/face/shadow-face.verifier';
-import {
-  FACE_SERVICE_CLIENT,
-  FaceTemplateBackfill,
-} from '../application/services/face-template-backfill.service';
+import { FaceTemplateBackfill } from '../application/services/face-template-backfill.service';
+import { LOCAL_FACE_ENGINE, type LocalFaceEngine } from '../application/ports/local-face-engine.port';
 import { PAYROLL_REPOSITORY } from '../application/ports/payroll.repository';
 import { BONUS_REPOSITORY, DEDUCTION_REPOSITORY } from '../application/ports/adjustment.repository';
 import { PayrollService } from '../application/services/payroll.service';
@@ -140,7 +138,7 @@ const providers: Provider[] = [
   PendingPunchAlert,
   // Face plan PR-4: the local engine (face-service) and the templates it matches against.
   {
-    provide: FACE_SERVICE_CLIENT,
+    provide: LOCAL_FACE_ENGINE,
     useFactory: (config: HrConfigService) => new FaceServiceClient(config.faceService),
     inject: [HrConfigService],
   },
@@ -153,7 +151,7 @@ const providers: Provider[] = [
   // onnx (in-process, needs vendored model), or stub (dev/test, deterministic).
   {
     provide: FACE_VERIFIER,
-    useFactory: (config: HrConfigService, local: FaceServiceClient) => {
+    useFactory: (config: HrConfigService, local: LocalFaceEngine) => {
       const engine = (() => {
         switch (config.faceVerifierDriver) {
           case 'stub':
@@ -164,12 +162,14 @@ const providers: Provider[] = [
             return new OnnxArcFaceVerifier(config);
         }
       })();
-      // FACE_FALLBACK=shadow: the engine still decides; the local one is asked too and logged.
-      return config.faceFallback === 'shadow' && config.faceServiceUrl
+      // FACE_FALLBACK=shadow: NEO still decides; the local engine is asked too and logged. NEO
+      // only — the comparison is between NEO's verdict and ours, and the local drivers' 512-d
+      // rows hold no local template to compare with.
+      return config.faceFallback === 'shadow' && config.faceServiceUrl && config.faceVerifierDriver === 'neo'
         ? new ShadowFaceVerifier(engine, local)
         : engine;
     },
-    inject: [HrConfigService, FACE_SERVICE_CLIENT],
+    inject: [HrConfigService, LOCAL_FACE_ENGINE],
   },
   // Photo storage: S3 in prod (HR_STORAGE_DRIVER=s3), no-op otherwise. Injected @Optional
   // into Face/Attendance services — an absent binding just skips persisting photoUrls.

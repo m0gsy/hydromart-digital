@@ -6,15 +6,21 @@ import type {
   FaceVerifier,
   FaceVerifyResult,
 } from '../../application/ports/face-verifier.port';
+import {
+  LOCAL_TEMPLATE_DIM,
+  LocalBadImageError,
+  type LocalFaceEngine,
+  LocalNoFaceError,
+} from '../../application/ports/local-face-engine.port';
 import { cosineSimilarity } from '../../domain/face-math';
-import { type FaceServiceClient, LOCAL_TEMPLATE_DIM, LocalNoFaceError } from './face-service.client';
 
 /**
- * Face plan §4.5, shadow (`FACE_FALLBACK=shadow`): NEO decides, exactly as without this. After
- * NEO answers, the local engine is asked the same question in the background — never awaited,
- * every error caught, one at a time — and the two answers are logged side by side. That log
- * is what sets the local threshold before the fallback is ever switched on: the plan's default
- * (0.70) would have refused two of three same-person pairs in the spike.
+ * Face plan §4.5, shadow (`FACE_FALLBACK=shadow`, NEO driver only): NEO decides, exactly as
+ * without this. After NEO answers, the local engine is asked the same question in the
+ * background — never awaited, every error caught, one at a time — and the two answers are
+ * logged side by side. That log is what sets the local threshold before the fallback is ever
+ * switched on: the plan's default (0.70) would have refused two of three same-person pairs in
+ * the spike.
  *
  * The enrolled vectors handed to `verify` ARE the local templates: NEO rows carry none of their
  * own, and the template backfill writes the 128-d SFace one into the same row.
@@ -24,15 +30,15 @@ export class ShadowFaceVerifier implements FaceVerifier {
   readonly remove?: (identity: FaceIdentity) => Promise<void>;
 
   constructor(
-    private readonly primary: FaceVerifier,
-    private readonly local: Pick<FaceServiceClient, 'embed'>,
+    private readonly neo: FaceVerifier,
+    private readonly local: LocalFaceEngine,
     private readonly logger: Pick<Logger, 'log' | 'warn'> = new Logger('FaceShadow'),
   ) {
-    if (primary.remove) this.remove = (identity) => primary.remove!(identity);
+    if (neo.remove) this.remove = (identity) => neo.remove!(identity);
   }
 
   enroll(images: Buffer[], identity?: FaceIdentity): Promise<FaceEmbeddingResult> {
-    return this.primary.enroll(images, identity);
+    return this.neo.enroll(images, identity);
   }
 
   async verify(
@@ -40,7 +46,7 @@ export class ShadowFaceVerifier implements FaceVerifier {
     enrolled: number[][],
     identity?: FaceIdentity,
   ): Promise<FaceVerifyResult> {
-    const result = await this.primary.verify(image, enrolled, identity);
+    const result = await this.neo.verify(image, enrolled, identity);
     // One comparison at a time: a burst of check-ins must not become a burst on face-service,
     // and a shadow is a sample, not a census.
     if (!this.busy) {
@@ -70,7 +76,12 @@ export class ShadowFaceVerifier implements FaceVerifier {
       const score = Math.max(...templates.map((t) => cosineSimilarity(vector, t)));
       this.logger.log(`face shadow user=${who} ${said} local=${score.toFixed(3)}`);
     } catch (err) {
-      const why = err instanceof LocalNoFaceError ? 'no-face' : `failed (${String(err)})`;
+      const why =
+        err instanceof LocalNoFaceError
+          ? 'no-face'
+          : err instanceof LocalBadImageError
+            ? `bad-image (${err.message})`
+            : `failed (${String(err)})`;
       this.logger.warn(`face shadow user=${who} ${said} local=${why}`);
     }
   }
