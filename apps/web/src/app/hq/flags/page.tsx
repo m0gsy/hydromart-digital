@@ -29,6 +29,12 @@ export default function HqFlagsPage() {
   const { toast } = useToast();
   const flagsQuery = useAsync<FeatureFlag[]>(() => api.get(endpoints.admin.flags, true));
   const settingsQuery = useAsync<SystemSettings>(() => api.get(endpoints.admin.settings, true));
+  // The public route publishes exactly the keys something reads (admin-service's enforced
+  // list). Unread, nobody can tell which switch moves what, so the old warning covers all.
+  const publicQuery = useAsync<{ key: string }[]>(() => api.getCached(endpoints.admin.publicFlags));
+  const enforced = Array.isArray(publicQuery.data)
+    ? new Set(publicQuery.data.map((f) => f.key))
+    : null;
   const [flags, setFlags] = useState<FeatureFlag[] | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
@@ -75,12 +81,14 @@ export default function HqFlagsPage() {
        * allowed in the meantime is a screen that looks like it governs the platform. The
        * repo's rule is that an unenforced control says so rather than staying quiet.
        */}
-      <Card className="flex flex-col gap-1 border-[color:var(--warning)] p-4">
-        <p className="text-sm font-extrabold text-[color:var(--warning)]">
-          {t('hq.flags.unenforcedTitle')}
-        </p>
-        <p className="text-xs text-muted">{t('hq.flags.unenforcedBody')}</p>
-      </Card>
+      {!enforced && !publicQuery.loading && (
+        <Card className="flex flex-col gap-1 border-[color:var(--warning)] p-4">
+          <p className="text-sm font-extrabold text-[color:var(--warning)]">
+            {t('hq.flags.unenforcedTitle')}
+          </p>
+          <p className="text-xs text-muted">{t('hq.flags.unenforcedBody')}</p>
+        </Card>
+      )}
 
       <div className="flex flex-col gap-3">
         {rows.map((f) => (
@@ -91,6 +99,13 @@ export default function HqFlagsPage() {
             <div className="min-w-0">
               <p className="font-semibold">{f.label}</p>
               <p className="text-xs text-muted">{f.description}</p>
+              {/* Since flow 5d some switches DO move something (one is a brake), so the
+                  warning belongs on the rows nothing reads, not over the whole board. */}
+              {enforced && !enforced.has(f.key) && (
+                <p className="mt-1 text-xs text-[color:var(--warning)]">
+                  <strong>{t('hq.flags.unenforcedTitle')}</strong> — {t('hq.flags.unenforcedBody')}
+                </p>
+              )}
             </div>
             <div
               className="flex overflow-hidden rounded-full border border-app text-[11px] font-bold"
