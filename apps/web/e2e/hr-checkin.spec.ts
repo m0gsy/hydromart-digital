@@ -177,3 +177,24 @@ test('a punch taken offline is queued on the device and flushed on reconnect', a
   // here too long, hold the punch for HR.
   expect(response.request().postDataJSON()).toHaveProperty('capturedAt');
 });
+
+// Flow 5d: before the courier's check-in shows a camera it asks two things — is the brake
+// `attendance.courier_one_tap` released (the public flag, read fail-closed), and has this
+// account a face to be matched (GET /attendance/me/face). Both have to come through the real
+// ingress: a brake the app cannot read is a one-tap that never turns on, and a face read that
+// 500s is the same. The account here is the seeded head-office one, which is not a courier
+// with a depot, so the screen itself is covered by the unit suite; this is the wiring.
+test('the one-tap check-in can read its brake and the face status through the ingress', async ({ page }) => {
+  await loginWithOtp(page);
+  const API = process.env.PUBLIC_API_URL ?? 'http://localhost:8080';
+
+  const flags = await page.request.get(`${API}/admin/api/v1/feature-flags/public`);
+  expect(flags.status()).toBe(200);
+  // Seeded ACTIVE by admin-service migration 20261119190000 (prod never runs the seed).
+  expect(await flags.json()).toContainEqual({ key: 'attendance.courier_one_tap', enabled: true });
+
+  const face = await page.request.get(`${API}/attendance/api/v1/attendance/me/face`);
+  // Not a courier with an employee record, so 404 is a fine answer; a crash is not.
+  expect(face.status()).toBeLessThan(500);
+  if (face.status() === 200) expect(typeof (await face.json()).enrolled).toBe('boolean');
+});
