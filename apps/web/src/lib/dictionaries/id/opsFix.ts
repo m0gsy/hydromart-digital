@@ -723,6 +723,7 @@ const opsFixShared = {
   },
   // dashboard/compare — PR-8. Sebelumnya seluruhnya hardcoded.
   compare: {
+    monthLabel: 'Bulan',
     title: 'Banding antar depot',
     subtitle: '{month} · depot yang Anda kelola',
     noDepots: 'Belum ada depot',
@@ -735,7 +736,7 @@ const opsFixShared = {
     mProfit: 'Laba bersih',
     insight: 'Insight',
     insightBody:
-      'Kelima metrik dibaca dari sumbernya masing-masing: order dan pendapatan dari buku pesanan bulan ini, SLA dari delivery-service, wastage dari depot-service, laba bersih dari order-service (omzet − pembelian − gaji − beban). “—” berarti sumbernya tidak terbaca, bukan nol.',
+      'Kelima metrik untuk bulan yang dipilih (WIB), sama dengan perbandingan kantor pusat: order dan pendapatan dari buku pesanan, SLA dari delivery-service, wastage dari depot-service, laba bersih dari laporan laba-rugi (omzet − HPP − gaji − komisi kurir − klaim biaya − refund). “—” berarti belum bisa dihitung — sumbernya tidak terbaca, atau (laba bersih) gaji bulan itu belum dijalankan — bukan nol.',
     gate: 'Akses terbatas',
     gateBody: 'Banding antar depot hanya untuk Manajer depot.',
   },
