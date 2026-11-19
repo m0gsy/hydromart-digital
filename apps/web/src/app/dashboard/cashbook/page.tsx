@@ -29,7 +29,8 @@ import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { CashDirection, CashbookEntry, CashbookResponse } from '@/lib/types';
-import { BUSINESS_TZ, dateInDaysWib, dayStartWib, todayWib } from '@/lib/wib';
+import { useWibDay } from '@/lib/use-wib-day';
+import { BUSINESS_TZ, dateInDaysWib, dayStartWib } from '@/lib/wib';
 
 const timeFmt = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: BUSINESS_TZ });
 
@@ -175,7 +176,10 @@ function CashbookBody() {
       await api.post(endpoints.cashbook.reverse(correcting.id), { reason: reason.trim() }, true);
       setCorrecting(null);
       setReason('');
-      book.reload();
+      // The server dates the reversal now: on an earlier day it would never show, and the
+      // entry would keep offering a correction the server refuses. Show the day it landed on.
+      if (wibDay.isToday) book.reload();
+      else wibDay.reset();
     } catch (err) {
       setCorrectError(err instanceof ApiError ? err.message : t('opsFix.cashbook.correctError'));
     } finally {
@@ -185,8 +189,8 @@ function CashbookBody() {
 
   // Flow 8c-2: any WIB day, not "today in the browser's zone". The window was the browser's
   // midnight with no end, so a phone set to another zone read a different day.
-  const [day, setDay] = useState(() => todayWib());
-  const isToday = day === todayWib();
+  const wibDay = useWibDay();
+  const { day, isToday } = wibDay;
   const dayLabel = useMemo(
     () =>
       new Date(dayStartWib(day)).toLocaleDateString('id-ID', {
@@ -199,7 +203,8 @@ function CashbookBody() {
   );
   const book = useAsync<CashbookResponse>(() => {
     if (!scopedId) return Promise.resolve({ entries: [], summary: { inIdr: 0, outIdr: 0, netIdr: 0 } });
-    const from = dayStartWib(day);
+    // At call time: a reload on resume after WIB midnight reads the new day.
+    const from = dayStartWib(wibDay.current());
     // The next day's first instant: the server reads `to` exclusive.
     const to = dayStartWib(dateInDaysWib(1, new Date(from)));
     return api.get(endpoints.cashbook.list({ depotId: scopedId, from, to }), true);
@@ -248,15 +253,7 @@ function CashbookBody() {
           {isToday && <Chip tone="tint">{t('opsFix.cashbook.today')}</Chip>}
           <label className="flex items-center gap-2 text-sm">
             <span className="text-muted">{t('opsFix.cashbook.day')}</span>
-            <Input
-              type="date"
-              className="w-auto"
-              value={day}
-              max={todayWib()}
-              onChange={(e) => {
-                if (e.target.value) setDay(e.target.value);
-              }}
-            />
+            <Input className="w-auto" {...wibDay.inputProps} />
           </label>
         </div>
       </div>
@@ -264,7 +261,7 @@ function CashbookBody() {
       <div className="grid grid-cols-3 gap-3">
         <StatCard label={t('opsFix.cashbook.in')} amount={summary.inIdr} variant="in" />
         <StatCard label={t('opsFix.cashbook.out')} amount={summary.outIdr} variant="out" />
-        {/* ponytail: opening balance not tracked server-side, so this is net today (in − out), not a running balance. */}
+        {/* ponytail: opening balance not tracked server-side, so this is the day's net (in − out), not a running balance. */}
         <StatCard label={t('opsFix.cashbook.net')} amount={summary.netIdr} variant="balance" />
       </div>
 
@@ -287,7 +284,7 @@ function CashbookBody() {
             setShowForm(false);
             // A new entry is dated now: show the day it landed on.
             if (isToday) book.reload();
-            else setDay(todayWib());
+            else wibDay.reset();
           }}
         />
       )}

@@ -353,7 +353,9 @@ function QueueBody() {
   const inDelivery = useMemo(() => items.filter(IN_DELIVERY), [items]);
   const closed = useMemo(() => items.filter(CLOSED), [items]);
   const GROUPS = { assign: needAssign, process: inProcess, delivery: inDelivery, closed };
-  const list = GROUPS[group];
+  // A search shows every match whatever its status: an order found in another tab would
+  // otherwise read as "no order with that number".
+  const list = term ? items : GROUPS[group];
   // Assignment itself stays PREPARING-only: the order state machine allows
   // PREPARING → DRIVER_ASSIGNED and nothing else, so a wider "needs assigning" tab would
   // offer couriers the server refuses. The header carries the honest total instead.
@@ -441,6 +443,7 @@ function QueueBody() {
             placeholder={t('dashB.orders.searchPlaceholder')}
             aria-label={t('dashB.orders.search')}
           />
+          {!term && (
           <div className="flex flex-wrap gap-2">
             {CHIPS.map((c) => (
               <button
@@ -456,19 +459,20 @@ function QueueBody() {
               </button>
             ))}
           </div>
+          )}
 
           {loading && items.length === 0 ? (
             <Skeleton className="h-64 w-full" />
           ) : error ? (
             <ErrorState message={error} onRetry={reload} />
           ) : list.length === 0 ? (
-            <CenterState title={t('dashB.orders.emptyQueue')} icon={<ClipboardText size={40} weight="fill" />}>
-              {term
-                ? t('dashB.orders.noMatch')
-                : group === 'assign'
-                  ? t('dashB.orders.emptyAssign')
-                  : t('dashB.orders.emptyProcess')}
-            </CenterState>
+            term ? (
+              <CenterState title={t('dashB.orders.noMatch')} icon={<ClipboardText size={40} weight="fill" />} />
+            ) : (
+              <CenterState title={t('dashB.orders.emptyQueue')} icon={<ClipboardText size={40} weight="fill" />}>
+                {group === 'assign' ? t('dashB.orders.emptyAssign') : t('dashB.orders.emptyProcess')}
+              </CenterState>
+            )
           ) : (
             <div className="overflow-x-auto">
               <div className="flex min-w-[19rem] flex-col gap-3">

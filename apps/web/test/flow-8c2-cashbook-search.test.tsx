@@ -87,6 +87,34 @@ describe('the cash book reads one WIB day', () => {
   });
 });
 
+describe('a correction on an earlier day', () => {
+  it('shows today afterwards, where the server dates the reversal', async () => {
+    get.mockImplementation(async (url: string) => {
+      if (url.startsWith('/depots/api/v1/cashbook'))
+        return {
+          entries: [
+            { id: 'e1', depotId: 'd1', direction: 'IN', category: 'Penjualan', label: 'Setoran', amountIdr: 5000, occurredAt: '2026-11-01T03:00:00.000Z', sourceRef: null, reversesId: null },
+          ],
+          summary: { inIdr: 5000, outIdr: 0, netIdr: 5000 },
+        };
+      if (url.includes('liabilit')) return [];
+      return { items: [], total: 0 };
+    });
+    render(<CashbookPage />);
+    await waitFor(() => expect(calls('/depots/api/v1/cashbook')).toHaveLength(1));
+    const today = calls('/depots/api/v1/cashbook')[0]!.get('from');
+
+    fireEvent.change(screen.getByLabelText('opsFix.cashbook.day'), { target: { value: '2026-11-01' } });
+    await waitFor(() => expect(calls('/depots/api/v1/cashbook')).toHaveLength(2));
+    fireEvent.click(await screen.findByRole('button', { name: 'opsFix.cashbook.correct' }));
+    fireEvent.change(screen.getByLabelText('opsFix.cashbook.reason'), { target: { value: 'salah input' } });
+    fireEvent.click(screen.getByRole('button', { name: 'opsFix.cashbook.correctConfirm' }));
+
+    await waitFor(() => expect(calls('/depots/api/v1/cashbook')).toHaveLength(3));
+    expect(calls('/depots/api/v1/cashbook')[2]!.get('from')).toBe(today);
+  });
+});
+
 describe('server-side search', () => {
   it('the order queue asks order-service for the typed order number', async () => {
     render(<OrdersQueuePage />);
@@ -98,6 +126,26 @@ describe('server-side search', () => {
     expect(await screen.findByText('dashB.orders.noMatch')).toBeTruthy();
   });
 
+  it('the order queue shows a match from any group while searching', async () => {
+    render(<OrdersQueuePage />);
+    await waitFor(() => expect(calls('/orders/api/v1/orders/manage').length).toBeGreaterThan(0));
+    get.mockImplementation(async (url: string) => {
+      if (url.includes('orderNumber=HM-77'))
+        return {
+          items: [{ id: 'o-77', orderNumber: 'HM-77', status: 'COMPLETED', depotId: 'd1', total: 1, items: [], history: [], recipientName: 'X', createdAt: '2026-11-19T03:00:00.000Z' }],
+          total: 1,
+          page: 1,
+          limit: 100,
+        };
+      if (url.includes('/drivers') || url.includes('/shifts')) return [];
+      return { items: [], total: 0, page: 1, limit: 100 };
+    });
+    fireEvent.change(screen.getByLabelText('dashB.orders.search'), { target: { value: 'HM-77' } });
+    // Completed, so not in the default "needs assigning" group: still on screen.
+    expect(await screen.findByText(/HM-77/)).toBeTruthy();
+    expect(screen.queryByText('dashB.orders.noMatch')).toBeNull();
+  });
+
   it('the staff directory asks auth-service for the typed name or phone', async () => {
     render(<StaffDirectory header={() => null} />);
     await waitFor(() => expect(calls('/auth/api/v1/auth/staff').length).toBeGreaterThan(0));
@@ -106,5 +154,11 @@ describe('server-side search', () => {
       expect(calls('/auth/api/v1/auth/staff').some((q) => q.get('search') === 'budi')).toBe(true),
     );
     expect(await screen.findByText('hq.staff.noMatch')).toBeTruthy();
+
+    // A phone typed the local way is sent as the stored form's digits (+62…).
+    fireEvent.change(screen.getByLabelText('hq.staff.search'), { target: { value: '0812-345 6' } });
+    await waitFor(() =>
+      expect(calls('/auth/api/v1/auth/staff').some((q) => q.get('search') === '628123456')).toBe(true),
+    );
   });
 });

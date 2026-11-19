@@ -112,16 +112,21 @@ export function StaffDirectory({
   // Flow 8c-2: by name or phone over every account (auth-service matches), not by paging.
   const [search, setSearch] = useState('');
   const term = useDebounce(search.trim());
+  // Phones are stored E.164 (+62…) and matched as a substring, so "0812…" or "+62 812-…" typed
+  // as-is never matched: the digits are sent from the country code on.
+  const query = /^[+\d][\d\s-]*$/.test(term)
+    ? term.replace(/[\s-]/g, '').replace(/^\+/, '').replace(/^0/, '62')
+    : term;
 
   // Flow PR-8a: The directory walks pages and says "N dari total"; it stopped at a fixed count and
   // drew that as the whole list.
   const list = usePagedList<Customer>(
     (page) =>
       api.get<Page<Customer>>(
-        endpoints.auth.staff({ page, limit: 50, role: roleFilter || undefined, search: term || undefined }),
+        endpoints.auth.staff({ page, limit: 50, role: roleFilter || undefined, search: query || undefined }),
         true,
       ),
-    [roleFilter, term],
+    [roleFilter, query],
   );
   const items = list.rows;
   // Fail-soft: with no depot list the rows still render, they just cannot be moved.
