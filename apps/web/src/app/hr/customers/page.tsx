@@ -58,7 +58,9 @@ export default function HrCustomersPage() {
             )}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        {/* min-w-0: without it this row is never narrower than the depot select's longest
+            option, which is wider than a 320px or 360px screen. */}
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
           <HrDepotPicker />
           <div className="relative">
             <MagnifyingGlass
