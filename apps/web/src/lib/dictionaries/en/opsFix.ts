@@ -875,7 +875,7 @@ export const opsFix = {
     mProfit: 'Net profit',
     insight: 'Insight',
     insightBody:
-      'All five metrics for the month picked (WIB), the same as head office compares: orders and revenue from the order book, SLA from delivery-service, wastage from depot-service, net profit from the P&L (revenue − COGS − wages − courier commission − expense claims − refunds). “—” means the source could not be read, not zero.',
+      'All five metrics for the month picked (WIB), the same as head office compares: orders and revenue from the order book, SLA from delivery-service, wastage from depot-service, net profit from the P&L (revenue − COGS − wages − courier commission − expense claims − refunds). “—” means it cannot be worked out yet — the source could not be read, or (net profit) that month’s payroll has not been run — not zero.',
     gate: 'Depot managers only',
     gateBody: 'Comparing depots is for depot managers only.',
   },

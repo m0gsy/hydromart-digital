@@ -57,6 +57,19 @@ export function CompareMonthPicker({
   );
 }
 
+/** An answer tagged with the month it was asked for (see `forMonth`). */
+export interface ForMonth<T> {
+  month: string;
+  data: T;
+}
+
+/**
+ * The data, only if it answers `month`: never another month's figures under this month's
+ * name, however the reload and the render interleave.
+ */
+export const forMonth = <T,>(answer: ForMonth<T> | null | undefined, month: string): T | null =>
+  answer && answer.month === month ? answer.data : null;
+
 /** The month the picker opens on: the running WIB month. */
 export const currentMonthKey = (): string => recentMonthsWib(1)[0]!.key;
 

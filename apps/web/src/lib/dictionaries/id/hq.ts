@@ -1043,6 +1043,7 @@ export const hq = {
     title: 'Bandingkan depot',
     subtitle: '{month} (WIB) · pilih hingga 3 depot untuk berdampingan',
     monthLabel: 'Bulan',
+    profitUnread: 'Laba bersih tidak terbaca untuk bulan ini; coba lagi nanti.',
     pickPrompt: 'Pilih minimal 2 depot untuk membandingkan.',
     maxReached: 'Maksimal 3 depot.',
     add: 'Tambah depot',

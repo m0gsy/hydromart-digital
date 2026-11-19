@@ -18,8 +18,10 @@ import {
   CompareMonthPicker,
   CompareTable,
   currentMonthKey,
+  forMonth,
   monthRangeOfKey,
   type CompareRow,
+  type ForMonth,
 } from '@/components/compare-table';
 import { useT } from '@/lib/locale-context';
 import type { NetworkPnl, ReportDepotCompare } from '@/lib/types';
@@ -31,17 +33,25 @@ function CompareBody() {
   // Flow 5b: one business month, picked and stated — the same period head office compares.
   const [monthKey, setMonthKey] = useState(currentMonthKey);
   const monthLabel = recentMonthsWib(12).find((m) => m.key === monthKey)?.label ?? monthKey;
-  const report = useAsync<ReportDepotCompare | null>(
-    () =>
-      depotIds.length
-        ? api.get(endpoints.reports.depotCompare(depotIds, monthRangeOfKey(monthKey)), true)
-        : Promise.resolve(null),
+  const report = useAsync<ForMonth<ReportDepotCompare | null>>(
+    async () => ({
+      month: monthKey,
+      data: depotIds.length
+        ? await api.get<ReportDepotCompare>(
+            endpoints.reports.depotCompare(depotIds, monthRangeOfKey(monthKey)),
+            true,
+          )
+        : null,
+    }),
     [depotIds.join(','), monthKey],
   );
   // Laba bersih is the network P&L's row for each depot (netProfit, the one formula), not
   // order-service's cash figure — that one is "arus kas bersih" on the monthly review.
-  const pnl = useAsync<NetworkPnl>(
-    () => api.get(endpoints.dashboard.networkPnl(monthKey), true),
+  const pnl = useAsync<ForMonth<NetworkPnl>>(
+    async () => ({
+      month: monthKey,
+      data: await api.get<NetworkPnl>(endpoints.dashboard.networkPnl(monthKey), true),
+    }),
     [monthKey],
   );
 
@@ -53,11 +63,14 @@ function CompareBody() {
     );
   }
 
-  const byDepot = new Map((report.data?.depots ?? []).map((r) => [r.depotId, r]));
-  // Stale data from the previous month (useAsync keeps it while reloading or after a failure)
-  // must never sit under this month's name.
+  const byDepot = new Map(
+    (forMonth(report.data, monthKey)?.depots ?? []).map((r) => [r.depotId, r]),
+  );
   const profitBy = new Map(
-    (pnl.loading || pnl.error ? [] : (pnl.data?.depots ?? [])).map((r) => [r.depotId, r.netProfitIdr]),
+    (pnl.error ? [] : (forMonth(pnl.data, monthKey)?.depots ?? [])).map((r) => [
+      r.depotId,
+      r.netProfitIdr,
+    ]),
   );
   const rows: CompareRow[] = [
     {

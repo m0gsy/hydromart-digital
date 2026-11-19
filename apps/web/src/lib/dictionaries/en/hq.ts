@@ -1039,6 +1039,7 @@ export const hq = {
     title: 'Compare depots',
     subtitle: '{month} (WIB) · pick up to 3 depots side by side',
     monthLabel: 'Month',
+    profitUnread: 'Net profit could not be read for this month; try again later.',
     pickPrompt: 'Pick at least 2 depots to compare.',
     maxReached: 'Maximum 3 depots.',
     add: 'Add depot',

@@ -736,7 +736,7 @@ const opsFixShared = {
     mProfit: 'Laba bersih',
     insight: 'Insight',
     insightBody:
-      'Kelima metrik untuk bulan yang dipilih (WIB), sama dengan perbandingan kantor pusat: order dan pendapatan dari buku pesanan, SLA dari delivery-service, wastage dari depot-service, laba bersih dari laporan laba-rugi (omzet − HPP − gaji − komisi kurir − klaim biaya − refund). “—” berarti sumbernya tidak terbaca, bukan nol.',
+      'Kelima metrik untuk bulan yang dipilih (WIB), sama dengan perbandingan kantor pusat: order dan pendapatan dari buku pesanan, SLA dari delivery-service, wastage dari depot-service, laba bersih dari laporan laba-rugi (omzet − HPP − gaji − komisi kurir − klaim biaya − refund). “—” berarti belum bisa dihitung — sumbernya tidak terbaca, atau (laba bersih) gaji bulan itu belum dijalankan — bukan nol.',
     gate: 'Akses terbatas',
     gateBody: 'Banding antar depot hanya untuk Manajer depot.',
   },

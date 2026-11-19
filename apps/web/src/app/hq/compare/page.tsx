@@ -9,8 +9,10 @@ import {
   CompareMonthPicker,
   CompareTable,
   currentMonthKey,
+  forMonth,
   monthRangeOfKey,
   type CompareRow,
+  type ForMonth,
 } from '@/components/compare-table';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
@@ -33,24 +35,35 @@ export default function HqComparePage() {
   // month at the depot, so the two comparison screens never described the same period.
   const [monthKey, setMonthKey] = useState(currentMonthKey);
   const monthLabel = recentMonthsWib(12).find((m) => m.key === monthKey)?.label ?? monthKey;
-  const dash = useAsync<NetworkDashboard>(
-    () => api.get(endpoints.hq.rollup(monthRangeOfKey(monthKey)), true),
+  const [selected, setSelected] = useState<string[]>([]);
+  const comparing = selected.length >= 2;
+  const dash = useAsync<ForMonth<NetworkDashboard>>(
+    async () => ({
+      month: monthKey,
+      data: await api.get<NetworkDashboard>(endpoints.hq.rollup(monthRangeOfKey(monthKey)), true),
+    }),
     [monthKey],
   );
   // Laba bersih from the network P&L (netProfit): the same figure /hq/pnl shows for the month.
-  const pnl = useAsync<NetworkPnl>(() => api.get(endpoints.dashboard.networkPnl(monthKey), true), [monthKey]);
+  // Asked only once two depots are picked: it reads every depot's costs, for a row of two or three.
+  const pnl = useAsync<ForMonth<NetworkPnl> | null>(
+    async () =>
+      comparing
+        ? {
+            month: monthKey,
+            data: await api.get<NetworkPnl>(endpoints.dashboard.networkPnl(monthKey), true),
+          }
+        : null,
+    [monthKey, comparing],
+  );
   const depotList = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const gallon = useAsync<GallonOutstanding[]>(() => api.get(endpoints.gallonNetwork.outstanding, true));
-  const [selected, setSelected] = useState<string[]>([]);
 
-  if (dash.loading || depotList.loading) return <Skeleton className="h-96 w-full" />;
+  if (depotList.loading) return <Skeleton className="h-96 w-full" />;
   if (depotList.error) return <ErrorState message={depotList.error} onRetry={depotList.reload} />;
-  // Every metric below falls back to 0 when the performance read is missing, and this screen
-  // then names a winner out of three depots it knows nothing about.
-  if (dash.error) return <ErrorState message={dash.error} onRetry={dash.reload} />;
 
   const depots = depotList.data?.items ?? [];
-  const perf = new Map((dash.data?.depots ?? []).map((d) => [d.depotId, d]));
+  const perf = new Map((forMonth(dash.data, monthKey)?.depots ?? []).map((d) => [d.depotId, d]));
   const outstanding = new Map((gallon.data ?? []).map((g) => [g.depotId, g.outstanding]));
 
   function toggle(id: string) {
@@ -65,7 +78,10 @@ export default function HqComparePage() {
   }
 
   const profitBy = new Map(
-    (pnl.loading || pnl.error ? [] : (pnl.data?.depots ?? [])).map((r) => [r.depotId, r.netProfitIdr]),
+    (pnl.error ? [] : (forMonth(pnl.data, monthKey)?.depots ?? [])).map((r) => [
+      r.depotId,
+      r.netProfitIdr,
+    ]),
   );
   const row = (key: string, higherIsBetter: boolean, value: CompareRow['value'], format: CompareRow['format']): CompareRow => ({
     key,
@@ -76,7 +92,7 @@ export default function HqComparePage() {
   });
   const metrics: CompareRow[] = [
     row('revenue', true, (id) => perf.get(id)?.revenue ?? 0, formatIDR),
-    row('orders', true, (id) => perf.get(id)?.orderCount ?? 0, (n) => String(n)),
+    row('orders', true, (id) => perf.get(id)?.orderCount ?? 0, (n) => n.toLocaleString('id-ID')),
     row('profit', true, (id) => profitBy.get(id) ?? null, formatIDR),
     row('sla', true, (id) => perf.get(id)?.slaRate ?? null, (n) => `${Math.round(n * 100)}%`),
     row('avgDelivery', false, (id) => perf.get(id)?.medianMinutes ?? perf.get(id)?.avgMinutes ?? null, (n) => t('hq.compare.minutes', { n })),
@@ -89,10 +105,14 @@ export default function HqComparePage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <HqPageHeader icon={ChartBar} title={t('hq.compare.title')} subtitle={t('hq.compare.subtitle', { month: monthLabel })} />
-        <CompareMonthPicker value={monthKey} onChange={setMonthKey} label={t('hq.compare.monthLabel')} />
-      </div>
+      {/* The picker stays mounted through a reload or an error: a failing month must not take
+          away the control that picks another. */}
+      <HqPageHeader
+        icon={ChartBar}
+        title={t('hq.compare.title')}
+        subtitle={t('hq.compare.subtitle', { month: monthLabel })}
+        action={<CompareMonthPicker value={monthKey} onChange={setMonthKey} label={t('hq.compare.monthLabel')} />}
+      />
 
       {/* Depot picker */}
       <div className="flex flex-wrap gap-2">
@@ -117,12 +137,23 @@ export default function HqComparePage() {
       {chosen.length < 2 ? (
         <p className="py-4 text-center text-sm text-muted">{t('hq.compare.pickPrompt')}</p>
       ) : (
-        <CompareTable
-          columns={chosen.map((d) => ({ id: d.id, name: d.name }))}
-          rows={metrics}
-          metricLabel=""
-          bestLabel={t('hq.compare.best')}
-        />
+        dash.loading ? (
+          <Skeleton className="h-64 w-full" />
+        ) : dash.error ? (
+          // Every metric would fall back to 0 without the roll-up, and the table would then name a
+          // winner out of depots it knows nothing about.
+          <ErrorState message={dash.error} onRetry={dash.reload} />
+        ) : (
+          <>
+            <CompareTable
+              columns={chosen.map((d) => ({ id: d.id, name: d.name }))}
+              rows={metrics}
+              metricLabel=""
+              bestLabel={t('hq.compare.best')}
+            />
+            {pnl.error && <p className="text-xs text-muted">{t('hq.compare.profitUnread')}</p>}
+          </>
+        )
       )}
     </div>
   );
