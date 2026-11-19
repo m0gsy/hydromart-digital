@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowsClockwise, BellSlash, Pause, Percent, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -21,6 +21,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { dateInDaysWib } from '@/lib/wib';
 import { useAsync } from '@/lib/use-async';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useFeatureFlag } from '@/lib/feature-flags';
 import { useQueryParam } from '@/lib/use-query-param';
 import { subscriptions as subID } from '@/lib/dictionaries/id/subscriptions';
@@ -43,8 +44,13 @@ function Panel() {
   const { toast } = useToast();
   const copy = locale === 'en' ? subEN : subID;
 
-  const products = useAsync<Paged<Product>>(() =>
-    api.get(endpoints.products.browse({ limit: 50 })),
+  // EVERY product, not the first 50 (owner decision 2026-11-19): the product page offers
+  // "Jadikan langganan" on all of them, and a customer opening this from the menu could not
+  // reach the 51st at all.
+  const products = useAsync<Product[]>(() =>
+    fetchAllPages<Product>(({ page, limit }) =>
+      api.get<Paged<Product>>(endpoints.products.browse({ page, limit })),
+    ),
   );
   const addresses = useAsync<Address[]>(() => api.get(endpoints.addresses.list, true));
   const subs = useAsync<Subscription[]>(() => api.get(endpoints.subscriptions.list, true));
@@ -104,14 +110,15 @@ function Panel() {
   const [productId, setProductId] = useState('');
   /*
    * Flow PR-7b: "Jadikan langganan" on a product page opens this with `?product=`. It is
-   * picked once the list has it, and never over a product the customer already chose.
-   * ponytail: only the first 50 products are listed; one past them is simply not preselected.
+   * picked ONCE, when the list first has it, and never over a product the customer already
+   * chose. A later reload (the app resuming) must not put it back after they cleared it.
    */
   const wanted = useQueryParam('product');
+  const preselected = useRef(false);
   useEffect(() => {
-    if (wanted && products.data?.items.some((p) => p.id === wanted)) {
-      setProductId((current) => current || wanted);
-    }
+    if (preselected.current || !wanted || !products.data?.some((p) => p.id === wanted)) return;
+    preselected.current = true;
+    setProductId((current) => current || wanted);
   }, [wanted, products.data]);
   const [quantity, setQuantity] = useState(2);
   const [frequency, setFrequency] = useState<SubscriptionFrequency>('WEEKLY');
@@ -267,7 +274,7 @@ function Panel() {
                 <option value="" disabled>
                   {copy.productPlaceholder}
                 </option>
-                {products.data?.items.map((p) => (
+                {products.data?.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} · {p.unit}
                   </option>

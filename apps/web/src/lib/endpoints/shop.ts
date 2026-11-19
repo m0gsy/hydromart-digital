@@ -49,7 +49,7 @@ export const shop = {
     // Same list including deactivated products (MANAGER / SUPER_ADMIN). The public
     // browse hides them, which left the console unable to switch one back on.
     browseAll: (q: ProductQuery) => `/products/api/v1/products/all${productQuery(q)}`,
-    get: (id: string) => `/products/api/v1/products/${id}`,
+    get: (id: string) => `/products/api/v1/products/${encodeURIComponent(id)}`,
     // Admin CRUD (MANAGER / SUPER_ADMIN).
     create: '/products/api/v1/products',
     import: '/products/api/v1/products/import',
