@@ -84,7 +84,7 @@ const order = (): OrderRecord =>
     depotId: randomUUID(),
     total: 57000.4,
     items: [
-      { productId: randomUUID(), productName: 'Galon 19L', sku: 'G19', unit: 'Galon', quantity: 2 },
+      { productId: randomUUID(), productName: 'Galon 19L', sku: 'G19', unit: 'Galon', quantity: 2, unitPrice: 20_000 },
     ],
   }) as unknown as OrderRecord;
 
@@ -756,6 +756,12 @@ describe('RecommendationCoordinationHttpAdapter', () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
     await new RecommendationCoordinationHttpAdapter(makeConfig()).recordCompleted(order());
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    // Flow 7c: each line carries its price, so a promo's free row can be told apart.
+    const sent = JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body) as {
+      items: { unitPrice?: number }[];
+    };
+    expect(sent.items.length).toBeGreaterThan(0);
+    expect(sent.items.every((i) => typeof i.unitPrice === 'number')).toBe(true);
   });
 });
 

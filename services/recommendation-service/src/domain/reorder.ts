@@ -19,5 +19,7 @@ export function rankReorder(rows: PurchaseRow[], now: Date, limit: number) {
     .map((r) => ({ productId: r.productId, score: scoreReorder(r, now), _at: r.lastPurchasedAt, _qty: r.lastQuantity }))
     .sort((a, b) => b.score - a.score || b._at.getTime() - a._at.getTime() || a.productId.localeCompare(b.productId))
     .slice(0, limit)
-    .map(({ productId, score, _qty }) => (_qty != null ? { productId, score, lastQuantity: _qty } : { productId, score }));
+    // Null (a row older than the column) and absent both read as "unknown": undefined, which
+    // the JSON answer leaves out.
+    .map(({ productId, score, _qty }) => ({ productId, score, lastQuantity: _qty ?? undefined }));
 }

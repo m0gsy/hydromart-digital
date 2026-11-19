@@ -47,7 +47,9 @@ function RailCard({ item, product }: { item: Recommendation; product?: Product }
   const [added, setAdded] = useState(false);
   // Flow PR-7c: "Beli lagi" puts back what the customer bought last time. Only the reorder
   // answer carries it; anything else (trending, a row older than the column) adds one.
-  const quantity = Math.max(1, Math.floor(item.lastQuantity ?? 1));
+  // Held to the cart's own ceiling (999 a line): a bulk order past it must not make the card a
+  // button that can only fail.
+  const quantity = Math.min(999, Math.max(1, Math.floor(item.lastQuantity ?? 1)));
 
   async function addToCart(e: React.MouseEvent) {
     e.preventDefault();
@@ -121,7 +123,9 @@ function RailCard({ item, product }: { item: Recommendation; product?: Product }
           )}
           <button
             onClick={addToCart}
-            disabled={adding}
+            // Once added, done: a second tap would put the whole last order in again, and the
+            // cart is where the amount is changed.
+            disabled={adding || added}
             aria-label={
               quantity > 1
                 ? t('home.rail.addAriaQty', { name, n: quantity })

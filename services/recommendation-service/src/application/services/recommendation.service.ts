@@ -104,7 +104,7 @@ export class RecommendationService {
         sku: ref.sku,
         unit: ref.unit,
         score: r.score,
-        ...(r.lastQuantity !== undefined ? { lastQuantity: r.lastQuantity } : {}),
+        lastQuantity: r.lastQuantity,
       });
     }
     return items;

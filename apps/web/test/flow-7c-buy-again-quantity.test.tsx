@@ -65,3 +65,23 @@ describe('"Beli lagi" adds what was bought last time', () => {
     expect(screen.queryByText(/×/)).toBeNull();
   });
 });
+
+describe('review round', () => {
+  it("a bulk last order is held to the cart's 999 a line", async () => {
+    serve([{ productId: 'p-1', name: 'Galon 19L', sku: 'G19', unit: 'Galon', score: 3, lastQuantity: 1200 }]);
+    draw();
+    fireEvent.click(await screen.findByRole('button', { name: /999/ }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post.mock.calls[0]![1]).toEqual({ productId: 'p-1', quantity: 999 });
+  });
+
+  it('once added, the card is done: a second tap does not put the order in again', async () => {
+    serve([{ productId: 'p-1', name: 'Galon 19L', sku: 'G19', unit: 'Galon', score: 3, lastQuantity: 4 }]);
+    draw();
+    const add = (await screen.findByRole('button', { name: /4/ })) as HTMLButtonElement;
+    fireEvent.click(add);
+    await waitFor(() => expect(add.disabled).toBe(true));
+    fireEvent.click(add);
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+});
