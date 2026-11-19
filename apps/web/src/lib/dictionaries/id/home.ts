@@ -34,6 +34,7 @@ export const home = {
     trending: 'Terlaris minggu ini',
     viewAll: 'Semua produk',
     addAria: 'Tambah {name} ke keranjang',
+    addAriaQty: 'Tambah {n} {name} ke keranjang, seperti pesanan terakhir',
   },
   promo: {
     aria: 'Promo',

@@ -21,6 +21,9 @@ model CustomerProductPurchase {
   productId       String   @db.Uuid
   purchaseCount   Int      @default(0)
   lastPurchasedAt DateTime
+  /// Flow PR-7c: units of this product on the latest order that carried it ("Beli lagi" puts
+  /// them back). Null on rows written before the column: the client adds one for those.
+  lastQuantity    Int?
 
   @@unique([customerId, productId])
   @@index([customerId])

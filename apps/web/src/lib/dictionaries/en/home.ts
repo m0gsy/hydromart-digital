@@ -36,6 +36,7 @@ export const home: typeof base = {
     trending: 'Best sellers this week',
     viewAll: 'All products',
     addAria: 'Add {name} to cart',
+    addAriaQty: 'Add {n} {name} to cart, as in your last order',
   },
   promo: {
     aria: 'Promo',

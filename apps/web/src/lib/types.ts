@@ -148,6 +148,8 @@ export interface Recommendation {
   sku: string;
   unit: string;
   score: number;
+  /** Reorder rail only (flow 7c): units on the customer's latest order of it. */
+  lastQuantity?: number;
 }
 
 /** A catalog category (public /products/categories). */

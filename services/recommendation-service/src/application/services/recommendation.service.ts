@@ -8,7 +8,15 @@ import { rankRelated } from '../../domain/co-buy';
 import { IngestCommand, RecommendationRepository } from '../ports/recommendation.repository';
 import { RECOMMENDATION_TOKENS } from '../tokens';
 
-export type RecItem = { productId: string; name: string; sku: string; unit: string; score: number };
+export type RecItem = {
+  productId: string;
+  name: string;
+  sku: string;
+  unit: string;
+  score: number;
+  /** Reorder only (flow 7c): units on the customer's latest order of it. Absent = unknown. */
+  lastQuantity?: number;
+};
 
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
@@ -84,13 +92,20 @@ export class RecommendationService {
     return this.enrich(ranked);
   }
 
-  private async enrich(ranked: { productId: string; score: number }[]): Promise<RecItem[]> {
+  private async enrich(ranked: { productId: string; score: number; lastQuantity?: number }[]): Promise<RecItem[]> {
     const refs = await this.repo.productRefs(ranked.map((r) => r.productId));
     const items: RecItem[] = [];
     for (const r of ranked) {
       const ref = refs.get(r.productId);
       if (!ref) continue; // defensive: skip ranked ids missing a product ref
-      items.push({ productId: r.productId, name: ref.name, sku: ref.sku, unit: ref.unit, score: r.score });
+      items.push({
+        productId: r.productId,
+        name: ref.name,
+        sku: ref.sku,
+        unit: ref.unit,
+        score: r.score,
+        ...(r.lastQuantity !== undefined ? { lastQuantity: r.lastQuantity } : {}),
+      });
     }
     return items;
   }
