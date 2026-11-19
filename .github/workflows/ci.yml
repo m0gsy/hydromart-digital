@@ -1260,6 +1260,18 @@ jobs:
             --cache-to type=gha,mode=max,scope=hydromart-web \
             --tag hydromart-web:ci .
 
+      # Face plan PR-3: the face image is not booted here either, but it is BUILT, and its
+      # build runs the pipeline's self-test against OpenCV's own embeddings of the fixtures
+      # (services/face-service/src/selftest.ts). A sharp or onnxruntime upgrade that drifts,
+      # or a model host that stops serving, fails this PR — not the Images run on main, which
+      # every deploy waits on.
+      - name: Build the face image (runs its self-test)
+        run: |
+          docker buildx build -f services/face-service/Dockerfile \
+            --cache-from type=gha,scope=hydromart-face \
+            --cache-to type=gha,mode=max,scope=hydromart-face \
+            --tag hydromart-face:ci .
+
       - name: Start infra + wait for Postgres
         run: |
           docker compose up -d postgres
