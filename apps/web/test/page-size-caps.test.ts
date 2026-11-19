@@ -23,7 +23,7 @@ import { describe, expect, it } from 'vitest';
  *
  * 100 is the cap every paged HR/console DTO in this repo declares (`@Max(100)`). A read that
  * genuinely needs the whole set pages for it — see `readWholeRoster` in `hr/assets` and
- * `readLinkedAccountIds` in `hq/staff`, which both loop at 100.
+ * `readLinkedAccountIds` in `components/staff/staff-directory.tsx`, which both loop at 100.
  */
 const MAX = 100;
 const SRC = join(process.cwd(), 'src');
@@ -41,7 +41,7 @@ describe('console reads stay inside the server page cap', () => {
   it(`asks for at most ${MAX} rows a page, everywhere`, () => {
     const over: string[] = [];
     for (const file of walk(SRC)) {
-      // Prose naming a number is not a call — `hq/staff` documents the 500 it no longer
+      // Prose naming a number is not a call — the staff directory documents the 500 it no longer
       // asks for, and a scanner that cannot tell the two apart reports the fix as the bug.
       const src = readFileSync(file, 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '')
