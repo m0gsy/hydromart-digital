@@ -119,7 +119,8 @@ export default function ReportsPage() {
           </label>
           {/* CA-1-21: the filter the whole API supported and no screen offered. Blank means
               the whole network, which is what every report did before this existed. */}
-          <div className="text-sm">
+          {/* min-w-0: the select's longest option is wider than a 320px or 360px screen. */}
+          <div className="min-w-0 text-sm">
             <HrDepotPicker
               value={depotId}
               onChange={setDepotId}

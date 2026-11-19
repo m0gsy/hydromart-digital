@@ -98,7 +98,10 @@ export default function HqInventoryPage() {
       ) : rows.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted">{t('hq.inventory.empty')}</p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        // grid-cols-1, not the implicit `auto` column: that track grows to the longest depot
+        // name, because `truncate` keeps the name on one line, and pushed the card off a
+        // 320px screen.
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {rows.map((r) => {
             const healthy = Math.max(0, r.total - r.low);
             return (
