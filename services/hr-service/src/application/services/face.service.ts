@@ -134,6 +134,16 @@ export class FaceService {
   }
 
   /** The employee behind a withdrawal request: HR admin by id, or the caller's own record. */
+  /**
+   * Flow 5d: has the caller a face to be matched against? The courier's one-tap check-in asks
+   * before it asks for a selfie — a punch without a template is refused only after the photo
+   * was taken and the shift had started.
+   */
+  async selfEnrolled(user: AuthenticatedUser): Promise<{ enrolled: boolean }> {
+    const employee = await this.employees.getSelf(user);
+    return { enrolled: (await this.repo.listActiveByEmployee(employee.id)).length > 0 };
+  }
+
   employeeFor(user: AuthenticatedUser, employeeId?: string): Promise<{ id: string }> {
     return employeeId ? this.employees.getById(user, employeeId) : this.employees.getSelf(user);
   }

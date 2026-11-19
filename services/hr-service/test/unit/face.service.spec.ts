@@ -132,6 +132,14 @@ describe('FaceService biometric consent (HR-3)', () => {
     expect(employees.consents).toEqual([{ id: 'e1', consent: { by: 's', source: 'SELF' } }]);
   });
 
+  it('tells the caller whether they have a face to be matched against (flow 5d)', async () => {
+    const none = make([1, 0, 0]);
+    await expect(none.svc.selfEnrolled(user)).resolves.toEqual({ enrolled: false });
+    const repo = new FakeFaceRepo();
+    repo.listActiveByEmployee = async () => [{ id: 'fe1' } as FaceEmbedding];
+    await expect(make([1, 0, 0], repo).svc.selfEnrolled(user)).resolves.toEqual({ enrolled: true });
+  });
+
   it('does not ask again once a consent is on file', async () => {
     const { svc, employees } = make([1, 0, 0]);
     await svc.enrollSelf(user, [Buffer.from('a')]);

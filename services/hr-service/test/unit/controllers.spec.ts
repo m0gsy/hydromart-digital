@@ -586,6 +586,12 @@ describe('FaceController / SelfFaceController', () => {
     expect(images).toHaveLength(2);
     expect(Buffer.isBuffer(images[0])).toBe(true);
   });
+  it('self status asks for the caller, and answers only whether a face is enrolled', async () => {
+    const face = { selfEnrolled: jest.fn().mockResolvedValue({ enrolled: true }) };
+    const c = new SelfFaceController(face as never);
+    await expect(c.status(user)).resolves.toEqual({ enrolled: true });
+    expect(face.selfEnrolled).toHaveBeenCalledWith(user);
+  });
   it('admin enroll decodes frames and forwards id + sourcePhotoUrl', () => {
     const face = { enroll: jest.fn().mockResolvedValue('ok') };
     const c = new FaceController(face as never);
