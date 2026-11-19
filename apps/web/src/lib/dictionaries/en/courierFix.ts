@@ -72,6 +72,7 @@ export const courierFix = {
     retention: 'Proof is kept for 12 months then auto-deleted per PDP-law retention policy.',
     next: 'Next task',
     backToList: 'Back to list',
+    settleNow: 'Hand in cash now',
   },
   checkIn: {
     verifyHeading: 'Shift-start checks',

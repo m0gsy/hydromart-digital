@@ -26,14 +26,16 @@ function Settlement() {
   const router = useRouter();
   const back = useBack();
   // The next shift to settle = the newest checked-out shift with no settlement yet.
-  const load = useAsync<{ shift: Shift | null }>(async () => {
+  const load = useAsync<{ shift: Shift | null; open: boolean }>(async () => {
     const [shifts, settled] = await Promise.all([
       api.get<Shift[]>(endpoints.deliveries.shifts.history, true),
       api.get<CashSettlement[]>(endpoints.deliveries.settlement.history, true),
     ]);
     const done = new Set(settled.map((s) => s.shiftId));
     const shift = shifts.find((s) => s.status === 'ENDED' && !done.has(s.id)) ?? null;
-    return { shift };
+    // Flow PR-7a: "Setor sekarang" lands here straight from the last stop, before check-out.
+    // The history holds the open shift too, so this screen can offer to close it.
+    return { shift, open: shifts.some((s) => s.status !== 'ENDED') };
   }, []);
 
   /*
@@ -66,7 +68,14 @@ function Settlement() {
     return <div className="p-5"><ErrorState message={load.error ?? t('hrFix.settlement.loadFailed')} onRetry={load.reload} /></div>;
   }
 
-  const { shift } = load.data;
+  const { shift, open } = load.data;
+  // Replaced, not pushed: check-out lands back on this screen, and one copy of it in the
+  // history is enough — two made the back button look dead.
+  const closeShift = open && (
+    <Button className="mt-2" onClick={() => router.replace('/driver/shift/status')}>
+      {t('hrFix.settlement.closeShift')}
+    </Button>
+  );
 
   const submit = async () => {
     if (!shift) return;
@@ -107,12 +116,23 @@ function Settlement() {
           <p className="text-sm text-[color:var(--text-muted)]">
             {t('hrFix.settlement.checkOutFirst')}
           </p>
+          {closeShift}
           <Button variant="ghost" className="mt-2" onClick={() => router.push('/driver/settlement/history')}>
             {t('hrFix.settlement.viewHistory')}
           </Button>
         </Card>
       ) : (
         <>
+          {/* An older shift still owed while today's is open: the form below is for THAT
+              shift's cash, not today's — say so, and offer the way to today's. */}
+          {open && (
+            <Card className="p-4">
+              <p className="text-[13px] text-[color:var(--text-muted)]">
+                {t('hrFix.settlement.openShiftNote')}
+              </p>
+              {closeShift}
+            </Card>
+          )}
           <Card className="p-4">
             <div className="text-sm font-bold">{t('hrFix.settlement.shiftDone')}</div>
             <div className="mt-0.5 text-[13px] text-[color:var(--text-muted)]">

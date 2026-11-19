@@ -77,7 +77,8 @@ function ShiftStatusScreen() {
         { lat: pos.coords.latitude, lng: pos.coords.longitude },
         true,
       );
-      router.replace('/driver/shift/check-in');
+      // Flow PR-7a: a closed shift's cash is handed in next — the hand-in screen reads it.
+      router.replace('/driver/settlement');
     }, 'ENDED');
 
   return (
