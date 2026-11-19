@@ -169,7 +169,7 @@ export const dashB = {
     title: 'Settings',
     account: 'Account',
     accountData: 'Account details',
-    accountDataSub: 'Name, phone & depot',
+    accountDataSub: 'Name, phone, email & photo',
     changePin: 'Change PIN',
     changePinSub: 'Change operational PIN',
     notifSection: 'Ops notifications',

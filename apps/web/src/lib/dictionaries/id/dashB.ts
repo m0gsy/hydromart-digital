@@ -171,7 +171,7 @@ export const dashB = {
     title: 'Pengaturan',
     account: 'Akun',
     accountData: 'Data akun',
-    accountDataSub: 'Nama, telepon & depot',
+    accountDataSub: 'Nama, telepon, email & foto',
     changePin: 'Ubah PIN',
     changePinSub: 'Ganti PIN operasional',
     notifSection: 'Notifikasi ops',

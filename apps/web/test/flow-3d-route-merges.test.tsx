@@ -107,6 +107,17 @@ describe('the merged account screen', () => {
     expect(screen.queryByText('dashC.profile.depotAssigned')).toBeNull();
   });
 
+  it('Data akun opens the profile editor, for every staff role', () => {
+    for (const role of ['MANAGER', 'KEPALA_DEPOT', 'HEAD_OFFICE']) {
+      who.role = role;
+      const { unmount } = render(<AccountPage />);
+      expect(
+        screen.getByText('dashB.operatorSettings.accountData').closest('a')?.getAttribute('href'),
+      ).toBe('/account/edit');
+      unmount();
+    }
+  });
+
   it('keeps the way out the merged screens had', () => {
     who.role = 'KEPALA_DEPOT';
     render(<AccountPage />);
