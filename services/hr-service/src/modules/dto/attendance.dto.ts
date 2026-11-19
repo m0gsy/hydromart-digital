@@ -147,6 +147,12 @@ export class PurgeHrAuditResponseDto {
   purged!: number;
 }
 
+/** Flow 5d: whether the caller has an active face template. */
+export class FaceEnrolledResponseDto {
+  @ApiProperty({ example: true })
+  enrolled!: boolean;
+}
+
 /** HR-3: how many face templates a withdrawal deleted. */
 export class WithdrawFaceResponseDto {
   @ApiProperty({ example: 3 })

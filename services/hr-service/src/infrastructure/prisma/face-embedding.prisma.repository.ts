@@ -80,6 +80,10 @@ export class FaceEmbeddingPrismaRepository implements FaceEmbeddingRepository {
     return rows.map((r) => this.plain(r));
   }
 
+  countActiveByEmployee(employeeId: string): Promise<number> {
+    return this.prisma.faceEmbedding.count({ where: { employeeId, active: true } });
+  }
+
   async listActiveVectorsExcept(employeeId: string): Promise<OwnedVector[]> {
     const rows = await this.prisma.faceEmbedding.findMany({
       where: { active: true, employeeId: { not: employeeId } },

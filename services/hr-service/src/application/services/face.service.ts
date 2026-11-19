@@ -133,6 +133,19 @@ export class FaceService {
     }
   }
 
+  /**
+   * Flow 5d: has the caller a face to be matched against? The courier's one-tap check-in asks
+   * before it asks for a selfie — a punch without a template is refused only after the photo
+   * was taken and the shift had started. Refused the way the punch refuses (a record that is
+   * not ACTIVE), so the app never offers a camera for a punch that cannot land; and counted,
+   * not read — no biometric template is decrypted to answer a yes or no.
+   */
+  async selfEnrolled(user: AuthenticatedUser): Promise<{ enrolled: boolean }> {
+    const employee = await this.employees.getSelf(user);
+    if (employee.status !== 'ACTIVE') throw new ForbiddenException('Karyawan tidak aktif');
+    return { enrolled: (await this.repo.countActiveByEmployee(employee.id)) > 0 };
+  }
+
   /** The employee behind a withdrawal request: HR admin by id, or the caller's own record. */
   employeeFor(user: AuthenticatedUser, employeeId?: string): Promise<{ id: string }> {
     return employeeId ? this.employees.getById(user, employeeId) : this.employees.getSelf(user);

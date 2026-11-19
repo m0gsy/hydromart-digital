@@ -15,15 +15,19 @@ import {
 } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
-import { Button, Card, CenterState, LoadError } from '@/components/ui';
+import { FaceCapture } from '@/components/hr/face-capture';
+import { Button, Card, CenterState, LinkButton, LoadError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
+import { useFlagOn } from '@/lib/feature-flags';
 import { currentPosition, GeoError } from '@/lib/geo';
+import type { Attendance } from '@/lib/hr';
 import { runOrQueue } from '@/lib/offline-queue';
 import { requestPushOnce } from '@/lib/push';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
+import { canPunchAttendance } from '@/lib/roles';
 import type { Delivery, DeliveryStatus, Page, Shift } from '@/lib/types';
 
 const QUEUED: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
@@ -59,6 +63,92 @@ function CheckIn() {
   // server yet, so /driver would bounce straight back here with no explanation.
   const [queuedOffline, setQueuedOffline] = useState(false);
 
+  /*
+   * Flow 5d (owner decision 2026-11-17): one tap starts the shift AND records HR attendance,
+   * face + GPS, the punch /hr/me/check-in makes. Only while the brake
+   * `attendance.courier_one_tap` is released — read fail-closed, so an unread flag means the
+   * two separate check-ins — for a courier who may punch and has a face to be matched.
+   */
+  const oneTapOn = useFlagOn('attendance.courier_one_tap');
+  const punches = canPunchAttendance(customer?.role);
+  const face = useAsync<{ enrolled: boolean } | null>(
+    () => (oneTapOn && punches ? api.get(endpoints.hr.faceDataMe, true) : Promise.resolve(null)),
+    [oneTapOn, punches],
+  );
+  // Decided once each read has ANSWERED — not on `loading`, which trails a changed dependency by
+  // a render: the old button flashed between the two reads, and a tap there started a shift
+  // with no punch.
+  const deciding = oneTapOn === null || (oneTapOn && punches && !face.data && !face.error);
+  const oneTap = oneTapOn === true && punches && face.data?.enrolled === true;
+  const needsEnroll = oneTapOn === true && punches && face.data?.enrolled === false;
+  // Half done: the shift is in (sent, or queued on the phone) and the punch is not. A retry
+  // punches again, alone, and still knows whether that shift has reached the server.
+  const [shift, setShift] = useState<'sent' | 'queued' | null>(null);
+  const [punchError, setPunchError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  // J1: this used to render `e.message` raw, believing it read "Lokasi GPS ditolak."
+  // `GeoError`'s message IS its reason token, so a courier with a slow fix was shown the
+  // single word "timeout". The reason still survives to the screen — translated.
+  const reasonOf = (e: unknown) =>
+    e instanceof GeoError
+      ? t(`errors.geo.${e.reason}`)
+      : e instanceof ApiError
+        ? e.message
+        : t('driver.checkIn.error');
+
+  /** The shift start both flows make. Depot wifi is not a given at 6am: queued, not lost. */
+  const startShift = async (at: { lat: number; lng: number }) => {
+    const { outcome } = await runOrQueue({ kind: 'shiftCheckIn', payload: { depotId: depotId!, ...at } });
+    // The Ops binary's equivalent of the customer's first order: the one moment where "let me
+    // know when a delivery lands" explains itself. Asking at first launch collects a denial
+    // from someone with no reason yet to want one, and Android makes that close to permanent.
+    // Not when queued — there is no network to register the token with; the next one asks.
+    if (outcome === 'sent') void requestPushOnce();
+    return outcome;
+  };
+  const here = async () => {
+    const pos = await currentPosition({ precise: true });
+    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  };
+
+  const capture = async (image: string, live: boolean) => {
+    if (!depotId) return;
+    // The on-device gate only: a blurred or still frame is not sent at all (the server's
+    // face match is the control, B-7).
+    if (!live) return setError(t('hrFix.checkIn.faceUnsure'));
+    setBusy(true);
+    setError(null);
+    setPunchError(null);
+    try {
+      const at = await here();
+      let started = shift;
+      if (!started) {
+        started = await startShift(at);
+        setShift(started);
+      }
+      try {
+        // The same queue as the shift: offline, both wait on the phone with their capture time.
+        const sent = await runOrQueue<Attendance>({
+          kind: 'hrPunch',
+          payload: { mode: 'in', image, ...at },
+        });
+        // No shift on the server yet: /driver would bounce straight back here unexplained.
+        if (started === 'queued') return setQueuedOffline(true);
+        // PENDING counts as nothing until HR decides: said, not painted as a success.
+        if (sent.outcome === 'sent' && sent.result.status === 'PENDING') return setPending(true);
+        // The shift is open; a punch queued on the phone follows on its own.
+        router.replace('/driver');
+      } catch (e) {
+        setPunchError(reasonOf(e));
+      }
+    } catch (e) {
+      setError(reasonOf(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (current.data && !busy) {
     router.replace('/driver');
   }
@@ -68,31 +158,14 @@ function CheckIn() {
     setBusy(true);
     setError(null);
     try {
-      const pos = await currentPosition({ precise: true });
-      // Depot wifi is not a given at 6am: queue the check-in rather than lose the shift start.
-      const { outcome } = await runOrQueue({
-        kind: 'shiftCheckIn',
-        payload: { depotId, lat: pos.coords.latitude, lng: pos.coords.longitude },
-      });
-      if (outcome === 'queued') {
+      if ((await startShift(await here())) === 'queued') {
         setQueuedOffline(true);
         setBusy(false);
         return;
       }
-      // The Ops binary's equivalent of the customer's first order: the one moment where
-      // "let me know when a delivery lands" explains itself. Asking at first launch
-      // collects a denial from someone with no reason yet to want one, and Android makes
-      // that close to permanent. Not on the queued branch — there is no network there to
-      // register the token with, and the next successful check-in asks instead.
-      void requestPushOnce();
       router.replace('/driver');
     } catch (e) {
-      // J1: this used to render `e.message` raw, believing it read "Lokasi GPS ditolak."
-      // `GeoError`'s message IS its reason token, so a courier with a slow fix was shown
-      // the single word "timeout". The reason still survives to the screen — translated.
-      setError(
-        e instanceof GeoError ? t(`errors.geo.${e.reason}`) : e instanceof ApiError ? e.message : t('driver.checkIn.error'),
-      );
+      setError(reasonOf(e));
       setBusy(false);
     }
   };
@@ -176,11 +249,53 @@ function CheckIn() {
         </p>
       )}
 
+      {punchError && (
+        <div role="alert" className="mt-3 flex flex-col gap-2 text-sm">
+          <p className="flex items-center gap-1.5 text-[color:var(--danger)]">
+            <WarningCircle size={16} weight="fill" />
+            {t('driver.checkIn.punchFailed', { reason: punchError })}
+          </p>
+          <p className="text-xs text-[color:var(--text-muted)]">{t('driver.checkIn.retryPunch')}</p>
+          <Link href="/driver" className="text-xs font-bold text-brand-700 underline">
+            {t('driver.checkIn.continueWithout')}
+          </Link>
+        </div>
+      )}
+
       <div className="mt-auto pt-6">
-        <Button onClick={checkIn} loading={busy} className="flex w-full items-center justify-center gap-2">
-          <Fingerprint size={20} weight="fill" />
-          {t('driver.checkIn.submit')}
-        </Button>
+        {/* Queued on the phone: nothing to tap — a second tap queued a second check-in. */}
+        {queuedOffline ? null : deciding ? (
+          <Skeleton className="h-12 w-full" />
+        ) : pending ? (
+          <Card className="flex flex-col gap-3 p-4 text-center">
+            <p className="text-sm font-bold text-[color:var(--warning)]">{t('driver.checkIn.pending')}</p>
+            <Button onClick={() => router.replace('/driver')}>{t('driver.checkIn.continue')}</Button>
+          </Card>
+        ) : oneTap ? (
+          <Card className="flex flex-col gap-2 p-3">
+            <p className="text-center text-xs font-bold">{t('driver.checkIn.oneTapIntro')}</p>
+            <FaceCapture onCapture={capture} disabled={busy} />
+          </Card>
+        ) : (
+          <>
+            {needsEnroll && (
+              <Card className="mb-3 flex flex-col gap-2 p-4">
+                <p className="text-sm font-bold">{t('driver.checkIn.enrollFirstTitle')}</p>
+                <p className="text-xs text-[color:var(--text-muted)]">{t('driver.checkIn.enrollFirstBody')}</p>
+                <LinkButton href="/hr/me/enroll">{t('driver.checkIn.enrollAction')}</LinkButton>
+              </Card>
+            )}
+            <Button
+              onClick={checkIn}
+              loading={busy}
+              variant={needsEnroll ? 'secondary' : 'primary'}
+              className="flex w-full items-center justify-center gap-2"
+            >
+              <Fingerprint size={20} weight="fill" />
+              {needsEnroll ? t('driver.checkIn.shiftOnly') : t('driver.checkIn.submit')}
+            </Button>
+          </>
+        )}
         <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-[color:var(--text-muted)]">
           <CheckCircle size={14} weight="fill" className="text-brand-600" />
           {t('driver.checkIn.locationNote')}

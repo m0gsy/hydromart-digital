@@ -1,10 +1,10 @@
-import { Body, Controller, Delete, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { Can, AuthenticatedUser, CurrentUser, SelfScoped } from '@hydromart/platform';
 
 import { FaceService } from '../application/services/face.service';
-import { EnrollFaceDto, WithdrawFaceResponseDto } from './dto/attendance.dto';
+import { EnrollFaceDto, FaceEnrolledResponseDto, WithdrawFaceResponseDto } from './dto/attendance.dto';
 import { decodeBase64Image } from './decode-image';
 import { FaceEmbedding } from '../../prisma/generated/client';
 import { FaceEmbeddingResponseDto } from './dto/responses.generated.dto';
@@ -34,6 +34,15 @@ export class SelfFaceController {
     return faceView(
       await this.face.enrollSelf(user, dto.images.map(decodeBase64Image), dto.consent === true),
     );
+  }
+
+  /** Flow 5d: is my face enrolled? Asked before a punch needs it. */
+  @ApiOkResponse({ type: FaceEnrolledResponseDto })
+  @SelfScoped()
+  @Get()
+  @ApiOperation({ summary: 'Whether my face is enrolled (self)' })
+  async status(@CurrentUser() user: AuthenticatedUser): Promise<{ enrolled: boolean }> {
+    return this.face.selfEnrolled(user);
   }
 
   /** HR-3: withdraw my consent — templates and stored frames deleted, consent cleared. */
