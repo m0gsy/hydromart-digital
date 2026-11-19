@@ -860,6 +860,25 @@ describe('OrderPrismaRepository', () => {
     );
   });
 
+  it('reads a createdAt window half-open, as the reports do (flow 8c-1)', async () => {
+    order.findMany.mockResolvedValue([]);
+    order.count.mockResolvedValue(0);
+    const from = new Date('2026-11-19T17:00:00.000Z');
+    const to = new Date('2026-11-20T17:00:00.000Z');
+    await repo.search({ depotIds: ['depot-a'], from, to, page: 1, limit: 10 });
+    const where = { depotId: { in: ['depot-a'] }, createdAt: { gte: from, lt: to } };
+    expect(order.findMany).toHaveBeenCalledWith(expect.objectContaining({ where }));
+    expect(order.count).toHaveBeenCalledWith({ where });
+    await repo.search({ to, page: 1, limit: 10 });
+    expect(order.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { createdAt: { lt: to } } }),
+    );
+    await repo.search({ from, page: 1, limit: 10 });
+    expect(order.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { createdAt: { gte: from } } }),
+    );
+  });
+
   it('omits the order-number predicate when the term is blank', async () => {
     order.findMany.mockResolvedValue([]);
     order.count.mockResolvedValue(0);

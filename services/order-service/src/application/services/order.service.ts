@@ -270,6 +270,9 @@ export interface ListOrdersInput {
   orderNumber?: string;
   /** C6: counter sales only, so the till can list its own recent sales. */
   isWalkIn?: boolean;
+  /** Placed in [from, to), ISO 8601 (flow 8c-1). */
+  from?: string;
+  to?: string;
 }
 
 /**
@@ -3330,6 +3333,8 @@ export class OrderService {
       // it, so the till's "recent counter sales" listed every order of the depot (delivery
       // orders included, each with a void button).
       isWalkIn: input.isWalkIn,
+      from: input.from ? new Date(input.from) : undefined,
+      to: input.to ? new Date(input.to) : undefined,
     };
     const { items, total, nextCursor } = await this.orders.search(query);
     return buildPage(items, total, page, limit, nextCursor);

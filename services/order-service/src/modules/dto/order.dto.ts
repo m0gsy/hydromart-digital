@@ -24,7 +24,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { INT4_MAX, decimalMax } from '@hydromart/platform';
+import { INT4_MAX, IsNotBefore, decimalMax } from '@hydromart/platform';
 
 import { OrderStatus } from '../../domain/order-status';
 
@@ -250,6 +250,19 @@ export class ListOrdersQueryDto {
   @IsString()
   @MaxLength(40)
   orderNumber?: string;
+
+  // Flow 8c-1: payment reconciliation totals a whole day, so it reads every order placed in
+  // that day instead of summing whatever twenty rows came first. Half-open, as the reports are.
+  @ApiPropertyOptional({ description: 'Placed at or after this instant (ISO 8601, inclusive).' })
+  @IsOptional()
+  @IsISO8601()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'Placed before this instant (ISO 8601, exclusive).' })
+  @IsOptional()
+  @IsISO8601()
+  @IsNotBefore('from')
+  to?: string;
 }
 
 /** HQ fills in the fulfilling depot of an order that has none. */

@@ -250,6 +250,9 @@ export interface OrderQuery {
   unrouted?: boolean;
   /** Case-insensitive substring matched against the order number (audit F-12). */
   orderNumber?: string;
+  /** createdAt window, half-open [from, to) (flow 8c-1: a day's reconciliation). */
+  from?: Date;
+  to?: Date;
   page: number;
   limit: number;
   /**

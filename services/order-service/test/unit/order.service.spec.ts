@@ -3195,6 +3195,15 @@ describe('OrderService', () => {
     const onlyNear = await service.listAll({ depotIds: ['depot-near'] });
     expect(onlyNear.total).toBe(1);
     expect(onlyNear.items[0].id).toBe(near.id);
+
+    // Flow 8c-1: a day's window, half-open, reaches the repository (the mapper dropped
+    // isWalkIn once; this one must carry from/to).
+    orders.rows.find((r) => r.id === near.id)!.createdAt = new Date('2026-11-19T16:59:59.999Z');
+    orders.rows.find((r) => r.id === far.id)!.createdAt = new Date('2026-11-19T17:00:00.000Z');
+    const day = await service.listAll({ from: '2026-11-19T17:00:00.000Z', to: '2026-11-20T17:00:00.000Z' });
+    expect(day.items.map((o) => o.id)).toEqual([far.id]);
+    const before = await service.listAll({ to: '2026-11-19T17:00:00.000Z' });
+    expect(before.items.map((o) => o.id)).toEqual([near.id]);
   });
 
   it('routes an order to the nearest in-range depot at checkout', async () => {

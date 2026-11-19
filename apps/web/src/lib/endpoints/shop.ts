@@ -150,6 +150,11 @@ export const shop = {
         orderNumber?: string;
         /** C6: counter sales only — what the till lists as its own recent sales. */
         isWalkIn?: boolean;
+        /** Keyset cursor: the previous page's `nextCursor`. */
+        cursor?: string;
+        /** Placed in [from, to), ISO instants (flow 8c-1: one WIB day). */
+        from?: string;
+        to?: string;
       } = {},
     ) => {
       const p = new URLSearchParams();
@@ -161,6 +166,9 @@ export const shop = {
       // Audit F-12: order-number substring, matched by order-service over the whole table.
       if (q.orderNumber) p.set('orderNumber', q.orderNumber);
       if (q.isWalkIn !== undefined) p.set('isWalkIn', String(q.isWalkIn));
+      if (q.cursor) p.set('cursor', q.cursor);
+      if (q.from) p.set('from', q.from);
+      if (q.to) p.set('to', q.to);
       const qs = p.toString();
       return `/orders/api/v1/orders/manage${qs ? `?${qs}` : ''}`;
     },

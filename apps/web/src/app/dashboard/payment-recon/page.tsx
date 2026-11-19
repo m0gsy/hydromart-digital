@@ -1,18 +1,20 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Lock, Info, Wallet, CheckCircle, Warning, ArrowCounterClockwise } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Card, CenterState, ErrorState, Input, ListFooter, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { fetchAllByCursor } from '@/lib/fetch-all-pages';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canConfirmPayment, canViewDepotFinance } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+import { BUSINESS_TZ, dateInDaysWib, dayStartWib, todayWib } from '@/lib/wib';
 import type { Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/types';
 
 /*
@@ -26,8 +28,11 @@ import type { Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/t
  * for "this depot's transactions" would have answered with the till and called it the depot.
  */
 
-/** One screen of orders. The reconciliation table is a console view, not a report. */
+/** Rows drawn at a time. The totals above them cover the whole day (flow 8c-1). */
 const ROWS = 20;
+
+/** The most order ids payment-service's for-orders read takes at once (its ArrayMaxSize). */
+const PAYMENT_CHUNK = 100;
 
 /** An order and whatever payment currently answers for it. */
 interface ReconRow {
@@ -36,6 +41,8 @@ interface ReconRow {
   amount: number;
   method: PaymentMethod | null;
   status: PaymentStatus | null;
+  /** Cancelled or voided: nothing is owed on it, so it is never "unsettled" (flow 8c-1). */
+  cancelled: boolean;
 }
 
 const METHOD_LABEL: Record<PaymentMethod, string> = {
@@ -68,13 +75,18 @@ function reconRows(orders: Order[], payments: Payment[]): ReconRow[] {
       amount: o.total,
       method: payment?.method ?? null,
       status: payment?.status ?? null,
+      cancelled: o.status === 'CANCELLED' || o.status === 'VOIDED',
     };
   });
 }
 
-/** Settled = a PAID payment. A refund settled and then reversed; it is not still owed. */
-function isSettled(status: PaymentStatus | null): boolean {
-  return status === 'PAID' || status === 'REFUNDED';
+/**
+ * Settled = a PAID payment. A refund settled and then reversed; it is not still owed. A
+ * cancelled or voided order owes nothing: the whole day carries every cancellation of the day,
+ * and counting those would send the manager looking for money that was never due.
+ */
+function isSettled(row: ReconRow): boolean {
+  return row.cancelled || row.status === 'PAID' || row.status === 'REFUNDED';
 }
 
 function methodTotal(rows: ReconRow[], method: PaymentMethod): number {
@@ -96,8 +108,12 @@ function MethodCard({ label, value, loading }: { label: string; value: number; l
   );
 }
 
-function StatusBadge({ status }: { status: PaymentStatus | null }) {
+function StatusBadge({ status, cancelled }: { status: PaymentStatus | null; cancelled: boolean }) {
   const { t } = useT();
+  // Money taken on a cancelled order still shows as paid (it is in the drawer until refunded).
+  if (cancelled && status !== 'PAID' && status !== 'REFUNDED') {
+    return <span className="text-xs font-semibold text-muted">{t('dashB.paymentRecon.cancelled')}</span>;
+  }
   if (status === 'PAID') {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--success)]">
@@ -146,7 +162,7 @@ function ReconRowItem({ row, href }: { row: ReconRow; href: string | null }) {
       <div className="shrink-0 text-right">
         <Money amount={row.amount} className="font-semibold" />
         <div className="mt-0.5">
-          <StatusBadge status={row.status} />
+          <StatusBadge status={row.status} cancelled={row.cancelled} />
         </div>
       </div>
     </>
@@ -166,9 +182,17 @@ function PaymentReconBody() {
   const { customer } = useAuth();
   const canSettle = canConfirmPayment(customer?.role);
   const { scopedId, ready, depots } = useDepot();
-  const today = useMemo(
-    () => new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
-    [],
+  const [day, setDay] = useState(() => todayWib());
+  const [shown, setShown] = useState(ROWS);
+  const dayLabel = useMemo(
+    () =>
+      new Date(dayStartWib(day)).toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: BUSINESS_TZ,
+      }),
+    [day],
   );
 
   // Both reads in ONE hook, not two chained ones: as two, the payment read settles once for
@@ -177,34 +201,59 @@ function PaymentReconBody() {
   // One loading flag, one error, one retry, and no row exists before its payment does.
   const recon = useAsync<ReconRow[]>(async () => {
     if (!scopedId) throw new ApiError(0, 'no depot');
-    const page = await api.get<Page<Order>>(
-      endpoints.orders.manage({ depotId: scopedId, limit: ROWS }),
-      true,
+    // Flow 8c-1 (owner decision 2026-11-19): EVERY order placed in the chosen WIB day, so the
+    // totals are the day's and not the sum of the twenty newest rows.
+    const from = dayStartWib(day);
+    const to = dayStartWib(dateInDaysWib(1, new Date(from)));
+    const orders = await fetchAllByCursor<Order>(({ cursor, limit }) =>
+      api.get<Page<Order> & { nextCursor?: string | null }>(
+        endpoints.orders.manage({ depotId: scopedId, limit, cursor: cursor ?? undefined, from, to }),
+        true,
+      ),
     );
-    const ids = page.items.map((o) => o.id);
-    const payments =
-      ids.length > 0
-        ? await api.post<Payment[]>(endpoints.payments.forOrders, { orderIds: ids }, true)
-        : [];
-    return reconRows(page.items, payments);
-  }, [scopedId]);
+    // In chunks the server accepts. An order's payments all come back in its own chunk, so
+    // "first one seen is the current one" (reconRows) still holds.
+    const payments: Payment[] = [];
+    for (let i = 0; i < orders.length; i += PAYMENT_CHUNK) {
+      const orderIds = orders.slice(i, i + PAYMENT_CHUNK).map((o) => o.id);
+      payments.push(...(await api.post<Payment[]>(endpoints.payments.forOrders, { orderIds }, true)));
+    }
+    return reconRows(orders, payments);
+  }, [scopedId, day]);
 
   const rows = recon.data ?? [];
-  const unsettled = rows.filter((r) => !isSettled(r.status)).length;
+  const unsettled = rows.filter((r) => !isSettled(r)).length;
   const loading = !ready || recon.loading;
   const error = recon.error;
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-2">
-        <Wallet size={24} weight="fill" className="text-brand-500" />
-        <div>
-          <h1 className="text-2xl font-bold">{t('dashB.paymentRecon.title')}</h1>
-          <p className="text-sm text-muted tabular-nums">
-            {today}
-            {loading || error ? '' : ` · ${t('dashB.paymentRecon.unsettledCount', { n: unsettled })}`}
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Wallet size={24} weight="fill" className="text-brand-500" />
+          <div>
+            <h1 className="text-2xl font-bold">{t('dashB.paymentRecon.title')}</h1>
+            <p className="text-sm text-muted tabular-nums">
+              {dayLabel}
+              {loading || error ? '' : ` · ${t('dashB.paymentRecon.unsettledCount', { n: unsettled })}`}
+            </p>
+          </div>
         </div>
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-muted">{t('dashB.paymentRecon.day')}</span>
+          <Input
+            type="date"
+            className="w-auto"
+            value={day}
+            max={todayWib()}
+            onChange={(e) => {
+              // A cleared field keeps the day on screen rather than reading "no day".
+              if (!e.target.value) return;
+              setDay(e.target.value);
+              setShown(ROWS);
+            }}
+          />
+        </label>
       </div>
 
       {ready && depots.length === 0 ? (
@@ -229,13 +278,19 @@ function PaymentReconBody() {
               <p className="py-6 text-center text-sm text-muted">{t('dashB.paymentRecon.empty')}</p>
             ) : (
               <div className="flex flex-col">
-                {rows.map((r) => (
+                {rows.slice(0, shown).map((r) => (
                   <ReconRowItem
                     key={r.id}
                     row={r}
                     href={canSettle ? `/dashboard/orders?order=${r.id}` : null}
                   />
                 ))}
+                <ListFooter
+                  shown={Math.min(shown, rows.length)}
+                  total={rows.length}
+                  hasMore={shown < rows.length}
+                  onMore={() => setShown((n) => n + ROWS)}
+                />
               </div>
             )}
             {!canSettle && (
@@ -246,7 +301,7 @@ function PaymentReconBody() {
           <Card className="flex gap-3 bg-[color:var(--surface-soft)] p-4">
             <Info size={20} weight="fill" className="mt-0.5 shrink-0 text-brand-600" />
             <p className="text-sm text-muted">
-              {t('dashB.paymentRecon.info', { n: ROWS })}
+              {t('dashB.paymentRecon.info')}
             </p>
           </Card>
         </>

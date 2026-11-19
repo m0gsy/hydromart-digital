@@ -266,6 +266,22 @@ describe('CounterQuoteDto', () => {
  * list unchanged; `"false"` must mean false rather than "a non-empty string is truthy",
  * which is the classic way a boolean query param inverts itself.
  */
+describe('ListOrdersQueryDto · from/to (flow 8c-1)', () => {
+  const check = (raw: Record<string, unknown>) => validate(plainToInstance(ListOrdersQueryDto, raw));
+
+  it('takes a day window', async () => {
+    expect(await check({ from: '2026-11-19T17:00:00.000Z', to: '2026-11-20T17:00:00.000Z' })).toEqual([]);
+    expect(await check({ from: '2026-11-19T17:00:00.000Z' })).toEqual([]);
+  });
+
+  it('refuses an upper bound before the lower one, and a non-date', async () => {
+    const reversed = await check({ from: '2026-11-20T17:00:00.000Z', to: '2026-11-19T17:00:00.000Z' });
+    expect(reversed.map((e) => e.property)).toEqual(['to']);
+    const junk = await check({ from: 'kemarin' });
+    expect(junk.map((e) => e.property)).toEqual(['from']);
+  });
+});
+
 describe('ListOrdersQueryDto · isWalkIn', () => {
   const parse = (raw: Record<string, unknown>) =>
     plainToInstance(ListOrdersQueryDto, raw) as unknown as { isWalkIn?: boolean };
