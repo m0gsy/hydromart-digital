@@ -19,6 +19,15 @@ export interface FaceEmbeddingRepository {
   listActiveByEmployee(employeeId: string): Promise<FaceEmbedding[]>;
   /** How many active templates one employee has — a yes/no read that decrypts nothing. */
   countActiveByEmployee(employeeId: string): Promise<number>;
+  /**
+   * Face plan backfill: active rows with no local template yet and a stored source photo, of
+   * ACTIVE employees who consented. Oldest first, at most `limit`.
+   */
+  listActiveWithoutLocalTemplate(
+    limit: number,
+  ): Promise<{ id: string; employeeId: string; sourcePhotoUrl: string | null }[]>;
+  /** Store a local template on a row that is STILL active (a withdrawn face stays withdrawn). */
+  setVectorIfActive(id: string, vector: number[]): Promise<boolean>;
   /** Active vectors of every OTHER employee (dup-check on enroll). */
   listActiveVectorsExcept(employeeId: string): Promise<OwnedVector[]>;
   /** Retire an employee's current embeddings (re-enroll replaces). */

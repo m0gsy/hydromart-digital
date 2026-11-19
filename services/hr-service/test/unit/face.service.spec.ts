@@ -33,6 +33,12 @@ class FakeFaceRepo implements FaceEmbeddingRepository {
   async countActiveByEmployee(): Promise<number> {
     return this.active;
   }
+  async listActiveWithoutLocalTemplate(): Promise<{ id: string; employeeId: string; sourcePhotoUrl: string | null }[]> {
+    return [];
+  }
+  async setVectorIfActive(): Promise<boolean> {
+    return true;
+  }
   async listActiveVectorsExcept(): Promise<OwnedVector[]> {
     return this.others;
   }

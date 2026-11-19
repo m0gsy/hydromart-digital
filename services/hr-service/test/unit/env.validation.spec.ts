@@ -36,6 +36,12 @@ describe('hr env validation', () => {
     expect(error?.message).toContain('JWT_ACCESS_SECRET');
   });
 
+  it('takes FACE_FALLBACK off by default, shadow when asked, and nothing else yet', () => {
+    expect(validate({ ...BASE }).value.FACE_FALLBACK).toBe('off');
+    expect(validate({ ...BASE, FACE_FALLBACK: 'shadow' }).error).toBeUndefined();
+    expect(validate({ ...BASE, FACE_FALLBACK: 'on' }).error?.message).toContain('FACE_FALLBACK');
+  });
+
   it('rejects an unknown face verifier driver', () => {
     const { error } = validate({ ...BASE, FACE_VERIFIER_DRIVER: 'magic' });
     expect(error?.message).toContain('FACE_VERIFIER_DRIVER');

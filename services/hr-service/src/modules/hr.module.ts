@@ -25,6 +25,12 @@ import { AttendancePrismaRepository } from '../infrastructure/prisma/attendance.
 import { NeoFaceProvider } from '../infrastructure/face/neo-face.provider';
 import { OnnxArcFaceVerifier } from '../infrastructure/face/onnx-arcface.verifier';
 import { StubFaceVerifier } from '../infrastructure/face/stub-face.verifier';
+import { FaceServiceClient } from '../infrastructure/face/face-service.client';
+import { ShadowFaceVerifier } from '../infrastructure/face/shadow-face.verifier';
+import {
+  FACE_SERVICE_CLIENT,
+  FaceTemplateBackfill,
+} from '../application/services/face-template-backfill.service';
 import { PAYROLL_REPOSITORY } from '../application/ports/payroll.repository';
 import { BONUS_REPOSITORY, DEDUCTION_REPOSITORY } from '../application/ports/adjustment.repository';
 import { PayrollService } from '../application/services/payroll.service';
@@ -132,6 +138,13 @@ const providers: Provider[] = [
   SettingsService,
   // Face plan PR-2: the daily alarm for punches left PENDING more than 48 hours.
   PendingPunchAlert,
+  // Face plan PR-4: the local engine (face-service) and the templates it matches against.
+  {
+    provide: FACE_SERVICE_CLIENT,
+    useFactory: (config: HrConfigService) => new FaceServiceClient(config.faceService),
+    inject: [HrConfigService],
+  },
+  FaceTemplateBackfill,
   { provide: EMPLOYEE_REPOSITORY, useClass: EmployeePrismaRepository },
   EmployeeService,
   { provide: FACE_EMBEDDING_REPOSITORY, useClass: FaceEmbeddingPrismaRepository },
@@ -140,17 +153,23 @@ const providers: Provider[] = [
   // onnx (in-process, needs vendored model), or stub (dev/test, deterministic).
   {
     provide: FACE_VERIFIER,
-    useFactory: (config: HrConfigService) => {
-      switch (config.faceVerifierDriver) {
-        case 'stub':
-          return new StubFaceVerifier(config);
-        case 'neo':
-          return new NeoFaceProvider(config);
-        default:
-          return new OnnxArcFaceVerifier(config);
-      }
+    useFactory: (config: HrConfigService, local: FaceServiceClient) => {
+      const engine = (() => {
+        switch (config.faceVerifierDriver) {
+          case 'stub':
+            return new StubFaceVerifier(config);
+          case 'neo':
+            return new NeoFaceProvider(config);
+          default:
+            return new OnnxArcFaceVerifier(config);
+        }
+      })();
+      // FACE_FALLBACK=shadow: the engine still decides; the local one is asked too and logged.
+      return config.faceFallback === 'shadow' && config.faceServiceUrl
+        ? new ShadowFaceVerifier(engine, local)
+        : engine;
     },
-    inject: [HrConfigService],
+    inject: [HrConfigService, FACE_SERVICE_CLIENT],
   },
   // Photo storage: S3 in prod (HR_STORAGE_DRIVER=s3), no-op otherwise. Injected @Optional
   // into Face/Attendance services — an absent binding just skips persisting photoUrls.

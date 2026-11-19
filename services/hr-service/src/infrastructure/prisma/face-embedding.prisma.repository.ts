@@ -80,6 +80,33 @@ export class FaceEmbeddingPrismaRepository implements FaceEmbeddingRepository {
     return rows.map((r) => this.plain(r));
   }
 
+  listActiveWithoutLocalTemplate(
+    limit: number,
+  ): Promise<{ id: string; employeeId: string; sourcePhotoUrl: string | null }[]> {
+    return this.prisma.faceEmbedding.findMany({
+      where: {
+        active: true,
+        vectorEnc: null,
+        vector: { isEmpty: true },
+        sourcePhotoUrl: { not: null },
+        employee: { status: 'ACTIVE', faceConsentAt: { not: null } },
+      },
+      select: { id: true, employeeId: true, sourcePhotoUrl: true },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+  }
+
+  async setVectorIfActive(id: string, vector: number[]): Promise<boolean> {
+    // updateMany, not update: the `active` filter is the whole point — a face withdrawn while
+    // its template was being built must not come back with one.
+    const { count } = await this.prisma.faceEmbedding.updateMany({
+      where: { id, active: true },
+      data: { vector: [], vectorEnc: encryptVector(vector, this.config.faceEncryptionKey) },
+    });
+    return count > 0;
+  }
+
   countActiveByEmployee(employeeId: string): Promise<number> {
     return this.prisma.faceEmbedding.count({ where: { employeeId, active: true } });
   }

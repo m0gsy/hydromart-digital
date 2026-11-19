@@ -325,6 +325,17 @@ export class HrConfigService {
   get faceServiceUrl(): string {
     return this.config.get<string>('FACE_SERVICE_URL', '');
   }
+  /** Face plan: `off` (default) changes nothing; `shadow` compares the local engine with NEO. */
+  get faceFallback(): 'off' | 'shadow' {
+    return this.config.get<'off' | 'shadow'>('FACE_FALLBACK', 'off');
+  }
+  /** face-service base URL + the service key it is called with. */
+  get faceService(): { url: string; internalKey: string } {
+    return {
+      url: this.faceServiceUrl,
+      internalKey: this.config.get<string>('INTERNAL_SERVICE_KEY', ''),
+    };
+  }
   /**
    * Key the enrolled embeddings are encrypted with at rest (B-19). Required in production
    * by env validation; the dev fallback keeps a local box and CI running on throwaway data.

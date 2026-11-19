@@ -2458,6 +2458,39 @@ describe('FaceEmbeddingPrismaRepository', () => {
     expect(decryptVector(written.vectorEnc, 'unit-test-face-key')).toEqual([0.1, 0.2]);
   });
 
+  it('lists the faces still without a local template: active, stored photo, consenting ACTIVE employee', async () => {
+    const p = makePrisma();
+    m(p, 'faceEmbedding').findMany.mockResolvedValue([]);
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
+    await repo.listActiveWithoutLocalTemplate(50);
+    expect(m(p, 'faceEmbedding').findMany).toHaveBeenCalledWith({
+      where: {
+        active: true,
+        vectorEnc: null,
+        vector: { isEmpty: true },
+        sourcePhotoUrl: { not: null },
+        employee: { status: 'ACTIVE', faceConsentAt: { not: null } },
+      },
+      select: { id: true, employeeId: true, sourcePhotoUrl: true },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
+  });
+
+  it('stores a local template encrypted, and only on a row still active', async () => {
+    const p = makePrisma();
+    m(p, 'faceEmbedding')
+      .updateMany.mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
+    await expect(repo.setVectorIfActive('fe1', [0.6, 0.8])).resolves.toBe(true);
+    const { where, data } = m(p, 'faceEmbedding').updateMany.mock.calls[0][0];
+    expect(where).toEqual({ id: 'fe1', active: true });
+    expect(data.vector).toEqual([]);
+    expect(decryptVector(data.vectorEnc, 'unit-test-face-key')).toEqual([0.6, 0.8]);
+    await expect(repo.setVectorIfActive('gone', [1])).resolves.toBe(false);
+  });
+
   it('counts an employee\'s active templates without reading one (flow 5d)', async () => {
     const p = makePrisma();
     m(p, 'faceEmbedding').count.mockResolvedValue(3);
