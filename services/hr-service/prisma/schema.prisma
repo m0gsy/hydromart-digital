@@ -353,12 +353,21 @@ model FaceEmbedding {
   sourcePhotoUrl String?
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
+  /// When NEO's gallery learned this face. Null = NEO does not know it yet (enrolled by the
+  /// local engine while NEO was down), so it must not be sent to NEO until it is synced.
+  neoSyncedAt    DateTime?
 
   employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
   @@index([active])
   @@map("face_embeddings")
+}
+
+/// Which engine judged a punch's face. Null on a punch held PENDING because no engine could.
+enum FaceEngine {
+  NEO
+  LOCAL
 }
 
 /// One row per employee per working day (idempotent). Check-in/out each stamp a photo,
@@ -376,6 +385,12 @@ model Attendance {
   checkOutPhotoUrl String?
   checkInScore     Float?
   checkOutScore    Float?
+  checkInEngine    FaceEngine?
+  checkOutEngine   FaceEngine?
+  /// The phone's `capturedAt` exactly as sent. checkInAt/checkOutAt store min(capturedAt, now),
+  /// so a replay from a phone whose clock runs ahead cannot be recognised from them.
+  checkInClientAt  DateTime?
+  checkOutClientAt DateTime?
   /// GPS captured with each punch (FR + GPS + timestamp). Null on manual HR entries.
   checkInLat       Float?
   checkInLng       Float?
