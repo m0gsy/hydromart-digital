@@ -54,27 +54,33 @@ function Inbox({ depotId }: { depotId: string | null }) {
   );
   const hr = useAsync<MyAnnouncement[]>(myAnnouncements);
   const [markError, setMarkError] = useState<string | null>(null);
+  const [marking, setMarking] = useState<string | null>(null);
 
-  // Depot broadcasts: everything marked read once on open — that inbox never had per-item read
-  // UI (design 8a). ponytail: mark-all-on-view; per-item receipts only if the design asks.
-  const markedRef = useRef(false);
+  // Depot broadcasts: every unread one marked read once it is on screen — that inbox never had
+  // per-item read UI (design 8a). Remembered per id, so one that arrives with a re-read (the
+  // app back from the background) is marked too. ponytail: mark-on-view; per-item receipts
+  // only if the design asks.
+  const marked = useRef(new Set<string>());
   useEffect(() => {
-    if (markedRef.current || !depot.data) return;
-    markedRef.current = true;
-    // Fire-and-forget; a failed receipt just leaves the dot for next open.
-    for (const b of depot.data.filter((x) => !x.read))
+    for (const b of (depot.data ?? []).filter((x) => !x.read && !marked.current.has(x.id))) {
+      marked.current.add(b.id);
+      // Fire-and-forget; a failed receipt just leaves the dot for next open.
       void api.post(endpoints.broadcasts.read(b.id), {}, true).catch(() => {});
+    }
   }, [depot.data]);
 
   // HR's receipts stay per item, as on /hr/me/announcements: HR reads them as "this person has
   // read it", which opening a list does not prove.
   async function markHrRead(id: string) {
     setMarkError(null);
+    setMarking(id);
     try {
       await api.post(endpoints.hr.readAnnouncement(id), {}, true);
       hr.reload();
     } catch (err) {
       setMarkError(err instanceof ApiError ? err.message : t('hrFix.myAnnouncements.markFailed'));
+    } finally {
+      setMarking(null);
     }
   }
 
@@ -143,7 +149,11 @@ function Inbox({ depotId }: { depotId: string | null }) {
                     {WHEN.format(new Date(it.at))}
                   </span>
                   {it.from === 'hr' && !it.read && (
-                    <Button variant="secondary" onClick={() => markHrRead(it.id)}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => markHrRead(it.id)}
+                      loading={marking === it.id}
+                    >
                       {t('hrFix.myAnnouncements.markRead2')}
                     </Button>
                   )}

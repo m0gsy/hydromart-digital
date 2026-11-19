@@ -74,7 +74,10 @@ function DriverConsole() {
 
   const deliveries = (list.data?.items ?? []).filter((d) => ACTIVE.includes(d.status));
   const onBreak = shift.data?.status === 'BREAK' || shift.data?.status === 'OFFLINE';
-  const urgent = (broadcasts.data ?? []).find((b) => b.level === 'URGENT' && !b.read);
+  // The red banner is for whatever is urgent and unread, the depot's or HR's: one inbox.
+  const urgent =
+    (broadcasts.data ?? []).find((b) => b.level === 'URGENT' && !b.read) ??
+    (hrNews.data ?? []).find((a) => a.level === 'URGENT' && !a.read);
 
   return (
     <div className="space-y-4 px-4 py-6">
@@ -123,8 +126,11 @@ function DriverConsole() {
       {/* An URGENT depot broadcast is the one thing on this screen a courier must not miss,
           and the banner simply does not render when the read fails. */}
       {broadcasts.error && <LoadError onRetry={broadcasts.reload} />}
-      {!urgent &&
-        ((broadcasts.data?.length ?? 0) > 0 || (hrNews.data ?? []).some((a) => !a.read)) && (
+      {/* Unread, it would be the same silence: a courier HR wrote to, with no sign of it. */}
+      {hrNews.error && <LoadError onRetry={hrNews.reload} />}
+      {/* Any announcement from either, read or not, opens the door: the inbox is also where an
+          old one is read again. */}
+      {!urgent && ((broadcasts.data?.length ?? 0) > 0 || (hrNews.data?.length ?? 0) > 0) && (
         <Link
           href="/driver/announcements"
           className="flex items-center gap-2 rounded-2xl border border-[color:var(--border)] p-3.5 text-sm font-bold"
