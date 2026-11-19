@@ -11,7 +11,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { canViewTeamPerformance } from '@/lib/roles';
-import type { Customer, DepotTeamReport, Page } from '@/lib/types';
+import type { Customer, DepotTeamReport } from '@/lib/types';
 import { EntityLink } from '@/components/entity-link';
 import { entityHref } from '@/lib/entity-href';
 import { useAsync } from '@/lib/use-async';
@@ -53,16 +53,19 @@ function TeamPerformanceBody() {
   const result = useAsync<{ report: DepotTeamReport; names: Map<string, string> } | null>(
     async () => {
       if (!depot) return null;
-      const report = await api.get<DepotTeamReport>(
-        endpoints.deliveries.depotTeam(depot.id, { from: MONTH_FROM, to: MONTH_TO }),
-        true,
-      );
-      const staff = await api
-        .get<Page<Customer>>(endpoints.auth.staff({ depotId: depot.id, limit: 100 }), true)
-        .catch(() => null);
+      // Flow PR-8b: names from the depot's COURIER roster, whole and in one request (the
+      // tracking board reads the same one). It came from the first 100 staff of every kind, so
+      // a courier past them showed a raw id. Fail-soft: a roster miss still shows the id.
+      const [report, couriers] = await Promise.all([
+        api.get<DepotTeamReport>(
+          endpoints.deliveries.depotTeam(depot.id, { from: MONTH_FROM, to: MONTH_TO }),
+          true,
+        ),
+        api.get<Customer[]>(endpoints.auth.driversAt(depot.id), true).catch(() => null),
+      ]);
       return {
         report,
-        names: new Map(staff?.items.map((member) => [member.id, member.fullName || member.phone]) ?? []),
+        names: new Map(couriers?.map((member) => [member.id, member.fullName || member.phone]) ?? []),
       };
     },
     [depot?.id],

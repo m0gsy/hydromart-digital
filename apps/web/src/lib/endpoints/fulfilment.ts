@@ -17,10 +17,13 @@ deliveries: {
       page?: number;
       limit?: number;
       depotId?: string;
+      /** Keyset: where the next page starts (the previous answer's `nextCursor`). */
+      cursor?: string;
     } = {},
   ) => {
     const p = new URLSearchParams();
     if (q.status) p.set('status', q.status);
+    if (q.cursor) p.set('cursor', q.cursor);
     // The route already forces a depot-locked operator/manager to their own depot; this is
     // for the accounts that are NOT locked (HQ, a manager over several depots) so a screen
     // printed under one depot's name can ask for that depot rather than the network.

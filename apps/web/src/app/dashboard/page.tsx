@@ -139,10 +139,13 @@ function LowStockWidget() {
 function ActiveCouriersWidget() {
   const { t } = useT();
   const { data, loading, error, reload } = useAsync<Page<Delivery>>(
-    () => api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 50 }), true),
+    // Five rows are drawn; the count is the server's total (flow PR-8b: it was the page
+    // length, so it stopped at 50).
+    () => api.get(endpoints.deliveries.list({ status: 'ON_DELIVERY', limit: 5 }), true),
     [],
   );
   const items = data?.items ?? [];
+  const onDelivery = data?.total ?? items.length;
   return (
     <Card className="flex flex-col p-5">
       <div className="mb-3 flex items-center justify-between">
@@ -151,7 +154,7 @@ function ActiveCouriersWidget() {
           {t('dashboard.landing.couriers.title')}
         </h2>
         {items.length > 0 && (
-          <span className="text-xs text-muted">{t('dashboard.landing.couriers.subtitle', { n: items.length })}</span>
+          <span className="text-xs text-muted">{t('dashboard.landing.couriers.subtitle', { n: onDelivery })}</span>
         )}
       </div>
       {loading ? (
@@ -164,7 +167,7 @@ function ActiveCouriersWidget() {
       ) : (
         <>
           <ul className="divide-y divide-[color:var(--border)]">
-            {items.slice(0, 5).map((d) => (
+            {items.map((d) => (
               <li key={d.id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
                 <span className="font-mono text-xs">{d.orderNumber}</span>
                 <span className="truncate text-right text-xs text-muted">{d.destinationAddress}</span>

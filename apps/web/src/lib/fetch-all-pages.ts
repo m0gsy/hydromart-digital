@@ -84,3 +84,29 @@ export async function fetchAllPages<T>(
   }
   return out;
 }
+
+/**
+ * The whole of a LIVE list, walked by the server's keyset cursor rather than by page number.
+ *
+ * An offset walk over a list that changes while it is read shifts every row: a delivery
+ * assigned between page 1 and page 2 pushes the last row of page 1 onto page 2 (drawn twice),
+ * and one closed in between pulls the first row of page 2 onto page 1 (never read). A cursor
+ * names where the next page starts, so neither happens. Rows are also kept once per id, so an
+ * endpoint that re-sends an edge row cannot draw it twice. Refuses past `max`, like the walk above.
+ */
+export async function fetchAllByCursor<T extends { id: string }>(
+  fetchPage: (args: { cursor: string | null; limit: number }) => Promise<{ items: T[]; nextCursor?: string | null }>,
+  options: { pageSize?: number; max?: number } = {},
+): Promise<T[]> {
+  const limit = options.pageSize ?? PAGE_SIZE;
+  const max = options.max ?? MAX_ITEMS;
+  const seen = new Map<string, T>();
+  let cursor: string | null = null;
+  do {
+    const page: { items: T[]; nextCursor?: string | null } = await fetchPage({ cursor, limit });
+    for (const row of page.items) if (!seen.has(row.id)) seen.set(row.id, row);
+    if (seen.size > max) throw new TooManyPagesError(seen.size);
+    cursor = page.nextCursor ?? null;
+  } while (cursor);
+  return [...seen.values()];
+}
