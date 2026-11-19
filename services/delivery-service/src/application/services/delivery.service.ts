@@ -262,8 +262,8 @@ export class DeliveryService {
 
   /**
    * Assigns a driver to an order (staff). Enforces one delivery per order, that the
-   * driver is checked in and ONLINE, and the per-driver active-delivery cap (BR: one
-   * driver = one active order). The order is advanced to DRIVER_ASSIGNED on
+   * driver is checked in and ONLINE, and the active-delivery cap of the depot the driver is
+   * on shift at. The order is advanced to DRIVER_ASSIGNED on
    * order-service first (which validates BR-012); the delivery is then recorded.
    */
   async assign(
@@ -290,7 +290,7 @@ export class DeliveryService {
      * the same one the dispatch view's `canTakeDelivery` reads. It used to be the order's
      * depot: a courier lent across depots was shown as free and then refused, or the reverse.
      */
-    const cap = this.config.maxActiveDeliveriesPerDriver(shift.depotId);
+    const cap = this.shifts.capFor(shift);
     const active = await this.deliveries.countActiveByDriver(input.driverId);
     if (active >= cap) {
       throw new DriverBusyError();

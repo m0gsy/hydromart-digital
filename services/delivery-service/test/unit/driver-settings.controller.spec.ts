@@ -31,12 +31,19 @@ describe('DriverSettingsController (CA-4-29, CA-4-37)', () => {
     courierSelfClaimEnabled: jest.fn().mockReturnValue(1),
     courierSelfClaimWaitMinutes: jest.fn().mockReturnValue(10),
   };
-  const controller = new DriverSettingsController(config as unknown as DeliveryConfigService);
+  const shifts = {
+    current: jest.fn().mockResolvedValue(null),
+    capFor: jest.fn((s: { depotId: string | null }) => (s.depotId === 'depot-9' ? 5 : 2)),
+  };
+  const controller = new DriverSettingsController(
+    config as unknown as DeliveryConfigService,
+    shifts as never,
+  );
   afterEach(() => jest.clearAllMocks());
 
-  it("answers the courier's own depot values, read from the token", () => {
+  it("answers the courier's own depot values, read from the token", async () => {
     const user = { sub: 'c1', depotId: 'depot-7' } as AuthenticatedUser;
-    expect(controller.read(user)).toEqual({
+    expect(await controller.read(user)).toEqual({
       urbanSpeedKmph: 18,
       routeStopMinutes: 4,
       noShowMinContactAttempts: 3,
@@ -50,18 +57,18 @@ describe('DriverSettingsController (CA-4-29, CA-4-37)', () => {
     }
   });
 
-  it('falls back to the GLOBAL value when the token carries no depot', () => {
-    controller.read({ sub: 'c1' } as AuthenticatedUser);
+  it('falls back to the GLOBAL value when the token carries no depot', async () => {
+    await controller.read({ sub: 'c1' } as AuthenticatedUser);
     for (const fn of Object.values(config)) {
       expect(fn).toHaveBeenCalledWith(null);
     }
   });
 
-  it('returns nothing beyond the values the courier app renders', () => {
+  it('returns nothing beyond the values the courier app renders', async () => {
     // The reason this route exists rather than widening `settingsRead`: that schema carries
     // every tunable this service has, money among them. This list may grow; it may not grow
     // into anything the courier does not render.
-    expect(Object.keys(controller.read({ sub: 'c1' } as AuthenticatedUser)).sort()).toEqual([
+    expect(Object.keys(await controller.read({ sub: 'c1' } as AuthenticatedUser)).sort()).toEqual([
       'courierSelfClaimEnabled',
       'courierSelfClaimWaitMinutes',
       'maxActiveDeliveriesPerDriver',
@@ -70,5 +77,13 @@ describe('DriverSettingsController (CA-4-29, CA-4-37)', () => {
       'routeStopMinutes',
       'urbanSpeedKmph',
     ]);
+  });
+
+  it('on shift at another depot, the cap is that depot\u2019s (2026-11-19)', async () => {
+    shifts.current.mockResolvedValueOnce({ depotId: 'depot-9' });
+    const out = await controller.read({ sub: 'c1', depotId: 'depot-7' } as AuthenticatedUser);
+    expect(out.maxActiveDeliveriesPerDriver).toBe(5);
+    // Everything else is still the home depot's.
+    expect(config.urbanSpeedKmph).toHaveBeenCalledWith('depot-7');
   });
 });

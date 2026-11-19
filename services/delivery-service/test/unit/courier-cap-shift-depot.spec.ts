@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 
 import { DeliveryService } from '../../src/application/services/delivery.service';
 import { ShiftService } from '../../src/application/services/shift.service';
+import type { ShiftQuery } from '../../src/application/ports/shift.repository';
 import { DriverBusyError } from '../../src/domain/errors';
 import {
   FakeCourierPayout,
@@ -60,17 +61,21 @@ async function build(caps: Record<string, number>) {
       },
       AUTH,
     );
-  return { shifts, assign };
+  return { shifts, assign, repo };
 }
 
 describe('the active-order cap follows the shift depot', () => {
   it('a shift depot that allows two lets a second order in, whatever the order depot allows', async () => {
-    const { assign, shifts } = await build({ [SHIFT_DEPOT]: 2, [ORDER_DEPOT]: 1 });
+    const { assign, shifts, repo } = await build({ [SHIFT_DEPOT]: 2, [ORDER_DEPOT]: 1 });
+    const write = jest.spyOn(repo, 'createIfUnderCap');
     await assign();
+    // The locked write is held to the same cap the pre-check used: the race path matters most.
+    expect(write.mock.calls[0]![1]).toBe(2);
     await expect(assign()).resolves.toBeDefined();
     await expect(assign()).rejects.toBeInstanceOf(DriverBusyError);
     // The dispatch view says the same thing the server just did.
-    const [row] = await shifts.search({ depotId: SHIFT_DEPOT, from: new Date(0) } as never);
+    const query: ShiftQuery = { depotId: SHIFT_DEPOT, from: new Date(0) };
+    const [row] = await shifts.search(query);
     expect(row).toMatchObject({ maxActiveDeliveries: 2, canTakeDelivery: false });
   });
 
