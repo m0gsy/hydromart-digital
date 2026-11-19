@@ -115,7 +115,7 @@ export const mgrFix = {
     status: {
       ok: 'Lengkap',
       partial: 'Sebagian',
-      pending: 'Gaji bulan ini belum dihitung',
+      pending: 'Gaji bulan itu belum dihitung',
       unavailable: 'Tidak tersedia',
     },
     reason: {
