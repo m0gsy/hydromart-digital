@@ -2,15 +2,14 @@
 
 import { useState } from 'react';
 
+import { useConfirm } from '@/components/confirm';
 import { Button, Field, Input, LoadError } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
-import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
-import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, Page, SavedSegment, SegmentConditions } from '@/lib/types';
+import type { Depot, Page, SavedSegment, SegmentConditions } from '@/lib/types';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm focus:outline focus:outline-2 focus:outline-brand-600';
@@ -48,10 +47,19 @@ const positive = (v: string): number | undefined => {
   return Number.isInteger(n) && n > 0 ? n : undefined;
 };
 
+/** What the estimate sizes. A saved row may carry more (the API takes a whole campaign segment). */
+const SIZED = ['recencyDays', 'lapsedDays', 'newWithinDays', 'minOrders', 'depotId'] as const;
+
 /** The segment the estimate is sized from AND the campaign is created with: one value, never two. */
 export function audienceConditions(a: Audience): SegmentConditions {
   if (a.kind === 'preset') return PRESET_CONDITIONS[a.preset];
-  if (a.kind === 'saved') return a.segment.conditions;
+  if (a.kind === 'saved') {
+    // Only what was counted: a condition the estimate ignores would message an audience other
+    // than the one whose size is on screen.
+    const q: Record<string, unknown> = {};
+    for (const k of SIZED) if (a.segment.conditions[k] != null) q[k] = a.segment.conditions[k];
+    return q as SegmentConditions;
+  }
   const q: SegmentConditions = {};
   const recencyDays = positive(a.custom.recencyDays);
   const minOrders = positive(a.custom.minOrders);
@@ -80,15 +88,12 @@ export function AudiencePicker({
 }) {
   const { t } = useT();
   const { toast } = useToast();
-  const { customer } = useAuth();
-  // The depot LIST is `depotDirectoryFinance`; MARKETING does not hold it, and asking anyway
-  // 403'd on every open (found by the full-stack pass on the old broadcast screen). Without
-  // the list a depot cannot be picked, so the condition is not offered.
-  const mayListDepots = can('depotDirectoryFinance', customer?.role);
-  const depots = useAsync<Page<DepotAdmin> | null>(() =>
-    mayListDepots
-      ? api.getCached(endpoints.depots.manage({ limit: 100 }), true)
-      : Promise.resolve(null),
+  const { confirm } = useConfirm();
+  // The public directory (active depots): every sender may read it. The admin list is
+  // `depotDirectoryFinance`, which MARKETING does not hold — asking for it 403'd on every open
+  // of the old broadcast screen, and the old segment form made MARKETING type a depot id.
+  const depots = useAsync<Page<Depot>>(() =>
+    api.getCached(endpoints.depots.browse({ limit: 100 })),
   );
   const saved = useAsync<SavedSegment[]>(() => api.get(endpoints.crm.savedSegments, true));
   const [name, setName] = useState('');
@@ -123,14 +128,38 @@ export function AudiencePicker({
     }
   }
 
+  /** Reopen a saved segment as conditions to refine; saving under the same name updates it. */
+  function edit(segment: SavedSegment) {
+    const c = segment.conditions;
+    setName(segment.name);
+    onChange({
+      kind: 'custom',
+      custom: {
+        recencyDays: c.recencyDays ? String(c.recencyDays) : '',
+        minOrders: c.minOrders ? String(c.minOrders) : '',
+        depotId: c.depotId ?? '',
+      },
+    });
+  }
+
   async function remove(segment: SavedSegment) {
+    // Saved segments are shared by everyone at head office; one click took one away for all.
+    const ok = await confirm({
+      title: t('hq.campaigns.audience.removeTitle', { name: segment.name }),
+      message: t('hq.campaigns.audience.removeMessage'),
+      confirmLabel: t('hq.campaigns.audience.remove'),
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await api.del(endpoints.crm.savedSegment(segment.id), true);
       saved.reload();
       onChange({ kind: 'preset', preset: 'all' });
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : t('hq.campaigns.audience.saveError'), 'error');
+      toast(
+        err instanceof ApiError ? err.message : t('hq.campaigns.audience.removeError'),
+        'error',
+      );
     } finally {
       setBusy(false);
     }
@@ -140,7 +169,7 @@ export function AudiencePicker({
     <button
       key={key}
       type="button"
-      disabled={locked}
+      disabled={locked || busy}
       onClick={pick}
       aria-pressed={!locked && pressed}
       className={`min-h-11 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
@@ -184,7 +213,10 @@ export function AudiencePicker({
         </div>
       )}
       {value.kind === 'saved' && !locked && (
-        <div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={() => edit(value.segment)} disabled={busy}>
+            {t('hq.campaigns.audience.edit')}
+          </Button>
           <Button variant="ghost" onClick={() => remove(value.segment)} disabled={busy}>
             {t('hq.campaigns.audience.remove')}
           </Button>
@@ -213,23 +245,21 @@ export function AudiencePicker({
               />
             </Field>
           </div>
-          {mayListDepots && (
-            <Field label={t('hq.campaigns.audience.depot')} htmlFor="a-depot">
-              <select
-                id="a-depot"
-                value={custom.depotId}
-                onChange={(e) => setCustom({ depotId: e.target.value })}
-                className={inputClass}
-              >
-                <option value="">{t('hq.campaigns.audience.anyDepot')}</option>
-                {(depots.data?.items ?? []).map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          )}
+          <Field label={t('hq.campaigns.audience.depot')} htmlFor="a-depot">
+            <select
+              id="a-depot"
+              value={custom.depotId}
+              onChange={(e) => setCustom({ depotId: e.target.value })}
+              className={inputClass}
+            >
+              <option value="">{t('hq.campaigns.audience.anyDepot')}</option>
+              {(depots.data?.items ?? []).map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </Field>
           {depots.error && <LoadError onRetry={depots.reload} />}
           <div className="flex flex-wrap items-center gap-2 border-t border-app pt-3">
             <Input

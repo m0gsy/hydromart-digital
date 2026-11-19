@@ -14,6 +14,7 @@ import { CampaignList } from '@/components/campaigns/campaign-list';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { useAuth } from '@/lib/auth-context';
 import { Button, Card, Field, Input } from '@/components/ui';
+import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -37,6 +38,7 @@ export default function HqCampaignBuilderPage() {
   // Bumped after every send attempt; the list below reads itself again.
   const [listVersion, setListVersion] = useState(0);
   const { toast } = useToast();
+  const { confirm } = useConfirm();
   const params = useSearchParams();
   const [step, setStep] = useState(0);
   const [audience, setAudience] = useState<Audience>({ kind: 'preset', preset: 'all' });
@@ -84,10 +86,34 @@ export default function HqCampaignBuilderPage() {
    * not send; the claim is a separate call because dispatch runs on the sweep (B-17), not
    * inside this request. A scheduled campaign is claimed now and becomes due later.
    */
+  function next() {
+    // "Atur sendiri" with nothing usable typed is {}, which is everyone — under a name that
+    // says the audience was built by hand.
+    if (
+      step === 0 &&
+      !handoff &&
+      audience.kind === 'custom' &&
+      Object.keys(conditions).length === 0
+    )
+      return toast(t('hq.campaigns.audience.needCondition'), 'error');
+    setStep((s) => s + 1);
+  }
+
   async function create(schedule: boolean) {
     if (!name.trim()) return toast(t('hq.campaigns.needName'), 'error');
     if (!message.trim()) return toast(t('hq.campaigns.needMessage'), 'error');
     if (schedule && !scheduledFor) return toast(t('hq.campaigns.needSchedule'), 'error');
+    // A send now cannot be taken back; the broadcast screen this builder replaced asked first.
+    // A scheduled one can still be cancelled from the list below until it is due.
+    if (
+      !schedule &&
+      !(await confirm({
+        title: t('hrFix.confirmGap.broadcastTitle'),
+        message: t('hrFix.confirmGap.broadcastMessage'),
+        confirmLabel: t('hrFix.confirmGap.broadcastConfirm'),
+      }))
+    )
+      return;
     setBusy(true);
     try {
       const created = await api.post<{ id: string }>(
@@ -236,7 +262,7 @@ export default function HqCampaignBuilderPage() {
                 {t('hq.campaigns.back')}
               </Button>
               {step < 2 ? (
-                <Button onClick={() => setStep((s) => s + 1)}>{t('hq.campaigns.next')}</Button>
+                <Button onClick={next}>{t('hq.campaigns.next')}</Button>
               ) : (
                 <div className="flex gap-2">
                   <Button variant="secondary" onClick={() => create(true)} loading={busy}>

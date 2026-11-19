@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -36,7 +36,8 @@ import { LocaleProvider } from '@/lib/locale-context';
 const H = idDict.hq.campaigns;
 const A = idDict.hq.campaigns.audience;
 const LIST = endpoints.crm.campaigns({ limit: 50 });
-const DEPOTS = endpoints.depots.manage({ limit: 100 });
+const DEPOTS = endpoints.depots.browse({ limit: 100 });
+const ADMIN_DEPOTS = endpoints.depots.manage({ limit: 100 });
 const GALAXY = '0b7c2f0e-1111-4c1a-9a51-5f0c3c0d0001';
 const LAPSED = {
   id: 'sg-1',
@@ -66,25 +67,23 @@ beforeEach(() => {
   stored = [LAPSED];
   replace.mockReset();
   del.mockReset().mockResolvedValue(undefined);
-  post
-    .mockReset()
-    .mockImplementation((url: string, body: { name: string; conditions: unknown }) =>
-      Promise.resolve(
-        url === endpoints.crm.createCampaign
-          ? { id: 'c-new' }
-          : url === endpoints.crm.savedSegments
-            ? (stored = [
-                ...stored,
-                {
-                  ...LAPSED,
-                  id: 'sg-2',
-                  name: body.name,
-                  conditions: body.conditions as typeof LAPSED.conditions,
-                },
-              ]).at(-1)
-            : {},
-      ),
-    );
+  post.mockReset().mockImplementation((url: string, body: { name: string; conditions: unknown }) =>
+    Promise.resolve(
+      url === endpoints.crm.createCampaign
+        ? { id: 'c-new' }
+        : url === endpoints.crm.savedSegments
+          ? (stored = [
+              ...stored,
+              {
+                ...LAPSED,
+                id: 'sg-2',
+                name: body.name,
+                conditions: body.conditions as typeof LAPSED.conditions,
+              },
+            ]).at(-1)
+          : {},
+    ),
+  );
   get
     .mockReset()
     .mockImplementation((url: string) =>
@@ -122,6 +121,11 @@ describe('hq/campaigns · the audience step holds the saved and hand-built segme
     await user.click(screen.getByRole('button', { name: H.next }));
     expect(screen.getByText(LAPSED.name)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: H.sendNow }));
+    // A send now cannot be taken back: it asks first, as the broadcast screen did.
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(
+      within(dialog).getByRole('button', { name: idDict.hrFix.confirmGap.broadcastConfirm }),
+    );
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith(
         endpoints.crm.createCampaign,
@@ -171,19 +175,72 @@ describe('hq/campaigns · the audience step holds the saved and hand-built segme
     draw();
     await user.click(await screen.findByRole('button', { name: LAPSED.name }));
     await user.click(screen.getByRole('button', { name: A.remove }));
+    // Shared by everyone at head office: it asks first.
+    expect(del).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: A.remove }));
     await waitFor(() => expect(del).toHaveBeenCalledWith(endpoints.crm.savedSegment('sg-1'), true));
     expect(screen.getByRole('button', { name: H.chips.all }).getAttribute('aria-pressed')).toBe(
       'true',
     );
   });
 
-  it('MARKETING, who cannot read the depot list, is not asked for it and gets no depot condition', async () => {
+  it('MARKETING picks a depot from the public directory, never asking for the admin list it cannot read', async () => {
     who.role = 'MARKETING';
     const user = userEvent.setup();
     draw();
     await user.click(await screen.findByRole('button', { name: A.custom }));
-    expect(screen.queryByLabelText(A.depot)).toBeNull();
-    expect(getCached.mock.calls.map(([u]) => String(u))).not.toContain(DEPOTS);
+    await user.selectOptions(await screen.findByLabelText(A.depot), GALAXY);
+    await waitFor(() => expect(estimateCalls().some((u) => u.includes(GALAXY))).toBe(true));
+    const asked = [...get.mock.calls, ...getCached.mock.calls].map(([u]) => String(u));
+    expect(asked).not.toContain(ADMIN_DEPOTS);
+  });
+
+  it('reopens a saved segment as conditions to refine, under its own name', async () => {
+    const user = userEvent.setup();
+    draw();
+    await user.click(await screen.findByRole('button', { name: LAPSED.name }));
+    await user.click(screen.getByRole('button', { name: A.edit }));
+    expect((screen.getByLabelText(A.recency) as HTMLInputElement).value).toBe('45');
+    expect((screen.getByLabelText(A.minOrders) as HTMLInputElement).value).toBe('2');
+    expect((screen.getByLabelText(A.saveTitle) as HTMLInputElement).value).toBe(LAPSED.name);
+  });
+
+  it('will not go on with "Atur sendiri" and nothing usable typed: that would be everyone', async () => {
+    const user = userEvent.setup();
+    draw();
+    await user.click(await screen.findByRole('button', { name: A.custom }));
+    await user.type(screen.getByLabelText(A.recency), '0');
+    await user.click(screen.getByRole('button', { name: H.next }));
+    expect(screen.queryByLabelText(H.nameLabel)).toBeNull();
+  });
+
+  it('sizes a saved segment from what the estimate counts, and creates it with exactly that', async () => {
+    stored = [
+      {
+        ...LAPSED,
+        conditions: { recencyDays: 45, minOrders: 2, tier: 'GOLD' } as typeof LAPSED.conditions,
+      },
+    ];
+    const user = userEvent.setup();
+    draw();
+    await user.click(await screen.findByRole('button', { name: LAPSED.name }));
+    await user.click(screen.getByRole('button', { name: H.next }));
+    await user.type(screen.getByLabelText(H.nameLabel), 'Ajak balik');
+    await user.type(screen.getByLabelText(H.messageLabel), 'Kami rindu');
+    await user.click(screen.getByRole('button', { name: H.next }));
+    // Scheduled, so no confirm: it can still be cancelled from the list until it is due.
+    fireEvent.change(screen.getByLabelText(H.scheduleLabel), {
+      target: { value: '2026-12-01T09:00' },
+    });
+    await user.click(screen.getByRole('button', { name: H.schedule }));
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        endpoints.crm.createCampaign,
+        expect.objectContaining({ segment: { recencyDays: 45, minOrders: 2 } }),
+        true,
+      ),
+    );
   });
 
   it('a role that may only read campaigns gets the list, not a builder whose send would 403', async () => {

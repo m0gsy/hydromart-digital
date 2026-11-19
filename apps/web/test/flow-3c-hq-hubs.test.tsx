@@ -24,7 +24,13 @@ vi.mock('@/lib/locale-context', () => ({
 }));
 
 import { HqHubTabs } from '@/components/hq/hq-hub-tabs';
-import { HQ_GROUPS, currentHqHub, hqHubsFor, hqHubsInLandingOrder } from '@/lib/hq-nav';
+import {
+  HQ_GROUPS,
+  MOVED_HQ_ROUTES,
+  currentHqHub,
+  hqHubsFor,
+  hqHubsInLandingOrder,
+} from '@/lib/hq-nav';
 import { consoleHome } from '@/lib/roles';
 import { canOpenRoute } from '@/lib/route-access';
 
@@ -44,12 +50,6 @@ function hqRoutes(): string[] {
   return out;
 }
 
-/** Folded into another screen; the old route only redirects there (flow 5c). */
-const REDIRECTS: Record<string, string> = {
-  '/hq/broadcast': 'redirects to /hq/campaigns',
-  '/hq/forms/segment': 'redirects to /hq/campaigns',
-};
-
 describe('the HQ hub table', () => {
   it('holds each screen once, in 14 hubs and the page-only forms', () => {
     const hrefs = HQ_GROUPS.flatMap((g) => g.items.map((i) => i.href));
@@ -63,7 +63,8 @@ describe('the HQ hub table', () => {
       (r) =>
         r !== '/hq' &&
         r !== '/hq/login' &&
-        !(r in REDIRECTS) &&
+        // Folded into another screen; the old route only redirects there (flow 5c).
+        !(r in MOVED_HQ_ROUTES) &&
         !hrefs.some((h) => r === h || r.startsWith(`${h}/`)),
     );
     expect(orphans).toEqual([]);

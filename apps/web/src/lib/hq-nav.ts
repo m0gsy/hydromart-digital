@@ -229,6 +229,20 @@ export function hqGroupsForRole(role: Role): HqRailGroup[] {
 }
 
 /**
+ * Flow 5c: screens folded into another. Their routes only redirect, and both gates treat them
+ * as the screen they lead to: without a row of their own they fell to the overview's gate,
+ * and the role the old screen was for met a refusal instead of the redirect.
+ */
+export const MOVED_HQ_ROUTES: Record<string, string> = {
+  '/hq/broadcast': '/hq/campaigns',
+  '/hq/forms/segment': '/hq/campaigns',
+};
+
+/** Where a path is served now: a moved route answers as the screen it redirects to. */
+const servedAt = (pathname: string): string =>
+  MOVED_HQ_ROUTES[normalisePath(pathname)] ?? pathname;
+
+/**
  * Roles that are NOT head office but own a handful of /hq screens with no depot-console
  * twin. Owner decision 2026-10-15 (MARKETING): the console stays closed — `isHq` is what
  * lands a user on /hq at sign-in, and MARKETING keeps its own console as home — and only
@@ -240,9 +254,6 @@ export const PARTIAL_HQ_DOOR: Record<string, readonly string[] | undefined> = {
     '/hq/loyalty', // rewardCatalog
     '/hq/customers', // customerPhoneLookup + loyaltyAdjust/loyaltyRead
     '/hq/campaigns', // campaignRead: schedule
-    // Flow 5c: both now only redirect to the campaign builder; kept so an old link lands there.
-    '/hq/forms/segment',
-    '/hq/broadcast',
   ],
 };
 
@@ -255,7 +266,8 @@ export function mayOpenHqPath(role: Role, pathname: string | null | undefined): 
   if (isHq(role)) return true;
   const allowed = PARTIAL_HQ_DOOR[role as string];
   if (!allowed || !pathname) return false;
-  return allowed.some((h) => pathname === h || pathname.startsWith(h + '/'));
+  const at = servedAt(pathname);
+  return allowed.some((h) => at === h || at.startsWith(h + '/'));
 }
 
 export function hqItemsForRole(role: Role): HqRailItem[] {
@@ -279,7 +291,7 @@ export function hqItemsForRole(role: Role): HqRailItem[] {
  */
 export function capForHqPath(pathname: string | null | undefined): Capability | null {
   if (!pathname) return null;
-  const at = MOVED[normalisePath(pathname)] ?? pathname;
+  const at = servedAt(pathname);
   let best: { href: string; cap?: Capability } | null = null;
   for (const group of HQ_GROUPS) {
     for (const item of group.items) {
@@ -290,15 +302,6 @@ export function capForHqPath(pathname: string | null | undefined): Capability | 
   return best?.cap ?? null;
 }
 
-/**
- * Flow 5c: screens folded into another. Their routes only redirect, gated as the screen they
- * lead to: without a row of their own they fell to the overview's gate, and the role the old
- * screen was for met a refusal instead of the redirect.
- */
-const MOVED: Record<string, string> = {
-  '/hq/broadcast': '/hq/campaigns',
-  '/hq/forms/segment': '/hq/campaigns',
-};
 
 /**
  * Flow PR-3c: the HQ hubs a role sees. The rail and the phone bar show one row per hub; the
