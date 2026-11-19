@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuthenticatedUser, CurrentUser, Role, Roles } from '@hydromart/platform';
 
 import { DeliveryConfigService } from '../config/delivery-config.service';
+import { ShiftService } from '../application/services/shift.service';
 import { DriverSettingsResponseDto } from './dto/responses.generated.dto';
 
 /**
@@ -29,21 +30,29 @@ import { DriverSettingsResponseDto } from './dto/responses.generated.dto';
 @Roles(Role.STAFF_DEPOT)
 @Controller({ path: 'driver/settings', version: '1' })
 export class DriverSettingsController {
-  constructor(private readonly config: DeliveryConfigService) {}
+  constructor(
+    private readonly config: DeliveryConfigService,
+    private readonly shifts: ShiftService,
+  ) {}
 
   @ApiOkResponse({ type: DriverSettingsResponseDto })
   @Get()
   @ApiOperation({ summary: "Tunables the courier app renders, for the courier's own depot" })
-  read(@CurrentUser() user: AuthenticatedUser): DriverSettingsResponseDto {
+  async read(@CurrentUser() user: AuthenticatedUser): Promise<DriverSettingsResponseDto> {
     // Null depot falls back to the GLOBAL value, which is what every other reader of these
     // settings does for an unscoped caller — not a second, different default.
     const depotId = user.depotId ?? null;
+    // The cap is the one of the depot the courier is on SHIFT at (owner decision 2026-11-19),
+    // as dispatch and `assign` read it. Off shift, the home depot's, as before.
+    const shift = await this.shifts.current(user.sub);
     return {
       urbanSpeedKmph: this.config.urbanSpeedKmph(depotId),
       routeStopMinutes: this.config.routeStopMinutes(depotId),
       noShowMinContactAttempts: this.config.noShowMinContactAttempts(depotId),
       noShowMinWaitSeconds: this.config.noShowMinWaitSeconds(depotId),
-      maxActiveDeliveriesPerDriver: this.config.maxActiveDeliveriesPerDriver(depotId),
+      maxActiveDeliveriesPerDriver: shift
+        ? this.shifts.capFor(shift)
+        : this.config.maxActiveDeliveriesPerDriver(depotId),
       courierSelfClaimEnabled: this.config.courierSelfClaimEnabled(depotId),
       courierSelfClaimWaitMinutes: this.config.courierSelfClaimWaitMinutes(depotId),
     };

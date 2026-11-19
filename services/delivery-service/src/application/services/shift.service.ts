@@ -198,7 +198,7 @@ export class ShiftService {
     return shifts.map((s) => {
       const view = this.view(s);
       const activeDeliveries = active.get(s.driverId) ?? 0;
-      const maxActiveDeliveries = this.config.maxActiveDeliveriesPerDriver(s.depotId);
+      const maxActiveDeliveries = this.capFor(s);
       return {
         ...view,
         activeDeliveries,
@@ -209,8 +209,17 @@ export class ShiftService {
   }
 
   /**
-   * Whether this courier may be handed a new delivery: checked in and ONLINE.
-   * Called by DeliveryService.assign — it is what makes the settlement window
+   * A courier's active-order cap: the cap of the depot they are on SHIFT at (owner decision
+   * 2026-11-19). The dispatch view, `assign` and the courier app's settings all read it here,
+   * so the three cannot disagree again.
+   */
+  capFor(shift: Pick<ShiftRecord, 'depotId'>): number {
+    return this.config.maxActiveDeliveriesPerDriver(shift.depotId);
+  }
+
+  /**
+   * The courier's open shift if they may be handed a new delivery (checked in and ONLINE),
+   * else null. Called by DeliveryService.assign — it is what makes the settlement window
    * airtight (every delivered order falls inside exactly one shift).
    */
   /*
@@ -222,10 +231,14 @@ export class ShiftService {
    * is one somebody assumes has already been asked. `assignableShift` says what it decides,
    * so a place that forgot to ask fails to compile rather than shipping a delivery outside
    * every shift.
+   *
+   * It answers with the shift itself (or null): the active-order cap is the cap of the depot
+   * the courier is on shift at (owner decision 2026-11-19), the same one `canTakeDelivery`
+   * shows dispatch.
    */
-  async assignableShift(driverId: string): Promise<boolean> {
+  async assignableShift(driverId: string): Promise<ShiftRecord | null> {
     const shift = await this.shifts.findOpenByDriver(driverId);
-    return shift != null && acceptsAssignments(shift.status);
+    return shift != null && acceptsAssignments(shift.status) ? shift : null;
   }
 
   private async loadDepot(depotId: string) {

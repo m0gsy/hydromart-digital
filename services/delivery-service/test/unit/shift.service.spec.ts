@@ -132,11 +132,11 @@ describe('ShiftService', () => {
       const shift = await checkIn();
       const paused = await service.setStatus(driver, shift.id, ShiftStatus.BREAK);
       expect(paused.acceptsAssignments).toBe(false);
-      expect(await service.assignableShift(driver)).toBe(false);
+      expect(await service.assignableShift(driver)).toBeNull();
 
       const resumed = await service.setStatus(driver, shift.id, ShiftStatus.ONLINE);
       expect(resumed.acceptsAssignments).toBe(true);
-      expect(await service.assignableShift(driver)).toBe(true);
+      expect(await service.assignableShift(driver)).toMatchObject({ driverId: driver });
     });
 
     it('stops handing out work on OFFLINE without ending the shift', async () => {
@@ -335,7 +335,7 @@ describe('ShiftService', () => {
   describe('reads', () => {
     it('returns null when the courier has never checked in', async () => {
       await expect(service.current(driver)).resolves.toBeNull();
-      expect(await service.assignableShift(driver)).toBe(false);
+      expect(await service.assignableShift(driver)).toBeNull();
     });
 
     it('lists the courier history newest first', async () => {
