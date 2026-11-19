@@ -112,9 +112,19 @@ function MonthlyPnlBody() {
   );
 }
 
+/** HPP is the one depot-service term in laba bersih; cash-out coverage no longer is. */
+const cogsStatus = (data: OperationalMonthlyPnl): 'ok' | 'partial' | 'unavailable' =>
+  data.costCoverage === null ? 'unavailable' : data.costCoverage.status === 'partial' ? 'partial' : 'ok';
+
 function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
   const { t } = useT();
-  const partial = data.sources.order === 'unavailable' || data.sources.depot !== 'ok';
+  const s = data.sources;
+  const partial =
+    s.order === 'unavailable' ||
+    cogsStatus(data) !== 'ok' ||
+    s.payroll === 'unavailable' ||
+    s.payout === 'unavailable' ||
+    s.refunds === 'unavailable';
 
   return (
     <>
@@ -131,16 +141,16 @@ function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
       <div className="grid grid-cols-2 gap-3">
         <Card elevated className="flex flex-col gap-1 bg-brand-700 p-4 text-on-brand">
           <p className="text-xs font-medium uppercase tracking-wide text-on-brand/70">
-            {t('mgrFix.pnl.netOperatingProfit')}
+            {t('mgrFix.pnl.netProfit')}
           </p>
-          <p className="text-2xl font-bold tabular-nums">{money(data.netOperatingProfitIdr)}</p>
+          <p className="text-2xl font-bold tabular-nums">{money(data.netProfitIdr)}</p>
         </Card>
         <Card className="flex flex-col gap-1 p-4">
           <p className="text-xs font-medium uppercase tracking-wide text-muted">
-            {t('mgrFix.pnl.operatingMargin')}
+            {t('mgrFix.pnl.netMargin')}
           </p>
           <p className="text-2xl font-bold tabular-nums">
-            {data.marginPct === null ? '—' : `${data.marginPct.toLocaleString('id-ID')}%`}
+            {data.netMarginPct === null ? '—' : `${data.netMarginPct.toLocaleString('id-ID')}%`}
           </p>
         </Card>
       </div>
@@ -149,20 +159,30 @@ function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
         <PnlLine label={t('mgrFix.pnl.revenue')} value={data.revenueIdr} bold border />
         <PnlLine label={t('mgrFix.pnl.cogs')} value={data.cogsIdr} negative indent border />
         <PnlLine label={t('mgrFix.pnl.grossProfit')} value={data.grossProfitIdr} bold border />
-        <PnlLine label={t('mgrFix.pnl.opex')} value={data.opexIdr} negative indent border />
+        <PnlLine label={t('mgrFix.pnl.payroll')} value={data.payrollIdr} negative indent border />
         <PnlLine
-          label={t('mgrFix.pnl.netOperatingProfit')}
-          value={data.netOperatingProfitIdr}
-          bold
-          brand
+          label={t('mgrFix.pnl.courierCommission')}
+          value={data.courierCommissionIdr}
+          negative
+          indent
+          border
         />
+        <PnlLine
+          label={t('mgrFix.pnl.expenseClaims')}
+          value={data.expenseClaimIdr}
+          negative
+          indent
+          border
+        />
+        <PnlLine label={t('mgrFix.pnl.refunds')} value={data.refundIdr} negative indent border />
+        <PnlLine label={t('mgrFix.pnl.netProfit')} value={data.netProfitIdr} bold brand />
       </Card>
 
       <SourceCard data={data} />
       {data.costCoverage?.status === 'partial' && <CoverageCard data={data} />}
 
       <p className="rounded-xl bg-[color:var(--surface-muted)] px-4 py-3 text-xs text-muted">
-        {t('mgrFix.pnl.disclaimer')}
+        {t('mgrFix.pnl.formula')} {t('mgrFix.pnl.disclaimer')}
       </p>
     </>
   );
@@ -174,16 +194,10 @@ function SourceCard({ data }: { data: OperationalMonthlyPnl }) {
     <Card className="space-y-3 p-4">
       <h2 className="text-sm font-bold">{t('mgrFix.pnl.sources')}</h2>
       <SourceRow label={t('mgrFix.pnl.orderSource')} status={data.sources.order} />
-      <SourceRow label={t('mgrFix.pnl.costSource')} status={data.sources.depot} />
-      {data.opexCoverage && (
-        <p className="text-xs text-muted">
-          {t('mgrFix.pnl.opexCoverage', {
-            included: data.opexCoverage.includedEntries,
-            excluded: data.opexCoverage.excludedProcurementEntries,
-            unverified: data.opexCoverage.unverifiedProcurementEntries,
-          })}
-        </p>
-      )}
+      <SourceRow label={t('mgrFix.pnl.costSource')} status={cogsStatus(data)} />
+      <SourceRow label={t('mgrFix.pnl.payrollSource')} status={data.sources.payroll} />
+      <SourceRow label={t('mgrFix.pnl.payoutSource')} status={data.sources.payout} />
+      <SourceRow label={t('mgrFix.pnl.refundSource')} status={data.sources.refunds} />
     </Card>
   );
 }

@@ -19,9 +19,49 @@ const pnlSources = (
     depotDown?: boolean;
     partialCogs?: boolean;
     unverifiedProcurement?: boolean;
+    hrDown?: boolean;
+    payoutDown?: boolean;
+    refundsDown?: boolean;
+    /** payout/refunds answered, but listed nothing for this depot. */
+    nothingListed?: boolean;
   } = {},
 ) =>
   ({
+    allDepots: jest
+      .fn()
+      .mockResolvedValue([{ id: DEPOT_ID, code: 'BKS-01', name: 'Bekasi', active: true }]),
+    hrSummaryMany: jest.fn().mockResolvedValue([
+      options.hrDown
+        ? null
+        : {
+            depotId: DEPOT_ID,
+            lateToday: 0,
+            absentToday: 0,
+            presentToday: 0,
+            // Net is what reached the staff; the P&L must take gross, the employer's cost.
+            payrollMtdNet: 150_000,
+            payrollMtdGross: 200_000,
+            activeHeadcount: 3,
+          },
+    ]),
+    payoutCosts: jest
+      .fn()
+      .mockResolvedValue(
+        options.payoutDown
+          ? null
+          : new Map(
+              options.nothingListed
+                ? []
+                : [[DEPOT_ID, { commissionIdr: 30_000, expenseClaimIdr: 20_000 }]],
+            ),
+      ),
+    depotRefunds: jest
+      .fn()
+      .mockResolvedValue(
+        options.refundsDown
+          ? null
+          : new Map(options.nothingListed ? [] : [[DEPOT_ID, 50_000]]),
+      ),
     depotMonthly: jest
       .fn()
       .mockResolvedValue(
@@ -75,20 +115,78 @@ const pnlSources = (
   }) as unknown as DashboardSourcesPort;
 
 describe('DashboardService', () => {
-  it('combines complete monthly revenue and costs into operational profit', async () => {
+  it('nets the month with the one formula: gross wages, courier commission, claims and refunds; cash out is not a term', async () => {
     const service = new DashboardService(pnlSources(), dashboardTestConfig(), noNames);
     const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
 
     expect(result).toMatchObject({
       revenueIdr: 1_000_000,
       cogsIdr: 400_000,
-      opexIdr: 150_000,
       grossProfitIdr: 600_000,
+      payrollIdr: 200_000,
+      courierCommissionIdr: 30_000,
+      expenseClaimIdr: 20_000,
+      refundIdr: 50_000,
+      // 1.000.000 − 400.000 − 200.000 − 30.000 − 20.000 − 50.000
+      netProfitIdr: 300_000,
+      netMarginPct: 30,
+      // The deprecated pair the installed app's screen reads is still the old arithmetic.
+      opexIdr: 150_000,
       netOperatingProfitIdr: 450_000,
       marginPct: 45,
-      sources: { order: 'ok', depot: 'ok' },
+      sources: { order: 'ok', depot: 'ok', payroll: 'ok', payout: 'ok', refunds: 'ok' },
       reportType: 'OPERATIONAL_MANAGEMENT',
     });
+  });
+
+  it('agrees with the network P&L row for the same depot and month', async () => {
+    const sources = pnlSources();
+    const service = new DashboardService(sources, dashboardTestConfig(), noNames);
+    const depot = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+    const network = await service.networkPnl('2026-07', 'Bearer t');
+
+    expect(network.depots[0]!.netProfitIdr).toBe(300_000);
+    expect(depot.netProfitIdr).toBe(network.depots[0]!.netProfitIdr);
+    // Same month for payroll, same WIB window for payout and refunds.
+    const window = { from: '2026-06-30T17:00:00.000Z', to: '2026-07-31T17:00:00.000Z' };
+    expect(sources.hrSummaryMany).toHaveBeenCalledWith([DEPOT_ID], '2026-07');
+    expect(sources.payoutCosts).toHaveBeenCalledWith([DEPOT_ID], window);
+    expect(sources.depotRefunds).toHaveBeenCalledWith([DEPOT_ID], window);
+  });
+
+  it.each([
+    ['hrDown', 'payroll', 'payrollIdr'],
+    ['payoutDown', 'payout', 'courierCommissionIdr'],
+    ['refundsDown', 'refunds', 'refundIdr'],
+  ] as const)(
+    'has no net profit when %s: an unread cost is never a zero cost',
+    async (down, source, term) => {
+      const service = new DashboardService(
+        pnlSources({ [down]: true }),
+        dashboardTestConfig(),
+        noNames,
+      );
+      const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+
+      expect(result[term]).toBeNull();
+      expect(result.netProfitIdr).toBeNull();
+      expect(result.netMarginPct).toBeNull();
+      expect(result.sources[source]).toBe('unavailable');
+    },
+  );
+
+  it('reads a depot that payout and refunds answered for but did not list as zero', async () => {
+    const service = new DashboardService(
+      pnlSources({ nothingListed: true }),
+      dashboardTestConfig(),
+      noNames,
+    );
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+
+    expect(result.courierCommissionIdr).toBe(0);
+    expect(result.expenseClaimIdr).toBe(0);
+    expect(result.refundIdr).toBe(0);
+    expect(result.netProfitIdr).toBe(400_000);
   });
 
   it('keeps revenue but nulls COGS-derived totals when cost coverage is partial', async () => {
@@ -106,7 +204,7 @@ describe('DashboardService', () => {
     expect(result.grossProfitIdr).toBeNull();
     expect(result.netOperatingProfitIdr).toBeNull();
     expect(result.marginPct).toBeNull();
-    expect(result.sources).toEqual({ order: 'ok', depot: 'partial' });
+    expect(result.sources).toMatchObject({ order: 'ok', depot: 'partial' });
   });
 
   it('keeps real costs but nulls revenue-derived totals when order-service is unavailable', async () => {
@@ -123,7 +221,7 @@ describe('DashboardService', () => {
     expect(result.grossProfitIdr).toBeNull();
     expect(result.netOperatingProfitIdr).toBeNull();
     expect(result.marginPct).toBeNull();
-    expect(result.sources).toEqual({ order: 'unavailable', depot: 'ok' });
+    expect(result.sources).toMatchObject({ order: 'unavailable', depot: 'ok' });
   });
 
   it('marks depot costs partial when a PO-category outflow cannot be verified', async () => {
@@ -138,7 +236,7 @@ describe('DashboardService', () => {
     expect(result.grossProfitIdr).toBe(600_000);
     expect(result.netOperatingProfitIdr).toBeNull();
     expect(result.marginPct).toBeNull();
-    expect(result.sources).toEqual({ order: 'ok', depot: 'partial' });
+    expect(result.sources).toMatchObject({ order: 'ok', depot: 'partial' });
   });
 
   it('keeps revenue but nulls every cost/derived value when depot-service is unavailable', async () => {
@@ -155,7 +253,7 @@ describe('DashboardService', () => {
     expect(result.opexIdr).toBeNull();
     expect(result.grossProfitIdr).toBeNull();
     expect(result.netOperatingProfitIdr).toBeNull();
-    expect(result.sources).toEqual({ order: 'ok', depot: 'unavailable' });
+    expect(result.sources).toMatchObject({ order: 'ok', depot: 'unavailable' });
   });
 
   it('composes all four sections and marks both sources ok', async () => {

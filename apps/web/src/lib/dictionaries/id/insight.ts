@@ -396,9 +396,9 @@ export const insight = {
     waitingDef: 'Pembayaran berstatus menunggu pada periode ini, seluruh jaringan.',
     refundQueue: 'Antrean refund',
     refundQueueDef: 'Refund besar yang menunggu persetujuan kantor pusat.',
-    operatingProfit: 'Laba operasional',
-    operatingProfitDef:
-      'Omzet dikurangi harga pokok dan biaya operasional depot pada bulan itu. Kosong bila biayanya belum lengkap.',
+    netProfit: 'Laba bersih',
+    netProfitDef:
+      'Omzet dikurangi HPP, gaji, komisi kurir, klaim biaya, dan pengembalian dana pada bulan itu, rumus yang sama dengan laba-rugi jaringan. Kosong bila salah satunya belum terbaca.',
     margin: 'margin {pct}%',
     costsIncomplete: 'Biaya belum lengkap',
     method: 'Metode',

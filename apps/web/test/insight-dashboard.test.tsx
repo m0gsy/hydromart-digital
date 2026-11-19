@@ -693,10 +693,13 @@ function serve(overrides: Record<string, () => unknown> = {}) {
       return Promise.resolve({
         revenueIdr: 800_000,
         cogsIdr: null,
-        opexIdr: 50_000,
         grossProfitIdr: null,
-        netOperatingProfitIdr: null,
-        marginPct: null,
+        payrollIdr: 50_000,
+        courierCommissionIdr: 0,
+        expenseClaimIdr: 0,
+        refundIdr: 0,
+        netProfitIdr: null,
+        netMarginPct: null,
       });
     }
     if (p.includes('/gallon-outstanding')) {
@@ -1558,10 +1561,13 @@ describe('the finance tab', () => {
       '/dashboard/monthly-pnl': () => ({
         revenueIdr: 0,
         cogsIdr: 0,
-        opexIdr: 400_000,
         grossProfitIdr: 0,
-        netOperatingProfitIdr: -400_000,
-        marginPct: null,
+        payrollIdr: 400_000,
+        courierCommissionIdr: 0,
+        expenseClaimIdr: 0,
+        refundIdr: 0,
+        netProfitIdr: -400_000,
+        netMarginPct: null,
       }),
     });
     renderPage();
