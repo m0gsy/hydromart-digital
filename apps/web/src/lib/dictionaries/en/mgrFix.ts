@@ -103,7 +103,7 @@ export const mgrFix = {
     coverageSummary: '{covered} of {total} units mapped ({percent}%)',
     units: '{n} units',
     formula:
-      'Net profit = revenue − COGS − wages − courier commission − expense claims − refunds, the same formula as the network P&L. Rent and electricity are not included because the system does not record them.',
+      'Net profit = revenue − COGS − wages − courier commission − expense claims − refunds, the same formula as the network P&L. Rent, electricity and other cash-book outflows are not included.',
     disclaimer: 'Operational management report, not statutory accounting or a tax document.',
     noDepot: 'Select a depot',
     noDepotBody: 'Select a depot to view its operational P&L.',

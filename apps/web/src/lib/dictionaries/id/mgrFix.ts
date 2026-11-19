@@ -107,7 +107,7 @@ export const mgrFix = {
     coverageSummary: '{covered} dari {total} unit terpetakan ({percent}%)',
     units: '{n} unit',
     formula:
-      'Laba bersih = pendapatan − HPP − gaji − komisi kurir − klaim biaya − pengembalian dana, rumus yang sama dengan laba-rugi jaringan. Sewa dan listrik tidak termasuk karena tidak dicatat di sistem.',
+      'Laba bersih = pendapatan − HPP − gaji − komisi kurir − klaim biaya − pengembalian dana, rumus yang sama dengan laba-rugi jaringan. Sewa, listrik, dan kas keluar lain di buku kas tidak termasuk.',
     disclaimer:
       'Laporan manajemen operasional, bukan laporan akuntansi statutori atau dokumen pajak.',
     noDepot: 'Pilih depot',

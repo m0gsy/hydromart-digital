@@ -123,7 +123,9 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
                 depotPnl.data == null
                   ? undefined
                   : depotPnl.data.netProfitIdr == null
-                    ? t('insight.finance.costsIncomplete')
+                    ? depotPnl.data.revenueIdr == null
+                      ? undefined
+                      : t('insight.finance.costsIncomplete')
                     : depotPnl.data.netMarginPct != null
                       ? t('insight.finance.margin', { pct: Math.round(depotPnl.data.netMarginPct) })
                       : undefined

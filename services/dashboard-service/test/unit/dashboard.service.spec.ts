@@ -204,6 +204,8 @@ describe('DashboardService', () => {
     expect(result.grossProfitIdr).toBeNull();
     expect(result.netOperatingProfitIdr).toBeNull();
     expect(result.marginPct).toBeNull();
+    expect(result.netProfitIdr).toBeNull();
+    expect(result.netMarginPct).toBeNull();
     expect(result.sources).toMatchObject({ order: 'ok', depot: 'partial' });
   });
 
@@ -221,6 +223,8 @@ describe('DashboardService', () => {
     expect(result.grossProfitIdr).toBeNull();
     expect(result.netOperatingProfitIdr).toBeNull();
     expect(result.marginPct).toBeNull();
+    expect(result.netProfitIdr).toBeNull();
+    expect(result.netMarginPct).toBeNull();
     expect(result.sources).toMatchObject({ order: 'unavailable', depot: 'ok' });
   });
 
@@ -236,6 +240,7 @@ describe('DashboardService', () => {
     expect(result.grossProfitIdr).toBe(600_000);
     expect(result.netOperatingProfitIdr).toBeNull();
     expect(result.marginPct).toBeNull();
+    expect(result.netProfitIdr).toBe(300_000);
     expect(result.sources).toMatchObject({ order: 'ok', depot: 'partial' });
   });
 
@@ -253,6 +258,8 @@ describe('DashboardService', () => {
     expect(result.opexIdr).toBeNull();
     expect(result.grossProfitIdr).toBeNull();
     expect(result.netOperatingProfitIdr).toBeNull();
+    expect(result.netProfitIdr).toBeNull();
+    expect(result.netMarginPct).toBeNull();
     expect(result.sources).toMatchObject({ order: 'ok', depot: 'unavailable' });
   });
 

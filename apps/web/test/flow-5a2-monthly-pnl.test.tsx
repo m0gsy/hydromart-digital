@@ -105,6 +105,19 @@ describe('the depot P&L (flow 5a-2)', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
+  it('survives an answer from the previous dashboard image, which has none of the new fields', async () => {
+    // Deploy skew or a rollback of dashboard-service alone: the old shape.
+    const { payrollIdr, courierCommissionIdr, expenseClaimIdr, refundIdr, netProfitIdr, netMarginPct, ...old } =
+      REPORT;
+    void [payrollIdr, courierCommissionIdr, expenseClaimIdr, refundIdr, netProfitIdr, netMarginPct];
+    get.mockResolvedValue({ ...old, sources: { order: 'ok', depot: 'ok' } });
+    render(<MonthlyPnlPage />);
+
+    expect(await screen.findByText('mgrFix.pnl.partial')).toBeTruthy();
+    expect(screen.getAllByText('mgrFix.pnl.status.unavailable')).toHaveLength(3);
+    expect(screen.queryByText('Rp 450.000')).toBeNull();
+  });
+
   it('does not call the report partial because cash-out lines are unverified', async () => {
     // depot = 'partial' only because of an unverified PO-category cash-out line, which is no
     // longer a term of laba bersih; HPP itself is complete.

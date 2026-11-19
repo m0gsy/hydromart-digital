@@ -50,7 +50,7 @@ function recentMonths(count: number): { key: string; label: string }[] {
   });
 }
 
-const money = (value: number | null): string => (value === null ? '—' : formatIDR(value));
+const money = (value: number | null | undefined): string => (value == null ? '—' : formatIDR(value));
 
 function MonthlyPnlBody() {
   const { t } = useT();
@@ -118,7 +118,14 @@ const cogsStatus = (data: OperationalMonthlyPnl): 'ok' | 'partial' | 'unavailabl
 
 function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
   const { t } = useT();
-  const s = data.sources;
+  // `?? 'unavailable'`: a response from the previous dashboard image (deploy skew, or a
+  // rollback of that one service) has no payroll/payout/refunds source, and no figure for them.
+  const s = {
+    ...data.sources,
+    payroll: data.sources.payroll ?? 'unavailable',
+    payout: data.sources.payout ?? 'unavailable',
+    refunds: data.sources.refunds ?? 'unavailable',
+  };
   const partial =
     s.order === 'unavailable' ||
     cogsStatus(data) !== 'ok' ||
@@ -150,7 +157,7 @@ function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
             {t('mgrFix.pnl.netMargin')}
           </p>
           <p className="text-2xl font-bold tabular-nums">
-            {data.netMarginPct === null ? '—' : `${data.netMarginPct.toLocaleString('id-ID')}%`}
+            {data.netMarginPct == null ? '—' : `${data.netMarginPct.toLocaleString('id-ID')}%`}
           </p>
         </Card>
       </div>
@@ -195,9 +202,9 @@ function SourceCard({ data }: { data: OperationalMonthlyPnl }) {
       <h2 className="text-sm font-bold">{t('mgrFix.pnl.sources')}</h2>
       <SourceRow label={t('mgrFix.pnl.orderSource')} status={data.sources.order} />
       <SourceRow label={t('mgrFix.pnl.costSource')} status={cogsStatus(data)} />
-      <SourceRow label={t('mgrFix.pnl.payrollSource')} status={data.sources.payroll} />
-      <SourceRow label={t('mgrFix.pnl.payoutSource')} status={data.sources.payout} />
-      <SourceRow label={t('mgrFix.pnl.refundSource')} status={data.sources.refunds} />
+      <SourceRow label={t('mgrFix.pnl.payrollSource')} status={data.sources.payroll ?? 'unavailable'} />
+      <SourceRow label={t('mgrFix.pnl.payoutSource')} status={data.sources.payout ?? 'unavailable'} />
+      <SourceRow label={t('mgrFix.pnl.refundSource')} status={data.sources.refunds ?? 'unavailable'} />
     </Card>
   );
 }
