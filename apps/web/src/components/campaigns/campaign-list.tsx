@@ -5,12 +5,12 @@ import { ChatCircleText, PaperPlaneTilt } from '@phosphor-icons/react';
 
 import { useConfirm } from '@/components/confirm';
 import { CampaignReport } from '@/components/dashboard/campaign-report';
-import { Badge, Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, ListFooter, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
-import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
 import type { Campaign, CampaignStatus, Page } from '@/lib/types';
 
 /**
@@ -151,15 +151,17 @@ export function CampaignList({
 }) {
   const { t } = useT();
   const [reportId, setReportId] = useState<string | null>(null);
-  const list = useAsync<Page<Campaign>>(
-    () => api.get(endpoints.crm.campaigns({ limit: 50 }), true),
+  // Flow PR-8a: The list walks pages and says "N dari total"; it stopped at a fixed count and
+// drew that as the whole list.
+  const list = usePagedList<Campaign>(
+    (page) => api.get<Page<Campaign>>(endpoints.crm.campaigns({ page, limit: 50 }), true),
     [refresh],
   );
-  const items = list.data?.items ?? [];
+  const items = list.rows;
 
   return (
     <>
-      {list.loading ? (
+      {list.loading && items.length === 0 ? (
         <Skeleton className="h-64 w-full" />
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
@@ -180,6 +182,13 @@ export function CampaignList({
           ))}
         </div>
       )}
+      <ListFooter
+        shown={items.length}
+        total={list.total}
+        hasMore={list.hasMore}
+        onMore={list.loadMore}
+        loading={list.loading}
+      />
       {reportId && <CampaignReport campaignId={reportId} onClose={() => setReportId(null)} />}
     </>
   );

@@ -7,14 +7,14 @@ import { Lock, Receipt } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, ListFooter, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { canApproveExpense } from '@/lib/roles';
-import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
 import type { ExpenseClaim, ExpenseClaimStatus, Page } from '@/lib/types';
 
 const STATUSES: ExpenseClaimStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
@@ -122,8 +122,15 @@ function Body() {
   const { t } = useT();
   const { scopedId, selected } = useDepot();
   const [status, setStatus] = useState<ExpenseClaimStatus>('PENDING');
-  const list = useAsync<Page<ExpenseClaim>>(
-    () => api.get(endpoints.expenseApprovals.list({ depotId: scopedId ?? undefined, status, limit: 100 }), true),
+  // Flow PR-8a: The approval queue walks pages and says "N dari total"; it stopped at a fixed count and
+// drew that as the whole list.
+  // A claim decided past the first page is buried work, not a short queue.
+  const list = usePagedList<ExpenseClaim>(
+    (page) =>
+      api.get<Page<ExpenseClaim>>(
+        endpoints.expenseApprovals.list({ depotId: scopedId ?? undefined, status, page, limit: 50 }),
+        true,
+      ),
     [scopedId, status],
   );
 
@@ -155,21 +162,28 @@ function Body() {
         </select>
       </div>
 
-      {list.loading ? (
+      {list.loading && list.rows.length === 0 ? (
         <Skeleton className="h-64 w-full" />
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
-      ) : !list.data || list.data.items.length === 0 ? (
+      ) : list.rows.length === 0 ? (
         <CenterState title={t('hrFix.expenseClaims.empty')} icon={<Receipt size={40} weight="fill" />}>
           {t('hrFix.expenseClaims.emptyFor', { status: t(STATUS_LABEL[status]) })}
         </CenterState>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {list.data.items.map((c) => (
+          {list.rows.map((c) => (
             <ClaimRow key={c.id} c={c} onDone={list.reload} />
           ))}
         </div>
       )}
+      <ListFooter
+        shown={list.rows.length}
+        total={list.total}
+        hasMore={list.hasMore}
+        onMore={list.loadMore}
+        loading={list.loading}
+      />
     </div>
   );
 }

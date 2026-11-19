@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ClockCounterClockwise, Lock } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Card, CenterState, ErrorState, ListFooter, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
@@ -13,7 +13,7 @@ import { useDepot } from '@/lib/depot-context';
 import { actionLabel } from '@/lib/audit-action';
 import { useT } from '@/lib/locale-context';
 import { canViewAudit } from '@/lib/roles';
-import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
 import type { AuditEntry, Page } from '@/lib/types';
 
 // Category chips (design 8b). Mirrors AUDIT_CATEGORIES in auth-service: the substrings
@@ -33,21 +33,28 @@ function categoryFor(action: string): string | null {
   return CATEGORIES.find((c) => c.match.some((s) => a.includes(s)))?.key ?? null;
 }
 
+const PAGE_SIZE = 50;
+
 function AuditBody() {
   const { t } = useT();
   const { scopedId, selected, depots, ready } = useDepot();
   const [type, setType] = useState<string | null>(null);
 
-  const log = useAsync<Page<AuditEntry>>(
-    () =>
+  // Flow PR-8a: The trail walks pages and says "N dari total"; it stopped at a fixed count and
+// drew that as the whole list.
+  const log = usePagedList<AuditEntry>(
+    (page) =>
       scopedId
-        ? api.get(endpoints.audit.forDepot(scopedId, { type: type ?? undefined, limit: 100 }), true)
+        ? api.get<Page<AuditEntry>>(
+            endpoints.audit.forDepot(scopedId, { type: type ?? undefined, page, limit: PAGE_SIZE }),
+            true,
+          )
         : Promise.reject(new ApiError(0, 'no depot')),
     [scopedId, type],
   );
 
   const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
-  const rows = log.data?.items ?? [];
+  const rows = log.rows;
 
   return (
     <div className="flex flex-col gap-5">
@@ -81,7 +88,7 @@ function AuditBody() {
         <CenterState title={t('dashA.audit.noDepotTitle')} icon={<ClockCounterClockwise size={40} weight="fill" />}>
           {t('dashA.audit.noDepotBody')}
         </CenterState>
-      ) : log.loading ? (
+      ) : log.loading && rows.length === 0 ? (
         <Skeleton className="h-96 w-full" />
       ) : log.error ? (
         <ErrorState message={log.error} onRetry={log.reload} />
@@ -127,6 +134,13 @@ function AuditBody() {
           </ul>
         </Card>
       )}
+      <ListFooter
+        shown={rows.length}
+        total={log.total}
+        hasMore={log.hasMore}
+        onMore={log.loadMore}
+        loading={log.loading}
+      />
     </div>
   );
 }
