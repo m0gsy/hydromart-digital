@@ -3,8 +3,7 @@
 // its own shape; a count is read only from an answer that carries a total. The others show
 // "Buka" and nothing is invented for them. No backend change.
 //
-// Not here: the depot approval queue (it IS the approvals screen the card sits on), and the
-// depot loan-of-staff requests (decided on each employee's record; there is no queue screen).
+// Not here: the depot approval queue (it IS the approvals screen the card sits on).
 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -70,6 +69,15 @@ export const DECISION_QUEUES: DecisionQueue[] = [
     decides: (role) => can('expenseApprove', role),
     // The claims screen lists one depot (the switcher's, else the first): count that one.
     count: (_role, depotId) => expensesWaiting(depotId),
+  },
+  // Loan-of-staff requests from depot managers, decided by HR on each employee's record; the
+  // screen that lists them is Pinjam karyawan. The list answers with a total.
+  {
+    key: 'depotLoans',
+    label: 'ops.nav.hrDepotRequests',
+    href: '/hr/depot-requests',
+    decides: (role) => can('employeeAssign', role),
+    count: () => api.get<Totalled>(endpoints.hr.depotRequestsIncomingCount, true).then(totalOf),
   },
   // A bare list, no total: owners with a balance to release.
   {

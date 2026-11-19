@@ -46,8 +46,17 @@ export interface NavItem {
    * ASSISTANT_SUPERVISOR was offered Reseller, and each one opened onto a 403 rendered as a
    * load failure. Named per item rather than hard-coded in the filter so the next
    * cross-service screen added here has somewhere to say so.
+   *
+   * A list means any of them: Pinjam karyawan is the requester's (`employeeAssignRequest`) and
+   * the decider's (`employeeAssign`) screen alike.
    */
-  can?: Capability;
+  can?: Capability | readonly Capability[];
+}
+
+/** May this role open an HR row with this capability (or any of these)? */
+export function mayOpenHrRow(cap: NavItem['can'], role: string | null | undefined): boolean {
+  if (!cap) return true;
+  return typeof cap === 'string' ? can(cap, role) : cap.some((c) => can(c, role));
 }
 
 /*
@@ -75,7 +84,12 @@ export const HR_ITEMS: NavItem[] = [
   // CA-1-34: the kasbon ledger. It had an import wizard and no list.
   { href: '/hr/loans', label: 'hrFix.nav.loans', icon: CurrencyCircleDollar },
   // A depot manager asks to borrow somebody; HR (who plans directly) has no use for it.
-  { href: '/hr/depot-requests', label: 'hrFix.nav.depotRequests', icon: Users, can: 'employeeAssignRequest' },
+  {
+    href: '/hr/depot-requests',
+    label: 'hrFix.nav.depotRequests',
+    icon: Users,
+    can: ['employeeAssignRequest', 'employeeAssign'],
+  },
   { href: '/hr/assets', label: 'hrFix.nav.assets', icon: Package },
   { href: '/hr/announcements', label: 'hrFix.nav.announcements', icon: Megaphone },
   { href: '/hr/rules', label: 'hrFix.nav.rules', icon: Sparkle, adminOnly: true },
@@ -108,7 +122,8 @@ export function hrNavItems(role: string | null | undefined): NavItem[] {
       ? [{ href: '/hq', label: 'hrFix.nav.hqConsole', icon: Buildings }]
       : []),
     ...HR_ITEMS.filter(
-      (i) => isServedHere(i.href) && (!i.adminOnly || canManageHr(role)) && (!i.can || can(i.can, role)),
+      (i) =>
+        isServedHere(i.href) && (!i.adminOnly || canManageHr(role)) && mayOpenHrRow(i.can, role),
     ),
   ];
 }

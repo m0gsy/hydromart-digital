@@ -5,13 +5,24 @@ import { useState } from 'react';
 import { useToast } from '@/components/toast';
 import { Lock } from '@phosphor-icons/react';
 
-import { Badge, Button, Card, CenterState, Field, Input, LoadError, SectionHeader, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CenterState,
+  Field,
+  Input,
+  LinkButton,
+  LoadError,
+  SectionHeader,
+  Skeleton,
+} from '@/components/ui';
 import { HrDepotPicker } from '@/components/hr/depot-picker';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
-import { fmtDate, type DepotAssignment } from '@/lib/hr';
+import { fmtDate, type DepotAssignment, type Employee } from '@/lib/hr';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
@@ -33,14 +44,101 @@ function today(): string {
 export default function DepotRequestsPage() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!can('employeeAssignRequest', customer?.role)) {
+  const mayRequest = can('employeeAssignRequest', customer?.role);
+  // HR decides these requests, so the screen is the decider's too (owner, 2026-11-19).
+  const mayDecide = can('employeeAssign', customer?.role);
+  if (!mayRequest && !mayDecide) {
     return (
       <CenterState title={t('hrFix.imports.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('hrFix.depotRequests.gateBody')}
       </CenterState>
     );
   }
-  return <DepotRequestsBody />;
+  return (
+    <>
+      {mayDecide && <IncomingRequests />}
+      {mayRequest && <DepotRequestsBody />}
+    </>
+  );
+}
+
+/** One read each; statements, so the endpoint-contract check can read them. */
+function fetchIncoming(): Promise<{ rows: DepotAssignment[]; total: number }> {
+  return api.get<{ rows: DepotAssignment[]; total: number }>(
+    endpoints.hr.depotRequestsIncoming,
+    true,
+  );
+}
+async function namesOf(ids: string[]): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const e = await api.get<Employee>(endpoints.hr.employee(id), true);
+        out[id] = e.fullName;
+      } catch {
+        // a name that cannot be read stays unnamed; the row still opens the record
+      }
+    }),
+  );
+  return out;
+}
+
+/**
+ * Requests waiting for HR. Each opens the employee's record, where the request is approved or
+ * rejected (the depot-assignment card): this screen lists, the record decides.
+ */
+function IncomingRequests() {
+  const { t } = useT();
+  const { depots } = useDepot();
+  const list = useAsync(() => fetchIncoming(), []);
+  const rows = list.data?.rows ?? [];
+  const ids = [...new Set(rows.map((r) => r.employeeId))];
+  const names = useAsync<Record<string, string>>(() => namesOf(ids), [ids.join(',')]);
+  const depotName = (id: string) => depots.find((d) => d.id === id)?.name ?? id.slice(0, 8);
+
+  return (
+    <div className="mx-auto mb-5 max-w-3xl space-y-3">
+      <SectionHeader
+        title={t('hrFix.depotRequests.incomingTitle')}
+        subtitle={t('hrFix.depotRequests.incomingHint')}
+      />
+      <Card className="p-5">
+        {list.loading ? (
+          <Skeleton className="h-16" />
+        ) : list.error ? (
+          <LoadError onRetry={list.reload} />
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted">{t('hrFix.depotRequests.incomingNone')}</p>
+        ) : (
+          <div className="divide-y divide-[color:var(--border)]">
+            {rows.map((r) => (
+              <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                <div className="min-w-0">
+                  <p className="font-semibold">
+                    {names.data?.[r.employeeId] ?? t('hrFix.payroll.unnamedEmployee')}
+                    {' → '}
+                    {depotName(r.depotId)}
+                  </p>
+                  <p className="text-sm text-muted">
+                    {fmtDate(r.startDate)}
+                    {r.endDate ? ` – ${fmtDate(r.endDate)}` : ''}
+                    {r.note ? ` · ${r.note}` : ''}
+                  </p>
+                </div>
+                <LinkButton
+                  href={`/hr/employees/detail?id=${encodeURIComponent(r.employeeId)}`}
+                  variant="secondary"
+                >
+                  {t('hrFix.depotRequests.decide')}
+                </LinkButton>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
 }
 
 function DepotRequestsBody() {
@@ -92,7 +190,10 @@ function DepotRequestsBody() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <SectionHeader title={t('hrFix.depotRequests.title')} subtitle={t('hrFix.depotRequests.hint')} />
+      <SectionHeader
+        title={t('hrFix.depotRequests.title')}
+        subtitle={t('hrFix.depotRequests.hint')}
+      />
 
       <Card className="p-5">
         <form onSubmit={submit} className="grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
@@ -112,10 +213,20 @@ function DepotRequestsBody() {
             />
           </div>
           <Field label={t('hrFix.depotAssignment.start')}>
-            <Input type="date" value={startDate} min={today()} onChange={(e) => setStartDate(e.target.value)} />
+            <Input
+              type="date"
+              value={startDate}
+              min={today()}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
           </Field>
           <Field label={t('hrFix.depotAssignment.end')}>
-            <Input type="date" value={endDate} min={startDate} onChange={(e) => setEndDate(e.target.value)} />
+            <Input
+              type="date"
+              value={endDate}
+              min={startDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
           </Field>
           <div className="sm:col-span-2">
             <Field label={t('hrFix.depotAssignment.noteOpt')}>
@@ -123,7 +234,10 @@ function DepotRequestsBody() {
             </Field>
           </div>
           {problems.length > 0 && (
-            <ul className="col-span-full list-disc space-y-1 pl-5 text-sm font-medium text-[color:var(--danger)]" role="alert">
+            <ul
+              className="col-span-full list-disc space-y-1 pl-5 text-sm font-medium text-[color:var(--danger)]"
+              role="alert"
+            >
               {problems.map((p) => (
                 <li key={p}>{p}</li>
               ))}
@@ -151,7 +265,9 @@ function DepotRequestsBody() {
               <div key={r.id} className="py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{depotName(r.depotId)}</span>
-                  <Badge tone={r.status === 'CANCELLED' || r.status === 'FAILED' ? 'danger' : 'neutral'}>
+                  <Badge
+                    tone={r.status === 'CANCELLED' || r.status === 'FAILED' ? 'danger' : 'neutral'}
+                  >
                     {t(`hrFix.depotAssignment.status.${r.status}`)}
                   </Badge>
                 </div>

@@ -1417,6 +1417,10 @@ export const hrFix = {
     none: 'Belum ada permintaan.',
     submit: 'Ajukan',
     failed: 'Gagal mengirim permintaan.',
+    incomingTitle: 'Permintaan masuk',
+    incomingHint: 'Permintaan pinjam karyawan dari manajer depot. Putuskan dari kartu karyawannya.',
+    incomingNone: 'Tidak ada permintaan yang menunggu.',
+    decide: 'Putuskan',
   },
   depotAssignment: {
     approve: 'Setujui',
