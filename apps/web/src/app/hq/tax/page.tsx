@@ -74,7 +74,7 @@ export default function HqTaxPage() {
         title={t('hq.tax.title')}
         subtitle={t('hq.tax.subtitle')}
         action={
-          <Link href="/hq/invoice-template" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800">
+          <Link href="/hq/invoice-template" className="tap-44 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-800">
             {t('hq.tax.previewLink')}
             <ArrowRight size={15} weight="bold" />
           </Link>

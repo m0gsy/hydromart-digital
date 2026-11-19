@@ -89,7 +89,7 @@ export function ChangePhone({ currentPhone }: { currentPhone: string }) {
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="text-[12.5px] font-bold text-brand-700 hover:text-brand-800"
+            className="tap-44 text-[12.5px] font-bold text-brand-700 hover:text-brand-800"
           >
             {t('hrFix.accountEdit.changePhone')}
           </button>

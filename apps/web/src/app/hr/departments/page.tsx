@@ -106,7 +106,10 @@ export default function DepartmentsPage() {
               <li className="py-2 text-sm text-muted">{t('hrFix.departments.emptyBody2')}</li>
             )}
             {departments.data.map((d) => (
-              <li key={d.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+              <li
+                key={d.id}
+                className="flex flex-wrap items-center justify-between gap-x-3 py-2 text-sm"
+              >
                 {/*
                   CA-1-37. This screen could create, deactivate and DELETE a department and
                   offered no way to see who was in one — so "hapus" was a decision taken
@@ -117,7 +120,7 @@ export default function DepartmentsPage() {
                 */}
                 <Link
                   href={`/hr/employees?departmentId=${encodeURIComponent(d.id)}`}
-                  className="min-w-0 truncate hover:text-brand-700 hover:underline"
+                  className="-my-3 min-w-[10rem] flex-1 truncate py-3 hover:text-brand-700 hover:underline"
                 >
                   <b>{d.code}</b> · {d.name} · {depotName(d.depotId)}
                   {d.active ? '' : ` (${t('hrFix.departments.inactive')})`}

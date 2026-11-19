@@ -111,7 +111,7 @@ function RegisterForm() {
         */}
         <Link
           href={next}
-          className="text-[13px] font-bold text-muted transition-colors hover:text-[color:var(--text)]"
+          className="tap-44 text-[13px] font-bold text-muted transition-colors hover:text-[color:var(--text)]"
         >
           Lewati
         </Link>
@@ -285,7 +285,7 @@ function RegisterForm() {
           {t('auth.register.haveAccount')}{' '}
           <Link
             href={`/login?next=${encodeURIComponent(next)}`}
-            className="font-bold text-brand-700 hover:underline"
+            className="tap-44 font-bold text-brand-700 hover:underline"
           >
             {t('auth.register.loginCta')}
           </Link>

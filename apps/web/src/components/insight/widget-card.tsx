@@ -99,7 +99,10 @@ export function WidgetCard<T>({
           <h2 className="text-sm font-semibold">{title}</h2>
           <div className="relative flex items-center gap-2">
             {openDetail && !wall && (
-              <Link href={openDetail} className="text-xs font-semibold text-brand-700 underline">
+              <Link
+                href={openDetail}
+                className="tap-44 text-xs font-semibold text-brand-700 underline"
+              >
                 {t('insight.seeDetail')}
               </Link>
             )}
@@ -111,7 +114,7 @@ export function WidgetCard<T>({
                   aria-haspopup="menu"
                   aria-expanded={menuOpen}
                   onClick={() => setMenuOpen((o) => !o)}
-                  className="rounded-md p-1 text-muted hover:bg-black/5"
+                  className="tap-44 rounded-md p-1 text-muted hover:bg-black/5"
                 >
                   <DotsThree size={20} weight="bold" />
                 </button>

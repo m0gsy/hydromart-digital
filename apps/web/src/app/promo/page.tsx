@@ -272,7 +272,7 @@ export default function PromoPage() {
             </h2>
             <Link
               href="/products"
-              className="text-[13px] font-bold text-brand-600 hover:text-brand-700"
+              className="tap-44 text-[13px] font-bold text-brand-600 hover:text-brand-700"
             >
               {t('customerFix.promo.viewAll')}
             </Link>

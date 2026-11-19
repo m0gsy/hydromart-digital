@@ -124,8 +124,8 @@ export function LocationSelector({ compact }: { compact?: boolean }) {
         aria-expanded={open}
         className={
           compact
-            ? 'flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold hover:bg-brand-50'
-            : 'flex items-center gap-2 rounded-lg border border-app px-3 py-2 text-sm font-semibold hover:bg-brand-50'
+            ? 'tap-44 flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold hover:bg-brand-50'
+            : 'tap-44 flex items-center gap-2 rounded-lg border border-app px-3 py-2 text-sm font-semibold hover:bg-brand-50'
         }
       >
         <MapPin size={18} weight="fill" className="text-brand-600" />

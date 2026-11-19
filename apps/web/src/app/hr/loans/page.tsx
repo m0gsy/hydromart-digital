@@ -59,13 +59,13 @@ export default function LoansPage() {
         </label>
         <Link
           href="/hr/loans/requests"
-          className="text-sm font-bold text-brand-700 underline underline-offset-2"
+          className="tap-44 text-sm font-bold text-brand-700 underline underline-offset-2"
         >
           {t('hrFix.kasbonQueue.link')}
         </Link>
         <Link
           href="/hr/loans/import"
-          className="text-sm font-bold text-brand-700 underline underline-offset-2"
+          className="tap-44 text-sm font-bold text-brand-700 underline underline-offset-2"
         >
           {t('hrFix.loans.importLink')}
         </Link>

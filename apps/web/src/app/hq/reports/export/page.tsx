@@ -317,7 +317,7 @@ export default function HqReportsExportPage() {
                 type="button"
                 onClick={() => setFormat(f)}
                 aria-pressed={format === f}
-                className={`px-4 py-2 uppercase transition-colors ${format === f ? 'bg-brand-600 text-on-brand' : 'text-muted hover:bg-brand-50'}`}
+                className={`tap-44 px-4 py-2 uppercase transition-colors ${format === f ? 'bg-brand-600 text-on-brand' : 'text-muted hover:bg-brand-50'}`}
               >
                 {f}
               </button>

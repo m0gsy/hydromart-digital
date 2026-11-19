@@ -76,6 +76,7 @@ function Performance() {
           <button
             type="button"
             aria-label={t('hrFix.driverPerf.prevWeek')}
+            className="tap-44"
             onClick={() => setWeeksAgo((w) => w + 1)}
           >
             <CaretLeft size={13} />
@@ -85,7 +86,7 @@ function Performance() {
             type="button"
             aria-label={t('hrFix.driverPerf.nextWeek')}
             disabled={weeksAgo === 0}
-            className="disabled:opacity-30"
+            className="tap-44 disabled:opacity-30"
             onClick={() => setWeeksAgo((w) => Math.max(0, w - 1))}
           >
             <CaretRight size={13} />

@@ -139,7 +139,7 @@ export default function KasbonQueuePage() {
         </select>
         <Link
           href="/hr/loans"
-          className="text-sm font-bold text-brand-700 underline underline-offset-2"
+          className="tap-44 text-sm font-bold text-brand-700 underline underline-offset-2"
         >
           {t('hrFix.kasbonQueue.backToLoans')}
         </Link>

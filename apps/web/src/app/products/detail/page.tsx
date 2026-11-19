@@ -184,13 +184,13 @@ export default function ProductDetailPage() {
         aria-label="breadcrumb"
         className="flex flex-wrap items-center gap-2 text-[13px] font-semibold text-muted"
       >
-        <Link href="/products" className="hover:text-brand-700">
+        <Link href="/products" className="tap-44 hover:text-brand-700">
           {t('nav.shop')}
         </Link>
         {category && (
           <>
             <CaretRight size={12} weight="bold" className="text-brand-300" />
-            <Link href={`/products?category=${category.id}`} className="hover:text-brand-700">
+            <Link href={`/products?category=${category.id}`} className="tap-44 hover:text-brand-700">
               {category.name}
             </Link>
           </>

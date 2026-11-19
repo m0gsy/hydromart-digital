@@ -63,7 +63,7 @@ export default function HqApplicationDetailPage() {
   if (detail.error || !app) {
     return (
       <div className="flex flex-col gap-4">
-        <Link href="/hq/applications" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700">
+        <Link href="/hq/applications" className="tap-44 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700">
           <ArrowLeft size={16} weight="bold" /> {t('hq.applications.detail.back')}
         </Link>
         <ErrorState message={t('hq.applications.detail.notFound')} onRetry={detail.reload} />
@@ -156,7 +156,7 @@ export default function HqApplicationDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Link href="/hq/applications" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700">
+      <Link href="/hq/applications" className="tap-44 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700">
         <ArrowLeft size={16} weight="bold" /> {t('hq.applications.detail.back')}
       </Link>
 

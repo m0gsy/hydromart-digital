@@ -57,7 +57,7 @@ export default function HqLandingPage() {
       <div>
         <Link
           href="/hq/access"
-          className="mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800"
+          className="tap-44 mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800"
         >
           <ArrowLeft size={16} weight="bold" />
           {t('hq.landing.back')}
@@ -82,7 +82,7 @@ export default function HqLandingPage() {
               onClick={() => setRole(r)}
               aria-pressed={role === r}
               className={
-                'flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors ' +
+                'tap-44 flex items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition-colors ' +
                 (role === r
                   ? 'bg-brand-50 font-bold text-brand-800'
                   : 'font-medium text-muted hover:bg-[color:var(--surface-soft)]')

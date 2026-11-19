@@ -339,7 +339,7 @@ function ActiveToggle({ staff, onChanged }: { staff: Customer; onChanged: () => 
         type="button"
         onClick={() => void toggle()}
         disabled={busy}
-        className="rounded-lg border border-app px-2.5 py-1 text-xs font-bold text-muted transition-colors hover:bg-brand-50 disabled:opacity-50"
+        className="tap-44 rounded-lg border border-app px-2.5 py-1 text-xs font-bold text-muted transition-colors hover:bg-brand-50 disabled:opacity-50"
       >
         {active ? t('hq.staff.deactivate') : t('hq.staff.activate')}
       </button>
@@ -388,7 +388,7 @@ function DeleteStaff({ staff, onDeleted }: { staff: Customer; onDeleted: () => v
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="rounded-lg border border-red-300 px-2.5 py-1 text-xs font-bold text-red-600 transition-colors hover:bg-red-50"
+        className="tap-44 rounded-lg border border-red-300 px-2.5 py-1 text-xs font-bold text-red-600 transition-colors hover:bg-red-50"
       >
         {t('hq.staff.delete')}
       </button>
@@ -418,7 +418,7 @@ function DeleteStaff({ staff, onDeleted }: { staff: Customer; onDeleted: () => v
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="rounded-lg border border-app px-2.5 py-1 text-xs font-bold text-muted"
+          className="tap-44 rounded-lg border border-app px-2.5 py-1 text-xs font-bold text-muted"
         >
           {t('hq.staff.form.cancel')}
         </button>
@@ -447,7 +447,7 @@ function FilterChip({
       onClick={onClick}
       aria-pressed={active}
       className={
-        'min-h-11 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ' +
+        'tap-44 min-h-11 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ' +
         (active ? 'bg-brand-600 text-on-brand' : 'border border-app text-muted hover:bg-brand-50')
       }
     >

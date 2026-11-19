@@ -248,6 +248,22 @@ body {
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  /*
+   * A12's rule for any small control: the TOUCH target grows to at least 44px around it, and
+   * the control itself neither moves nor grows. Each side reaches out by half of whatever the
+   * box lacks (top/bottom percentages are of its height, left/right of its width), and never
+   * inward. `relative` loses to an `absolute` utility on the same element, which anchors the
+   * pseudo-element just as well. Not for an element that clips (`truncate`, `overflow-*`):
+   * the clip cuts the target too.
+   */
+  .tap-44 {
+    position: relative;
+  }
+  .tap-44::before {
+    content: '';
+    position: absolute;
+    inset: min(0px, calc((100% - 44px) / 2));
+  }
 }
 
 @keyframes fadeUp {

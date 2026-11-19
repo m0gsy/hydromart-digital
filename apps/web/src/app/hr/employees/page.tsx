@@ -234,7 +234,7 @@ export default function EmployeesPage() {
             <div key={e.id} data-employee-row className="flex items-center justify-between gap-3 p-4">
               <Link
                 href={`/hr/employees/detail?id=${e.id}`}
-                className="min-w-0 flex-1 hover:opacity-80"
+                className="tap-44 min-w-0 flex-1 hover:opacity-80"
               >
                 <p className="truncate font-semibold">{e.fullName}</p>
                 <p className="truncate text-xs text-muted">

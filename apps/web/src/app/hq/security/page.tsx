@@ -229,7 +229,7 @@ export default function HqSecurityPage() {
                 type="button"
                 onClick={() => revoke(s)}
                 disabled={revoking === s.id}
-                className="rounded-lg px-3 py-1.5 text-sm font-semibold text-[color:var(--danger)] transition-colors hover:bg-[color:var(--danger-bg)] disabled:opacity-50"
+                className="tap-44 rounded-lg px-3 py-1.5 text-sm font-semibold text-[color:var(--danger)] transition-colors hover:bg-[color:var(--danger-bg)] disabled:opacity-50"
               >
                 {t('hq.security.revoke')}
               </button>
