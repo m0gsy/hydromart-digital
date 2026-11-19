@@ -65,6 +65,9 @@ jobs:
           - { service: payout, dockerfile: services/payout-service/Dockerfile }
           - { service: admin, dockerfile: services/admin-service/Dockerfile }
           - { service: hr, dockerfile: services/hr-service/Dockerfile }
+          # Face plan PR-3: published ahead of any compose entry — the box pulls only what
+          # compose names, so this image can be checked public before anything waits on it.
+          - { service: face, dockerfile: services/face-service/Dockerfile }
           - { service: gateway, dockerfile: services/gateway-service/Dockerfile }
           - { service: web, dockerfile: apps/web/Dockerfile }
     steps:
