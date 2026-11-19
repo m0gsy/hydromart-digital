@@ -58,5 +58,7 @@ export function useFlagOn(key: BrakeFlag): boolean | null {
   const { data, loading } = useAsync<{ key: string; enabled: boolean }[]>(async () =>
     api.get(endpoints.admin.publicFlags),
   );
-  return loading ? null : flagOn(data, key);
+  // `null` only before the FIRST answer: a re-read (the app coming back to the front) keeps
+  // the last one on screen instead of tearing the camera down for a skeleton.
+  return loading && data == null ? null : flagOn(data, key);
 }

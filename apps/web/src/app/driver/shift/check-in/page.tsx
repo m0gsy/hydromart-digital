@@ -75,21 +75,42 @@ function CheckIn() {
     () => (oneTapOn && punches ? api.get(endpoints.hr.faceDataMe, true) : Promise.resolve(null)),
     [oneTapOn, punches],
   );
-  const deciding = oneTapOn === null || (oneTapOn && punches && face.loading);
+  // Decided once each read has ANSWERED — not on `loading`, which trails a changed dependency by
+  // a render: the old button flashed between the two reads, and a tap there started a shift
+  // with no punch.
+  const deciding = oneTapOn === null || (oneTapOn && punches && !face.data && !face.error);
   const oneTap = oneTapOn === true && punches && face.data?.enrolled === true;
   const needsEnroll = oneTapOn === true && punches && face.data?.enrolled === false;
-  // Half done: the shift opened and the punch did not. A retry punches again, alone.
-  const [shiftStarted, setShiftStarted] = useState(false);
+  // Half done: the shift is in (sent, or queued on the phone) and the punch is not. A retry
+  // punches again, alone, and still knows whether that shift has reached the server.
+  const [shift, setShift] = useState<'sent' | 'queued' | null>(null);
   const [punchError, setPunchError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  // J1: `GeoError`'s message IS its reason token ("timeout"); the reason reaches the screen translated.
+  // J1: this used to render `e.message` raw, believing it read "Lokasi GPS ditolak."
+  // `GeoError`'s message IS its reason token, so a courier with a slow fix was shown the
+  // single word "timeout". The reason still survives to the screen — translated.
   const reasonOf = (e: unknown) =>
     e instanceof GeoError
       ? t(`errors.geo.${e.reason}`)
       : e instanceof ApiError
         ? e.message
         : t('driver.checkIn.error');
+
+  /** The shift start both flows make. Depot wifi is not a given at 6am: queued, not lost. */
+  const startShift = async (at: { lat: number; lng: number }) => {
+    const { outcome } = await runOrQueue({ kind: 'shiftCheckIn', payload: { depotId: depotId!, ...at } });
+    // The Ops binary's equivalent of the customer's first order: the one moment where "let me
+    // know when a delivery lands" explains itself. Asking at first launch collects a denial
+    // from someone with no reason yet to want one, and Android makes that close to permanent.
+    // Not when queued — there is no network to register the token with; the next one asks.
+    if (outcome === 'sent') void requestPushOnce();
+    return outcome;
+  };
+  const here = async () => {
+    const pos = await currentPosition({ precise: true });
+    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+  };
 
   const capture = async (image: string, live: boolean) => {
     if (!depotId) return;
@@ -100,14 +121,11 @@ function CheckIn() {
     setError(null);
     setPunchError(null);
     try {
-      const pos = await currentPosition({ precise: true });
-      const at = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      let offline = false;
-      if (!shiftStarted) {
-        const { outcome } = await runOrQueue({ kind: 'shiftCheckIn', payload: { depotId, ...at } });
-        setShiftStarted(true);
-        offline = outcome === 'queued';
-        if (!offline) void requestPushOnce();
+      const at = await here();
+      let started = shift;
+      if (!started) {
+        started = await startShift(at);
+        setShift(started);
       }
       try {
         // The same queue as the shift: offline, both wait on the phone with their capture time.
@@ -115,9 +133,11 @@ function CheckIn() {
           kind: 'hrPunch',
           payload: { mode: 'in', image, ...at },
         });
-        if (offline || sent.outcome === 'queued') return setQueuedOffline(true);
+        // No shift on the server yet: /driver would bounce straight back here unexplained.
+        if (started === 'queued') return setQueuedOffline(true);
         // PENDING counts as nothing until HR decides: said, not painted as a success.
-        if (sent.result.status === 'PENDING') return setPending(true);
+        if (sent.outcome === 'sent' && sent.result.status === 'PENDING') return setPending(true);
+        // The shift is open; a punch queued on the phone follows on its own.
         router.replace('/driver');
       } catch (e) {
         setPunchError(reasonOf(e));
@@ -138,31 +158,14 @@ function CheckIn() {
     setBusy(true);
     setError(null);
     try {
-      const pos = await currentPosition({ precise: true });
-      // Depot wifi is not a given at 6am: queue the check-in rather than lose the shift start.
-      const { outcome } = await runOrQueue({
-        kind: 'shiftCheckIn',
-        payload: { depotId, lat: pos.coords.latitude, lng: pos.coords.longitude },
-      });
-      if (outcome === 'queued') {
+      if ((await startShift(await here())) === 'queued') {
         setQueuedOffline(true);
         setBusy(false);
         return;
       }
-      // The Ops binary's equivalent of the customer's first order: the one moment where
-      // "let me know when a delivery lands" explains itself. Asking at first launch
-      // collects a denial from someone with no reason yet to want one, and Android makes
-      // that close to permanent. Not on the queued branch — there is no network there to
-      // register the token with, and the next successful check-in asks instead.
-      void requestPushOnce();
       router.replace('/driver');
     } catch (e) {
-      // J1: this used to render `e.message` raw, believing it read "Lokasi GPS ditolak."
-      // `GeoError`'s message IS its reason token, so a courier with a slow fix was shown
-      // the single word "timeout". The reason still survives to the screen — translated.
-      setError(
-        e instanceof GeoError ? t(`errors.geo.${e.reason}`) : e instanceof ApiError ? e.message : t('driver.checkIn.error'),
-      );
+      setError(reasonOf(e));
       setBusy(false);
     }
   };
@@ -260,7 +263,8 @@ function CheckIn() {
       )}
 
       <div className="mt-auto pt-6">
-        {deciding ? (
+        {/* Queued on the phone: nothing to tap — a second tap queued a second check-in. */}
+        {queuedOffline ? null : deciding ? (
           <Skeleton className="h-12 w-full" />
         ) : pending ? (
           <Card className="flex flex-col gap-3 p-4 text-center">

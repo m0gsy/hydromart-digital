@@ -17,6 +17,8 @@ export interface FaceEmbeddingRepository {
   }): Promise<FaceEmbedding>;
   /** Active enrolled vectors for one employee (the verify set). */
   listActiveByEmployee(employeeId: string): Promise<FaceEmbedding[]>;
+  /** How many active templates one employee has — a yes/no read that decrypts nothing. */
+  countActiveByEmployee(employeeId: string): Promise<number>;
   /** Active vectors of every OTHER employee (dup-check on enroll). */
   listActiveVectorsExcept(employeeId: string): Promise<OwnedVector[]>;
   /** Retire an employee's current embeddings (re-enroll replaces). */

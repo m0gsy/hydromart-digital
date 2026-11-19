@@ -29,6 +29,10 @@ class FakeFaceRepo implements FaceEmbeddingRepository {
   async listActiveByEmployee(): Promise<FaceEmbedding[]> {
     return [];
   }
+  active = 0;
+  async countActiveByEmployee(): Promise<number> {
+    return this.active;
+  }
   async listActiveVectorsExcept(): Promise<OwnedVector[]> {
     return this.others;
   }
@@ -51,7 +55,7 @@ const config = { faceDuplicateThreshold: 0.75, faceMatchThreshold: 0.62 } as HrC
 /** HR-3: the employee the enrolment resolves to, and the consent written against them. */
 function fakeEmployees(faceConsentAt: Date | null = null) {
   const consents: { id: string; consent: unknown }[] = [];
-  const employee = { id: 'e1', depotId: 'd1', fullName: 'Budi', faceConsentAt };
+  const employee = { id: 'e1', depotId: 'd1', fullName: 'Budi', faceConsentAt, status: 'ACTIVE' };
   return {
     consents,
     service: {
@@ -136,8 +140,26 @@ describe('FaceService biometric consent (HR-3)', () => {
     const none = make([1, 0, 0]);
     await expect(none.svc.selfEnrolled(user)).resolves.toEqual({ enrolled: false });
     const repo = new FakeFaceRepo();
-    repo.listActiveByEmployee = async () => [{ id: 'fe1' } as FaceEmbedding];
+    repo.active = 2;
+    // Counted, never read: the verify set (decrypted templates) is not asked for.
+    repo.listActiveByEmployee = async () => {
+      throw new Error('a yes/no read must not decrypt templates');
+    };
     await expect(make([1, 0, 0], repo).svc.selfEnrolled(user)).resolves.toEqual({ enrolled: true });
+  });
+
+  it('refuses a record that is not ACTIVE, as the punch would, so no camera is offered for it', async () => {
+    const employees = fakeEmployees(new Date());
+    const svc = new FaceService(
+      verifier([1, 0, 0]),
+      new FakeFaceRepo(),
+      {
+        ...employees.service,
+        getSelf: async () => ({ id: 'e1', status: 'SUSPENDED' }),
+      } as unknown as EmployeeService,
+      config,
+    );
+    await expect(svc.selfEnrolled(user)).rejects.toThrow('Karyawan tidak aktif');
   });
 
   it('does not ask again once a consent is on file', async () => {

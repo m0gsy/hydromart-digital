@@ -160,6 +160,38 @@ describe('one tap: the shift and the attendance from one face photo', () => {
     expect(await screen.findByText(C.queuedOffline)).toBeTruthy();
     expect(jobs()).toEqual(['shiftCheckIn', 'hrPunch']);
     expect(replace).not.toHaveBeenCalled();
+    // Nothing left to tap: a second photo would queue a second check-in and a second punch.
+    expect(screen.queryByRole('button', { name: 'capture' })).toBeNull();
+  });
+
+  it('the shift went through and only the punch is queued: the shift is open, so on to the tasks', async () => {
+    runOrQueue.mockImplementation((job: { kind: string }) =>
+      Promise.resolve(job.kind === 'hrPunch' ? { outcome: 'queued' } : { outcome: 'sent', result: {} }),
+    );
+    const user = userEvent.setup();
+    draw();
+    await user.click(await screen.findByRole('button', { name: 'capture' }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/driver'));
+    expect(screen.queryByText(C.queuedOffline)).toBeNull();
+  });
+
+  it('a retry after a shift that only queued still knows the shift has not reached the server', async () => {
+    let punches = 0;
+    runOrQueue.mockImplementation((job: { kind: string }) => {
+      if (job.kind === 'shiftCheckIn') return Promise.resolve({ outcome: 'queued' });
+      punches += 1;
+      return punches === 1
+        ? Promise.reject(new ApiError(403, 'Wajah tidak cocok'))
+        : Promise.resolve({ outcome: 'sent', result: { status: 'PRESENT' } });
+    });
+    const user = userEvent.setup();
+    draw();
+    await user.click(await screen.findByRole('button', { name: 'capture' }));
+    expect(await screen.findByText(/Wajah tidak cocok/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'capture' }));
+    expect(await screen.findByText(C.queuedOffline)).toBeTruthy();
+    expect(replace).not.toHaveBeenCalled();
+    expect(jobs()).toEqual(['shiftCheckIn', 'hrPunch', 'hrPunch']);
   });
 
   it('a frame the device judged not live is not sent at all', async () => {

@@ -131,6 +131,7 @@ function make(
   const faces: FaceEmbeddingRepository = {
     create: async () => ({}) as FaceEmbedding,
     listActiveByEmployee: async () => opts.enrolled ?? [{ vector: [1, 0] } as FaceEmbedding],
+    countActiveByEmployee: async () => 1,
     listActiveVectorsExcept: async () => [],
     deactivateForEmployee: async () => {},
     deleteForEmployee: async () => [],
@@ -291,6 +292,7 @@ describe('AttendanceService — supervisor with no home depot', () => {
     const faces: FaceEmbeddingRepository = {
       create: async () => ({}) as FaceEmbedding,
       listActiveByEmployee: async () => [{ vector: [1, 0] } as FaceEmbedding],
+      countActiveByEmployee: async () => 1,
       listActiveVectorsExcept: async () => [],
       deactivateForEmployee: async () => {},
     deleteForEmployee: async () => [],

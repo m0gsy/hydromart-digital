@@ -2458,6 +2458,17 @@ describe('FaceEmbeddingPrismaRepository', () => {
     expect(decryptVector(written.vectorEnc, 'unit-test-face-key')).toEqual([0.1, 0.2]);
   });
 
+  it('counts an employee\'s active templates without reading one (flow 5d)', async () => {
+    const p = makePrisma();
+    m(p, 'faceEmbedding').count.mockResolvedValue(3);
+    const repo = new FaceEmbeddingPrismaRepository(asService(p), faceConfig);
+    await expect(repo.countActiveByEmployee('e1')).resolves.toBe(3);
+    expect(m(p, 'faceEmbedding').count).toHaveBeenCalledWith({
+      where: { employeeId: 'e1', active: true },
+    });
+    expect(m(p, 'faceEmbedding').findMany).not.toHaveBeenCalled();
+  });
+
   it('create stores no ciphertext for a remote-gallery driver, which has no vector', async () => {
     const p = makePrisma();
     m(p, 'faceEmbedding').create.mockResolvedValue(sentinel());
