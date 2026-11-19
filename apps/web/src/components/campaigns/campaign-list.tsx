@@ -152,7 +152,7 @@ export function CampaignList({
   const { t } = useT();
   const [reportId, setReportId] = useState<string | null>(null);
   // Flow PR-8a: The list walks pages and says "N dari total"; it stopped at a fixed count and
-// drew that as the whole list.
+  // drew that as the whole list.
   const list = usePagedList<Campaign>(
     (page) => api.get<Page<Campaign>>(endpoints.crm.campaigns({ page, limit: 50 }), true),
     [refresh],
@@ -163,7 +163,7 @@ export function CampaignList({
     <>
       {list.loading && items.length === 0 ? (
         <Skeleton className="h-64 w-full" />
-      ) : list.error ? (
+      ) : list.error && items.length === 0 ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : items.length === 0 ? (
         <CenterState title={t('dashboard.campaigns.noCampaigns')} icon={<ChatCircleText size={40} weight="fill" />}>
@@ -188,6 +188,7 @@ export function CampaignList({
         hasMore={list.hasMore}
         onMore={list.loadMore}
         loading={list.loading}
+        error={list.error}
       />
       {reportId && <CampaignReport campaignId={reportId} onClose={() => setReportId(null)} />}
     </>

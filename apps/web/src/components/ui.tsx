@@ -603,12 +603,15 @@ export function ListFooter({
   hasMore,
   onMore,
   loading,
+  error,
 }: {
   shown: number;
   total: number;
   hasMore: boolean;
   onMore: () => void;
   loading?: boolean;
+  /** A later page that failed: said here, under the rows that did load (the button retries it). */
+  error?: string | null;
 }) {
   const { t } = useT();
   // An empty list already says so through its own empty state; two sentences saying
@@ -619,6 +622,11 @@ export function ListFooter({
       <span className="text-xs tabular-nums text-muted">
         {t('common.shownOfTotal', { shown, total })}
       </span>
+      {error && hasMore && (
+        <span role="alert" className="text-xs font-medium text-[color:var(--danger)]">
+          {error}
+        </span>
+      )}
       {hasMore && (
         <Button variant="secondary" onClick={onMore} loading={loading}>
           {t('common.loadMore')}

@@ -41,7 +41,7 @@ function AuditBody() {
   const [type, setType] = useState<string | null>(null);
 
   // Flow PR-8a: The trail walks pages and says "N dari total"; it stopped at a fixed count and
-// drew that as the whole list.
+  // drew that as the whole list.
   const log = usePagedList<AuditEntry>(
     (page) =>
       scopedId
@@ -90,7 +90,7 @@ function AuditBody() {
         </CenterState>
       ) : log.loading && rows.length === 0 ? (
         <Skeleton className="h-96 w-full" />
-      ) : log.error ? (
+      ) : log.error && rows.length === 0 ? (
         <ErrorState message={log.error} onRetry={log.reload} />
       ) : rows.length === 0 ? (
         <CenterState title={t('dashA.audit.emptyTitle')} icon={<ClockCounterClockwise size={40} weight="fill" />}>
@@ -140,6 +140,7 @@ function AuditBody() {
         hasMore={log.hasMore}
         onMore={log.loadMore}
         loading={log.loading}
+        error={log.error}
       />
     </div>
   );

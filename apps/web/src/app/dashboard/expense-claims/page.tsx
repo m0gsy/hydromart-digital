@@ -123,7 +123,7 @@ function Body() {
   const { scopedId, selected } = useDepot();
   const [status, setStatus] = useState<ExpenseClaimStatus>('PENDING');
   // Flow PR-8a: The approval queue walks pages and says "N dari total"; it stopped at a fixed count and
-// drew that as the whole list.
+  // drew that as the whole list.
   // A claim decided past the first page is buried work, not a short queue.
   const list = usePagedList<ExpenseClaim>(
     (page) =>
@@ -164,7 +164,7 @@ function Body() {
 
       {list.loading && list.rows.length === 0 ? (
         <Skeleton className="h-64 w-full" />
-      ) : list.error ? (
+      ) : list.error && list.rows.length === 0 ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : list.rows.length === 0 ? (
         <CenterState title={t('hrFix.expenseClaims.empty')} icon={<Receipt size={40} weight="fill" />}>
@@ -183,6 +183,7 @@ function Body() {
         hasMore={list.hasMore}
         onMore={list.loadMore}
         loading={list.loading}
+        error={list.error}
       />
     </div>
   );

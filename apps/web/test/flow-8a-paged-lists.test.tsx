@@ -14,7 +14,10 @@ const { get, who } = vi.hoisted(() => ({ get: vi.fn(), who: { role: 'SUPER_ADMIN
 
 vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
-  return { ...actual, api: { ...actual.api, get, getCached: get, post: vi.fn(), patch: vi.fn(), del: vi.fn() } };
+  return {
+    ...actual,
+    api: { ...actual.api, get, getCached: get, post: vi.fn(), patch: vi.fn(), del: vi.fn() },
+  };
 });
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 'u1', role: who.role }, ready: true, signOut: vi.fn() }),
@@ -65,7 +68,15 @@ function pagedServer(route: string, make: (i: number) => Record<string, unknown>
       // 150 depots: the first page alone is 100.
       const from = (page - 1) * 100;
       const n = Math.max(0, Math.min(100, 150 - from));
-      return { items: Array.from({ length: n }, (_, i) => ({ id: `dp-${from + i}`, name: `Depot ${from + i}` })), total: 150, page, limit: 100 };
+      return {
+        items: Array.from({ length: n }, (_, i) => ({
+          id: `dp-${from + i}`,
+          name: `Depot ${from + i}`,
+        })),
+        total: 150,
+        page,
+        limit: 100,
+      };
     }
     if (u.pathname.includes('/employees')) return { rows: [], total: 0 };
     if (!u.pathname.includes(route)) return { items: [], total: 0 };
@@ -73,7 +84,12 @@ function pagedServer(route: string, make: (i: number) => Record<string, unknown>
     const limit = Number(u.searchParams.get('limit') ?? 20);
     const from = (page - 1) * limit;
     const n = Math.max(0, Math.min(limit, TOTAL - from));
-    return { items: Array.from({ length: n }, (_, i) => make(from + i)), total: TOTAL, page, limit };
+    return {
+      items: Array.from({ length: n }, (_, i) => make(from + i)),
+      total: TOTAL,
+      page,
+      limit,
+    };
   });
 }
 
@@ -99,25 +115,50 @@ async function walksPages(route: string) {
 
 describe('lists that page', () => {
   it('the depot audit trail', async () => {
-    pagedServer('/audit/depot', (i) => ({ id: `a-${i}`, action: 'stock.receipt', success: true, createdAt: '2026-11-19T01:00:00Z' }));
+    pagedServer('/audit/depot', (i) => ({
+      id: `a-${i}`,
+      action: 'stock.receipt',
+      success: true,
+      createdAt: '2026-11-19T01:00:00Z',
+    }));
     render(<AuditPage />);
     await walksPages('/audit/depot');
   });
 
   it('the campaign list', async () => {
-    pagedServer('/crm/api/v1/campaigns', (i) => ({ id: `c-${i}`, name: `Kampanye ${i}`, status: 'SENT', channel: 'PUSH', createdAt: '2026-11-19T01:00:00Z' }));
+    pagedServer('/crm/api/v1/campaigns', (i) => ({
+      id: `c-${i}`,
+      name: `Kampanye ${i}`,
+      status: 'SENT',
+      channel: 'PUSH',
+      createdAt: '2026-11-19T01:00:00Z',
+    }));
     render(<CampaignList canManage={false} emptyHint="kosong" />);
     await walksPages('/crm/api/v1/campaigns');
   });
 
   it('the expense claims waiting for approval', async () => {
-    pagedServer('/payout/api/v1/expenses', (i) => ({ id: `e-${i}`, status: 'PENDING', amountIdr: 10_000, category: 'FUEL', createdAt: '2026-11-19T01:00:00Z', claimantName: `Staf ${i}` }));
+    pagedServer('/payout/api/v1/expenses', (i) => ({
+      id: `e-${i}`,
+      status: 'PENDING',
+      amountIdr: 10_000,
+      category: 'FUEL',
+      createdAt: '2026-11-19T01:00:00Z',
+      claimantName: `Staf ${i}`,
+    }));
     render(<ExpenseClaimsPage />);
     await walksPages('/payout/api/v1/expenses');
   });
 
   it('the staff directory', async () => {
-    pagedServer('/auth/api/v1/auth/staff', (i) => ({ id: `s-${i}`, fullName: `Staf ${i}`, phone: `0812${i}`, role: 'STAFF_DEPOT', status: 'ACTIVE', assignedDepotId: 'd1' }));
+    pagedServer('/auth/api/v1/auth/staff', (i) => ({
+      id: `s-${i}`,
+      fullName: `Staf ${i}`,
+      phone: `0812${i}`,
+      role: 'STAFF_DEPOT',
+      status: 'ACTIVE',
+      assignedDepotId: 'd1',
+    }));
     render(<StaffDirectory header={() => null} />);
     await walksPages('/auth/api/v1/auth/staff');
   });
@@ -125,7 +166,14 @@ describe('lists that page', () => {
 
 describe('the staff screen depot picker', () => {
   it('offers every depot, not the first 100', async () => {
-    pagedServer('/auth/api/v1/auth/staff', (i) => ({ id: `s-${i}`, fullName: `Staf ${i}`, phone: `0812${i}`, role: 'STAFF_DEPOT', status: 'ACTIVE', assignedDepotId: 'd1' }));
+    pagedServer('/auth/api/v1/auth/staff', (i) => ({
+      id: `s-${i}`,
+      fullName: `Staf ${i}`,
+      phone: `0812${i}`,
+      role: 'STAFF_DEPOT',
+      status: 'ACTIVE',
+      assignedDepotId: 'd1',
+    }));
     render(<StaffDirectory header={() => null} />);
     await screen.findByText('common.shownOfTotal');
     await waitFor(() => expect(pagesAsked('/depots/manage')).toEqual([1, 2]));

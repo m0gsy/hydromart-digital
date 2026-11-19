@@ -110,7 +110,7 @@ export function StaffDirectory({
   const [roleFilter, setRoleFilter] = useState('');
 
   // Flow PR-8a: The directory walks pages and says "N dari total"; it stopped at a fixed count and
-// drew that as the whole list.
+  // drew that as the whole list.
   const list = usePagedList<Customer>(
     (page) =>
       api.get<Page<Customer>>(
@@ -170,7 +170,7 @@ export function StaffDirectory({
 
       {list.loading && items.length === 0 ? (
         <Skeleton className="h-64 w-full" />
-      ) : list.error ? (
+      ) : list.error && items.length === 0 ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : items.length === 0 ? (
         <CenterState title={t('hq.staff.empty')} icon={<UserGear size={40} weight="fill" />} />
@@ -236,6 +236,7 @@ export function StaffDirectory({
         hasMore={list.hasMore}
         onMore={list.loadMore}
         loading={list.loading}
+        error={list.error}
       />
     </div>
   );
