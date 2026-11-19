@@ -825,7 +825,7 @@ jobs:
             workspaces: >-
               @hydromart/promo-service @hydromart/forecast-service @hydromart/loyalty-service
               @hydromart/referral-service @hydromart/recommendation-service
-              @hydromart/dashboard-service @hydromart/gateway-service
+              @hydromart/dashboard-service @hydromart/gateway-service @hydromart/face-service
           - shard: packages
             workspaces: '@hydromart/platform @hydromart/access'
     steps:
