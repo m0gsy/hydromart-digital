@@ -19,6 +19,7 @@ describe('FeatureFlagsController.publicFlags', () => {
         flag('payments.cash_on_delivery', FlagState.OFF),
         flag('subscriptions.galon', FlagState.BETA),
         flag('recommendations.ai', FlagState.ROLLOUT),
+        flag('attendance.courier_one_tap', FlagState.OFF),
         flag('some.unreleased', FlagState.OFF),
       ]);
     const controller = new FeatureFlagsController({ list } as never);
@@ -27,6 +28,8 @@ describe('FeatureFlagsController.publicFlags', () => {
       { key: 'payments.cash_on_delivery', enabled: false },
       { key: 'subscriptions.galon', enabled: true },
       { key: 'recommendations.ai', enabled: true },
+      // The brake: published like the others, so turning it OFF reaches every installed app.
+      { key: 'attendance.courier_one_tap', enabled: false },
     ]);
   });
 });

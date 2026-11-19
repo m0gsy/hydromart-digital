@@ -13,6 +13,9 @@ export const ENFORCED_FLAG_KEYS = [
   'payments.cash_on_delivery',
   'subscriptions.galon',
   'recommendations.ai',
+  // Flow 5d: read FAIL-CLOSED by the Ops app — the one-tap courier check-in runs only while
+  // this says enabled. It is a brake; the three above are read fail-open.
+  'attendance.courier_one_tap',
 ] as const;
 
 export enum FlagState {
