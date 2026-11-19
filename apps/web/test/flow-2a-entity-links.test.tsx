@@ -93,10 +93,16 @@ describe('entityHref', () => {
     expect(entityHref('order', 'o1', 'dashboard', 'MANAGER')).toBe('/dashboard/orders?order=o1');
     expect(entityHref('order', 'o1', 'dashboard', 'MARKETING')).toBeNull();
     expect(entityHref('order', 'o1', 'hq', 'HEAD_OFFICE')).toBe('/hq/orders/detail?id=o1');
-    expect(entityHref('customer', 'c1', 'dashboard', 'MANAGER')).toBe('/dashboard/customers/detail?id=c1');
+    expect(entityHref('customer', 'c1', 'dashboard', 'MANAGER')).toBe(
+      '/dashboard/customers/detail?id=c1',
+    );
     expect(entityHref('customer', 'c1', 'dashboard', 'FINANCE')).toBeNull();
-    expect(entityHref('customer', '+62811', 'hq', 'HEAD_OFFICE')).toBe('/hq/customers?phone=%2B62811');
-    expect(entityHref('courier', 'k1', 'dashboard', 'MANAGER')).toBe('/dashboard/team-performance?driver=k1');
+    expect(entityHref('customer', '+62811', 'hq', 'HEAD_OFFICE')).toBe(
+      '/hq/customers?phone=%2B62811',
+    );
+    expect(entityHref('courier', 'k1', 'dashboard', 'MANAGER')).toBe(
+      '/dashboard/team-performance?driver=k1',
+    );
     expect(entityHref('courier', 'k1', 'dashboard', 'KEPALA_DEPOT')).toBeNull();
     expect(entityHref('depot', 'dp1', 'hq', 'HEAD_OFFICE')).toBe('/hq/depots/detail?id=dp1');
     expect(entityHref('supplier', 's1', 'dashboard', 'MANAGER')).toBe('/dashboard/suppliers');
@@ -175,7 +181,14 @@ describe('order panel: the buyer', () => {
 
   it('opens the customer for a role that reads the depot CRM', () => {
     show(ORDER);
-    expect(hrefOf('Wahyu')).toBe('/dashboard/customers/detail?id=c-1');
+    // the recipient stays text: the account behind the order is its own link (2a review)
+    expect(hrefOf(/Wahyu/)).toBeNull();
+    expect(hrefOf('opsFix.entityLinks.customerAccount')).toBe('/dashboard/customers/detail?id=c-1');
+  });
+
+  it('offers no account link for an order of another depot than the console’s', () => {
+    show({ ...ORDER, depotId: 'd-2' });
+    expect(screen.queryByText('opsFix.entityLinks.customerAccount')).toBeNull();
   });
 
   it('stays text for FINANCE, which opens orders but not the CRM', () => {
@@ -257,7 +270,7 @@ describe('team screen: `?driver=` marks that courier', () => {
     ],
   ];
 
-  it("marks the courier the link named, and only that one", async () => {
+  it('marks the courier the link named, and only that one', async () => {
     at('/dashboard/team-performance?driver=k2');
     serve(routes);
     const { container } = render(<TeamPerformancePage />);
@@ -322,7 +335,12 @@ describe('approval detail: the subject opens the nearest list', () => {
   });
 
   it('a cashier shift has no screen, so it stays text', async () => {
-    await open({ ...APPROVAL, type: 'COD_VARIANCE', title: 'Selisih kas', subjectRef: 'shift:sh1' });
+    await open({
+      ...APPROVAL,
+      type: 'COD_VARIANCE',
+      title: 'Selisih kas',
+      subjectRef: 'shift:sh1',
+    });
     expect(hrefOf(/shift:sh1/)).toBeNull();
   });
 });
@@ -342,14 +360,19 @@ describe('customer detail: recent orders', () => {
     },
     addresses: [],
     depositLedger: [],
-    recentOrders: [{ id: 'o1', status: 'DELIVERED', totalIdr: 20000, placedAt: '2026-11-18T02:00:00.000Z' }],
+    recentOrders: [
+      { id: 'o1', status: 'DELIVERED', totalIdr: 20000, placedAt: '2026-11-18T02:00:00.000Z' },
+    ],
   };
 
   it('each one opens in the order queue', async () => {
     at('/dashboard/customers/detail?id=c1');
     // The detail screen also asks for the customer's referral card; served an empty list it
     // read `code` of undefined after the test had passed, failing the file at random in CI.
-    serve([['/depot-detail', DETAIL], ['referral', REFERRAL]]);
+    serve([
+      ['/depot-detail', DETAIL],
+      ['referral', REFERRAL],
+    ]);
     render(<CustomerDetailPage />);
     await screen.findByText('DELIVERED');
     expect(hrefOf('DELIVERED')).toBe('/dashboard/orders?order=o1');
@@ -360,7 +383,10 @@ describe('customer detail: recent orders', () => {
     at('/dashboard/customers/detail?id=c1');
     // The detail screen also asks for the customer's referral card; served an empty list it
     // read `code` of undefined after the test had passed, failing the file at random in CI.
-    serve([['/depot-detail', DETAIL], ['referral', REFERRAL]]);
+    serve([
+      ['/depot-detail', DETAIL],
+      ['referral', REFERRAL],
+    ]);
     render(<CustomerDetailPage />);
     await screen.findByText('DELIVERED');
     expect(hrefOf('DELIVERED')).toBeNull();
@@ -390,8 +416,8 @@ describe('ratings: the buyer and the order', () => {
   it('the name opens the customer and a link opens the order', async () => {
     serve([['ratings', REPORT]]);
     render(<RatingsPage />);
-    await screen.findByText('Sari');
-    expect(hrefOf('Sari')).toBe('/dashboard/customers/detail?id=c1');
+    await screen.findByText(/Sari/);
+    expect(hrefOf('opsFix.entityLinks.customerAccount')).toBe('/dashboard/customers/detail?id=c1');
     expect(hrefOf('opsFix.ratings.openOrder')).toBe('/dashboard/orders?order=o1');
   });
 
@@ -408,6 +434,28 @@ describe('ratings: the buyer and the order', () => {
 describe('purchasing from the low-stock filter', () => {
   it('offers the draft with the low filter on, to a role that buys', async () => {
     at('/dashboard/inventory?low=1');
+    // a line below its minimum: something to order (a draft of nothing is no door)
+    serve([
+      [
+        '/inventory',
+        [
+          {
+            id: 'i1',
+            depotId: 'd-1',
+            itemType: 'AIR',
+            productId: null,
+            label: 'Air',
+            unit: 'L',
+            quantity: 1,
+            reserved: 0,
+            minimumStock: 10,
+            sellPrice: null,
+            available: 1,
+            lowStock: true,
+          },
+        ],
+      ],
+    ]);
     render(<InventoryPage />);
     await waitFor(() => expect(screen.getByText('opsFix.poDraft.open')).toBeTruthy());
     expect(hrefOf('opsFix.poDraft.open')).toBe('/dashboard/purchase-orders?draft=1');
@@ -520,7 +568,13 @@ describe('head office: orders behind refunds and customers', () => {
           firstOrderAt: null,
           lastOrderAt: null,
           recentOrders: [
-            { id: 'o-7', orderNumber: 'HM-7', status: 'DELIVERED', total: 20000, createdAt: '2026-11-18T02:00:00.000Z' },
+            {
+              id: 'o-7',
+              orderNumber: 'HM-7',
+              status: 'DELIVERED',
+              total: 20000,
+              createdAt: '2026-11-18T02:00:00.000Z',
+            },
           ],
         },
       ],
@@ -566,7 +620,10 @@ describe('head office order detail: the buyer and the depot', () => {
     serve(routes);
     render(<HqOrderDetailPage />);
     await screen.findByText('HM-0001');
-    await waitFor(() => expect(hrefOf('Wahyu')).toBe('/hq/customers?phone=%2B62811'));
+    await waitFor(() =>
+      expect(hrefOf('opsFix.entityLinks.customerAccount')).toBe('/hq/customers?phone=%2B62811'),
+    );
+    expect(hrefOf(/Wahyu/)).toBeNull();
     await waitFor(() => expect(hrefOf('Depot Satu')).toBe('/hq/depots/detail?id=d-1'));
   });
 
@@ -588,8 +645,12 @@ describe('head office order detail: the buyer and the depot', () => {
  */
 describe('courier links (2a-ii)', () => {
   it('entityHref: a courier on the head-office side, and any staff login, open the HR record', () => {
-    expect(entityHref('courier', 'k1', 'hq', 'HEAD_OFFICE')).toBe('/hr/employees/detail?account=k1');
-    expect(entityHref('staffAccount', 'k1', 'dashboard', 'MANAGER')).toBe('/hr/employees/detail?account=k1');
+    expect(entityHref('courier', 'k1', 'hq', 'HEAD_OFFICE')).toBe(
+      '/hr/employees/detail?account=k1',
+    );
+    expect(entityHref('staffAccount', 'k1', 'dashboard', 'MANAGER')).toBe(
+      '/hr/employees/detail?account=k1',
+    );
     expect(entityHref('staffAccount', 'k1', 'dashboard', 'KEPALA_DEPOT')).toBeNull();
   });
 
@@ -618,7 +679,10 @@ describe('courier links (2a-ii)', () => {
     createdAt: '2026-11-18T02:00:00.000Z',
   };
   const courierRoutes: [string, unknown][] = [
-    ['/deliveries?orderId=o-1', { items: [{ id: 'dl1', orderId: 'o-1', driverId: 'k1' }], total: 1, page: 1, limit: 1 }],
+    [
+      '/deliveries?orderId=o-1',
+      { items: [{ id: 'dl1', orderId: 'o-1', driverId: 'k1' }], total: 1, page: 1, limit: 1 },
+    ],
     ['/payments', { items: [], total: 0, page: 1, limit: 10 }],
   ];
 
@@ -632,10 +696,18 @@ describe('courier links (2a-ii)', () => {
 
   it('an order from another depot keeps the courier as text (the team screen reports on its own depot)', async () => {
     serve(courierRoutes);
-    render(<OrderDetail order={{ ...ORDER, depotId: 'd-2' } as never} onClose={vi.fn()} onChanged={vi.fn()} />);
+    render(
+      <OrderDetail
+        order={{ ...ORDER, depotId: 'd-2' } as never}
+        onClose={vi.fn()}
+        onChanged={vi.fn()}
+      />,
+    );
     await screen.findByText(/hrFix.orderDetail.courier/);
     expect(hrefOf(/hrFix.orderDetail.courier/)).toBeNull();
-    expect(get.mock.calls.some(([url]) => String(url).includes('/deliveries?orderId='))).toBe(false);
+    expect(get.mock.calls.some(([url]) => String(url).includes('/deliveries?orderId='))).toBe(
+      false,
+    );
   });
 
   it('a role that may not read deliveries never asks, and keeps the name as text', async () => {
@@ -644,7 +716,9 @@ describe('courier links (2a-ii)', () => {
     render(<OrderDetail order={ORDER as never} onClose={vi.fn()} onChanged={vi.fn()} />);
     await screen.findByText(/hrFix\.orderDetail\.courier/);
     expect(hrefOf(/hrFix\.orderDetail\.courier/)).toBeNull();
-    expect(get.mock.calls.some(([url]) => String(url).includes('/deliveries?orderId='))).toBe(false);
+    expect(get.mock.calls.some(([url]) => String(url).includes('/deliveries?orderId='))).toBe(
+      false,
+    );
   });
 
   it('head office opens the courier’s HR record', async () => {
@@ -666,12 +740,20 @@ describe('HR record by login (2a-ii)', () => {
     who.role = 'HR';
     at('/hr/employees/detail?account=k1');
     serve([
-      ['authSubjectId=k1', { rows: [{ id: 'e1', fullName: 'Andi Kurir' }], total: 1, page: 1, pageSize: 1 }],
-      ['/employees/api/v1/employees/e1', { id: 'e1', fullName: 'Andi Kurir', employeeCode: 'K-01', status: 'ACTIVE' }],
+      [
+        'authSubjectId=k1',
+        { rows: [{ id: 'e1', fullName: 'Andi Kurir' }], total: 1, page: 1, pageSize: 1 },
+      ],
+      [
+        '/employees/api/v1/employees/e1',
+        { id: 'e1', fullName: 'Andi Kurir', employeeCode: 'K-01', status: 'ACTIVE' },
+      ],
     ]);
     render(<HrEmployeeDetailPage />);
     await waitFor(() =>
-      expect(get.mock.calls.some(([url]) => String(url).endsWith('/employees/api/v1/employees/e1'))).toBe(true),
+      expect(
+        get.mock.calls.some(([url]) => String(url).endsWith('/employees/api/v1/employees/e1')),
+      ).toBe(true),
     );
   });
 

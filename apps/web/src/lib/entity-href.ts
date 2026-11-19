@@ -26,7 +26,7 @@ export type EntityKind =
   | 'staffAccount';
 
 /** order-service `domain/anonymous.ts`: the buyer on a counter sale with no account. */
-const ANONYMOUS_CUSTOMER_ID = '00000000-0000-0000-0000-000000000000';
+export const ANONYMOUS_CUSTOMER_ID = '00000000-0000-0000-0000-000000000000';
 
 const q = encodeURIComponent;
 

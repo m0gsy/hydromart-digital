@@ -36,13 +36,18 @@ const STAR_ROWS: (keyof DepotRatingsReport['distribution'])[] = ['5', '4', '3', 
 function Stars({ value, size = 14 }: { value: number; size?: number }) {
   const { t } = useT();
   return (
-    <div className="flex items-center gap-0.5" aria-label={t('opsFix.ratings.starsAria', { n: value })}>
+    <div
+      className="flex items-center gap-0.5"
+      aria-label={t('opsFix.ratings.starsAria', { n: value })}
+    >
       {[1, 2, 3, 4, 5].map((i) => (
         <Star
           key={i}
           size={size}
           weight="fill"
-          className={i <= value ? 'text-[color:var(--warning)]' : 'text-[color:var(--surface-soft)]'}
+          className={
+            i <= value ? 'text-[color:var(--warning)]' : 'text-[color:var(--surface-soft)]'
+          }
         />
       ))}
     </div>
@@ -100,6 +105,8 @@ function RatingsView({ data }: { data: DepotRatingsReport }) {
         <div className="flex flex-col gap-3">
           {data.recent.map((r, i) => {
             const orderHref = entityHref('order', r.orderId, 'dashboard', customer?.role);
+            // The name is the order's recipient; the account behind it opens from its own link.
+            const accountHref = entityHref('customer', r.customerId, 'dashboard', customer?.role);
             return (
               <Card key={`${r.createdAt}-${i}`} className="flex gap-3 p-4">
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 font-bold text-brand-700">
@@ -108,9 +115,15 @@ function RatingsView({ data }: { data: DepotRatingsReport }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-semibold">
-                      <EntityLink href={entityHref('customer', r.customerId, 'dashboard', customer?.role)}>
-                        {r.customerName}
-                      </EntityLink>
+                      {r.customerName}
+                      {accountHref && (
+                        <>
+                          {' · '}
+                          <EntityLink href={accountHref}>
+                            {t('opsFix.entityLinks.customerAccount')}
+                          </EntityLink>
+                        </>
+                      )}
                     </p>
                     <span className="text-xs text-[color:var(--text-muted)]">
                       {relativeDay(r.createdAt)}

@@ -134,7 +134,9 @@ function TeamPerformanceBody() {
             <p className="text-xs font-bold uppercase tracking-wide text-muted">
               {t('mgrFix.teamPerf.couriers')}
             </p>
-            {driver && report.couriers.every((c) => c.driverId !== driver) && (
+            {driver &&
+              report.couriers.length > 0 &&
+              report.couriers.every((c) => c.driverId !== driver) && (
               <p className="text-sm text-muted">{t('mgrFix.teamPerf.notThisMonth')}</p>
             )}
             {report.couriers.length === 0 ? (

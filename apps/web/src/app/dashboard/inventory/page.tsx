@@ -1232,7 +1232,8 @@ function InventoryBody() {
         </Chip>
       </div>
       {/* PR-2a: the low lines are what a purchase order is drafted from; the draft opens there. */}
-      {lowOnly && canOpenRoute(PO_DRAFT, customer?.role) && (
+      {/* A draft of nothing is no door: only with low stock to order, on the stock tab. */}
+      {lowOnly && lowCount > 0 && view === 'stock' && canOpenRoute(PO_DRAFT, customer?.role) && (
         <LinkButton href={PO_DRAFT} variant="secondary" className="self-start">
           <ClipboardText size={16} weight="fill" />
           {t('opsFix.poDraft.open')}
