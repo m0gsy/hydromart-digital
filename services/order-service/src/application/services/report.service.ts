@@ -301,6 +301,8 @@ export interface DepotCompareRow {
  * comparison screen where three of five rows are permanently "—" is a screen nobody opens.
  */
 export interface DepotCompareReport extends ReportRangeView {
+  /** False when the caller lacks payrollRead: payroll and every figure net of it are null. */
+  payVisible: boolean;
   depots: DepotCompareRow[];
 }
 
@@ -311,6 +313,8 @@ export interface DepotCompareReport extends ReportRangeView {
  * driverName (delivered count, no rating).
  */
 export interface DepotMonthlyReport {
+  /** False when the caller lacks payrollRead: payroll and every figure net of it are null. */
+  payVisible: boolean;
   depotId: string;
   /** Reported month, 'YYYY-MM'. */
   month: string;
@@ -1291,7 +1295,12 @@ export class ReportService {
    * orders/revenue (cancelled excluded); depots with no orders come back as zeroes so
    * every requested column renders. SLA/wastage are intentionally absent (no order source).
    */
-  async reportsDepotCompare(depotIds: string[], range: ReportRange): Promise<DepotCompareReport> {
+  /** `payVisible`: the caller's payrollRead. Without it payroll is not read, so net profit is null. */
+  async reportsDepotCompare(
+    depotIds: string[],
+    range: ReportRange,
+    payVisible: boolean,
+  ): Promise<DepotCompareReport> {
     // The window has to be closed to ask anyone else about it: SLA, costs and returns are
     // all range reads. An open-ended compare keeps the two real columns and leaves the
     // other three null rather than quietly reporting one depot's whole history.
@@ -1309,7 +1318,7 @@ export class ReportService {
           bounded && this.depotCosts
             ? this.depotCosts.costs(depotId, from, to)
             : Promise.resolve(null),
-          bounded && this.depotCosts
+          bounded && this.depotCosts && payVisible
             ? this.depotCosts.payroll(
                 depotId,
                 localDayKey(from, this.config.businessTimeZone).slice(0, 7),
@@ -1335,7 +1344,7 @@ export class ReportService {
         };
       }),
     );
-    return { ...ReportService.rangeView(range), depots };
+    return { ...ReportService.rangeView(range), depots, payVisible };
   }
 
   /**
@@ -1343,7 +1352,12 @@ export class ReportService {
    * window is [first-of-month, first-of-next-month). orders/revenue/activeCustomers are
    * real; topCourier is derived from driverName. netProfit + SLA are null (see interface).
    */
-  async reportsDepotMonthly(depotId: string, month: string): Promise<DepotMonthlyReport> {
+  /**
+   * `payVisible`: the caller's payrollRead (owner decision 2026-11-19). Without it payroll is
+   * not read, so the payroll line, net cash flow and net profit come back null, and cogs/opex
+   * alone cannot be subtracted into a payroll figure.
+   */
+  async reportsDepotMonthly(depotId: string, month: string, payVisible: boolean): Promise<DepotMonthlyReport> {
     const tz = this.config.businessTimeZone;
     const from = dayStartUtc(`${month}-01`, tz);
     const to = addLocalMonths(from, 1, tz);
@@ -1357,7 +1371,8 @@ export class ReportService {
       // actually arrived. An order's status says it was delivered, never whether it was late.
       this.deliverySla ? this.deliverySla.onTimeRate(depotId, from, to) : Promise.resolve(null),
       this.depotCosts ? this.depotCosts.costs(depotId, from, to) : Promise.resolve(null),
-      this.depotCosts ? this.depotCosts.payroll(depotId, month) : Promise.resolve(null),
+      this.depotCosts && payVisible
+        ? this.depotCosts.payroll(depotId, month) : Promise.resolve(null),
       // Approvals, stock counts and the daily close all live in depot-service; one read.
       this.depotCosts ? this.depotCosts.governance(depotId, from, to) : Promise.resolve(null),
       this.orders.refundedOnSales(depotId, { from, to }),
@@ -1393,6 +1408,7 @@ export class ReportService {
       refundedIdr,
       netRevenueIdr: revenueIdr - refundedIdr,
       activeCustomers: new Set(live.map((r) => r.customerId)).size,
+      payVisible,
       netCashFlowIdr,
       netProfitIdr: netCashFlowIdr,
       profitBreakdown: { revenueIdr, ...breakdown },

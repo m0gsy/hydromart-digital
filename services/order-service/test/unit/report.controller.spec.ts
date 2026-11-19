@@ -377,20 +377,30 @@ describe('ReportController', () => {
   });
 
   it('depotCompare: splits, trims and drops blanks from the depotIds CSV', async () => {
-    await expect(controller.depotCompare({ depotIds: 'd1, d2 ,,d3' } as never)).resolves.toBe(
-      'compare',
+    await expect(
+      controller.depotCompare({ depotIds: 'd1, d2 ,,d3' } as never, {
+        sub: 'u',
+        role: 'HEAD_OFFICE',
+      } as never),
+    ).resolves.toBe('compare');
+    expect(service.reportsDepotCompare).toHaveBeenCalledWith(
+      ['d1', 'd2', 'd3'],
+      { from: undefined, to: undefined },
+      true,
     );
-    expect(service.reportsDepotCompare).toHaveBeenCalledWith(['d1', 'd2', 'd3'], {
-      from: undefined,
-      to: undefined,
-    });
+  });
+
+  // Owner decision 2026-11-19: net profit is payrollRead's.
+  it('depotCompare: a role without payrollRead gets the compare without net profit', async () => {
+    await controller.depotCompare({ depotIds: 'd1' } as never, { sub: 'u', role: 'SUPERVISOR' } as never);
+    expect(service.reportsDepotCompare).toHaveBeenLastCalledWith(['d1'], expect.anything(), false);
   });
 
   it('depotMonthly: forwards depotId and month', async () => {
     await expect(
       controller.depotMonthly({ depotId: 'd1', month: '2026-02' } as never, HQ_USER),
     ).resolves.toBe('monthly');
-    expect(service.reportsDepotMonthly).toHaveBeenCalledWith('d1', '2026-02');
+    expect(service.reportsDepotMonthly).toHaveBeenCalledWith('d1', '2026-02', true);
   });
 
   // The depot head's monthly review: readable for their own depot, refused for any other.
@@ -399,6 +409,8 @@ describe('ReportController', () => {
     await expect(
       controller.depotMonthly({ depotId: 'd1', month: '2026-02' } as never, kepala),
     ).resolves.toBe('monthly');
+    // ...without the payroll line or anything net of it (owner decision 2026-11-19).
+    expect(service.reportsDepotMonthly).toHaveBeenLastCalledWith('d1', '2026-02', false);
     expect(() =>
       controller.depotMonthly({ depotId: 'd2', month: '2026-02' } as never, kepala),
     ).toThrow();

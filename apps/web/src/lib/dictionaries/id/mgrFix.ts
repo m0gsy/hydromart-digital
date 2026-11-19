@@ -92,6 +92,7 @@ export const mgrFix = {
     coveredCogs: 'HPP unit yang terpetakan',
     grossProfit: 'Laba kotor',
     payroll: 'Gaji & tunjangan (bruto)',
+    payHidden: 'Gaji dan laba bersih hanya ditampilkan untuk peran yang boleh melihat angka gaji (HR, keuangan, kantor pusat, direksi, manajer).',
     courierCommission: 'Komisi kurir',
     expenseClaims: 'Klaim biaya',
     refunds: 'Pengembalian dana',

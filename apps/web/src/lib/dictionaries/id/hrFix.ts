@@ -1790,6 +1790,7 @@ export const hrFix = {
     netProfit: 'Laba bersih',
     turnover: 'Omzet (non-batal)',
     purchasesReceived: 'Pembelian diterima',
+    payHidden: 'Gaji dan arus kas bersih hanya ditampilkan untuk peran yang boleh melihat angka gaji.',
     payrollNet: 'Gaji (net)',
     cashOut: 'Biaya kas keluar',
     approvalsReviewed: 'Approval ditinjau',

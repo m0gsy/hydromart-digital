@@ -142,3 +142,30 @@ describe('the depot P&L (flow 5a-2)', () => {
     expect(screen.queryByText('mgrFix.pnl.partial')).toBeNull();
   });
 });
+
+/*
+ * Owner decision 2026-11-19: payroll and net profit are payrollRead's. A reader without it gets
+ * them null BY DESIGN (payVisible: false). The screen leaves out the salary line, net profit,
+ * net margin and the payroll source, and says why. "—" would read as "not run yet", and the
+ * partial-data warning would blame a source nobody failed to read.
+ */
+describe('monthly P&L without payrollRead', () => {
+  it('shows every other line, no pay figure, and the reason', async () => {
+    get.mockResolvedValue({
+      ...REPORT,
+      payrollIdr: null,
+      netProfitIdr: null,
+      netMarginPct: null,
+      payVisible: false,
+      sources: { ...REPORT.sources, payroll: 'unavailable' },
+    });
+    render(<MonthlyPnlPage />);
+    expect(await screen.findByText('mgrFix.pnl.payHidden')).toBeTruthy();
+    expect(screen.getByText('mgrFix.pnl.grossProfit')).toBeTruthy();
+    expect(screen.queryByText('mgrFix.pnl.payroll')).toBeNull();
+    expect(screen.queryByText('mgrFix.pnl.netProfit')).toBeNull();
+    expect(screen.queryByText('mgrFix.pnl.netMargin')).toBeNull();
+    expect(screen.queryByText('mgrFix.pnl.payrollSource')).toBeNull();
+    expect(screen.queryByText('mgrFix.pnl.partial')).toBeNull();
+  });
+});

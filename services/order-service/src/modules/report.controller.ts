@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { can } from '@hydromart/access';
 import type { Response } from 'express';
 
 import {
@@ -389,12 +390,16 @@ export class ReportController {
   @ApiOkResponse({ type: DepotCompareReportResponseDto })
   @Get('depot-compare')
   @ApiOperation({ summary: 'Cross-depot comparison: orders + revenue per depot (design 14d)' })
-  depotCompare(@Query() q: DepotCompareQueryDto): Promise<DepotCompareReport> {
+  depotCompare(
+    @Query() q: DepotCompareQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DepotCompareReport> {
     const ids = q.depotIds
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean);
-    return this.reports.reportsDepotCompare(ids, toRange(q));
+    // Net profit subtracts payroll: payrollRead's (owner decision 2026-11-19).
+    return this.reports.reportsDepotCompare(ids, toRange(q), can('payrollRead', user.role, ids));
   }
 
   // `orderReportsDepot`, like its daily sibling: this is the monthly review the depot console's
@@ -411,7 +416,13 @@ export class ReportController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<DepotMonthlyReport> {
     assertDepotAccess(user, q.depotId);
-    return this.reports.reportsDepotMonthly(q.depotId, q.month);
+    // The payroll line, net cash flow and net profit are payrollRead's (owner decision
+    // 2026-11-19). A depot head reads this review and does not hold it.
+    return this.reports.reportsDepotMonthly(
+      q.depotId,
+      q.month,
+      can('payrollRead', user.role, [q.depotId]),
+    );
   }
 
   /**

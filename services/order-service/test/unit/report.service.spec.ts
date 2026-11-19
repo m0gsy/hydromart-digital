@@ -579,7 +579,7 @@ describe('ReportService', () => {
         governance: async () => null,
       };
       const svc = new ReportService(r, reportTestConfig(), undefined, undefined, undefined, undefined, costs as never);
-      const rep = await svc.reportsDepotMonthly(depot, '2026-07');
+      const rep = await svc.reportsDepotMonthly(depot, '2026-07', true);
       expect(rep.refundedIdr).toBe(30_000);
       expect(rep.netRevenueIdr).toBe(rep.revenueIdr - 30_000);
       expect(rep.netCashFlowIdr).toBe(rep.revenueIdr - 30_000 - 10_000 - 5_000 - 20_000);
@@ -590,7 +590,7 @@ describe('ReportService', () => {
 
     it('a depot with no refunds is unchanged', async () => {
       const r = new InMemoryOrderRepository();
-      const rep = await new ReportService(r, reportTestConfig()).reportsDepotMonthly(randomUUID(), '2026-07');
+      const rep = await new ReportService(r, reportTestConfig()).reportsDepotMonthly(randomUUID(), '2026-07', true);
       expect(rep.refundedIdr).toBe(0);
       expect(rep.netRevenueIdr).toBe(rep.revenueIdr);
     });
@@ -610,7 +610,7 @@ describe('ReportService', () => {
         sla as never,
       );
 
-      const rep = await svc.reportsDepotMonthly(depot, '2026-07');
+      const rep = await svc.reportsDepotMonthly(depot, '2026-07', true);
       // One decimal on purpose: whole points turn 87,6% into 88%, right at the band the HQ
       // dashboard changes colour on.
       expect(rep.slaPct).toBe(87.6);
@@ -629,13 +629,13 @@ describe('ReportService', () => {
       const svc = new ReportService(r, reportTestConfig(), undefined, undefined, undefined, {
         onTimeRate: async () => null,
       } as never);
-      expect((await svc.reportsDepotMonthly(randomUUID(), '2026-07')).slaPct).toBeNull();
+      expect((await svc.reportsDepotMonthly(randomUUID(), '2026-07', true)).slaPct).toBeNull();
     });
 
     it('leaves slaPct null when no delivery port is wired at all', async () => {
       const r = new InMemoryOrderRepository();
       const svc = new ReportService(r, reportTestConfig());
-      expect((await svc.reportsDepotMonthly(randomUUID(), '2026-07')).slaPct).toBeNull();
+      expect((await svc.reportsDepotMonthly(randomUUID(), '2026-07', true)).slaPct).toBeNull();
     });
   });
 
@@ -676,7 +676,7 @@ describe('ReportService', () => {
         costs: async () => null,
         payroll: async () => null,
         governance,
-      }).reportsDepotMonthly(depot, '2026-07');
+      }).reportsDepotMonthly(depot, '2026-07', true);
 
       expect(rep.governance).toEqual({
         approvalsReviewed: 3,
@@ -696,7 +696,7 @@ describe('ReportService', () => {
         costs: async () => null,
         payroll: async () => null,
         governance: async () => null,
-      }).reportsDepotMonthly(randomUUID(), '2026-07');
+      }).reportsDepotMonthly(randomUUID(), '2026-07', true);
       expect(rep.governance).toBeNull();
     });
 
@@ -704,8 +704,7 @@ describe('ReportService', () => {
       const r = new InMemoryOrderRepository();
       const rep = await new ReportService(r, reportTestConfig()).reportsDepotMonthly(
         randomUUID(),
-        '2026-07',
-      );
+        '2026-07', true);
       expect(rep.governance).toBeNull();
     });
   });
@@ -739,7 +738,7 @@ describe('ReportService', () => {
       const depot = randomUUID();
       await withRevenue(r, depot, 12_000_000);
 
-      const rep = await svcWith(r, costsPort()).reportsDepotMonthly(depot, '2026-07');
+      const rep = await svcWith(r, costsPort()).reportsDepotMonthly(depot, '2026-07', true);
       expect(rep.revenueIdr).toBe(12_000_000);
       expect(rep.netCashFlowIdr).toBe(12_000_000 - 4_000_000 - 3_000_000 - 1_900_000);
       expect(rep.netProfitIdr).toBe(rep.netCashFlowIdr);
@@ -749,13 +748,51 @@ describe('ReportService', () => {
         payrollIdr: 3_000_000,
         opexIdr: 1_900_000,
       });
+      expect(rep.payVisible).toBe(true);
+    });
+
+    /*
+     * Owner decision 2026-11-19: payroll and every figure net of it are payrollRead's. A depot
+     * head reads this review without it. Payroll is not even asked for, so net cash flow and net
+     * profit cannot be computed, and cogs/opex alone cannot be subtracted into a payroll figure.
+     */
+    it('without payrollRead: no payroll asked, no net figures, and it says why', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await withRevenue(r, depot, 12_000_000);
+      const payroll = jest.fn(async () => 3_000_000);
+
+      const rep = await svcWith(r, costsPort({ payroll })).reportsDepotMonthly(depot, '2026-07', false);
+      expect(payroll).not.toHaveBeenCalled();
+      expect(rep.profitBreakdown.payrollIdr).toBeNull();
+      expect(rep.netCashFlowIdr).toBeNull();
+      expect(rep.netProfitIdr).toBeNull();
+      expect(rep.revenueIdr).toBe(12_000_000);
+      expect(rep.payVisible).toBe(false);
+    });
+
+    it('the depot compare is held to the same rule', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await withRevenue(r, depot, 12_000_000);
+      const payroll = jest.fn(async () => 3_000_000);
+      const range = {
+        from: new Date('2026-06-30T17:00:00.000Z'),
+        to: new Date('2026-07-31T17:00:00.000Z'),
+      };
+      const hidden = await svcWith(r, costsPort({ payroll })).reportsDepotCompare([depot], range, false);
+      expect(payroll).not.toHaveBeenCalled();
+      expect(hidden.depots[0]!.netProfitIdr).toBeNull();
+      expect(hidden.payVisible).toBe(false);
+      const shown = await svcWith(r, costsPort({ payroll })).reportsDepotCompare([depot], range, true);
+      expect(shown.depots[0]!.netProfitIdr).not.toBeNull();
     });
 
     it('asks hr for the reported month, not for whatever month it is today', async () => {
       const r = new InMemoryOrderRepository();
       const depot = randomUUID();
       const payroll = jest.fn(async () => 3_000_000);
-      await svcWith(r, costsPort({ payroll })).reportsDepotMonthly(depot, '2026-07');
+      await svcWith(r, costsPort({ payroll })).reportsDepotMonthly(depot, '2026-07', true);
       expect(payroll).toHaveBeenCalledWith(depot, '2026-07');
     });
 
@@ -772,7 +809,7 @@ describe('ReportService', () => {
       const depot = randomUUID();
       await withRevenue(r, depot, 12_000_000);
 
-      const rep = await svcWith(r, costsPort(over)).reportsDepotMonthly(depot, '2026-07');
+      const rep = await svcWith(r, costsPort(over)).reportsDepotMonthly(depot, '2026-07', true);
       expect(rep.netProfitIdr).toBeNull();
       // The breakdown still ships: knowing WHICH half failed is what turns "—" from a dead
       // end into something an operator can chase.
@@ -787,7 +824,7 @@ describe('ReportService', () => {
       const r = new InMemoryOrderRepository();
       const rep = await new ReportService(r, reportTestConfig()).reportsDepotMonthly(
         randomUUID(),
-        '2026-07',
+        '2026-07', true,
       );
       expect(rep.netProfitIdr).toBeNull();
       expect(rep.profitBreakdown).toEqual({
@@ -802,7 +839,7 @@ describe('ReportService', () => {
       const r = new InMemoryOrderRepository();
       const depot = randomUUID();
       await withRevenue(r, depot, 1_000_000);
-      const rep = await svcWith(r, costsPort()).reportsDepotMonthly(depot, '2026-07');
+      const rep = await svcWith(r, costsPort()).reportsDepotMonthly(depot, '2026-07', true);
       expect(rep.netProfitIdr).toBe(1_000_000 - 8_900_000);
     });
   });
@@ -839,7 +876,7 @@ describe('ReportService', () => {
       const o = await r.create({ ...orderData({ depotId: depot, total: 12_000_000 }) });
       r.rows.find((x) => x.id === o.id)!.createdAt = new Date('2026-07-10T02:00:00.000Z');
 
-      const rep = await build(r).reportsDepotCompare([depot], RANGE);
+      const rep = await build(r).reportsDepotCompare([depot], RANGE, true);
       expect(rep.depots[0]).toEqual({
         depotId: depot,
         orders: 1,
@@ -861,7 +898,7 @@ describe('ReportService', () => {
       const depot = randomUUID();
       await r.create({ ...orderData({ depotId: depot, total: 50_000 }) });
 
-      const rep = await build(r).reportsDepotCompare([depot], {});
+      const rep = await build(r).reportsDepotCompare([depot], {}, true);
       expect(rep.depots[0]).toMatchObject({
         orders: 1,
         revenueIdr: 50_000,
@@ -884,7 +921,7 @@ describe('ReportService', () => {
         { costs: async () => null, payroll: async () => null } as never,
       );
 
-      const rep = await svc.reportsDepotCompare([depot], RANGE);
+      const rep = await svc.reportsDepotCompare([depot], RANGE, true);
       // The row is still there — a depot missing from a comparison reads as a depot that
       // sold nothing, which is a different and much worse claim.
       expect(rep.depots).toHaveLength(1);
@@ -1124,7 +1161,7 @@ describe('ReportService', () => {
 
     it('is left out of the monthly review', async () => {
       const { svc, depot } = await setup();
-      const rep = await svc.reportsDepotMonthly(depot, '2026-07');
+      const rep = await svc.reportsDepotMonthly(depot, '2026-07', true);
       expect(rep.orders).toBe(1);
       expect(rep.revenueIdr).toBe(40000);
       expect(rep.activeCustomers).toBe(1);
@@ -1135,7 +1172,7 @@ describe('ReportService', () => {
       const cmp = await svc.reportsDepotCompare([depot], {
         from: new Date('2026-07-01T00:00:00.000Z'),
         to: new Date('2026-08-01T00:00:00.000Z'),
-      });
+      }, true);
       expect(cmp.depots[0]).toMatchObject({ orders: 1, revenueIdr: 40000 });
     });
   });
@@ -1369,7 +1406,7 @@ describe('ReportService', () => {
 
   it('compares depots: real orders/revenue, zeroes for empty depots, cancelled excluded', async () => {
     const empty = randomUUID();
-    const cmp = await reports.reportsDepotCompare([DEPOT_A, DEPOT_B, empty], {});
+    const cmp = await reports.reportsDepotCompare([DEPOT_A, DEPOT_B, empty], {}, true);
     const byId = Object.fromEntries(cmp.depots.map((d) => [d.depotId, d]));
     expect(byId[DEPOT_A]).toMatchObject({ orders: 2, revenueIdr: 80000 });
     expect(byId[DEPOT_B]).toMatchObject({ orders: 1, revenueIdr: 20000 }); // 999999 cancelled excluded
@@ -1450,7 +1487,7 @@ describe('ReportService', () => {
     const other = await r.create(orderData({ depotId: depot, customerId: custX, total: 70000 }));
     r.rows.find((x) => x.id === other.id)!.createdAt = new Date('2026-06-02T00:00:00.000Z');
 
-    const rep = await svc.reportsDepotMonthly(depot, '2026-05');
+    const rep = await svc.reportsDepotMonthly(depot, '2026-05', true);
     expect(rep.orders).toBe(3);
     expect(rep.revenueIdr).toBe(100000);
     expect(rep.activeCustomers).toBe(2); // distinct non-cancelled customers
@@ -1584,7 +1621,7 @@ describe('ReportService empty and absent shapes', () => {
 
   it('omits the top courier from a month nobody delivered in', async () => {
     const svc = stub({ ordersForDepot: async () => [] });
-    const out = await svc.reportsDepotMonthly('d1', '2026-05');
+    const out = await svc.reportsDepotMonthly('d1', '2026-05', true);
     expect(out.topCourier).toBeUndefined();
     expect(out.orders).toBe(0);
     expect(out).toMatchObject({ gallons: 0, prevGallons: 0, gallonsDelta: 0, growthPct: null });
@@ -1627,7 +1664,7 @@ describe('ReportService empty and absent shapes', () => {
         [gallonOrder('2026-05-04T00:00:00.000Z', 90), gallonOrder('2026-05-20T00:00:00.000Z', 30)],
         [gallonOrder('2026-04-10T00:00:00.000Z', 100)],
       );
-      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      const out = await svc.reportsDepotMonthly('d1', '2026-05', true);
       expect(out).toMatchObject({
         gallons: 120,
         prevGallons: 100,
@@ -1641,14 +1678,14 @@ describe('ReportService empty and absent shapes', () => {
         [gallonOrder('2026-05-04T00:00:00.000Z', 75)],
         [gallonOrder('2026-04-10T00:00:00.000Z', 100)],
       );
-      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      const out = await svc.reportsDepotMonthly('d1', '2026-05', true);
       expect(out).toMatchObject({ gallonsDelta: -25, growthPct: -25 });
     });
 
     // Not 0, not Infinity, not "+100%" — there is nothing to grow from.
     it('reports no percentage at all when last month sold nothing', async () => {
       const svc = withMonths([gallonOrder('2026-05-04T00:00:00.000Z', 120)], []);
-      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      const out = await svc.reportsDepotMonthly('d1', '2026-05', true);
       expect(out).toMatchObject({
         gallons: 120,
         prevGallons: 0,
@@ -1666,14 +1703,14 @@ describe('ReportService empty and absent shapes', () => {
         ],
         [],
       );
-      expect((await svc.reportsDepotMonthly('d1', '2026-05')).gallons).toBe(40);
+      expect((await svc.reportsDepotMonthly('d1', '2026-05', true)).gallons).toBe(40);
     });
 
     // A finished month averages over its whole length; the CURRENT month only over the
     // days that have happened, or every review opened on the 3rd reads as a collapse.
     it('averages a finished month over its whole length', async () => {
       const svc = withMonths([gallonOrder('2026-05-04T00:00:00.000Z', 310)], []);
-      const out = await svc.reportsDepotMonthly('d1', '2026-05');
+      const out = await svc.reportsDepotMonthly('d1', '2026-05', true);
       expect(out.avgGallonsPerDay).toBe(10); // 310 / 31, not 310 / 30
     });
 
@@ -1690,7 +1727,7 @@ describe('ReportService empty and absent shapes', () => {
               ? []
               : [gallonOrder('2026-08-02T00:00:00.000Z', 50)],
         });
-        expect((await svc.reportsDepotMonthly('d1', '2026-08')).avgGallonsPerDay).toBe(10); // 50 / 5
+        expect((await svc.reportsDepotMonthly('d1', '2026-08', true)).avgGallonsPerDay).toBe(10); // 50 / 5
       } finally {
         jest.useRealTimers();
       }
@@ -1703,7 +1740,7 @@ describe('ReportService empty and absent shapes', () => {
       });
       try {
         const svc = stub({ ordersForDepot: async () => [] });
-        expect((await svc.reportsDepotMonthly('d1', '2026-12')).avgGallonsPerDay).toBe(0);
+        expect((await svc.reportsDepotMonthly('d1', '2026-12', true)).avgGallonsPerDay).toBe(0);
       } finally {
         jest.useRealTimers();
       }

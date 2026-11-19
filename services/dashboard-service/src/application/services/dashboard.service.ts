@@ -113,6 +113,8 @@ export interface FranchiseDashboard {
 }
 
 export interface MonthlyOperationalPnl {
+  /** False when the caller lacks payrollRead: payroll and net profit were not read (2026-11-19). */
+  payVisible: boolean;
   depotId: string;
   month: string;
   from: string;
@@ -185,6 +187,8 @@ export interface NetworkPnlDepotRow {
 }
 
 export interface NetworkPnl {
+  /** False when the caller lacks payrollRead: payroll and net profit were not read (2026-11-19). */
+  payVisible: boolean;
   month: string;
   from: string;
   to: string;
@@ -218,7 +222,19 @@ export class DashboardService {
     @Inject(DASHBOARD_TOKENS.AccountNames) private readonly accountNames: AccountNameResolver,
   ) {}
 
-  async monthlyPnl(depotId: string, month: string, token: string): Promise<MonthlyOperationalPnl> {
+  /**
+   * `payVisible` is the caller's `payrollRead`, decided by the controller (owner decision
+   * 2026-11-19). Without it the payroll is not even asked for, so the salary line, net profit
+   * and net margin come back null. In a depot of three or four people the payroll total is each
+   * person's pay, and net profit gives it away by subtraction. `payVisible` says why to a screen,
+   * so the gap does not read as "payroll not run yet".
+   */
+  async monthlyPnl(
+    depotId: string,
+    month: string,
+    token: string,
+    payVisible: boolean,
+  ): Promise<MonthlyOperationalPnl> {
     // H-16: `${month}-01T00:00Z` is 07:00 WIB on the 1st, so the P&L window started
     // seven hours late and ended seven hours late — the first and last day of every
     // month were both partly wrong.
@@ -231,7 +247,7 @@ export class DashboardService {
     const [order, costs, hr, payout, refunds] = await Promise.all([
       this.sources.depotMonthly(depotId, month, token),
       this.sources.operationalCosts(depotId, range, token),
-      this.sources.hrSummaryMany([depotId], month),
+      payVisible ? this.sources.hrSummaryMany([depotId], month) : Promise.resolve([null]),
       this.sources.payoutCosts([depotId], range),
       this.sources.depotRefunds([depotId], range),
     ]);
@@ -279,6 +295,7 @@ export class DashboardService {
       refundIdr,
       netProfitIdr,
       netMarginPct: pctOfRevenue(netProfitIdr),
+      payVisible,
       costCoverage: costs?.cogs ?? null,
       opexIdr,
       netOperatingProfitIdr,
@@ -404,10 +421,12 @@ export class DashboardService {
     return depots && scope ? depots.filter((d) => scope.includes(d.id)) : depots;
   }
 
+  /** `payVisible`: the caller's `payrollRead`, as on `monthlyPnl`. */
   async networkPnl(
     month: string,
     token: string,
-    depotIds?: readonly string[],
+    depotIds: readonly string[] | undefined,
+    payVisible: boolean,
   ): Promise<NetworkPnl> {
     // Same window arithmetic as `monthlyPnl` (H-16): `${month}-01T00:00Z` is 07:00 WIB, so
     // a UTC window starts and ends seven hours late and gets the first and last day of
@@ -423,7 +442,7 @@ export class DashboardService {
     const [revenues, goods, hr, payout, refunds] = await Promise.all([
       Promise.all(ids.map((id) => this.sources.depotMonthly(id, month, token))),
       Promise.all(ids.map((id) => this.sources.operationalCosts(id, range, token))),
-      this.sources.hrSummaryMany(ids, month),
+      payVisible ? this.sources.hrSummaryMany(ids, month) : Promise.resolve(ids.map(() => null)),
       this.sources.payoutCosts(ids, range),
       this.sources.depotRefunds(ids, range),
     ]);
@@ -484,6 +503,7 @@ export class DashboardService {
         'tidak termasuk karena tidak dicatat di sistem ini. Bukan laporan akuntansi ' +
         'statutori maupun surat pemberitahuan pajak.',
       depots: rows,
+      payVisible,
       totals: {
         revenueIdr: sum((r) => r.revenueIdr),
         cogsIdr: sum((r) => r.cogsIdr),

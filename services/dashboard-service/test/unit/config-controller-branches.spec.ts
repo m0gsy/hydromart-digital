@@ -139,8 +139,18 @@ describe('DashboardController', () => {
   });
 
   it('delegates monthlyPnl with depotId + month', async () => {
-    await expect(controller.monthlyPnl({ depotId: 'd1', month: '2026-07' }, 'Bearer t')).resolves.toBe('pnl');
-    expect(stub.monthlyPnl).toHaveBeenCalledWith('d1', '2026-07', 'Bearer t');
+    await expect(controller.monthlyPnl({ depotId: 'd1', month: '2026-07' }, 'Bearer t', headOffice)).resolves.toBe('pnl');
+    expect(stub.monthlyPnl).toHaveBeenCalledWith('d1', '2026-07', 'Bearer t', true);
+  });
+
+  // Owner decision 2026-11-19: payroll and net profit are payrollRead's. A supervisor holds
+  // `dashboard` but not that, so the P&L reaches them without either.
+  it('a role without payrollRead gets both P&Ls without the pay figures', async () => {
+    const supervisor = { sub: 's1', role: 'SUPERVISOR', phone: null, depotId: 'd1', depotIds: ['d1'] } as never;
+    await controller.monthlyPnl({ depotId: 'd1', month: '2026-07' }, 'Bearer t', supervisor);
+    expect(stub.monthlyPnl).toHaveBeenLastCalledWith('d1', '2026-07', 'Bearer t', false);
+    await controller.networkPnl({ month: '2026-07' }, 'Bearer t', supervisor);
+    expect(stub.networkPnl).toHaveBeenLastCalledWith('2026-07', 'Bearer t', ['d1'], false);
   });
 
   // CA-2-59: no depotId — the whole point is the network. A depot's own P&L is monthlyPnl.
@@ -148,10 +158,10 @@ describe('DashboardController', () => {
     await expect(
       controller.networkPnl({ month: '2026-07' }, 'Bearer t', headOffice),
     ).resolves.toBe('network-pnl');
-    expect(stub.networkPnl).toHaveBeenCalledWith('2026-07', 'Bearer t', undefined);
+    expect(stub.networkPnl).toHaveBeenCalledWith('2026-07', 'Bearer t', undefined, true);
     // DSH-1: a manager's roll-up is its own depots.
     await controller.networkPnl({ month: '2026-07' }, 'Bearer t', manager('d1', 'd2'));
-    expect(stub.networkPnl).toHaveBeenLastCalledWith('2026-07', 'Bearer t', ['d1', 'd2']);
+    expect(stub.networkPnl).toHaveBeenLastCalledWith('2026-07', 'Bearer t', ['d1', 'd2'], true);
   });
 
   it('delegates network with the parsed range + token', async () => {

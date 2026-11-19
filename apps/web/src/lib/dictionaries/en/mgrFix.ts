@@ -89,6 +89,7 @@ export const mgrFix = {
     coveredCogs: 'COGS for mapped units',
     grossProfit: 'Gross profit',
     payroll: 'Wages & allowances (gross)',
+    payHidden: 'Payroll and net profit are shown only to roles that may read pay figures (HR, finance, head office, directors, managers).',
     courierCommission: 'Courier commission',
     expenseClaims: 'Expense claims',
     refunds: 'Refunds',

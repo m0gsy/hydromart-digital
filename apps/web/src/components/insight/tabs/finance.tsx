@@ -41,6 +41,9 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
   const maySettle = can('settlementRead', role);
   const mayRefunds = can('refundQueueRead', role);
   const mayPnl = can('dashboard', role);
+  // Net profit and payroll are payrollRead's (owner decision 2026-11-19): decided by the role
+  // before anything loads, then by the server's answer.
+  const mayReadPay = can('payrollRead', role);
   // A P&L is a month. The window's first day names it, and the screen says which when the
   // window is not itself a month, so a week or a custom range is never mistaken for one.
   const month = monthWib(new Date(range.from));
@@ -83,6 +86,11 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
   const waiting = (unsettled.data ?? []).reduce((n, b) => n + b.amount, 0);
   const waitingCount = (unsettled.data ?? []).reduce((n, b) => n + b.count, 0);
   const rows = (network.data?.depots ?? []).filter((d) => depotId == null || d.depotId === depotId);
+  // Payroll is payrollRead's (owner decision 2026-11-19): the column goes, not a row of dashes.
+  const columns =
+    !mayReadPay || network.data?.payVisible === false
+      ? COST_COLUMNS.filter((c) => c.key !== 'payrollIdr')
+      : COST_COLUMNS;
 
   return (
     <div className="flex flex-col gap-6">
@@ -116,6 +124,8 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
               value={money(depotPnl.data?.revenueIdr)}
               definition={t('insight.kpi.revenueDef')}
             />
+            {/* Net profit is payrollRead's (owner decision 2026-11-19). */}
+            {mayReadPay && depotPnl.data?.payVisible !== false && (
             <KpiCard
               label={t('insight.finance.netProfit')}
               value={money(depotPnl.data?.netProfitIdr)}
@@ -132,6 +142,7 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
               }
               definition={t('insight.finance.netProfitDef')}
             />
+            )}
           </>
         )}
       </section>
@@ -183,7 +194,7 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
                       <th scope="col" className="p-2 text-left font-medium text-muted">
                         {t('insight.finance.depot')}
                       </th>
-                      {COST_COLUMNS.map((c) => (
+                      {columns.map((c) => (
                         <th
                           key={c.key}
                           scope="col"
@@ -200,7 +211,7 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
                         <th scope="row" className="p-2 text-left font-semibold">
                           {r.name}
                         </th>
-                        {COST_COLUMNS.map((c) => (
+                        {columns.map((c) => (
                           <td key={c.key} className="p-2 text-right tabular-nums">
                             {money(r[c.key] as number | null)}
                           </td>
@@ -214,7 +225,7 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
                         <th scope="row" className="p-2 text-left font-bold">
                           {t('insight.finance.total')}
                         </th>
-                        {COST_COLUMNS.map((c) => (
+                        {columns.map((c) => (
                           <td key={c.key} className="p-2 text-right font-bold tabular-nums">
                             {money(d.totals[c.key as keyof typeof d.totals] as number | null)}
                           </td>
