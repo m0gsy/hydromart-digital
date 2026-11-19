@@ -1714,21 +1714,35 @@ describe('AttendancePrismaRepository', () => {
     });
   });
 
-  it('patchCheckOut → attendance.update', async () => {
+  const checkOutPatch = () => ({
+    checkOutAt: new Date(),
+    checkOutPhotoUrl: null,
+    checkOutScore: 0.8,
+    checkOutLat: 1,
+    checkOutLng: 2,
+    workingMinutes: 480,
+  });
+
+  it('patchCheckOut closes only a row that is still open, and returns it', async () => {
     const p = makePrisma();
     const out = sentinel();
-    m(p, 'attendance').update.mockResolvedValue(out);
+    m(p, 'attendance').updateMany.mockResolvedValue({ count: 1 });
+    m(p, 'attendance').findUnique.mockResolvedValue(out);
     const repo = new AttendancePrismaRepository(asService(p));
-    const patch = {
-      checkOutAt: new Date(),
-      checkOutPhotoUrl: null,
-      checkOutScore: 0.8,
-      checkOutLat: 1,
-      checkOutLng: 2,
-      workingMinutes: 480,
-    };
+    const patch = checkOutPatch();
     await expect(repo.patchCheckOut('a1', patch)).resolves.toBe(out);
-    expect(m(p, 'attendance').update).toHaveBeenCalledWith({ where: { id: 'a1' }, data: patch });
+    expect(m(p, 'attendance').updateMany).toHaveBeenCalledWith({
+      where: { id: 'a1', checkOutAt: null },
+      data: patch,
+    });
+  });
+
+  it('patchCheckOut answers null for a row a twin already closed, and reads nothing', async () => {
+    const p = makePrisma();
+    m(p, 'attendance').updateMany.mockResolvedValue({ count: 0 });
+    const repo = new AttendancePrismaRepository(asService(p));
+    await expect(repo.patchCheckOut('a1', checkOutPatch())).resolves.toBeNull();
+    expect(m(p, 'attendance').findUnique).not.toHaveBeenCalled();
   });
 
   it('patchStatus → attendance.update with the settled status', async () => {

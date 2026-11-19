@@ -93,7 +93,7 @@ class FakeAtt implements AttendanceRepository {
     this.row = { id: 'a1', ...input } as unknown as Attendance;
     return this.row;
   }
-  async patchCheckOut(_id: string, patch: CheckOutPatch): Promise<Attendance> {
+  async patchCheckOut(_id: string, patch: CheckOutPatch): Promise<Attendance | null> {
     this.patched = patch;
     this.row = { ...(this.row as Attendance), ...patch };
     return this.row;
@@ -174,12 +174,53 @@ describe('a replay is recognised before the face is checked', () => {
     expect(verify).not.toHaveBeenCalled();
   });
 
-  it('still refuses a second check-in that is not a replay (another capturedAt), after the face check', async () => {
-    const { svc } = make();
+  it('refuses a second check-in that is not a replay (another capturedAt) before the face costs a hit', async () => {
+    const verify = jest.fn(async () => ({ score: 0.9, matched: true }));
+    const { svc } = make({ verify });
     await svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 60_000));
+    verify.mockClear();
     await expect(
       svc.checkIn(user, punchAt(new Date(AT_0810.getTime() + 30_000)), new Date(AT_0810.getTime() + 90_000)),
     ).rejects.toThrow('Sudah check-in hari ini');
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('does not take another punch that clamps to the same instant for the replay, once the row kept its client time', async () => {
+    const { svc } = make();
+    // Two different phones-ahead punches both clamp to the server time they arrive at.
+    await svc.checkIn(user, punchAt(new Date(AT_0810.getTime() + 3 * 60_000)), AT_0810);
+    await expect(
+      svc.checkIn(user, punchAt(new Date(AT_0810.getTime() + 7 * 60_000)), AT_0810),
+    ).rejects.toThrow('Sudah check-in hari ini');
+  });
+
+  it('refuses a punch past the offline age limit, and a check-out with no check-in, before the face', async () => {
+    const verify = jest.fn(async () => ({ score: 0.9, matched: true }));
+    const { svc } = make({ verify, maxAgeHours: 24 });
+    await expect(
+      svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 72 * 3_600_000)),
+    ).rejects.toThrow(BadRequestException);
+    await expect(svc.checkOut(user, punchAt(), AT_1700)).rejects.toThrow('Belum check-in hari ini');
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('answers the replay of a night-shift check-out that closed yesterday’s row, asking NEO nothing', async () => {
+    const verify = jest.fn(async () => ({ score: 0.9, matched: true }));
+    const sent = new Date('2026-07-24T17:30:00.000Z'); // 00:30 WIB on the 25th
+    class NightShift extends FakeAtt {
+      async findByEmployeeAndDate(): Promise<Attendance | null> {
+        return null; // no row on the 25th
+      }
+      async list() {
+        const row = { id: 'n1', checkInAt: AT_1700, checkOutAt: sent, checkOutClientAt: sent, employeeName: null };
+        return { rows: [row as unknown as Attendance & { employeeName: null }], total: 1 };
+      }
+    }
+    const { svc } = make({ att: new NightShift(), verify });
+    await expect(
+      svc.checkOut(user, punchAt(sent), new Date(sent.getTime() + 60_000)),
+    ).resolves.toMatchObject({ id: 'n1' });
+    expect(verify).not.toHaveBeenCalled();
   });
 
   it('answers the replay of a check-out whose phone clock ran ahead with the stored row, asking NEO nothing', async () => {
@@ -205,30 +246,54 @@ describe('a replay is recognised before the face is checked', () => {
     constructor(private readonly closed: Partial<Attendance>) {
       super();
     }
-    async list() {
-      // What the replay check read: the row, still open.
-      const open = { id: 'a1', checkInAt: AT_0810, checkOutAt: null, employeeName: null };
-      return { rows: [open as unknown as Attendance & { employeeName: null }], total: 1 };
-    }
     async findByEmployeeAndDate(): Promise<Attendance | null> {
-      // What the check-out read after the face check: closed by the twin.
+      // What this request read before its face check: the row, still open.
+      return { id: 'a1', checkInAt: AT_0810, checkOutAt: null } as unknown as Attendance;
+    }
+    async patchCheckOut(): Promise<Attendance | null> {
+      return null; // the twin closed it first; the close only writes an open row
+    }
+    async findById(): Promise<Attendance | null> {
       return { id: 'a1', checkInAt: AT_0810, ...this.closed } as Attendance;
     }
   }
 
-  it('answers a twin check-out that closed the row during its face check, by the client time', async () => {
+  it('answers a twin check-out that closed the row during its face check, and drops the frame it stored', async () => {
     const sent = new Date(AT_1700.getTime() + 4 * 60_000);
     const att = new ClosedWhileChecking({ checkOutAt: AT_1700, checkOutClientAt: sent });
-    const { svc } = make({ att });
+    const removed: string[] = [];
+    const storage = {
+      put: async () => ({ url: 'u', key: 'hr/attendance/twin.jpg' }),
+      remove: async (key: string) => {
+        removed.push(key);
+      },
+    };
+    const { svc } = make({ att, storage: storage as never });
     await expect(svc.checkOut(user, punchAt(sent), new Date(AT_1700.getTime() + 60_000))).resolves.toMatchObject({
       checkOutAt: AT_1700,
     });
+    expect(removed).toEqual(['hr/attendance/twin.jpg']);
   });
 
   it('answers it by the stored instant for a row written before the client time was kept', async () => {
     const att = new ClosedWhileChecking({ checkOutAt: AT_1700, checkOutClientAt: null });
     const { svc } = make({ att });
     await expect(svc.checkOut(user, punchAt(AT_1700), new Date(AT_1700.getTime() + 60_000))).resolves.toMatchObject({
+      checkOutAt: AT_1700,
+    });
+  });
+
+  it('still answers the twin when dropping its stray frame fails', async () => {
+    const sent = new Date(AT_1700.getTime() + 4 * 60_000);
+    const att = new ClosedWhileChecking({ checkOutAt: AT_1700, checkOutClientAt: sent });
+    const storage = {
+      put: async () => ({ url: 'u', key: 'hr/attendance/twin2.jpg' }),
+      remove: async () => {
+        throw new Error('AccessDenied');
+      },
+    };
+    const { svc } = make({ att, storage: storage as never });
+    await expect(svc.checkOut(user, punchAt(sent), new Date(AT_1700.getTime() + 60_000))).resolves.toMatchObject({
       checkOutAt: AT_1700,
     });
   });
