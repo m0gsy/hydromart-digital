@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Megaphone } from '@phosphor-icons/react';
 
+import { CampaignList } from '@/components/campaigns/campaign-list';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { useAuth } from '@/lib/auth-context';
 import { canOpenHqPath } from '@/lib/hq-nav';
@@ -13,6 +14,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
+import { canManageCampaigns } from '@/lib/roles';
 
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
@@ -42,6 +44,8 @@ const SEGMENT_CONDITIONS: Record<
 export default function HqCampaignBuilderPage() {
   const { t } = useT();
   const { customer } = useAuth();
+  // A campaign just sent remounts the list below, which reads it again.
+  const [listVersion, setListVersion] = useState(0);
   const { toast } = useToast();
   const params = useSearchParams();
   const [step, setStep] = useState(0);
@@ -114,6 +118,8 @@ export default function HqCampaignBuilderPage() {
       toast(err instanceof ApiError ? err.message : t('hq.campaigns.error'), 'error');
     } finally {
       setBusy(false);
+      // Also after a failed send: the draft it created is in the list, sendable from there.
+      setListVersion((v) => v + 1);
     }
   }
 
@@ -274,6 +280,21 @@ export default function HqCampaignBuilderPage() {
           )}
         </div>
       </Card>
+
+      {/* Flow plan 5c: what was sent can be seen again, read back and stopped here too — the
+          same list the depot console has. It used to vanish the moment it was sent. */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-bold">{t('hq.campaigns.listTitle')}</h2>
+        <CampaignList
+          key={listVersion}
+          canManage={canManageCampaigns(customer?.role)}
+          emptyHint={
+            canManageCampaigns(customer?.role)
+              ? t('dashboard.campaigns.noCampaignsManage')
+              : t('dashboard.campaigns.noCampaignsView')
+          }
+        />
+      </section>
     </div>
   );
 }

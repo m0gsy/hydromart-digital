@@ -1090,6 +1090,7 @@ export const hq = {
     emptyAll: 'Belum ada data churn pelanggan.',
   },
   campaigns: {
+    listTitle: 'Kampanye terkirim & terjadwal',
     title: 'Buat kampanye',
     subtitle: 'Susun segmen, pesan, dan kirim',
     steps: { segment: 'Segmen', message: 'Pesan', send: 'Kirim' },
