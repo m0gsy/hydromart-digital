@@ -1188,7 +1188,9 @@ export default function AccountPage() {
         {t('account.title')}
       </h1>
 
-      <div className="grid gap-5 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-start">
+      {/* grid-cols-1 below lg: the implicit `auto` column grew to the profile card's one-line
+          name and pushed the page 2px past a 320px screen. */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[264px_minmax(0,1fr)] lg:items-start">
         {/* desktop sidebar (spec 4f) */}
         <aside className="hidden lg:sticky lg:top-20 lg:block">
           <div className="surface flex flex-col gap-1.5 rounded-[20px] border border-app p-3.5">

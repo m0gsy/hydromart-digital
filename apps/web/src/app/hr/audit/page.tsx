@@ -93,7 +93,11 @@ export default function AuditPage() {
              */
             <div key={l.id} className="flex flex-col gap-1.5 p-3 text-sm">
               <div className="flex items-center justify-between gap-3">
-                <Badge tone={ACTION_TONE[l.action] ?? 'neutral'}>{actionLabel(l.action, t)}</Badge>
+                {/* A route-shaped action ("POST employees/internal/provision") is one long
+                    token; unbroken, it pushed the date 33px past a 320px screen. */}
+                <Badge tone={ACTION_TONE[l.action] ?? 'neutral'}>
+                  <span className="[overflow-wrap:anywhere]">{actionLabel(l.action, t)}</span>
+                </Badge>
                 <span className="min-w-0 flex-1 truncate">
                   <b>{l.entity}</b>
                   {l.entityId ? ` · ${l.entityId.slice(0, 8)}…` : ''}
