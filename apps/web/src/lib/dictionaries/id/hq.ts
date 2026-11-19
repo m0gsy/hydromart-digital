@@ -1074,8 +1074,7 @@ export const hq = {
   },
   churn: {
     title: 'Churn & retensi',
-    subtitle: 'Pelanggan menurut risiko churn dari forecast-service, sama dengan daftar churn depot',
-    band: { HIGH: 'Risiko tinggi', MEDIUM: 'Risiko sedang', LOW: 'Risiko rendah' },
+    subtitle: 'Pelanggan menurut risiko churn, sama dengan daftar churn depot',
     reengage: 'Re-engage',
     reengaged: 'Pesan reaktivasi dikirim',
     reengageError: 'Gagal mengirim pesan reaktivasi.',
@@ -1084,8 +1083,8 @@ export const hq = {
       'Hai {{name}}, sudah lama tidak pesan air. Ada promo untuk pesanan berikutnya!',
     daysSince: '{n} hari lalu',
     orders: '{n} pesanan',
-    empty: 'Tidak ada pelanggan pada cohort ini.',
-    emptyAll: 'Belum ada pelanggan berisiko.',
+    empty: 'Tidak ada pelanggan pada tingkat risiko ini.',
+    emptyAll: 'Belum ada data churn pelanggan.',
   },
   campaigns: {
     title: 'Buat kampanye',

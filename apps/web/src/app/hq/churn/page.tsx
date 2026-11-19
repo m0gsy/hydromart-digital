@@ -40,7 +40,10 @@ export default function HqChurnPage() {
   const { toast } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
   const data = useAsync<{ customers: ChurnCustomer[] }>(() =>
-    api.get(endpoints.forecast.churn({ limit: 100, days: 90 }), true),
+    // No `days`: the server's own scoring window, the one the depot churn list asks with.
+    // HQ asked with 90 while the depot used the default (45), and the same customer got two
+    // different bands on the two screens.
+    api.get(endpoints.forecast.churn({ limit: 100 }), true),
   );
 
   async function reengage(customer: ChurnCustomer) {
@@ -82,12 +85,12 @@ export default function HqChurnPage() {
       ) : customers.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted">{t('hq.churn.emptyAll')}</p>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-3">
           {grouped.map((c) => (
             <Card key={c.key} className="flex flex-col gap-3 p-5">
               <h2 className="flex items-center gap-2 font-semibold">
                 <span className={`h-2.5 w-2.5 rounded-full ${c.accent}`} />
-                {t(`hq.churn.band.${c.key}`)}
+                {t(`insight.customers.risk.${c.key}`)}
                 <span className="text-sm font-normal text-muted">({c.rows.length})</span>
               </h2>
               {c.rows.length === 0 ? (

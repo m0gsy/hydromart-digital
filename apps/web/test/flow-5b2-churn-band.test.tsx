@@ -25,7 +25,7 @@ const row = (name: string, daysSince: number, riskBand: 'LOW' | 'MEDIUM' | 'HIGH
 });
 
 describe('HQ churn (flow 5b)', () => {
-  it("groups by the server's risk band, not by days since the last order", async () => {
+  it("groups by the server's risk band, not by days since the last order, asked the depot's way", async () => {
     get.mockResolvedValue({
       // Ordered 3 days ago, yet the model rates them HIGH: the band decides, not the days.
       customers: [row('Ayu', 3, 'HIGH'), row('Bayu', 80, 'LOW')],
@@ -36,10 +36,15 @@ describe('HQ churn (flow 5b)', () => {
       </LocaleProvider>,
     );
 
-    const high = (await screen.findByText('Risiko tinggi')).closest('div')!.parentElement!;
+    // Each band's own card (the h2's nearest div), so a row in the wrong card fails.
+    const high = (await screen.findByText('Risiko tinggi')).closest('div')!;
     expect(within(high).getByText('Ayu')).toBeTruthy();
-    const low = screen.getByText('Risiko rendah').closest('div')!.parentElement!;
+    expect(within(high).queryByText('Bayu')).toBeNull();
+    const low = screen.getByText('Risiko rendah').closest('div')!;
     expect(within(low).getByText('Bayu')).toBeTruthy();
+    expect(within(low).queryByText('Ayu')).toBeNull();
     expect(screen.queryByText('Aktif')).toBeNull();
+    // The same scoring window as the depot list: no days override.
+    expect(String(get.mock.calls[0]![0])).not.toContain('days=');
   });
 });

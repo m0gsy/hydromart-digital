@@ -1070,8 +1070,7 @@ export const hq = {
   },
   churn: {
     title: 'Churn & retention',
-    subtitle: "Customers by churn risk from forecast-service, the same as the depot's churn list",
-    band: { HIGH: 'High risk', MEDIUM: 'Medium risk', LOW: 'Low risk' },
+    subtitle: "Customers by churn risk, the same as the depot's churn list",
     reengage: 'Re-engage',
     reengageError: 'Could not send the re-engagement message.',
     campaignName: 'Re-engagement — {name}',
@@ -1080,8 +1079,8 @@ export const hq = {
     reengaged: 'Re-engagement message sent',
     daysSince: '{n} days ago',
     orders: '{n} orders',
-    empty: 'No customers in this cohort.',
-    emptyAll: 'No at-risk customers yet.',
+    empty: 'No customers at this risk level.',
+    emptyAll: 'No customer churn data yet.',
   },
   campaigns: {
     title: 'Build campaign',
