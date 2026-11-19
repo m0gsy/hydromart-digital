@@ -519,7 +519,9 @@ const MEASURE = ({ tapMin }) => {
         // second pass below, which asks the only question that matters: is it still
         // covered once it has been scrolled into the middle of the screen?
         recheck.push({ el, key, hit: sel(hit) });
-      } else if (r.width < tapMin || r.height < tapMin) {
+      } else if (r.width < tapMin - 0.5 || r.height < tapMin - 0.5) {
+        // Half a pixel of slack: a target grown to exactly 44px measures 43.99 once text metrics
+        // leave a fraction behind, and was reported as "44x46 < 44", a finding nobody can fix.
         tapBad.set(key, {
           el: key,
           kind: 'small',
