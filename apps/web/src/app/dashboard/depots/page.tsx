@@ -18,7 +18,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canManageDepotLifecycle, canManageDepots, canReadDepotRecords } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, Page } from '@/lib/types';
+import type { DepotAdmin } from '@/lib/types';
+import { fetchAllDepots } from '@/lib/all-depots';
 
 // Audit F-9: same as /hq — the map is behind a tab, so it loads when that tab does.
 const DepotMap = dynamic(() => import('@/components/dashboard/depot-map').then((m) => m.DepotMap), {
@@ -406,14 +407,16 @@ function DepotsBody() {
   const [hoursDepot, setHoursDepot] = useState<DepotAdmin | null>(null);
   const [detail, setDetail] = useState<DepotAdmin | null>(null);
   const [view, setView] = useState<'list' | 'map'>('list');
-  const list = useAsync<Page<DepotAdmin> | DepotAdmin>(() =>
+  // Flow PR-8b: every depot. The list and the map both draw them all, and a network past 100
+  // lost the 101st card and pin with nothing saying so.
+  const list = useAsync<DepotAdmin[] | DepotAdmin>(() =>
     canWrite
-      ? api.getCached(endpoints.depots.manage({ limit: 100 }), true)
+      ? fetchAllDepots()
       : ownDepotId
-        ? api.getCached(endpoints.depots.manageDetail(ownDepotId), true)
-        : Promise.resolve({ items: [], total: 0, page: 1, limit: 0 } as Page<DepotAdmin>),
+        ? api.getCached<DepotAdmin>(endpoints.depots.manageDetail(ownDepotId), true)
+        : Promise.resolve([] as DepotAdmin[]),
   );
-  const items = list.data ? ('items' in list.data ? list.data.items : [list.data]) : [];
+  const items = list.data ? (Array.isArray(list.data) ? list.data : [list.data]) : [];
 
   function closeForm() {
     setEditing(null);

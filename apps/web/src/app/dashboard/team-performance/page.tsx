@@ -17,6 +17,7 @@ import { entityHref } from '@/lib/entity-href';
 import { useAsync } from '@/lib/use-async';
 import { useQueryParam } from '@/lib/use-query-param';
 import { monthRangeWib } from '@/lib/wib';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 
 const AVATAR_COLORS = ['#0b4d57', '#e2681c', '#1d4e89', '#0c97ac', '#6b4ea8'];
 
@@ -57,12 +58,13 @@ function TeamPerformanceBody() {
         endpoints.deliveries.depotTeam(depot.id, { from: MONTH_FROM, to: MONTH_TO }),
         true,
       );
-      const staff = await api
-        .get<Page<Customer>>(endpoints.auth.staff({ depotId: depot.id, limit: 100 }), true)
-        .catch(() => null);
+      // Flow PR-8b: the whole depot roster. A courier past the first 100 staff showed a raw id.
+      const staff = await fetchAllPages<Customer>(({ page, limit }) =>
+        api.get<Page<Customer>>(endpoints.auth.staff({ depotId: depot.id, page, limit }), true),
+      ).catch(() => null);
       return {
         report,
-        names: new Map(staff?.items.map((member) => [member.id, member.fullName || member.phone]) ?? []),
+        names: new Map(staff?.map((member) => [member.id, member.fullName || member.phone]) ?? []),
       };
     },
     [depot?.id],

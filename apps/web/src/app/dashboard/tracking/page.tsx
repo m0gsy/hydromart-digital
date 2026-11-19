@@ -17,6 +17,7 @@ import { useAsync } from '@/lib/use-async';
 import { canReadRoster, whenRosterScoped } from '@/lib/drivers-scope';
 import { useDriversUrl } from '@/lib/use-drivers-url';
 import type { Customer, Delivery, DeliveryStatus, Page } from '@/lib/types';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 
 const REFRESH_MS = 15000;
 const ETA_TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -214,8 +215,17 @@ function TrackingBody() {
    * exactly the case those buttons exist for, and it was the one case the board never
    * showed. The stepper already draws all four states.
    */
-  const list = useAsync<Page<Delivery>>(
-    () => api.get(endpoints.deliveries.list({ statuses: ACTIVE_DELIVERY_STATUSES, limit: 50 }), true),
+  // Flow PR-8b: EVERY in-flight delivery. The board acts on each card (pull back, cancel), and
+  // it stopped at 50 with nothing saying so. Read whole, not paged on demand: it polls every
+  // 15 s, and a paged list's reload drops back to its first page.
+  const list = useAsync<Delivery[]>(
+    () =>
+      fetchAllPages<Delivery>(({ page, limit }) =>
+        api.get<Page<Delivery>>(
+          endpoints.deliveries.list({ statuses: ACTIVE_DELIVERY_STATUSES, page, limit }),
+          true,
+        ),
+      ),
     [],
   );
   // 1c: resolve courier display names from the active-driver roster (delivery records carry
@@ -257,13 +267,13 @@ function TrackingBody() {
         <Skeleton className="h-64 w-full" />
       ) : list.error ? (
         <ErrorState message={list.error} onRetry={list.reload} />
-      ) : !list.data || list.data.items.length === 0 ? (
+      ) : !list.data || list.data.length === 0 ? (
         <CenterState title={t('dashC.tracking.emptyTitle')} icon={<Truck size={40} weight="fill" />}>
           {t('dashC.tracking.emptyBody')}
         </CenterState>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
-          {list.data.items.map((d) => (
+          {list.data.map((d) => (
             <DeliveryCard
               key={d.id}
               d={d}
