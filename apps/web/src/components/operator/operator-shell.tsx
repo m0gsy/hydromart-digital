@@ -10,7 +10,6 @@ import { useOpsNotifications } from '@/lib/ops-notifications';
 import { useDepot } from '@/lib/depot-context';
 import { hubsFor } from '@/lib/ops-nav';
 import { deepest, normalisePath } from '@/lib/screen-chrome';
-import { can } from '@/lib/roles';
 
 function initials(name: string): string {
   return name
@@ -31,13 +30,18 @@ function initials(name: string): string {
 type Tab = {
   label: string;
   href: string;
-  /** Hide the tab when the role lacks what the page behind it needs. */
-  show?: (role: string | null | undefined) => boolean;
 };
 
+/*
+ * Each primary tab is shown only when the table row for its screen lets the role in: the same
+ * gate the rail and the Kelola tabs use, read off `hubsFor` rather than restated here. Six of
+ * the seven had no gate of their own, which held only while every head of depot carried every
+ * capability; a built-in role edited in /hq/access could leave a tab that opened onto a denial.
+ * A tab whose screen has no row is not shown: `flow-3b-hubs.test.tsx` pins all seven to a row.
+ */
 const primaryTabs: Tab[] = [
   { label: 'hrFix.opNav.summary', href: '/dashboard' },
-  { label: 'hrFix.opNav.queue', href: '/dashboard/orders', show: (r) => can('orderManageRead', r) },
+  { label: 'hrFix.opNav.queue', href: '/dashboard/orders' },
   // The operator IS the cashier — the counter sale belongs in their primary tabs, not the
   // manager's left rail (which this role never sees).
   { label: 'hrFix.opNav.sales', href: '/dashboard/walk-in' },
@@ -81,8 +85,9 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
   const { unreadCount: unread } = useOpsNotifications();
   const name = customer?.fullName ?? 'Operator';
   const role = customer?.role;
-  const primary = primaryTabs.filter((tab) => !tab.show || tab.show(role));
   const hubs = hubsFor(role);
+  const open = new Set(hubs.flatMap((h) => h.items.map((i) => i.href)));
+  const primary = primaryTabs.filter((tab) => open.has(tab.href));
   const kelola = hubs.filter((h) => !h.items.some((i) => PRIMARY.has(i.href)));
   // One current tab across both rows, by the rail's rule (flow-1e): the deepest screen wins,
   // so an order detail screen lights Antrean and nothing else.
