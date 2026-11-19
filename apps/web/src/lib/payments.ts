@@ -91,17 +91,17 @@ export function needsPayment(order: Pick<Order, 'status'>, payment: Payment | un
 
 /*
  * Flow PR-7b: checkout starts at the method of the customer's last placed order, not at cash
- * every time. A per-device convenience, never sent anywhere; checkout still drops it when the
- * depot does not take it.
+ * every time. Kept on this device, never sent anywhere, and per customer: a shared phone must
+ * not hand one account's bank transfer to the next one signed in.
  */
-const LAST_METHOD = 'hm.checkout.lastMethod';
+const lastMethodKey = (customerId: string) => `hm.checkout.lastMethod.${customerId}`;
 
-export function rememberMethod(method: PaymentMethod): void {
-  safeStorage.set(LAST_METHOD, method);
+export function rememberMethod(customerId: string, method: PaymentMethod): void {
+  safeStorage.set(lastMethodKey(customerId), method);
 }
 
 /** Only a method this app knows: anything else in the slot reads as nothing remembered. */
-export function rememberedMethod(): PaymentMethod | null {
-  const raw = safeStorage.get(LAST_METHOD);
+export function rememberedMethod(customerId: string): PaymentMethod | null {
+  const raw = safeStorage.get(lastMethodKey(customerId));
   return PAYMENT_METHODS.find((m) => m.value === raw)?.value ?? null;
 }

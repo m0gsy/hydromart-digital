@@ -56,10 +56,14 @@ export function Complaints() {
    * HTML with the form shut.
    */
   const aboutOrder = useQueryParam('order');
+  const sectionRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!aboutOrder) return;
-    setOrderRef(aboutOrder);
+    // The field's own cap: a link is not a keyboard, and maxLength only stops typing.
+    setOrderRef(aboutOrder.trim().slice(0, 64));
     setOpen(true);
+    // The form sits below the FAQ: bring it into view, or the door opened somewhere unseen.
+    requestAnimationFrame(() => sectionRef.current?.scrollIntoView?.({ block: 'start' }));
   }, [aboutOrder]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +154,7 @@ export function Complaints() {
   }
 
   return (
-    <section className="mt-[18px] rounded-[16px] border border-app surface p-4">
+    <section ref={sectionRef} className="mt-[18px] rounded-[16px] border border-app surface p-4">
       <h2 className="text-[13px] font-extrabold">{t('help.complaints.title')}</h2>
 
       {open ? (

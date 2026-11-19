@@ -116,6 +116,13 @@ describe('"Laporkan masalah" opens the complaint about THAT order', () => {
     expect(ref.value).toBe('HM-260816-001');
   });
 
+  it('a link is not a keyboard: the number is held to the field\u2019s 64 characters', async () => {
+    query.params = { order: `  ${'X'.repeat(200)}  ` };
+    draw(<Complaints />);
+    const ref = (await screen.findByLabelText(/nomor pesanan|order number/i)) as HTMLInputElement;
+    expect(ref.value).toBe('X'.repeat(64));
+  });
+
   it('without it, the form stays shut as before', async () => {
     draw(<Complaints />);
     await screen.findByRole('button', { name: /ajukan komplain|raise a complaint/i });
@@ -174,11 +181,13 @@ describe('"Jadikan langganan" opens the subscription form on that product', () =
 });
 
 describe('checkout remembers the payment method', () => {
-  it('keeps the last method placed, and ignores anything else in the slot', () => {
-    expect(rememberedMethod()).toBeNull();
-    rememberMethod('QRIS');
-    expect(rememberedMethod()).toBe('QRIS');
-    localStorage.setItem('hm.checkout.lastMethod', 'BITCOIN');
-    expect(rememberedMethod()).toBeNull();
+  it('keeps the last method placed, per customer, and ignores anything else in the slot', () => {
+    expect(rememberedMethod('c-1')).toBeNull();
+    rememberMethod('c-1', 'QRIS');
+    expect(rememberedMethod('c-1')).toBe('QRIS');
+    // A shared phone: the next account signed in does not inherit it.
+    expect(rememberedMethod('c-2')).toBeNull();
+    localStorage.setItem('hm.checkout.lastMethod.c-1', 'BITCOIN');
+    expect(rememberedMethod('c-1')).toBeNull();
   });
 });
