@@ -5,7 +5,9 @@ import { AccountNameResolver } from '@hydromart/platform';
 import { denseDailySeries, toBusinessDay } from '../../domain/series';
 import { DemandModel, resolveModel } from '../../domain/models';
 import { ChurnBand } from '../../domain/churn';
-import { resolveChurnModel } from '../../domain/churn-models';
+
+const BAND_RANK: Record<ChurnBand, number> = { LOW: 0, MEDIUM: 1, HIGH: 2 };
+import { ChurnModel, resolveChurnModel } from '../../domain/churn-models';
 import {
   ForecastRepository,
   IngestCommand,
@@ -272,12 +274,13 @@ export class ForecastService {
   }
 
   async churnList(params: {
-    /** The depot whose model scores the list. Null/omitted = the global model. */
+    /** One depot's list. Null/omitted = every depot the caller may read (see `depotIds`). */
     depotId?: string | null;
     /**
-     * The depots the ROWS may come from — the caller's scope, which is not the same thing
-     * as the depot the model belongs to: a manager over three depots reads all three
-     * through the global model, and must not read the other ninety.
+     * The depots the ROWS may come from: the caller's scope. A manager over three depots reads
+     * all three, and must not read the other ninety. Each row is scored with ITS depot's
+     * model whatever the scope (a row with no depot: the global model), so one customer has
+     * one band here, on the depot list and on the CRM card.
      */
     depotIds?: readonly string[];
     limit?: number;
@@ -304,18 +307,25 @@ export class ForecastService {
     });
     /*
      * Each row is scored with ITS depot's model (owner decision 2026-11-19), as the depot list
-     * and the CRM card already did. HQ read every row through the global model, so a depot
-     * that picked its own saw a customer as HIGH while head office rated the same person
-     * MEDIUM. A depot-scoped list has one depot, so this is the same model as before there.
+     * and the CRM card (`churnFor`: `row.depotId ?? null`, the same key) already did. HQ read
+     * every row through the global model, so a depot that picked its own saw a customer as
+     * HIGH while head office rated the same person MEDIUM. One settings snapshot for the whole
+     * page: refreshed once, then resolved per depot without waiting again.
      */
-    const models = new Map<string | null, Awaited<ReturnType<ForecastService['churnModelFor']>>>();
-    for (const depotId of new Set(rows.map((r) => r.depotId ?? params.depotId ?? null))) {
-      models.set(depotId, await this.churnModelFor(depotId));
-    }
+    await this.settings.ensureFresh();
+    const models = new Map<string | null, ChurnModel>();
+    const modelOf = (depotId: string | null): ChurnModel => {
+      let model = models.get(depotId);
+      if (!model) {
+        model = this.churnModelNow(depotId);
+        models.set(depotId, model);
+      }
+      return model;
+    };
 
     const customers = rows
       .map((r) => {
-        const churnModel = models.get(r.depotId ?? params.depotId ?? null)!;
+        const churnModel = modelOf(r.depotId ?? null);
         const risk = churnModel.score(
           { lastOrderAt: r.lastOrderAt, orderCount: r.orderCount, totalSpent: r.totalSpent },
           now,
@@ -331,8 +341,12 @@ export class ForecastService {
           riskBand: risk.riskBand,
         };
       })
+      // Band first: two depots' models put their scores on different scales, but HIGH means
+      // HIGH under any of them. A list scored by one model orders exactly as before (its band
+      // only ever rises with its score).
       .sort(
         (a, b) =>
+          BAND_RANK[b.riskBand] - BAND_RANK[a.riskBand] ||
           b.riskScore - a.riskScore ||
           b.daysSince - a.daysSince ||
           a.customerId.localeCompare(b.customerId),
@@ -364,8 +378,13 @@ export class ForecastService {
    * The churn half of the same seam. Read per depot, resolved the same forgiving way, and
    * defaulting to the RFM-lite heuristic that has always run.
    */
-  private async churnModelFor(depotId: string | null | undefined) {
+  private async churnModelFor(depotId: string | null | undefined): Promise<ChurnModel> {
     await this.settings.ensureFresh();
+    return this.churnModelNow(depotId);
+  }
+
+  /** The same choice from the snapshot already in hand (the caller has refreshed it). */
+  private churnModelNow(depotId: string | null | undefined): ChurnModel {
     return resolveChurnModel(
       this.settings.effective('forecast.churnModel', 'string', DEFAULT_CHURN_MODEL, depotId ?? null) as string,
     );

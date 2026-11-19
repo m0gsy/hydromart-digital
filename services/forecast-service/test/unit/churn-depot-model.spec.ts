@@ -25,12 +25,13 @@ const settings = () =>
     loadAll: async () => [{ scope: 'DEPOT', depotId: 'd-a', key: 'forecast.churnModel', value: 'recency-only' }],
   });
 
-async function seed(repo: FakeForecastRepository, service: ForecastService) {
+async function seed(service: ForecastService) {
   // Five orders each, the last one 30 days ago: the heuristic dampens for frequency, the
   // baseline does not, so the two models disagree about the very same history.
   for (const [customerId, depotId] of [
     ['at-a', 'd-a'],
     ['at-b', 'd-b'],
+    ['nowhere', null],
   ] as const) {
     for (let i = 0; i < 5; i += 1) {
       await service.ingest({
@@ -43,14 +44,13 @@ async function seed(repo: FakeForecastRepository, service: ForecastService) {
       });
     }
   }
-  void repo;
 }
 
 describe('HQ churn uses each customer’s depot model', () => {
   it('scores a row with its own depot’s model, as the depot list does', async () => {
     const repo = new FakeForecastRepository();
     const service = new ForecastService(repo, configStub, noNames, settings());
-    await seed(repo, service);
+    await seed(service);
 
     const hq = await service.churnList({ now: NOW });
     const depotA = await service.churnList({ depotId: 'd-a', now: NOW });
@@ -62,5 +62,18 @@ describe('HQ churn uses each customer’s depot model', () => {
     expect(score(hq, 'at-b')).toBe(score(depotB, 'at-b'));
     // The two depots' models really do disagree about the same history.
     expect(score(hq, 'at-a')).not.toBe(score(hq, 'at-b'));
+    // A customer with no depot recorded is read through the global model, as the CRM card does.
+    expect(score(hq, 'nowhere')).toBe(score(hq, 'at-b'));
+  });
+
+  it('orders by band before score, since two models score on two scales', async () => {
+    const repo = new FakeForecastRepository();
+    const service = new ForecastService(repo, configStub, noNames, settings());
+    await seed(service);
+    const { customers } = await service.churnList({ now: NOW });
+    const rank = { LOW: 0, MEDIUM: 1, HIGH: 2 } as const;
+    for (let i = 1; i < customers.length; i += 1) {
+      expect(rank[customers[i - 1].riskBand]).toBeGreaterThanOrEqual(rank[customers[i].riskBand]);
+    }
   });
 });
