@@ -1079,6 +1079,8 @@ export interface Campaign {
   createdBy: string;
   createdAt: string;
   sentAt: string | null;
+  /** When a scheduled campaign is due; null = due the moment it is queued. */
+  scheduledFor: string | null;
 }
 
 /* ---------- Operational dashboard (MVP #6, staff-facing) ---------- */

@@ -1086,6 +1086,8 @@ export const hq = {
     emptyAll: 'No customer churn data yet.',
   },
   campaigns: {
+    listTitle: 'Campaign list',
+    listEmpty: 'Campaigns sent or scheduled from here show up in this list.',
     title: 'Build campaign',
     subtitle: 'Compose a segment, message, and send',
     steps: { segment: 'Segment', message: 'Message', send: 'Send' },

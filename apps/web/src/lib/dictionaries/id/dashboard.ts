@@ -219,6 +219,7 @@ export const dashboard = {
     failed: 'Gagal',
     viewReport: 'Lihat laporan',
     sendNow: 'Kirim sekarang',
+    scheduledFor: 'terjadwal {at}',
     noCampaigns: 'Belum ada campaign',
     noCampaignsManage: 'Buat draf untuk broadcast ke pelangganmu.',
     noCampaignsView: 'Belum ada campaign broadcast yang dibuat.',
