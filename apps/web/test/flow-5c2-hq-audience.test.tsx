@@ -35,7 +35,7 @@ import { LocaleProvider } from '@/lib/locale-context';
 
 const H = idDict.hq.campaigns;
 const A = idDict.hq.campaigns.audience;
-const LIST = endpoints.crm.campaigns({ limit: 50 });
+const LIST = endpoints.crm.campaigns({ page: 1, limit: 50 });
 const DEPOTS = endpoints.depots.browse({ limit: 100 });
 const ADMIN_DEPOTS = endpoints.depots.manage({ limit: 100 });
 const GALAXY = '0b7c2f0e-1111-4c1a-9a51-5f0c3c0d0001';

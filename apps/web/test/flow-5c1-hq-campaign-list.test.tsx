@@ -23,7 +23,7 @@ import { LocaleProvider } from '@/lib/locale-context';
 
 const H = idDict.hq.campaigns;
 const C = idDict.dashboard.campaigns;
-const LIST = endpoints.crm.campaigns({ limit: 50 });
+const LIST = endpoints.crm.campaigns({ page: 1, limit: 50 });
 
 const campaign = (
   id: string,

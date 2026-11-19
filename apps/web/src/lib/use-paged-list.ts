@@ -48,6 +48,9 @@ export interface PagedList<T> {
   reload: () => void;
 }
 
+const idOf = (row: unknown): unknown =>
+  row && typeof row === 'object' ? (row as { id?: unknown }).id : undefined;
+
 export function usePagedList<T>(
   /** Called with a 1-based page number; must return the server's own `total`. */
   fetchPage: (page: number) => Promise<{ items: T[]; total: number }>,
@@ -68,20 +71,36 @@ export function usePagedList<T>(
 
   const load = useAsync(async () => {
     const answer = await fetchPage(page);
-    // Stamped with the page it answers, so a stale response cannot be appended as if it
-    // were the new one.
-    return { ...answer, forPage: page };
+    // Stamped with the page AND the filters it answers, so a stale response cannot be
+    // appended as if it were the new one — nor drawn under a filter it was not asked for
+    // (useAsync keeps the previous answer while the next one loads).
+    return { ...answer, forPage: page, forKey: key };
   }, [key, page]);
 
-  const fresh = load.data?.forPage === page ? (load.data?.items ?? []) : [];
+  const sameKey = load.data?.forKey === key;
+  const answered = sameKey && load.data?.forPage === page;
+  // Offset paging over a list that moves: a row written between two page reads pushes the
+  // last row of one page onto the next. Seen once is enough — a row is keyed by its `id`.
+  // ponytail: a row DELETED between reads still shifts one out of sight; only a cursor fixes that.
+  const seenIds = new Set<unknown>(seen.map(idOf).filter((id) => id !== undefined));
+  const fresh = answered
+    ? (load.data?.items ?? []).filter((r) => page === 1 || !seenIds.has(idOf(r)))
+    : [];
   const rows = page === 1 ? fresh : [...seen, ...fresh];
-  const total = load.data?.total ?? rows.length;
+  const total = sameKey ? (load.data?.total ?? rows.length) : rows.length;
+  // A later page that came back empty is the end, whatever `total` said before the list moved.
+  const exhausted = answered && page > 1 && (load.data?.items.length ?? 0) === 0;
 
   return {
     rows,
     total,
-    hasMore: rows.length < total,
+    hasMore: rows.length < total && !exhausted,
     loadMore: () => {
+      // The page asked for did not arrive: ask for it again. Advancing would skip it for good.
+      if (load.error) {
+        load.reload();
+        return;
+      }
       setSeen(rows);
       setPage((p) => p + 1);
     },

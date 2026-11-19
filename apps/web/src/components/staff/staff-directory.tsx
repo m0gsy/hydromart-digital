@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { UserGear } from '@phosphor-icons/react';
 
 import { useConfirm } from '@/components/confirm';
-import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { Badge, Card, CenterState, ErrorState, ListFooter, Skeleton } from '@/components/ui';
 import { HR_MANAGED_ROLES } from '@hydromart/access';
 
 import { api, ApiError } from '@/lib/api';
@@ -13,7 +13,9 @@ import { isServedHere } from '@/lib/deep-link';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
+import { fetchAllDepots } from '@/lib/all-depots';
 import { useAsync } from '@/lib/use-async';
+import { usePagedList } from '@/lib/use-paged-list';
 import type { Customer, DepotAdmin, Page } from '@/lib/types';
 import { roleLabel } from '@/lib/custom-role';
 import { useCustomRoles } from '@/lib/use-custom-roles';
@@ -107,21 +109,25 @@ export function StaffDirectory({
   const canAdminStaff = can('staffAdmin', customer?.role);
   const [roleFilter, setRoleFilter] = useState('');
 
-  const list = useAsync<Page<Customer>>(
-    () => api.get(endpoints.auth.staff({ limit: 100, role: roleFilter || undefined }), true),
+  // Flow PR-8a: The directory walks pages and says "N dari total"; it stopped at a fixed count and
+  // drew that as the whole list.
+  const list = usePagedList<Customer>(
+    (page) =>
+      api.get<Page<Customer>>(
+        endpoints.auth.staff({ page, limit: 50, role: roleFilter || undefined }),
+        true,
+      ),
     [roleFilter],
   );
-  const items = list.data?.items ?? [];
+  const items = list.rows;
   // Fail-soft: with no depot list the rows still render, they just cannot be moved.
-  // Read only for those who may move an account: it feeds nothing else on the row.
-  const { data: depotPage } = useAsync<Page<DepotAdmin> | null>(
-    () =>
-      canAdminStaff
-        ? api.get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true).catch(() => null)
-        : Promise.resolve(null),
+  // Read only for those who may move an account: it feeds nothing else on the row. EVERY
+  // depot (flow 8a): an option list that stops at 100 cannot move anyone to the 101st.
+  const { data: allDepots } = useAsync<DepotAdmin[] | null>(
+    () => (canAdminStaff ? fetchAllDepots().catch(() => null) : Promise.resolve(null)),
     [canAdminStaff],
   );
-  const depots = depotPage?.items ?? [];
+  const depots = allDepots ?? [];
 
   /**
    * Accounts that have no employee record behind them.
@@ -162,9 +168,9 @@ export function StaffDirectory({
         ))}
       </div>
 
-      {list.loading ? (
+      {list.loading && items.length === 0 ? (
         <Skeleton className="h-64 w-full" />
-      ) : list.error ? (
+      ) : list.error && items.length === 0 ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : items.length === 0 ? (
         <CenterState title={t('hq.staff.empty')} icon={<UserGear size={40} weight="fill" />} />
@@ -224,6 +230,14 @@ export function StaffDirectory({
           })}
         </div>
       )}
+      <ListFooter
+        shown={items.length}
+        total={list.total}
+        hasMore={list.hasMore}
+        onMore={list.loadMore}
+        loading={list.loading}
+        error={list.error}
+      />
     </div>
   );
 }
