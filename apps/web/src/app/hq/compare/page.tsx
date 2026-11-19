@@ -1,32 +1,27 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ChartBar } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Card, ErrorState, Skeleton } from '@/components/ui';
+import { ErrorState, Skeleton } from '@/components/ui';
+import {
+  CompareMonthPicker,
+  CompareTable,
+  currentMonthKey,
+  monthRangeOfKey,
+  type CompareRow,
+} from '@/components/compare-table';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { DepotAdmin, GallonOutstanding, NetworkDashboard, Page } from '@/lib/types';
+import { recentMonthsWib } from '@/lib/wib';
+import type { DepotAdmin, GallonOutstanding, NetworkDashboard, NetworkPnl, Page } from '@/lib/types';
 
-function range30(): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
-  return { from: from.toISOString(), to: to.toISOString() };
-}
 
-// One comparable KPI row. `higher` = a bigger value wins (for best-value highlight).
-// A null value = no data for that depot (rendered as a dash, excluded from the best-of).
-interface Metric {
-  key: string;
-  higher: boolean;
-  value: (depotId: string) => number | null;
-  format: (n: number) => string;
-}
 
 // Design 14d — compare up to 3 depots. Every metric (revenue/orders/SLA/avg-delivery/
 // rating/gallon-outstanding) is real: network roll-up (rating = order-service
@@ -34,8 +29,16 @@ interface Metric {
 export default function HqComparePage() {
   const { t } = useT();
   const { toast } = useToast();
-  const range = useMemo(range30, []);
-  const dash = useAsync<NetworkDashboard>(() => api.get(endpoints.hq.rollup(range), true));
+  // Flow 5b: one business month, picked and stated — it was the last 30 days here and the WIB
+  // month at the depot, so the two comparison screens never described the same period.
+  const [monthKey, setMonthKey] = useState(currentMonthKey);
+  const monthLabel = recentMonthsWib(12).find((m) => m.key === monthKey)?.label ?? monthKey;
+  const dash = useAsync<NetworkDashboard>(
+    () => api.get(endpoints.hq.rollup(monthRangeOfKey(monthKey)), true),
+    [monthKey],
+  );
+  // Laba bersih from the network P&L (netProfit): the same figure /hq/pnl shows for the month.
+  const pnl = useAsync<NetworkPnl>(() => api.get(endpoints.dashboard.networkPnl(monthKey), true), [monthKey]);
   const depotList = useAsync<Page<DepotAdmin>>(() => api.getCached(endpoints.depots.manage({ limit: 100 }), true));
   const gallon = useAsync<GallonOutstanding[]>(() => api.get(endpoints.gallonNetwork.outstanding, true));
   const [selected, setSelected] = useState<string[]>([]);
@@ -61,20 +64,35 @@ export default function HqComparePage() {
     });
   }
 
-  const metrics: Metric[] = [
-    { key: 'revenue', higher: true, value: (id) => perf.get(id)?.revenue ?? 0, format: formatIDR },
-    { key: 'orders', higher: true, value: (id) => perf.get(id)?.orderCount ?? 0, format: (n) => String(n) },
-    { key: 'sla', higher: true, value: (id) => perf.get(id)?.slaRate ?? null, format: (n) => `${Math.round(n * 100)}%` },
-    { key: 'avgDelivery', higher: false, value: (id) => perf.get(id)?.medianMinutes ?? perf.get(id)?.avgMinutes ?? null, format: (n) => t('hq.compare.minutes', { n }) },
-    { key: 'rating', higher: true, value: (id) => perf.get(id)?.rating ?? null, format: (n) => n.toFixed(1) },
-    { key: 'gallonReturn', higher: false, value: (id) => outstanding.get(id) ?? null, format: (n) => String(n) },
+  const profitBy = new Map(
+    (pnl.loading || pnl.error ? [] : (pnl.data?.depots ?? [])).map((r) => [r.depotId, r.netProfitIdr]),
+  );
+  const row = (key: string, higherIsBetter: boolean, value: CompareRow['value'], format: CompareRow['format']): CompareRow => ({
+    key,
+    label: t(`hq.compare.rows.${key}`),
+    higherIsBetter,
+    value,
+    format,
+  });
+  const metrics: CompareRow[] = [
+    row('revenue', true, (id) => perf.get(id)?.revenue ?? 0, formatIDR),
+    row('orders', true, (id) => perf.get(id)?.orderCount ?? 0, (n) => String(n)),
+    row('profit', true, (id) => profitBy.get(id) ?? null, formatIDR),
+    row('sla', true, (id) => perf.get(id)?.slaRate ?? null, (n) => `${Math.round(n * 100)}%`),
+    row('avgDelivery', false, (id) => perf.get(id)?.medianMinutes ?? perf.get(id)?.avgMinutes ?? null, (n) => t('hq.compare.minutes', { n })),
+    row('rating', true, (id) => perf.get(id)?.rating ?? null, (n) => n.toFixed(1)),
+    // Not a period figure: empties out right now, whatever month is picked (the label says so).
+    row('gallonReturn', false, (id) => outstanding.get(id) ?? null, (n) => String(n)),
   ];
 
   const chosen = selected.map((id) => depots.find((d) => d.id === id)).filter((d): d is DepotAdmin => !!d);
 
   return (
     <div className="flex flex-col gap-6">
-      <HqPageHeader icon={ChartBar} title={t('hq.compare.title')} subtitle={t('hq.compare.subtitle')} />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <HqPageHeader icon={ChartBar} title={t('hq.compare.title')} subtitle={t('hq.compare.subtitle', { month: monthLabel })} />
+        <CompareMonthPicker value={monthKey} onChange={setMonthKey} label={t('hq.compare.monthLabel')} />
+      </div>
 
       {/* Depot picker */}
       <div className="flex flex-wrap gap-2">
@@ -99,54 +117,12 @@ export default function HqComparePage() {
       {chosen.length < 2 ? (
         <p className="py-4 text-center text-sm text-muted">{t('hq.compare.pickPrompt')}</p>
       ) : (
-        <Card className="overflow-x-auto p-0">
-          <table className="w-full min-w-[440px] text-sm">
-            <thead>
-              <tr className="border-b border-app text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-3 font-medium" />
-                {chosen.map((d) => (
-                  <th key={d.id} className="px-4 py-3 text-right font-medium">
-                    {d.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[color:var(--border)]">
-              {metrics.map((m) => {
-                const present = chosen
-                  .map((d) => m.value(d.id))
-                  .filter((v): v is number => v != null);
-                const best = present.length
-                  ? m.higher
-                    ? Math.max(...present)
-                    : Math.min(...present)
-                  : null;
-                return (
-                  <tr key={m.key}>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5 font-medium">
-                        {t(`hq.compare.rows.${m.key}`)}
-                      </span>
-                    </td>
-                    {chosen.map((d) => {
-                      const v = m.value(d.id);
-                      const isBest = v != null && best != null && v === best;
-                      return (
-                        <td
-                          key={d.id}
-                          className={`px-4 py-3 text-right tabular-nums ${isBest ? 'font-bold text-brand-700' : ''}`}
-                        >
-                          {v == null ? <span className="text-muted">{t('hq.common.dash')}</span> : m.format(v)}
-                          {isBest && <span className="ml-1.5 text-[10px] font-bold uppercase text-brand-600">{t('hq.compare.best')}</span>}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Card>
+        <CompareTable
+          columns={chosen.map((d) => ({ id: d.id, name: d.name }))}
+          rows={metrics}
+          metricLabel=""
+          bestLabel={t('hq.compare.best')}
+        />
       )}
     </div>
   );
