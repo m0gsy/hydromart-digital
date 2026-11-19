@@ -302,10 +302,20 @@ export class ForecastService {
       limit,
       lastOrderSince: new Date(now.getTime() - windowDays * LOST_AFTER_WINDOWS * 86_400_000),
     });
-    const churnModel = await this.churnModelFor(params.depotId ?? null);
+    /*
+     * Each row is scored with ITS depot's model (owner decision 2026-11-19), as the depot list
+     * and the CRM card already did. HQ read every row through the global model, so a depot
+     * that picked its own saw a customer as HIGH while head office rated the same person
+     * MEDIUM. A depot-scoped list has one depot, so this is the same model as before there.
+     */
+    const models = new Map<string | null, Awaited<ReturnType<ForecastService['churnModelFor']>>>();
+    for (const depotId of new Set(rows.map((r) => r.depotId ?? params.depotId ?? null))) {
+      models.set(depotId, await this.churnModelFor(depotId));
+    }
 
     const customers = rows
       .map((r) => {
+        const churnModel = models.get(r.depotId ?? params.depotId ?? null)!;
         const risk = churnModel.score(
           { lastOrderAt: r.lastOrderAt, orderCount: r.orderCount, totalSpent: r.totalSpent },
           now,
