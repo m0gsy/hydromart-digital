@@ -596,6 +596,26 @@ deployText.split('\n').forEach((line, idx) => {
   }
 });
 
+/*
+ * 2026-11-19 — deploy.yml's Images gate finds the run that BUILT its commit by that run's title,
+ * which images.yml writes. Two files, one string: if either side changes it, every lookup
+ * finds nothing and every deploy stops, three minutes in, on a gate that is otherwise right.
+ */
+{
+  const imagesTitle = /^run-name:\s*>-?\s*\n\s*(.+)$/m.exec(imagesText)?.[1]?.trim() ?? '';
+  const wanted = 'Images · ${{ github.event.workflow_run.head_sha || github.sha }}';
+  if (imagesTitle !== wanted) {
+    problems.push(
+      `${join(DIR, 'images.yml')}: run-name must be exactly "${wanted}" — deploy.yml's Images gate matches on it (got "${imagesTitle}")`,
+    );
+  }
+  if (!deployText.includes('select(.displayTitle == ("Images · " + env.SHA))')) {
+    problems.push(
+      `${join(DIR, 'deploy.yml')}: the Images gate no longer matches the run title images.yml writes ("Images · <sha>")`,
+    );
+  }
+}
+
 if (problems.length > 0) {
   console.error('Workflow files that would fail silently:');
   for (const p of problems) console.error(`  - ${p}`);
