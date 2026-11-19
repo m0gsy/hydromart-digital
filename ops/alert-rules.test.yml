@@ -246,6 +246,50 @@ tests:
         alertname: ServiceDown
         exp_alerts: []
 
+  - interval: 1m
+    name: face-service down is a warning after 10m, never the critical ServiceDown
+    input_series:
+      - series: 'up{job="hydromart", service="face-service", instance="face:3019"}'
+        values: '0x15'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ServiceDown
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: FaceServiceDown
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: FaceServiceDown
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: hydromart
+              service: face-service
+              instance: face:3019
+            exp_annotations:
+              summary: 'face-service is down'
+              description: 'Prometheus has failed to scrape face-service for >10m: the NEO fallback has no engine.'
+
+  - interval: 1m
+    name: face-service crash-looping is a warning, never the critical ServiceCrashLooping
+    input_series:
+      - series: 'process_start_time_seconds{job="hydromart", service="face-service"}'
+        values: '100 100 200 300 400 400 400'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ServiceCrashLooping
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: FaceServiceCrashLooping
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: hydromart
+              service: face-service
+            exp_annotations:
+              summary: 'face-service is crash-looping'
+              description: 'face-service restarted 3 times in the last 15m.'
+
   # --- ServiceCrashLooping ----------------------------------------------------------------
   - interval: 1m
     name: three restarts inside fifteen minutes

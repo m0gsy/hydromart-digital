@@ -64,7 +64,10 @@ pull_base() {
     echo "   base pull of $base failed (try $n) — retrying in 10s"; sleep 10; n=$((n + 1))
   done
 }
-for base in $(grep -hoE '^FROM [^ ]+' services/*/Dockerfile apps/*/Dockerfile | awk '{print $2}' | sort -u); do
+# The first token after FROM that is not a flag (`--platform=…`), and only image names —
+# a tag or digest has a ':' — so a stage reference (`FROM builder AS …`) is not "pulled".
+for base in $(grep -hE '^FROM ' services/*/Dockerfile apps/*/Dockerfile |
+  awk '{ for (i = 2; i <= NF; i++) if ($i !~ /^--/) { print $i; break } }' | grep ':' | sort -u); do
   pull_base "$base"
 done
 

@@ -198,6 +198,30 @@ filter_unhealthy() {
     sort -u | tr '\n' ' '
 }
 
+# Services the release does not wait on. Face plan: the face embedder serves only hr's
+# fallback (FACE_FALLBACK, off by default). A face container that will not start must cost
+# that fallback — never roll back every other fix in the release. It is still reported below
+# (and alerted on by Prometheus as a warning).
+OPTIONAL_SERVICES="${OPTIONAL_SERVICES:-face}"
+
+# PURE: the space-separated list without the optional services — tested without Docker.
+without_optional() {
+  local s out=""
+  for s in $1; do
+    case " $OPTIONAL_SERVICES " in *" $s "*) ;; *) out+="$s " ;; esac
+  done
+  printf '%s' "$out"
+}
+
+# PURE: only the optional services of the list.
+only_optional() {
+  local s out=""
+  for s in $1; do
+    case " $OPTIONAL_SERVICES " in *" $s "*) out+="$s " ;; esac
+  done
+  printf '%s' "$out"
+}
+
 # Services that fail the deploy gate: not running, or running without a healthy verdict.
 unhealthy_services() {
   $COMPOSE ps --all --format '{{.Service}} {{.State}} {{.Health}}' 2>/dev/null | filter_unhealthy
@@ -293,11 +317,18 @@ health_ok() {
   # missing entirely, and only the second one catches a rebuild that died before creating
   # it. The window is 30 rounds, not 15, because `starting` is a fail under H-32 and
   # compose healthchecks have their own start_period — 60s was not enough for 20 of them.
-  local absent=""
+  local absent="" all_down all_absent
   for _ in $(seq 1 30); do
-    down="$(unhealthy_services)"
-    absent="$(missing_services)"
-    if [ -z "$down" ] && [ -z "$absent" ]; then return 0; fi
+    all_down="$(unhealthy_services)"
+    all_absent="$(missing_services)"
+    down="$(without_optional "$all_down")"
+    absent="$(without_optional "$all_absent")"
+    if [ -z "$down" ] && [ -z "$absent" ]; then
+      local optional
+      optional="$(only_optional "$all_down $all_absent")"
+      [ -z "$optional" ] || echo "[health] !! optional, not gating the release: $optional is not healthy"
+      return 0
+    fi
     sleep 4
   done
   if [ -n "$absent" ]; then
