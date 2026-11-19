@@ -72,6 +72,11 @@ export interface HrDepotSummary {
   payrollMtdNet: number;
   /** CA-2-59: BASE + ALLOWANCE before deductions — what the employer spends on wages. */
   payrollMtdGross: number;
+  /**
+   * Payslips generated for the period month at this depot. 0 with staff on the books means
+   * the month's payroll has not been run yet, so its wages are UNKNOWN, not zero (flow 5a).
+   */
+  payrollCount: number;
   activeHeadcount: number;
 }
 
@@ -186,6 +191,7 @@ export class AnalyticsService {
       presentToday: facts.get(depotId)?.presentToday ?? 0,
       payrollMtdNet: facts.get(depotId)?.payrollMtdNet ?? 0,
       payrollMtdGross: facts.get(depotId)?.payrollMtdGross ?? 0,
+      payrollCount: facts.get(depotId)?.payrollCount ?? 0,
       activeHeadcount: facts.get(depotId)?.activeHeadcount ?? 0,
     }));
   }
@@ -218,6 +224,7 @@ export class AnalyticsService {
       presentToday: count('PRESENT'),
       payrollMtdNet: payroll.net,
       payrollMtdGross: payroll.gross,
+      payrollCount: payroll.count,
       activeHeadcount: headcount.find((g) => g.key === 'ACTIVE')?.count ?? 0,
     };
   }

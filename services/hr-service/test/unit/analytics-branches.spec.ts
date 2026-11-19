@@ -61,6 +61,14 @@ describe('AnalyticsService.depotSummary', () => {
    * fiction, so the period is a parameter — while the attendance counts stay "today",
    * because they are a live queue rather than a period figure.
    */
+  it('says how many payslips the period has, so a month not yet run is not read as no wages', async () => {
+    const payrollTotals = jest
+      .fn()
+      .mockResolvedValue({ net: 0, gross: 0, totalBonus: 0, totalDeduction: 0, count: 0 });
+    const s = await build({ payrollTotals }).depotSummary('d-1', '2026-11');
+    expect(s).toMatchObject({ payrollMtdGross: 0, payrollCount: 0, activeHeadcount: 7 });
+  });
+
   it('reads payroll for the requested period and says which one it answered for', async () => {
     const payrollTotals = jest.fn().mockResolvedValue({ net: 9_000_000 });
     const svc = build({ payrollTotals });
@@ -98,6 +106,7 @@ describe('AnalyticsService.depotSummaryMany', () => {
             presentToday: 4,
             payrollMtdNet: 9_000_000,
             payrollMtdGross: 11_000_000,
+            payrollCount: 7,
             activeHeadcount: 7,
           },
         ],
@@ -114,6 +123,8 @@ describe('AnalyticsService.depotSummaryMany', () => {
       payrollMtdNet: 9_000_000,
       // CA-2-59: gross is what the P&L subtracts; net is what lands in the account.
       payrollMtdGross: 11_000_000,
+      // Flow 5a: how many payslips back that figure; 0 with staff = not run yet.
+      payrollCount: 7,
     });
     // A depot with no rows still gets a card, all zeroes — a missing card reads as broken.
     expect(rows[1]).toMatchObject({
@@ -123,6 +134,7 @@ describe('AnalyticsService.depotSummaryMany', () => {
       presentToday: 0,
       payrollMtdNet: 0,
       payrollMtdGross: 0,
+      payrollCount: 0,
       activeHeadcount: 0,
     });
   });

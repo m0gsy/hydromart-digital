@@ -6,6 +6,7 @@ import {
   DateRange,
   DeliverySla,
   DepotOperationalCosts,
+  HrDepotSummary,
   LowStockLine,
   SalesReport,
   TopCustomers,
@@ -121,15 +122,32 @@ export interface MonthlyOperationalPnl {
   revenueIdr: number | null;
   cogsIdr: number | null;
   coveredCogsIdr: number | null;
-  opexIdr: number | null;
   grossProfitIdr: number | null;
+  /** Gross wage cost (BASE + ALLOWANCE) for the month, the same term the network P&L uses. */
+  payrollIdr: number | null;
+  courierCommissionIdr: number | null;
+  expenseClaimIdr: number | null;
+  refundIdr: number | null;
+  /** Laba bersih: `netProfit` (@hydromart/platform), the one formula every P&L shows. */
+  netProfitIdr: number | null;
+  /** netProfitIdr as a percentage of revenue, one decimal. */
+  netMarginPct: number | null;
+  costCoverage: DepotOperationalCosts['cogs'] | null;
+  /**
+   * DEPRECATED, kept only for the Ops app's monthly P&L screen as installed (≤ mobile-v1.15.0),
+   * which reads these four: cash out, gross profit minus cash out, and its margin. Not a profit
+   * any current screen shows; drop them once mobile-v1.16.0 is the oldest app in use.
+   */
+  opexIdr: number | null;
   netOperatingProfitIdr: number | null;
   marginPct: number | null;
-  costCoverage: DepotOperationalCosts['cogs'] | null;
   opexCoverage: DepotOperationalCosts['opex'] | null;
   sources: {
     order: 'ok' | 'unavailable';
     depot: 'ok' | 'partial' | 'unavailable';
+    payroll: 'ok' | 'pending' | 'unavailable';
+    payout: 'ok' | 'unavailable';
+    refunds: 'ok' | 'unavailable';
   };
 }
 
@@ -208,21 +226,40 @@ export class DashboardService {
     const fromDate = dayStartUtc(`${month}-01`, tz);
     const toDate = addLocalMonths(fromDate, 1, tz);
     const range = { from: fromDate.toISOString(), to: toDate.toISOString() };
-    const [order, costs] = await Promise.all([
+    // Flow plan 5a-2: the same five terms, from the same sources, as this depot's row in
+    // networkPnl — so /dashboard/monthly-pnl and /hq/pnl can no longer disagree about a month.
+    const [order, costs, hr, payout, refunds] = await Promise.all([
       this.sources.depotMonthly(depotId, month, token),
       this.sources.operationalCosts(depotId, range, token),
+      this.sources.hrSummaryMany([depotId], month),
+      this.sources.payoutCosts([depotId], range),
+      this.sources.depotRefunds([depotId], range),
     ]);
 
     const revenueIdr = order?.revenueIdr ?? null;
     const cogsIdr = costs?.cogs.amountIdr ?? null;
-    const opexIdr = costs?.opex.amountIdr ?? null;
+    const payrollIdr = DashboardService.wages(hr[0] ?? null);
+    const courierCommissionIdr = payout ? (payout.get(depotId)?.commissionIdr ?? 0) : null;
+    const expenseClaimIdr = payout ? (payout.get(depotId)?.expenseClaimIdr ?? 0) : null;
+    const refundIdr = refunds ? (refunds.get(depotId) ?? 0) : null;
     const grossProfitIdr = revenueIdr !== null && cogsIdr !== null ? revenueIdr - cogsIdr : null;
+    const netProfitIdr = netProfit({
+      revenueIdr,
+      cogsIdr,
+      payrollIdr,
+      courierCommissionIdr,
+      expenseClaimIdr,
+      refundIdr,
+    });
+    const pctOfRevenue = (v: number | null): number | null =>
+      v !== null && revenueIdr !== null && revenueIdr !== 0
+        ? Math.round((v / revenueIdr) * 1000) / 10
+        : null;
+
+    // Deprecated pair, see MonthlyOperationalPnl: what the installed app's screen still reads.
+    const opexIdr = costs?.opex.amountIdr ?? null;
     const netOperatingProfitIdr =
       grossProfitIdr !== null && opexIdr !== null ? grossProfitIdr - opexIdr : null;
-    const marginPct =
-      netOperatingProfitIdr !== null && revenueIdr !== null && revenueIdr !== 0
-        ? Math.round((netOperatingProfitIdr / revenueIdr) * 1000) / 10
-        : null;
 
     return {
       depotId,
@@ -235,11 +272,17 @@ export class DashboardService {
       revenueIdr,
       cogsIdr,
       coveredCogsIdr: costs?.cogs.coveredAmountIdr ?? null,
-      opexIdr,
       grossProfitIdr,
-      netOperatingProfitIdr,
-      marginPct,
+      payrollIdr,
+      courierCommissionIdr,
+      expenseClaimIdr,
+      refundIdr,
+      netProfitIdr,
+      netMarginPct: pctOfRevenue(netProfitIdr),
       costCoverage: costs?.cogs ?? null,
+      opexIdr,
+      netOperatingProfitIdr,
+      marginPct: pctOfRevenue(netOperatingProfitIdr),
       opexCoverage: costs?.opex ?? null,
       sources: {
         order: order === null ? 'unavailable' : 'ok',
@@ -249,6 +292,10 @@ export class DashboardService {
             : costs.cogs.status === 'partial' || costs.opex.status === 'partial'
               ? 'partial'
               : 'ok',
+        // 'pending': hr answered, but this month's payroll has not been run yet.
+        payroll: hr[0] == null ? 'unavailable' : payrollIdr === null ? 'pending' : 'ok',
+        payout: payout === null ? 'unavailable' : 'ok',
+        refunds: refunds === null ? 'unavailable' : 'ok',
       },
     };
   }
@@ -337,6 +384,19 @@ export class DashboardService {
    * Every source is read as the system principal, so the ids chosen here are the whole
    * authorization boundary — rows for a depot outside it are never fetched, not just hidden.
    */
+  /**
+   * The wage term of laba bersih: gross payroll for the month — or null (unknown) when hr
+   * could not be read, or when the depot has staff and the month's payroll has not been run
+   * yet. Payroll is generated at month end, so without this the CURRENT month, the one a P&L
+   * opens on, would read every wage bill as zero and look like the best month of the year.
+   * A depot with no staff on the books has known wages: none.
+   */
+  private static wages(summary: HrDepotSummary | null): number | null {
+    if (!summary || summary.payrollMtdGross === undefined) return null;
+    if ((summary.payrollCount ?? 0) > 0) return summary.payrollMtdGross;
+    return summary.activeHeadcount === 0 ? 0 : null;
+  }
+
   private static inScope<T extends { id: string }>(
     depots: T[] | null,
     scope: readonly string[] | undefined,
@@ -375,7 +435,7 @@ export class DashboardService {
     const rows: NetworkPnlDepotRow[] = (depots ?? []).map((d, i) => {
       const revenueIdr = revenues[i]?.revenueIdr ?? null;
       const cogsIdr = goods[i]?.cogs.amountIdr ?? null;
-      const payrollIdr = hr[i]?.payrollMtdGross ?? null;
+      const payrollIdr = DashboardService.wages(hr[i] ?? null);
       const courierCommissionIdr = payout ? (payout.get(d.id)?.commissionIdr ?? 0) : null;
       const expenseClaimIdr = payout ? (payout.get(d.id)?.expenseClaimIdr ?? 0) : null;
       const refundIdr = refunds ? (refunds.get(d.id) ?? 0) : null;

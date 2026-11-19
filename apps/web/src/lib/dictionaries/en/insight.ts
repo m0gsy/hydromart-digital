@@ -392,9 +392,9 @@ export const insight = {
     waitingDef: 'Payments with a waiting status in this period, whole network.',
     refundQueue: 'Refund queue',
     refundQueueDef: 'Large refunds waiting for head office approval.',
-    operatingProfit: 'Operating profit',
-    operatingProfitDef:
-      'Revenue less cost of goods and the depot’s operating costs for that month. Blank when the costs are incomplete.',
+    netProfit: 'Net profit',
+    netProfitDef:
+      'Revenue less cost of goods, wages, courier commission, expense claims and refunds for that month, the same formula as the network P&L. Blank when any of them could not be read.',
     margin: 'margin {pct}%',
     costsIncomplete: 'Costs incomplete',
     method: 'Method',

@@ -117,18 +117,20 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
               definition={t('insight.kpi.revenueDef')}
             />
             <KpiCard
-              label={t('insight.finance.operatingProfit')}
-              value={money(depotPnl.data?.netOperatingProfitIdr)}
+              label={t('insight.finance.netProfit')}
+              value={money(depotPnl.data?.netProfitIdr)}
               hint={
                 depotPnl.data == null
                   ? undefined
-                  : depotPnl.data.netOperatingProfitIdr == null
-                    ? t('insight.finance.costsIncomplete')
-                    : depotPnl.data.marginPct != null
-                      ? t('insight.finance.margin', { pct: Math.round(depotPnl.data.marginPct) })
+                  : depotPnl.data.netProfitIdr == null
+                    ? depotPnl.data.revenueIdr == null
+                      ? undefined
+                      : t('insight.finance.costsIncomplete')
+                    : depotPnl.data.netMarginPct != null
+                      ? t('insight.finance.margin', { pct: Math.round(depotPnl.data.netMarginPct) })
                       : undefined
               }
-              definition={t('insight.finance.operatingProfitDef')}
+              definition={t('insight.finance.netProfitDef')}
             />
           </>
         )}

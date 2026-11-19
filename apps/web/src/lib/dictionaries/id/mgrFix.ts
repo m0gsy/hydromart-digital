@@ -85,23 +85,29 @@ export const mgrFix = {
     title: 'Laporan L/R',
     subtitle: '{depot} · {month}',
     operational: 'Operasional',
-    netOperatingProfit: 'Laba operasional bersih',
-    operatingMargin: 'Margin operasional',
+    netProfit: 'Laba bersih',
+    netMargin: 'Margin bersih',
     revenue: 'Pendapatan',
     cogs: 'HPP terverifikasi',
     coveredCogs: 'HPP unit yang terpetakan',
     grossProfit: 'Laba kotor',
-    opex: 'Biaya operasional',
+    payroll: 'Gaji & tunjangan (bruto)',
+    courierCommission: 'Komisi kurir',
+    expenseClaims: 'Klaim biaya',
+    refunds: 'Pengembalian dana',
     sources: 'Sumber data',
     orderSource: 'Pendapatan order-service',
-    costSource: 'Biaya depot-service',
+    costSource: 'HPP depot-service',
+    payrollSource: 'Gaji hr-service',
+    payoutSource: 'Komisi & klaim payout-service',
+    refundSource: 'Refund payment-service',
     partial:
       'Sebagian sumber atau cakupan biaya belum lengkap. Nilai turunan yang tidak aman ditampilkan sebagai —.',
     coverage: 'Cakupan HPP langsung',
     coverageSummary: '{covered} dari {total} unit terpetakan ({percent}%)',
     units: '{n} unit',
-    opexCoverage:
-      '{included} arus keluar dihitung · {excluded} pembayaran PO terverifikasi dikecualikan · {unverified} kategori PO belum terverifikasi',
+    formula:
+      'Laba bersih = pendapatan − HPP − gaji − komisi kurir − klaim biaya − pengembalian dana, rumus yang sama dengan laba-rugi jaringan. Sewa, listrik, dan kas keluar lain di buku kas tidak termasuk.',
     disclaimer:
       'Laporan manajemen operasional, bukan laporan akuntansi statutori atau dokumen pajak.',
     noDepot: 'Pilih depot',
@@ -109,6 +115,7 @@ export const mgrFix = {
     status: {
       ok: 'Lengkap',
       partial: 'Sebagian',
+      pending: 'Gaji bulan itu belum dihitung',
       unavailable: 'Tidak tersedia',
     },
     reason: {

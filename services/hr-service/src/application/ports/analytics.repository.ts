@@ -73,6 +73,11 @@ export interface DepotSummaryFacts {
    * Treating net as the cost would book a lateness fine as a saving.
    */
   payrollMtdGross: number;
+  /**
+   * Payslips generated for the period month at this depot. 0 with staff on the books means
+   * the month's payroll has not been run yet, so its wages are UNKNOWN, not zero (flow 5a).
+   */
+  payrollCount: number;
   activeHeadcount: number;
 }
 

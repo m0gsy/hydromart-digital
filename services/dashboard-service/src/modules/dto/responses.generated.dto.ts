@@ -126,6 +126,12 @@ export class MonthlyOperationalPnlSourcesResponseDto {
   order!: string;
   @ApiProperty({ enum: ['ok', 'partial', 'unavailable'] })
   depot!: string;
+  @ApiProperty({ enum: ['ok', 'pending', 'unavailable'] })
+  payroll!: string;
+  @ApiProperty({ enum: ['ok', 'unavailable'] })
+  payout!: string;
+  @ApiProperty({ enum: ['ok', 'unavailable'] })
+  refunds!: string;
 }
 
 /** Mirrors `MonthlyOperationalPnl` exactly — generated for audit D-6, no field added or removed. */
@@ -149,16 +155,28 @@ export class MonthlyOperationalPnlResponseDto {
   @ApiProperty({ type: Number, nullable: true })
   coveredCogsIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
-  opexIdr!: number | null;
-  @ApiProperty({ type: Number, nullable: true })
   grossProfitIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
-  netOperatingProfitIdr!: number | null;
+  payrollIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
-  marginPct!: number | null;
+  courierCommissionIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  expenseClaimIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  refundIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  netProfitIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  netMarginPct!: number | null;
   @ApiProperty({ type: Object, nullable: true })
   costCoverage!: unknown | null;
-  @ApiProperty({ type: Object, nullable: true })
+  @ApiProperty({ type: Number, nullable: true, deprecated: true })
+  opexIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true, deprecated: true })
+  netOperatingProfitIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true, deprecated: true })
+  marginPct!: number | null;
+  @ApiProperty({ type: Object, nullable: true, deprecated: true })
   opexCoverage!: unknown | null;
   @ApiProperty({ type: MonthlyOperationalPnlSourcesResponseDto })
   sources!: MonthlyOperationalPnlSourcesResponseDto;

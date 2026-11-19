@@ -1261,8 +1261,16 @@ export interface OperationalMonthlyPnl {
   revenueIdr: number | null;
   cogsIdr: number | null;
   coveredCogsIdr: number | null;
-  opexIdr: number | null;
   grossProfitIdr: number | null;
+  payrollIdr: number | null;
+  courierCommissionIdr: number | null;
+  expenseClaimIdr: number | null;
+  refundIdr: number | null;
+  /** Laba bersih — the one formula (netProfit, @hydromart/platform) the network P&L also uses. */
+  netProfitIdr: number | null;
+  netMarginPct: number | null;
+  /** Deprecated: cash out and gross − cash out, kept for the installed Ops app (≤ v1.15.0). */
+  opexIdr: number | null;
   netOperatingProfitIdr: number | null;
   marginPct: number | null;
   costCoverage: {
@@ -1295,6 +1303,10 @@ export interface OperationalMonthlyPnl {
   sources: {
     order: 'ok' | 'unavailable';
     depot: 'ok' | 'partial' | 'unavailable';
+    /** 'pending': the month's payroll has not been run yet, so its wages are unknown. */
+    payroll: 'ok' | 'pending' | 'unavailable';
+    payout: 'ok' | 'unavailable';
+    refunds: 'ok' | 'unavailable';
   };
 }
 
