@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -59,4 +60,10 @@ export class ListLoanRequestDto {
   @IsOptional() @IsEnum(LoanRequestStatus) status?: LoanRequestStatus;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) pageSize = 20;
+}
+
+/** How many PENDING kasbon the caller may decide (K1/K2): the decision inbox's count. */
+export class DecidableCountResponseDto {
+  @ApiProperty()
+  total!: number;
 }

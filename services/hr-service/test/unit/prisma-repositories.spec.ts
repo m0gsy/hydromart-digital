@@ -2676,6 +2676,24 @@ describe('LoanPrismaRepository', () => {
 describe('LoanRequestPrismaRepository', () => {
   const write = { employeeId: 'e1', depotId: 'd1', amount: 500000, reason: 'sekolah' };
 
+  it('pendingCountsByDepot groups PENDING by depot, scoped, without one employee', async () => {
+    const p = makePrisma();
+    m(p, 'loanRequest').groupBy.mockResolvedValue([{ depotId: 'd1', _count: { _all: 3 } }]);
+    const repo = new LoanRequestPrismaRepository(asService(p));
+    await expect(repo.pendingCountsByDepot(['d1', 'd2'], 'e9')).resolves.toEqual([{ depotId: 'd1', count: 3 }]);
+    expect(m(p, 'loanRequest').groupBy).toHaveBeenCalledWith({
+      by: ['depotId'],
+      where: { status: 'PENDING', depotId: { in: ['d1', 'd2'] }, employeeId: { not: 'e9' } },
+      _count: { _all: true },
+    });
+    await repo.pendingCountsByDepot(undefined, null);
+    expect(m(p, 'loanRequest').groupBy).toHaveBeenLastCalledWith({
+      by: ['depotId'],
+      where: { status: 'PENDING' },
+      _count: { _all: true },
+    });
+  });
+
   it('create/findById/listByEmployee/decide passthrough', async () => {
     const p = makePrisma();
     const out = sentinel();

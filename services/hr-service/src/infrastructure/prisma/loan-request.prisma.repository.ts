@@ -36,6 +36,22 @@ export class LoanRequestPrismaRepository implements LoanRequestRepository {
    * never saw. `loans` scopes through the relation for the opposite reason: a loan follows
    * the person.
    */
+  async pendingCountsByDepot(
+    depotIds: readonly string[] | undefined,
+    excludeEmployeeId: string | null,
+  ): Promise<Array<{ depotId: string; count: number }>> {
+    const groups = await this.prisma.loanRequest.groupBy({
+      by: ['depotId'],
+      where: {
+        status: 'PENDING',
+        ...(depotIds ? { depotId: { in: [...depotIds] } } : {}),
+        ...(excludeEmployeeId ? { employeeId: { not: excludeEmployeeId } } : {}),
+      },
+      _count: { _all: true },
+    });
+    return groups.map((g) => ({ depotId: g.depotId, count: g._count._all }));
+  }
+
   async listAll(
     filter: LoanRequestListFilter,
   ): Promise<{ rows: LoanRequestListRow[]; total: number }> {
