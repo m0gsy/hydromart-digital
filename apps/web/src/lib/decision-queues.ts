@@ -79,6 +79,20 @@ export const DECISION_QUEUES: DecisionQueue[] = [
     decides: (role) => can('employeeAssign', role),
     count: () => api.get<Totalled>(endpoints.hr.depotRequestsIncomingCount, true).then(totalOf),
   },
+  // Face plan PR-2: punches held PENDING (a late offline sync, or a face the engine could not
+  // judge). A daily worker is not paid for a PENDING day, so it waits for HR like any request.
+  // Same reader and same list as the PENDING card on /hr/attendance (hrAdmin); its page answers
+  // with a total.
+  {
+    key: 'attendance',
+    label: 'hrFix.nav.attendance',
+    href: '/hr/attendance',
+    decides: (role) => canManageHr(role),
+    count: () =>
+      api
+        .get<Totalled>(endpoints.hr.attendance({ status: 'PENDING', page: 1, pageSize: 1 }), true)
+        .then(totalOf),
+  },
   // A bare list, no total: owners with a balance to release.
   {
     key: 'payouts',

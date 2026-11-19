@@ -9,6 +9,15 @@ import { decodeBase64Image } from './decode-image';
 import { FaceEmbedding } from '../../prisma/generated/client';
 import { FaceEmbeddingResponseDto } from './dto/responses.generated.dto';
 
+/**
+ * What an enrolment answers. Face plan PR-2: it used to be the whole row, so every enrolment
+ * sent the face template back to the browser — encrypted, but a biometric template has no
+ * business leaving the service at all, and the screen reads none of it.
+ */
+export type FaceView = Omit<FaceEmbedding, 'vector' | 'vectorEnc'>;
+export const faceView = ({ vector: _vector, vectorEnc: _vectorEnc, ...rest }: FaceEmbedding): FaceView =>
+  rest;
+
 /** Self face-enrollment (PWA): a linked employee enrolls their own face. No @Roles —
  *  ownership is the caller's authSubjectId. Static path sits under the attendance segment. */
 @ApiTags('HR Face')
@@ -21,8 +30,10 @@ export class SelfFaceController {
   @SelfScoped()
   @Post('enroll')
   @ApiOperation({ summary: 'Enroll my own face frames (self)' })
-  enroll(@Body() dto: EnrollFaceDto, @CurrentUser() user: AuthenticatedUser): Promise<FaceEmbedding> {
-    return this.face.enrollSelf(user, dto.images.map(decodeBase64Image), dto.consent === true);
+  async enroll(@Body() dto: EnrollFaceDto, @CurrentUser() user: AuthenticatedUser): Promise<FaceView> {
+    return faceView(
+      await this.face.enrollSelf(user, dto.images.map(decodeBase64Image), dto.consent === true),
+    );
   }
 
   /** HR-3: withdraw my consent — templates and stored frames deleted, consent cleared. */
@@ -46,13 +57,15 @@ export class FaceController {
   @Post('enroll')
   @Can('hrAdmin')
   @ApiOperation({ summary: 'Enroll aligned face frames (replaces the current set)' })
-  enroll(
+  async enroll(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: EnrollFaceDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<FaceEmbedding> {
+  ): Promise<FaceView> {
     const images = dto.images.map(decodeBase64Image);
-    return this.face.enroll(user, id, images, dto.sourcePhotoUrl ?? null, dto.consent === true);
+    return faceView(
+      await this.face.enroll(user, id, images, dto.sourcePhotoUrl ?? null, dto.consent === true),
+    );
   }
 
   /** HR-3: withdrawal on the employee's behalf (they asked at the desk, or they left). */

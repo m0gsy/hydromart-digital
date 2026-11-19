@@ -742,8 +742,6 @@ export class FaceEmbeddingResponseDto {
   id!: string;
   @ApiProperty({ type: String })
   employeeId!: string;
-  @ApiProperty({ type: [Number] })
-  vector!: number[];
   @ApiProperty({ type: Number })
   quality!: number;
   @ApiProperty({ type: String, nullable: true })
@@ -752,6 +750,8 @@ export class FaceEmbeddingResponseDto {
   active!: boolean;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  neoSyncedAt!: string | null;
 }
 
 /** Mirrors the Prisma model `LeaveBalance` (its scalar fields — audit D-6). */

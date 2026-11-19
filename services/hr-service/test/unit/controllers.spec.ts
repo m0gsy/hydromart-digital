@@ -605,7 +605,8 @@ describe('FaceController / SelfFaceController', () => {
 
   // HR-3: consent travels with the enrolment, and an absent flag is not a consent.
   it('forwards the consent flag on both enrolment paths', () => {
-    const face = { enroll: jest.fn(), enrollSelf: jest.fn() };
+    // The controllers answer the enrolment row (without its template), so the stubs return one.
+    const face = { enroll: jest.fn().mockResolvedValue({}), enrollSelf: jest.fn().mockResolvedValue({}) };
     new FaceController(face as never).enroll('e1', { images: [b64], consent: true } as never, user);
     expect(face.enroll.mock.calls[0][4]).toBe(true);
     new SelfFaceController(face as never).enroll({ images: [b64] } as never, user);

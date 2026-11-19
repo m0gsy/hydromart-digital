@@ -86,6 +86,7 @@ import { AllowancePrismaRepository } from '../infrastructure/prisma/allowance.pr
 import { AllowanceController } from './allowance.controller';
 import { NOTIFICATION_PORT } from '../application/ports/notification.port';
 import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
+import { PendingPunchAlert } from '../application/services/pending-punch-alert.service';
 import { LEAVE_REPOSITORY } from '../application/ports/leave.repository';
 import { LeaveService } from '../application/services/leave.service';
 import { LeavePrismaRepository } from '../infrastructure/prisma/leave.prisma.repository';
@@ -129,6 +130,8 @@ const providers: Provider[] = [
   },
   HrConfigService,
   SettingsService,
+  // Face plan PR-2: the daily alarm for punches left PENDING more than 48 hours.
+  PendingPunchAlert,
   { provide: EMPLOYEE_REPOSITORY, useClass: EmployeePrismaRepository },
   EmployeeService,
   { provide: FACE_EMBEDDING_REPOSITORY, useClass: FaceEmbeddingPrismaRepository },
