@@ -21,6 +21,8 @@ import {
   type PayrollStatus,
 } from '@/lib/hr';
 import { useAsync } from '@/lib/use-async';
+import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/roles';
 
 function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
@@ -150,6 +152,10 @@ function EndingEmployments({ rows, today }: { rows: EndingEmployment[]; today: s
 
 export default function HrDashboardPage() {
   const { t } = useT();
+  const { customer } = useAuth();
+  // Pay figures: payrollRead only (2026-11-19). Without it the server zeroes the block, and a
+  // "Rp 0" payroll would read as a real one.
+  const mayReadPay = can('payrollRead', customer?.role);
   const period = currentPeriod();
   const { data, error, loading, reload } = useAsync<HrDashboard>(
     () => api.get<HrDashboard>(endpoints.hr.dashboard({ periodMonth: period }), true),
@@ -175,11 +181,15 @@ export default function HrDashboardPage() {
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Stat label={t('hrFix.home.totalEmployees')} value={data.headcount.total} />
-            <Stat
-              label={t('hrFix.home.payrollNet')}
-              value={<Money amount={data.payroll.totals.net} />}
-            />
-            <Stat label={t('hrFix.home.runPayroll')} value={data.payroll.totals.count} />
+            {mayReadPay && (
+              <Stat
+                label={t('hrFix.home.payrollNet')}
+                value={<Money amount={data.payroll.totals.net} />}
+              />
+            )}
+            {mayReadPay && (
+              <Stat label={t('hrFix.home.runPayroll')} value={data.payroll.totals.count} />
+            )}
             <Stat
               label={t('hrFix.home.presentToday')}
               value={data.attendanceToday.find((g) => g.key === 'PRESENT')?.count ?? 0}
@@ -208,6 +218,7 @@ export default function HrDashboardPage() {
             />
           </Card>
 
+          {mayReadPay && (
           <Card className="space-y-3 p-5">
             {/* CA-1-87: a translator could not reach this heading, though `nav.payroll`
                 beside it has always been a key. */}
@@ -237,6 +248,7 @@ export default function HrDashboardPage() {
               label={(k) => t(PAYROLL_STATUS_LABEL[k as PayrollStatus]) ?? k}
             />
           </Card>
+          )}
 
           <div className="flex flex-wrap gap-3">
             <Link
@@ -245,12 +257,14 @@ export default function HrDashboardPage() {
             >
               {t('hrFix.home.manageEmployees')}
             </Link>
-            <Link
-              href="/hr/payroll"
-              className="tap-44 text-sm font-semibold text-brand-700 hover:underline"
-            >
-              {t('hrFix.home.runPayrollLink')}
-            </Link>
+            {mayReadPay && (
+              <Link
+                href="/hr/payroll"
+                className="tap-44 text-sm font-semibold text-brand-700 hover:underline"
+              >
+                {t('hrFix.home.runPayrollLink')}
+              </Link>
+            )}
             <Link
               href="/hr/reports"
               className="tap-44 text-sm font-semibold text-brand-700 hover:underline"

@@ -203,6 +203,7 @@ export const dashC = {
       employeeAssign: 'Tugaskan karyawan lintas depot',
       employeeAssignRequest: 'Ajukan peminjaman karyawan untuk depot',
       hrPayroll: 'Payroll',
+      payrollRead: 'Angka gaji & laba bersih (lihat)',
       leaveApprove: 'Setujui cuti',
       kasbonApprove: 'Setujui kasbon',
       hrView: 'Laporan HR (lihat)',

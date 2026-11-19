@@ -16,6 +16,7 @@ import {
 } from './dto/reports.dto';
 import { HrDashboard, HrDepotSummary } from '../application/services/analytics.service';
 import { HrDashboardResponseDto, HrDepotResponseDto } from './dto/responses.generated.dto';
+import { assertMayReadPay } from '../domain/pay-visibility';
 
 /** HR dashboard aggregations + CSV/XLSX exports (?format=xlsx). Read = hrView, depot-scoped. */
 @ApiTags('HR Reports')
@@ -142,6 +143,7 @@ export class ReportsController {
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
+    assertMayReadPay(user);
     await this.deliver(
       res,
       `payroll-${q.periodMonth}`,

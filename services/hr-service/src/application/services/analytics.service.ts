@@ -97,7 +97,8 @@ export class AnalyticsService {
     const workDate = this.today();
     const periodMonth = query.periodMonth ?? workDate.slice(0, 7);
     const workDateUtc = new Date(`${workDate}T00:00:00.000Z`);
-    const mayReadPayroll = can('hrPayroll', user.role);
+    // payrollRead, not hrPayroll: reading the totals is wider than running payroll (2026-11-19).
+    const mayReadPayroll = can('payrollRead', user.role);
 
     // CA-1-47 and CA-1-43: 30 days is a renewal window, not a deadline — a SIM or a contract takes
     // longer than a week to replace, and anything already past its date is included.

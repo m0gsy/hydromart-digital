@@ -16,6 +16,13 @@ const manager: AuthenticatedUser = {
   phone: null,
   depotId: 'd-locked',
 };
+// Owner decision 2026-11-19: SUPERVISOR opens HR (hrView) but reads no pay figure (payrollRead).
+const supervisor: AuthenticatedUser = {
+  sub: 'spv',
+  role: 'SUPERVISOR' as never,
+  phone: null,
+  depotId: 'd-locked',
+};
 
 function build(over: Partial<AnalyticsRepository> = {}) {
   const calls: { depotId?: string }[] = [];
@@ -88,12 +95,13 @@ describe('AnalyticsService.dashboard', () => {
   });
 
   // F2: `hrView` includes roles with no payroll read; their dashboard must not carry the
-  // month's gross/net, and the repository is not even asked for it.
-  it('F2: zeroes the payroll block for a role without hrPayroll, without querying it', async () => {
+  // month's gross/net, and the repository is not even asked for it. The read is `payrollRead`
+  // since 2026-11-19 (owner decision), not `hrPayroll` — the write set is narrower.
+  it('F2: zeroes the payroll block for a role without payrollRead, without querying it', async () => {
     const payrollTotals = jest.fn();
     const payrollByStatus = jest.fn();
     const { svc } = build({ payrollTotals, payrollByStatus } as never);
-    const d = await svc.dashboard(manager, {});
+    const d = await svc.dashboard(supervisor, {});
     expect(d.payroll).toEqual({
       totals: { gross: 0, totalBonus: 0, totalDeduction: 0, net: 0, count: 0 },
       byStatus: [],
@@ -105,6 +113,14 @@ describe('AnalyticsService.dashboard', () => {
   it('F2: a payroll role (HR) still gets the real figures', async () => {
     const { svc } = build();
     const d = await svc.dashboard(hq, {});
+    expect(d.payroll.byStatus).toEqual([{ key: 'DRAFT', count: 2 }]);
+  });
+
+  // The owner widened the READ on 2026-11-19: an area manager reads the totals of the depots
+  // they run, though only HR/FINANCE may run payroll.
+  it('F2: a manager now reads the totals too (payrollRead, not hrPayroll)', async () => {
+    const { svc } = build();
+    const d = await svc.dashboard(manager, {});
     expect(d.payroll.byStatus).toEqual([{ key: 'DRAFT', count: 2 }]);
   });
 

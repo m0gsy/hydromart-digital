@@ -7,6 +7,7 @@ import { AllowanceService } from '../application/services/allowance.service';
 import { CreateAllowanceDto, ImportAllowancesDto, ListAllowanceDto } from './dto/allowance.dto';
 import { Allowance } from '../../prisma/generated/client';
 import { AllowanceResponseDto, ImportResponseDto } from './dto/responses.generated.dto';
+import { assertMayReadPay } from '../domain/pay-visibility';
 
 /** Recurring pay components. Read hrView, write hrPayroll (it is salary, not master data). */
 @ApiTags('HR Allowances')
@@ -19,7 +20,9 @@ export class AllowanceController {
   @Get()
   @Can('hrView')
   @ApiOperation({ summary: 'List an employee’s allowances (active first)' })
-  list(@Query() q: ListAllowanceDto, @CurrentUser() user: AuthenticatedUser): Promise<Allowance[]> {
+  async list(@Query() q: ListAllowanceDto, @CurrentUser() user: AuthenticatedUser): Promise<Allowance[]> {
+    // An allowance is part of someone's pay.
+    assertMayReadPay(user);
     return this.allowances.list(user, q.employeeId);
   }
 

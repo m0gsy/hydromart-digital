@@ -313,6 +313,7 @@ export const hq = {
       employeeAssign: 'Tugaskan karyawan lintas depot',
       employeeAssignRequest: 'Ajukan peminjaman karyawan untuk depot',
       hrPayroll: 'Payroll',
+      payrollRead: 'Lihat angka gaji & laba bersih',
       leaveApprove: 'Setujui cuti (tahap 1)',
       kasbonApprove: 'Setujui kasbon (asisten SPV depotnya)',
       priceOverrideDecide: 'Putuskan usulan harga depot',

@@ -5,6 +5,7 @@ import { Response } from 'express';
 import { Can, AuthenticatedUser, CurrentUser, ImportSummary, SelfScoped } from '@hydromart/platform';
 
 import { PayrollService } from '../application/services/payroll.service';
+import { assertMayReadPay } from '../domain/pay-visibility';
 import {
   GenerateBatchPayrollDto,
   GenerateBatchResultDto,
@@ -30,6 +31,7 @@ export class PayrollController {
   @Can('hrView')
   @ApiOperation({ summary: 'List payroll runs' })
   list(@Query() query: ListPayrollDto, @CurrentUser() user: AuthenticatedUser) {
+    assertMayReadPay(user);
     return this.payroll.list(user, query);
   }
 
@@ -82,7 +84,8 @@ export class PayrollController {
   @Get(':id')
   @Can('hrView')
   @ApiOperation({ summary: 'Get one payroll with its item lines (salary slip)' })
-  getById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
+  async getById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<PayrollWithItems> {
+    assertMayReadPay(user);
     return this.payroll.getById(user, id);
   }
 
@@ -98,6 +101,7 @@ export class PayrollController {
     @CurrentUser() user: AuthenticatedUser,
     @Res() res: Response,
   ) {
+    assertMayReadPay(user);
     const pdf = await this.payroll.slip(user, id);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="slip-${id}.pdf"`);
