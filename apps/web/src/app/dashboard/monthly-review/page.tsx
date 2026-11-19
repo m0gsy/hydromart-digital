@@ -200,7 +200,12 @@ function MonthlyReviewBody() {
    * The caption says which, because a manager who can see that payroll is the missing term
    * can go and ask for it; a bare dash sends them nowhere.
    */
+  // A reader without payrollRead (owner decision 2026-11-19) gets no payroll line and nothing
+  // net of it, by design: the screen says so instead of listing payroll as "unread".
+  const reportPayHidden = r?.payVisible === false;
+  const pnlPayHidden = p?.payVisible === false;
   const missingCashTerms = (b: ReportDepotMonthly['profitBreakdown'] | undefined): string => {
+    if (reportPayHidden) return t('hrFix.monthlyReview.payHidden');
     if (!b) return t('hrFix.monthlyReview.needsCostData');
     const missing = [
       b.cogsIdr === null ? t('hrFix.monthlyReview.termCogs') : null,
@@ -255,9 +260,10 @@ function MonthlyReviewBody() {
       caption: profitCaption(),
     },
   ];
-  const stats = mayPnl
-    ? allStats
-    : allStats.filter((s) => s.label !== t('hrFix.monthlyReview.netProfit'));
+  const stats =
+    mayPnl && !pnlPayHidden
+      ? allStats
+      : allStats.filter((s) => s.label !== t('hrFix.monthlyReview.netProfit'));
 
   /**
    * Arus kas bersih (owner decision 2026-11-17): what the month's books took in and paid out,
@@ -266,7 +272,7 @@ function MonthlyReviewBody() {
    * the cash book), so showing the terms is what makes a double count visible.
    */
   const idrOrDash = (v: number | null | undefined): string => (v == null ? '—' : formatIDR(v));
-  const cashFlow: Row[] = [
+  const allCashFlow: Row[] = [
     { label: t('hrFix.monthlyReview.turnover'), value: r ? formatIDR(r.revenueIdr) : '—' },
     { label: t('hrFix.monthlyReview.refunded'), value: idrOrDash(r?.refundedIdr) },
     {
@@ -281,6 +287,10 @@ function MonthlyReviewBody() {
       value: idrOrDash(r?.netCashFlowIdr !== undefined ? r.netCashFlowIdr : r?.netProfitIdr),
     },
   ];
+  const payRows = [t('hrFix.monthlyReview.payrollNet'), t('hrFix.monthlyReview.netCashFlow')];
+  const cashFlow = reportPayHidden
+    ? allCashFlow.filter((row) => !payRows.includes(row.label))
+    : allCashFlow;
 
   /*
    * Governance: approvals, stock counts and the daily close, all owned by depot-service and

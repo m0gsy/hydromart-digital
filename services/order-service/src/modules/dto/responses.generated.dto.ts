@@ -228,6 +228,8 @@ export class DepotCompareRowResponseDto {
 
 /** Mirrors `DepotCompareReport` exactly — generated for audit D-6, no field added or removed. */
 export class DepotCompareReportResponseDto {
+  @ApiProperty({ type: Boolean, description: 'False when the caller may not read pay figures (payrollRead).' })
+  payVisible!: boolean;
   @ApiProperty({ type: String, nullable: true })
   from!: string | null;
   @ApiProperty({ type: String, nullable: true })
@@ -257,6 +259,8 @@ export class DepotMonthlyReportGovernanceResponseDto {
 
 /** Mirrors `DepotMonthlyReport` exactly — generated for audit D-6, no field added or removed. */
 export class DepotMonthlyReportResponseDto {
+  @ApiProperty({ type: Boolean, description: 'False when the caller may not read pay figures (payrollRead).' })
+  payVisible!: boolean;
   @ApiProperty({ type: String })
   depotId!: string;
   @ApiProperty({ type: String })

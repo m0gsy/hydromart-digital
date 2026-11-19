@@ -1771,6 +1771,7 @@ export const hrFix = {
     netProfit: 'Net profit',
     turnover: 'Turnover (excluding cancellations)',
     purchasesReceived: 'Purchases received',
+    payHidden: 'Payroll and net cash flow are shown only to roles that may read pay figures.',
     payrollNet: 'Payroll (net)',
     cashOut: 'Cash paid out',
     approvalsReviewed: 'Approvals reviewed',

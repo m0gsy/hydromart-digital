@@ -136,6 +136,8 @@ export class MonthlyOperationalPnlSourcesResponseDto {
 
 /** Mirrors `MonthlyOperationalPnl` exactly — generated for audit D-6, no field added or removed. */
 export class MonthlyOperationalPnlResponseDto {
+  @ApiProperty({ type: Boolean, description: 'False when the caller may not read pay figures (payrollRead): payroll and net profit are null.' })
+  payVisible!: boolean;
   @ApiProperty({ type: String })
   depotId!: string;
   @ApiProperty({ type: String })
@@ -393,6 +395,8 @@ export class NetworkPnlSourcesResponseDto {
 
 /** Mirrors `NetworkPnl` exactly (CA-2-59). */
 export class NetworkPnlResponseDto {
+  @ApiProperty({ type: Boolean, description: 'False when the caller may not read pay figures (payrollRead): payroll and net profit are null.' })
+  payVisible!: boolean;
   @ApiProperty({ type: String })
   month!: string;
   @ApiProperty({ type: String })

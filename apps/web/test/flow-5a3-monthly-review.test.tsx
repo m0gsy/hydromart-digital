@@ -188,3 +188,41 @@ describe('the monthly review (flow 5a-3)', () => {
     expect(await screen.findByText('Rp 630.000')).toBeTruthy();
   });
 });
+
+/*
+ * Owner decision 2026-11-19: payroll and every figure net of it are payrollRead's. A depot head
+ * (KEPALA_DEPOT) reads this review without it, so the payroll line and net cash flow are null
+ * BY DESIGN. The review leaves those rows out and says why, instead of listing payroll as
+ * "could not be read".
+ */
+describe('the monthly review without payrollRead', () => {
+  it('drops the payroll and net cash flow rows and says why', async () => {
+    who.role = 'KEPALA_DEPOT';
+    serve({
+      review: {
+        ...REVIEW,
+        netCashFlowIdr: null,
+        netProfitIdr: null,
+        profitBreakdown: { ...REVIEW.profitBreakdown, payrollIdr: null },
+        payVisible: false,
+      },
+    });
+    render(<MonthlyReviewPage />);
+    expect(await screen.findByText('hrFix.monthlyReview.payHidden')).toBeTruthy();
+    expect(screen.queryByText('hrFix.monthlyReview.payrollNet')).toBeNull();
+    // The section keeps its title; its net row is gone (before: title + row = 2).
+    expect(screen.getAllByText('hrFix.monthlyReview.netCashFlow')).toHaveLength(1);
+    // The rest of the month still reads.
+    expect(screen.getByText('hrFix.monthlyReview.turnover')).toBeTruthy();
+  });
+
+  // Whoever opens it: the server's answer decides (a role retuned in the matrix can hold the
+  // dashboard read without payrollRead).
+  it('a P&L answered without pay figures gives no net-profit card', async () => {
+    who.role = 'MANAGER';
+    serve({ pnl: { ...PNL, payrollIdr: null, netProfitIdr: null, netMarginPct: null, payVisible: false } });
+    render(<MonthlyReviewPage />);
+    await screen.findByText('hrFix.monthlyReview.turnover');
+    expect(screen.queryByText('hrFix.monthlyReview.netProfit')).toBeNull();
+  });
+});

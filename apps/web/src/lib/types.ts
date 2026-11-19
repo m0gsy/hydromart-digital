@@ -1256,6 +1256,11 @@ export type OperationalCogsUncoveredReason =
   'NO_MATCHING_RECEIVED_PO' | 'AMBIGUOUS_ITEM_LABEL' | 'AMBIGUOUS_PO_COST';
 
 export interface OperationalMonthlyPnl {
+  /**
+   * False when the reader may not see pay figures (payrollRead, owner decision 2026-11-19):
+   * payroll and every figure net of it are null BY DESIGN, not unread. Absent = an older server.
+   */
+  payVisible?: boolean;
   depotId: string;
   month: string;
   from: string;
@@ -1408,6 +1413,11 @@ export interface NetworkPnlDepotRow {
 }
 
 export interface NetworkPnl {
+  /**
+   * False when the reader may not see pay figures (payrollRead, owner decision 2026-11-19):
+   * payroll and every figure net of it are null BY DESIGN, not unread. Absent = an older server.
+   */
+  payVisible?: boolean;
   month: string;
   from: string;
   to: string;
@@ -3116,6 +3126,11 @@ export interface PublicTracking {
 // activeCustomers are real; slaPct comes from delivery-service and netProfitIdr from
 // depot-service + hr-service — each null when its source could not be read, never 0.
 export interface ReportDepotMonthly {
+  /**
+   * False when the reader may not see pay figures (payrollRead, owner decision 2026-11-19):
+   * payroll and every figure net of it are null BY DESIGN, not unread. Absent = an older server.
+   */
+  payVisible?: boolean;
   depotId: string;
   month: string;
   orders: number;

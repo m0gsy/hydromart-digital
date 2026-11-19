@@ -118,7 +118,7 @@ const pnlSources = (
 describe('DashboardService', () => {
   it('nets the month with the one formula: gross wages, courier commission, claims and refunds; cash out is not a term', async () => {
     const service = new DashboardService(pnlSources(), dashboardTestConfig(), noNames);
-    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
 
     expect(result).toMatchObject({
       revenueIdr: 1_000_000,
@@ -140,11 +140,37 @@ describe('DashboardService', () => {
     });
   });
 
+  /*
+   * Owner decision 2026-11-19: without payrollRead the payroll is not even asked for. The
+   * salary line, net profit and net margin are null, the other cost lines stay, and the answer
+   * says why, so a screen does not read the gap as "payroll not run yet".
+   */
+  it('without payrollRead: no payroll read, no net figures, every other line intact', async () => {
+    const sources = pnlSources();
+    const service = new DashboardService(sources, dashboardTestConfig(), noNames);
+    const depot = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', false);
+    expect(sources.hrSummaryMany).not.toHaveBeenCalled();
+    expect(depot).toMatchObject({
+      revenueIdr: 1_000_000,
+      grossProfitIdr: 600_000,
+      courierCommissionIdr: 30_000,
+      payrollIdr: null,
+      netProfitIdr: null,
+      netMarginPct: null,
+      payVisible: false,
+    });
+    const network = await service.networkPnl('2026-07', 'Bearer t', undefined, false);
+    expect(sources.hrSummaryMany).not.toHaveBeenCalled();
+    expect(network.payVisible).toBe(false);
+    expect(network.depots[0]).toMatchObject({ payrollIdr: null, netProfitIdr: null, revenueIdr: 1_000_000 });
+    expect(network.totals).toMatchObject({ payrollIdr: null, netProfitIdr: null });
+  });
+
   it('agrees with the network P&L row for the same depot and month', async () => {
     const sources = pnlSources();
     const service = new DashboardService(sources, dashboardTestConfig(), noNames);
-    const depot = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
-    const network = await service.networkPnl('2026-07', 'Bearer t');
+    const depot = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
+    const network = await service.networkPnl('2026-07', 'Bearer t', undefined, true);
 
     expect(network.depots[0]!.netProfitIdr).toBe(300_000);
     expect(depot.netProfitIdr).toBe(network.depots[0]!.netProfitIdr);
@@ -167,7 +193,7 @@ describe('DashboardService', () => {
         dashboardTestConfig(),
         noNames,
       );
-      const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+      const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
 
       expect(result[term]).toBeNull();
       expect(result.netProfitIdr).toBeNull();
@@ -191,7 +217,7 @@ describe('DashboardService', () => {
       },
     ]);
     const service = new DashboardService(sources, dashboardTestConfig(), noNames);
-    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
 
     expect(result.payrollIdr).toBeNull();
     expect(result.netProfitIdr).toBeNull();
@@ -204,7 +230,7 @@ describe('DashboardService', () => {
       dashboardTestConfig(),
       noNames,
     );
-    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
 
     expect(result.courierCommissionIdr).toBe(0);
     expect(result.expenseClaimIdr).toBe(0);
@@ -218,7 +244,7 @@ describe('DashboardService', () => {
       dashboardTestConfig(),
       noNames,
     );
-    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
 
     expect(result.revenueIdr).toBe(1_000_000);
     expect(result.coveredCogsIdr).toBe(250_000);
@@ -238,7 +264,7 @@ describe('DashboardService', () => {
       dashboardTestConfig(),
       noNames,
     );
-    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
 
     expect(result.revenueIdr).toBeNull();
     expect(result.cogsIdr).toBe(400_000);
@@ -257,7 +283,7 @@ describe('DashboardService', () => {
       dashboardTestConfig(),
       noNames,
     );
-    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
 
     expect(result.opexIdr).toBeNull();
     expect(result.grossProfitIdr).toBe(600_000);
@@ -273,7 +299,7 @@ describe('DashboardService', () => {
       dashboardTestConfig(),
       noNames,
     );
-    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
 
     expect(result.revenueIdr).toBe(1_000_000);
     expect(result.cogsIdr).toBeNull();
@@ -476,7 +502,7 @@ describe('DashboardService', () => {
     const net = await service.network({}, 'Bearer t', ['depot-2']);
     expect(net.depots.map((d) => d.depotId)).toEqual(['depot-2']);
     expect(lowStock.mock.calls.map((c) => c[0])).toEqual(['depot-2']);
-    const pnl = await service.networkPnl('2026-07', 'Bearer t', ['depot-1']);
+    const pnl = await service.networkPnl('2026-07', 'Bearer t', ['depot-1'], true);
     expect(pnl.depots.map((d) => d.depotId)).toEqual(['depot-1']);
     expect((await service.network({}, 'Bearer t', [])).depots).toEqual([]);
   });
@@ -848,7 +874,7 @@ describe('networkPnl (CA-2-59)', () => {
 
   it('subtracts all five recorded cost lines, per depot and in total', async () => {
     const { svc } = build();
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
 
     // Fixtures: revenue 1.000.000, COGS 400.000, payroll GROSS 4.000.000,
     // commission 250.000, claims 50.000, refunds 100.000 → −3.800.000 per depot.
@@ -872,21 +898,21 @@ describe('networkPnl (CA-2-59)', () => {
   // a saving for the depot that charged it.
   it('costs wages at gross, not at what was paid out', async () => {
     const { svc } = build();
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
     expect(out.depots[0]!.payrollIdr).toBe(4_000_000);
     expect(out.depots[0]!.payrollIdr).not.toBe(3_000_000);
   });
 
   it('asks HR for the month reported on, not for today', async () => {
     const { sources, svc } = build();
-    await svc.networkPnl('2026-07', 'Bearer t');
+    await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
     expect(sources.hrSummaryManyMonth).toBe('2026-07');
   });
 
   it('reads an unreachable payout-service as UNKNOWN, never as zero cost', async () => {
     const { sources, svc } = build();
     sources.payoutCostsResult = null;
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
 
     expect(out.depots[0]!.courierCommissionIdr).toBeNull();
     expect(out.depots[0]!.expenseClaimIdr).toBeNull();
@@ -898,7 +924,7 @@ describe('networkPnl (CA-2-59)', () => {
   it('reads an unreachable payment-service the same way', async () => {
     const { sources, svc } = build();
     sources.depotRefundsResult = null;
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
 
     expect(out.depots[0]!.refundIdr).toBeNull();
     expect(out.depots[0]!.netProfitIdr).toBeNull();
@@ -916,7 +942,7 @@ describe('networkPnl (CA-2-59)', () => {
       map?.delete('depot-2');
       return map;
     };
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
     // depot-2 is absent from the map, which for a SUM over rows means zero, not unknown —
     // so the total still adds up. This pins that distinction rather than assuming it.
     expect(out.depots[1]!.refundIdr).toBe(0);
@@ -926,7 +952,7 @@ describe('networkPnl (CA-2-59)', () => {
   it('reports every source unavailable when depot-service cannot list the depots', async () => {
     const { sources, svc } = build();
     sources.depotsDown = true;
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
 
     expect(out.depots).toEqual([]);
     expect(out.sources).toMatchObject({
@@ -943,7 +969,7 @@ describe('networkPnl (CA-2-59)', () => {
     const sources = new InMemoryDashboardSources(true); // orderDown
     const out = await new DashboardService(sources, dashboardTestConfig(), noNames).networkPnl(
       '2026-07',
-      'Bearer t',
+      'Bearer t', undefined, true,
     );
 
     expect(out.depots[0]!.revenueIdr).toBeNull();
@@ -954,7 +980,7 @@ describe('networkPnl (CA-2-59)', () => {
   it('marks the goods source partial when depot costs cannot be read', async () => {
     const { sources, svc } = build();
     sources.costsDown = true;
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
 
     expect(out.depots[0]!.cogsIdr).toBeNull();
     expect(out.sources.goods).toBe('partial');
@@ -963,7 +989,7 @@ describe('networkPnl (CA-2-59)', () => {
   it('marks payroll partial when hr-service is down', async () => {
     const { sources, svc } = build();
     sources.hrDown = true;
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
 
     expect(out.depots[0]!.payrollIdr).toBeNull();
     expect(out.sources.payroll).toBe('partial');
@@ -978,7 +1004,7 @@ describe('networkPnl (CA-2-59)', () => {
   it('treats an hr-service that answers without gross as unknown, not as zero wages', async () => {
     const { sources, svc } = build();
     sources.hrOmitsGross = true;
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
 
     expect(out.depots[0]!.payrollIdr).toBeNull();
     expect(out.depots[0]!.netProfitIdr).toBeNull();
@@ -992,7 +1018,7 @@ describe('networkPnl (CA-2-59)', () => {
   it('has unknown wages, not zero, for a month whose payroll has not been run', async () => {
     const { sources, svc } = build();
     sources.hrPayrollNotRun = true;
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
 
     expect(out.depots[0]!.payrollIdr).toBeNull();
     expect(out.depots[0]!.netProfitIdr).toBeNull();
@@ -1002,7 +1028,7 @@ describe('networkPnl (CA-2-59)', () => {
   it('knows a depot with nobody on the books paid no wages', async () => {
     const { sources, svc } = build();
     sources.hrNoStaff = true;
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
 
     expect(out.depots[0]!.payrollIdr).toBe(0);
     expect(out.depots[0]!.netProfitIdr).not.toBeNull();
@@ -1010,7 +1036,7 @@ describe('networkPnl (CA-2-59)', () => {
 
   it('windows the month in Jakarta time, not UTC', async () => {
     const { svc } = build();
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
     // 1 July 00:00 WIB is 30 June 17:00 UTC.
     expect(out.from).toBe('2026-06-30T17:00:00.000Z');
     expect(out.to).toBe('2026-07-31T17:00:00.000Z');
@@ -1019,7 +1045,7 @@ describe('networkPnl (CA-2-59)', () => {
 
   it('says in the report itself that rent and electricity are not in it', async () => {
     const { svc } = build();
-    const out = await svc.networkPnl('2026-07', 'Bearer t');
+    const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
     expect(out.disclaimer).toMatch(/[Ss]ewa dan listrik tidak termasuk/);
     expect(out.reportType).toBe('OPERATIONAL_MANAGEMENT');
   });
