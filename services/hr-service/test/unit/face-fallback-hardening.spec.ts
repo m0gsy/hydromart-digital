@@ -18,6 +18,8 @@ import { AttendancePrismaRepository } from '../../src/infrastructure/prisma/atte
 import { FaceEmbeddingPrismaRepository } from '../../src/infrastructure/prisma/face-embedding.prisma.repository';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { FaceController, SelfFaceController, faceView } from '../../src/modules/face.controller';
+import { FaceEngineUnavailableError } from '../../src/application/ports/face-verifier.port';
+import { StubFaceVerifier } from '../../src/infrastructure/face/stub-face.verifier';
 
 const alert = alertServerError as jest.Mock;
 const config = { timeZone: 'Asia/Jakarta', faceEncryptionKey: 'unit-test-face-key' } as HrConfigService;
@@ -61,25 +63,29 @@ describe('the alarm for punches left PENDING', () => {
     expect(alert).not.toHaveBeenCalled();
   });
 
+  it('looks at the current time when not told one', async () => {
+    await expect(watch(0).alarm.tick()).resolves.toBe(false);
+  });
+
   it('never throws: a failed look must not take hr down', async () => {
     await expect(watch(new Error('db down')).alarm.tick(NINE)).resolves.toBe(false);
   });
 
-  it('looks every hour without holding the process open', () => {
+  it('looks every 15 minutes without holding the process open', () => {
     const unref = jest.fn();
     const spy = jest.spyOn(global, 'setInterval').mockReturnValue({ unref } as never);
     watch(0).alarm.onApplicationBootstrap();
-    expect(spy).toHaveBeenCalledWith(expect.any(Function), 3_600_000);
+    expect(spy).toHaveBeenCalledWith(expect.any(Function), 15 * 60_000);
     expect(unref).toHaveBeenCalled();
     spy.mockRestore();
   });
 
-  it('counts PENDING punches that landed before the cutoff', async () => {
+  it('counts PENDING punches last written before the cutoff', async () => {
     const count = jest.fn().mockResolvedValue(2);
     const repo = new AttendancePrismaRepository({ attendance: { count } } as unknown as PrismaService);
     const cutoff = new Date('2026-11-17T02:15:00.000Z');
     await expect(repo.countPendingOlderThan(cutoff)).resolves.toBe(2);
-    expect(count).toHaveBeenCalledWith({ where: { status: 'PENDING', createdAt: { lt: cutoff } } });
+    expect(count).toHaveBeenCalledWith({ where: { status: 'PENDING', updatedAt: { lt: cutoff } } });
   });
 });
 
@@ -105,6 +111,27 @@ describe('templates that cannot be compared', () => {
     const rows = await repo.listActiveByEmployee('e1');
     expect(rows.map((r) => r.vector)).toEqual([[], [], [0.6, 0.8]]);
     expect(alert).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the enrolment duplicate check fails closed', () => {
+  it('an undecryptable template stops the duplicate check rather than letting the face through', async () => {
+    const foreign = encryptVector([0.6, 0.8], 'another-key-entirely');
+    const findMany = jest.fn().mockResolvedValue([{ employeeId: 'e2', vector: [], vectorEnc: foreign }]);
+    const repo = new FaceEmbeddingPrismaRepository(
+      { faceEmbedding: { findMany } } as unknown as PrismaService,
+      config,
+    );
+    await expect(repo.listActiveVectorsExcept('e1')).rejects.toThrow();
+  });
+});
+
+describe('a local engine with no template it can compare', () => {
+  it('could not judge the face: engine unavailable (PENDING), not a mismatch', async () => {
+    const verifier = new StubFaceVerifier({ faceMatchThreshold: 0.6 } as never);
+    await expect(verifier.verify(Buffer.from('frame'), [[], [1, 2]])).rejects.toThrow(
+      FaceEngineUnavailableError,
+    );
   });
 });
 

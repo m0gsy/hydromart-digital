@@ -97,6 +97,21 @@ describe('OnnxArcFaceVerifier', () => {
     expect(result.matched).toBe(true); // identical mean vector → cosine ~1
   });
 
+  // Face plan PR-2: no template of this model's length to compare against means the engine
+  // could not judge the face — held PENDING for HR, not refused as a mismatch.
+  it('cannot judge a face with no comparable template: engine unavailable, not a mismatch', async () => {
+    const vec = new Float32Array(512).fill(0.1);
+    const Verifier = loadVerifier(() => {
+      jest.doMock('onnxruntime-node', () =>
+        fakeOrt(async () => fakeSession(async () => ({ output: { data: vec } }))),
+      );
+      jest.doMock('sharp', () => fakeSharp());
+    });
+    await expect(new Verifier(cfg()).verify(Buffer.from('probe'), [[], [1, 2]])).rejects.toThrow(
+      /no comparable face template/,
+    );
+  });
+
   it('503s when the model returns no embedding', async () => {
     const Verifier = loadVerifier(() => {
       jest.doMock('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({}))));

@@ -29,11 +29,16 @@ export class FaceEmbeddingPrismaRepository implements FaceEmbeddingRepository {
    *
    * Face plan PR-2: a row that will not decrypt (a rotated or wrong HR_FACE_ENCRYPTION_KEY)
    * used to throw, and that turned every punch of every employee into a 500 — including NEO
-   * punches, which never use the local template. It reads as no template ([]) now, which
-   * `bestMatch` skips, and ops get one alert.
+   * punches, which never use the local template. On the punch path it reads as no template
+   * ([]) now, which `bestMatch` skips, and ops get one alert. NOT on the enrolment path
+   * (`failSafe` false): the duplicate-face check must fail closed, or a template nobody can
+   * read lets one face enrol for a second employee.
    */
-  private plain<T extends StoredVector>(row: T): T {
+  private plain<T extends StoredVector>(row: T, failSafe = true): T {
     if (!row.vectorEnc) return row;
+    if (!failSafe) {
+      return { ...row, vector: decryptVector(row.vectorEnc, this.config.faceEncryptionKey) };
+    }
     try {
       return { ...row, vector: decryptVector(row.vectorEnc, this.config.faceEncryptionKey) };
     } catch (e) {
@@ -81,7 +86,7 @@ export class FaceEmbeddingPrismaRepository implements FaceEmbeddingRepository {
       select: { employeeId: true, vector: true, vectorEnc: true },
     });
     return rows.map((r) => {
-      const { employeeId: owner, vector } = this.plain(r);
+      const { employeeId: owner, vector } = this.plain(r, false);
       return { employeeId: owner, vector };
     });
   }

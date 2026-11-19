@@ -17,6 +17,7 @@ import { ATTENDANCE_REPOSITORY, AttendanceRepository } from '../ports/attendance
 export class PendingPunchAlert implements OnApplicationBootstrap {
   static readonly MAX_WAIT_MS = 48 * 3_600_000;
   static readonly ALERT_HOUR = 9;
+  static readonly LOOK_MS = 15 * 60_000;
   private readonly logger = new Logger(PendingPunchAlert.name);
   private lastAlertDay: string | null = null;
 
@@ -26,8 +27,9 @@ export class PendingPunchAlert implements OnApplicationBootstrap {
   ) {}
 
   onApplicationBootstrap(): void {
-    // Hourly: exactly one look lands in each 09:00 hour. Unref'd, so it never holds the process.
-    setInterval(() => void this.tick(), 3_600_000).unref();
+    // Every 15 minutes: the 09:00 hour always gets several looks however the timer drifts, and
+    // lastAlertDay keeps it to one message. Unref'd, so it never holds the process.
+    setInterval(() => void this.tick(), PendingPunchAlert.LOOK_MS).unref();
   }
 
   /** One look. True when it alerted. Never throws: a failed look must not take hr down. */

@@ -175,7 +175,7 @@ export interface AttendanceRepository {
    */
   listWorkedMinutes(employeeId: string, from: Date, to: Date): Promise<WorkedMinutesRow[]>;
   create(input: CreateAttendanceInput): Promise<Attendance>;
-  /** Punches still PENDING that landed before `cutoff` (face plan PR-2: the HR queue alarm). */
+  /** Punches still PENDING, last written before `cutoff` (face plan PR-2: the HR queue alarm). */
   countPendingOlderThan(cutoff: Date): Promise<number>;
   /** Closes the row only while it is still open; null when it was already closed. */
   patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance | null>;
