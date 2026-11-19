@@ -17,7 +17,7 @@ export const driver = {
     statActive: 'Active',
     statDone: 'Done',
     statOnTime: 'On time',
-    depotAnnouncements: 'Depot announcements',
+    announcements: 'Depot & HR announcements',
     view: 'View',
     actionError: 'Action failed. Try again.',
     emptyTitle: 'No active tasks yet',
