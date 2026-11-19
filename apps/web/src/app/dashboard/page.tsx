@@ -167,7 +167,7 @@ function ActiveCouriersWidget() {
       ) : (
         <>
           <ul className="divide-y divide-[color:var(--border)]">
-            {items.slice(0, 5).map((d) => (
+            {items.map((d) => (
               <li key={d.id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
                 <span className="font-mono text-xs">{d.orderNumber}</span>
                 <span className="truncate text-right text-xs text-muted">{d.destinationAddress}</span>

@@ -55,14 +55,14 @@ function paged(route: string, n: number, make: (i: number) => Record<string, unk
     const u = new URL(url, 'http://x');
     // The courier roster is a plain array; every other list is a page.
     if (!u.pathname.includes(route)) return u.pathname.includes('/drivers') ? [] : { items: [], total: 0 };
-    const page = Number(u.searchParams.get('page') ?? 1);
     const limit = Number(u.searchParams.get('limit') ?? 20);
-    const from = (page - 1) * limit;
+    // Keyset: the cursor is the offset the next page starts at.
+    const from = Number(u.searchParams.get('cursor') ?? 0);
+    const end = Math.min(n, from + limit);
     return {
-      items: Array.from({ length: Math.max(0, Math.min(limit, n - from)) }, (_, i) => make(from + i)),
+      items: Array.from({ length: Math.max(0, end - from) }, (_, i) => make(from + i)),
       total: n,
-      page,
-      limit,
+      nextCursor: end < n ? String(end) : null,
     };
   });
 }
@@ -83,10 +83,34 @@ describe('the tracking board reads every in-flight delivery', () => {
     }));
     render(<TrackingPage />);
     expect(await screen.findByText(/"HM-129"/)).toBeTruthy();
-    const pages = get.mock.calls
-      .map((c) => new URL(String(c[0]), 'http://x'))
-      .filter((u) => u.pathname.includes('/deliveries/api/v1/deliveries'))
-      .map((u) => u.searchParams.get('page'));
-    await waitFor(() => expect(pages).toEqual(expect.arrayContaining(['1', '2'])));
+    await waitFor(() => {
+      const cursors = get.mock.calls
+        .map((c) => new URL(String(c[0]), 'http://x'))
+        .filter((u) => u.pathname.includes('/deliveries/api/v1/deliveries'))
+        .map((u) => u.searchParams.get('cursor'));
+      // First page without a cursor, the second from where the first one ended.
+      expect(cursors).toEqual(expect.arrayContaining([null, '100']));
+    });
+  });
+});
+
+describe('fetchAllByCursor', () => {
+  it('walks the cursor to the end and keeps each row once', async () => {
+    const { fetchAllByCursor } = await import('@/lib/fetch-all-pages');
+    const pages: Record<string, { items: { id: string }[]; nextCursor: string | null }> = {
+      start: { items: [{ id: 'a' }, { id: 'b' }], nextCursor: 'c2' },
+      // The edge row comes back again: drawn once.
+      c2: { items: [{ id: 'b' }, { id: 'c' }], nextCursor: null },
+    };
+    const rows = await fetchAllByCursor(async ({ cursor }) => pages[cursor ?? 'start']!);
+    expect(rows.map((r) => r.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('refuses past its ceiling rather than truncating', async () => {
+    const { fetchAllByCursor, TooManyPagesError } = await import('@/lib/fetch-all-pages');
+    let n = 0;
+    await expect(
+      fetchAllByCursor(async () => ({ items: [{ id: `r${(n += 1)}` }], nextCursor: 'more' }), { max: 3 }),
+    ).rejects.toBeInstanceOf(TooManyPagesError);
   });
 });

@@ -114,10 +114,6 @@ const KNOWN_CALLERS = {
   // The audit EXPORT. The table beside it still pages on demand, which is the right trade
   // for a list a human reads and the wrong one for a file that leaves the building.
   'apps/web/src/app/hq/audit/page.tsx': 'auth-service',
-  // Flow PR-8b: the tracking board (every in-flight delivery, polled) and the team screen's
-  // courier names (the whole depot roster).
-  'apps/web/src/app/dashboard/tracking/page.tsx': 'delivery-service',
-  'apps/web/src/app/dashboard/team-performance/page.tsx': 'auth-service',
 };
 
 const callers = [];

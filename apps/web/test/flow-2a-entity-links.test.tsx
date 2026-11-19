@@ -256,17 +256,14 @@ describe('team screen: `?driver=` marks that courier', () => {
   };
   const routes: [string, unknown][] = [
     ['depot-team', REPORT],
+    // Flow PR-8b: names come from the depot's courier roster (a plain array), not the
+    // first page of the whole staff directory.
     [
-      '/staff',
-      {
-        items: [
-          { id: 'k1', fullName: 'Andi Kurir', phone: '0811' },
-          { id: 'k2', fullName: 'Bima Kurir', phone: '0812' },
-        ],
-        total: 2,
-        page: 1,
-        limit: 100,
-      },
+      '/drivers',
+      [
+        { id: 'k1', fullName: 'Andi Kurir', phone: '0811' },
+        { id: 'k2', fullName: 'Bima Kurir', phone: '0812' },
+      ],
     ],
   ];
 

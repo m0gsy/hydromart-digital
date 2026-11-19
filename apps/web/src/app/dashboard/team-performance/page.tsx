@@ -11,13 +11,12 @@ import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { canViewTeamPerformance } from '@/lib/roles';
-import type { Customer, DepotTeamReport, Page } from '@/lib/types';
+import type { Customer, DepotTeamReport } from '@/lib/types';
 import { EntityLink } from '@/components/entity-link';
 import { entityHref } from '@/lib/entity-href';
 import { useAsync } from '@/lib/use-async';
 import { useQueryParam } from '@/lib/use-query-param';
 import { monthRangeWib } from '@/lib/wib';
-import { fetchAllPages } from '@/lib/fetch-all-pages';
 
 const AVATAR_COLORS = ['#0b4d57', '#e2681c', '#1d4e89', '#0c97ac', '#6b4ea8'];
 
@@ -54,17 +53,19 @@ function TeamPerformanceBody() {
   const result = useAsync<{ report: DepotTeamReport; names: Map<string, string> } | null>(
     async () => {
       if (!depot) return null;
-      const report = await api.get<DepotTeamReport>(
-        endpoints.deliveries.depotTeam(depot.id, { from: MONTH_FROM, to: MONTH_TO }),
-        true,
-      );
-      // Flow PR-8b: the whole depot roster. A courier past the first 100 staff showed a raw id.
-      const staff = await fetchAllPages<Customer>(({ page, limit }) =>
-        api.get<Page<Customer>>(endpoints.auth.staff({ depotId: depot.id, page, limit }), true),
-      ).catch(() => null);
+      // Flow PR-8b: names from the depot's COURIER roster, whole and in one request (the
+      // tracking board reads the same one). It came from the first 100 staff of every kind, so
+      // a courier past them showed a raw id. Fail-soft: a roster miss still shows the id.
+      const [report, couriers] = await Promise.all([
+        api.get<DepotTeamReport>(
+          endpoints.deliveries.depotTeam(depot.id, { from: MONTH_FROM, to: MONTH_TO }),
+          true,
+        ),
+        api.get<Customer[]>(endpoints.auth.driversAt(depot.id), true).catch(() => null),
+      ]);
       return {
         report,
-        names: new Map(staff?.map((member) => [member.id, member.fullName || member.phone]) ?? []),
+        names: new Map(couriers?.map((member) => [member.id, member.fullName || member.phone]) ?? []),
       };
     },
     [depot?.id],

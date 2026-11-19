@@ -17,7 +17,7 @@ import { useAsync } from '@/lib/use-async';
 import { canReadRoster, whenRosterScoped } from '@/lib/drivers-scope';
 import { useDriversUrl } from '@/lib/use-drivers-url';
 import type { Customer, Delivery, DeliveryStatus, Page } from '@/lib/types';
-import { fetchAllPages } from '@/lib/fetch-all-pages';
+import { fetchAllByCursor } from '@/lib/fetch-all-pages';
 
 const REFRESH_MS = 15000;
 const ETA_TIME = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -217,12 +217,14 @@ function TrackingBody() {
    */
   // Flow PR-8b: EVERY in-flight delivery. The board acts on each card (pull back, cancel), and
   // it stopped at 50 with nothing saying so. Read whole, not paged on demand: it polls every
-  // 15 s, and a paged list's reload drops back to its first page.
+  // 15 s, and a paged list's reload drops back to its first page. Walked by cursor, not by
+  // page number: this list changes while it is read, and an offset walk drew a delivery twice
+  // or skipped one whenever a courier was assigned between two pages.
   const list = useAsync<Delivery[]>(
     () =>
-      fetchAllPages<Delivery>(({ page, limit }) =>
-        api.get<Page<Delivery>>(
-          endpoints.deliveries.list({ statuses: ACTIVE_DELIVERY_STATUSES, page, limit }),
+      fetchAllByCursor<Delivery>(({ cursor, limit }) =>
+        api.get<Page<Delivery> & { nextCursor?: string | null }>(
+          endpoints.deliveries.list({ statuses: ACTIVE_DELIVERY_STATUSES, cursor: cursor ?? undefined, limit }),
           true,
         ),
       ),
@@ -247,7 +249,9 @@ function TrackingBody() {
   // Live-ish: poll while the tab is open. useAsync.reload isn't memoized, so hold the
   // latest in a ref and run a single stable interval (no teardown per render).
   const reloadRef = useRef(list.reload);
-  reloadRef.current = list.reload;
+  // A walk still in flight is left to finish: starting the next one would discard it, and on a
+  // slow service the board would never update at all.
+  reloadRef.current = list.loading ? () => undefined : list.reload;
   useEffect(() => {
     const t = setInterval(() => reloadRef.current(), REFRESH_MS);
     return () => clearInterval(t);
