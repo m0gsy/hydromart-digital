@@ -297,6 +297,16 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     });
   }
 
+  async countActiveByDrivers(driverIds: readonly string[]): Promise<Map<string, number>> {
+    if (driverIds.length === 0) return new Map();
+    const rows = await this.prisma.delivery.groupBy({
+      by: ['driverId'],
+      where: { driverId: { in: [...driverIds] }, status: { in: ACTIVE_STATUSES } },
+      _count: { _all: true },
+    });
+    return new Map(rows.map((r) => [r.driverId, r._count._all]));
+  }
+
   async recordContactAttempt(
     deliveryId: string,
     driverId: string,

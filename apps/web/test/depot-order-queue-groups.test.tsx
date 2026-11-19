@@ -74,6 +74,7 @@ beforeEach(() => {
   get.mockReset().mockImplementation((path: string) => {
     const p = String(path);
     if (p.includes('/orders')) return Promise.resolve({ items: ORDERS, total: ORDERS.length });
+    if (p.includes('/shifts')) return Promise.resolve([]);
     if (p.includes('/deliveries')) return Promise.resolve({ items: [], total: 0 });
     if (p.includes('/drivers')) return Promise.resolve([]);
     return Promise.resolve({ items: [], total: 0 });
@@ -191,6 +192,19 @@ describe('the depot queue — assigning a courier', () => {
       const p = String(path);
       if (p.includes('/orders')) return Promise.resolve({ items: ORDERS, total: ORDERS.length });
       if (p.includes('/drivers')) return Promise.resolve(DRIVERS);
+      // Flow 5b: both couriers on an open shift, under the depot's cap.
+      if (p.includes('/shifts'))
+        return Promise.resolve(
+          DRIVERS.map((d) => ({
+            driverId: d.id,
+            depotId: null,
+            status: 'ONLINE',
+            acceptsAssignments: true,
+            canTakeDelivery: true,
+            activeDeliveries: 0,
+            maxActiveDeliveries: 2,
+          })),
+        );
       if (p.includes('/deliveries')) return Promise.resolve({ items: [], total: 0 });
       return Promise.resolve({ items: [], total: 0 });
     });

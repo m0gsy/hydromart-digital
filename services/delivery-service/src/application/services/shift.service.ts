@@ -37,6 +37,19 @@ export interface ShiftView extends ShiftRecord {
   acceptsAssignments: boolean;
 }
 
+/**
+ * Flow plan 5b: the dispatch view answers the whole of "may this courier be handed another
+ * delivery" — the same two checks `assign` makes (an open shift that accepts work, and fewer
+ * active deliveries than the depot's cap) — so no console re-derives either half. The queue
+ * used to call anyone with one delivery "busy" whatever the cap, and the order panel ignored
+ * load altogether; both refused clicks the server would have taken, or offered ones it refuses.
+ */
+export interface DispatchShiftView extends ShiftView {
+  activeDeliveries: number;
+  maxActiveDeliveries: number;
+  canTakeDelivery: boolean;
+}
+
 @Injectable()
 export class ShiftService {
   private static readonly HISTORY_LIMIT = 30;
@@ -176,10 +189,23 @@ export class ShiftService {
     return shifts.map((s) => this.view(s));
   }
 
-  /** Dispatch view (cap: tracking) — who is on shift at a depot. */
-  async search(query: ShiftQuery): Promise<ShiftView[]> {
+  /** Dispatch view (cap: tracking) — who is on shift at a depot, and who can take more. */
+  async search(query: ShiftQuery): Promise<DispatchShiftView[]> {
     const shifts = await this.shifts.search(query);
-    return shifts.map((s) => this.view(s));
+    const active = await this.deliveries.countActiveByDrivers([
+      ...new Set(shifts.map((s) => s.driverId)),
+    ]);
+    return shifts.map((s) => {
+      const view = this.view(s);
+      const activeDeliveries = active.get(s.driverId) ?? 0;
+      const maxActiveDeliveries = this.config.maxActiveDeliveriesPerDriver(s.depotId);
+      return {
+        ...view,
+        activeDeliveries,
+        maxActiveDeliveries,
+        canTakeDelivery: view.acceptsAssignments && activeDeliveries < maxActiveDeliveries,
+      };
+    });
   }
 
   /**

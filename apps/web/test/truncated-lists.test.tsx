@@ -410,47 +410,41 @@ describe('CA-2-10 — reconciliation could only be run for the ten biggest depot
 });
 
 describe('CA-2-40 — the courier load an operator assigns work by', () => {
-  it('counts deliveries across every page, not the first hundred', async () => {
+  it('comes from the dispatch view, counted by the server over every delivery, not from pages the queue walks', async () => {
     /*
-     * The worst shape in this family: not a short list, a WRONG NUMBER that looks right. The
-     * load column drives the assign panel, so a courier whose deliveries all sat past row
-     * 100 read as idle and the queue handed them more work.
+     * The worst shape in this family was a WRONG NUMBER that looks right: the queue counted a
+     * courier's load from the first page of deliveries, so one whose deliveries sat past row 100
+     * read as idle. CA-2-40 made the queue walk every page. Flow 5b moved the count to the
+     * server (delivery-service groups every active delivery per courier, the same count assign()
+     * enforces), so there is no page left to miss: the queue reads no delivery list at all.
      */
     const DRIVER = 'driver-1';
     get.mockImplementation((url: string) => {
       const u = String(url);
-      if (u.includes('/deliveries')) {
-        const { page, limit } = paging(u);
-        const size = limit || 20;
-        const start = (page - 1) * size;
-        const rows = Array.from({ length: Math.max(0, Math.min(size, 250 - start)) }, (_, i) => ({
-          id: `dl${start + i}`,
-          driverId: DRIVER,
-          status: 'ON_DELIVERY',
-        }));
-        return Promise.resolve({ items: rows, total: 250, page, limit: size });
-      }
+      if (u.includes('/shifts'))
+        return Promise.resolve([
+          {
+            driverId: DRIVER,
+            depotId: null,
+            status: 'ONLINE',
+            acceptsAssignments: true,
+            canTakeDelivery: false,
+            activeDeliveries: 250,
+            maxActiveDeliveries: 2,
+          },
+        ]);
       if (u.includes('drivers'))
         return Promise.resolve([{ id: DRIVER, fullName: 'Kurir Satu', phone: '+628' }]);
       return Promise.resolve({ items: [], total: 0, page: 1, limit: 100 });
     });
     ui(<DashboardOrdersPage />);
 
-    /*
-     * Asserted on the REQUESTS rather than on the rendered number, because the load only
-     * reaches the screen once an assignable order is selected — and what the fix changes is
-     * upstream of that: the count is now built from all 250 deliveries instead of the first
-     * 100. Walking every page is the behaviour; the panel is just where it is read.
-     */
     await waitFor(() =>
-      expect(
-        get.mock.calls.filter(([url]) => String(url).includes('/deliveries')).length,
-      ).toBeGreaterThan(1),
+      expect(get.mock.calls.some(([url]) => String(url).includes('/shifts'))).toBe(true),
     );
-    const pagesAsked = get.mock.calls
-      .filter(([url]) => String(url).includes('/deliveries'))
-      .map(([url]) => paging(String(url)).page);
-    expect(pagesAsked).toEqual([1, 2, 3]);
+    expect(
+      get.mock.calls.filter(([url]) => String(url).includes('/deliveries/api/v1/deliveries')),
+    ).toEqual([]);
   });
 });
 

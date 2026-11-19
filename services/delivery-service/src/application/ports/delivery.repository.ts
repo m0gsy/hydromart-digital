@@ -255,6 +255,8 @@ export interface DeliveryRepository {
   findById(id: string): Promise<DeliveryRecord | null>;
   findByOrder(orderId: string): Promise<DeliveryRecord | null>;
   countActiveByDriver(driverId: string): Promise<number>;
+  /** The same count for many couriers in one read (the dispatch view); absent = none active. */
+  countActiveByDrivers(driverIds: readonly string[]): Promise<Map<string, number>>;
   /**
    * The cap check and the write as one atomic step per courier (the count-then-create in the
    * service let two dispatchers both pass). Throws DriverBusyError at `max`.

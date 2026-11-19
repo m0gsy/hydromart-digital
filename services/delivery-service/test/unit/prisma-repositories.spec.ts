@@ -202,6 +202,26 @@ describe('DeliveryPrismaRepository', () => {
     expect(await repo.findByOrder('nope')).toBeNull();
   });
 
+  it('countActiveByDrivers counts many couriers in one grouped read, and asks nothing for none', async () => {
+    delivery.groupBy.mockResolvedValue([{ driverId: 'drv-1', _count: { _all: 2 } }]);
+    const counts = await repo.countActiveByDrivers(['drv-1', 'drv-2']);
+    expect(counts.get('drv-1')).toBe(2);
+    expect(counts.has('drv-2')).toBe(false);
+    expect(delivery.groupBy).toHaveBeenCalledWith({
+      by: ['driverId'],
+      where: {
+        driverId: { in: ['drv-1', 'drv-2'] },
+        status: {
+          in: [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.ON_DELIVERY],
+        },
+      },
+      _count: { _all: true },
+    });
+    delivery.groupBy.mockClear();
+    expect(await repo.countActiveByDrivers([])).toEqual(new Map());
+    expect(delivery.groupBy).not.toHaveBeenCalled();
+  });
+
   it('countActiveByDriver filters to active statuses', async () => {
     delivery.count.mockResolvedValue(3);
     expect(await repo.countActiveByDriver('drv-1')).toBe(3);

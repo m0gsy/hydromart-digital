@@ -204,6 +204,15 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     return n;
   }
 
+  async countActiveByDrivers(driverIds: readonly string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    for (const id of driverIds) {
+      const n = await this.countActiveByDriver(id);
+      if (n > 0) out.set(id, n);
+    }
+    return out;
+  }
+
   async countActiveByDriver(driverId: string): Promise<number> {
     return this.rows.filter((r) => r.driverId === driverId && ACTIVE.includes(r.status)).length;
   }

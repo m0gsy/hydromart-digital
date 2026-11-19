@@ -267,8 +267,9 @@ describe('the access landing preview says where a role really lands', () => {
 });
 
 describe('the order queue FINANCE now reaches from its rail', () => {
+  // The load is the dispatch view (shifts) since flow 5b; both it and the old delivery list need trackingRead.
   const deliveryReads = () =>
-    get.mock.calls.filter(([u]) => String(u).includes('/deliveries/api/v1/deliveries')).length;
+    get.mock.calls.filter(([u]) => String(u).includes('/deliveries/api/v1/')).length;
 
   it('does not ask for the courier load it may not read (trackingRead)', async () => {
     who.role = 'FINANCE';

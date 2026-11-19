@@ -872,6 +872,7 @@ export const hrFix = {
     pickCourierFirst: 'Select a courier.',
     assignFailed: 'Could not assign the courier.',
     noShift: '— has not opened a shift',
+    courierFull: '— full ({n} active)',
     updateFailed: 'Could not update the order.',
   },
   vouchers: {

@@ -14,17 +14,15 @@ import { can } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { fetchAllPages } from '@/lib/fetch-all-pages';
+import { courierAvailability, dispatchWindowStart, type CourierShift } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import { canReadRoster, whenRosterScoped } from '@/lib/drivers-scope';
 import { useDriversUrl } from '@/lib/use-drivers-url';
 import { usePagedList } from '@/lib/use-paged-list';
-import type { Customer, Delivery, Order, Page } from '@/lib/types';
+import type { Customer, Order, Page } from '@/lib/types';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
 
-// Active-delivery statuses that count toward a courier's current load (mirrors hq/roster).
-const ACTIVE_DELIVERY: Delivery['status'][] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'];
 
 // Two operator groups (design 1b): PREPARING orders are ready for a courier; CREATED/
 // CONFIRMED are still being processed (advance them in the order detail sheet first).
@@ -95,7 +93,7 @@ function QueueRow({ order, selected, onSelect, onDetail }: {
 function AssignPanel({
   order,
   drivers,
-  loads,
+  shifts,
   canAssign,
   loading,
   error,
@@ -105,7 +103,8 @@ function AssignPanel({
 }: {
   order: Order | null;
   drivers: Customer[];
-  loads: Map<string, number>;
+  /** Null = the dispatch view could not be read: nobody is greyed out, the server decides. */
+  shifts: CourierShift[] | null;
   /** False for a role that may see the queue but not the courier list: no picker is offered. */
   canAssign: boolean;
   loading: boolean;
@@ -213,8 +212,8 @@ function AssignPanel({
           ) : (
             <ul className="flex flex-col gap-2">
               {drivers.map((d) => {
-                const load = loads.get(d.id) ?? 0;
-                const isBusy = load > 0;
+                const { state, active } = courierAvailability(shifts, d.id);
+                const isBusy = state !== 'ok';
                 const isPicked = driverId === d.id;
                 return (
                   <li key={d.id}>
@@ -241,7 +240,11 @@ function AssignPanel({
                             isBusy ? 'text-[color:var(--text-muted)]' : 'text-[color:var(--success)]'
                           }`}
                         >
-                          {isBusy ? t('dashB.orders.courierBusy', { n: load }) : t('dashB.orders.courierAvailable')}
+                          {state === 'busy'
+                            ? t('dashB.orders.courierBusy', { n: active })
+                            : state === 'offshift'
+                              ? t('dashB.orders.courierOffShift')
+                              : t('dashB.orders.courierAvailable', { n: active })}
                         </span>
                       </span>
                       {isBusy ? (
@@ -312,30 +315,26 @@ function QueueBody() {
   const { error, loading, reload } = queue;
 
   /*
-   * Active-driver roster joined with live deliveries → real per-courier load (design 1b).
+   * The couriers, and who of them can take another delivery (design 1b).
    *
-   * CA-2-40, the half that produces a WRONG NUMBER rather than a short list. This counted
-   * active deliveries per courier from ONE page of 100, and the operator uses that count to
-   * decide who gets the next order: a courier whose deliveries all sat past row 100 read as
-   * idle, and the queue handed them more work. So the load is counted over every page, not
-   * the first — `fetchAllPages` refuses rather than truncating if the list is ever too large
-   * to read, which is the honest failure for a number somebody assigns work by.
+   * CA-2-40: this used to count each courier's load from pages of deliveries, and a page it
+   * missed handed a busy courier more work. Flow 5b: the dispatch view counts it on the server
+   * (every active delivery, the count assign() enforces), so there is no page left to miss.
    */
-  const roster = useAsync<{ drivers: Customer[]; loads: Map<string, number> }>(async () => {
+  const roster = useAsync<{ drivers: Customer[]; shifts: CourierShift[] | null }>(async () => {
     // Depot staff and the supervisor roles may open this queue without being allowed the
     // courier list; asking would 403 for every one of them and fail the panel for good.
-    if (!rosterReadable) return { drivers: [], loads: new Map<string, number>() };
-    const [drivers, deliveries] = await Promise.all([
+    if (!rosterReadable) return { drivers: [], shifts: null };
+    const [drivers, shifts] = await Promise.all([
       whenRosterScoped(driversEndpoint, (u) => api.get<Customer[]>(u, true)),
-      fetchAllPages<Delivery>(({ page, limit }) =>
-        api.get<Page<Delivery>>(endpoints.deliveries.list({ page, limit }), true),
-      ),
+      // Flow 5b: who can take another delivery is the dispatch view's own answer (shift AND the
+      // depot's cap). Null on failure, as in the order panel (C-1): every courier stays
+      // selectable and delivery-service keeps the final say.
+      api
+        .get<CourierShift[]>(endpoints.deliveries.shiftsOnDuty(dispatchWindowStart()), true)
+        .catch(() => null),
     ]);
-    const loads = new Map<string, number>();
-    for (const d of deliveries) {
-      if (ACTIVE_DELIVERY.includes(d.status)) loads.set(d.driverId, (loads.get(d.driverId) ?? 0) + 1);
-    }
-    return { drivers, loads };
+    return { drivers, shifts };
   }, [driversEndpoint, rosterReadable]);
 
   const items = queue.rows;
@@ -480,7 +479,7 @@ function QueueBody() {
         <AssignPanel
           order={selected}
           drivers={roster.data?.drivers ?? []}
-          loads={roster.data?.loads ?? new Map()}
+          shifts={roster.data?.shifts ?? null}
           canAssign={rosterReadable}
           loading={roster.loading}
           error={roster.error}

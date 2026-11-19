@@ -363,6 +363,43 @@ describe('ShiftService', () => {
   });
 
   /*
+   * Flow plan 5b: the dispatch view carries the whole "may this courier be handed another
+   * delivery" — an open shift that accepts work AND fewer active deliveries than the depot's
+   * cap — the two checks assign() makes, so no console re-derives either.
+   */
+  describe('who can take another delivery', () => {
+    const cap = buildTestConfig().maxActiveDeliveriesPerDriver(DEPOT_ID);
+
+    it('a courier on an open shift under the cap can; one at the cap cannot', async () => {
+      await checkIn();
+      const other = randomUUID();
+      await checkIn(other);
+      jest
+        .spyOn(deliveries, 'countActiveByDrivers')
+        .mockResolvedValue(new Map([[other, cap]]));
+      const rows = await service.search({ depotId: DEPOT_ID });
+      const by = (id: string) => rows.find((r) => r.driverId === id)!;
+      expect(by(driver)).toMatchObject({ activeDeliveries: 0, maxActiveDeliveries: cap, canTakeDelivery: true });
+      expect(by(other)).toMatchObject({ activeDeliveries: cap, canTakeDelivery: false });
+    });
+
+    it('a courier on a break cannot, whatever their load', async () => {
+      const shift = await checkIn();
+      await service.setStatus(driver, shift.id, ShiftStatus.BREAK);
+      const [row] = await service.search({ depotId: DEPOT_ID });
+      expect(row).toMatchObject({ acceptsAssignments: false, canTakeDelivery: false });
+    });
+
+    it('counts every listed courier in one read', async () => {
+      await checkIn();
+      const spy = jest.spyOn(deliveries, 'countActiveByDrivers');
+      await service.search({ depotId: DEPOT_ID });
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith([driver]);
+    });
+  });
+
+  /*
    * CA-4-19 — a shift nobody ever checked out of.
    *
    * A shift has no closer but the courier's own check-out, so a phone that ran flat leaves
