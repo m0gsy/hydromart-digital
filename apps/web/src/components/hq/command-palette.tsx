@@ -29,7 +29,6 @@ const ACTION_DEFS: { id: string; labelKey: string; href: string }[] = [
   { id: 'a-voucher', labelKey: 'voucher', href: '/hq/forms/voucher' },
   { id: 'a-onboard', labelKey: 'onboard', href: '/hq/depots?onboard=1' },
   { id: 'a-invite', labelKey: 'invite', href: '/hq/staff' },
-  { id: 'a-broadcast', labelKey: 'broadcast', href: '/hq/broadcast' },
 ];
 
 export function CommandPalette() {

@@ -24,7 +24,13 @@ vi.mock('@/lib/locale-context', () => ({
 }));
 
 import { HqHubTabs } from '@/components/hq/hq-hub-tabs';
-import { HQ_GROUPS, currentHqHub, hqHubsFor, hqHubsInLandingOrder } from '@/lib/hq-nav';
+import {
+  HQ_GROUPS,
+  MOVED_HQ_ROUTES,
+  currentHqHub,
+  hqHubsFor,
+  hqHubsInLandingOrder,
+} from '@/lib/hq-nav';
 import { consoleHome } from '@/lib/roles';
 import { canOpenRoute } from '@/lib/route-access';
 
@@ -55,7 +61,11 @@ describe('the HQ hub table', () => {
     const hrefs = HQ_GROUPS.flatMap((g) => g.items.map((i) => i.href)).filter((h) => h !== '/hq');
     const orphans = hqRoutes().filter(
       (r) =>
-        r !== '/hq' && r !== '/hq/login' && !hrefs.some((h) => r === h || r.startsWith(`${h}/`)),
+        r !== '/hq' &&
+        r !== '/hq/login' &&
+        // Folded into another screen; the old route only redirects there (flow 5c).
+        !(r in MOVED_HQ_ROUTES) &&
+        !hrefs.some((h) => r === h || r.startsWith(`${h}/`)),
     );
     expect(orphans).toEqual([]);
   });
@@ -65,7 +75,6 @@ describe('the HQ hub table', () => {
       '/hq/forms/pricing-rule': 'hq/pricing',
       '/hq/forms/voucher': 'hq/vouchers',
       '/hq/forms/commission': 'hq/reconciliation',
-      '/hq/forms/segment': 'hq/campaigns',
       '/hq/staff/import': 'hq/staff',
       '/hq/depots/import': 'hq/depots',
     };
@@ -91,7 +100,6 @@ describe('the HQ hub table', () => {
 
   it('a form lights the hub of the list its button is on', () => {
     expect(currentHqHub('/hq/forms/commission/', 'FINANCE')).toBe('franchise');
-    expect(currentHqHub('/hq/forms/segment', 'MARKETING')).toBe('marketing');
     expect(currentHqHub('/hq/forms/pricing-rule', 'HEAD_OFFICE')).toBe('catalog');
     expect(currentHqHub('/hq/staff/import', 'SUPER_ADMIN')).toBe('staff');
   });

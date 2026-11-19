@@ -46,14 +46,12 @@ describe('HQ rail offers a role only what it can use', () => {
     '/hq/retention',
     '/hq/webhooks',
     '/hq/flags',
-    // Write capabilities a director does not hold: catalogue, tax, invoice template,
-    // and sending a broadcast (`campaignWrite`). The SLA policy used to be listed here as a
+    // Write capabilities a director does not hold: catalogue, tax and invoice template. The SLA policy used to be listed here as a
     // `depotAdmin` page; admin-service gates it `hqBackOffice`, which a director holds, so it
     // moved to the "still theirs" test below and the door follows the server.
     '/hq/catalog',
     '/hq/tax',
     '/hq/invoice-template',
-    '/hq/broadcast',
     // RBAC editor and the PDP request desk.
     '/hq/access',
     '/hq/pdp',
@@ -65,7 +63,6 @@ describe('HQ rail offers a role only what it can use', () => {
     '/hq/loyalty',
     '/hq/forms/pricing-rule',
     '/hq/forms/voucher',
-    '/hq/forms/segment',
     '/hq/staff/import',
   ];
 
@@ -91,8 +88,6 @@ describe('HQ rail offers a role only what it can use', () => {
     // (`depotDirectory`). Both are served to head office by their services.
     expect(headOffice).toContain('/hq/roster');
     expect(headOffice).toContain('/hq/onboarding');
-    // And one it was offered but could not use: sending a broadcast is `campaignWrite`.
-    expect(headOffice).not.toContain('/hq/broadcast');
   });
 
   // A director is not locked out of the console — the overview and the reports they were

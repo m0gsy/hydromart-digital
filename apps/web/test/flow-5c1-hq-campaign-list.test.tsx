@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,7 +25,12 @@ const H = idDict.hq.campaigns;
 const C = idDict.dashboard.campaigns;
 const LIST = endpoints.crm.campaigns({ limit: 50 });
 
-const campaign = (id: string, name: string, status: string, scheduledFor: string | null = null) => ({
+const campaign = (
+  id: string,
+  name: string,
+  status: string,
+  scheduledFor: string | null = null,
+) => ({
   id,
   name,
   channel: 'IN_APP',
@@ -55,12 +60,18 @@ async function sendNow(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(H.messageLabel), 'Diskon 10%');
   await user.click(screen.getByRole('button', { name: H.next }));
   await user.click(screen.getByRole('button', { name: H.sendNow }));
+  const dialog = await screen.findByRole('alertdialog');
+  await user.click(
+    within(dialog).getByRole('button', { name: idDict.hrFix.confirmGap.broadcastConfirm }),
+  );
 }
 
 beforeEach(() => {
-  post.mockReset().mockImplementation((url: string) =>
-    Promise.resolve(url === endpoints.crm.createCampaign ? { id: 'c-new' } : {}),
-  );
+  post
+    .mockReset()
+    .mockImplementation((url: string) =>
+      Promise.resolve(url === endpoints.crm.createCampaign ? { id: 'c-new' } : {}),
+    );
   get.mockReset().mockImplementation((url: string) =>
     Promise.resolve(
       url === LIST
@@ -101,13 +112,17 @@ describe('hq/campaigns · the list of what was sent (flow 5c)', () => {
     await screen.findByText('Sedang Kirim');
     expect(listReads()).toBe(1);
     await sendNow(user);
-    await waitFor(() => expect(post).toHaveBeenCalledWith(endpoints.crm.sendCampaign('c-new'), undefined, true));
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(endpoints.crm.sendCampaign('c-new'), undefined, true),
+    );
     await waitFor(() => expect(listReads()).toBe(2));
   });
 
   it('reads it again when the send fails too: the draft it created is listed, sendable from there', async () => {
     post.mockImplementation((url: string) =>
-      url === endpoints.crm.createCampaign ? Promise.resolve({ id: 'c-new' }) : Promise.reject(new Error('down')),
+      url === endpoints.crm.createCampaign
+        ? Promise.resolve({ id: 'c-new' })
+        : Promise.reject(new Error('down')),
     );
     const user = userEvent.setup();
     draw();
