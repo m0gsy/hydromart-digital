@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
   ArrowsClockwise,
@@ -13,6 +12,7 @@ import {
   Receipt,
   ShareNetwork,
   Star,
+  WarningCircle,
 } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
@@ -40,10 +40,10 @@ import { compressImage } from '@/lib/image';
 import { hasBeenDispatched, isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
 import { needsPayment, offeredMethods } from '@/lib/payments';
 import { requestPushOnce } from '@/lib/push';
+import { useReorder } from '@/lib/reorder';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type {
-  Cart,
   DepotPaymentPanel,
   Order,
   Page,
@@ -179,7 +179,6 @@ function ProofUpload({
 
 function OrderDetailInner({ id }: { id: string }) {
   const { t, locale } = useT();
-  const router = useRouter();
   const { toast } = useToast();
   const {
     data: order,
@@ -238,6 +237,7 @@ function OrderDetailInner({ id }: { id: string }) {
 
   const [action, setAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const reorder = useReorder();
   const [payMethod, setPayMethod] = useState<PaymentMethod>('CASH');
   // Cancel-with-reason (spec 10b): open the reason sheet, then submit the chosen reason.
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -321,32 +321,13 @@ function OrderDetailInner({ id }: { id: string }) {
   }
 
   async function repeat() {
+    if (!order) return;
     setAction('repeat');
     setActionError(null);
-    try {
-      /*
-       * CA-3-28. The server skips any line whose product is gone or deactivated, silently,
-       * and this said "Item ditambahkan ke keranjang" either way — including when NOTHING
-       * was added. The customer landed on a cart that had not changed, with a green toast
-       * saying it had.
-       *
-       * The answer is the whole priced cart, so the truth is already in hand: a line the
-       * cart does not carry was not added.
-       */
-      const cart = await api.post<Cart>(endpoints.orders.repeat(id), {}, true);
-      const inCart = new Set(cart.items.map((l) => l.productId));
-      const missing = (order?.items ?? []).filter((i) => !inCart.has(i.productId)).length;
-      if (missing > 0 && missing === (order?.items.length ?? 0)) {
-        setActionError(t('order.detail.repeatNothing'));
-        setAction(null);
-        return;
-      }
-      toast(
-        missing > 0 ? t('order.detail.repeatPartial', { n: missing }) : t('order.toast.itemsAdded'),
-      );
-      router.push('/cart');
-    } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : t('order.detail.repeatError'));
+    // On success the cart opens and the spinner stays until it does.
+    const failed = await reorder(order);
+    if (failed) {
+      setActionError(failed);
       setAction(null);
     }
   }
@@ -764,6 +745,14 @@ function OrderDetailInner({ id }: { id: string }) {
                 {t('order.detail.cancel')}
               </Button>
             )}
+            <LinkButton
+              href={`/help?order=${encodeURIComponent(order.orderNumber)}`}
+              variant="ghost"
+              className="rounded-full"
+            >
+              <WarningCircle size={17} weight="fill" />
+              {t('order.detail.reportProblem')}
+            </LinkButton>
           </div>
 
           {/*

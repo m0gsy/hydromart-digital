@@ -51,7 +51,7 @@ import { currentPosition, geoReason } from '@/lib/geo';
 import { useLocation } from '@/lib/location-context';
 import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
-import { offeredMethods, PAYMENT_METHODS } from '@/lib/payments';
+import { offeredMethods, PAYMENT_METHODS, rememberedMethod, rememberMethod } from '@/lib/payments';
 import { haptic } from '@/lib/platform';
 import { galonQuantity, memberDiscount, shippingFeeFor, voucherLinesFor } from '@/lib/pricing';
 import { useAuth } from '@/lib/auth-context';
@@ -332,6 +332,26 @@ function CheckoutInner() {
    */
   const offered = payMethods.map((m) => m.value).join(',');
   const [methodDropped, setMethodDropped] = useState<string | null>(null);
+  /*
+   * Flow PR-7b: the last placed order's method. Applied ONCE, and only when the answer is in:
+   * the platform's methods read (until then the list is fail-closed and would drop a gateway
+   * method for good) and a depot resolved. Applied only if this depot takes it — otherwise the
+   * default stays and there is nothing to say, since the customer did not pick it here. A tap
+   * on a method first wins. After that, CA-3-22 above speaks for every change as before.
+   * Read after mount: the exported page is static HTML at cash.
+   */
+  const pendingMethod = useRef<PaymentMethod | null>(null);
+  useEffect(() => {
+    if (customer) pendingMethod.current = rememberedMethod(customer.id);
+  }, [customer]);
+  useEffect(() => {
+    const last = pendingMethod.current;
+    if (!last || methodsAvailable == null || !depot) return;
+    pendingMethod.current = null;
+    if (payMethods.some((m) => m.value === last)) setMethod(last);
+    // `payMethods` is rebuilt every render; `offered` is its identity as a value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offered, methodsAvailable, depot]);
   useEffect(() => {
     if (payMethods.length === 0) return;
     if (payMethods.some((m) => m.value === method)) return;
@@ -774,6 +794,7 @@ function CheckoutInner() {
        * already been bought. The window is now empty.
        */
       attemptKey.current = '';
+      if (customer) rememberMethod(customer.id, method);
       // placed=1 triggers the one-time success banner on the order page (spec 5b).
       router.replace(`/orders/detail?id=${order.id}&placed=1`);
     } catch (err) {
@@ -1171,7 +1192,10 @@ function CheckoutInner() {
               <RadioCard
                 key={m.value}
                 selected={on}
-                onSelect={() => setMethod(m.value)}
+                onSelect={() => {
+                  pendingMethod.current = null;
+                  setMethod(m.value);
+                }}
                 className="items-center"
               >
                 <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[11px] bg-brand-50">

@@ -126,6 +126,7 @@ export const order = {
     deliveryAddress: 'Alamat pengiriman',
     notes: 'Catatan',
     reorder: 'Pesan lagi',
+    reportProblem: 'Laporkan masalah',
     cancel: 'Batalkan pesanan',
     history: 'Riwayat',
     notFound: 'Pesanan tidak ditemukan.',

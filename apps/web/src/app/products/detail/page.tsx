@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import {
+  ArrowsClockwise,
   CaretRight,
   Check,
   Clock,
@@ -124,6 +125,7 @@ export default function ProductDetailPage() {
   const shelfPrice = (product && shelf.prices.get(product.id)) ?? product?.basePrice ?? 0;
 
   const recommendationsOn = useFeatureFlag('recommendations.ai');
+  const subscriptionsOn = useFeatureFlag('subscriptions.galon');
   const { data: related } = useAsync<Recommendation[]>(
     () =>
       recommendationsOn
@@ -378,6 +380,16 @@ export default function ProductDetailPage() {
               <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
                 {addError}
               </p>
+            )}
+            {/* Flow PR-7b: the subscription form, opened on this product. */}
+            {subscriptionsOn && (
+              <Link
+                href={`/subscriptions?product=${encodeURIComponent(id)}`}
+                className="inline-flex min-h-11 items-center gap-1.5 self-start text-sm font-semibold text-brand-700"
+              >
+                <ArrowsClockwise size={16} weight="bold" />
+                {t('shop.pdp.subscribe')}
+              </Link>
             )}
 
             {/* qty + CTA — sticky on mobile, inline on desktop */}

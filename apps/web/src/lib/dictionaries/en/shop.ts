@@ -29,6 +29,7 @@ export const shop: typeof base = {
     added: 'Added',
     addToCart: 'Add to cart —',
     toCart: 'To cart →',
+    subscribe: 'Make it a subscription',
     addError: 'Failed to add to cart.',
     related: 'Frequently bought together',
     viewImage: 'View photo {n}',

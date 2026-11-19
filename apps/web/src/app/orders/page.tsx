@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Package, CaretRight } from '@phosphor-icons/react';
+import { ArrowsClockwise, Package, CaretRight } from '@phosphor-icons/react';
 
 import { StatusBadge } from '@/components/order-views';
 import { ProductRecRail } from '@/components/product-rec-rail';
@@ -21,12 +21,26 @@ import { endpoints } from '@/lib/endpoints';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { Order, Page } from '@/lib/types';
+import { useReorder } from '@/lib/reorder';
+import type { Order, OrderStatus, Page } from '@/lib/types';
+
+// Flow PR-7b: the rows that offer "Pesan lagi" — orders that are over. One still on its way
+// is not something to buy a second time from a list.
+const REORDERABLE: OrderStatus[] = ['DELIVERED', 'COMPLETED', 'CANCELLED'];
 
 const PAGE_SIZE = 20;
 
 function OrdersInner() {
   const { t } = useT();
+  const reorder = useReorder();
+  // The row being re-ordered, and what went wrong with it. One at a time: the cart opens on
+  // success, so a second tap would only race the first.
+  const [again, setAgain] = useState<{ id: string; error: string | null } | null>(null);
+  const orderAgain = async (order: Order) => {
+    setAgain({ id: order.id, error: null });
+    const failed = await reorder(order);
+    if (failed) setAgain({ id: order.id, error: failed });
+  };
   /*
    * CA-3-27. This read one page and drew it. A customer with more than twenty orders — the
    * subscription customers this business is built around reach that inside a year — simply
@@ -88,8 +102,8 @@ function OrdersInner() {
       <ul className="flex flex-col gap-3">
         {items.map((order) => (
           <li key={order.id}>
-            <Link href={`/orders/detail?id=${order.id}`}>
-              <Card className="flex items-center gap-3 p-4 transition-shadow hover:shadow-md">
+            <Card className="p-0 transition-shadow hover:shadow-md">
+              <Link href={`/orders/detail?id=${order.id}`} className="flex items-center gap-3 p-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{order.orderNumber}</span>
@@ -109,8 +123,30 @@ function OrdersInner() {
                   <Money amount={order.total} />
                 </div>
                 <CaretRight size={18} className="text-muted" />
-              </Card>
-            </Link>
+              </Link>
+              {REORDERABLE.includes(order.status) && (
+                <div className="flex items-center justify-end gap-3 border-t border-app px-4 py-2">
+                  {again?.id === order.id && again.error && (
+                    <p
+                      role="alert"
+                      className="min-w-0 flex-1 text-xs font-medium text-[color:var(--danger)]"
+                    >
+                      {again.error}
+                    </p>
+                  )}
+                  <Button
+                    variant="secondary"
+                    loading={again?.id === order.id && !again.error}
+                    disabled={again != null && !again.error}
+                    onClick={() => orderAgain(order)}
+                    className="min-h-11 rounded-full px-4 text-[13px]"
+                  >
+                    <ArrowsClockwise size={15} weight="bold" />
+                    {t('order.detail.reorder')}
+                  </Button>
+                </div>
+              )}
+            </Card>
           </li>
         ))}
       </ul>

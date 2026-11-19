@@ -1,3 +1,4 @@
+import { safeStorage } from './safe-storage';
 import type { Order, Payment, PaymentMethod } from './types';
 
 /**
@@ -86,4 +87,21 @@ export function needsPayment(order: Pick<Order, 'status'>, payment: Payment | un
   if (order.status === 'CANCELLED' || order.status === 'VOIDED' || order.status === 'COMPLETED') return false;
   if (payment && (payment.status === 'PENDING' || payment.status === 'PAID')) return false;
   return true;
+}
+
+/*
+ * Flow PR-7b: checkout starts at the method of the customer's last placed order, not at cash
+ * every time. Kept on this device, never sent anywhere, and per customer: a shared phone must
+ * not hand one account's bank transfer to the next one signed in.
+ */
+const lastMethodKey = (customerId: string) => `hm.checkout.lastMethod.${customerId}`;
+
+export function rememberMethod(customerId: string, method: PaymentMethod): void {
+  safeStorage.set(lastMethodKey(customerId), method);
+}
+
+/** Only a method this app knows: anything else in the slot reads as nothing remembered. */
+export function rememberedMethod(customerId: string): PaymentMethod | null {
+  const raw = safeStorage.get(lastMethodKey(customerId));
+  return PAYMENT_METHODS.find((m) => m.value === raw)?.value ?? null;
 }

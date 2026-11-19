@@ -127,6 +127,7 @@ export const order: typeof base = {
     deliveryAddress: 'Delivery address',
     notes: 'Notes',
     reorder: 'Order again',
+    reportProblem: 'Report a problem',
     cancel: 'Cancel order',
     history: 'History',
     notFound: 'Order not found.',

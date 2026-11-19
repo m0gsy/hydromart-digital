@@ -27,6 +27,7 @@ export const shop = {
     added: 'Ditambahkan',
     addToCart: 'Tambah ke keranjang —',
     toCart: 'Ke keranjang →',
+    subscribe: 'Jadikan langganan',
     addError: 'Gagal menambah ke keranjang.',
     related: 'Sering dibeli bersama',
     viewImage: 'Lihat foto {n}',

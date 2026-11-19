@@ -122,7 +122,10 @@ beforeEach(() => {
   post.mockReset().mockResolvedValue({});
   patch.mockReset().mockResolvedValue({});
 });
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  localStorage.clear();
+});
 
 describe("the depot's minimum order is said before the button (CA-3-20)", () => {
   it('names the minimum, the shortfall, and refuses the button', async () => {
@@ -169,5 +172,45 @@ describe('a payment method the new depot cannot take is dropped (CA-3-22)', () =
     await user.click(screen.getAllByText(/Metode pembayaran/)[0]!);
     await waitFor(() => expect(screen.getByText(/tidak tersedia di depot ini/i)).toBeTruthy());
     expect(screen.queryByText(/^QRIS$/)).toBeNull();
+  });
+});
+
+describe('checkout starts at the last placed method (flow 7b)', () => {
+  const pressed = (name: RegExp) =>
+    screen.getAllByRole('button', { name }).some((b) => b.getAttribute('aria-pressed') === 'true');
+
+  it('picks it when the depot takes it', async () => {
+    localStorage.setItem('hm.checkout.lastMethod.c-1', 'QRIS');
+    serve([depotRow('d-1', 'Depot Satu')]);
+    const user = userEvent.setup();
+    await draw();
+    await user.click(screen.getAllByText(/Metode pembayaran/)[0]!);
+    await waitFor(() => expect(pressed(/QRIS/)).toBe(true));
+  });
+
+  it('stays at the default, quietly, when it does not: the customer did not pick it here', async () => {
+    localStorage.setItem('hm.checkout.lastMethod.c-1', 'QRIS');
+    serve([depotRow('d-1', 'Depot Satu', { acceptsQris: false })]);
+    const user = userEvent.setup();
+    await draw();
+    await user.click(screen.getAllByText(/Metode pembayaran/)[0]!);
+    await waitFor(() => expect(pressed(/Tunai|COD|Bayar di tempat/i)).toBe(true));
+    expect(screen.queryByText(/tidak tersedia di depot ini/i)).toBeNull();
+  });
+
+  it('once applied, a later depot that drops it is announced as before (CA-3-22)', async () => {
+    localStorage.setItem('hm.checkout.lastMethod.c-1', 'QRIS');
+    serve([
+      depotRow('d-1', 'Depot Satu'),
+      depotRow('d-2', 'Depot Dua', { acceptsQris: false, acceptsTransfer: false }),
+    ]);
+    const user = userEvent.setup();
+    await draw();
+    await user.click(screen.getAllByText(/Metode pembayaran/)[0]!);
+    await waitFor(() => expect(pressed(/QRIS/)).toBe(true));
+    await user.keyboard('{Escape}');
+    await pickDepot(user, 'Depot Dua');
+    await user.click(screen.getAllByText(/Metode pembayaran/)[0]!);
+    await waitFor(() => expect(screen.getByText(/tidak tersedia di depot ini/i)).toBeTruthy());
   });
 });
