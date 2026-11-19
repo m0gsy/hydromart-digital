@@ -32,4 +32,15 @@ describe('FeatureFlagsController.publicFlags', () => {
       { key: 'attendance.courier_one_tap', enabled: false },
     ]);
   });
+
+  it.each([
+    [FlagState.ACTIVE, true],
+    [FlagState.ROLLOUT, false],
+    [FlagState.BETA, false],
+    [FlagState.OFF, false],
+  ])('publishes the one-tap brake as enabled only while ACTIVE (%s → %s)', async (state, enabled) => {
+    const list = jest.fn().mockResolvedValue([flag('attendance.courier_one_tap', state)]);
+    const controller = new FeatureFlagsController({ list } as never);
+    expect(await controller.publicFlags()).toEqual([{ key: 'attendance.courier_one_tap', enabled }]);
+  });
 });

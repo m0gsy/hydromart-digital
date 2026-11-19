@@ -77,6 +77,36 @@ describe('the feature-flag switchboard admits it governs nothing (CA-2-07)', () 
   });
 });
 
+describe('the switchboard says which switches move something (flow 5d)', () => {
+  const row = (key: string, label: string) => ({ key, label, description: '', state: 'ACTIVE', rolloutPct: null });
+  beforeEach(() => {
+    get.mockImplementation((url: string) =>
+      String(url).includes('feature-flags')
+        ? Promise.resolve([
+            row('attendance.courier_one_tap', 'Check-in kurir satu tap'),
+            row('franchise_portal', 'Portal franchise'),
+          ])
+        : Promise.resolve({ defaultTimezone: 'Asia/Jakarta', currency: 'IDR', serviceRadiusKm: 10 }),
+    );
+  });
+
+  it('marks only the rows nothing reads; an enforced one (the one-tap brake) carries no warning', async () => {
+    getCached.mockResolvedValue([{ key: 'attendance.courier_one_tap', enabled: true }]);
+    render(<HqFlagsPage />, { wrapper: LocaleProvider });
+    const brake = (await screen.findByText('Check-in kurir satu tap')).parentElement as HTMLElement;
+    const other = screen.getByText('Portal franchise').parentElement as HTMLElement;
+    await waitFor(() => expect(other.textContent).toMatch(/Belum ditegakkan/));
+    expect(brake.textContent).not.toMatch(/Belum ditegakkan/);
+  });
+
+  it('keeps the warning over the whole board when it cannot tell which keys are read', async () => {
+    getCached.mockRejectedValue(new Error('down'));
+    render(<HqFlagsPage />, { wrapper: LocaleProvider });
+    await screen.findByText('Check-in kurir satu tap');
+    expect(await screen.findAllByText(/Belum ditegakkan/)).toHaveLength(1);
+  });
+});
+
 describe('the webhook delivery log has a door (CA-2-43)', () => {
   const DELIVERY = {
     id: '11111111-1111-4111-8111-111111111111',

@@ -20,7 +20,7 @@ const FLAGS = [
   { key: 'payments.cash_on_delivery', label: 'Cash on delivery', description: 'COD at delivery time', state: 'ACTIVE', rolloutPct: null },
   // Flow 5d: the brake on the courier's one-tap check-in (read fail-closed by the Ops app).
   // Production gets the row from migration 20261119190000_flag_courier_one_tap.
-  { key: 'attendance.courier_one_tap', label: 'Courier one-tap check-in', description: 'Shift start also records HR attendance (face + GPS)', state: 'ACTIVE', rolloutPct: null },
+  { key: 'attendance.courier_one_tap', label: 'Check-in kurir satu tap', description: 'Mulai shift sekaligus absen HR (wajah + GPS). Selain AKTIF = dua check-in terpisah.', state: 'ACTIVE', rolloutPct: null },
 ];
 
 async function main() {

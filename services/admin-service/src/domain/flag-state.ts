@@ -18,6 +18,13 @@ export const ENFORCED_FLAG_KEYS = [
   'attendance.courier_one_tap',
 ] as const;
 
+/**
+ * Enforced keys that are a BRAKE (read fail-closed). Published as enabled only while ACTIVE:
+ * ROLLOUT and BETA have no audience to ramp in the app, and reading them as "on" would leave
+ * the brake released under a state that looks partial — only the exact OFF would stop it.
+ */
+export const BRAKE_FLAG_KEYS: readonly string[] = ['attendance.courier_one_tap'];
+
 export enum FlagState {
   ROLLOUT = 'ROLLOUT',
   ACTIVE = 'ACTIVE',

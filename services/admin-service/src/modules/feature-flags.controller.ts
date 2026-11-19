@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuditMutationsInterceptor, Can, Public } from '@hydromart/platform';
 
 import { FeatureFlagService } from '../application/services/feature-flag.service';
-import { ENFORCED_FLAG_KEYS, FlagState } from '../domain/flag-state';
+import { BRAKE_FLAG_KEYS, ENFORCED_FLAG_KEYS, FlagState } from '../domain/flag-state';
 import {
   FeatureFlagDto,
   PublicFeatureFlagDto,
@@ -40,7 +40,12 @@ export class FeatureFlagsController {
   async publicFlags(): Promise<PublicFeatureFlagDto[]> {
     return (await this.flags.list())
       .filter((f) => (ENFORCED_FLAG_KEYS as readonly string[]).includes(f.key))
-      .map((f) => ({ key: f.key, enabled: f.state !== FlagState.OFF }));
+      .map((f) => ({
+        key: f.key,
+        enabled: BRAKE_FLAG_KEYS.includes(f.key)
+          ? f.state === FlagState.ACTIVE
+          : f.state !== FlagState.OFF,
+      }));
   }
 
   @ApiOkResponse({ type: FeatureFlagDto })
