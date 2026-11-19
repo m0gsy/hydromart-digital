@@ -733,11 +733,46 @@ services:
       STORAGE_S3_BUCKET: ${HR_STORAGE_S3_BUCKET:-}
       STORAGE_S3_ACCESS_KEY_ID: ${HR_STORAGE_S3_ACCESS_KEY_ID:-}
       STORAGE_S3_SECRET_ACCESS_KEY: ${HR_STORAGE_S3_SECRET_ACCESS_KEY:-}
+      # Face plan: the local embedder beside NEO. off = never called. shadow = NEO still
+      # decides; the local engine is asked in the background and only logged, and enrolment
+      # photos are backfilled into local templates. Only read with FACE_VERIFIER_DRIVER=neo.
+      FACE_FALLBACK: ${FACE_FALLBACK:-off}
+      FACE_SERVICE_URL: http://face:3019
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3018/api/v1/health"]
       interval: 30s
       timeout: 5s
       retries: 12
+
+  # Face plan: a stateless face embedder (YuNet + SFace) — no database, no storage, no public
+  # port, and only hr-service calls it, over the service key. hr does NOT depend_on it: a face
+  # container that will not start must cost the fallback, never attendance itself.
+  face:
+    <<: *svc
+    image: ${IMAGE_PREFIX:-hydromart-}face:${IMAGE_TAG:-local}
+    build: { context: ., dockerfile: services/face-service/Dockerfile }
+    # Two ONNX models resident plus one decode of up to 12 MP: 221 MiB measured after six
+    # embeds, so the shared 512m would hold steady state with little room for a large frame.
+    mem_limit: 1g
+    # No Postgres to wait for: the embedder must be up exactly when other things are not.
+    depends_on: {}
+    # NOT <<: *shared. This container decodes untrusted JPEGs with native code (libvips,
+    # onnxruntime); handing it the platform JWT signing secret, the docs password or the alert
+    # webhook would turn one decoder bug into a token for every service. It needs the key its
+    # one caller presents, and nothing else.
+    environment:
+      NODE_ENV: production
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:?set INTERNAL_SERVICE_KEY}
+      INTERNAL_SERVICE_KEY_PREVIOUS: ${INTERNAL_SERVICE_KEY_PREVIOUS:-}
+      FACE_SERVICE_PORT: 3019
+    healthcheck:
+      # bookworm-slim has no wget; node does the asking. Healthy = models loaded, pinned and
+      # self-checked (the app only listens after that).
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3019/api/v1/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   gateway:
     <<: *svc

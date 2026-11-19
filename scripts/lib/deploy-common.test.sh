@@ -148,6 +148,15 @@ else
   fail=1
 fi
 
+# --- face plan: an optional service is reported, never gates the release -------------
+OUT="$(OPTIONAL_SERVICES=face bash -c 'source scripts/lib/deploy-common.sh; without_optional "auth face hr "')"
+[ "$OUT" = "auth hr " ] || { echo "FAIL without_optional kept the optional service: [$OUT]"; exit 1; }
+OUT="$(OPTIONAL_SERVICES=face bash -c 'source scripts/lib/deploy-common.sh; only_optional "auth face hr "')"
+[ "$OUT" = "face " ] || { echo "FAIL only_optional: [$OUT]"; exit 1; }
+OUT="$(OPTIONAL_SERVICES=face bash -c 'source scripts/lib/deploy-common.sh; without_optional "facebook "')"
+[ "$OUT" = "facebook " ] || { echo "FAIL without_optional matched a prefix: [$OUT]"; exit 1; }
+echo "ok optional services"
+
 # --- H-19: the public ports must not default to every interface ----------------------
 # `trust proxy` is now on in the gateway, so a directly reachable port lets a client spoof
 # X-Forwarded-For and mint a fresh rate-limit bucket. Loopback must stay the default.

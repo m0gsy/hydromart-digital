@@ -38,7 +38,7 @@ DEFAULT_STALE=(customer dashboard loyalty promo referral crm recommendation fore
 # `hr` was missing here, so `--all` (what deploy.sh runs on a shared-package change)
 # quietly skipped hr-service and left it on an old image.
 ALL_SERVICES=(auth customer product order payment delivery depot dashboard loyalty \
-  promo referral crm recommendation forecast payout admin hr scheduler gateway web)
+  promo referral crm recommendation forecast payout admin face hr scheduler gateway web)
 
 if [ "${1:-}" = "--all" ]; then
   SERVICES=("${ALL_SERVICES[@]}")
@@ -51,18 +51,25 @@ fi
 echo "rebuild-stale: ${#SERVICES[@]} service(s), batch size ${BATCH}"
 df -h / | awk 'NR==2{print "  disk: "$4" free ("$5" used)"}'
 
-# Warm the shared base image ONCE (all Dockerfiles use node:20-alpine). Without
-# this, every parallel batch re-fetches its manifest from Docker Hub at the same
-# time — that contention is what triggers "TLS handshake timeout". Retry, since
-# the registry is flaky under load.
+# Warm every base image ONCE — each distinct `FROM` in the Dockerfiles (the same list
+# security.yml scans), not one hard-coded name: the services are on node:22.23.4-alpine and
+# face-service on node:22.23.4-bookworm-slim, and this used to warm a node:20-alpine nothing
+# used any more. Without the warm-up every parallel batch re-fetches the manifests from Docker
+# Hub at the same time — that contention is what triggers "TLS handshake timeout". Retry,
+# since the registry is flaky under load.
 pull_base() {
-  local n=1
-  until docker pull node:20-alpine; do
-    [ "$n" -ge 5 ] && { echo "!! could not pull node:20-alpine after 5 tries"; return 1; }
-    echo "   base pull failed (try $n) — retrying in 10s"; sleep 10; n=$((n + 1))
+  local base="$1" n=1
+  until docker pull "$base"; do
+    [ "$n" -ge 5 ] && { echo "!! could not pull $base after 5 tries"; return 1; }
+    echo "   base pull of $base failed (try $n) — retrying in 10s"; sleep 10; n=$((n + 1))
   done
 }
-pull_base
+# The first token after FROM that is not a flag (`--platform=…`), and only image names —
+# a tag or digest has a ':' — so a stage reference (`FROM builder AS …`) is not "pulled".
+for base in $(grep -hE '^FROM ' services/*/Dockerfile apps/*/Dockerfile |
+  awk '{ for (i = 2; i <= NF; i++) if ($i !~ /^--/) { print $i; break } }' | grep ':' | sort -u); do
+  pull_base "$base"
+done
 
 i=0
 batch=()

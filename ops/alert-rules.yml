@@ -13,7 +13,8 @@ groups:
   - name: hydromart-availability
     rules:
       - alert: ServiceDown
-        expr: up{job="hydromart"} == 0
+        # face-service has its own, gentler rules below.
+        expr: up{job="hydromart", service!="face-service"} == 0
         for: 2m
         labels: { severity: critical }
         annotations:
@@ -22,12 +23,32 @@ groups:
 
       - alert: ServiceCrashLooping
         # process_start_time_seconds jumps on every restart; >2 restarts in 15m = looping.
-        expr: changes(process_start_time_seconds{job="hydromart"}[15m]) > 2
+        expr: changes(process_start_time_seconds{job="hydromart", service!="face-service"}[15m]) > 2
         for: 0m
         labels: { severity: critical }
         annotations:
           summary: '{{ $labels.service }} is crash-looping'
           description: '{{ $labels.service }} restarted {{ $value }} times in the last 15m.'
+
+      # Face plan: the face embedder serves only hr's fallback, and that is off by default — a
+      # down face container leaves attendance exactly as it is without the fallback (NEO, or
+      # PENDING when NEO is down). Worth knowing before the fallback is switched on; not worth a
+      # page at 3am. Warning, and slower to fire.
+      - alert: FaceServiceDown
+        expr: up{job="hydromart", service="face-service"} == 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'face-service is down'
+          description: 'Prometheus has failed to scrape face-service for >10m: the NEO fallback has no engine.'
+
+      - alert: FaceServiceCrashLooping
+        expr: changes(process_start_time_seconds{job="hydromart", service="face-service"}[15m]) > 2
+        for: 0m
+        labels: { severity: warning }
+        annotations:
+          summary: 'face-service is crash-looping'
+          description: 'face-service restarted {{ $value }} times in the last 15m.'
 
   - name: hydromart-latency-errors
     rules:

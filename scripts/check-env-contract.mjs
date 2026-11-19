@@ -106,11 +106,7 @@ if (failed) {
 
 /** Keys known-missing today, per compose service. Shrink this; never grow it. */
 const MISSING_BASELINE = {
-  // Recorded when the *_SERVICE_URL rule below arrived (2026-11-19). Its getter
-  // (`faceServiceUrl`) has no caller: FACE_VERIFIER_DRIVER accepts 'http' but hr.module.ts has
-  // no 'http' case, so nothing would use an address supplied today. It leaves this list with
-  // the face-service container and the driver that calls it.
-  'hr-service': ['FACE_SERVICE_URL'],
+  // Empty since the face container (face plan PR-3) gave hr its FACE_SERVICE_URL.
 };
 
 /** `KEY:` lines under a `x-*` anchor or a service's `environment:` block. */
