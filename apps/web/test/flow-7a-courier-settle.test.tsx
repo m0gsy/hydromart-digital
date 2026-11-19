@@ -11,12 +11,13 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { push, replace, get, post, nav } = vi.hoisted(() => ({
+const { push, replace, get, post, nav, query } = vi.hoisted(() => ({
   push: vi.fn(),
   replace: vi.fn(),
   get: vi.fn(),
   post: vi.fn(),
   nav: { path: '/driver/' },
+  query: { queued: null as string | null },
 }));
 
 vi.mock('next/navigation', () => ({
@@ -39,7 +40,9 @@ vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: async () => true }) }));
-vi.mock('@/lib/use-query-param', () => ({ useQueryParam: (k: string) => (k === 'id' ? 'del-1' : null) }));
+vi.mock('@/lib/use-query-param', () => ({
+  useQueryParam: (k: string) => (k === 'id' ? 'del-1' : k === 'queued' ? query.queued : null),
+}));
 vi.mock('@/lib/geo', async () => {
   const actual = await vi.importActual<typeof import('@/lib/geo')>('@/lib/geo');
   return { ...actual, currentPosition: async () => ({ coords: { latitude: -6.2, longitude: 106.8 } }) };
@@ -72,6 +75,7 @@ const shift = (id: string, status: string) => ({
 
 beforeEach(() => {
   nav.path = '/driver/';
+  query.queued = null;
   push.mockReset();
   replace.mockReset();
   post.mockReset().mockResolvedValue({});
@@ -118,6 +122,30 @@ describe('after the last stop the courier is sent to hand in the cash', () => {
     expect(screen.queryByText('courierFix.podSuccess.settleNow')).toBeNull();
   });
 
+  it('a queued proof: the stop is still open on the server — no claim', async () => {
+    // Offline PoD: this very delivery is still ON_DELIVERY server-side, so an empty list
+    // (once this stop is set aside) does not mean it was the last one.
+    query.queued = '1';
+    answer(page([{ id: 'del-1', status: 'ON_DELIVERY' }]));
+    render(<SuccessPage />);
+    await waitFor(() => expect(get).toHaveBeenCalled());
+    fireEvent.click(await screen.findByText('courierFix.podSuccess.next'));
+    expect(replace).toHaveBeenCalledWith('/driver');
+    expect(screen.queryByText('courierFix.podSuccess.settleNow')).toBeNull();
+  });
+
+  it('the list still loading: the button waits rather than change under the finger', async () => {
+    let resolve: (v: unknown) => void = () => {};
+    get.mockImplementation((path: string) =>
+      path.includes('del-1') && !path.includes('statuses') ? Promise.resolve(DELIVERED) : new Promise((r) => (resolve = r)),
+    );
+    render(<SuccessPage />);
+    const button = (await screen.findByText('courierFix.podSuccess.next')).closest('button')!;
+    expect(button.disabled).toBe(true);
+    resolve(page([]));
+    await waitFor(() => expect(screen.getByText('courierFix.podSuccess.settleNow').closest('button')!.disabled).toBe(false));
+  });
+
   it('the task list unread: no claim either way — the list, as before', async () => {
     get.mockImplementation(async (path: string) => {
       if (path.includes('del-1')) return DELIVERED;
@@ -145,7 +173,22 @@ describe('the hand-in screen while the shift is still open', () => {
     );
     render(<SettlementPage />);
     fireEvent.click(await screen.findByText('hrFix.settlement.closeShift'));
-    expect(push).toHaveBeenCalledWith('/driver/shift/status');
+    // Replaced, not pushed: check-out lands back here, and one hand-in screen is enough history.
+    expect(replace).toHaveBeenCalledWith('/driver/shift/status');
+  });
+
+  it('offers it beside an older shift still owed, which is not today’s cash', async () => {
+    get.mockImplementation(async (path: string) =>
+      path.endsWith('/driver/shifts')
+        ? [shift('sh-2', 'ONLINE'), shift('sh-1', 'ENDED')]
+        : path.includes('/expected/')
+          ? { shiftId: 'sh-1', expectedIdr: 50000 }
+          : [],
+    );
+    render(<SettlementPage />);
+    expect(await screen.findByText('hrFix.settlement.openShiftNote')).toBeTruthy();
+    fireEvent.click(screen.getByText('hrFix.settlement.closeShift'));
+    expect(replace).toHaveBeenCalledWith('/driver/shift/status');
   });
 
   it('says nothing about closing when no shift is open', async () => {

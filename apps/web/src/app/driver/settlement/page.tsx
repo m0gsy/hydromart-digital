@@ -69,6 +69,13 @@ function Settlement() {
   }
 
   const { shift, open } = load.data;
+  // Replaced, not pushed: check-out lands back on this screen, and one copy of it in the
+  // history is enough — two made the back button look dead.
+  const closeShift = open && (
+    <Button className="mt-2" onClick={() => router.replace('/driver/shift/status')}>
+      {t('hrFix.settlement.closeShift')}
+    </Button>
+  );
 
   const submit = async () => {
     if (!shift) return;
@@ -109,17 +116,23 @@ function Settlement() {
           <p className="text-sm text-[color:var(--text-muted)]">
             {t('hrFix.settlement.checkOutFirst')}
           </p>
-          {open && (
-            <Button className="mt-2" onClick={() => router.push('/driver/shift/status')}>
-              {t('hrFix.settlement.closeShift')}
-            </Button>
-          )}
+          {closeShift}
           <Button variant="ghost" className="mt-2" onClick={() => router.push('/driver/settlement/history')}>
             {t('hrFix.settlement.viewHistory')}
           </Button>
         </Card>
       ) : (
         <>
+          {/* An older shift still owed while today's is open: the form below is for THAT
+              shift's cash, not today's — say so, and offer the way to today's. */}
+          {open && (
+            <Card className="p-4">
+              <p className="text-[13px] text-[color:var(--text-muted)]">
+                {t('hrFix.settlement.openShiftNote')}
+              </p>
+              {closeShift}
+            </Card>
+          )}
           <Card className="p-4">
             <div className="text-sm font-bold">{t('hrFix.settlement.shiftDone')}</div>
             <div className="mt-0.5 text-[13px] text-[color:var(--text-muted)]">

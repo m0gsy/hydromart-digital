@@ -923,6 +923,8 @@ export const hrFix = {
     checkOutFirst: 'Selesaikan dan check-out shift dulu. Setoran muncul setelah kamu check-out.',
     viewHistory: 'Lihat riwayat setoran',
     closeShift: 'Tutup shift',
+    openShiftNote:
+      'Setoran di bawah untuk shift sebelumnya. Uang shift yang sedang berjalan disetor sesudah shift ditutup.',
     countHint:
       'Hitung semua uang tunai COD yang kamu kumpulkan shift ini, lalu masukkan jumlah yang kamu setor ke kasir.',
     handToCashier: 'Setor ke kasir',

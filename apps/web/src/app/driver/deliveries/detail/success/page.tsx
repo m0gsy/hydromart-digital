@@ -44,7 +44,12 @@ function Success() {
   const next = (list.data?.items ?? []).find((x) => x.id !== id && ACTIVE.includes(x.status));
   // Flow PR-7a: only a list that was READ and holds no other active stop says "that was the
   // last one". Unread (offline, failed), it claims nothing and keeps the old way to the list.
-  const lastStop = list.data != null && !next;
+  // A queued proof claims nothing either: this stop is still open on the server until the
+  // queue flushes, so the shift cannot close and its cash total is not final.
+  const lastStop = !queued && list.data != null && !next;
+  // Until the list answers, the button's label and target are not known: it waits rather than
+  // change under the courier's finger. A queued proof never changes it, so never waits.
+  const deciding = !queued && list.loading;
 
   return (
     <div className="flex min-h-dvh flex-col px-5 py-6">
@@ -120,12 +125,13 @@ function Success() {
       <div className="space-y-3 pt-6">
         <button
           type="button"
+          disabled={deciding}
           onClick={() =>
             router.replace(
               lastStop ? '/driver/settlement' : next ? `/driver/deliveries/detail?id=${next.id}` : '/driver',
             )
           }
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-600 py-3.5 text-sm font-extrabold text-on-brand shadow-lg shadow-brand-600/20"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-600 py-3.5 text-sm font-extrabold text-on-brand shadow-lg shadow-brand-600/20 disabled:opacity-60"
         >
           {lastStop ? t('courierFix.podSuccess.settleNow') : t('courierFix.podSuccess.next')}
           {lastStop ? <Wallet size={17} weight="bold" /> : <ArrowRight size={17} weight="bold" />}
