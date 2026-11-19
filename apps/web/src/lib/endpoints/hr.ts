@@ -97,6 +97,9 @@ export const hr = {
     planDepotAssignment: '/depot-assignments/api/v1/depot-assignments',
     requestDepotAssignment: '/depot-assignments/api/v1/depot-assignments/requests',
     myDepotRequests: '/depot-assignments/api/v1/depot-assignments/requests/mine',
+    // The decider's side: requests still waiting for HR (status REQUESTED), and how many.
+    depotRequestsIncoming: '/depot-assignments/api/v1/depot-assignments?status=REQUESTED&pageSize=50',
+    depotRequestsIncomingCount: '/depot-assignments/api/v1/depot-assignments?status=REQUESTED&pageSize=1',
     approveDepotRequest: (id: string) =>
       `/depot-assignments/api/v1/depot-assignments/${id}/approve`,
     rejectDepotRequest: (id: string) =>

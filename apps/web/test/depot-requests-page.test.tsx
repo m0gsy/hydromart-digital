@@ -74,9 +74,11 @@ describe('/hr/depot-requests', () => {
 });
 
 describe('/hr/depot-requests gate', () => {
-  it('a role that cannot ask sees the explanation and never calls the API', async () => {
+  // HR decides these requests now (Permintaan masuk, depot-loan-incoming.test): the gate is for
+  // a role that can neither ask nor decide.
+  it('a role that can neither ask nor decide sees the explanation and never calls the API', async () => {
     vi.resetModules();
-    vi.doMock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { role: 'HR' } }) }));
+    vi.doMock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { role: 'FINANCE' } }) }));
     const { default: Page } = await import('@/app/hr/depot-requests/page');
     const { LocaleProvider: Provider } = await import('@/lib/locale-context');
     get.mockClear();

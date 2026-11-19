@@ -21,7 +21,7 @@
  * bundles them; HR_ITEMS is still read from the HR rail component.
  */
 import { GROUPS } from '@/lib/ops-nav';
-import { HR_ITEMS } from '@/components/hr/hr-rail';
+import { HR_ITEMS, mayOpenHrRow } from '@/components/hr/hr-rail';
 import { isServedHere } from '@/lib/deep-link';
 import { capForHqPath, mayOpenHqPath } from '@/lib/hq-nav';
 import {
@@ -85,7 +85,7 @@ function pageAllows(path: string, role: Role): boolean {
   if (under(path, '/hr')) {
     const row = deepest(HR_ITEMS, path);
     return (
-      canViewHr(role) && (!row?.adminOnly || canManageHr(role)) && (!row?.can || can(row.can, role))
+      canViewHr(role) && (!row?.adminOnly || canManageHr(role)) && mayOpenHrRow(row?.can, role)
     );
   }
   if (under(path, '/driver')) return canUseCourierApp(role);

@@ -1400,6 +1400,10 @@ export const hrFix = {
     none: 'No requests yet.',
     submit: 'Request',
     failed: 'Could not send the request.',
+    incomingTitle: 'Incoming requests',
+    incomingHint: "Depot managers' requests to borrow staff. Decide from the employee's record.",
+    incomingNone: 'Nothing is waiting.',
+    decide: 'Decide',
   },
   depotAssignment: {
     approve: 'Approve',
