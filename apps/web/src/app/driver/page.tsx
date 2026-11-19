@@ -14,6 +14,7 @@ import { Badge, Button, Card, CenterState, ErrorState, FormError, LinkButton, Lo
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
+import { myAnnouncements, type MyAnnouncement } from '@/lib/hr-announcements';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { Broadcast, CourierPerformance, Delivery, DeliveryStatus, Page, Shift } from '@/lib/types';
@@ -39,6 +40,9 @@ function DriverConsole() {
     () => (depotId ? api.get(endpoints.broadcasts.forDepot(depotId), true) : Promise.resolve([])),
     [depotId],
   );
+  // Flow 5d: the inbox holds HR's announcements too, so its door counts them — a courier HR
+  // wrote to, at a depot that broadcast nothing, had no way in.
+  const hrNews = useAsync<MyAnnouncement[]>(myAnnouncements);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [capturing, setCapturing] = useState<string | null>(null);
@@ -119,13 +123,14 @@ function DriverConsole() {
       {/* An URGENT depot broadcast is the one thing on this screen a courier must not miss,
           and the banner simply does not render when the read fails. */}
       {broadcasts.error && <LoadError onRetry={broadcasts.reload} />}
-      {!urgent && (broadcasts.data?.length ?? 0) > 0 && (
+      {!urgent &&
+        ((broadcasts.data?.length ?? 0) > 0 || (hrNews.data ?? []).some((a) => !a.read)) && (
         <Link
           href="/driver/announcements"
           className="flex items-center gap-2 rounded-2xl border border-[color:var(--border)] p-3.5 text-sm font-bold"
         >
           <Megaphone size={16} weight="fill" className="text-brand-700" />
-          {t('driver.home.depotAnnouncements')}
+          {t('driver.home.announcements')}
           <span className="ml-auto text-xs font-normal text-[color:var(--text-muted)]">{t('driver.home.view')}</span>
         </Link>
       )}

@@ -1791,6 +1791,8 @@ export const hrFix = {
     missingDays: '{n} day(s) not yet closed: {list}',
   },
   driverAnnouncements: {
+    fromDepot: 'From the depot',
+    fromHr: 'From HR',
     emptyBody2: 'Operational notices from the depot will appear here.',
     noDepotBody: 'Announcements appear once you are assigned to a depot.',
     title: 'Announcements',

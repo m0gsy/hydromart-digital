@@ -1811,6 +1811,8 @@ export const hrFix = {
     missingDays: '{n} hari belum ditutup: {list}',
   },
   driverAnnouncements: {
+    fromDepot: 'Dari depot',
+    fromHr: 'Dari HR',
     emptyBody2: 'Info operasional dari depot akan muncul di sini.',
     noDepotBody: 'Pengumuman muncul setelah kamu ditempatkan di depot.',
     title: 'Pengumuman',

@@ -18,7 +18,7 @@ export const driver = {
     statActive: 'Aktif',
     statDone: 'Selesai',
     statOnTime: 'Tepat',
-    depotAnnouncements: 'Pengumuman depot',
+    announcements: 'Pengumuman depot & HR',
     view: 'Lihat',
     actionError: 'Aksi gagal. Coba lagi.',
     emptyTitle: 'Belum ada tugas aktif',
