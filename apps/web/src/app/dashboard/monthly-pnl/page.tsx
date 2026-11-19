@@ -15,7 +15,7 @@ import { useT } from '@/lib/locale-context';
 import { canViewDashboard } from '@/lib/roles';
 import type { OperationalCogsUncoveredReason, OperationalMonthlyPnl } from '@/lib/types';
 import { useAsync } from '@/lib/use-async';
-import { BUSINESS_TZ, wibParts } from '@/lib/wib';
+import { recentMonthsWib } from '@/lib/wib';
 
 /*
  * CA-2-63, two bugs in three lines.
@@ -30,25 +30,6 @@ import { BUSINESS_TZ, wibParts } from '@/lib/wib';
  * a day of trading, and the month everybody actually wants to close the books on became
  * unreachable the moment it ended.
  */
-const MONTH_LABEL_FMT = new Intl.DateTimeFormat('id-ID', {
-  timeZone: BUSINESS_TZ,
-  month: 'long',
-  year: 'numeric',
-});
-
-/** The last `count` months, newest first, as business-timezone `YYYY-MM` keys. */
-function recentMonths(count: number): { key: string; label: string }[] {
-  const { year, month } = wibParts();
-  return Array.from({ length: count }, (_, i) => {
-    // UTC arithmetic on parts already read in the business zone: no second timezone hop,
-    // and month overflow (month 0, month 13) is handled by Date itself.
-    const at = new Date(Date.UTC(year, month - 1 - i, 1));
-    return {
-      key: `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, '0')}`,
-      label: MONTH_LABEL_FMT.format(at),
-    };
-  });
-}
 
 const money = (value: number | null | undefined): string => (value == null ? '—' : formatIDR(value));
 
@@ -57,7 +38,7 @@ function MonthlyPnlBody() {
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((item) => item.id === scopedId) ?? null;
   // Twelve months back: a year is what a depot compares against, and it is one <select>.
-  const months = useMemo(() => recentMonths(12), []);
+  const months = useMemo(() => recentMonthsWib(12), []);
   const [monthKey, setMonthKey] = useState(months[0]!.key);
   const monthLabel = months.find((m) => m.key === monthKey)?.label ?? monthKey;
   const report = useAsync<OperationalMonthlyPnl | null>(

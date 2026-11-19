@@ -324,16 +324,25 @@ export interface DepotMonthlyReport {
   /** Distinct customers with a non-cancelled order in the month. */
   activeCustomers: number;
   /**
-   * Revenue − goods − payroll − operating cost, whole rupiah.
+   * Arus kas bersih (flow plan 5a, owner decision 2026-11-17): what the month's books took in
+   * and paid out — (revenue − refunded) − purchases received − net payroll − cash-book outflows,
+   * whole rupiah. It is NOT laba bersih: that is `netProfit` (@hydromart/platform), served by
+   * dashboard-service's monthly P&L, and the monthly review shows the two side by side.
    *
-   * **Null when ANY input is missing**, never a partial subtraction: a profit computed from
+   * **Null when ANY input is missing**, never a partial subtraction: a figure computed from
    * a payroll nobody could fetch is not a small error, it is the wrong number with a
-   * confident face. `profitBreakdown` carries the four terms so the screen can show the
+   * confident face. `profitBreakdown` carries the terms so the screen can show the
    * arithmetic rather than assert a conclusion.
+   */
+  netCashFlowIdr: number | null;
+  /**
+   * DEPRECATED — the same number as netCashFlowIdr under its old name. The Ops app's monthly
+   * review as installed (≤ mobile-v1.15.0) reads it and calls it "Laba bersih"; drop it once
+   * mobile-v1.16.0 is the oldest app in use.
    */
   netProfitIdr: number | null;
   /**
-   * The terms behind `netProfitIdr`, each null when its owning service could not be read.
+   * The terms behind `netCashFlowIdr`, each null when its owning service could not be read.
    *
    * Present even when the net is null — knowing WHICH half failed is what turns "—" from a
    * dead end into something an operator can chase. `cogsIdr` is purchases received in the
@@ -1318,7 +1327,7 @@ export class ReportService {
           revenueIdr,
           slaPct: onTime === null ? null : Math.round(onTime * 1000) / 10,
           wastageGallons: returns ? returns.damaged : null,
-          netProfitIdr: ReportService.netProfit(revenueIdr, {
+          netProfitIdr: ReportService.netCashFlow(revenueIdr, {
             cogsIdr: costs ? costs.cogsIdr : null,
             opexIdr: costs ? costs.opexIdr : null,
             payrollIdr,
@@ -1373,6 +1382,8 @@ export class ReportService {
       opexIdr: costs ? costs.opexIdr : null,
       payrollIdr,
     };
+    // ORD-08: from the NET revenue, so a refunded sale does not read as money kept.
+    const netCashFlowIdr = ReportService.netCashFlow(revenueIdr - refundedIdr, breakdown);
 
     return {
       depotId,
@@ -1382,8 +1393,8 @@ export class ReportService {
       refundedIdr,
       netRevenueIdr: revenueIdr - refundedIdr,
       activeCustomers: new Set(live.map((r) => r.customerId)).size,
-      // ORD-08: profit from the NET revenue, so a refunded sale does not read as full profit.
-      netProfitIdr: ReportService.netProfit(revenueIdr - refundedIdr, breakdown),
+      netCashFlowIdr,
+      netProfitIdr: netCashFlowIdr,
       profitBreakdown: { revenueIdr, ...breakdown },
       // Percent, to one decimal — the screen prints a percentage, and rounding to whole
       // points turns 87,6% into 88% right at the band the HQ dashboard reacts to.
@@ -1401,7 +1412,9 @@ export class ReportService {
   }
 
   /**
-   * Revenue minus every cost term — or null the moment one term is missing.
+   * Arus kas: revenue minus every cash term — or null the moment one term is missing. NOT laba
+   * bersih, which is `netProfit` in @hydromart/platform (served by dashboard-service). The
+   * depot comparison still labels this figure profit until flow 5b moves it.
    *
    * **Fail-closed on purpose.** Treating an unreachable hr-service as "payroll was zero"
    * would publish a profit inflated by the depot's entire wage bill, and it would look
@@ -1412,7 +1425,7 @@ export class ReportService {
    * catalog carries no per-unit cost price, so a month with one big delivery reads as a
    * thin month. The breakdown is what lets a reader see that rather than be misled by it.
    */
-  private static netProfit(revenueIdr: number, costs: DepotCostBreakdown): number | null {
+  private static netCashFlow(revenueIdr: number, costs: DepotCostBreakdown): number | null {
     const terms = [costs.cogsIdr, costs.payrollIdr, costs.opexIdr];
     if (terms.some((t) => t === null)) return null;
     return terms.reduce((net: number, t) => net - (t as number), revenueIdr);

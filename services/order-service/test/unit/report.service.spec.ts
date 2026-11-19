@@ -582,7 +582,9 @@ describe('ReportService', () => {
       const rep = await svc.reportsDepotMonthly(depot, '2026-07');
       expect(rep.refundedIdr).toBe(30_000);
       expect(rep.netRevenueIdr).toBe(rep.revenueIdr - 30_000);
-      expect(rep.netProfitIdr).toBe(rep.revenueIdr - 30_000 - 10_000 - 5_000 - 20_000);
+      expect(rep.netCashFlowIdr).toBe(rep.revenueIdr - 30_000 - 10_000 - 5_000 - 20_000);
+      // The deprecated name carries the same number for the installed app.
+      expect(rep.netProfitIdr).toBe(rep.netCashFlowIdr);
       expect(r.refundedOnSales).toHaveBeenCalledWith(depot, expect.objectContaining({ from: expect.any(Date), to: expect.any(Date) }));
     });
 
@@ -739,7 +741,8 @@ describe('ReportService', () => {
 
       const rep = await svcWith(r, costsPort()).reportsDepotMonthly(depot, '2026-07');
       expect(rep.revenueIdr).toBe(12_000_000);
-      expect(rep.netProfitIdr).toBe(12_000_000 - 4_000_000 - 3_000_000 - 1_900_000);
+      expect(rep.netCashFlowIdr).toBe(12_000_000 - 4_000_000 - 3_000_000 - 1_900_000);
+      expect(rep.netProfitIdr).toBe(rep.netCashFlowIdr);
       expect(rep.profitBreakdown).toEqual({
         revenueIdr: 12_000_000,
         cogsIdr: 4_000_000,

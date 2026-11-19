@@ -210,6 +210,7 @@ function TargetsBody() {
             orders: 0,
             revenueIdr: 0,
             activeCustomers: 0,
+            refundedIdr: 0,
             netProfitIdr: null,
             profitBreakdown: { revenueIdr: 0, cogsIdr: null, opexIdr: null, payrollIdr: null },
             slaPct: null,

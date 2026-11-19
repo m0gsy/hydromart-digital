@@ -3088,7 +3088,7 @@ export interface DepotRatingsReport {
   }[];
 }
 
-/** The four terms behind `netProfitIdr`; each null when its owning service could not be read. */
+/** The cash terms behind `netCashFlowIdr` (arus kas bersih); each null when its owning service could not be read. */
 export interface ReportProfitBreakdown {
   revenueIdr: number;
   /** Purchases RECEIVED in the month, not accrual cost of goods sold — the catalog has no unit cost. */
@@ -3117,7 +3117,15 @@ export interface ReportDepotMonthly {
   orders: number;
   revenueIdr: number;
   activeCustomers: number;
-  /** Null the moment ANY term is missing — see `profitBreakdown` for which one. */
+  refundedIdr: number;
+  /**
+   * Arus kas bersih: (revenue − refunded) − purchases − net payroll − cash out. Null the moment
+   * ANY term is missing — see `profitBreakdown` for which one. Not laba bersih: that is the
+   * depot P&L's `netProfitIdr` (OperationalMonthlyPnl). Optional: an older order-service
+   * image sends only the deprecated name below.
+   */
+  netCashFlowIdr?: number | null;
+  /** Deprecated: the same figure as netCashFlowIdr, for the installed Ops app. */
   netProfitIdr: number | null;
   profitBreakdown: ReportProfitBreakdown;
   /** On-time share for the month, 0..100 with one decimal. Null when nothing was delivered. */

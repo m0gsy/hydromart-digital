@@ -271,7 +271,13 @@ export class DepotMonthlyReportResponseDto {
   netRevenueIdr!: number;
   @ApiProperty({ type: Number })
   activeCustomers!: number;
-  @ApiProperty({ type: Number, nullable: true })
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    description: 'Arus kas bersih: (revenue − refunded) − purchases − net payroll − cash out.',
+  })
+  netCashFlowIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true, deprecated: true })
   netProfitIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   slaPct!: number | null;
