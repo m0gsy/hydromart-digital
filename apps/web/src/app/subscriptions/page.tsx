@@ -35,6 +35,8 @@ import type {
 } from '@/lib/types';
 
 const FREQS: SubscriptionFrequency[] = ['WEEKLY', 'BIWEEKLY', 'MONTHLY'];
+// An id from a link: only a UUID goes into a request path.
+const PRODUCT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BENEFIT_ICONS = [Percent, Truck, BellSlash, Pause];
 
 function Panel() {
@@ -104,15 +106,32 @@ function Panel() {
   const [productId, setProductId] = useState('');
   /*
    * Flow PR-7b: "Jadikan langganan" on a product page opens this with `?product=`. It is
-   * picked once the list has it, and never over a product the customer already chose.
-   * ponytail: only the first 50 products are listed; one past them is simply not preselected.
+   * picked once the options have it, and never over a product the customer already chose.
+   * Only the first 50 products are listed, so one past them is read on its own and offered
+   * too (owner decision 2026-11-19): the product page offers the link on every product.
    */
   const wanted = useQueryParam('product');
+  // Only a UUID goes into a request path; one already listed needs no request at all.
+  const fetchId = wanted && PRODUCT_ID.test(wanted) ? wanted : null;
+  const extra = useAsync<Product | null>(
+    () =>
+      fetchId && products.data && !products.data.items.some((p) => p.id === fetchId)
+        ? api.get<Product>(endpoints.products.get(fetchId)).catch(() => null)
+        : Promise.resolve(null),
+    [fetchId, products.data],
+  );
+  const options = useMemo(() => {
+    const listed = products.data?.items ?? [];
+    // A product that is not for sale is not one to subscribe to.
+    return extra.data && extra.data.active !== false && !listed.some((p) => p.id === extra.data!.id)
+      ? [...listed, extra.data]
+      : listed;
+  }, [products.data, extra.data]);
   useEffect(() => {
-    if (wanted && products.data?.items.some((p) => p.id === wanted)) {
+    if (wanted && options.some((p) => p.id === wanted)) {
       setProductId((current) => current || wanted);
     }
-  }, [wanted, products.data]);
+  }, [wanted, options]);
   const [quantity, setQuantity] = useState(2);
   const [frequency, setFrequency] = useState<SubscriptionFrequency>('WEEKLY');
   const [firstDate, setFirstDate] = useState(dateInDaysWib(1));
@@ -267,7 +286,7 @@ function Panel() {
                 <option value="" disabled>
                   {copy.productPlaceholder}
                 </option>
-                {products.data?.items.map((p) => (
+                {options.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} · {p.unit}
                   </option>
