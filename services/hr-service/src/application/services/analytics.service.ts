@@ -232,6 +232,7 @@ export class AnalyticsService {
 
   async employeeReport(user: AuthenticatedUser, depotIdParam?: string): Promise<ReportData> {
     const depotIds = depotScopeIds(user, depotIdParam);
+    const mayReadPay = can('payrollRead', user.role);
     const rows = await this.repo.employeesForReport(depotIds);
     /*
      * CA-1-62. This answered 11 of the import template's 29 columns. An HR officer who
@@ -297,8 +298,9 @@ export class AnalyticsService {
         e.role,
         e.employmentStatus,
         e.salaryType,
-        dec(e.dailyRate),
-        dec(e.monthlyRate),
+        // The template keeps its columns; the pay in them is payrollRead's (2026-11-19).
+        mayReadPay ? dec(e.dailyRate) : '',
+        mayReadPay ? dec(e.monthlyRate) : '',
         e.status,
         isoDate(e.joinDate),
         isoDate(e.contractEndDate),

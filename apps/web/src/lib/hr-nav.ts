@@ -59,7 +59,7 @@ export const HR_ITEMS = [
   { href: '/hr/leave', label: 'hrFix.nav.leave' },
   // Pay figures: payrollRead (owner decision 2026-11-19), not every HR reader.
   { href: '/hr/payroll', label: 'hrFix.nav.payroll', can: 'payrollRead' },
-  { href: '/hr/adjustments', label: 'hrFix.nav.adjustments' },
+  { href: '/hr/adjustments', label: 'hrFix.nav.adjustments', can: 'payrollRead' },
   { href: '/hr/allowances', label: 'hrFix.nav.allowances', can: 'payrollRead' },
   // CA-1-34: the kasbon ledger. It had an import wizard and no list.
   { href: '/hr/loans', label: 'hrFix.nav.loans' },

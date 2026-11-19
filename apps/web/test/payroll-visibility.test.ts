@@ -13,7 +13,7 @@ import { HR_ITEMS, mayOpenHrRow, type HrNavRow } from '@/lib/hr-nav';
 const row = (href: string) => HR_ITEMS.find((r) => r.href === href) as HrNavRow;
 
 describe('pay screens in the HR console', () => {
-  it.each(['/hr/payroll', '/hr/allowances'])('%s opens for payrollRead only', (href) => {
+  it.each(['/hr/payroll', '/hr/allowances', '/hr/adjustments'])('%s opens for payrollRead only', (href) => {
     for (const role of ['HR', 'FINANCE', 'HEAD_OFFICE', 'DIREKTUR', 'MANAGER'] as const) {
       expect({ role, open: mayOpenHrRow(row(href).can, role) }).toEqual({ role, open: true });
     }

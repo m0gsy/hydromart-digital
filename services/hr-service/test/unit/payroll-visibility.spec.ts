@@ -12,6 +12,8 @@ import type { Response } from 'express';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { AllowanceController } from '../../src/modules/allowance.controller';
+import { BonusController, DeductionController } from '../../src/modules/adjustment.controller';
+import { AnalyticsService } from '../../src/application/services/analytics.service';
 import { EmployeesController } from '../../src/modules/employees.controller';
 import { PayrollController } from '../../src/modules/payroll.controller';
 import { ReportsController } from '../../src/modules/reports.controller';
@@ -88,5 +90,50 @@ describe('who reads pay', () => {
     for (const role of ['SUPERVISOR', 'ASSISTANT_SUPERVISOR', 'KEPALA_DEPOT', 'STAFF_DEPOT']) {
       expect({ role, may: mayReadPay(as(role)) }).toEqual({ role, may: false });
     }
+  });
+});
+
+describe('review round: the other doors to the same figures', () => {
+  it("a rate change in an employee's history keeps the fact, not the amounts", async () => {
+    const history = [
+      { id: 'h1', changeType: 'dailyRate', fromValue: { value: '100000' }, toValue: { value: '120000' } },
+      { id: 'h2', changeType: 'position', fromValue: { value: 'Kurir' }, toValue: { value: 'Kepala' } },
+    ];
+    const emp = { getHistory: jest.fn().mockResolvedValue(history) };
+    const c = new EmployeesController(emp as never);
+    const seen = await c.getHistory('e1', as('SUPERVISOR'));
+    expect(seen[0]).toMatchObject({ changeType: 'dailyRate', fromValue: null, toValue: null });
+    expect(seen[1]).toMatchObject({ changeType: 'position', toValue: { value: 'Kepala' } });
+    expect((await c.getHistory('e1', as('MANAGER')))[0]).toMatchObject({ toValue: { value: '120000' } });
+  });
+
+  it('bonus and deduction lines are pay lines', async () => {
+    const adjustments = { listBonuses: jest.fn().mockResolvedValue([]), listDeductions: jest.fn().mockResolvedValue([]) };
+    const bc = new BonusController(adjustments as never);
+    const dc = new DeductionController(adjustments as never);
+    expect(() => bc.list({ employeeId: 'e1' } as never, as('SUPERVISOR'))).toThrow(ForbiddenException);
+    expect(() => dc.list({ employeeId: 'e1' } as never, as('KEPALA_DEPOT'))).toThrow(ForbiddenException);
+    await bc.list({ employeeId: 'e1' } as never, as('HR'));
+    await dc.list({ employeeId: 'e1' } as never, as('MANAGER'));
+    expect(adjustments.listBonuses).toHaveBeenCalledTimes(1);
+    expect(adjustments.listDeductions).toHaveBeenCalledTimes(1);
+  });
+
+  it('the employee export keeps its columns but not the rates', async () => {
+    const row = {
+      id: 'e1', employeeCode: 'HR-0001', fullName: 'Ani', phone: '0811', email: null, position: 'Kurir',
+      departmentId: null, role: 'STAFF_DEPOT', employmentStatus: 'PERMANENT', salaryType: 'DAILY',
+      dailyRate: { toNumber: () => 120000 }, monthlyRate: null, status: 'ACTIVE', joinDate: new Date('2026-01-01'),
+      contractEndDate: null, exitDate: null, supervisorId: null, shiftId: null,
+    };
+    const repo = {
+      employeesForReport: jest.fn().mockResolvedValue([row]),
+      departmentCodesByIds: jest.fn().mockResolvedValue(new Map()),
+      shiftNamesByIds: jest.fn().mockResolvedValue(new Map()),
+    };
+    const svc = new AnalyticsService(repo as never, {} as never);
+    const rate = (r: { headers: string[]; rows: unknown[][] }) => r.rows[0]![r.headers.indexOf('dailyRate')];
+    expect(rate(await svc.employeeReport(as('SUPERVISOR')))).toBe('');
+    expect(rate(await svc.employeeReport(as('HR')))).toBe(120000);
   });
 });
