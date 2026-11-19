@@ -84,6 +84,8 @@ describe('IncidentService', () => {
     expect(repo.rows).toHaveLength(1);
     expect(ops.alerts).toHaveLength(1);
     expect(ops.alerts[0]).toMatchObject({
+      // Flow 6a: the tap opens this incident.
+      incidentId: incident.id,
       severity: IncidentSeverity.HIGH,
       category: IncidentCategory.ACCIDENT,
     });

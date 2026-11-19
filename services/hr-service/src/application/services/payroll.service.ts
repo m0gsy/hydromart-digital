@@ -871,7 +871,7 @@ export class PayrollService {
    * slip can still be sent back to DRAFT (`unapprove`), and "your payslip is ready" followed
    * by a retraction is worse than a message a day later. Fail-soft - the money has moved.
    */
-  private async notifyPayslipReady(payroll: { employeeId: string; periodMonth: string }): Promise<void> {
+  private async notifyPayslipReady(payroll: { id: string; employeeId: string; periodMonth: string }): Promise<void> {
     if (!this.notifications) return;
     try {
       const employee = await this.employees.findByIdInternal(payroll.employeeId);
@@ -879,7 +879,8 @@ export class PayrollService {
       await this.notifications.notify(
         'PAYSLIP_READY',
         employee.phone,
-        { name: employee.fullName, period: periodLabel(payroll.periodMonth) },
+        // Flow 6a: payrollId opens the slip itself rather than the list of slips.
+        { name: employee.fullName, period: periodLabel(payroll.periodMonth), payrollId: payroll.id },
         employee.authSubjectId,
       );
     } catch (e) {

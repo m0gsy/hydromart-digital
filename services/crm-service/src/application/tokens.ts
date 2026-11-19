@@ -13,4 +13,6 @@ export const CRM_TOKENS = {
   DepotStaff: Symbol('DepotStaff'),
   StaffPrefs: Symbol('StaffPrefs'),
   DepotOverseers: Symbol('DepotOverseers'),
+  // Flow 6a: destination brakes, read fail-closed from admin-service's public flags.
+  DestinationBrakes: Symbol('DestinationBrakes'),
 } as const;

@@ -82,6 +82,7 @@ export interface DeliveryRecord {
  */
 export interface SlaCandidate {
   id: string;
+  orderId: string;
   orderNumber: string;
   depotId: string | null;
   assignedAt: Date;

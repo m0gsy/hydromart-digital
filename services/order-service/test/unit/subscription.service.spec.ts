@@ -462,6 +462,10 @@ describe('SubscriptionService', () => {
       expect(after.failureCount).toBe(3);
       expect(after.status).toBe('PAUSED');
       expect(notification.calls.map((c) => c.event)).toContain('SUBSCRIPTION_PAUSED');
+      // Flow 6a: no path in the caller-token slot (D2 put '/subscriptions' there, where it was
+      // dropped); the destination is crm's.
+      const paused = notification.calls.find((c) => c.event === 'SUBSCRIPTION_PAUSED')!;
+      expect(paused.authorization).toBe('');
     });
 
     /**

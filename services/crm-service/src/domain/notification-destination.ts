@@ -30,6 +30,35 @@ import { NotificationEvent } from './notification-event';
  */
 const INBOX = '/notifications';
 
+/**
+ * Flow 6a: what the destination may depend on besides the event. Every switch defaults OFF,
+ * so a caller that knows nothing sends the old destination.
+ */
+export interface DestinationOptions {
+  /**
+   * `/hr/leave` is pruned from the Ops APK up to v1.15.0, where the tap would open a file
+   * that is not there (a blank screen). Owner decision 2026-11-19: behind a brake, read
+   * fail-closed, switched on once the release that carries the screen is installed.
+   */
+  leaveScreen?: boolean;
+  /**
+   * The depot a depot alert is about. Its screen reads the depot from the console's switcher,
+   * so an overseer of several depots would open the one selected last and see no problem:
+   * `depot=` names the right one (the console selects it when the reader may see it).
+   */
+  depotId?: string | null;
+}
+
+/** `depot=<id>` on a depot screen, when the alert names its depot. */
+function forDepot(url: string, depotId: string | null | undefined): string {
+  return depotId ? `${url}${url.includes('?') ? '&' : '?'}depot=${encodeURIComponent(depotId)}` : url;
+}
+
+/** `path?id=<id>` when the emitter sent the id, else the bare screen. */
+function withId(path: string, id: string | undefined): string {
+  return id ? `${path}?id=${encodeURIComponent(id)}` : path;
+}
+
 const ORDER_EVENTS = new Set<NotificationEvent>([
   NotificationEvent.ORDER_RECEIVED,
   NotificationEvent.ORDER_CONFIRMED,
@@ -53,6 +82,7 @@ const ORDER_EVENTS = new Set<NotificationEvent>([
 export function destinationFor(
   event: NotificationEvent,
   vars: Record<string, string> = {},
+  options: DestinationOptions = {},
 ): string {
   if (ORDER_EVENTS.has(event)) {
     const id = vars.orderId;
@@ -107,6 +137,8 @@ export function destinationFor(
     case NotificationEvent.DEPOT_ORDER_RESCHEDULED:
     case NotificationEvent.DEPOT_ORDER_CANCELLED:
     case NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED:
+    // Flow 6a: an order on the road past its depot's SLA opens that order too.
+    case NotificationEvent.DELIVERY_SLA_BREACHED:
     // The receipt is checked beside its order (order-detail's proof panel, then "Konfirmasi
     // lunas"). `/dashboard/payments` is the depot's QRIS settings, `depotAdmin` only, so the
     // depot head who gets this push was opening a screen that refused them.
@@ -128,14 +160,39 @@ export function destinationFor(
       return vars.approvalId
         ? `/m/manager/approvals/detail?id=${encodeURIComponent(vars.approvalId)}`
         : '/m/manager/approvals';
-    // Self-service HR pages, open to any signed-in employee.
+    // Self-service HR pages, open to any signed-in employee. Flow 6a: the slip itself.
     case NotificationEvent.PAYSLIP_READY:
-      return '/hr/me/payroll';
+      return vars.payrollId ? withId('/hr/me/payroll/detail', vars.payrollId) : '/hr/me/payroll';
     case NotificationEvent.ATTENDANCE_LATE:
       return '/hr/me/attendance';
     // The reminder is about punching in, so it opens the check-in screen.
     case NotificationEvent.SHIFT_REMINDER:
       return '/hr/me/check-in';
+    /*
+     * Flow 6a (plan PR-6): the events that still fell to the inbox. Every screen below is in
+     * the Ops APK from v1.15.0 on; `/hr/leave` is the one that is not, hence its brake.
+     * The depot screens are `depotFinance`/ops pages the alert's recipients already open.
+     */
+    case NotificationEvent.STOCK_LOW:
+    case NotificationEvent.STOCK_UNTRACKED:
+      return forDepot('/dashboard/inventory?low=1', options.depotId);
+    case NotificationEvent.METER_VARIANCE:
+      return forDepot('/dashboard/meter', options.depotId);
+    case NotificationEvent.COURIER_INCIDENT:
+      return forDepot(withId('/dashboard/incidents', vars.incidentId), options.depotId);
+    case NotificationEvent.DEPOT_SALES_UPDATE:
+      return forDepot('/dashboard/reports', options.depotId);
+    case NotificationEvent.LEAVE_SUBMITTED:
+      return options.leaveScreen ? withId('/hr/leave', vars.leaveId) : INBOX;
+    case NotificationEvent.LEAVE_APPROVED:
+    case NotificationEvent.LEAVE_REJECTED:
+      return withId('/hr/me/leave', vars.leaveId);
+    case NotificationEvent.HR_ANNOUNCEMENT:
+      return withId('/hr/me/announcements', vars.announcementId);
+    // The screen that can resume it (D2). The emitter used to try to say so itself, through an
+    // argument that is the caller's token, so the row was never tappable.
+    case NotificationEvent.SUBSCRIPTION_PAUSED:
+      return '/subscriptions';
     default:
       return INBOX;
   }
@@ -151,7 +208,8 @@ export function destinationFor(
 export function storedDestinationFor(
   event: NotificationEvent,
   vars: Record<string, string> = {},
+  options: DestinationOptions = {},
 ): string | null {
-  const url = destinationFor(event, vars);
+  const url = destinationFor(event, vars, options);
   return url === INBOX ? null : url;
 }

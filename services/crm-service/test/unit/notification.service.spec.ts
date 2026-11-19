@@ -621,13 +621,21 @@ describe('recorded destination', () => {
   });
 
   it('stores null for an event with no screen to open', async () => {
-    await service.notify(NotificationEvent.STOCK_LOW, '+62800', {
-      depot: 'D',
-      item: 'G',
-      quantity: '1',
-      minimum: '5',
-    });
+    // A leave request with its brake not wired: held, the inbox (flow 6a).
+    await service.notify(NotificationEvent.LEAVE_SUBMITTED, '+62800', { name: 'Budi' });
     expect(repo.records[0].destination).toBeNull();
+  });
+
+  // Flow 6a: a depot alert's screen names its depot, so an overseer opens the right one.
+  it('stores the depot alert screen with its depot', async () => {
+    await service.notify(
+      NotificationEvent.STOCK_LOW,
+      '+62800',
+      { depot: 'D', item: 'G', quantity: '1', minimum: '5' },
+      null,
+      'dep-9',
+    );
+    expect(repo.records[0].destination).toBe('/dashboard/inventory?low=1&depot=dep-9');
   });
 });
 

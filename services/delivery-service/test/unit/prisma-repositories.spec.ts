@@ -892,7 +892,7 @@ describe('DeliveryPrismaRepository', () => {
       },
       orderBy: { assignedAt: 'asc' },
       take: 200,
-      select: { id: true, orderNumber: true, depotId: true, assignedAt: true },
+      select: { id: true, orderId: true, orderNumber: true, depotId: true, assignedAt: true },
     });
   });
 

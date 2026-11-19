@@ -150,10 +150,10 @@ function make(roster: Employee[] = [BUDI, SARI, JOKO], self: Employee = BUDI, to
     list: jest.fn(async () => ({ rows: roster, total: total ?? roster.length })),
   } as unknown as EmployeeRepository;
   const employees = { getSelf: jest.fn(async () => self) } as unknown as EmployeeService;
-  const sent: { event: string; subjectId: string }[] = [];
+  const sent: { event: string; subjectId: string; vars: Record<string, string> }[] = [];
   const notifications: NotificationPort = {
-    notify: jest.fn(async (event, _phone, _vars, subjectId) => {
-      sent.push({ event, subjectId });
+    notify: jest.fn(async (event, _phone, vars, subjectId) => {
+      sent.push({ event, subjectId, vars });
     }),
   };
   return {
@@ -182,6 +182,8 @@ describe('AnnouncementService (C1)', () => {
     expect(out.audienceSize).toBe(3);
     expect(sent.map((s) => s.subjectId).sort()).toEqual(['auth-e1', 'auth-e2', 'auth-e3']);
     expect(sent.every((s) => s.event === 'HR_ANNOUNCEMENT')).toBe(true);
+    // Flow 6a: each push opens this announcement.
+    expect(sent.every((s) => s.vars.announcementId === out.id)).toBe(true);
   });
 
   it('skips people with no login instead of inventing a subject id', async () => {

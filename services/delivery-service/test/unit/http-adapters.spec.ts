@@ -149,6 +149,7 @@ describe('DepotLocationHttpAdapter', () => {
 
 describe('OpsNotifierHttpAdapter', () => {
   const alert: OpsIncidentAlert = {
+    incidentId: 'inc-1',
     category: 'ACCIDENT' as never,
     severity: 'HIGH' as never,
     description: 'truck stuck',
@@ -198,7 +199,7 @@ describe('OpsNotifierHttpAdapter', () => {
 
   // J8. Same channel, but this one has to answer whether it landed — the sweep decides
   // whether to stamp the delivery on that answer, and a wrong `true` loses the breach.
-  const breach = { orderNumber: 'HM-9', minutes: 200, thresholdMinutes: 120, depotId: 'dep-1' };
+  const breach = { orderId: 'ord-9', orderNumber: 'HM-9', minutes: 200, thresholdMinutes: 120, depotId: 'dep-1' };
 
   it('POSTs a DELIVERY_SLA_BREACHED and reports success', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
@@ -207,6 +208,8 @@ describe('OpsNotifierHttpAdapter', () => {
     expect(body.event).toBe('DELIVERY_SLA_BREACHED');
     expect(body.depotId).toBe('dep-1');
     expect(body.vars).toMatchObject({
+      // Flow 6a: the id crm opens the order with.
+      orderId: 'ord-9',
       order: 'HM-9',
       minutes: '200',
       threshold: '120',
@@ -941,6 +944,7 @@ describe('OpsNotifierHttpAdapter — F8 depot routing', () => {
   it('sends the depot so crm can wake that depot’s staff', async () => {
     fetchMock.mockResolvedValue({ ok: true } as never);
     await new OpsNotifierHttpAdapter(makeConfig()).incidentReported({
+      incidentId: 'inc-1',
       category: 'ACCIDENT' as never,
       severity: 'HIGH' as never,
       description: 'truck stuck',
@@ -948,11 +952,14 @@ describe('OpsNotifierHttpAdapter — F8 depot routing', () => {
     });
     const body = JSON.parse(String((fetchMock.mock.calls.at(-1)![1] as RequestInit).body));
     expect(body).toMatchObject({ event: 'COURIER_INCIDENT', depotId: 'dep-1' });
+    // Flow 6a: the incident's id rides along for crm's destination.
+    expect(body.vars.incidentId).toBe('inc-1');
   });
 
   it('omits it entirely rather than sending null — better no push than the wrong shift', async () => {
     fetchMock.mockResolvedValue({ ok: true } as never);
     await new OpsNotifierHttpAdapter(makeConfig()).incidentReported({
+      incidentId: 'inc-2',
       category: 'ACCIDENT' as never,
       severity: 'HIGH' as never,
       description: 'truck stuck',

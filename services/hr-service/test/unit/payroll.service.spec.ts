@@ -702,7 +702,7 @@ describe('PayrollService lifecycle', () => {
       });
       repo.byId = paidFixture as PayrollWithItems;
       await svc.markPaid(user, 'p1');
-      expect(notify).toHaveBeenCalledWith('PAYSLIP_READY', '0811', { name: 'Budi', period: 'Oktober 2026' }, 'acct-1');
+      expect(notify).toHaveBeenCalledWith('PAYSLIP_READY', '0811', { name: 'Budi', period: 'Oktober 2026', payrollId: 'p1' }, 'acct-1');
     });
 
     it('does not tell anyone on approve', async () => {

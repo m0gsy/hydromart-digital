@@ -524,6 +524,8 @@ export class LeaveService {
         type: request.type,
         from: ISO_DAY(request.startDate),
         to: ISO_DAY(request.endDate),
+        // Flow 6a: crm opens this request (an id, never copy: no template names it).
+        leaveId: request.id,
       },
       supervisor.authSubjectId,
     );
@@ -548,6 +550,7 @@ export class LeaveService {
         from: ISO_DAY(request.startDate),
         to: ISO_DAY(request.endDate),
         reason: request.decisionNote ?? '-',
+        leaveId: request.id,
       },
       employee.authSubjectId,
     );

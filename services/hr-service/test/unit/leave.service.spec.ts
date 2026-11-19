@@ -441,10 +441,11 @@ describe('LeaveService.submit', () => {
 
   it('notifies the supervisor, not the applicant', async () => {
     const { sent, svc } = make();
-    await svc.submit(staff, APPLY);
+    const request = await svc.submit(staff, APPLY);
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ event: 'LEAVE_SUBMITTED', phone: SUPERVISOR.phone });
-    expect(sent[0].vars).toMatchObject({ name: 'Budi', from: '2026-07-06', to: '2026-07-10' });
+    // Flow 6a: leaveId is what the tap opens.
+    expect(sent[0].vars).toMatchObject({ name: 'Budi', from: '2026-07-06', to: '2026-07-10', leaveId: request.id });
   });
 
   // The notification is a courtesy on top of the request; approval rights come from role
@@ -556,8 +557,9 @@ describe('LeaveService approval flow', () => {
 
   it('notifies the employee on approval and on rejection', async () => {
     const ctx = make();
-    await approvedRequest(ctx);
+    const approved = await approvedRequest(ctx);
     expect(ctx.sent.map((s) => s.event)).toEqual(['LEAVE_SUBMITTED', 'LEAVE_APPROVED']);
+    expect(ctx.sent[1].vars.leaveId).toBe(approved.id);
 
     const other = make();
     const req = await other.svc.submit(staff, APPLY);

@@ -845,7 +845,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       // deliveries are the ones that get called in rather than the ones that fit.
       orderBy: { assignedAt: 'asc' },
       take: limit,
-      select: { id: true, orderNumber: true, depotId: true, assignedAt: true },
+      select: { id: true, orderId: true, orderNumber: true, depotId: true, assignedAt: true },
     });
   }
 
