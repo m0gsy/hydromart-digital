@@ -10,23 +10,18 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { ChurnCustomer } from '@/lib/types';
+import type { ChurnCustomer, ChurnRiskBand } from '@/lib/types';
 
-type Cohort = 'active' | 'slowing' | 'atRisk' | 'churned';
-
-// Recency buckets (days since last order). Real data (forecast.churn) is bucketed here.
-function cohortOf(daysSince: number): Cohort {
-  if (daysSince < 14) return 'active';
-  if (daysSince < 30) return 'slowing';
-  if (daysSince < 60) return 'atRisk';
-  return 'churned';
-}
-
-const COHORTS: { key: Cohort; accent: string }[] = [
-  { key: 'active', accent: 'bg-green-500' },
-  { key: 'slowing', accent: 'bg-amber-500' },
-  { key: 'atRisk', accent: 'bg-orange-500' },
-  { key: 'churned', accent: 'bg-red-500' },
+/*
+ * Flow plan 5b: grouped by the risk band forecast-service computes (`riskBand`), the same one
+ * the depot churn list shows. This screen used to bucket by its own day thresholds
+ * (14 / 30 / 60 days since the last order) — a second churn rule, in the client, that could
+ * call a customer "Aktif" here while the depot screen called them HIGH risk.
+ */
+const BANDS: { key: ChurnRiskBand; accent: string }[] = [
+  { key: 'HIGH', accent: 'bg-red-500' },
+  { key: 'MEDIUM', accent: 'bg-amber-500' },
+  { key: 'LOW', accent: 'bg-green-500' },
 ];
 
 function shortId(id: string): string {
@@ -45,7 +40,10 @@ export default function HqChurnPage() {
   const { toast } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
   const data = useAsync<{ customers: ChurnCustomer[] }>(() =>
-    api.get(endpoints.forecast.churn({ limit: 100, days: 90 }), true),
+    // No `days`: the server's own scoring window, the one the depot churn list asks with.
+    // HQ asked with 90 while the depot used the default (45), and the same customer got two
+    // different bands on the two screens.
+    api.get(endpoints.forecast.churn({ limit: 100 }), true),
   );
 
   async function reengage(customer: ChurnCustomer) {
@@ -71,9 +69,9 @@ export default function HqChurnPage() {
   }
 
   const customers = data.data?.customers ?? [];
-  const grouped = COHORTS.map((c) => ({
-    ...c,
-    rows: customers.filter((x) => cohortOf(x.daysSince) === c.key),
+  const grouped = BANDS.map((b) => ({
+    ...b,
+    rows: customers.filter((x) => x.riskBand === b.key),
   }));
 
   return (
@@ -87,12 +85,12 @@ export default function HqChurnPage() {
       ) : customers.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted">{t('hq.churn.emptyAll')}</p>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-3">
           {grouped.map((c) => (
             <Card key={c.key} className="flex flex-col gap-3 p-5">
               <h2 className="flex items-center gap-2 font-semibold">
                 <span className={`h-2.5 w-2.5 rounded-full ${c.accent}`} />
-                {t(`hq.churn.${c.key}`)}
+                {t(`insight.customers.risk.${c.key}`)}
                 <span className="text-sm font-normal text-muted">({c.rows.length})</span>
               </h2>
               {c.rows.length === 0 ? (
