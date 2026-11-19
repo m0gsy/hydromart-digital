@@ -198,7 +198,7 @@ export const dashB = {
     courierBusy: 'Busy · {n} active tasks',
     courierAvailable: 'Available · {n} active',
     courierOffShift: 'No open shift',
-    oneOrderRule: 'One courier may only have one active order. Busy couriers are locked.',
+    oneOrderRule: "Couriers with no open shift, or at the depot's active-order limit, are locked.",
     assignTo: 'Assign to {name}',
     assignToCourier: 'Assign to courier',
     chipAssign: 'Needs assignment',

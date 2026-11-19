@@ -14,8 +14,7 @@ import { can } from '@/lib/roles';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { courierAvailability, type CourierShift } from '@/lib/roster';
-import { dayStartWib, todayWib } from '@/lib/wib';
+import { courierAvailability, dispatchWindowStart, type CourierShift } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import { canReadRoster, whenRosterScoped } from '@/lib/drivers-scope';
 import { useDriversUrl } from '@/lib/use-drivers-url';
@@ -213,8 +212,7 @@ function AssignPanel({
           ) : (
             <ul className="flex flex-col gap-2">
               {drivers.map((d) => {
-                const { state, active } =
-                  shifts == null ? { state: 'ok' as const, active: 0 } : courierAvailability(shifts, d.id);
+                const { state, active } = courierAvailability(shifts, d.id);
                 const isBusy = state !== 'ok';
                 const isPicked = driverId === d.id;
                 return (
@@ -317,14 +315,11 @@ function QueueBody() {
   const { error, loading, reload } = queue;
 
   /*
-   * Active-driver roster joined with live deliveries → real per-courier load (design 1b).
+   * The couriers, and who of them can take another delivery (design 1b).
    *
-   * CA-2-40, the half that produces a WRONG NUMBER rather than a short list. This counted
-   * active deliveries per courier from ONE page of 100, and the operator uses that count to
-   * decide who gets the next order: a courier whose deliveries all sat past row 100 read as
-   * idle, and the queue handed them more work. So the load is counted over every page, not
-   * the first — `fetchAllPages` refuses rather than truncating if the list is ever too large
-   * to read, which is the honest failure for a number somebody assigns work by.
+   * CA-2-40: this used to count each courier's load from pages of deliveries, and a page it
+   * missed handed a busy courier more work. Flow 5b: the dispatch view counts it on the server
+   * (every active delivery, the count assign() enforces), so there is no page left to miss.
    */
   const roster = useAsync<{ drivers: Customer[]; shifts: CourierShift[] | null }>(async () => {
     // Depot staff and the supervisor roles may open this queue without being allowed the
@@ -336,14 +331,11 @@ function QueueBody() {
       // depot's cap). Null on failure, as in the order panel (C-1): every courier stays
       // selectable and delivery-service keeps the final say.
       api
-        .get<CourierShift[]>(
-          endpoints.deliveries.shiftsOnDuty(dayStartWib(todayWib()), depotFilterId ?? undefined),
-          true,
-        )
+        .get<CourierShift[]>(endpoints.deliveries.shiftsOnDuty(dispatchWindowStart()), true)
         .catch(() => null),
     ]);
     return { drivers, shifts };
-  }, [driversEndpoint, rosterReadable, depotFilterId]);
+  }, [driversEndpoint, rosterReadable]);
 
   const items = queue.rows;
   const needAssign = useMemo(() => items.filter(NEEDS_ASSIGN), [items]);

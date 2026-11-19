@@ -200,7 +200,7 @@ export const dashB = {
     courierBusy: 'Sibuk · {n} tugas aktif',
     courierAvailable: 'Tersedia · {n} tugas aktif',
     courierOffShift: 'Belum buka shift',
-    oneOrderRule: '1 kurir hanya boleh 1 order aktif. Kurir sibuk terkunci.',
+    oneOrderRule: 'Kurir yang belum buka shift atau sudah penuh (batas order aktif depot) terkunci.',
     assignTo: 'Tugaskan ke {name}',
     assignToCourier: 'Tugaskan ke kurir',
     chipAssign: 'Perlu ditugaskan',

@@ -4,7 +4,7 @@ import {
   deriveRoster,
   dispatchableDrivers,
   type CourierShift,
-  type RosterRow, courierAvailability } from '@/lib/roster';
+  type RosterRow, courierAvailability, dispatchWindowStart } from '@/lib/roster';
 import type { Customer, Delivery } from '@/lib/types';
 
 const DEPOT_A = 'depot-a';
@@ -179,5 +179,16 @@ describe('courierAvailability (flow 5b: one rule for both assign pickers)', () =
     const old: CourierShift = shift();
     delete old.canTakeDelivery;
     expect(courierAvailability([old], 'd1').state).toBe('ok');
+  });
+});
+
+describe('the dispatch window both pickers ask about', () => {
+  it('reaches back 24 hours, so a shift opened before midnight still counts', () => {
+    const now = Date.parse('2026-11-19T18:00:00.000Z'); // 01:00 WIB
+    expect(dispatchWindowStart(now)).toBe('2026-11-18T18:00:00.000Z');
+  });
+
+  it('an unread dispatch view greys nobody out: the server decides (C-1)', () => {
+    expect(courierAvailability(null, 'd1')).toEqual({ state: 'ok', active: 0 });
   });
 });

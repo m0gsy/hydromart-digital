@@ -22,11 +22,10 @@ import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
 import { canReadRoster } from '@/lib/drivers-scope';
 import { can, canConfirmPayment } from '@/lib/roles';
-import { courierAvailability, type CourierShift } from '@/lib/roster';
+import { courierAvailability, dispatchWindowStart, type CourierShift } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import { canOpenRoute } from '@/lib/route-access';
 import type { Customer, Delivery, Order, Page, Payment } from '@/lib/types';
-import { dayStartWib, todayWib } from '@/lib/wib';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
 
@@ -256,12 +255,10 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
   // assignment to a courier with no open shift, so offering them here only produced a
   // rejection after the click — the dropdown says so up front instead.
   const { data: shifts } = useAsync<CourierShift[] | null>(() => {
-    // WEB-13: the start of the business day (WIB), not of the device's day.
-    const since = dayStartWib(todayWib());
     return (
       api
         .get<CourierShift[]>(
-          endpoints.deliveries.shiftsOnDuty(since, order.depotId ?? undefined),
+          endpoints.deliveries.shiftsOnDuty(dispatchWindowStart()),
           true,
         )
         /*
@@ -346,8 +343,7 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
             <option value="">{t('hrFix.orderDetail.pickCourier')}</option>
             {drivers.data.map((d) => {
               // Flow 5b: the same rule as the queue's picker — the server's answer (shift + cap).
-              const { state, active } =
-                shifts == null ? { state: 'ok' as const, active: 0 } : courierAvailability(shifts, d.id);
+              const { state, active } = courierAvailability(shifts ?? null, d.id);
               return (
                 <option key={d.id} value={d.id} disabled={state !== 'ok'}>
                   {d.fullName || d.phone}

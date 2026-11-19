@@ -50,13 +50,25 @@ export interface CourierShift {
  * ones it refuses. Both now read the server's own answer.
  */
 export function courierAvailability(
-  shifts: readonly CourierShift[],
+  shifts: readonly CourierShift[] | null,
   driverId: string,
 ): { state: 'ok' | 'offshift' | 'busy'; active: number } {
+  // C-1: null = the dispatch view could not be read. Nobody is greyed out; the server decides.
+  if (shifts == null) return { state: 'ok', active: 0 };
   const open = shifts.find((s) => s.driverId === driverId && s.acceptsAssignments);
   if (!open) return { state: 'offshift', active: 0 };
   return { state: open.canTakeDelivery === false ? 'busy' : 'ok', active: open.activeDeliveries ?? 0 };
 }
+
+/**
+ * The window both assign pickers ask the dispatch view about: the last 24 hours, NOT the
+ * business day — a shift opened at 22:00 is still open at 01:00 and the server will assign to
+ * it. No depot filter either: the server's shift check is not tied to a depot (a courier on
+ * shift at another depot can be assigned), and the route already limits the answer to the
+ * caller's scope.
+ */
+export const dispatchWindowStart = (now: number = Date.now()): string =>
+  new Date(now - 24 * 3_600_000).toISOString();
 
 /** Couriers with a shift that is open AND accepting work, by account id. */
 export function dispatchableDrivers(shifts: readonly CourierShift[]): Set<string> {
