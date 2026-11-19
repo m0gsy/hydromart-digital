@@ -597,6 +597,15 @@ export class OrderPrismaRepository implements OrderRepository {
       // Audit F-12: matched over the whole table, not over whatever page the browser
       // happened to hold. `orderNumber` is already indexed for its unique constraint.
       ...(term ? { orderNumber: { contains: term, mode: 'insensitive' as const } } : {}),
+      // Flow 8c-1: half-open, the same as reportWhere. (depotId, createdAt) is indexed.
+      ...(query.from || query.to
+        ? {
+            createdAt: {
+              ...(query.from ? { gte: query.from } : {}),
+              ...(query.to ? { lt: query.to } : {}),
+            },
+          }
+        : {}),
     };
     const [rows, total] = await Promise.all([
       this.prisma.order.findMany({

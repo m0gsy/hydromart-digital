@@ -414,6 +414,9 @@ export class InMemoryOrderRepository implements OrderRepository {
           ? r.orderNumber.toLowerCase().includes(query.orderNumber.trim().toLowerCase())
           : true,
       )
+      // The repository's createdAt window, half-open (flow 8c-1).
+      .filter((r) => !query.from || r.createdAt >= query.from)
+      .filter((r) => !query.to || r.createdAt < query.to)
       .filter(
         (r) =>
           query.unrouted ||
