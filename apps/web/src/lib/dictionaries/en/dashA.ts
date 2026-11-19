@@ -230,7 +230,7 @@ export const dashA = {
     orderRef: 'Order number',
     orderRefPlaceholder: 'ORD-2418',
     orderRefHint: 'Type 3 or more characters to search this depot’s orders.',
-    pickDepot: 'Pick a depot first, or open this from the order panel.',
+    otherDepot: 'This order belongs to another depot. Switch to that depot to record its dispute.',
     customerName: 'Customer name',
     customerNamePlaceholder: 'Rina Hapsari',
     categoryLabel: 'Category',

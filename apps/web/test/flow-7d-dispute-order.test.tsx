@@ -10,9 +10,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, post, who, query, depot } = vi.hoisted(() => ({
+const { get, post, replace, who, query, depot } = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
+  replace: vi.fn(),
   who: { role: 'KEPALA_DEPOT' },
   query: { params: {} as Record<string, string> },
   depot: { scopedId: 'd-1' as string | null },
@@ -39,7 +40,7 @@ vi.mock('@/components/require-auth', () => ({
 }));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: (k: string) => query.params[k] ?? null }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace, back: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/dashboard/disputes',
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -50,11 +51,12 @@ import { ConfirmProvider } from '@/components/confirm';
 import DisputesPage from '@/app/dashboard/disputes/page';
 import { OrderDetail } from '@/components/dashboard/order-detail';
 
+const OID = '7b0c2a51-3f4e-4d6a-9b1c-2e8f0a9d4c11';
 const ORDER = {
-  id: 'o-1',
+  id: OID,
   orderNumber: 'HM-261119-007',
   status: 'DELIVERED',
-  depotId: 'd-2',
+  depotId: 'd-1',
   recipientName: 'Rina Hapsari',
   phone: '0811',
   deliveryAddress: 'Jl. Dua',
@@ -73,8 +75,9 @@ beforeEach(() => {
   query.params = {};
   depot.scopedId = 'd-1';
   post.mockReset().mockResolvedValue({});
+  replace.mockReset();
   get.mockReset().mockImplementation(async (path: string) => {
-    if (path.includes('/orders/api/v1/orders/manage/o-1')) return ORDER;
+    if (path.includes(`/orders/api/v1/orders/manage/${OID}`)) return ORDER;
     if (path.includes('/orders/api/v1/orders/manage')) return { items: [ORDER], total: 1, page: 1, limit: 5 };
     if (path.includes('order-disputes')) return [];
     return { items: [] };
@@ -123,10 +126,8 @@ describe('the order number searches, and a pick fills the names', () => {
 });
 
 describe('opened from the order panel', () => {
-  it('?order= opens the form filled, and files it under that order’s depot', async () => {
-    query.params = { order: 'o-1' };
-    // "Semua depot": no scoped depot, and the door must still open.
-    depot.scopedId = null;
+  it('?order= opens the form filled; saved, the link is dropped', async () => {
+    query.params = { order: OID };
     draw(<DisputesPage />);
     await waitFor(() => expect(field(/Nomor order/).value).toBe('HM-261119-007'));
     expect(field(/Nama pelanggan/).value).toBe('Rina Hapsari');
@@ -134,17 +135,42 @@ describe('opened from the order panel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Simpan sengketa' }));
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect(post.mock.calls[0]![1]).toMatchObject({
-      depotId: 'd-2',
+      depotId: 'd-1',
       orderRef: 'HM-261119-007',
       customerName: 'Rina Hapsari',
       courierName: 'Budi Santoso',
     });
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/dashboard/disputes'));
+  });
+
+  it('an order of another depot is refused, not filed where this list never shows it', async () => {
+    get.mockImplementation(async (path: string) => {
+      if (path.includes(`/orders/api/v1/orders/manage/${OID}`)) return { ...ORDER, depotId: 'd-2' };
+      return [];
+    });
+    query.params = { order: OID };
+    draw(<DisputesPage />);
+    expect(await screen.findByText(/milik depot lain/)).toBeTruthy();
+    expect(field(/Nomor order/).value).toBe('');
+  });
+
+  it('a link that is not an order id asks nothing', async () => {
+    query.params = { order: '../../customers/api/v1/x' };
+    draw(<DisputesPage />);
+    await screen.findByLabelText(/Nomor order/);
+    expect(get.mock.calls.some((c) => String(c[0]).includes('customers'))).toBe(false);
   });
 
   it('the order panel links there for a role that records disputes', async () => {
     draw(<OrderDetail order={ORDER as never} onClose={() => {}} onChanged={() => {}} />);
     const link = await screen.findByRole('link', { name: /Catat sengketa/ });
-    expect(link.getAttribute('href')).toBe('/dashboard/disputes?order=o-1');
+    expect(link.getAttribute('href')).toBe(`/dashboard/disputes?order=${OID}`);
+  });
+
+  it('nor for an order of a depot this console is not showing', async () => {
+    draw(<OrderDetail order={{ ...ORDER, depotId: 'd-2' } as never} onClose={() => {}} onChanged={() => {}} />);
+    await screen.findByText('HM-261119-007');
+    expect(screen.queryByRole('link', { name: /Catat sengketa/ })).toBeNull();
   });
 
   it('and not for one that does not', async () => {

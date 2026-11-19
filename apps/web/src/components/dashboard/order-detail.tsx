@@ -512,7 +512,11 @@ export function OrderDetail({
             </p>
           )}
           {/* Flow PR-7d: a dispute about THIS order, its form already filled. */}
-          {can('depotDisputes', customer?.role) && isServedHere('/dashboard/disputes') && (
+          {/* This console's depot only, like the links above: a dispute is filed under the
+              depot whose list shows it. */}
+          {order.depotId === scopedId &&
+            can('depotDisputes', customer?.role) &&
+            isServedHere('/dashboard/disputes') && (
             <p className="mt-1">
               <EntityLink href={`/dashboard/disputes?order=${encodeURIComponent(order.id)}`}>
                 {t('dashA.disputes.createTitle')}

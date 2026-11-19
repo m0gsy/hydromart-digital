@@ -231,7 +231,7 @@ export const dashA = {
     orderRef: 'Nomor order',
     orderRefPlaceholder: 'ORD-2418',
     orderRefHint: 'Ketik 3 karakter atau lebih untuk mencari order depot ini.',
-    pickDepot: 'Pilih depot dulu, atau buka dari panel order.',
+    otherDepot: 'Order ini milik depot lain. Pindah ke depot itu dulu untuk mencatat sengketanya.',
     customerName: 'Nama pelanggan',
     customerNamePlaceholder: 'Rina Hapsari',
     categoryLabel: 'Kategori',
