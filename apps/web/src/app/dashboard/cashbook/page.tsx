@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowUp, BookOpen, Export, Lock, Plus, type Icon } from '@phosphor-icons/react';
 
@@ -29,19 +29,9 @@ import { can } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
 import type { CashDirection, CashbookEntry, CashbookResponse } from '@/lib/types';
-import { todayWib } from '@/lib/wib';
+import { BUSINESS_TZ, dateInDaysWib, dayStartWib, todayWib } from '@/lib/wib';
 
-const TODAY = new Intl.DateTimeFormat('id-ID', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-}).format(new Date());
-const timeFmt = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit' });
-const startOfTodayIso = () => {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-};
+const timeFmt = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: BUSINESS_TZ });
 
 function StatCard({
   label,
@@ -193,13 +183,27 @@ function CashbookBody() {
     }
   }
 
-  const book = useAsync<CashbookResponse>(
+  // Flow 8c-2: any WIB day, not "today in the browser's zone". The window was the browser's
+  // midnight with no end, so a phone set to another zone read a different day.
+  const [day, setDay] = useState(() => todayWib());
+  const isToday = day === todayWib();
+  const dayLabel = useMemo(
     () =>
-      scopedId
-        ? api.get(endpoints.cashbook.list({ depotId: scopedId, from: startOfTodayIso() }), true)
-        : Promise.resolve({ entries: [], summary: { inIdr: 0, outIdr: 0, netIdr: 0 } }),
-    [scopedId],
+      new Date(dayStartWib(day)).toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        timeZone: BUSINESS_TZ,
+      }),
+    [day],
   );
+  const book = useAsync<CashbookResponse>(() => {
+    if (!scopedId) return Promise.resolve({ entries: [], summary: { inIdr: 0, outIdr: 0, netIdr: 0 } });
+    const from = dayStartWib(day);
+    // The next day's first instant: the server reads `to` exclusive.
+    const to = dayStartWib(dateInDaysWib(1, new Date(from)));
+    return api.get(endpoints.cashbook.list({ depotId: scopedId, from, to }), true);
+  }, [scopedId, day]);
 
   const summary = book.data?.summary ?? { inIdr: 0, outIdr: 0, netIdr: 0 };
   // Newest first — server order isn't guaranteed, sort by occurredAt desc.
@@ -223,7 +227,6 @@ function CashbookBody() {
       e.direction === 'IN' ? e.amountIdr : '',
       e.direction === 'OUT' ? e.amountIdr : '',
     ]);
-    const day = todayWib();
     if (format === 'csv') {
       downloadCsv(`buku-kas-${day}.csv`, toCsv(headers, rows));
       return;
@@ -238,10 +241,24 @@ function CashbookBody() {
           <BookOpen size={24} weight="fill" className="text-brand-500" />
           <div>
             <h1 className="text-2xl font-bold">{t('opsFix.cashbook.title')}</h1>
-            <p className="text-sm text-[color:var(--text-muted)]">{TODAY}</p>
+            <p className="text-sm text-[color:var(--text-muted)]">{dayLabel}</p>
           </div>
         </div>
-        <Chip tone="tint">{t('opsFix.cashbook.today')}</Chip>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {isToday && <Chip tone="tint">{t('opsFix.cashbook.today')}</Chip>}
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted">{t('opsFix.cashbook.day')}</span>
+            <Input
+              type="date"
+              className="w-auto"
+              value={day}
+              max={todayWib()}
+              onChange={(e) => {
+                if (e.target.value) setDay(e.target.value);
+              }}
+            />
+          </label>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3">
@@ -252,7 +269,9 @@ function CashbookBody() {
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold">{t('opsFix.cashbook.todayTx')}</p>
+        <p className="text-sm font-semibold">
+          {isToday ? t('opsFix.cashbook.todayTx') : t('opsFix.cashbook.dayTx')}
+        </p>
         <Button variant="secondary" onClick={() => setShowForm((v) => !v)}>
           <Plus size={16} weight="bold" />
           {t('opsFix.cashbook.record')}
@@ -266,7 +285,9 @@ function CashbookBody() {
           depotId={scopedId}
           onDone={() => {
             setShowForm(false);
-            book.reload();
+            // A new entry is dated now: show the day it landed on.
+            if (isToday) book.reload();
+            else setDay(todayWib());
           }}
         />
       )}

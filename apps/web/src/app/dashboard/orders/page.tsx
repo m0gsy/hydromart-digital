@@ -6,7 +6,7 @@ import { ClipboardText, Lock, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { OrderDetail } from '@/components/dashboard/order-detail';
-import { Badge, Button, Card, CenterState, ErrorState, ListFooter, Money, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, CenterState, ErrorState, Input, ListFooter, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { statusLabel, tone } from '@/lib/order-status';
@@ -19,6 +19,7 @@ import { useAsync } from '@/lib/use-async';
 import { canReadRoster, whenRosterScoped } from '@/lib/drivers-scope';
 import { useDriversUrl } from '@/lib/use-drivers-url';
 import { usePagedList } from '@/lib/use-paged-list';
+import { useDebounce } from '@/lib/use-debounce';
 import type { Customer, Order, Page } from '@/lib/types';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
@@ -304,13 +305,22 @@ function QueueBody() {
    * busy depot the "Antrean" tab was the first hundred orders' worth of work and the rest
    * did not exist — including, on a network-wide view, every order older than the hundredth.
    */
+  // Flow 8c-2: an order is found by its number over the whole table (order-service matches
+  // the substring), not by scrolling pages of the queue for it.
+  const [search, setSearch] = useState('');
+  const term = useDebounce(search.trim());
   const queue = usePagedList<Order>(
     (page) =>
       api.get<Page<Order>>(
-        endpoints.orders.manage({ depotId: depotFilterId ?? undefined, page, limit: 100 }),
+        endpoints.orders.manage({
+          depotId: depotFilterId ?? undefined,
+          page,
+          limit: 100,
+          orderNumber: term || undefined,
+        }),
         true,
       ),
-    [depotFilterId],
+    [depotFilterId, term],
   );
   const { error, loading, reload } = queue;
 
@@ -400,7 +410,8 @@ function QueueBody() {
         {/* CA-2-40: and only once every page is in. A backlog counted from part of the
             queue is not a smaller number, it is a wrong one — and this badge is what a
             depot manager reads to decide whether they are on top of the day. */}
-        {backlog > 0 && !queue.hasMore && (
+        {/* A search narrows the list, so a count of it is not the backlog. */}
+        {backlog > 0 && !queue.hasMore && !term && (
           <Badge tone="warning">{t('dashB.orders.backlog', { n: backlog })}</Badge>
         )}
       </div>
@@ -422,6 +433,14 @@ function QueueBody() {
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         {/* Left: queue */}
         <div className="flex flex-col gap-3">
+          <Input
+            type="search"
+            value={search}
+            maxLength={40}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('dashB.orders.searchPlaceholder')}
+            aria-label={t('dashB.orders.search')}
+          />
           <div className="flex flex-wrap gap-2">
             {CHIPS.map((c) => (
               <button
@@ -444,9 +463,11 @@ function QueueBody() {
             <ErrorState message={error} onRetry={reload} />
           ) : list.length === 0 ? (
             <CenterState title={t('dashB.orders.emptyQueue')} icon={<ClipboardText size={40} weight="fill" />}>
-              {group === 'assign'
-                ? t('dashB.orders.emptyAssign')
-                : t('dashB.orders.emptyProcess')}
+              {term
+                ? t('dashB.orders.noMatch')
+                : group === 'assign'
+                  ? t('dashB.orders.emptyAssign')
+                  : t('dashB.orders.emptyProcess')}
             </CenterState>
           ) : (
             <div className="overflow-x-auto">

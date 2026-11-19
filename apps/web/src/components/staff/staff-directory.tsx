@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { UserGear } from '@phosphor-icons/react';
 
 import { useConfirm } from '@/components/confirm';
-import { Badge, Card, CenterState, ErrorState, ListFooter, Skeleton } from '@/components/ui';
+import { Badge, Card, CenterState, ErrorState, Input, ListFooter, Skeleton } from '@/components/ui';
 import { HR_MANAGED_ROLES } from '@hydromart/access';
 
 import { api, ApiError } from '@/lib/api';
@@ -16,6 +16,7 @@ import { can } from '@/lib/roles';
 import { fetchAllDepots } from '@/lib/all-depots';
 import { useAsync } from '@/lib/use-async';
 import { usePagedList } from '@/lib/use-paged-list';
+import { useDebounce } from '@/lib/use-debounce';
 import type { Customer, DepotAdmin, Page } from '@/lib/types';
 import { roleLabel } from '@/lib/custom-role';
 import { useCustomRoles } from '@/lib/use-custom-roles';
@@ -108,16 +109,19 @@ export function StaffDirectory({
   // same answer for its invite and import.
   const canAdminStaff = can('staffAdmin', customer?.role);
   const [roleFilter, setRoleFilter] = useState('');
+  // Flow 8c-2: by name or phone over every account (auth-service matches), not by paging.
+  const [search, setSearch] = useState('');
+  const term = useDebounce(search.trim());
 
   // Flow PR-8a: The directory walks pages and says "N dari total"; it stopped at a fixed count and
   // drew that as the whole list.
   const list = usePagedList<Customer>(
     (page) =>
       api.get<Page<Customer>>(
-        endpoints.auth.staff({ page, limit: 50, role: roleFilter || undefined }),
+        endpoints.auth.staff({ page, limit: 50, role: roleFilter || undefined, search: term || undefined }),
         true,
       ),
-    [roleFilter],
+    [roleFilter, term],
   );
   const items = list.rows;
   // Fail-soft: with no depot list the rows still render, they just cannot be moved.
@@ -156,6 +160,15 @@ export function StaffDirectory({
     <div className="flex flex-col gap-5">
       {header({ reload: reloadAll, canAdmin: canAdminStaff })}
 
+      <Input
+        type="search"
+        value={search}
+        maxLength={80}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={t('hq.staff.searchPlaceholder')}
+        aria-label={t('hq.staff.search')}
+      />
+
       {/* Role filter chips */}
       <div className="flex flex-wrap gap-2">
         <FilterChip active={roleFilter === ''} onClick={() => setRoleFilter('')}>
@@ -173,7 +186,10 @@ export function StaffDirectory({
       ) : list.error && items.length === 0 ? (
         <ErrorState message={list.error} onRetry={list.reload} />
       ) : items.length === 0 ? (
-        <CenterState title={t('hq.staff.empty')} icon={<UserGear size={40} weight="fill" />} />
+        <CenterState
+          title={term ? t('hq.staff.noMatch') : t('hq.staff.empty')}
+          icon={<UserGear size={40} weight="fill" />}
+        />
       ) : (
         <div className="flex flex-col gap-2.5">
           {items.map((s) => {

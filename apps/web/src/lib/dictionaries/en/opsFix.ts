@@ -845,6 +845,8 @@ export const opsFix = {
     out: 'Out',
     net: 'Net cash',
     todayTx: 'Entries today',
+    dayTx: 'Entries on this date',
+    day: 'Date',
     record: 'Record cash',
     category: 'Category',
     categoryPlaceholder: 'e.g. Sales, Purchase',
