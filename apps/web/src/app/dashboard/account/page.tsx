@@ -14,6 +14,7 @@ import {
   SignOut,
   Sun,
   Truck,
+  UserCircle,
   WarningCircle,
   type Icon,
 } from '@phosphor-icons/react';
@@ -181,6 +182,19 @@ function AccountBody() {
           {t('dashA.account.accountSection')}
         </p>
         <Card className="divide-y divide-app p-0">
+          {/* The operator screen named "Data akun" and opened nothing; it opens the profile editor now. */}
+          <Link href="/account/edit" className="flex w-full items-center gap-3 p-4 text-left">
+            <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
+              <UserCircle size={18} weight="fill" />
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold">{t('dashB.operatorSettings.accountData')}</p>
+              <p className="text-[11px] text-[color:var(--text-muted)]">
+                {t('dashB.operatorSettings.accountDataSub')}
+              </p>
+            </div>
+            <CaretRight size={15} className="text-[color:var(--text-muted)]" />
+          </Link>
           <DevicePushRow />
           <div className="flex items-center gap-3 p-4">
             <span className="flex size-9 items-center justify-center rounded-xl bg-brand-50 text-brand-700">
