@@ -3088,7 +3088,7 @@ export interface DepotRatingsReport {
   }[];
 }
 
-/** The four terms behind `netProfitIdr`; each null when its owning service could not be read. */
+/** The cash terms behind `netCashFlowIdr` (arus kas bersih); each null when its owning service could not be read. */
 export interface ReportProfitBreakdown {
   revenueIdr: number;
   /** Purchases RECEIVED in the month, not accrual cost of goods sold — the catalog has no unit cost. */

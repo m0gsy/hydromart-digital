@@ -8,12 +8,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * renames its own old figure to what it is, arus kas bersih. The month is picked at render,
  * and the month-close panel follows the pick.
  */
-const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
+const { get, post, who } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), who: { role: 'MANAGER' } }));
 
 vi.mock('@/lib/api', () => ({ api: { get, post }, ApiError: class extends Error {} }));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({
-    customer: { id: 'u1', role: 'MANAGER', fullName: 'Bu Ani' },
+    customer: { id: 'u1', role: who.role, fullName: 'Bu Ani' },
     ready: true,
     signOut: vi.fn(),
   }),
@@ -89,6 +89,7 @@ const serve = (over: { review?: unknown; pnl?: unknown; pnlFails?: boolean } = {
 beforeEach(() => {
   get.mockReset();
   post.mockReset();
+  who.role = 'MANAGER';
 });
 
 describe('the monthly review (flow 5a-3)', () => {
@@ -150,6 +151,32 @@ describe('the monthly review (flow 5a-3)', () => {
     expect(await screen.findByText('hrFix.monthlyReview.profitUnread')).toBeTruthy();
     // The cash figure still shows, under its own name only.
     expect(screen.getByText('Rp 630.000')).toBeTruthy();
+  });
+
+  it('does not ask a head of depot for the P&L they may not open, nor show its figure', async () => {
+    who.role = 'KEPALA_DEPOT';
+    serve();
+    render(<MonthlyReviewPage />);
+
+    expect(await screen.findByText('Rp 630.000')).toBeTruthy();
+    expect(get.mock.calls.some((c) => String(c[0]).includes('monthly-pnl'))).toBe(false);
+    expect(screen.queryByText('hrFix.monthlyReview.netProfit')).toBeNull();
+  });
+
+  it("never shows one month's profit under another month's name", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-12-02T03:00:00.000Z'));
+    serve();
+    render(<MonthlyReviewPage />);
+    expect(await screen.findByText('Rp 300.000')).toBeTruthy();
+
+    // The P&L for the newly picked month fails: the old figure must go, not linger.
+    serve({ pnlFails: true });
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '2026-11' } });
+
+    expect(await screen.findByText('hrFix.monthlyReview.profitUnread')).toBeTruthy();
+    expect(screen.queryByText('Rp 300.000')).toBeNull();
+    vi.useRealTimers();
   });
 
   it('reads the old name of the cash figure from an order-service that predates 5a-3', async () => {

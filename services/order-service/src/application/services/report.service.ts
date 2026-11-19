@@ -342,7 +342,7 @@ export interface DepotMonthlyReport {
    */
   netProfitIdr: number | null;
   /**
-   * The terms behind `netProfitIdr`, each null when its owning service could not be read.
+   * The terms behind `netCashFlowIdr`, each null when its owning service could not be read.
    *
    * Present even when the net is null — knowing WHICH half failed is what turns "—" from a
    * dead end into something an operator can chase. `cogsIdr` is purchases received in the
@@ -1327,7 +1327,7 @@ export class ReportService {
           revenueIdr,
           slaPct: onTime === null ? null : Math.round(onTime * 1000) / 10,
           wastageGallons: returns ? returns.damaged : null,
-          netProfitIdr: ReportService.netProfit(revenueIdr, {
+          netProfitIdr: ReportService.netCashFlow(revenueIdr, {
             cogsIdr: costs ? costs.cogsIdr : null,
             opexIdr: costs ? costs.opexIdr : null,
             payrollIdr,
@@ -1382,6 +1382,8 @@ export class ReportService {
       opexIdr: costs ? costs.opexIdr : null,
       payrollIdr,
     };
+    // ORD-08: from the NET revenue, so a refunded sale does not read as money kept.
+    const netCashFlowIdr = ReportService.netCashFlow(revenueIdr - refundedIdr, breakdown);
 
     return {
       depotId,
@@ -1391,9 +1393,8 @@ export class ReportService {
       refundedIdr,
       netRevenueIdr: revenueIdr - refundedIdr,
       activeCustomers: new Set(live.map((r) => r.customerId)).size,
-      // ORD-08: from the NET revenue, so a refunded sale does not read as money kept.
-      netCashFlowIdr: ReportService.netProfit(revenueIdr - refundedIdr, breakdown),
-      netProfitIdr: ReportService.netProfit(revenueIdr - refundedIdr, breakdown),
+      netCashFlowIdr,
+      netProfitIdr: netCashFlowIdr,
       profitBreakdown: { revenueIdr, ...breakdown },
       // Percent, to one decimal — the screen prints a percentage, and rounding to whole
       // points turns 87,6% into 88% right at the band the HQ dashboard reacts to.
@@ -1411,7 +1412,9 @@ export class ReportService {
   }
 
   /**
-   * Revenue minus every cost term — or null the moment one term is missing.
+   * Arus kas: revenue minus every cash term — or null the moment one term is missing. NOT laba
+   * bersih, which is `netProfit` in @hydromart/platform (served by dashboard-service). The
+   * depot comparison still labels this figure profit until flow 5b moves it.
    *
    * **Fail-closed on purpose.** Treating an unreachable hr-service as "payroll was zero"
    * would publish a profit inflated by the depot's entire wage bill, and it would look
@@ -1422,7 +1425,7 @@ export class ReportService {
    * catalog carries no per-unit cost price, so a month with one big delivery reads as a
    * thin month. The breakdown is what lets a reader see that rather than be misled by it.
    */
-  private static netProfit(revenueIdr: number, costs: DepotCostBreakdown): number | null {
+  private static netCashFlow(revenueIdr: number, costs: DepotCostBreakdown): number | null {
     const terms = [costs.cogsIdr, costs.payrollIdr, costs.opexIdr];
     if (terms.some((t) => t === null)) return null;
     return terms.reduce((net: number, t) => net - (t as number), revenueIdr);

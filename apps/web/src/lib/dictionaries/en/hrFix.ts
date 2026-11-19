@@ -1752,7 +1752,7 @@ export const hrFix = {
     termRevenue: 'revenue',
     termPayout: 'commission & claims',
     termRefund: 'refunds',
-    payrollPending: "this month's payroll not run yet",
+    payrollPending: "that month's payroll not run yet",
     profitUnread: 'P&L could not be read',
     unreadTerms: 'not read yet: {terms}',
     profitFormula: 'P&L formula: revenue − COGS − wages − commission − claims − refunds',

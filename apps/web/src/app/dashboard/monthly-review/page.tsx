@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
 import { recentMonthsWib } from '@/lib/wib';
 
@@ -12,7 +12,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
-import { can, canViewMonthlyClose } from '@/lib/roles';
+import { can, canViewDashboard, canViewMonthlyClose } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { OperationalMonthlyPnl, ReportDepotMonthly } from '@/lib/types';
 
@@ -165,8 +165,13 @@ function MonthlyReviewBody() {
   const depot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
   const depotName = depot ? `${depot.name}` : 'Depot';
 
-  const months = useMemo(() => recentMonthsWib(12), []);
+  // Not memoised: the Ops app stays open for days, and a list frozen at mount would never
+  // offer the month that began after it opened. Twelve dates a render is nothing.
+  const months = recentMonthsWib(12);
   const [monthKey, setMonthKey] = useState(months[0]!.key);
+  // KEPALA_DEPOT may review and seal the month but not open the P&L (canViewDashboard), so it
+  // is neither asked for laba bersih nor shown it; the cash figure below is theirs.
+  const mayPnl = canViewDashboard(customer?.role);
   const monthLabel = months.find((m) => m.key === monthKey)?.label ?? monthKey;
 
   const review = useAsync<ReportDepotMonthly | null>(
@@ -180,14 +185,16 @@ function MonthlyReviewBody() {
   // screen, /dashboard/monthly-pnl and /hq/pnl cannot show three numbers for one month.
   const pnl = useAsync<OperationalMonthlyPnl | null>(
     () =>
-      depot
+      depot && mayPnl
         ? api.get(endpoints.dashboard.monthlyPnl(depot.id, monthKey), true)
         : Promise.resolve(null),
-    [depot?.id, monthKey],
+    [depot?.id, monthKey, mayPnl],
   );
 
   const r = review.data;
-  const p = pnl.data;
+  // useAsync keeps the last data while a new month loads and after a failure; showing it would
+  // put one month's profit under another month's name.
+  const p = pnl.loading || pnl.error ? null : pnl.data;
   /**
    * "—" here now means one named service could not be read, not "nobody ever built this".
    * The caption says which, because a manager who can see that payroll is the missing term
@@ -223,7 +230,7 @@ function MonthlyReviewBody() {
     ].filter(Boolean);
     return t('hrFix.monthlyReview.unreadTerms', { terms: missing.join(', ') });
   };
-  const stats: Stat[] = [
+  const allStats: Stat[] = [
     {
       label: t('hrFix.monthlyReview.orders'),
       value: r ? r.orders.toLocaleString('id-ID') : '—',
@@ -248,6 +255,9 @@ function MonthlyReviewBody() {
       caption: profitCaption(),
     },
   ];
+  const stats = mayPnl
+    ? allStats
+    : allStats.filter((s) => s.label !== t('hrFix.monthlyReview.netProfit'));
 
   /**
    * Arus kas bersih (owner decision 2026-11-17): what the month's books took in and paid out,
@@ -403,7 +413,7 @@ function MonthlyReviewBody() {
             <Panel title={t('hrFix.monthlyReview.teamCustomers')} rows={team} />
           </div>
 
-          {depot && <MonthlyClose depotId={depot.id} monthKey={monthKey} />}
+          {depot && <MonthlyClose key={monthKey} depotId={depot.id} monthKey={monthKey} />}
         </>
       )}
 

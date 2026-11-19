@@ -1771,7 +1771,7 @@ export const hrFix = {
     termRevenue: 'omzet',
     termPayout: 'komisi & klaim',
     termRefund: 'refund',
-    payrollPending: 'gaji bulan ini belum dihitung',
+    payrollPending: 'gaji bulan itu belum dihitung',
     profitUnread: 'laporan L/R tidak terbaca',
     unreadTerms: 'belum terbaca: {terms}',
     profitFormula: 'rumus laporan L/R: omzet − HPP − gaji − komisi − klaim − refund',
