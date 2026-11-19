@@ -155,7 +155,6 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/promotions', labelKey: 'promotions', cap: 'promotionRead' },
       { href: '/hq/promo-rules', labelKey: 'promoRules', cap: 'promoRuleRead' },
       { href: '/hq/vouchers', labelKey: 'vouchers', cap: 'voucherRead' },
-      { href: '/hq/broadcast', labelKey: 'broadcast', cap: 'campaignWrite' },
       // Depot managers reach the same screen from the ops rail (J10).
       { href: '/resellers', labelKey: 'resellers', cap: 'resellerView' },
     ],
@@ -204,7 +203,6 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/forms/pricing-rule', labelKey: 'formPricingRule', cap: 'depotAdmin' },
       { href: '/hq/forms/voucher', labelKey: 'formVoucher', cap: 'voucherWrite' },
       { href: '/hq/forms/commission', labelKey: 'formCommission', cap: 'commissionRead' },
-      { href: '/hq/forms/segment', labelKey: 'formSegment', cap: 'campaignWrite' },
       { href: '/hq/staff/import', labelKey: 'staffImport', cap: 'staffAdmin' },
       { href: '/hq/depots/import', labelKey: 'depotImport', cap: 'depotLifecycle' },
     ],
@@ -242,8 +240,9 @@ export const PARTIAL_HQ_DOOR: Record<string, readonly string[] | undefined> = {
     '/hq/loyalty', // rewardCatalog
     '/hq/customers', // customerPhoneLookup + loyaltyAdjust/loyaltyRead
     '/hq/campaigns', // campaignRead: schedule
-    '/hq/forms/segment', // saved segments
-    '/hq/broadcast', // audienceReach + send
+    // Flow 5c: both now only redirect to the campaign builder; kept so an old link lands there.
+    '/hq/forms/segment',
+    '/hq/broadcast',
   ],
 };
 
@@ -280,15 +279,26 @@ export function hqItemsForRole(role: Role): HqRailItem[] {
  */
 export function capForHqPath(pathname: string | null | undefined): Capability | null {
   if (!pathname) return null;
+  const at = MOVED[normalisePath(pathname)] ?? pathname;
   let best: { href: string; cap?: Capability } | null = null;
   for (const group of HQ_GROUPS) {
     for (const item of group.items) {
-      if (pathname !== item.href && !pathname.startsWith(`${item.href}/`)) continue;
+      if (at !== item.href && !at.startsWith(`${item.href}/`)) continue;
       if (!best || item.href.length > best.href.length) best = item;
     }
   }
   return best?.cap ?? null;
 }
+
+/**
+ * Flow 5c: screens folded into another. Their routes only redirect, gated as the screen they
+ * lead to: without a row of their own they fell to the overview's gate, and the role the old
+ * screen was for met a refusal instead of the redirect.
+ */
+const MOVED: Record<string, string> = {
+  '/hq/broadcast': '/hq/campaigns',
+  '/hq/forms/segment': '/hq/campaigns',
+};
 
 /**
  * Flow PR-3c: the HQ hubs a role sees. The rail and the phone bar show one row per hub; the
@@ -324,13 +334,12 @@ export function hqLandingItems(role: Role): HqRailItem[] {
 
 /**
  * A form reached by a button belongs to the list the button is on. The imports already sit
- * under their list's path; these four do not.
+ * under their list's path; these three do not.
  */
 const FORM_LIST: Record<string, string> = {
   '/hq/forms/pricing-rule': '/hq/pricing',
   '/hq/forms/voucher': '/hq/vouchers',
   '/hq/forms/commission': '/hq/reconciliation',
-  '/hq/forms/segment': '/hq/campaigns',
 };
 
 /**

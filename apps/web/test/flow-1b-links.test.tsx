@@ -202,7 +202,7 @@ describe('the command palette offers only actions the role can open', () => {
 
   it('keeps every action for the super admin', async () => {
     await open();
-    for (const key of ['pricingRule', 'voucher', 'onboard', 'invite', 'broadcast']) {
+    for (const key of ['pricingRule', 'voucher', 'onboard', 'invite']) {
       expect(screen.getByText(`hq.common.actions.${key}`)).toBeTruthy();
     }
   });
