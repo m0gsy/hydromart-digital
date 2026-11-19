@@ -2,11 +2,11 @@
 /**
  * Owner decision 2026-11-19: "Jadikan langganan" works for every product, not only the first 50.
  *
- * The subscription form lists the first 50 products. A product page past them linked here and
- * the form opened on the placeholder, with the product missing from the dropdown. That product
- * is now read on its own and offered as well. A link id that is not a product id asks nothing.
+ * The subscription form listed the first 50 products. A product page past them linked here and
+ * the form opened on the placeholder, with the product missing from the dropdown; a customer
+ * opening the form from the menu could not reach it at all. The form reads every page now.
  */
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { get, query } = vi.hoisted(() => ({ get: vi.fn(), query: { product: null as string | null } }));
@@ -32,20 +32,19 @@ vi.mock('next/navigation', () => ({
 import { LocaleProvider } from '@/lib/locale-context';
 import SubscriptionsPage from '@/app/subscriptions/page';
 
-const FAR = '6a1d2c3b-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
-const listed = [
-  { id: 'p-1', name: 'Galon 19L', unit: 'Galon', active: true },
-  { id: 'p-2', name: 'Galon 12L', unit: 'Galon', active: true },
-];
+// 130 products, served 100 a page: the 120th lives on page 2.
+const ALL = Array.from({ length: 130 }, (_, i) => ({ id: `p-${i}`, name: `Produk ${i}`, unit: 'Galon', active: true }));
 
 beforeEach(() => {
   query.product = null;
   get.mockReset().mockImplementation(async (path: string) => {
     if (path.includes('flags')) return [];
-    if (path.endsWith(`/products/api/v1/products/${FAR}`)) {
-      return { id: FAR, name: 'Galon Mineral 15L', unit: 'Galon', active: true };
+    if (path.includes('/products/api/v1/products')) {
+      const u = new URL(path, 'http://x');
+      const page = Number(u.searchParams.get('page') ?? 1);
+      const limit = Number(u.searchParams.get('limit') ?? 20);
+      return { items: ALL.slice((page - 1) * limit, page * limit), total: ALL.length, page, limit };
     }
-    if (path.includes('/products/api/v1/products')) return { items: listed, total: 80 };
     if (path.includes('discount')) return { rate: 0 };
     return [];
   });
@@ -53,20 +52,20 @@ beforeEach(() => {
 
 const select = () => document.getElementById('sub-product') as HTMLSelectElement | null;
 
-describe('the subscription form and a product past the first page', () => {
-  it('reads it on its own, offers it and picks it', async () => {
-    query.product = FAR;
+describe('the subscription form offers every product', () => {
+  it('lists one past the first page, and picks it from the link', async () => {
+    query.product = 'p-120';
     render(<SubscriptionsPage />, { wrapper: LocaleProvider });
-    await waitFor(() => expect(select()?.value).toBe(FAR));
-    expect([...select()!.options].map((o) => o.value)).toContain(FAR);
+    await waitFor(() => expect(select()?.value).toBe('p-120'));
+    expect(select()!.options.length).toBe(ALL.length + 1); // + the placeholder
   });
 
-  it('a link id that is not a product id asks nothing', async () => {
-    query.product = '../orders/api/v1/orders';
-    render(<SubscriptionsPage />, { wrapper: LocaleProvider });
-    await waitFor(() => expect(select()).not.toBeNull());
-    // No product read was built from it (the subscription routes themselves live under orders).
-    expect(get.mock.calls.some((c) => String(c[0]).includes('../'))).toBe(false);
-    expect(select()!.value).toBe('');
+  it('picks it once: cleared by the customer, it stays cleared', async () => {
+    query.product = 'p-3';
+    const { rerender } = render(<SubscriptionsPage />, { wrapper: LocaleProvider });
+    await waitFor(() => expect(select()?.value).toBe('p-3'));
+    fireEvent.change(select()!, { target: { value: 'p-7' } });
+    rerender(<SubscriptionsPage />);
+    expect(select()!.value).toBe('p-7');
   });
 });

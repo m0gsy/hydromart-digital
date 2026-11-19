@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowsClockwise, BellSlash, Pause, Percent, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -21,6 +21,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { dateInDaysWib } from '@/lib/wib';
 import { useAsync } from '@/lib/use-async';
+import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useFeatureFlag } from '@/lib/feature-flags';
 import { useQueryParam } from '@/lib/use-query-param';
 import { subscriptions as subID } from '@/lib/dictionaries/id/subscriptions';
@@ -35,8 +36,6 @@ import type {
 } from '@/lib/types';
 
 const FREQS: SubscriptionFrequency[] = ['WEEKLY', 'BIWEEKLY', 'MONTHLY'];
-// An id from a link: only a UUID goes into a request path.
-const PRODUCT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const BENEFIT_ICONS = [Percent, Truck, BellSlash, Pause];
 
 function Panel() {
@@ -45,8 +44,13 @@ function Panel() {
   const { toast } = useToast();
   const copy = locale === 'en' ? subEN : subID;
 
-  const products = useAsync<Paged<Product>>(() =>
-    api.get(endpoints.products.browse({ limit: 50 })),
+  // EVERY product, not the first 50 (owner decision 2026-11-19): the product page offers
+  // "Jadikan langganan" on all of them, and a customer opening this from the menu could not
+  // reach the 51st at all.
+  const products = useAsync<Product[]>(() =>
+    fetchAllPages<Product>(({ page, limit }) =>
+      api.get<Paged<Product>>(endpoints.products.browse({ page, limit })),
+    ),
   );
   const addresses = useAsync<Address[]>(() => api.get(endpoints.addresses.list, true));
   const subs = useAsync<Subscription[]>(() => api.get(endpoints.subscriptions.list, true));
@@ -106,32 +110,16 @@ function Panel() {
   const [productId, setProductId] = useState('');
   /*
    * Flow PR-7b: "Jadikan langganan" on a product page opens this with `?product=`. It is
-   * picked once the options have it, and never over a product the customer already chose.
-   * Only the first 50 products are listed, so one past them is read on its own and offered
-   * too (owner decision 2026-11-19): the product page offers the link on every product.
+   * picked ONCE, when the list first has it, and never over a product the customer already
+   * chose. A later reload (the app resuming) must not put it back after they cleared it.
    */
   const wanted = useQueryParam('product');
-  // Only a UUID goes into a request path; one already listed needs no request at all.
-  const fetchId = wanted && PRODUCT_ID.test(wanted) ? wanted : null;
-  const extra = useAsync<Product | null>(
-    () =>
-      fetchId && products.data && !products.data.items.some((p) => p.id === fetchId)
-        ? api.get<Product>(endpoints.products.get(fetchId)).catch(() => null)
-        : Promise.resolve(null),
-    [fetchId, products.data],
-  );
-  const options = useMemo(() => {
-    const listed = products.data?.items ?? [];
-    // A product that is not for sale is not one to subscribe to.
-    return extra.data && extra.data.active !== false && !listed.some((p) => p.id === extra.data!.id)
-      ? [...listed, extra.data]
-      : listed;
-  }, [products.data, extra.data]);
+  const preselected = useRef(false);
   useEffect(() => {
-    if (wanted && options.some((p) => p.id === wanted)) {
-      setProductId((current) => current || wanted);
-    }
-  }, [wanted, options]);
+    if (preselected.current || !wanted || !products.data?.some((p) => p.id === wanted)) return;
+    preselected.current = true;
+    setProductId((current) => current || wanted);
+  }, [wanted, products.data]);
   const [quantity, setQuantity] = useState(2);
   const [frequency, setFrequency] = useState<SubscriptionFrequency>('WEEKLY');
   const [firstDate, setFirstDate] = useState(dateInDaysWib(1));
@@ -286,7 +274,7 @@ function Panel() {
                 <option value="" disabled>
                   {copy.productPlaceholder}
                 </option>
-                {options.map((p) => (
+                {products.data?.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name} · {p.unit}
                   </option>
