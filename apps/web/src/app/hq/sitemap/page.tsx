@@ -43,7 +43,7 @@ export default function HqSitemapPage() {
                 <Link
                   key={i.href}
                   href={i.href}
-                  className="flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-semibold transition-colors hover:bg-[color:var(--surface-soft)]"
+                  className="tap-44 flex items-center gap-2.5 rounded-lg px-2 py-2 text-sm font-semibold transition-colors hover:bg-[color:var(--surface-soft)]"
                 >
                   <Ic size={17} weight="fill" className="text-brand-500" />
                   {t(`hq.nav.${i.labelKey}`)}

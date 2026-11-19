@@ -122,7 +122,7 @@ export default function HqProfilePage() {
                 type="button"
                 onClick={() => setLocale(lng)}
                 aria-pressed={locale === lng}
-                className={`min-h-11 rounded-full px-3.5 py-[5px] text-xs font-extrabold uppercase transition-colors ${
+                className={`tap-44 min-h-11 rounded-full px-3.5 py-[5px] text-xs font-extrabold uppercase transition-colors ${
                   locale === lng ? 'bg-brand-600 text-on-brand' : 'text-muted'
                 }`}
               >
@@ -133,7 +133,7 @@ export default function HqProfilePage() {
           <button
             type="button"
             onClick={toggleTheme}
-            className="rounded-full border border-app px-3.5 py-[6px] text-xs font-extrabold transition-colors hover:bg-[color:var(--surface-soft)]"
+            className="tap-44 rounded-full border border-app px-3.5 py-[6px] text-xs font-extrabold transition-colors hover:bg-[color:var(--surface-soft)]"
           >
             {resolved === 'dark' ? t('hq.common.theme.light') : t('hq.common.theme.dark')}
           </button>

@@ -66,7 +66,10 @@ export default function HqForecastPage() {
 
       <p className="text-[12.5px] text-muted">
         {t('hq.forecast.rebuildHint')}{' '}
-        <Link href="/hq/health" className="font-bold text-brand-700 underline underline-offset-2">
+        <Link
+          href="/hq/health"
+          className="tap-44 font-bold text-brand-700 underline underline-offset-2"
+        >
           {t('hq.forecast.rebuildLink')}
         </Link>
       </p>

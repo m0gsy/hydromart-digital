@@ -133,7 +133,7 @@ export default function ManagerAccountPage() {
                 key={l}
                 type="button"
                 onClick={() => setLocale(l)}
-                className={`min-h-11 px-3 py-1.5 uppercase ${
+                className={`tap-44 min-h-11 px-3 py-1.5 uppercase ${
                   locale === l ? 'bg-brand-600 text-on-brand' : 'text-[color:var(--text-muted)]'
                 }`}
               >

@@ -255,7 +255,7 @@ export default function HqOverviewPage() {
                           <Link
                             href={`/hq/depots/detail?id=${r.depotId}`}
                             onClick={(e) => e.stopPropagation()}
-                            className="rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
+                            className="tap-44 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600"
                           >
                             {r.name}
                           </Link>

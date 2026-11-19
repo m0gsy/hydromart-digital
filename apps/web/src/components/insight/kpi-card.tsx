@@ -90,7 +90,7 @@ export function KpiCard({
           aria-expanded={open}
           aria-label={`${t('insight.kpi.whatIsThis')}: ${label}`}
           // 14px icon in a 34px hit area, pulled back with a negative margin so the card does not grow.
-          className="-m-2 rounded-full p-2.5 text-muted hover:text-[color:var(--text)]"
+          className="tap-44 -m-2 rounded-full p-2.5 text-muted hover:text-[color:var(--text)]"
         >
           <Info size={14} aria-hidden="true" />
         </button>

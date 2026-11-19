@@ -266,19 +266,19 @@ export default function EmployeeDetailPage() {
       <div className="flex flex-wrap gap-3">
         <Link
           href={`/hr/payroll?employeeId=${id}`}
-          className="text-sm font-semibold text-brand-700 hover:underline"
+          className="tap-44 text-sm font-semibold text-brand-700 hover:underline"
         >
           {t('hrFix.employeeDetail.viewPayroll')}
         </Link>
         <Link
           href={`/hr/attendance?employeeId=${id}`}
-          className="text-sm font-semibold text-brand-700 hover:underline"
+          className="tap-44 text-sm font-semibold text-brand-700 hover:underline"
         >
           {t('hrFix.employeeDetail.viewAttendance')}
         </Link>
         <Link
           href={`/hr/performance?employeeId=${id}`}
-          className="text-sm font-semibold text-brand-700 hover:underline"
+          className="tap-44 text-sm font-semibold text-brand-700 hover:underline"
         >
           Kinerja →
         </Link>

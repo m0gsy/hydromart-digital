@@ -172,7 +172,7 @@ function Earnings() {
         */}
         <Link
           href="/driver/earnings/history"
-          className="text-[12.5px] font-bold text-brand-700 underline underline-offset-2"
+          className="tap-44 text-[12.5px] font-bold text-brand-700 underline underline-offset-2"
         >
           {t('hrFix.earningsHistory.seeAll')}
         </Link>

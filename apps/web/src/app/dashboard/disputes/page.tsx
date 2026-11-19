@@ -325,7 +325,7 @@ function DisputesBody() {
 
       <div className="flex flex-wrap gap-2">
         {CHIPS.map((c) => (
-          <button key={c.key} type="button" onClick={() => setFilter(c.key)} aria-pressed={filter === c.key}>
+          <button key={c.key} type="button" className="tap-44" onClick={() => setFilter(c.key)} aria-pressed={filter === c.key}>
             <Chip tone={filter === c.key ? 'ink' : 'outline'}>
               {c.label}
               {c.count != null && ` · ${c.count}`}

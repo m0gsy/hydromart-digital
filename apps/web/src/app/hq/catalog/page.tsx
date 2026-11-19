@@ -412,14 +412,14 @@ function CategoryManager({ onChange }: { onChange: () => void }) {
                 <button
                   type="button"
                   onClick={() => edit(c)}
-                  className="text-xs font-semibold text-brand-700 hover:underline"
+                  className="tap-44 text-xs font-semibold text-brand-700 hover:underline"
                 >
                   {t('hq.catalog.categories.rename')}
                 </button>
                 <button
                   type="button"
                   onClick={() => toggle(c)}
-                  className="text-xs font-semibold text-brand-700 hover:underline"
+                  className="tap-44 text-xs font-semibold text-brand-700 hover:underline"
                 >
                   {c.active
                     ? t('hq.catalog.categories.deactivate')
@@ -515,7 +515,7 @@ export default function HqCatalogPage() {
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-muted">{p.sku}</td>
                   <td className="px-4 py-3 text-right">
-                    <Link href="/hq/pricing" className="font-medium text-brand-700 hover:underline">
+                    <Link href="/hq/pricing" className="tap-44 font-medium text-brand-700 hover:underline">
                       <Money amount={p.basePrice} />
                     </Link>
                   </td>
@@ -528,7 +528,7 @@ export default function HqCatalogPage() {
                     <button
                       type="button"
                       onClick={() => setEditing(p)}
-                      className="text-xs font-semibold text-brand-700 hover:underline"
+                      className="tap-44 text-xs font-semibold text-brand-700 hover:underline"
                     >
                       {t('hq.catalog.editorEdit')}
                     </button>
@@ -542,7 +542,7 @@ export default function HqCatalogPage() {
 
       <CategoryManager onChange={categories.reload} />
 
-      <Link href="/hq/pricing" className="text-sm font-semibold text-brand-700 hover:underline">
+      <Link href="/hq/pricing" className="tap-44 text-sm font-semibold text-brand-700 hover:underline">
         {t('hq.catalog.pricingLink')}
       </Link>
     </div>

@@ -158,7 +158,7 @@ export function StaffInvite({ onSaved }: { onSaved: () => void }) {
               onClick={() => setRole(r)}
               aria-pressed={role === r}
               className={
-                'min-h-11 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ' +
+                'tap-44 min-h-11 rounded-full px-3 py-1.5 text-xs font-bold transition-colors ' +
                 (role === r
                   ? 'bg-brand-600 text-on-brand'
                   : 'border border-app text-muted hover:bg-brand-50')

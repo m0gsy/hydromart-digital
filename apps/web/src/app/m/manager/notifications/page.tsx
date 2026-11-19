@@ -99,7 +99,7 @@ export default function ManagerNotificationsPage() {
             key={f.key}
             type="button"
             onClick={() => setFilter(f.key)}
-            className={`inline-flex items-center gap-1.5 min-h-11 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`tap-44 inline-flex items-center gap-1.5 min-h-11 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
               filter === f.key ? 'bg-brand-800 text-on-brand' : 'border border-app text-[color:var(--text-muted)]'
             }`}
           >

@@ -442,7 +442,7 @@ export function RbacMatrix() {
                   <Link
                     href={`/hq/access/detail?role=${r}`}
                     title={t('hqFix.roleDetail')}
-                    className="mt-0.5 block text-[10px] font-medium text-brand-600 hover:underline"
+                    className="tap-44 mt-0.5 block text-[10px] font-medium text-brand-600 hover:underline"
                   >
                     {t('hqFix.roleDetailShort')}
                   </Link>
@@ -526,7 +526,7 @@ function SectionRows({
                   title={blocked ? t('hqFix.roles.forbidden') : undefined}
                   onClick={() => onToggle(cap, role)}
                   className={
-                    'inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors ' +
+                    'tap-44 inline-flex h-7 w-7 items-center justify-center rounded-md transition-colors ' +
                     (blocked
                       ? 'cursor-not-allowed border border-dashed border-app text-transparent opacity-40'
                       : on

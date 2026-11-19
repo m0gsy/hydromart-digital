@@ -39,7 +39,7 @@ export default function HqRoleDetailPage() {
   const back = (
     <Link
       href="/hq/access"
-      className="mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800"
+      className="tap-44 mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800"
     >
       <ArrowLeft size={16} weight="bold" />
       {t('hq.roleDetail.back')}

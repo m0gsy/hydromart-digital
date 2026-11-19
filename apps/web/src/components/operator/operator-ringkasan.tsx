@@ -235,7 +235,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
             </div>
             <Link
               href="/dashboard/settlements"
-              className="mt-1 flex h-9 items-center justify-center rounded-[10px] bg-[color:var(--surface-soft)] text-[12.5px] font-bold"
+              className="tap-44 mt-1 flex h-9 items-center justify-center rounded-[10px] bg-[color:var(--surface-soft)] text-[12.5px] font-bold"
             >
               {t('hrFix.operatorSummary.verifyDeposit')}
             </Link>

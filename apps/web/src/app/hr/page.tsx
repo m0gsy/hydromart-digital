@@ -241,19 +241,19 @@ export default function HrDashboardPage() {
           <div className="flex flex-wrap gap-3">
             <Link
               href="/hr/employees"
-              className="text-sm font-semibold text-brand-700 hover:underline"
+              className="tap-44 text-sm font-semibold text-brand-700 hover:underline"
             >
               {t('hrFix.home.manageEmployees')}
             </Link>
             <Link
               href="/hr/payroll"
-              className="text-sm font-semibold text-brand-700 hover:underline"
+              className="tap-44 text-sm font-semibold text-brand-700 hover:underline"
             >
               {t('hrFix.home.runPayrollLink')}
             </Link>
             <Link
               href="/hr/reports"
-              className="text-sm font-semibold text-brand-700 hover:underline"
+              className="tap-44 text-sm font-semibold text-brand-700 hover:underline"
             >
               {t('hrFix.home.downloadReport')}
             </Link>

@@ -166,7 +166,7 @@ function EditProfileInner() {
             type="button"
             onClick={() => fileRef.current?.click()}
             aria-label={changePhoto}
-            className="absolute bottom-0 right-0 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-brand-600 text-white ring-2 ring-[color:var(--surface-muted)] transition-colors hover:bg-brand-700"
+            className="tap-44 absolute bottom-0 right-0 flex h-[30px] w-[30px] items-center justify-center rounded-full bg-brand-600 text-white ring-2 ring-[color:var(--surface-muted)] transition-colors hover:bg-brand-700"
           >
             <Camera size={15} weight="fill" />
           </button>
@@ -182,7 +182,7 @@ function EditProfileInner() {
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="text-[12.5px] font-bold text-brand-700 hover:text-brand-800 disabled:text-muted"
+          className="tap-44 text-[12.5px] font-bold text-brand-700 hover:text-brand-800 disabled:text-muted"
         >
           {uploading ? t('account.profileCard.save') + '…' : changePhoto}
         </button>

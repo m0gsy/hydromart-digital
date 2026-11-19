@@ -91,7 +91,7 @@ export default function HqOrderDetailPage() {
   const back = (
     <Link
       href="/hq/orders"
-      className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800"
+      className="tap-44 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800"
     >
       <ArrowLeft size={16} weight="bold" />
       {t('hq.orderDetail.back')}

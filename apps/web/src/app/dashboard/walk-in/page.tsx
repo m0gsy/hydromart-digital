@@ -1237,7 +1237,7 @@ function WalkIn({ depotId }: { depotId: string }) {
               open={buyerOpen}
               onToggle={(e) => setBuyerOpen(e.currentTarget.open)}
             >
-              <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm font-bold">
+              <summary className="tap-44 flex cursor-pointer items-center justify-between gap-3 text-sm font-bold">
                 <span>{t('opsFix.walkIn.buyerSection')}</span>
                 <span className="truncate text-xs font-medium text-muted">
                   {buyerId
@@ -1434,7 +1434,7 @@ function WalkIn({ depotId }: { depotId: string }) {
               open={extrasOpen}
               onToggle={(e) => setExtrasOpen(e.currentTarget.open)}
             >
-              <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm font-bold">
+              <summary className="tap-44 flex cursor-pointer items-center justify-between gap-3 text-sm font-bold">
                 <span>{t('opsFix.walkIn.extrasSection')}</span>
                 {(voucher.trim() || saleNote.trim()) && (
                   <span className="truncate text-xs font-medium text-muted">

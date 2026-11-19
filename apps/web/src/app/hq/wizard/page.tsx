@@ -111,7 +111,7 @@ export default function HqWizardPage() {
                     </button>
                     <Link
                       href={step.href}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-700"
+                      className="tap-44 inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-700"
                     >
                       {t('hq.wizard.start')}
                       <ArrowRight size={14} weight="bold" />

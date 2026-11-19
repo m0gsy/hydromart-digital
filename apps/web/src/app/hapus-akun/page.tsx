@@ -41,7 +41,7 @@ export default function DeleteAccountPage() {
       </div>
 
       <p className="mt-8 text-[13px]">
-        <Link href="/kebijakan-privasi" className="font-bold text-brand-600 hover:underline">
+        <Link href="/kebijakan-privasi" className="tap-44 font-bold text-brand-600 hover:underline">
           {locale === 'en' ? 'Privacy Policy' : 'Kebijakan Privasi'}
         </Link>
       </p>

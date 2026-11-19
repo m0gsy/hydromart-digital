@@ -189,7 +189,7 @@ ${body.trim()}`,
                 key={l.key}
                 type="button"
                 onClick={() => setLevel(l.key)}
-                className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-[12.5px] font-extrabold transition ${
+                className={`tap-44 flex flex-1 items-center justify-center gap-1.5 rounded-xl border py-2.5 text-[12.5px] font-extrabold transition ${
                   active ? `${l.activeBg} ${l.tone}` : 'border-app bg-[color:var(--surface)] text-[color:var(--text-muted)]'
                 }`}
               >

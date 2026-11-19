@@ -1022,7 +1022,7 @@ function ProfileCard({ customer, subtitle }: { customer: Customer; subtitle: str
       </div>
       <Link
         href="/account/edit"
-        className="flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-extrabold text-brand-300"
+        className="tap-44 flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1.5 text-xs font-extrabold text-brand-300"
       >
         <PencilSimple size={14} weight="bold" />
         {t('account.profileCard.edit')}

@@ -79,7 +79,7 @@ function DetailBody({ id }: { id: string }) {
     <div className="flex flex-col gap-5">
       <Link
         href="/dashboard/customers"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline"
+        className="tap-44 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:underline"
       >
         <ArrowLeft size={16} />
         {t('dashA.customerDetail.back')}

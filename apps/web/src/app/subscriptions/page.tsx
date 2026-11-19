@@ -273,7 +273,7 @@ function Panel() {
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="h-11 w-11 rounded-full bg-brand-50 font-bold text-brand-700"
+                  className="tap-44 h-11 w-11 rounded-full bg-brand-50 font-bold text-brand-700"
                 >
                   −
                 </button>
@@ -281,7 +281,7 @@ function Panel() {
                 <button
                   type="button"
                   onClick={() => setQuantity((q) => q + 1)}
-                  className="h-11 w-11 rounded-full bg-brand-50 font-bold text-brand-700"
+                  className="tap-44 h-11 w-11 rounded-full bg-brand-50 font-bold text-brand-700"
                 >
                   +
                 </button>

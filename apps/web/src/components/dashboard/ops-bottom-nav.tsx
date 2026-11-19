@@ -158,7 +158,7 @@ function MoreSheetTab({ current }: { current: string | undefined }) {
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex min-h-11 flex-col items-center justify-center gap-[3px] text-[10px] font-bold text-[color:var(--text-muted)]"
+        className="tap-44 flex min-h-11 flex-col items-center justify-center gap-[3px] text-[10px] font-bold text-[color:var(--text-muted)]"
       >
         <DotsThreeOutline size={21} />
         {t('opsFix.nav.more')}

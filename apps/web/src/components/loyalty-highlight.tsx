@@ -96,7 +96,7 @@ export function LoyaltyHighlight() {
         </p>
         <Link
           href="/rewards"
-          className="inline-flex self-start rounded-full border-[1.5px] border-[color:var(--text)] px-5 py-2.5 text-sm font-extrabold text-[color:var(--text)] transition-colors hover:bg-[color:var(--text)] hover:text-[color:var(--surface)]"
+          className="tap-44 inline-flex self-start rounded-full border-[1.5px] border-[color:var(--text)] px-5 py-2.5 text-sm font-extrabold text-[color:var(--text)] transition-colors hover:bg-[color:var(--text)] hover:text-[color:var(--surface)]"
         >
           {t('home.loyalty.viewRewards')}
         </Link>

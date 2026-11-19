@@ -196,7 +196,7 @@ function LoginForm() {
         {t('auth.login.noAccount')}{' '}
         <Link
           href={next ? `/register?next=${encodeURIComponent(next)}` : '/register'}
-          className="font-bold text-brand-700 hover:underline"
+          className="tap-44 font-bold text-brand-700 hover:underline"
         >
           {t('auth.login.registerCta')}
         </Link>

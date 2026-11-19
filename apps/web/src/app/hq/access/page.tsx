@@ -28,7 +28,7 @@ export default function HqAccessPage() {
         </div>
         <Link
           href="/hq/access/landing"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800"
+          className="tap-44 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition-colors hover:text-brand-800"
         >
           {t('hq.access.landingLink')}
           <ArrowRight size={16} weight="bold" />

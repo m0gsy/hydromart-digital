@@ -121,7 +121,7 @@ export default function HqInventoryPage() {
                   </div>
                   <Link
                     href={`/hq/depots/detail?id=${r.depot.id}`}
-                    className="shrink-0 rounded-lg border border-app px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50"
+                    className="tap-44 shrink-0 rounded-lg border border-app px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50"
                   >
                     {t('hq.inventory.restock')}
                   </Link>
