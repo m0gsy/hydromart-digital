@@ -53,6 +53,12 @@ export class RebuildService {
    * The ingest skips orders it has seen, so a rebuild could not reach those rows. This walks the
    * completed-order feed, keeps each customer's LATEST order of each product (what was ordered,
    * by the ingest's own rule), and fills only rows still empty.
+   *
+   * "Latest" is the feed's own order: it pages by (createdAt, id), placement order, so the order
+   * read last was placed last. Not the feed's `completedAt`, which is the order's updatedAt and
+   * moves when an old order is touched (a rating, a dispute), and is earlier than the time a push
+   * ingest stamped on the row, so comparing it with lastPurchasedAt would skip the very rows
+   * this exists for.
    */
   async backfillLastQuantity(limit: number): Promise<{ orders: number; rows: number }> {
     const latest = new Map<string, LastQuantityFill>();
@@ -63,11 +69,7 @@ export class RebuildService {
       for (const order of result.orders) {
         orders += 1;
         for (const [productId, quantity] of orderedUnitsByProduct(order.items)) {
-          const key = `${order.customerId}|${productId}`;
-          const seen = latest.get(key);
-          if (!seen || seen.at < order.at) {
-            latest.set(key, { customerId: order.customerId, productId, at: order.at, quantity });
-          }
+          latest.set(`${order.customerId}|${productId}`, { customerId: order.customerId, productId, quantity });
         }
       }
       if (result.nextCursor === null) break;

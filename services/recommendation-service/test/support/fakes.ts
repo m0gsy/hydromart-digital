@@ -149,8 +149,7 @@ export class FakeRecommendationRepository implements RecommendationRepository {
         if (
           row.customerId === e.customerId &&
           row.productId === e.productId &&
-          row.lastQuantity == null &&
-          row.lastPurchasedAt <= e.at
+          row.lastQuantity == null
         ) {
           row.lastQuantity = e.quantity;
           filled += 1;

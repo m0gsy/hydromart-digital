@@ -475,7 +475,7 @@ describe('OrderController', () => {
           updatedAt: new Date('2026-01-01T00:00:00.000Z'),
           total: 42000.7,
           items: [
-            { productId: 'p1', productName: 'Galon', sku: 'G19', unit: 'Galon', quantity: 2 },
+            { productId: 'p1', productName: 'Galon', sku: 'G19', unit: 'Galon', quantity: 2, unitPrice: 20000 },
           ],
         },
       ],
@@ -491,6 +491,8 @@ describe('OrderController', () => {
       sku: 'G19',
       unit: 'Galon',
       quantity: 2,
+      // Flow 7c: the price travels, so a promo's free row (0) can be told from what was ordered.
+      unitPrice: 20000,
     });
   });
 

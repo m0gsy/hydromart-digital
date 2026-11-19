@@ -74,16 +74,19 @@ describe('RebuildService.backfillLastQuantity', () => {
     expect(q('c2', 'a')).toBe(4);
   });
 
-  it('reads every page, and a newer order read first is not replaced by an older one', async () => {
+  it('reads every page; the order PLACED last wins, whatever its updatedAt says', async () => {
+    // The feed pages in placement order. o1 was placed first but touched later (a rating), so
+    // its feed time is the newest; o2 is still the customer's latest purchase.
     const { repo, rebuild } = build([
+      order('o1', 'c1', '2026-11-15T03:00:00Z', [item('a', 6)]),
       order('o2', 'c1', '2026-11-10T03:00:00Z', [item('a', 2)]),
-      order('o1', 'c1', '2026-11-01T03:00:00Z', [item('a', 6)]),
     ]);
     repo.purchases.push({
       customerId: 'c1', productId: 'a', purchaseCount: 2,
-      lastPurchasedAt: new Date('2026-11-10T03:00:00Z'), lastQuantity: null,
+      // A push ingest stamped the row when the request arrived: later than the order's own time.
+      lastPurchasedAt: new Date('2026-11-10T03:00:01.200Z'), lastQuantity: null,
     });
-    // One order a page: the second page is the older order.
+    // One order a page.
     expect(await rebuild.backfillLastQuantity(1)).toEqual({ orders: 2, rows: 1 });
     expect(repo.purchases[0].lastQuantity).toBe(2);
   });
@@ -95,13 +98,12 @@ describe('RebuildService.backfillLastQuantity', () => {
 });
 
 describe('the Prisma fill', () => {
-  it('writes only rows still empty and not newer than the order it read', async () => {
+  it('writes only rows still empty', async () => {
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
     const repo = new RecommendationPrismaRepository({ customerProductPurchase: { updateMany } } as never);
-    const at = new Date('2026-11-10T03:00:00Z');
-    expect(await repo.fillLastQuantity([{ customerId: 'c1', productId: 'a', at, quantity: 2 }])).toBe(1);
+    expect(await repo.fillLastQuantity([{ customerId: 'c1', productId: 'a', quantity: 2 }])).toBe(1);
     expect(updateMany).toHaveBeenCalledWith({
-      where: { customerId: 'c1', productId: 'a', lastQuantity: null, lastPurchasedAt: { lte: at } },
+      where: { customerId: 'c1', productId: 'a', lastQuantity: null },
       data: { lastQuantity: 2 },
     });
   });

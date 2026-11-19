@@ -571,6 +571,7 @@ export class OrderController {
         sku: string;
         unit: string;
         quantity: number;
+        unitPrice: number;
       }[];
     }[];
     nextCursor: string | null;
@@ -592,6 +593,8 @@ export class OrderController {
           sku: i.sku,
           unit: i.unit,
           quantity: i.quantity,
+          // 0 on a promo's free row: recommendation leaves it out of "Beli lagi".
+          unitPrice: i.unitPrice,
         })),
       })),
       nextCursor,

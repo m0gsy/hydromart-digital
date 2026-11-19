@@ -33,7 +33,6 @@ export interface IngestCommand {
 export interface LastQuantityFill {
   customerId: string;
   productId: string;
-  at: Date;
   quantity: number;
 }
 
@@ -57,7 +56,7 @@ export interface RecommendationRepository {
 
   /**
    * Fills lastQuantity on rows that have none (written before the column existed). A row a real
-   * ingest already filled, or one bought again after the order read, is left alone. Returns the
+   * ingest already filled is left alone: every ingest since the column writes one. Returns the
    * number of rows filled.
    */
   fillLastQuantity(entries: LastQuantityFill[]): Promise<number>;
