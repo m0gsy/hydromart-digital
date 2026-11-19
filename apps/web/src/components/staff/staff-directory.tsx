@@ -91,13 +91,19 @@ async function readLinkedAccountIds(): Promise<Set<string>> {
  * /hq/staff and by /dashboard/staff — the route the Ops app carries, since it has no /hq.
  * The page draws its own header, and gets the reload its invite button needs.
  */
-export function StaffDirectory({ header }: { header: (reload: () => void) => React.ReactNode }) {
+export function StaffDirectory({
+  header,
+}: {
+  /** The page's header; it is handed the reload its invite needs and the one write gate. */
+  header: (ctx: { reload: () => void; canAdmin: boolean }) => React.ReactNode;
+}) {
   const { t } = useT();
   // Deleting is SUPER_ADMIN-only; head office sees every other control on the row.
   const { customer } = useAuth();
   const customRoles = useCustomRoles();
-  // Every write on this page — invite, import, depot move, enable/disable — is gated
-  // `staffAdmin` server-side, which this console's DIREKTUR does not hold.
+  // Every write on a row — depot move, enable/disable — is gated `staffAdmin` server-side,
+  // which DIREKTUR (who may open /hq/staff to read) does not hold. The page's header gets the
+  // same answer for its invite and import.
   const canAdminStaff = can('staffAdmin', customer?.role);
   const [roleFilter, setRoleFilter] = useState('');
 
@@ -142,7 +148,7 @@ export function StaffDirectory({ header }: { header: (reload: () => void) => Rea
 
   return (
     <div className="flex flex-col gap-5">
-      {header(reloadAll)}
+      {header({ reload: reloadAll, canAdmin: canAdminStaff })}
 
       {/* Role filter chips */}
       <div className="flex flex-wrap gap-2">

@@ -6,8 +6,9 @@ import { Lock, UserGear } from '@phosphor-icons/react';
 import { StaffInvite } from '@/components/hq/staff-invite';
 import { RequireAuth } from '@/components/require-auth';
 import { StaffDirectory } from '@/components/staff/staff-directory';
-import { Badge, Card, CenterState } from '@/components/ui';
+import { Badge, Card, CenterState, LinkButton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
+import { isServedHere } from '@/lib/deep-link';
 import { useT } from '@/lib/locale-context';
 import { CAPABILITIES, canManageStaff, type Capability } from '@/lib/roles';
 
@@ -76,14 +77,22 @@ function StaffBody() {
   const { t } = useT();
   return (
     <StaffDirectory
-      header={(reload) => (
+      header={({ reload }) => (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <UserGear size={24} weight="fill" className="text-brand-500" />
               <h1 className="text-2xl font-bold">{t('dashC.staff.title')}</h1>
             </div>
-            <StaffInvite onSaved={reload} />
+            <div className="flex flex-wrap gap-2">
+              {/* The import wizard lives under /hq, which the Ops app does not carry. */}
+              {isServedHere('/hq/staff/import') && (
+                <LinkButton href="/hq/staff/import" variant="secondary">
+                  {t('hq.nav.staffImport')}
+                </LinkButton>
+              )}
+              <StaffInvite onSaved={reload} />
+            </div>
           </div>
           <AccessMatrix />
         </>

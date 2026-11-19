@@ -6,21 +6,15 @@ import { HqPageHeader } from '@/components/hq/page-header';
 import { StaffInvite } from '@/components/hq/staff-invite';
 import { StaffDirectory } from '@/components/staff/staff-directory';
 import { LinkButton } from '@/components/ui';
-import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { can } from '@/lib/roles';
 
 // Design 4a/4b — network staff directory with a role filter and the invite form.
 export default function HqStaffPage() {
   const { t } = useT();
-  const { customer } = useAuth();
-  // Every write on this page — invite, import, depot move, enable/disable — is gated
-  // `staffAdmin` server-side, which this console's DIREKTUR does not hold.
-  const canAdminStaff = can('staffAdmin', customer?.role);
 
   return (
     <StaffDirectory
-      header={(reloadAll) => (
+      header={({ reload: reloadAll, canAdmin: canAdminStaff }) => (
         <HqPageHeader
           icon={UserGear}
           title={t('hq.staff.title')}

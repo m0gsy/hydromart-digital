@@ -82,6 +82,10 @@ describe('/dashboard/staff is the head-office directory', () => {
     await drawDepotPage();
     const badge = await screen.findByText('hq.staff.noEmployeeRecord');
     expect(badge.closest('a')?.getAttribute('href')).toMatch(/^\/hr\/employees\/new\?/);
+    // The import wizard too, as /hq/staff has it.
+    expect(screen.getByRole('link', { name: 'hq.nav.staffImport' }).getAttribute('href')).toBe(
+      '/hq/staff/import',
+    );
   });
 
   it('in the Ops app, which does not carry that form, the badge says what is missing without a dead door', async () => {
@@ -91,6 +95,8 @@ describe('/dashboard/staff is the head-office directory', () => {
     await drawDepotPage();
     const badge = await screen.findByText('hq.staff.noEmployeeRecord');
     expect(badge.closest('a')).toBeNull();
+    // Nor a door to the import wizard, which lives under /hq.
+    expect(screen.queryByRole('link', { name: 'hq.nav.staffImport' })).toBeNull();
   });
 });
 
