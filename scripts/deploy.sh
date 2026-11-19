@@ -635,7 +635,7 @@ else
   log "   over the parallel BuildKit path that stopped all 25 containers on 2026-08-02."
   log "   ${EST_MIN:+worst case ~${EST_MIN} min — }$MEASURED"
   log "   This is a choice, not a constraint, and it costs one line. MEASURED 2026-08-29:"
-  log "   images.yml publishes all 19 service images to ghcr.io on every green CI, tagged"
+  log "   images.yml publishes every service image to ghcr.io on every green CI, tagged"
   log "   with the commit SHA, and the packages are PUBLIC — an anonymous pull returned 200"
   log "   for every service at main's HEAD. No docker login, no PAT, no repo secret."
   log "   Fix: put IMAGE_PREFIX=ghcr.io/<owner>/<repo>- in .env (DEPLOY.md 'Registry mode'"

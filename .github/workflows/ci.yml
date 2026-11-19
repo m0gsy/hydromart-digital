@@ -1262,9 +1262,10 @@ jobs:
 
       # Face plan PR-3: the face image is not booted here either, but it is BUILT, and its
       # build runs the pipeline's self-test against OpenCV's own embeddings of the fixtures
-      # (services/face-service/src/selftest.ts). A sharp or onnxruntime upgrade that drifts,
-      # or a model host that stops serving, fails this PR — not the Images run on main, which
-      # every deploy waits on.
+      # (services/face-service/src/selftest.ts). A sharp or onnxruntime upgrade that drifts, or
+      # a Dockerfile that no longer builds, fails this PR — not the Images run on main, which
+      # every deploy waits on. (The model download itself is a cached layer here, keyed on
+      # fetch-models.mjs: it is proven by the first build after that script changes.)
       - name: Build the face image (runs its self-test)
         run: |
           docker buildx build -f services/face-service/Dockerfile \

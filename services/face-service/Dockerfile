@@ -5,7 +5,8 @@
 # Debian bookworm-slim, not alpine like the other services, in BOTH stages: onnxruntime-node
 # ships glibc binaries only, and sharp's prebuilt libvips for glibc is the one the self-test
 # below was measured with. No apt packages are needed — sharp brings its own libvips, ORT its
-# own runtime, and the healthcheck is `node -e fetch(...)`, not curl.
+# own runtime, and the compose healthcheck that will run it can be `node -e fetch(...)`, so
+# there is no curl to install either.
 
 FROM node:22.23.4-bookworm-slim AS builder
 # The onnxruntime-node install script fetches GPU builds for linux x64; this is a CPU engine.
@@ -39,11 +40,16 @@ RUN cd services/face-service && npm run build
 # people ≤ 0.3, no face found where there is none). See src/selftest.ts.
 RUN cd services/face-service && node dist/src/selftest.js /app/models test/fixtures
 
-# Runtime deps only. ORT carries every platform's binaries; this box runs linux only. The
-# mkdir keeps the COPY below valid when the service has no nested node_modules.
+# Runtime deps only. ORT carries every platform's binaries; this image needs one: linux, at
+# the architecture it is being built for (amd64 in CI, arm64 on an ARM builder). The mkdir
+# keeps the COPY below valid when the service has no nested node_modules.
 RUN npm prune --omit=dev \
   && rm -rf node_modules/@types node_modules/typescript \
     node_modules/onnxruntime-node/bin/napi-v*/darwin node_modules/onnxruntime-node/bin/napi-v*/win32 \
+  && case "$(uname -m)" in \
+       x86_64) rm -rf node_modules/onnxruntime-node/bin/napi-v*/linux/arm64 ;; \
+       aarch64) rm -rf node_modules/onnxruntime-node/bin/napi-v*/linux/x64 ;; \
+     esac \
   && mkdir -p /app/services/face-service/node_modules
 
 FROM node:22.23.4-bookworm-slim AS runtime
