@@ -1,6 +1,6 @@
 import { PurchaseRow } from '../../src/domain/reorder';
 import { CoBuyRow } from '../../src/domain/co-buy';
-import {
+import { LastQuantityFill,
   IngestCommand,
   IngestItem,
   RecommendationRepository,
@@ -140,6 +140,23 @@ export class FakeRecommendationRepository implements RecommendationRepository {
     } else {
       this.coBuys.push({ productId, relatedProductId, coCount: 1 });
     }
+  }
+
+  async fillLastQuantity(entries: LastQuantityFill[]): Promise<number> {
+    let filled = 0;
+    for (const e of entries) {
+      for (const row of this.purchases) {
+        if (
+          row.customerId === e.customerId &&
+          row.productId === e.productId &&
+          row.lastQuantity == null
+        ) {
+          row.lastQuantity = e.quantity;
+          filled += 1;
+        }
+      }
+    }
+    return filled;
   }
 
   async reorderRows(customerId: string): Promise<PurchaseRow[]> {

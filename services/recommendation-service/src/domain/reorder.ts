@@ -23,3 +23,21 @@ export function rankReorder(rows: PurchaseRow[], now: Date, limit: number) {
     // the JSON answer leaves out.
     .map(({ productId, score, _qty }) => ({ productId, score, lastQuantity: _qty ?? undefined }));
 }
+
+/**
+ * What the customer ORDERED of each product on one order: its lines' units summed, minus a
+ * promo's free row (a 0-priced row beside a paid row of the same product, order-service's
+ * collapsePromoFreeRows rule). A free item with no paid sibling was ordered. No quantity sent
+ * (an older producer) is one unit. Ingest and the lastQuantity backfill both read it here.
+ */
+export function orderedUnitsByProduct(
+  items: readonly { productId: string; quantity?: number; unitPrice?: number }[],
+): Map<string, number> {
+  const paid = new Set(items.filter((i) => (i.unitPrice ?? 1) > 0).map((i) => i.productId));
+  const out = new Map<string, number>();
+  for (const item of items) {
+    const units = item.unitPrice === 0 && paid.has(item.productId) ? 0 : (item.quantity ?? 1);
+    out.set(item.productId, (out.get(item.productId) ?? 0) + units);
+  }
+  return out;
+}
