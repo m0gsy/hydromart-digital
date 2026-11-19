@@ -1,7 +1,7 @@
 // GENERATED (audit D-6) — mirrors of the shapes these routes already return.
 // Regenerate rather than hand-edit: the point is that the documented schema cannot
 // drift from the response. No field is added, removed or renamed here.
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class IngestResponseDto {
@@ -21,6 +21,8 @@ export class RecItemResponseDto {
   unit!: string;
   @ApiProperty({ type: Number })
   score!: number;
+  @ApiPropertyOptional({ type: Number, description: 'Reorder only: units on the latest order of it.' })
+  lastQuantity?: number;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

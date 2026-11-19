@@ -6,8 +6,17 @@ export interface IngestItem {
   productName: string;
   sku: string;
   unit: string;
-  /** Units on the line (REC-02): feeds trending only. Absent = 1, as before. */
+  /**
+   * Units on the line. Absent = 1, as before. Feeds trending (REC-02) and, minus a promo's
+   * free rows, the purchase's lastQuantity ("Beli lagi", flow 7c).
+   */
   quantity?: number;
+  /**
+   * Price per unit on the line. 0 on the free row a promo adds beside a paid row of the same
+   * product (order-service's collapsePromoFreeRows rule). Absent from older producers: then
+   * every row counts as ordered.
+   */
+  unitPrice?: number;
 }
 
 export interface IngestCommand {

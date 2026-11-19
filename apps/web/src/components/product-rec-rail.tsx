@@ -45,6 +45,11 @@ function RailCard({ item, product }: { item: Recommendation; product?: Product }
   const { toast } = useToast();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
+  // Flow PR-7c: "Beli lagi" puts back what the customer bought last time. Only the reorder
+  // answer carries it; anything else (trending, a row older than the column) adds one.
+  // Held to the cart's own ceiling (999 a line): a bulk order past it must not make the card a
+  // button that can only fail.
+  const quantity = Math.min(999, Math.max(1, Math.floor(item.lastQuantity ?? 1)));
 
   async function addToCart(e: React.MouseEvent) {
     e.preventDefault();
@@ -59,25 +64,25 @@ function RailCard({ item, product }: { item: Recommendation; product?: Product }
        * G1 already solved this on `ProductCard` — the same two calls, and now the same
        * behaviour: keep the item, come back HERE.
        */
-      setPendingAdd({ productId: item.productId, quantity: 1 });
+      setPendingAdd({ productId: item.productId, quantity });
       router.push(`/login?next=${encodeURIComponent(currentPath())}`);
       return;
     }
     setAdding(true);
-    bump(1); // optimistic badge until the server's own cart lands
+    bump(quantity); // optimistic badge until the server's own cart lands
     try {
       // Audit F-7: POST /cart/items answers with the whole priced cart — adopting it
       // replaces the GET that used to follow every single add.
       apply(
         await api.post<Cart>(
           endpoints.cart.items(cartDepotId()),
-          { productId: item.productId, quantity: 1 },
+          { productId: item.productId, quantity },
           true,
         ),
       );
       setAdded(true);
     } catch (err) {
-      bump(-1); // roll the badge back on failure
+      bump(-quantity); // roll the badge back on failure
       // CA-3-24: a bare catch here too — a failed add was indistinguishable from a missed tap.
       toast(err instanceof ApiError ? err.message : t('shop.pdp.addError'), 'error');
     } finally {
@@ -112,11 +117,20 @@ function RailCard({ item, product }: { item: Recommendation; product?: Product }
       <div className="flex flex-1 flex-col gap-[3px] p-4">
         <h3 className="line-clamp-2 text-[15px] font-bold leading-[1.3]">{name}</h3>
         <p className="text-[13px] text-muted">{item.unit}</p>
-        <div className="mt-3 flex items-center justify-end">
+        <div className="mt-3 flex items-center justify-end gap-2">
+          {quantity > 1 && (
+            <span className="text-[13px] font-bold tabular-nums text-muted">× {quantity}</span>
+          )}
           <button
             onClick={addToCart}
-            disabled={adding}
-            aria-label={t('home.rail.addAria', { name })}
+            // Once added, done: a second tap would put the whole last order in again, and the
+            // cart is where the amount is changed.
+            disabled={adding || added}
+            aria-label={
+              quantity > 1
+                ? t('home.rail.addAriaQty', { name, n: quantity })
+                : t('home.rail.addAria', { name })
+            }
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 text-on-brand transition-[background,transform] hover:scale-[1.06] hover:bg-brand-700 disabled:opacity-50"
           >
             {added ? <Check size={18} weight="bold" /> : <Plus size={18} weight="bold" />}

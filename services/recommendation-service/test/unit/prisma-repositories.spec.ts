@@ -141,9 +141,10 @@ describe('RecommendationPrismaRepository', () => {
       ],
     });
     const sql = (n: number) => tx.$executeRaw.mock.calls[n][0] as { values: unknown[] };
-    // purchases (call 1): purchaseCount is 1 for each product. refs (call 2): buyCount likewise.
+    // purchases (call 1): purchaseCount is 1 for each product, each followed by its units on
+    // this order (flow 7c: lastQuantity — p-1 one line, p-2 two). refs (call 2): buyCount 1 likewise.
     const ones = (call: { values: unknown[] }) => call.values.filter((v) => typeof v === 'number');
-    expect(ones(sql(1))).toEqual([1, 1]);
+    expect(ones(sql(1))).toEqual([1, 1, 1, 2]);
     expect(ones(sql(2))).toEqual([1, 1]);
     // co-buy (call 3): the A-B pair is ONE pairing in each direction, not two.
     expect(ones(sql(3))).toEqual([1, 1]);

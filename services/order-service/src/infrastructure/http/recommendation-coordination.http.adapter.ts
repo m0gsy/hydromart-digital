@@ -44,6 +44,8 @@ export class RecommendationCoordinationHttpAdapter implements RecommendationCoor
             sku: i.sku,
             unit: i.unit,
             quantity: i.quantity,
+            // Flow 7c: 0 on a promo's free row — recommendation's "Beli lagi" leaves it out.
+            unitPrice: i.unitPrice,
           })),
         }),
         signal: controller.signal,

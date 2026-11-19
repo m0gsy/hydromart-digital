@@ -17,6 +17,7 @@ export interface PurchaseRecord {
   productId: string;
   purchaseCount: number;
   lastPurchasedAt: Date;
+  lastQuantity?: number | null;
 }
 
 export interface ProductRefRecord {
@@ -64,8 +65,14 @@ export class FakeRecommendationRepository implements RecommendationRepository {
   async applyIngest(cmd: IngestCommand): Promise<void> {
     const day = cmd.day ?? utcDay(cmd.at);
 
+    const paid = new Set(cmd.items.filter((i) => (i.unitPrice ?? 1) > 0).map((i) => i.productId));
+    const units = new Map<string, number>();
     for (const item of cmd.items) {
-      this.upsertPurchase(cmd.customerId, item.productId, cmd.at);
+      const ordered = item.unitPrice === 0 && paid.has(item.productId) ? 0 : (item.quantity ?? 1);
+      units.set(item.productId, (units.get(item.productId) ?? 0) + ordered);
+    }
+    for (const item of cmd.items) {
+      this.upsertPurchase(cmd.customerId, item.productId, cmd.at, units.get(item.productId)!);
       this.upsertRef(item);
       this.upsertDailySales(item.productId, cmd.depotId, day);
     }
@@ -84,13 +91,16 @@ export class FakeRecommendationRepository implements RecommendationRepository {
     this.ingestedOrderIds.add(cmd.orderId);
   }
 
-  private upsertPurchase(customerId: string, productId: string, at: Date): void {
+  private upsertPurchase(customerId: string, productId: string, at: Date, lastQuantity: number): void {
     const row = this.purchases.find((p) => p.customerId === customerId && p.productId === productId);
     if (row) {
       row.purchaseCount += 1;
-      row.lastPurchasedAt = at;
+      if (at >= row.lastPurchasedAt) {
+        row.lastPurchasedAt = at;
+        row.lastQuantity = lastQuantity;
+      }
     } else {
-      this.purchases.push({ customerId, productId, purchaseCount: 1, lastPurchasedAt: at });
+      this.purchases.push({ customerId, productId, purchaseCount: 1, lastPurchasedAt: at, lastQuantity });
     }
   }
 
@@ -135,7 +145,12 @@ export class FakeRecommendationRepository implements RecommendationRepository {
   async reorderRows(customerId: string): Promise<PurchaseRow[]> {
     return this.purchases
       .filter((p) => p.customerId === customerId)
-      .map((p) => ({ productId: p.productId, purchaseCount: p.purchaseCount, lastPurchasedAt: p.lastPurchasedAt }));
+      .map((p) => ({
+        productId: p.productId,
+        purchaseCount: p.purchaseCount,
+        lastPurchasedAt: p.lastPurchasedAt,
+        lastQuantity: p.lastQuantity ?? null,
+      }));
   }
 
   async relatedRows(productId: string): Promise<{ rows: CoBuyRow[]; baseCount: number }> {

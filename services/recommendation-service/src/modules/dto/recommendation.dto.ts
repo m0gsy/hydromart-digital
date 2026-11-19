@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -91,6 +92,14 @@ export class IngestItemDto {
   @Min(1)
   @Max(10000)
   quantity?: number;
+
+  @ApiPropertyOptional({
+    description: "Price per unit; 0 on a promo's free row, which \"Beli lagi\" does not put back.",
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  unitPrice?: number;
 }
 
 export class IngestOrderDto {

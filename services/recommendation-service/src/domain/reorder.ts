@@ -1,4 +1,10 @@
-export type PurchaseRow = { productId: string; purchaseCount: number; lastPurchasedAt: Date };
+export type PurchaseRow = {
+  productId: string;
+  purchaseCount: number;
+  lastPurchasedAt: Date;
+  /** Units on the latest order that carried it (flow 7c). Null/absent on older rows. */
+  lastQuantity?: number | null;
+};
 
 const HALF_LIFE_DAYS = 30;
 
@@ -10,8 +16,10 @@ export function scoreReorder(row: PurchaseRow, now: Date): number {
 
 export function rankReorder(rows: PurchaseRow[], now: Date, limit: number) {
   return rows
-    .map((r) => ({ productId: r.productId, score: scoreReorder(r, now), _at: r.lastPurchasedAt }))
+    .map((r) => ({ productId: r.productId, score: scoreReorder(r, now), _at: r.lastPurchasedAt, _qty: r.lastQuantity }))
     .sort((a, b) => b.score - a.score || b._at.getTime() - a._at.getTime() || a.productId.localeCompare(b.productId))
     .slice(0, limit)
-    .map(({ productId, score }) => ({ productId, score }));
+    // Null (a row older than the column) and absent both read as "unknown": undefined, which
+    // the JSON answer leaves out.
+    .map(({ productId, score, _qty }) => ({ productId, score, lastQuantity: _qty ?? undefined }));
 }
