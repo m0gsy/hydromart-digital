@@ -9,6 +9,7 @@ import { HR_MANAGED_ROLES } from '@hydromart/access';
 
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { isServedHere } from '@/lib/deep-link';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
@@ -106,10 +107,13 @@ export function StaffDirectory({ header }: { header: (reload: () => void) => Rea
   );
   const items = list.data?.items ?? [];
   // Fail-soft: with no depot list the rows still render, they just cannot be moved.
+  // Read only for those who may move an account: it feeds nothing else on the row.
   const { data: depotPage } = useAsync<Page<DepotAdmin> | null>(
     () =>
-      api.get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true).catch(() => null),
-    [],
+      canAdminStaff
+        ? api.get<Page<DepotAdmin>>(endpoints.depots.manage({ limit: 100 }), true).catch(() => null)
+        : Promise.resolve(null),
+    [canAdminStaff],
   );
   const depots = depotPage?.items ?? [];
 
@@ -130,6 +134,7 @@ export function StaffDirectory({ header }: { header: (reload: () => void) => Rea
     () => readLinkedAccountIds().catch(() => null),
     [],
   );
+  const hrEmployeeForm = isServedHere('/hr/employees/new');
   const reloadAll = () => {
     list.reload();
     reloadLinked();
@@ -180,14 +185,24 @@ export function StaffDirectory({ header }: { header: (reload: () => void) => Rea
                       `FINANCE` produced a blank dropdown holding a value the server then
                       rejected. The badge still links — that record still needs making —
                       it just leaves the jabatan to be chosen on the form. */}
-                  {linked && !linked.has(s.id) && s.role !== 'FRANCHISE_OWNER' && (
-                    <a
-                      href={`/hr/employees/new?fullName=${encodeURIComponent(s.fullName ?? '')}&phone=${encodeURIComponent(s.phone)}${hrManaged(s.role) ? `&role=${s.role}` : ''}${s.assignedDepotId ? `&depotId=${s.assignedDepotId}` : ''}`}
-                      className="text-xs font-bold text-[color:var(--warning)] underline"
-                    >
-                      {t('hq.staff.noEmployeeRecord')}
-                    </a>
-                  )}
+                  {linked &&
+                    !linked.has(s.id) &&
+                    s.role !== 'FRANCHISE_OWNER' &&
+                    // The Ops app does not carry the HR console's employee form: there the
+                    // badge still says what is missing, without a door to a page that is not in
+                    // the binary.
+                    (hrEmployeeForm ? (
+                      <a
+                        href={`/hr/employees/new?fullName=${encodeURIComponent(s.fullName ?? '')}&phone=${encodeURIComponent(s.phone)}${hrManaged(s.role) ? `&role=${s.role}` : ''}${s.assignedDepotId ? `&depotId=${s.assignedDepotId}` : ''}`}
+                        className="text-xs font-bold text-[color:var(--warning)] underline"
+                      >
+                        {t('hq.staff.noEmployeeRecord')}
+                      </a>
+                    ) : (
+                      <span className="text-xs font-bold text-[color:var(--warning)]">
+                        {t('hq.staff.noEmployeeRecord')}
+                      </span>
+                    ))}
                 </div>
                 {canAdminStaff && <DepotPicker staff={s} depots={depots} onMoved={reloadAll} />}
                 <Badge tone="brand">{roleLabel(t, s.role)}</Badge>

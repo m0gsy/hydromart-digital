@@ -5,31 +5,11 @@ import { Lock, UserGear } from '@phosphor-icons/react';
 
 import { StaffInvite } from '@/components/hq/staff-invite';
 import { RequireAuth } from '@/components/require-auth';
-import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
-import { api } from '@/lib/api';
-import { endpoints } from '@/lib/endpoints';
+import { StaffDirectory } from '@/components/staff/staff-directory';
+import { Badge, Card, CenterState } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { CAPABILITIES, canManageStaff, type Capability } from '@/lib/roles';
-import { useAsync } from '@/lib/use-async';
-import type { Customer, Page } from '@/lib/types';
-import { roleLabel } from '@/lib/custom-role';
-
-// Staff roles selectable in the invite form (CUSTOMER is not assignable here).
-const STAFF_ROLES = [
-  'STAFF_DEPOT',
-  'KEPALA_DEPOT',
-  'ASSISTANT_SUPERVISOR',
-  'SUPERVISOR',
-  'MANAGER',
-  'DIREKTUR',
-  'FRANCHISE_OWNER',
-  'HEAD_OFFICE',
-  'FINANCE',
-  'HR',
-  'MARKETING',
-  'SUPER_ADMIN',
-] as const;
 
 // Reference matrix "Peran & hak akses" (7b). Rows are just (label -> capability):
 // the actual role lists are read from CAPABILITIES in lib/roles.ts — the SAME map
@@ -87,77 +67,28 @@ function AccessMatrix() {
   );
 }
 
-function StaffRow({ s }: { s: Customer }) {
-  const { t } = useT();
-  return (
-    <Card className="flex items-center justify-between gap-3 p-3.5">
-      <div className="min-w-0">
-        <p className="truncate font-semibold">{s.fullName || s.phone}</p>
-        <p className="truncate text-xs text-muted">
-          {s.phone}
-          {s.status !== 'ACTIVE' ? ` · ${s.status}` : ''}
-        </p>
-      </div>
-      <Badge tone="brand">{roleLabel(t, s.role, 'dashC.staff.roleLabel')}</Badge>
-    </Card>
-  );
-}
-
+/*
+ * Flow plan 5e: the same directory as /hq/staff — each account's depot, status and HR record,
+ * and the head-office controls on the row — so head office on the phone, where the Ops app
+ * has no /hq, is not left with a read-only list. The route stays: the app carries /dashboard.
+ */
 function StaffBody() {
   const { t } = useT();
-  const [roleFilter, setRoleFilter] = useState('');
-  const list = useAsync<Page<Customer>>(
-    () => api.get(endpoints.auth.staff({ limit: 100, role: roleFilter || undefined }), true),
-    [roleFilter],
-  );
-
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <UserGear size={24} weight="fill" className="text-brand-500" />
-          <h1 className="text-2xl font-bold">{t('dashC.staff.title')}</h1>
-        </div>
-        <StaffInvite onSaved={list.reload} />
-      </div>
-
-      <AccessMatrix />
-
-      <div className="flex items-center gap-2">
-        <label htmlFor="st-filter" className="text-sm font-medium text-muted">
-          {t('dashC.staff.role')}
-        </label>
-        <select
-          id="st-filter"
-          value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
-          className="rounded-xl border border-app bg-transparent px-3 py-2 text-sm font-medium"
-        >
-          <option value="">{t('dashC.staff.all')}</option>
-          {STAFF_ROLES.map((r) => (
-            <option key={r} value={r}>
-              {t(`dashC.staff.roleLabel.${r}`)}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {list.loading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : list.error ? (
-        <ErrorState message={list.error} onRetry={list.reload} />
-      ) : !list.data || list.data.items.length === 0 ? (
-        <CenterState title={t('dashC.staff.emptyTitle')} icon={<UserGear size={40} weight="fill" />}>
-          {t('dashC.staff.emptyBody')}
-        </CenterState>
-      ) : (
-        <div className="flex flex-col gap-2.5">
-          {list.data.items.map((s) => (
-            <StaffRow key={s.id} s={s} />
-          ))}
-        </div>
+    <StaffDirectory
+      header={(reload) => (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <UserGear size={24} weight="fill" className="text-brand-500" />
+              <h1 className="text-2xl font-bold">{t('dashC.staff.title')}</h1>
+            </div>
+            <StaffInvite onSaved={reload} />
+          </div>
+          <AccessMatrix />
+        </>
       )}
-    </div>
+    />
   );
 }
 
