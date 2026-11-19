@@ -17,6 +17,7 @@ import {
 import { ConsoleSignOut } from '@/components/console-sign-out';
 
 import { DepotSwitcher } from '@/components/dashboard/ops-rail';
+import { HUB_ICONS } from '@/lib/ops-hub-icons';
 import { GROUPS, hubsFor } from '@/lib/ops-nav';
 import { Sheet } from '@/components/overlay';
 import { useAuth } from '@/lib/auth-context';
@@ -172,7 +173,7 @@ function MoreSheetTab({ current }: { current: string | undefined }) {
           </div>
           {/* PR-3b: one row per hub, as on the rail; the hub's screens are tabs on its pages. */}
           {hubsFor(role).map(({ hub, items }) => {
-            const Ic = hub.icon;
+            const Ic = HUB_ICONS[hub.headKey];
             const on = items.some((i) => i.href === current);
             return (
               <Link

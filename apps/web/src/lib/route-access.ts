@@ -17,11 +17,11 @@
  *   rows on `depotAdmin`, the page reads on `depotDirectory`);
  * - a child stricter than its row is not seen (`/hr/attendance/import` needs `hrAdmin`).
  *   Give such a child its own row before anything links to it.
- * The ops table is data in `lib/ops-nav.ts` (PR-3a), icons included, so every caller still
- * bundles them; HR_ITEMS is still read from the HR rail component.
+ * Both tables are icon-free data (`lib/ops-nav.ts`, `lib/hr-nav.ts`); their icons live with the
+ * rails that draw them, so asking this question costs a caller no icons and no rail component.
  */
 import { GROUPS } from '@/lib/ops-nav';
-import { HR_ITEMS, mayOpenHrRow } from '@/components/hr/hr-rail';
+import { HR_ITEMS, mayOpenHrRow, type HrNavRow } from '@/lib/hr-nav';
 import { isServedHere } from '@/lib/deep-link';
 import { capForHqPath, mayOpenHqPath } from '@/lib/hq-nav';
 import {
@@ -83,7 +83,7 @@ function pageAllows(path: string, role: Role): boolean {
   // Self-service answers for the caller's own employee record: any staff account, no customer.
   if (under(path, '/hr/me')) return isStaff(role);
   if (under(path, '/hr')) {
-    const row = deepest(HR_ITEMS, path);
+    const row = deepest<HrNavRow>(HR_ITEMS, path);
     return (
       canViewHr(role) && (!row?.adminOnly || canManageHr(role)) && mayOpenHrRow(row?.can, role)
     );

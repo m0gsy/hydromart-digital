@@ -17,6 +17,7 @@ import { useT } from '@/lib/locale-context';
 import { useOpsUnreadCount } from '@/lib/unread';
 import { canViewOpsNotifications } from '@/lib/roles';
 import { deepest, normalisePath } from '@/lib/screen-chrome';
+import { HUB_ICONS } from '@/lib/ops-hub-icons';
 import { GROUPS, hubsFor } from '@/lib/ops-nav';
 
 // B2: exported for the phone sheet. A depot-scoped console whose switcher only exists on
@@ -146,7 +147,7 @@ export function OpsRail() {
       <nav className="mt-3.5 flex flex-col gap-px">
         {hubs.map(({ hub, items }) => {
           const on = hub.headKey === currentHub;
-          const Ic = hub.icon;
+          const Ic = HUB_ICONS[hub.headKey];
           // O4: the row that carries the unread badge opens the feed it counts.
           const feed = items.find((i) => i.labelKey === 'notifications');
           const badge = feed !== undefined && opsUnread > 0;

@@ -10,7 +10,8 @@ import { useT } from '@/lib/locale-context';
 import { normalisePath } from '@/lib/screen-chrome';
 // The rail's own table, not a second one: two copies of a nav model is how a door gets
 // hidden in one place and offered in another. Same gates, same order.
-import { hrNavItems } from '@/components/hr/hr-rail';
+import { HR_ICONS } from '@/components/hr/hr-rail';
+import { hrNavItems } from '@/lib/hr-nav';
 import { ConsoleSignOut } from '@/components/console-sign-out';
 
 /*
@@ -75,7 +76,8 @@ export function HrBottomNav() {
           </div>
 
           <nav className="px-2 py-2" aria-label={t('hrFix.nav.allScreens')}>
-            {items.map(({ href, label, icon: Icon }) => {
+            {items.map(({ href, label }) => {
+              const Icon = HR_ICONS[href];
               const on = isActive(href);
               return (
                 <Link
@@ -107,7 +109,8 @@ export function HrBottomNav() {
         className="fixed inset-x-0 bottom-0 z-40 flex max-w-[100vw] items-end justify-around overflow-hidden border-t border-app bg-[color:var(--surface)]/95 px-2 pb-[max(16px,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))] pt-2.5 backdrop-blur-[8px] sm:hidden"
         aria-label={t('hrFix.nav.aria')}
       >
-        {tabs.map(({ href, label, icon: Icon }) => {
+        {tabs.map(({ href, label }) => {
+          const Icon = HR_ICONS[href];
           const on = isActive(href);
           return (
             <Link

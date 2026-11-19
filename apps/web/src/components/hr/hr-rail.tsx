@@ -25,108 +25,39 @@ import { usePathname } from 'next/navigation';
 
 import { ConsoleSignOut } from '@/components/console-sign-out';
 import { useAuth } from '@/lib/auth-context';
-import { isServedHere } from '@/lib/deep-link';
-import { can, canManageHr, isHq } from '@/lib/roles';
+import { hrNavItems, type HrHref } from '@/lib/hr-nav';
 import { normalisePath } from '@/lib/screen-chrome';
-import type { Capability } from '@hydromart/access';
-
-export interface NavItem {
-  href: string;
-  /** Dictionary KEY — resolved where the item is rendered. */
-  label: string;
-  icon: Icon;
-  adminOnly?: boolean;
-  /**
-   * CA-1-32: the capability whose absence makes this screen a door to a denial.
-   *
-   * `adminOnly` above answers one question — "may this reader change HR data" — and two of
-   * these screens are not hr-service's at all. Pelanggan reads customer-service's depot CRM
-   * (`depotCrm`) and Reseller reads its agen registry (`resellerView`), and neither list
-   * includes every role that holds `hrView`. So FINANCE was offered both, and
-   * ASSISTANT_SUPERVISOR was offered Reseller, and each one opened onto a 403 rendered as a
-   * load failure. Named per item rather than hard-coded in the filter so the next
-   * cross-service screen added here has somewhere to say so.
-   *
-   * A list means any of them: Pinjam karyawan is the requester's (`employeeAssignRequest`) and
-   * the decider's (`employeeAssign`) screen alike.
-   */
-  can?: Capability | readonly Capability[];
-}
-
-/** May this role open an HR row with this capability (or any of these)? */
-export function mayOpenHrRow(cap: NavItem['can'], role: string | null | undefined): boolean {
-  if (!cap) return true;
-  return typeof cap === 'string' ? can(cap, role) : cap.some((c) => can(c, role));
-}
-
-/*
- * CA-1-33: exported because the phone's bottom nav reads this SAME table.
- *
- * The rail is `hidden sm:flex` and was the whole of the HR console's navigation, so below
- * 640px there was none at all — every one of these twenty screens could only be reached by
- * typing its URL. HQ had the identical defect and CA-2-61 fixed it by making the bar read
- * the rail's own model. Two copies of a nav model is how a door gets hidden in one place
- * and offered in another; there is one here.
- */
-export const HR_ITEMS: NavItem[] = [
-  { href: '/hr', label: 'hrFix.nav.dashboard', icon: Gauge },
-  { href: '/hr/employees', label: 'hrFix.nav.employees', icon: Users },
-  { href: '/hr/departments', label: 'hrFix.nav.departments', icon: Buildings },
-  // Both live in customer-service, not hr-service, and their capability lists are narrower
-  // than `hrView` — see the `can` note on NavItem.
-  { href: '/hr/customers', label: 'hrFix.nav.customers', icon: Users, can: 'depotCrm' },
-  { href: '/hr/resellers', label: 'hrFix.nav.resellers', icon: Storefront, can: 'resellerView' },
-  { href: '/hr/attendance', label: 'hrFix.nav.attendance', icon: CalendarCheck },
-  { href: '/hr/leave', label: 'hrFix.nav.leave', icon: CalendarCheck },
-  { href: '/hr/payroll', label: 'hrFix.nav.payroll', icon: CurrencyCircleDollar },
-  { href: '/hr/adjustments', label: 'hrFix.nav.adjustments', icon: ClipboardText },
-  { href: '/hr/allowances', label: 'hrFix.nav.allowances', icon: CurrencyCircleDollar },
-  // CA-1-34: the kasbon ledger. It had an import wizard and no list.
-  { href: '/hr/loans', label: 'hrFix.nav.loans', icon: CurrencyCircleDollar },
-  // A depot manager asks to borrow somebody; HR (who plans directly) has no use for it.
-  {
-    href: '/hr/depot-requests',
-    label: 'hrFix.nav.depotRequests',
-    icon: Users,
-    can: ['employeeAssignRequest', 'employeeAssign'],
-  },
-  { href: '/hr/assets', label: 'hrFix.nav.assets', icon: Package },
-  { href: '/hr/announcements', label: 'hrFix.nav.announcements', icon: Megaphone },
-  { href: '/hr/rules', label: 'hrFix.nav.rules', icon: Sparkle, adminOnly: true },
-  { href: '/hr/performance', label: 'hrFix.nav.performance', icon: Star },
-  { href: '/hr/shift', label: 'hrFix.nav.shift', icon: Clock },
-  { href: '/hr/calendar', label: 'hrFix.nav.calendar', icon: CalendarCheck },
-  { href: '/hr/reports', label: 'hrFix.nav.reports', icon: ChartBar },
-  { href: '/hr/settings', label: 'hrFix.nav.settings', icon: GearSix, adminOnly: true },
-  { href: '/hr/audit', label: 'hrFix.nav.audit', icon: ClipboardText, adminOnly: true },
-  /*
-   * CA-1-36. HR staff are employees too — they punch in, take leave and are paid — and the
-   * console they work in all day had no link to their own record. `/hr/me` was reachable
-   * from the courier profile, the ops rail and the operator shell; the one rail belonging
-   * to the people who run HR did not mention it. Last on purpose: it is the reader's own
-   * business, not part of the queues above it.
-   */
-  { href: '/hr/me', label: 'hrFix.nav.me', icon: UserCircle },
-];
 
 /**
- * The items this reader may actually open — the rail's own list, gates and all.
- *
- * Shared with the phone's bottom nav (CA-1-33) so the two cannot disagree: `adminOnly`
- * screens stay hidden from a non-admin on both, and the `/hq` door appears on both for the
- * roles whose console is elsewhere.
+ * The rail's icons, one per row of `lib/hr-nav.ts` (and its /hq door). Here rather than in that
+ * table so that `canOpenRoute`, which reads the table, does not bundle them; keyed by the
+ * table's own hrefs, so a row added there without an icon here does not build.
  */
-export function hrNavItems(role: string | null | undefined): NavItem[] {
-  return [
-    ...(isHq(role) && isServedHere('/hq')
-      ? [{ href: '/hq', label: 'hrFix.nav.hqConsole', icon: Buildings }]
-      : []),
-    ...HR_ITEMS.filter(
-      (i) =>
-        isServedHere(i.href) && (!i.adminOnly || canManageHr(role)) && mayOpenHrRow(i.can, role),
-    ),
-  ];
-}
+export const HR_ICONS: Record<HrHref, Icon> = {
+  '/hq': Buildings,
+  '/hr': Gauge,
+  '/hr/employees': Users,
+  '/hr/departments': Buildings,
+  '/hr/customers': Users,
+  '/hr/resellers': Storefront,
+  '/hr/attendance': CalendarCheck,
+  '/hr/leave': CalendarCheck,
+  '/hr/payroll': CurrencyCircleDollar,
+  '/hr/adjustments': ClipboardText,
+  '/hr/allowances': CurrencyCircleDollar,
+  '/hr/loans': CurrencyCircleDollar,
+  '/hr/depot-requests': Users,
+  '/hr/assets': Package,
+  '/hr/announcements': Megaphone,
+  '/hr/rules': Sparkle,
+  '/hr/performance': Star,
+  '/hr/shift': Clock,
+  '/hr/calendar': CalendarCheck,
+  '/hr/reports': ChartBar,
+  '/hr/settings': GearSix,
+  '/hr/audit': ClipboardText,
+  '/hr/me': UserCircle,
+};
 
 export function HrRail() {
   const { t } = useT();
@@ -152,7 +83,8 @@ export function HrRail() {
       className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col gap-1 overflow-y-auto border-r border-app px-3 py-6 sm:flex"
     >
       <p className="px-3 pb-2 text-xs font-bold uppercase tracking-wide text-muted">HR</p>
-      {items.map(({ href, label, icon: Icon }) => {
+      {items.map(({ href, label }) => {
+        const Icon = HR_ICONS[href];
         const active = href === '/hr' ? pathname === '/hr' : pathname.startsWith(href);
         return (
           <Link
