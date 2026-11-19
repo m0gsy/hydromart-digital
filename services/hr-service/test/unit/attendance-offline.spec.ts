@@ -95,7 +95,8 @@ class FakeAtt implements AttendanceRepository {
   }
   async patchCheckOut(_id: string, patch: CheckOutPatch): Promise<Attendance> {
     this.patched = patch;
-    return { ...(this.row as Attendance), ...patch };
+    this.row = { ...(this.row as Attendance), ...patch };
+    return this.row;
   }
   async patchStatus(_id: string, status: AttendanceStatus): Promise<Attendance> {
     this.statusPatch = status;
@@ -107,7 +108,8 @@ class FakeAtt implements AttendanceRepository {
   }
 
   async list() {
-    return { rows: [], total: 0 };
+    const rows = this.row ? [{ ...this.row, employeeName: null }] : [];
+    return { rows, total: rows.length };
   }
 }
 
@@ -117,6 +119,7 @@ function make(
     autoAcceptMinutes?: number;
     maxAgeHours?: number;
     storage?: { put: () => Promise<{ url: string; key: string }> };
+    verify?: FaceVerifier['verify'];
   } = {},
 ) {
   const att = opts.att ?? new FakeAtt();
@@ -137,7 +140,7 @@ function make(
   };
   const verifier: FaceVerifier = {
     enroll: async () => ({ vector: [1, 0], quality: 1 }),
-    verify: async () => ({ score: 0.9, matched: true }),
+    verify: opts.verify ?? (async () => ({ score: 0.9, matched: true })),
   };
   const employees = {
     findByAuthSubjectId: async () => ({ id: 'e1', depotId: 'd1', status: 'ACTIVE' }) as Employee,
@@ -148,6 +151,102 @@ function make(
     svc: new AttendanceService(att, verifier, faces, employees, config, opts.storage as never),
   };
 }
+
+/*
+ * Face plan §4.14. The stored check-in is min(capturedAt, server time), so when the phone's clock
+ * runs ahead a replay could not recognise its own punch from it: the retry of a punch that HAD
+ * landed was told "Sudah check-in hari ini" (400), the phone marked it failed, and the face check
+ * before that spent a NEO hit. The raw capturedAt is kept now and checked before the face.
+ */
+describe('a replay is recognised before the face is checked', () => {
+  const AT_1700 = new Date('2026-07-24T10:00:00.000Z');
+
+  it('answers the replay of a check-in whose phone clock ran ahead with the stored row, asking NEO nothing', async () => {
+    const verify = jest.fn(async () => ({ score: 0.9, matched: true }));
+    const { att, svc } = make({ verify });
+    const ahead = new Date(AT_0810.getTime() + 3 * 60_000);
+    await svc.checkIn(user, punchAt(ahead), AT_0810);
+    expect(att.created).toMatchObject({ checkInAt: AT_0810, checkInClientAt: ahead });
+    verify.mockClear();
+
+    const replay = await svc.checkIn(user, punchAt(ahead), new Date(AT_0810.getTime() + 60_000));
+    expect(replay.id).toBe('a1');
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('still refuses a second check-in that is not a replay (another capturedAt), after the face check', async () => {
+    const { svc } = make();
+    await svc.checkIn(user, punchAt(AT_0810), new Date(AT_0810.getTime() + 60_000));
+    await expect(
+      svc.checkIn(user, punchAt(new Date(AT_0810.getTime() + 30_000)), new Date(AT_0810.getTime() + 90_000)),
+    ).rejects.toThrow('Sudah check-in hari ini');
+  });
+
+  it('answers the replay of a check-out whose phone clock ran ahead with the stored row, asking NEO nothing', async () => {
+    const verify = jest.fn(async () => ({ score: 0.9, matched: true }));
+    const { att, svc } = make({ verify });
+    await svc.checkIn(user, punchAt(), AT_0810);
+    const ahead = new Date(AT_1700.getTime() + 4 * 60_000);
+    await svc.checkOut(user, punchAt(ahead), AT_1700);
+    expect(att.patched).toMatchObject({ checkOutAt: AT_1700, checkOutClientAt: ahead });
+    verify.mockClear();
+
+    const replay = await svc.checkOut(user, punchAt(ahead), new Date(AT_1700.getTime() + 60_000));
+    expect(replay.checkOutAt).toEqual(AT_1700);
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  /*
+   * The twin in flight: two sends of one check-out both pass the replay check (the row is still
+   * open), and the first closes it while the second is at the face engine. The second then finds
+   * the row closed by ITSELF and is answered as the replay it is, not with a 400.
+   */
+  class ClosedWhileChecking extends FakeAtt {
+    constructor(private readonly closed: Partial<Attendance>) {
+      super();
+    }
+    async list() {
+      // What the replay check read: the row, still open.
+      const open = { id: 'a1', checkInAt: AT_0810, checkOutAt: null, employeeName: null };
+      return { rows: [open as unknown as Attendance & { employeeName: null }], total: 1 };
+    }
+    async findByEmployeeAndDate(): Promise<Attendance | null> {
+      // What the check-out read after the face check: closed by the twin.
+      return { id: 'a1', checkInAt: AT_0810, ...this.closed } as Attendance;
+    }
+  }
+
+  it('answers a twin check-out that closed the row during its face check, by the client time', async () => {
+    const sent = new Date(AT_1700.getTime() + 4 * 60_000);
+    const att = new ClosedWhileChecking({ checkOutAt: AT_1700, checkOutClientAt: sent });
+    const { svc } = make({ att });
+    await expect(svc.checkOut(user, punchAt(sent), new Date(AT_1700.getTime() + 60_000))).resolves.toMatchObject({
+      checkOutAt: AT_1700,
+    });
+  });
+
+  it('answers it by the stored instant for a row written before the client time was kept', async () => {
+    const att = new ClosedWhileChecking({ checkOutAt: AT_1700, checkOutClientAt: null });
+    const { svc } = make({ att });
+    await expect(svc.checkOut(user, punchAt(AT_1700), new Date(AT_1700.getTime() + 60_000))).resolves.toMatchObject({
+      checkOutAt: AT_1700,
+    });
+  });
+
+  it('still refuses a second live check-out (400)', async () => {
+    const att = new ClosedWhileChecking({ checkOutAt: AT_1700, checkOutClientAt: null });
+    const { svc } = make({ att });
+    await expect(svc.checkOut(user, punchAt(), new Date(AT_1700.getTime() + 60_000))).rejects.toThrow(
+      'Sudah check-out hari ini',
+    );
+  });
+
+  it('a live punch keeps no client time', async () => {
+    const { att, svc } = make();
+    await svc.checkIn(user, punchAt(), AT_0810);
+    expect(att.created?.checkInClientAt).toBeNull();
+  });
+});
 
 describe('AttendanceService offline punch', () => {
   it('keeps a live punch (no capturedAt) on the server clock', async () => {
@@ -512,7 +611,8 @@ describe('AttendanceService check-in write that fails after the frame was stored
   }
 
   class Failing extends FakeAtt {
-    reads = 0;
+    /** Set by the failed write: the read after it is the RE-read (a replay check may read before). */
+    createTried = false;
     constructor(
       private readonly winner: Partial<Attendance> | null,
       private readonly rereadFails = false,
@@ -520,11 +620,11 @@ describe('AttendanceService check-in write that fails after the frame was stored
       super();
     }
     async findByEmployeeAndDate(): Promise<Attendance | null> {
-      this.reads += 1;
-      if (this.reads > 1 && this.rereadFails) throw new Error('pool exhausted');
+      if (this.createTried && this.rereadFails) throw new Error('pool exhausted');
       return this.row;
     }
     async create(): Promise<Attendance> {
+      this.createTried = true;
       if (this.winner) this.row = { id: 'a-twin', ...this.winner } as Attendance;
       throw dup();
     }

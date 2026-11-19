@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ForbiddenException,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
@@ -222,7 +221,7 @@ describe('AttendanceService', () => {
 
   it('rejects a non-match', async () => {
     const nomatch = make({ verify: { score: 0.1, matched: false } });
-    await expect(nomatch.svc.checkIn(user, punch, AT_0810)).rejects.toThrow(UnauthorizedException);
+    await expect(nomatch.svc.checkIn(user, punch, AT_0810)).rejects.toThrow(ForbiddenException);
   });
 
   // The face matched but the provider says the frame is a spoof (photo of a photo, a screen):

@@ -15,6 +15,8 @@ export interface CreateAttendanceInput {
   checkInLng: number;
   lateMinutes: number;
   status: AttendanceStatus;
+  /** The phone's `capturedAt` exactly as sent; null for a live punch. The replay key. */
+  checkInClientAt?: Date | null;
 }
 
 export interface CheckOutPatch {
@@ -24,6 +26,8 @@ export interface CheckOutPatch {
   checkOutLat: number;
   checkOutLng: number;
   workingMinutes: number;
+  /** The phone's `capturedAt` exactly as sent; null for a live punch. The replay key. */
+  checkOutClientAt?: Date | null;
 }
 
 /**

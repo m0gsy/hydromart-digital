@@ -1,7 +1,7 @@
 import {
   BadRequestException,
   ServiceUnavailableException,
-  UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthenticatedUser, alertServerError } from '@hydromart/platform';
 
@@ -240,10 +240,10 @@ describe('what is not the engine being down still decides', () => {
     expect(created).toHaveLength(0);
   });
 
-  it('a face that does not match is refused (401), nothing recorded', async () => {
+  it('a face that does not match is refused (403, never 401: a 401 makes every client re-send), nothing recorded', async () => {
     const { svc, verify, created } = make();
     verify.mockResolvedValue({ score: 0.2, matched: false });
-    await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(UnauthorizedException);
+    await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(ForbiddenException);
     expect(created).toHaveLength(0);
   });
 

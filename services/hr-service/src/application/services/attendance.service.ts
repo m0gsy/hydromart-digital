@@ -8,7 +8,6 @@ import {
   NotFoundException,
   Optional,
   ServiceUnavailableException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import {
   AuthenticatedUser,
@@ -143,6 +142,10 @@ export class AttendanceService {
     now: Date = new Date(),
   ): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
+    // Face plan §4.14: the retry of a punch that already landed is recognised BEFORE the face is
+    // checked, so it costs no NEO hit and a flaky engine cannot refuse what is already recorded.
+    const replayed = await this.replayedCheckIn(employee.id, punch, now);
+    if (replayed) return replayed;
     const score = await this.assertFace(employee, punch);
 
     // The moment of the punch comes first now: the geofence is the one of the depot worked at
@@ -208,6 +211,7 @@ export class AttendanceService {
         checkInLng: punch.lng,
         lateMinutes,
         status,
+        checkInClientAt: punch.capturedAt ?? null,
       });
     } catch (err) {
       /*
@@ -256,8 +260,71 @@ export class AttendanceService {
           : 'Hari ini sudah tercatat tanpa jam masuk. Minta HR mengoreksi absensi Anda.',
       );
     }
-    if (punch.capturedAt && existing.checkInAt.getTime() === at.getTime()) return existing;
+    if (this.isSameCheckIn(existing, punch, at)) return existing;
     throw new BadRequestException('Sudah check-in hari ini');
+  }
+
+  /**
+   * This punch's own check-in? Matched on the phone's `capturedAt` exactly as sent — the stored
+   * check-in is min(capturedAt, server time), so when the phone's clock runs ahead the replay
+   * could not recognise itself from it and was told "Sudah check-in hari ini" for a punch that
+   * had landed. Rows written before the raw time was kept still match on the stored instant.
+   */
+  private isSameCheckIn(row: Attendance, punch: FacePunch, at: Date): boolean {
+    if (!punch.capturedAt || !row.checkInAt) return false;
+    return (
+      row.checkInClientAt?.getTime() === punch.capturedAt.getTime() ||
+      row.checkInAt.getTime() === at.getTime()
+    );
+  }
+
+  /** The day's row, when this punch is the replay of the check-in that wrote it; else null. */
+  private async replayedCheckIn(
+    employeeId: string,
+    punch: FacePunch,
+    now: Date,
+  ): Promise<Attendance | null> {
+    if (!punch.capturedAt) return null;
+    // offlineAt() without its age refusal: a replay of what already landed is answered however
+    // late it arrives.
+    const at = new Date(Math.min(punch.capturedAt.getTime(), now.getTime()));
+    const row = await this.repo.findByEmployeeAndDate(
+      employeeId,
+      this.localParts(at, this.config.timeZone).workDate,
+    );
+    return row && this.isSameCheckIn(row, punch, at) ? row : null;
+  }
+
+  /**
+   * The row this punch already closed, when it is the replay of that check-out; else null.
+   * Today's row or the night-shift row from the day before (one read covers both), matched like
+   * check-in: the phone's `capturedAt` as sent, or the stored instant for older rows.
+   */
+  private async replayedCheckOut(
+    employeeId: string,
+    punch: FacePunch,
+    now: Date,
+  ): Promise<Attendance | null> {
+    if (!punch.capturedAt) return null;
+    const sent = punch.capturedAt.getTime();
+    const at = Math.min(sent, now.getTime());
+    const today = localDayKey(new Date(at), this.config.timeZone);
+    const { rows } = await this.repo.list({
+      employeeId,
+      from: new Date(`${addDays(today, -1)}T00:00:00.000Z`),
+      to: new Date(`${today}T00:00:00.000Z`),
+      skip: 0,
+      take: 5,
+    });
+    return (
+      rows.find(
+        (r) =>
+          r.checkInAt &&
+          r.checkOutAt &&
+          (r.checkOutClientAt?.getTime() === sent ||
+            r.checkOutAt.getTime() === Math.max(at, r.checkInAt.getTime())),
+      ) ?? null
+    );
   }
 
   /** Clock skew below this is not worth a trail entry. */
@@ -309,6 +376,9 @@ export class AttendanceService {
     now: Date = new Date(),
   ): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
+    // Face plan §4.14, as in checkIn: a replay is answered before the face costs a NEO hit.
+    const replayed = await this.replayedCheckOut(employee.id, punch, now);
+    if (replayed) return replayed;
     const score = await this.assertFace(employee, punch);
 
     const offlineAt = this.offlineAt(punch, now, employee.depotId);
@@ -333,7 +403,13 @@ export class AttendanceService {
     const at = offlineAt ? new Date(Math.max(offlineAt.getTime(), row.checkInAt.getTime())) : now;
     if (row.checkOutAt) {
       // Same replay rule as `checkIn` above, and for the same queue.
-      if (punch.capturedAt && row.checkOutAt.getTime() === at.getTime()) return row;
+      if (
+        punch.capturedAt &&
+        (row.checkOutClientAt?.getTime() === punch.capturedAt.getTime() ||
+          row.checkOutAt.getTime() === at.getTime())
+      ) {
+        return row;
+      }
       throw new BadRequestException('Sudah check-out hari ini');
     }
 
@@ -349,6 +425,7 @@ export class AttendanceService {
       checkOutLat: punch.lat,
       checkOutLng: punch.lng,
       workingMinutes,
+      checkOutClientAt: punch.capturedAt ?? null,
     });
     // A check-out taken away from every supervised site puts the whole day in front of HR,
     // not just the closing punch — the day is what payroll counts. Already-PENDING days stay
@@ -866,7 +943,7 @@ export class AttendanceService {
      * cannot be ASKED about (`FaceEngineUnavailableError`: quota, outage, timeout) is still
      * RECORDED, held PENDING with no score (null), and HR decides from the stored frame. What
      * the engine DID answer still decides — no face found is a retake (400), a mismatch is
-     * refused (401) — and a misconfiguration stays a plain 503 that pages.
+     * refused (403) — and a misconfiguration stays a plain 503 that pages.
      */
     let result: FaceVerifyResult;
     try {
@@ -882,14 +959,17 @@ export class AttendanceService {
       this.logger.warn(`Face engine unavailable, punch held PENDING for HR: ${err.message}`);
       return null;
     }
+    // 403, not 401 (face plan PR-2): every client reads a 401 as an expired session, refreshes
+    // and sends the punch AGAIN — a second NEO hit for the same face — and the offline queue
+    // stopped altogether on one. A 403 is a plain refusal, shown once, never retried.
     if (!result.matched) {
-      throw new UnauthorizedException('Wajah tidak cocok');
+      throw new ForbiddenException('Wajah tidak cocok');
     }
     // `live` is undefined unless server-side liveness is switched on. false is a spoof the
     // match alone accepted; it is refused with its own words so the audit trail can tell a
     // photo-of-a-photo from an honest mismatch.
     if (result.live === false) {
-      throw new UnauthorizedException('Wajah terdeteksi bukan wajah asli (foto/layar)');
+      throw new ForbiddenException('Wajah terdeteksi bukan wajah asli (foto/layar)');
     }
     return result.score;
   }
