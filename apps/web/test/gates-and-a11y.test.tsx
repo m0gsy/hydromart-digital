@@ -55,7 +55,7 @@ vi.mock('@/lib/location-context', () => ({
   useLocation: () => ({ location: null, setLocation: vi.fn() }),
 }));
 
-import { hrNavItems } from '@/components/hr/hr-rail';
+import { hrNavItems } from '@/lib/hr-nav';
 import { Field } from '@/components/ui';
 import { LocationSelector } from '@/components/location-selector';
 import EditEmployeePage from '@/app/hr/employees/detail/edit/page';
@@ -77,7 +77,7 @@ describe('CA-1-32 the HR rail only offers what the reader can open', () => {
     vi.stubEnv('NEXT_PUBLIC_MOBILE_PRUNED', '/hq/*,/hr,/hr/employees/*,/hr/payroll/*');
     vi.resetModules();
     try {
-      const { hrNavItems: opsItems } = await import('@/components/hr/hr-rail');
+      const { hrNavItems: opsItems } = await import('@/lib/hr-nav');
       const links = opsItems('HR').map((i) => i.href);
       expect(links).toContain('/hr/attendance');
       expect(links).not.toContain('/hr/employees');

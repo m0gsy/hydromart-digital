@@ -390,6 +390,9 @@ const NAV_SOURCES = [
   // The depot-console menu DATA (flow PR-3a moved it out of ops-rail.tsx): its literals are
   // the rail's links, so it is scanned like the rail it feeds.
   { rel: 'src/lib/ops-nav.ts', livesUnder: '/dashboard' },
+  // The HR console's menu DATA, moved out of hr-rail.tsx for the same reason: scanned as the
+  // rail it feeds, under the HR console it belongs to.
+  { rel: 'src/lib/hr-nav.ts', livesUnder: '/hr' },
   ...NAV_FILES.map((rel) => ({ rel, livesUnder: livesUnderOf(rel) })),
 ];
 const served = (route) =>
