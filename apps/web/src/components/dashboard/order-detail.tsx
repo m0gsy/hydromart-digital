@@ -25,6 +25,7 @@ import { can, canConfirmPayment } from '@/lib/roles';
 import { courierAvailability, dispatchWindowStart, type CourierShift } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import { canOpenRoute } from '@/lib/route-access';
+import { isServedHere } from '@/lib/deep-link';
 import type { Customer, Delivery, Order, Page, Payment } from '@/lib/types';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
@@ -507,6 +508,14 @@ export function OrderDetail({
             <p className="mt-1 font-medium">
               <EntityLink href={entityHref('courier', courierId, 'dashboard', customer?.role)}>
                 {t('hrFix.orderDetail.courier', { name: order.driverName })}
+              </EntityLink>
+            </p>
+          )}
+          {/* Flow PR-7d: a dispute about THIS order, its form already filled. */}
+          {can('depotDisputes', customer?.role) && isServedHere('/dashboard/disputes') && (
+            <p className="mt-1">
+              <EntityLink href={`/dashboard/disputes?order=${encodeURIComponent(order.id)}`}>
+                {t('dashA.disputes.createTitle')}
               </EntityLink>
             </p>
           )}

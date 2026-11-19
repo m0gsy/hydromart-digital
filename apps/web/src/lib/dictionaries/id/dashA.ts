@@ -230,6 +230,8 @@ export const dashA = {
     createTitle: 'Catat sengketa',
     orderRef: 'Nomor order',
     orderRefPlaceholder: 'ORD-2418',
+    orderRefHint: 'Ketik 3 karakter atau lebih untuk mencari order depot ini.',
+    pickDepot: 'Pilih depot dulu, atau buka dari panel order.',
     customerName: 'Nama pelanggan',
     customerNamePlaceholder: 'Rina Hapsari',
     categoryLabel: 'Kategori',

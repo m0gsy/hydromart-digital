@@ -229,6 +229,8 @@ export const dashA = {
     createTitle: 'Log a dispute',
     orderRef: 'Order number',
     orderRefPlaceholder: 'ORD-2418',
+    orderRefHint: 'Type 3 or more characters to search this depot’s orders.',
+    pickDepot: 'Pick a depot first, or open this from the order panel.',
     customerName: 'Customer name',
     customerNamePlaceholder: 'Rina Hapsari',
     categoryLabel: 'Category',

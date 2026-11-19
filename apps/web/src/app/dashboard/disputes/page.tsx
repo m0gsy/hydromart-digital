@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Lock, Scales } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -24,11 +24,14 @@ import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
+import { useQueryParam } from '@/lib/use-query-param';
 import type {
   DisputeCategory,
   DisputeResolution,
   DisputeStatus,
+  Order,
   OrderDispute,
+  Page,
 } from '@/lib/types';
 
 const inputClass =
@@ -161,8 +164,24 @@ function DisputeCard({ dispute, onChanged }: { dispute: OrderDispute; onChanged:
   );
 }
 
-/** Collapsible "Catat sengketa" create form. */
-function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }) {
+/**
+ * Collapsible "Catat sengketa" create form.
+ *
+ * Flow PR-7d: the order number SEARCHES this depot's orders, and a pick fills the customer's
+ * and the courier's names: retyping them from another screen filed disputes under orders
+ * that did not exist. Opened from the order panel (`prefillOrderId`) it starts filled, and a
+ * found order's own depot is where the dispute is filed. A search that cannot be read costs
+ * nothing: the boxes still take typing.
+ */
+function CreateForm({
+  depotId,
+  prefillOrderId,
+  onDone,
+}: {
+  depotId: string | null;
+  prefillOrderId: string | null;
+  onDone: () => void;
+}) {
   const { t } = useT();
   const [orderRef, setOrderRef] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -172,10 +191,49 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
   const [courierName, setCourierName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The order a pick (or the panel) chose: its number, and the depot the dispute belongs to.
+  const [found, setFound] = useState<{ orderNumber: string; depotId: string | null } | null>(null);
+
+  const pick = (order: Order) => {
+    setOrderRef(order.orderNumber);
+    setCustomerName(order.recipientName ?? '');
+    setCourierName(order.driverName ?? '');
+    setFound({ orderNumber: order.orderNumber, depotId: order.depotId });
+  };
+
+  useEffect(() => {
+    if (!prefillOrderId) return;
+    api
+      .get<Order>(endpoints.orders.manageGet(prefillOrderId), true)
+      .then(pick)
+      .catch(() => {
+        /* the form stays empty and still takes typing */
+      });
+  }, [prefillOrderId]);
+
+  const typed = orderRef.trim();
+  const searching = typed.length >= 3 && typed !== found?.orderNumber;
+  const matches = useAsync<Order[]>(async () => {
+    if (!searching) return [];
+    // A short pause so a fast typist sends one search, not one per key.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    const page = await api.get<Page<Order>>(
+      endpoints.orders.manage({ orderNumber: typed, depotId: depotId ?? undefined, limit: 5 }),
+      true,
+    );
+    return page.items;
+  }, [typed, searching, depotId]);
+  const suggestions = searching && !matches.error ? (matches.data ?? []) : [];
 
   async function submit() {
     if (!orderRef.trim() || !customerName.trim() || !description.trim()) {
       setError(t('dashA.disputes.createRequired'));
+      return;
+    }
+    // A found order files under its own depot; otherwise the console's.
+    const target = (found?.orderNumber === orderRef.trim() ? found.depotId : null) ?? depotId;
+    if (!target) {
+      setError(t('dashA.disputes.pickDepot'));
       return;
     }
     setBusy(true);
@@ -184,7 +242,7 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
       await api.post(
         endpoints.disputes.create,
         {
-          depotId,
+          depotId: target,
           orderRef: orderRef.trim(),
           customerName: customerName.trim(),
           category,
@@ -205,8 +263,26 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
     <Card className="flex flex-col gap-3 p-4">
       <p className="font-semibold">{t('dashA.disputes.createTitle')}</p>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={t('dashA.disputes.orderRef')} htmlFor="d-ref">
-          <Input id="d-ref" value={orderRef} onChange={(e) => setOrderRef(e.target.value)} placeholder={t('dashA.disputes.orderRefPlaceholder')} />
+        <Field label={t('dashA.disputes.orderRef')} htmlFor="d-ref" hint={t('dashA.disputes.orderRefHint')}>
+          <Input id="d-ref" value={orderRef} onChange={(e) => setOrderRef(e.target.value)} placeholder={t('dashA.disputes.orderRefPlaceholder')} autoComplete="off" />
+          {suggestions.length > 0 && (
+            <ul className="mt-1.5 flex flex-col overflow-hidden rounded-lg border border-app">
+              {suggestions.map((o) => (
+                <li key={o.id}>
+                  <button
+                    type="button"
+                    onClick={() => pick(o)}
+                    className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-[color:var(--surface-soft)]"
+                  >
+                    <span className="font-semibold">{o.orderNumber}</span>
+                    <span className="truncate text-xs text-[color:var(--text-muted)]">
+                      {o.recipientName} · {formatDateTime(o.createdAt)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </Field>
         <Field label={t('dashA.disputes.customerName')} htmlFor="d-cust">
           <Input
@@ -280,6 +356,11 @@ function DisputesBody() {
   const { scopedId, selected, depots, ready } = useDepot();
   const [filter, setFilter] = useState<StatusFilter>('ALL');
   const [creating, setCreating] = useState(false);
+  // Flow PR-7d: the order panel opens this with `?order=<id>`: the form, already filled.
+  const fromOrder = useQueryParam('order');
+  useEffect(() => {
+    if (fromOrder) setCreating(true);
+  }, [fromOrder]);
 
   const list = useAsync<OrderDispute[]>(
     () => (scopedId ? api.get(endpoints.disputes.list({ depotId: scopedId }), true) : Promise.resolve([])),
@@ -321,7 +402,9 @@ function DisputesBody() {
         </Button>
       </div>
 
-      {creating && scopedId && <CreateForm depotId={scopedId} onDone={afterMutation} />}
+      {creating && (scopedId || fromOrder) && (
+        <CreateForm depotId={scopedId} prefillOrderId={fromOrder} onDone={afterMutation} />
+      )}
 
       <div className="flex flex-wrap gap-2">
         {CHIPS.map((c) => (
