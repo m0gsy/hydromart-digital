@@ -224,6 +224,41 @@ describe('the rail and the operator console read the table', () => {
     expect(labels.filter((l) => l?.startsWith('ops.nav.'))).toEqual([]);
   });
 
+  it("the head of depot's seven primary tabs are each a row of the table", async () => {
+    const { OperatorShell } = await import('@/components/operator/operator-shell');
+    who.role = 'KEPALA_DEPOT';
+    who.path = '/dashboard';
+    const { container } = render(<OperatorShell>x</OperatorShell>);
+    const primary = Array.from(container.querySelectorAll('nav a'))
+      .filter((a) => a.textContent?.startsWith('hrFix.opNav.'))
+      .map((a) => a.getAttribute('href'));
+    expect(primary).toEqual([
+      '/dashboard',
+      '/dashboard/orders',
+      '/dashboard/walk-in',
+      '/dashboard/tracking',
+      '/dashboard/inventory',
+      '/dashboard/returns',
+      '/dashboard/settlements',
+    ]);
+  });
+
+  it('a primary tab takes its gate from the table: a head of depot without tracking loses Kurir', async () => {
+    // What an edit of the built-in role in /hq/access does: the capability goes, the tab must too.
+    vi.doMock('@/lib/roles', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('@/lib/roles')>()),
+      canViewTracking: () => false,
+    }));
+    vi.resetModules();
+    const { OperatorShell } = await import('@/components/operator/operator-shell');
+    who.role = 'KEPALA_DEPOT';
+    who.path = '/dashboard';
+    const { container } = render(<OperatorShell>x</OperatorShell>);
+    expect(container.querySelector('nav a[href="/dashboard/tracking"]')).toBeNull();
+    expect(container.querySelector('nav a[href="/dashboard/inventory"]')).not.toBeNull();
+    vi.doUnmock('@/lib/roles');
+  });
+
   it('the row with the unread badge opens the feed it counts', async () => {
     vi.doMock('@/lib/unread', () => ({ useUnreadCount: () => 0, useOpsUnreadCount: () => 3 }));
     vi.resetModules();
