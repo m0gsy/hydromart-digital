@@ -31,7 +31,7 @@ import type { OperationalMonthlyPnl, ReportDepotMonthly } from '@/lib/types';
  */
 
 type Stat = { label: string; value: string; caption: string };
-type Row = { label: string; value: string };
+type Row = { label: string; value: string; key?: string };
 
 function Panel({ title, rows, note }: { title: string; rows: Row[]; note?: string }) {
   return (
@@ -202,19 +202,22 @@ function MonthlyReviewBody() {
    */
   // A reader without payrollRead (owner decision 2026-11-19) gets no payroll line and nothing
   // net of it, by design: the screen says so instead of listing payroll as "unread".
-  const reportPayHidden = r?.payVisible === false;
-  const pnlPayHidden = p?.payVisible === false;
+  // Decided by the role before anything loads, and by the server's answer once it has: a card
+  // that is never going to show a figure must not flash in and out.
+  const mayReadPay = can('payrollRead', customer?.role);
+  const reportPayHidden = !mayReadPay || r?.payVisible === false;
+  const pnlPayHidden = !mayReadPay || p?.payVisible === false;
   const missingCashTerms = (b: ReportDepotMonthly['profitBreakdown'] | undefined): string => {
-    if (reportPayHidden) return t('hrFix.monthlyReview.payHidden');
     if (!b) return t('hrFix.monthlyReview.needsCostData');
     const missing = [
       b.cogsIdr === null ? t('hrFix.monthlyReview.termCogs') : null,
-      b.payrollIdr === null ? t('hrFix.monthlyReview.termPayroll') : null,
+      !reportPayHidden && b.payrollIdr === null ? t('hrFix.monthlyReview.termPayroll') : null,
       b.opexIdr === null ? t('hrFix.monthlyReview.cashCost') : null,
     ].filter(Boolean);
-    return missing.length > 0
-      ? t('hrFix.monthlyReview.unreadTerms', { terms: missing.join(', ') })
-      : t('hrFix.monthlyReview.cashFlowFormula');
+    // Restricted payroll says so, AND an unread purchase or cash-out figure is still named.
+    const unread = missing.length > 0 ? t('hrFix.monthlyReview.unreadTerms', { terms: missing.join(', ') }) : null;
+    if (reportPayHidden) return [t('hrFix.monthlyReview.payHidden'), unread].filter(Boolean).join(' ');
+    return unread ?? t('hrFix.monthlyReview.cashFlowFormula');
   };
   const profitCaption = (): string => {
     if (pnl.loading) return '';
@@ -279,17 +282,17 @@ function MonthlyReviewBody() {
       label: t('hrFix.monthlyReview.purchasesReceived'),
       value: idrOrDash(r?.profitBreakdown.cogsIdr),
     },
-    { label: t('hrFix.monthlyReview.payrollNet'), value: idrOrDash(r?.profitBreakdown.payrollIdr) },
+    { key: 'payroll', label: t('hrFix.monthlyReview.payrollNet'), value: idrOrDash(r?.profitBreakdown.payrollIdr) },
     { label: t('hrFix.monthlyReview.cashOut'), value: idrOrDash(r?.profitBreakdown.opexIdr) },
     {
+      key: 'netCashFlow',
       label: t('hrFix.monthlyReview.netCashFlow'),
       // An order-service image from before 5a-3 sends only the old name for the same figure.
       value: idrOrDash(r?.netCashFlowIdr !== undefined ? r.netCashFlowIdr : r?.netProfitIdr),
     },
   ];
-  const payRows = [t('hrFix.monthlyReview.payrollNet'), t('hrFix.monthlyReview.netCashFlow')];
   const cashFlow = reportPayHidden
-    ? allCashFlow.filter((row) => !payRows.includes(row.label))
+    ? allCashFlow.filter((row) => row.key !== 'payroll' && row.key !== 'netCashFlow')
     : allCashFlow;
 
   /*

@@ -178,7 +178,7 @@ function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
         )}
       </Card>
 
-      <SourceCard data={data} />
+      <SourceCard data={data} payHidden={payHidden} />
       {data.costCoverage?.status === 'partial' && <CoverageCard data={data} />}
 
       <p className="rounded-xl bg-[color:var(--surface-muted)] px-4 py-3 text-xs text-muted">
@@ -188,14 +188,14 @@ function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
   );
 }
 
-function SourceCard({ data }: { data: OperationalMonthlyPnl }) {
+function SourceCard({ data, payHidden }: { data: OperationalMonthlyPnl; payHidden: boolean }) {
   const { t } = useT();
   return (
     <Card className="space-y-3 p-4">
       <h2 className="text-sm font-bold">{t('mgrFix.pnl.sources')}</h2>
       <SourceRow label={t('mgrFix.pnl.orderSource')} status={data.sources.order} />
       <SourceRow label={t('mgrFix.pnl.costSource')} status={cogsStatus(data)} />
-      {data.payVisible !== false && (
+      {!payHidden && (
         <SourceRow label={t('mgrFix.pnl.payrollSource')} status={data.sources.payroll ?? 'unavailable'} />
       )}
       <SourceRow label={t('mgrFix.pnl.payoutSource')} status={data.sources.payout ?? 'unavailable'} />

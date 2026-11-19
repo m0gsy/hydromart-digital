@@ -63,7 +63,13 @@ export class DashboardController {
   ): Promise<MonthlyOperationalPnl> {
     // Owner decision 2026-11-19: payroll and net profit are payrollRead's. In a depot of three
     // or four people the payroll total is each person's pay, and net profit gives it away.
-    return this.dashboard.monthlyPnl(query.depotId, query.month, token, can('payrollRead', user.role));
+    // With the depot, so a per-depot GRANT or DENY of payrollRead decides, as @Can does.
+    return this.dashboard.monthlyPnl(
+      query.depotId,
+      query.month,
+      token,
+      can('payrollRead', user.role, [query.depotId]),
+    );
   }
 
   /**
@@ -83,12 +89,8 @@ export class DashboardController {
     @Headers('authorization') token: string,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<NetworkPnl> {
-    return this.dashboard.networkPnl(
-      query.month,
-      token,
-      depotScopeIds(user),
-      can('payrollRead', user.role),
-    );
+    const scope = depotScopeIds(user);
+    return this.dashboard.networkPnl(query.month, token, scope, can('payrollRead', user.role, scope));
   }
 
   @ApiOkResponse({ type: NetworkDashboardResponseDto })

@@ -72,7 +72,7 @@ export default function HqPnlPage() {
 
   const unreadable = report.data
     ? Object.entries(report.data.sources)
-        .filter(([, status]) => status !== 'ok')
+        .filter(([source, status]) => status !== 'ok' && !(source === 'payroll' && report.data?.payVisible === false))
         .map(([source]) => t(`hq.pnl.source.${source}`))
     : [];
 
@@ -131,6 +131,9 @@ export default function HqPnlPage() {
 
 function PnlTable({ data }: { data: NetworkPnl }) {
   const { t } = useT();
+  // payrollRead's (owner decision 2026-11-19): without it, no payroll or net column at all.
+  const payHidden = data.payVisible === false;
+  const costKeys = payHidden ? COST_KEYS.filter((k) => k !== 'payrollIdr') : COST_KEYS;
   const cell = (value: number | null, negative = false) => (
     <td
       className={`px-3 py-2 text-right tabular-nums ${
@@ -149,11 +152,11 @@ function PnlTable({ data }: { data: NetworkPnl }) {
             <th className="px-3 py-2">{t('hq.pnl.colDepot')}</th>
             <th className="px-3 py-2 text-right">{t('hq.pnl.colRevenue')}</th>
             <th className="px-3 py-2 text-right">{t('hq.pnl.colCogs')}</th>
-            <th className="px-3 py-2 text-right">{t('hq.pnl.colPayroll')}</th>
+            {!payHidden && <th className="px-3 py-2 text-right">{t('hq.pnl.colPayroll')}</th>}
             <th className="px-3 py-2 text-right">{t('hq.pnl.colCommission')}</th>
             <th className="px-3 py-2 text-right">{t('hq.pnl.colClaims')}</th>
             <th className="px-3 py-2 text-right">{t('hq.pnl.colRefunds')}</th>
-            <th className="px-3 py-2 text-right">{t('hq.pnl.colNet')}</th>
+            {!payHidden && <th className="px-3 py-2 text-right">{t('hq.pnl.colNet')}</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-[color:var(--border)]">
@@ -167,22 +170,24 @@ function PnlTable({ data }: { data: NetworkPnl }) {
                 )}
               </td>
               {cell(row.revenueIdr)}
-              {COST_KEYS.map((key) => (
+              {costKeys.map((key) => (
                 <span key={key} className="contents">
                   {cell(row[key], true)}
                 </span>
               ))}
-              <td
-                className={`px-3 py-2 text-right font-bold tabular-nums ${
-                  row.netProfitIdr === null
-                    ? 'text-muted'
-                    : row.netProfitIdr < 0
-                      ? 'text-[color:var(--danger)]'
-                      : ''
-                }`}
-              >
-                {money(row.netProfitIdr)}
-              </td>
+              {!payHidden && (
+                <td
+                  className={`px-3 py-2 text-right font-bold tabular-nums ${
+                    row.netProfitIdr === null
+                      ? 'text-muted'
+                      : row.netProfitIdr < 0
+                        ? 'text-[color:var(--danger)]'
+                        : ''
+                  }`}
+                >
+                  {money(row.netProfitIdr)}
+                </td>
+              )}
             </tr>
           ))}
           {data.depots.length === 0 && (
@@ -197,20 +202,22 @@ function PnlTable({ data }: { data: NetworkPnl }) {
           <tr>
             <td className="px-3 py-2">{t('hq.pnl.total')}</td>
             {cell(data.totals.revenueIdr)}
-            {COST_KEYS.map((key) => (
+            {costKeys.map((key) => (
               <span key={key} className="contents">
                 {cell(data.totals[key], true)}
               </span>
             ))}
-            <td
-              className={`px-3 py-2 text-right tabular-nums ${
-                data.totals.netProfitIdr !== null && data.totals.netProfitIdr < 0
-                  ? 'text-[color:var(--danger)]'
-                  : ''
-              }`}
-            >
-              {money(data.totals.netProfitIdr)}
-            </td>
+            {!payHidden && (
+              <td
+                className={`px-3 py-2 text-right tabular-nums ${
+                  data.totals.netProfitIdr !== null && data.totals.netProfitIdr < 0
+                    ? 'text-[color:var(--danger)]'
+                    : ''
+                }`}
+              >
+                {money(data.totals.netProfitIdr)}
+              </td>
+            )}
           </tr>
         </tfoot>
       </table>

@@ -399,7 +399,7 @@ export class ReportController {
       .map((s) => s.trim())
       .filter(Boolean);
     // Net profit subtracts payroll: payrollRead's (owner decision 2026-11-19).
-    return this.reports.reportsDepotCompare(ids, toRange(q), can('payrollRead', user.role));
+    return this.reports.reportsDepotCompare(ids, toRange(q), can('payrollRead', user.role, ids));
   }
 
   // `orderReportsDepot`, like its daily sibling: this is the monthly review the depot console's
@@ -418,7 +418,11 @@ export class ReportController {
     assertDepotAccess(user, q.depotId);
     // The payroll line, net cash flow and net profit are payrollRead's (owner decision
     // 2026-11-19). A depot head reads this review and does not hold it.
-    return this.reports.reportsDepotMonthly(q.depotId, q.month, can('payrollRead', user.role));
+    return this.reports.reportsDepotMonthly(
+      q.depotId,
+      q.month,
+      can('payrollRead', user.role, [q.depotId]),
+    );
   }
 
   /**

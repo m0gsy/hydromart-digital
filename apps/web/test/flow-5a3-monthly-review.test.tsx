@@ -158,7 +158,10 @@ describe('the monthly review (flow 5a-3)', () => {
     serve();
     render(<MonthlyReviewPage />);
 
-    expect(await screen.findByText('Rp 630.000')).toBeTruthy();
+    // The month still reads; since 2026-11-19 (owner decision) a depot head reads it WITHOUT the
+    // payroll line or the net cash flow, which subtracts payroll.
+    expect(await screen.findByText('hrFix.monthlyReview.turnover')).toBeTruthy();
+    expect(screen.queryByText('Rp 630.000')).toBeNull();
     expect(get.mock.calls.some((c) => String(c[0]).includes('monthly-pnl'))).toBe(false);
     expect(screen.queryByText('hrFix.monthlyReview.netProfit')).toBeNull();
   });

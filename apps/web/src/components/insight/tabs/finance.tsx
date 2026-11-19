@@ -41,6 +41,9 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
   const maySettle = can('settlementRead', role);
   const mayRefunds = can('refundQueueRead', role);
   const mayPnl = can('dashboard', role);
+  // Net profit and payroll are payrollRead's (owner decision 2026-11-19): decided by the role
+  // before anything loads, then by the server's answer.
+  const mayReadPay = can('payrollRead', role);
   // A P&L is a month. The window's first day names it, and the screen says which when the
   // window is not itself a month, so a week or a custom range is never mistaken for one.
   const month = monthWib(new Date(range.from));
@@ -85,7 +88,7 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
   const rows = (network.data?.depots ?? []).filter((d) => depotId == null || d.depotId === depotId);
   // Payroll is payrollRead's (owner decision 2026-11-19): the column goes, not a row of dashes.
   const columns =
-    network.data?.payVisible === false
+    !mayReadPay || network.data?.payVisible === false
       ? COST_COLUMNS.filter((c) => c.key !== 'payrollIdr')
       : COST_COLUMNS;
 
@@ -122,7 +125,7 @@ export function FinanceTab({ ctx }: { ctx: InsightCtx }) {
               definition={t('insight.kpi.revenueDef')}
             />
             {/* Net profit is payrollRead's (owner decision 2026-11-19). */}
-            {depotPnl.data?.payVisible !== false && (
+            {mayReadPay && depotPnl.data?.payVisible !== false && (
             <KpiCard
               label={t('insight.finance.netProfit')}
               value={money(depotPnl.data?.netProfitIdr)}
