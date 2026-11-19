@@ -4,6 +4,8 @@ import type { walkIn } from './opsFixWalkIn';
 
 const opsFixShared = {
   // Flow PR-4: the decision inbox on the approvals screens.
+  // Review of flow PR-2a: the account behind an order's recipient, as its own link.
+  entityLinks: { customerAccount: 'Lihat akun pelanggan' },
   inbox: { title: 'Menunggu keputusan Anda', open: 'Buka' },
   payoutAccount: {
     title: 'Rekening tujuan pencairan',

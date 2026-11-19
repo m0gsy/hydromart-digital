@@ -10,7 +10,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/roles';
 import { endpoints } from '@/lib/endpoints';
-import { entityHref } from '@/lib/entity-href';
+import { ANONYMOUS_CUSTOMER_ID, entityHref } from '@/lib/entity-href';
 import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { statusLabel, tone } from '@/lib/order-status';
@@ -56,14 +56,21 @@ export default function HqOrderDetailPage() {
 
   // Staff read, not the customer one: `orders.get` filters by owner, so HQ always got 404.
   const order = useAsync<Order>(() => api.get(endpoints.orders.manageGet(id), true), [id]);
-  const payments = useAsync<Page<Payment>>(() => api.get(endpoints.payments.forOrderStaff(id), true), [id]);
+  const payments = useAsync<Page<Payment>>(
+    () => api.get(endpoints.payments.forOrderStaff(id), true),
+    [id],
+  );
 
   // PR-2a: the HQ customer screen looks a buyer up by their ACCOUNT phone, and the order only
   // carries the recipient's, which can be anyone's. So the account is resolved first, and only
   // for a role that may both read names and open that screen; anyone else keeps the plain name.
   const role = customer?.role;
   const buyerId = order.data?.customerId;
-  const mayResolve = can('customerNameLookup', role) && canOpenRoute('/hq/customers', role);
+  // A counter sale without an account carries the anonymous id: nothing to look up.
+  const mayResolve =
+    buyerId !== ANONYMOUS_CUSTOMER_ID &&
+    can('customerNameLookup', role) &&
+    canOpenRoute('/hq/customers', role);
   const courierId = useOrderCourierId(
     order.data?.driverName ? order.data.id : undefined,
     '/hr/employees/detail',
@@ -119,6 +126,7 @@ export default function HqOrderDetailPage() {
 
   const payment = payments.data?.items[0];
   const buyerPhone = buyer.data?.find((c) => c.id === o.customerId)?.phone;
+  const buyerHref = entityHref('customer', buyerPhone, 'hq', role);
 
   return (
     <div className="flex flex-col gap-6">
@@ -138,7 +146,15 @@ export default function HqOrderDetailPage() {
           <div>
             <h2 className="mb-1.5 text-sm font-semibold">{t('hq.orderDetail.recipient')}</h2>
             <p className="font-medium">
-              <EntityLink href={entityHref('customer', buyerPhone, 'hq', role)}>{o.recipientName}</EntityLink>
+              {o.recipientName}
+              {buyerHref && (
+                <>
+                  {' · '}
+                  <EntityLink href={buyerHref}>
+                    {t('opsFix.entityLinks.customerAccount')}
+                  </EntityLink>
+                </>
+              )}
             </p>
             <p className="text-sm text-muted">{o.phone}</p>
             <p className="text-sm text-muted">
@@ -162,21 +178,29 @@ export default function HqOrderDetailPage() {
             <dl className="mt-2 border-t border-app pt-2 text-sm">
               <div className="flex justify-between">
                 <dt className="text-muted">{t('hq.orderDetail.subtotal')}</dt>
-                <dd><Money amount={o.subtotal} /></dd>
+                <dd>
+                  <Money amount={o.subtotal} />
+                </dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted">{t('hq.orderDetail.shipping')}</dt>
-                <dd><Money amount={o.deliveryFee} /></dd>
+                <dd>
+                  <Money amount={o.deliveryFee} />
+                </dd>
               </div>
               {o.discount > 0 && (
                 <div className="flex justify-between">
                   <dt className="text-muted">{t('hq.orderDetail.discount')}</dt>
-                  <dd className="text-[color:var(--success)]">−<Money amount={o.discount} /></dd>
+                  <dd className="text-[color:var(--success)]">
+                    −<Money amount={o.discount} />
+                  </dd>
                 </div>
               )}
               <div className="flex justify-between font-semibold">
                 <dt>{t('hq.orderDetail.total')}</dt>
-                <dd><Money amount={o.total} /></dd>
+                <dd>
+                  <Money amount={o.total} />
+                </dd>
               </div>
             </dl>
           </div>
@@ -193,7 +217,15 @@ export default function HqOrderDetailPage() {
             ) : payment ? (
               <div className="flex items-center justify-between gap-3 text-sm">
                 <span className="font-medium">{payment.method}</span>
-                <Badge tone={payment.status === 'PAID' ? 'success' : payment.status === 'PENDING' ? 'warning' : 'neutral'}>
+                <Badge
+                  tone={
+                    payment.status === 'PAID'
+                      ? 'success'
+                      : payment.status === 'PENDING'
+                        ? 'warning'
+                        : 'neutral'
+                  }
+                >
                   {payment.status}
                 </Badge>
               </div>

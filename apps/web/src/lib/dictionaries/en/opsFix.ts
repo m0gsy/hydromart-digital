@@ -2,6 +2,8 @@
 // NO `as const` — values must widen to string so both locales share one key shape.
 export const opsFix = {
   // Flow PR-4: the decision inbox on the approvals screens.
+  // Review of flow PR-2a: the account behind an order's recipient, as its own link.
+  entityLinks: { customerAccount: 'Open customer account' },
   inbox: { title: 'Waiting for your decision', open: 'Open' },
   payoutAccount: {
     title: 'Payout destination',

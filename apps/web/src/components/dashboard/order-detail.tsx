@@ -248,7 +248,9 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
   const { t } = useT();
   // The ORDER's depot, not the viewer's: a manager of several depots names one, and the courier
   // has to be one of that depot's own anyway.
-  const rosterUrl = order.depotId ? endpoints.auth.driversAt(order.depotId) : endpoints.auth.drivers;
+  const rosterUrl = order.depotId
+    ? endpoints.auth.driversAt(order.depotId)
+    : endpoints.auth.drivers;
   const drivers = useAsync<Customer[]>(() => api.get(rosterUrl, true), [rosterUrl]);
   // Who may actually be handed a delivery right now. delivery-service refuses an
   // assignment to a courier with no open shift, so offering them here only produced a
@@ -375,7 +377,11 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
  * when the reader may read deliveries AND open where the courier link goes, so the lookup never
  * costs a 403. Null until known, or when it is not.
  */
-export function useOrderCourierId(orderId: string | undefined, target: string, role?: string | null): string | null {
+export function useOrderCourierId(
+  orderId: string | undefined,
+  target: string,
+  role?: string | null,
+): string | null {
   const enabled = Boolean(orderId) && can('trackingRead', role) && canOpenRoute(target, role);
   const found = useAsync<Page<Delivery> | null>(
     () => (enabled && orderId ? deliveryForOrder(orderId) : Promise.resolve(null)),
@@ -423,6 +429,13 @@ export function OrderDetail({
     '/dashboard/team-performance',
     customer?.role,
   );
+  // The recipient on an order is not always its account holder (a gift, an office): the name
+  // stays the recipient's, and the account opens from its own link. Only for this console's
+  // depot: the customer screen reads the customer's relationship with the scoped depot.
+  const buyerHref =
+    order.depotId === scopedId
+      ? entityHref('customer', order.customerId, 'dashboard', customer?.role)
+      : null;
 
   async function advance() {
     if (!next) return;
@@ -457,9 +470,13 @@ export function OrderDetail({
 
         <div className="rounded-2xl border border-app p-3 text-sm">
           <p className="font-semibold">
-            <EntityLink href={entityHref('customer', order.customerId, 'dashboard', customer?.role)}>
-              {order.recipientName}
-            </EntityLink>
+            {order.recipientName}
+            {buyerHref && (
+              <>
+                {' · '}
+                <EntityLink href={buyerHref}>{t('opsFix.entityLinks.customerAccount')}</EntityLink>
+              </>
+            )}
           </p>
           <p className="text-muted">{order.phone}</p>
           <p className="text-muted">
@@ -540,8 +557,12 @@ export function OrderDetail({
           // payment-by-order endpoint (payment reads are customer-scoped today).
           // Surface the cancellation + the refund rule honestly instead of faking it.
           <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/40 dark:bg-red-950/20">
-            <p className="font-semibold text-[color:var(--danger)]">{t('hrFix.orderDetail.cancelled')}</p>
-            <p className="text-[color:var(--danger)]/80">{t('hrFix.orderDetail.onlineRefundHint')}</p>
+            <p className="font-semibold text-[color:var(--danger)]">
+              {t('hrFix.orderDetail.cancelled')}
+            </p>
+            <p className="text-[color:var(--danger)]/80">
+              {t('hrFix.orderDetail.onlineRefundHint')}
+            </p>
           </div>
         )}
 
