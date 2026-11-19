@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { ChartBar } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { ErrorState, Skeleton } from '@/components/ui';
+import { ErrorState, FormError, Skeleton } from '@/components/ui';
 import {
   CompareMonthPicker,
   CompareTable,
@@ -151,7 +151,7 @@ export default function HqComparePage() {
               metricLabel=""
               bestLabel={t('hq.compare.best')}
             />
-            {pnl.error && <p className="text-xs text-muted">{t('hq.compare.profitUnread')}</p>}
+            <FormError message={pnl.error ? t('hq.compare.profitUnread') : null} className="text-xs" />
           </>
         )
       )}
