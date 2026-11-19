@@ -16,6 +16,14 @@ name: Images
 # unset, docker-compose.prod.yml still builds locally exactly as before — the bare-IP and
 # development paths are untouched.
 
+# The SHA this run BUILDS, in its title. A `workflow_run` run is stamped with main's tip at
+# trigger time, not with the commit it checks out, so `gh run list --commit` finds the wrong
+# run whenever a second merge lands before this one is triggered: on 2026-11-19 the run
+# labelled 6f97a3584 had built f857f2df2, and deploy.yml's gate read its result as
+# 6f97a3584's. The title is what that gate matches now.
+run-name: >-
+  Images · ${{ github.event.workflow_run.head_sha || github.sha }}
+
 on:
   workflow_run:
     workflows: ['CI']

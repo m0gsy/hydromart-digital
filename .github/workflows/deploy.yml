@@ -206,7 +206,12 @@ jobs:
             # No `2>/dev/null`. It was the only one in this directory, and it turned every
             # API failure — a 403 from the missing `actions: read` above, most of all — into
             # the string "none none", which this loop reads as "no Images run, carry on".
-            if ! out="$(gh run list --workflow Images --commit "$SHA" --json status,conclusion --jq '.[0] | "\(.status // "none") \(.conclusion // "none")"')"; then
+            #
+            # Matched on the run's TITLE, which images.yml writes as "Images · <built sha>".
+            # `--commit` matched the run's label instead — main's tip when that run was
+            # triggered — and when merges land close together the label is another commit's:
+            # this gate then waited on, or refused over, a run that built something else.
+            if ! out="$(gh run list --workflow Images --limit 50 --json displayTitle,status,conclusion --jq "[.[] | select(.displayTitle | endswith(\"$SHA\"))] | .[0] | \"\\(.status // \"none\") \\(.conclusion // \"none\")\"")"; then
               echo "!! could not ask GitHub about the Images run for $SHA."
               echo "   That is not the same as 'no images were built', and it must not be"
               echo "   treated as one — refusing to deploy on an unanswered question."
@@ -215,7 +220,15 @@ jobs:
             read -r status conclusion <<<"$out"
             case "$status" in
               none)
-                echo "no Images run for $SHA (skipped for this commit) — continuing"
+                # Images and this run start on the same CI completion: in the first minute
+                # its run may simply not exist yet. Only after that does "none" mean there is
+                # no Images run for this commit at all.
+                if [ "$attempt" -lt 4 ]; then
+                  echo "no Images run for $SHA yet (attempt $attempt) — waiting for it to appear"
+                  sleep 20
+                  continue
+                fi
+                echo "no Images run for $SHA — continuing"
                 exit 0 ;;
               completed)
                 if [ "$conclusion" = "success" ] || [ "$conclusion" = "skipped" ]; then
