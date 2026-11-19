@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { AccountNameResolver, addLocalMonths, dayStartUtc } from '@hydromart/platform';
+import { AccountNameResolver, addLocalMonths, dayStartUtc, netProfit } from '@hydromart/platform';
 
 import {
   DashboardSourcesPort,
@@ -384,22 +384,14 @@ export class DashboardService {
       if (cogsIdr === null) goodsMissing = true;
       if (payrollIdr === null) payrollMissing = true;
 
-      const terms = [
+      const netProfitIdr = netProfit({
         revenueIdr,
         cogsIdr,
         payrollIdr,
         courierCommissionIdr,
         expenseClaimIdr,
         refundIdr,
-      ];
-      const netProfitIdr = terms.some((t) => t === null)
-        ? null
-        : revenueIdr! -
-          cogsIdr! -
-          payrollIdr! -
-          courierCommissionIdr! -
-          expenseClaimIdr! -
-          refundIdr!;
+      });
 
       return {
         depotId: d.id,

@@ -12,6 +12,7 @@ export {
 } from './domain/keyset';
 export { Role } from './domain/role.enum';
 export { money } from './domain/money';
+export { netProfit, type NetProfitTerms } from './domain/net-profit';
 export {
   DEFAULT_TAX_ROUNDING,
   TaxRounding,
