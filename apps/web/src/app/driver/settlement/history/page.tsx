@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 
-import { useRouter } from 'next/navigation';
 import { useT } from '@/lib/locale-context';
+import { useBack } from '@/lib/use-back';
 import { ArrowLeft, Wallet } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
@@ -32,7 +32,7 @@ const STATUS: Record<SettlementStatus, { label: string; cls: string }> = {
 function History() {
   const { t } = useT();
   const [openId, setOpenId] = useState<string | null>(null);
-  const router = useRouter();
+  const back = useBack();
   const load = useAsync<CashSettlement[]>(
     () => api.get(endpoints.deliveries.settlement.history, true),
     [],
@@ -46,7 +46,7 @@ function History() {
   return (
     <div className="space-y-3 px-4 py-5">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
+        <button type="button" onClick={back} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1 text-sm font-extrabold">{t('hrFix.settlementHistory.title')}</div>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
-import { useRouter } from 'next/navigation';
+import { useBack } from '@/lib/use-back';
 import {
   ArrowLeft,
   CaretLeft,
@@ -50,7 +50,7 @@ function weekRangeLabel(weekStart: string): string {
 
 function Performance() {
   const { t } = useT();
-  const router = useRouter();
+  const back = useBack();
   const { customer } = useAuth();
   const depotId = customer?.assignedDepotId ?? undefined;
   const [weeksAgo, setWeeksAgo] = useState(0);
@@ -66,7 +66,7 @@ function Performance() {
       <header className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={back}
           className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]"
         >
           <ArrowLeft size={18} />

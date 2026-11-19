@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { ArrowLeft, BellRinging, ChatCircleText, DeviceMobile, type Icon, Info, Megaphone, Moon, Package, Sun, Wallet } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card, Toggle } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
+import { useBack } from '@/lib/use-back';
 import {
   getPushState,
   type PushState,
@@ -46,7 +46,7 @@ const THEMES: { value: Theme; icon: Icon; labelKey: string }[] = [
 ];
 
 function Settings() {
-  const router = useRouter();
+  const back = useBack();
   const { t, locale, setLocale } = useT();
   const { theme, setTheme } = useTheme();
   const [pushState, setPushState] = useState<PushState>('unsubscribed');
@@ -109,7 +109,7 @@ function Settings() {
       <header className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={back}
           className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]"
         >
           <ArrowLeft size={18} />

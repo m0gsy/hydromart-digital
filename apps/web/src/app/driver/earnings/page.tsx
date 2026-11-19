@@ -2,8 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { useT } from '@/lib/locale-context';
+import { useBack } from '@/lib/use-back';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowUp, CaretRight, Coins, Target, TrendUp, Wallet } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
@@ -30,7 +30,7 @@ const STATUS_LABEL: Record<CourierWithdrawal['status'], string> = {
 
 function Earnings() {
   const { t } = useT();
-  const router = useRouter();
+  const back = useBack();
   const load = useAsync<CourierEarningsSummary>(
     () => api.get(endpoints.courierPayout.summary, true),
     [],
@@ -77,7 +77,7 @@ function Earnings() {
   return (
     <div className="space-y-3 px-4 py-5">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
+        <button type="button" onClick={back} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1 text-sm font-extrabold">{t('hrFix.earnings.title')}</div>

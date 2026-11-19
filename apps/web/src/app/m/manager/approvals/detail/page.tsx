@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
+import { useBack } from '@/lib/use-back';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react';
@@ -32,6 +33,7 @@ export default function ApprovalDetailPage() {
   const { t } = useT();
   const { confirm } = useConfirm();
   const router = useRouter();
+  const back = useBack();
   const id = useQueryParam('id');
   const detail = useAsync<Approval>(() => api.get(endpoints.approvals.detail(id), true), [id]);
   const [busy, setBusy] = useState<'APPROVE' | 'REJECT' | 'HOLD' | null>(null);
@@ -177,7 +179,7 @@ export default function ApprovalDetailPage() {
       <header className="flex items-center gap-3 px-4 py-4">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={back}
           className="flex size-11 items-center justify-center rounded-xl border border-app"
           aria-label={t('hrFix.approvalDetail.backAria')}
         >

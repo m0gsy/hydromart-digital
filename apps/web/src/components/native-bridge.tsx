@@ -7,6 +7,9 @@ import { api } from '@/lib/api';
 import { callPlugin, askPlugin, onPluginEvent } from '@/lib/capacitor';
 import { resolveDeepLink } from '@/lib/deep-link';
 import { translate } from '@/lib/locale-context';
+import { consoleHome } from '@/lib/roles';
+import { normalisePath } from '@/lib/screen-chrome';
+import { getSession } from '@/lib/session-store';
 import { persistSafeAreaInsets } from '@/lib/safe-area-persist';
 import { isNativeShell, openExternal } from '@/lib/platform';
 
@@ -92,7 +95,7 @@ export function NativeBridge() {
     // otherwise swallows the press: it never calls `finish()`, so the button is inert and
     // the app cannot be closed with it.
     const offBack = onPluginEvent('App', 'backButton', (event: { canGoBack?: boolean }) =>
-      handleBack(event, blockedRef.current),
+      handleBack(event, blockedRef.current, (href) => router.replace(href)),
     );
 
     // Hidden before anything that can return early. `launchAutoHide` is off, so the splash
@@ -270,7 +273,30 @@ async function minimumVersionBlock(): Promise<Block | null> {
  * neither navigating nor leaving, however many times it is pressed. The length is kept
  * only as the answer for a payload that did not arrive.
  */
-function handleBack(event?: { canGoBack?: boolean }, blocked = false): void {
+/**
+ * Mobile rule B (flow plan): what the hardware back does once there is nothing behind the
+ * screen. Away from the reader's home (a push or a link opened this screen first) it goes
+ * home; at home, or on a sign-in screen, it leaves. Before, it left the app from any screen.
+ */
+export function backWithoutHistory(path: string, home: string): 'exit' | string {
+  const at = normalisePath(path);
+  if (
+    at === normalisePath(home) ||
+    at === '/' ||
+    /\/login$/.test(at) ||
+    at === '/register' ||
+    at === '/verify'
+  ) {
+    return 'exit';
+  }
+  return home;
+}
+
+function handleBack(
+  event?: { canGoBack?: boolean },
+  blocked = false,
+  go?: (href: string) => void,
+): void {
   // The blocking screen is terminal: there is nothing behind it this build is willing to
   // render, so "back" can only mean leave. `canGoBack` is deliberately ignored here —
   // going back to a page drawn by a WebView we just refused is not an exit.
@@ -286,8 +312,18 @@ function handleBack(event?: { canGoBack?: boolean }, blocked = false): void {
     window.history.back();
     return;
   }
-  // Nothing left to go back to: leave, rather than sit on a screen where the button
-  // appears broken. `exitApp` finishes the activity; Android keeps the app in recents.
+  // Nothing left to go back to. Away from home, go home (the role's console home, read from the
+  // stored session: this bridge sits outside the auth provider); at home, leave rather than sit
+  // on a screen where the button appears broken. `exitApp` finishes the activity; Android keeps
+  // the app in recents.
+  const next = backWithoutHistory(
+    window.location.pathname,
+    consoleHome(getSession()?.customer?.role ?? null),
+  );
+  if (next !== 'exit' && go) {
+    go(next);
+    return;
+  }
   callPlugin('App', 'exitApp');
 }
 

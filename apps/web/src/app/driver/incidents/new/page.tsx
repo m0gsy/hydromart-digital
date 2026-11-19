@@ -7,6 +7,7 @@ import { ArrowLeft, Camera, Warning } from '@phosphor-icons/react';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, Field, FormError, Input } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
+import { useBack } from '@/lib/use-back';
 import { endpoints } from '@/lib/endpoints';
 import { compressImage } from '@/lib/image';
 import { useT } from '@/lib/locale-context';
@@ -25,6 +26,7 @@ const SEVERITIES: CourierIncidentSeverity[] = ['LOW', 'MEDIUM', 'HIGH'];
 
 function NewIncident() {
   const router = useRouter();
+  const back = useBack();
   const { t } = useT();
   const [category, setCategory] = useState<CourierIncidentCategory | ''>('');
   const [severity, setSeverity] = useState<CourierIncidentSeverity>('MEDIUM');
@@ -97,7 +99,7 @@ function NewIncident() {
   return (
     <div className="space-y-3 px-4 py-5">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
+        <button type="button" onClick={back} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
         <div className="text-sm font-extrabold">{t('driver.incidentNew.title')}</div>

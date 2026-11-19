@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { ArrowLeft, Receipt } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useBack } from '@/lib/use-back';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useT } from '@/lib/locale-context';
@@ -50,7 +50,7 @@ const PAGE_SIZE = 20;
 
 function History() {
   const { t } = useT();
-  const router = useRouter();
+  const back = useBack();
   const [page, setPage] = useState(1);
   const load = useAsync<Page<CourierLedgerEntry>>(
     () => api.get(endpoints.courierPayout.ledger(page, PAGE_SIZE), true),
@@ -84,7 +84,7 @@ function History() {
       <header className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={back}
           className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]"
         >
           <ArrowLeft size={18} />

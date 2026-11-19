@@ -7,6 +7,7 @@ import { ArrowLeft, CheckCircle, Coins } from '@phosphor-icons/react';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, ErrorState, Field, FormError, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { useBack } from '@/lib/use-back';
 import { runOrQueue } from '@/lib/offline-queue';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -19,6 +20,7 @@ const NOTES = [50000, 100000, 150000, 200000];
 
 function Pay() {
   const router = useRouter();
+  const back = useBack();
   const { t } = useT();
   const id = useQueryParam('id');
   const load = useAsync<{ delivery: Delivery; cod: Payment | null }>(async () => {
@@ -78,7 +80,7 @@ function Pay() {
   return (
     <div className="space-y-3 px-4 py-5">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
+        <button type="button" onClick={back} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1">

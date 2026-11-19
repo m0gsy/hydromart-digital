@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
+import { useBack } from '@/lib/use-back';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, CheckCircle, ClockCounterClockwise, Wallet } from '@phosphor-icons/react';
 
@@ -23,6 +24,7 @@ const WHEN = new Intl.DateTimeFormat('id-ID', {
 function Settlement() {
   const { t } = useT();
   const router = useRouter();
+  const back = useBack();
   // The next shift to settle = the newest checked-out shift with no settlement yet.
   const load = useAsync<{ shift: Shift | null }>(async () => {
     const [shifts, settled] = await Promise.all([
@@ -87,7 +89,7 @@ function Settlement() {
   return (
     <div className="space-y-3 px-4 py-5">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
+        <button type="button" onClick={back} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1 text-sm font-extrabold">{t('hrFix.settlement.title')}</div>

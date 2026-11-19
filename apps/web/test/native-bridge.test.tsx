@@ -10,7 +10,8 @@ import { openExternal, printDocument, saveFile } from '@/lib/platform';
 
 // The bridge navigates, and outside a Next app there is no router to navigate with.
 const push = vi.fn();
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+const replace = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push, replace }) }));
 
 // F3. The shell's two jobs, plus the three capabilities `platform.ts` reserved a seam
 // for in F1. The origin in the docblock is what makes `isNativeShell()` true — the same
@@ -259,7 +260,9 @@ describe('hardware back button', () => {
   // The regression this pair exists for: `history.length` counts entries and never counts
   // down, so on the first entry it still reads 2 and `history.back()` is a silent no-op.
   // Only the event knows where in the stack the WebView actually is.
-  it('leaves the app when the WebView is on its first history entry', () => {
+  // Mobile rule B: on its first history entry (a push or a link opened it), away from home the
+  // button goes home; at home it leaves. It used to leave from any screen.
+  it('goes home, not out, from a screen opened first', () => {
     render(<NativeBridge />);
     const back = vi.spyOn(window.history, 'back').mockImplementation(() => {});
     window.history.pushState({}, '', '/cart');
@@ -267,6 +270,17 @@ describe('hardware back button', () => {
     listeners.backButton?.({ canGoBack: false });
 
     expect(back).not.toHaveBeenCalled();
+    expect(replace).toHaveBeenCalledWith('/products');
+    expect(plugins.App!.exitApp).not.toHaveBeenCalled();
+  });
+
+  it('leaves the app when the WebView is on its first history entry at home', () => {
+    render(<NativeBridge />);
+    vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    window.history.pushState({}, '', '/products');
+
+    listeners.backButton?.({ canGoBack: false });
+
     expect(plugins.App!.exitApp).toHaveBeenCalled();
   });
 
