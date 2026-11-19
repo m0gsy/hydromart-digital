@@ -51,7 +51,7 @@ import { currentPosition, geoReason } from '@/lib/geo';
 import { useLocation } from '@/lib/location-context';
 import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
-import { offeredMethods, PAYMENT_METHODS } from '@/lib/payments';
+import { offeredMethods, PAYMENT_METHODS, rememberedMethod, rememberMethod } from '@/lib/payments';
 import { haptic } from '@/lib/platform';
 import { galonQuantity, memberDiscount, shippingFeeFor, voucherLinesFor } from '@/lib/pricing';
 import { useAuth } from '@/lib/auth-context';
@@ -332,10 +332,23 @@ function CheckoutInner() {
    */
   const offered = payMethods.map((m) => m.value).join(',');
   const [methodDropped, setMethodDropped] = useState<string | null>(null);
+  /*
+   * Flow PR-7b: the last placed order's method, read after mount (the exported page is
+   * static HTML at cash; reading storage during render would not match it). A remembered
+   * method this depot does not take falls back quietly: the customer did not pick it here,
+   * so "your method changed" would be news about nothing they did.
+   */
+  const [remembered, setRemembered] = useState<PaymentMethod | null>(null);
+  useEffect(() => {
+    const last = rememberedMethod();
+    if (!last) return;
+    setRemembered(last);
+    setMethod(last);
+  }, []);
   useEffect(() => {
     if (payMethods.length === 0) return;
     if (payMethods.some((m) => m.value === method)) return;
-    setMethodDropped(PAYMENT_METHODS.find((m) => m.value === method)?.label ?? null);
+    if (method !== remembered) setMethodDropped(PAYMENT_METHODS.find((m) => m.value === method)?.label ?? null);
     setMethod(payMethods[0]!.value);
     // `payMethods` is rebuilt every render; `offered` is its identity as a value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -774,6 +787,7 @@ function CheckoutInner() {
        * already been bought. The window is now empty.
        */
       attemptKey.current = '';
+      rememberMethod(method);
       // placed=1 triggers the one-time success banner on the order page (spec 5b).
       router.replace(`/orders/detail?id=${order.id}&placed=1`);
     } catch (err) {

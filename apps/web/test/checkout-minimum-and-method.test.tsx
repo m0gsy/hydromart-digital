@@ -171,3 +171,29 @@ describe('a payment method the new depot cannot take is dropped (CA-3-22)', () =
     expect(screen.queryByText(/^QRIS$/)).toBeNull();
   });
 });
+
+describe('checkout starts at the last placed method (flow 7b)', () => {
+  const pressed = (name: RegExp) =>
+    screen.getAllByRole('button', { name }).some((b) => b.getAttribute('aria-pressed') === 'true');
+
+  it('picks it when the depot takes it', async () => {
+    localStorage.setItem('hm.checkout.lastMethod', 'QRIS');
+    serve([depotRow('d-1', 'Depot Satu')]);
+    const user = userEvent.setup();
+    await draw();
+    await user.click(screen.getAllByText(/Metode pembayaran/)[0]!);
+    await waitFor(() => expect(pressed(/QRIS/)).toBe(true));
+    localStorage.clear();
+  });
+
+  it('falls back quietly when it does not: the customer did not pick it here', async () => {
+    localStorage.setItem('hm.checkout.lastMethod', 'QRIS');
+    serve([depotRow('d-1', 'Depot Satu', { acceptsQris: false })]);
+    const user = userEvent.setup();
+    await draw();
+    await user.click(screen.getAllByText(/Metode pembayaran/)[0]!);
+    await waitFor(() => expect(pressed(/Tunai|COD|Bayar di tempat/i)).toBe(true));
+    expect(screen.queryByText(/tidak tersedia di depot ini/i)).toBeNull();
+    localStorage.clear();
+  });
+});

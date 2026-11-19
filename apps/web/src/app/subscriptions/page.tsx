@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowsClockwise, BellSlash, Pause, Percent, Truck } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
@@ -22,6 +22,7 @@ import { useT } from '@/lib/locale-context';
 import { dateInDaysWib } from '@/lib/wib';
 import { useAsync } from '@/lib/use-async';
 import { useFeatureFlag } from '@/lib/feature-flags';
+import { useQueryParam } from '@/lib/use-query-param';
 import { subscriptions as subID } from '@/lib/dictionaries/id/subscriptions';
 import { subscriptions as subEN } from '@/lib/dictionaries/en/subscriptions';
 import type {
@@ -101,6 +102,17 @@ function Panel() {
   const discountPct = Math.round((discount.data?.rate ?? 0) * 100);
 
   const [productId, setProductId] = useState('');
+  /*
+   * Flow PR-7b: "Jadikan langganan" on a product page opens this with `?product=`. It is
+   * picked once the list has it, and never over a product the customer already chose.
+   * ponytail: only the first 50 products are listed; one past them is simply not preselected.
+   */
+  const wanted = useQueryParam('product');
+  useEffect(() => {
+    if (wanted && products.data?.items.some((p) => p.id === wanted)) {
+      setProductId((current) => current || wanted);
+    }
+  }, [wanted, products.data]);
   const [quantity, setQuantity] = useState(2);
   const [frequency, setFrequency] = useState<SubscriptionFrequency>('WEEKLY');
   const [firstDate, setFirstDate] = useState(dateInDaysWib(1));

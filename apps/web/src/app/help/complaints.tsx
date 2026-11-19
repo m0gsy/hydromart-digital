@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useToast } from '@/components/toast';
 import { Button, Field, Input, LinkButton, LoadError, Skeleton } from '@/components/ui';
@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
+import { useQueryParam } from '@/lib/use-query-param';
 
 /** One row of the support queue, as the customer's own end of it sees it. */
 interface Complaint {
@@ -49,6 +50,17 @@ export function Complaints() {
   const [subject, setSubject] = useState('');
   const [orderRef, setOrderRef] = useState('');
   const [body, setBody] = useState('');
+  /*
+   * Flow PR-7b: "Laporkan masalah" on an order opens this with `?order=`. The form opens
+   * with that order's number in it — read after mount, since the exported page is static
+   * HTML with the form shut.
+   */
+  const aboutOrder = useQueryParam('order');
+  useEffect(() => {
+    if (!aboutOrder) return;
+    setOrderRef(aboutOrder);
+    setOpen(true);
+  }, [aboutOrder]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // AAS-12: ONE key per submission. It survives a failed send (so a retry cannot file a second
@@ -126,7 +138,10 @@ export function Complaints() {
         <h2 className="text-[13px] font-extrabold">{t('help.complaints.title')}</h2>
         <p className="mt-1 text-[12.5px] text-muted">{t('help.complaints.guest')}</p>
         <div className="mt-3">
-          <LinkButton href={`/login?next=${encodeURIComponent('/help')}`} variant="secondary">
+          <LinkButton
+            href={`/login?next=${encodeURIComponent(aboutOrder ? `/help?order=${encodeURIComponent(aboutOrder)}` : '/help')}`}
+            variant="secondary"
+          >
             {t('nav.signIn')}
           </LinkButton>
         </div>

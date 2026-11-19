@@ -12,6 +12,7 @@ import {
   Receipt,
   ShareNetwork,
   Star,
+  WarningCircle,
 } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
@@ -744,6 +745,14 @@ function OrderDetailInner({ id }: { id: string }) {
                 {t('order.detail.cancel')}
               </Button>
             )}
+            <LinkButton
+              href={`/help?order=${encodeURIComponent(order.orderNumber)}`}
+              variant="ghost"
+              className="rounded-full"
+            >
+              <WarningCircle size={17} weight="fill" />
+              {t('order.detail.reportProblem')}
+            </LinkButton>
           </div>
 
           {/*
