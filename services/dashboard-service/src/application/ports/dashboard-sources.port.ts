@@ -147,6 +147,12 @@ export interface HrDepotSummary {
    * `undefined` and reports the payroll line as UNKNOWN, rather than as a very cheap month.
    */
   payrollMtdGross?: number;
+  /**
+   * Flow 5a: payslips generated for the period month. 0 while the depot has staff = the
+   * month's payroll has not been run, so its wages are unknown. Optional on the wire for the
+   * same reason as gross: an older hr-service reads as unknown, never as a month of free labour.
+   */
+  payrollCount?: number;
   activeHeadcount: number;
 }
 

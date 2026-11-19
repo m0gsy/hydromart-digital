@@ -129,7 +129,7 @@ function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
   const partial =
     s.order === 'unavailable' ||
     cogsStatus(data) !== 'ok' ||
-    s.payroll === 'unavailable' ||
+    s.payroll !== 'ok' ||
     s.payout === 'unavailable' ||
     s.refunds === 'unavailable';
 
@@ -209,9 +209,15 @@ function SourceCard({ data }: { data: OperationalMonthlyPnl }) {
   );
 }
 
-function SourceRow({ label, status }: { label: string; status: 'ok' | 'partial' | 'unavailable' }) {
+function SourceRow({
+  label,
+  status,
+}: {
+  label: string;
+  status: 'ok' | 'partial' | 'pending' | 'unavailable';
+}) {
   const { t } = useT();
-  const tone = status === 'ok' ? 'success' : status === 'partial' ? 'warning' : 'danger';
+  const tone = status === 'ok' ? 'success' : status === 'unavailable' ? 'danger' : 'warning';
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
       <span>{label}</span>

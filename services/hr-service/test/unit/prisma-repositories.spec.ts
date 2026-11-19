@@ -1277,7 +1277,13 @@ describe('AnalyticsPrismaRepository', () => {
     ]);
     // Prisma hands back a Decimal from a raw SUM; Number() reads it through toString.
     (p.$queryRaw as jest.Mock).mockResolvedValue([
-      { depotId: 'd1', net: { toString: () => '0' }, gross: { toString: () => '11000000' } },
+      {
+        depotId: 'd1',
+        net: { toString: () => '0' },
+        gross: { toString: () => '11000000' },
+        // COUNT comes back from a raw query as a bigint.
+        count: BigInt(9),
+      },
     ]);
 
     const repo = new AnalyticsPrismaRepository(asService(p));
@@ -1290,6 +1296,8 @@ describe('AnalyticsPrismaRepository', () => {
       payrollMtdNet: 0,
       // CA-2-59: gross comes back from the same raw SUM, read the same way.
       payrollMtdGross: 11_000_000,
+      // Flow 5a: and how many payslips stand behind it, so 0 can mean "not run yet".
+      payrollCount: 9,
       activeHeadcount: 9,
     });
     expect(facts.get('d2')?.absentToday).toBe(1);

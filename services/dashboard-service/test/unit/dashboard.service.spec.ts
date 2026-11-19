@@ -41,6 +41,7 @@ const pnlSources = (
             // Net is what reached the staff; the P&L must take gross, the employer's cost.
             payrollMtdNet: 150_000,
             payrollMtdGross: 200_000,
+            payrollCount: 3,
             activeHeadcount: 3,
           },
     ]),
@@ -174,6 +175,28 @@ describe('DashboardService', () => {
       expect(result.sources[source]).toBe('unavailable');
     },
   );
+
+  it('says the payroll is pending, and has no net profit, while the month has not been paid', async () => {
+    const sources = pnlSources();
+    (sources.hrSummaryMany as jest.Mock).mockResolvedValue([
+      {
+        depotId: DEPOT_ID,
+        lateToday: 0,
+        absentToday: 0,
+        presentToday: 3,
+        payrollMtdNet: 0,
+        payrollMtdGross: 0,
+        payrollCount: 0,
+        activeHeadcount: 3,
+      },
+    ]);
+    const service = new DashboardService(sources, dashboardTestConfig(), noNames);
+    const result = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t');
+
+    expect(result.payrollIdr).toBeNull();
+    expect(result.netProfitIdr).toBeNull();
+    expect(result.sources.payroll).toBe('pending');
+  });
 
   it('reads a depot that payout and refunds answered for but did not list as zero', async () => {
     const service = new DashboardService(
@@ -961,6 +984,30 @@ describe('networkPnl (CA-2-59)', () => {
     expect(out.depots[0]!.netProfitIdr).toBeNull();
     expect(out.sources.payroll).toBe('partial');
   });
+  /*
+   * Flow 5a. Payroll is generated at month end, so for the running month hr answers gross 0
+   * with no payslips behind it. Read as a cost of zero, every depot's current month would
+   * show its whole wage bill as profit — the "best month of the year" every time.
+   */
+  it('has unknown wages, not zero, for a month whose payroll has not been run', async () => {
+    const { sources, svc } = build();
+    sources.hrPayrollNotRun = true;
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+
+    expect(out.depots[0]!.payrollIdr).toBeNull();
+    expect(out.depots[0]!.netProfitIdr).toBeNull();
+    expect(out.sources.payroll).toBe('partial');
+  });
+
+  it('knows a depot with nobody on the books paid no wages', async () => {
+    const { sources, svc } = build();
+    sources.hrNoStaff = true;
+    const out = await svc.networkPnl('2026-07', 'Bearer t');
+
+    expect(out.depots[0]!.payrollIdr).toBe(0);
+    expect(out.depots[0]!.netProfitIdr).not.toBeNull();
+  });
+
   it('windows the month in Jakarta time, not UTC', async () => {
     const { svc } = build();
     const out = await svc.networkPnl('2026-07', 'Bearer t');

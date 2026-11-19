@@ -6,6 +6,7 @@ import {
   DateRange,
   DeliverySla,
   DepotOperationalCosts,
+  HrDepotSummary,
   LowStockLine,
   SalesReport,
   TopCustomers,
@@ -144,7 +145,7 @@ export interface MonthlyOperationalPnl {
   sources: {
     order: 'ok' | 'unavailable';
     depot: 'ok' | 'partial' | 'unavailable';
-    payroll: 'ok' | 'unavailable';
+    payroll: 'ok' | 'pending' | 'unavailable';
     payout: 'ok' | 'unavailable';
     refunds: 'ok' | 'unavailable';
   };
@@ -237,7 +238,7 @@ export class DashboardService {
 
     const revenueIdr = order?.revenueIdr ?? null;
     const cogsIdr = costs?.cogs.amountIdr ?? null;
-    const payrollIdr = hr[0]?.payrollMtdGross ?? null;
+    const payrollIdr = DashboardService.wages(hr[0] ?? null);
     const courierCommissionIdr = payout ? (payout.get(depotId)?.commissionIdr ?? 0) : null;
     const expenseClaimIdr = payout ? (payout.get(depotId)?.expenseClaimIdr ?? 0) : null;
     const refundIdr = refunds ? (refunds.get(depotId) ?? 0) : null;
@@ -291,7 +292,8 @@ export class DashboardService {
             : costs.cogs.status === 'partial' || costs.opex.status === 'partial'
               ? 'partial'
               : 'ok',
-        payroll: payrollIdr === null ? 'unavailable' : 'ok',
+        // 'pending': hr answered, but this month's payroll has not been run yet.
+        payroll: hr[0] == null ? 'unavailable' : payrollIdr === null ? 'pending' : 'ok',
         payout: payout === null ? 'unavailable' : 'ok',
         refunds: refunds === null ? 'unavailable' : 'ok',
       },
@@ -382,6 +384,19 @@ export class DashboardService {
    * Every source is read as the system principal, so the ids chosen here are the whole
    * authorization boundary — rows for a depot outside it are never fetched, not just hidden.
    */
+  /**
+   * The wage term of laba bersih: gross payroll for the month — or null (unknown) when hr
+   * could not be read, or when the depot has staff and the month's payroll has not been run
+   * yet. Payroll is generated at month end, so without this the CURRENT month, the one a P&L
+   * opens on, would read every wage bill as zero and look like the best month of the year.
+   * A depot with no staff on the books has known wages: none.
+   */
+  private static wages(summary: HrDepotSummary | null): number | null {
+    if (!summary || summary.payrollMtdGross === undefined) return null;
+    if ((summary.payrollCount ?? 0) > 0) return summary.payrollMtdGross;
+    return summary.activeHeadcount === 0 ? 0 : null;
+  }
+
   private static inScope<T extends { id: string }>(
     depots: T[] | null,
     scope: readonly string[] | undefined,
@@ -420,7 +435,7 @@ export class DashboardService {
     const rows: NetworkPnlDepotRow[] = (depots ?? []).map((d, i) => {
       const revenueIdr = revenues[i]?.revenueIdr ?? null;
       const cogsIdr = goods[i]?.cogs.amountIdr ?? null;
-      const payrollIdr = hr[i]?.payrollMtdGross ?? null;
+      const payrollIdr = DashboardService.wages(hr[i] ?? null);
       const courierCommissionIdr = payout ? (payout.get(d.id)?.commissionIdr ?? 0) : null;
       const expenseClaimIdr = payout ? (payout.get(d.id)?.expenseClaimIdr ?? 0) : null;
       const refundIdr = refunds ? (refunds.get(d.id) ?? 0) : null;

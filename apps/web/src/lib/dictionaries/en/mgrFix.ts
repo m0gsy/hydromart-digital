@@ -110,6 +110,7 @@ export const mgrFix = {
     status: {
       ok: 'Complete',
       partial: 'Partial',
+      pending: "This month's payroll has not been run yet",
       unavailable: 'Unavailable',
     },
     reason: {

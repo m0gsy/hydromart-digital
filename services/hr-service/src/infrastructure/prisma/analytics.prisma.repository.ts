@@ -174,6 +174,7 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       presentToday: 0,
       payrollMtdNet: 0,
       payrollMtdGross: 0,
+      payrollCount: 0,
       activeHeadcount: 0,
     });
     const at = (depotId: string): DepotSummaryFacts => {
@@ -196,11 +197,12 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       }),
       this.byShare
         ? this.prisma.$queryRaw<
-            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null }[]
+            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null; count: bigint }[]
           >`
             SELECT COALESCE(s."depotId", e."depotId") AS "depotId",
                    SUM(COALESCE(s."net", p."net")) AS "net",
-                   SUM(COALESCE(s."gross", p."gross")) AS "gross"
+                   SUM(COALESCE(s."gross", p."gross")) AS "gross",
+                   COUNT(DISTINCT p."id") AS "count"
             FROM "payrolls" p
             JOIN "employees" e ON e."id" = p."employeeId"
             ${shareJoin(ids)}
@@ -208,9 +210,10 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
             GROUP BY COALESCE(s."depotId", e."depotId")
           `
         : this.prisma.$queryRaw<
-            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null }[]
+            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null; count: bigint }[]
           >`
-        SELECT e."depotId" AS "depotId", SUM(p."net") AS "net", SUM(p."gross") AS "gross"
+        SELECT e."depotId" AS "depotId", SUM(p."net") AS "net", SUM(p."gross") AS "gross",
+               COUNT(*) AS "count"
         FROM "payrolls" p
         JOIN "employees" e ON e."id" = p."employeeId"
         WHERE p."periodMonth" = ${periodMonth}
@@ -235,6 +238,7 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       // CA-2-59: gross rides along with net rather than in a second query — the P&L wants
       // what the employer spends, the dashboard card wants what was paid out.
       at(row.depotId).payrollMtdGross = row.gross ? Number(row.gross) : 0;
+      at(row.depotId).payrollCount = Number(row.count ?? 0);
     }
     return out;
   }

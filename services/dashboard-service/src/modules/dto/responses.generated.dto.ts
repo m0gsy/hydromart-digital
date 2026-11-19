@@ -126,7 +126,7 @@ export class MonthlyOperationalPnlSourcesResponseDto {
   order!: string;
   @ApiProperty({ enum: ['ok', 'partial', 'unavailable'] })
   depot!: string;
-  @ApiProperty({ enum: ['ok', 'unavailable'] })
+  @ApiProperty({ enum: ['ok', 'pending', 'unavailable'] })
   payroll!: string;
   @ApiProperty({ enum: ['ok', 'unavailable'] })
   payout!: string;

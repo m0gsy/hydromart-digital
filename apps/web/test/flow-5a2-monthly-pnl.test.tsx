@@ -105,6 +105,20 @@ describe('the depot P&L (flow 5a-2)', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
   });
 
+  it('says the wages are not known yet while the month has not been paid', async () => {
+    get.mockResolvedValue({
+      ...REPORT,
+      payrollIdr: null,
+      netProfitIdr: null,
+      netMarginPct: null,
+      sources: { ...REPORT.sources, payroll: 'pending' },
+    });
+    render(<MonthlyPnlPage />);
+
+    expect(await screen.findByText('mgrFix.pnl.status.pending')).toBeTruthy();
+    expect(screen.getByText('mgrFix.pnl.partial')).toBeTruthy();
+  });
+
   it('survives an answer from the previous dashboard image, which has none of the new fields', async () => {
     // Deploy skew or a rollback of dashboard-service alone: the old shape.
     const { payrollIdr, courierCommissionIdr, expenseClaimIdr, refundIdr, netProfitIdr, netMarginPct, ...old } =

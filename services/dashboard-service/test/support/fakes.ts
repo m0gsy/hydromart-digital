@@ -190,6 +190,10 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
      P&L must read that as UNKNOWN rather than as a month with no wage bill. */
   hrOmitsGross = false;
   hrDown = false;
+  /** Flow 5a: hr answers, but the month's payroll has not been run (no payslips yet). */
+  hrPayrollNotRun = false;
+  /** Flow 5a: a depot with nobody on the books. */
+  hrNoStaff = false;
   async hrSummary(depotId: string): Promise<HrDepotSummary | null> {
     if (this.hrDown) return null;
     const row = {
@@ -197,9 +201,10 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
       lateToday: 1,
       absentToday: 2,
       presentToday: 5,
-      payrollMtdNet: 3_000_000,
-      payrollMtdGross: 4_000_000,
-      activeHeadcount: 8,
+      payrollMtdNet: this.hrPayrollNotRun || this.hrNoStaff ? 0 : 3_000_000,
+      payrollMtdGross: this.hrPayrollNotRun || this.hrNoStaff ? 0 : 4_000_000,
+      payrollCount: this.hrPayrollNotRun || this.hrNoStaff ? 0 : 8,
+      activeHeadcount: this.hrNoStaff ? 0 : 8,
     };
     if (this.hrOmitsGross) delete (row as { payrollMtdGross?: number }).payrollMtdGross;
     return row;

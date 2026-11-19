@@ -1303,7 +1303,8 @@ export interface OperationalMonthlyPnl {
   sources: {
     order: 'ok' | 'unavailable';
     depot: 'ok' | 'partial' | 'unavailable';
-    payroll: 'ok' | 'unavailable';
+    /** 'pending': the month's payroll has not been run yet, so its wages are unknown. */
+    payroll: 'ok' | 'pending' | 'unavailable';
     payout: 'ok' | 'unavailable';
     refunds: 'ok' | 'unavailable';
   };
