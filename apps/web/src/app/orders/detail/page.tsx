@@ -10,6 +10,7 @@ import {
   CheckCircle,
   Copy,
   Money as MoneyIcon,
+  Receipt,
   ShareNetwork,
   Star,
 } from '@phosphor-icons/react';
@@ -23,6 +24,7 @@ import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
 import {
   Button,
+  CenterState,
   ErrorState,
   LinkButton,
   Money,
@@ -886,10 +888,30 @@ function OrderDetailInner({ id }: { id: string }) {
 }
 
 export default function OrderDetailPage() {
+  const { t } = useT();
   const id = useQueryParam('id');
+  /*
+   * A link with no `?id=` never gets one, and the screen sat on its skeleton for good.
+   * Decided in an effect, from the address itself: during the first render of a push the
+   * query string still belongs to the screen being left, and Next writes the new one before
+   * effects run. Never on the server, so the exported page is the skeleton either way and
+   * hydration has nothing to disagree with.
+   */
+  const [noId, setNoId] = useState(false);
+  useEffect(() => {
+    setNoId(!id && !new URLSearchParams(window.location.search).get('id'));
+  }, [id]);
   return (
     <RequireAuth>
-      <OrderDetailInner id={id} />
+      {noId ? (
+        <CenterState
+          icon={<Receipt size={40} weight="duotone" />}
+          title={t('order.detail.notFound')}
+          action={<LinkButton href="/orders">{t('nav.orders')}</LinkButton>}
+        />
+      ) : (
+        <OrderDetailInner id={id} />
+      )}
     </RequireAuth>
   );
 }
