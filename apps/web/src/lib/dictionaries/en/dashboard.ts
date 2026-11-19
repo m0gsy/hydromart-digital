@@ -217,6 +217,7 @@ export const dashboard = {
     failed: 'Failed',
     viewReport: 'View report',
     sendNow: 'Send now',
+    scheduledFor: 'scheduled {at}',
     noCampaigns: 'No campaigns yet',
     noCampaignsManage: 'Create a draft to broadcast to your customers.',
     noCampaignsView: 'No broadcast campaigns have been created.',

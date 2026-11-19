@@ -8,6 +8,7 @@ import { CampaignReport } from '@/components/dashboard/campaign-report';
 import { Badge, Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Campaign, CampaignStatus, Page } from '@/lib/types';
@@ -89,6 +90,9 @@ function CampaignCard({
           <p className="font-semibold">{campaign.name}</p>
           <p className="text-xs text-muted">
             {campaign.channel} · {new Date(campaign.createdAt).toLocaleDateString('id-ID')}
+            {/* A claimed scheduled campaign reads SENDING like one going out now; its time tells them apart. */}
+            {campaign.scheduledFor &&
+              ` · ${t('dashboard.campaigns.scheduledFor', { at: formatDateTime(campaign.scheduledFor) })}`}
           </p>
         </div>
         <Badge tone={STATUS_TONE[campaign.status]}>{campaign.status}</Badge>
@@ -137,14 +141,20 @@ function CampaignCard({
 export function CampaignList({
   canManage,
   emptyHint,
+  refresh = 0,
 }: {
   canManage: boolean;
   /** What the empty state says; it differs for a reader who may create campaigns. */
   emptyHint: string;
+  /** Bump to read the list again (a campaign was just created or sent elsewhere on the page). */
+  refresh?: number;
 }) {
   const { t } = useT();
   const [reportId, setReportId] = useState<string | null>(null);
-  const list = useAsync<Page<Campaign>>(() => api.get(endpoints.crm.campaigns({ limit: 50 }), true));
+  const list = useAsync<Page<Campaign>>(
+    () => api.get(endpoints.crm.campaigns({ limit: 50 }), true),
+    [refresh],
+  );
   const items = list.data?.items ?? [];
 
   return (

@@ -25,7 +25,7 @@ const H = idDict.hq.campaigns;
 const C = idDict.dashboard.campaigns;
 const LIST = endpoints.crm.campaigns({ limit: 50 });
 
-const campaign = (id: string, name: string, status: string) => ({
+const campaign = (id: string, name: string, status: string, scheduledFor: string | null = null) => ({
   id,
   name,
   channel: 'IN_APP',
@@ -35,7 +35,7 @@ const campaign = (id: string, name: string, status: string) => ({
   failedCount: 0,
   createdAt: '2026-11-01T00:00:00.000Z',
   sentAt: null,
-  scheduledFor: null,
+  scheduledFor,
 });
 
 const listReads = () => get.mock.calls.filter(([url]) => url === LIST).length;
@@ -65,8 +65,12 @@ beforeEach(() => {
     Promise.resolve(
       url === LIST
         ? {
-            items: [campaign('c-send', 'Sedang Kirim', 'SENDING'), campaign('c-done', 'Selesai', 'SENT')],
-            total: 2,
+            items: [
+              campaign('c-send', 'Sedang Kirim', 'SENDING'),
+              campaign('c-done', 'Selesai', 'SENT'),
+              campaign('c-later', 'Minggu Depan', 'SENDING', '2026-11-26T03:00:00.000Z'),
+            ],
+            total: 3,
             page: 1,
             limit: 50,
           }
@@ -82,7 +86,13 @@ describe('hq/campaigns · the list of what was sent (flow 5c)', () => {
     expect(screen.getByRole('heading', { name: H.listTitle })).toBeTruthy();
     await screen.findByText('Sedang Kirim');
     expect(screen.getByText('Selesai')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: C.cancelCampaign })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: C.cancelCampaign })).toHaveLength(2);
+  });
+
+  it('says when a scheduled campaign goes out: claimed, it reads SENDING like one going out now', async () => {
+    draw();
+    await screen.findByText('Minggu Depan');
+    expect(screen.getAllByText(/terjadwal/)).toHaveLength(1);
   });
 
   it('reads the list again once a campaign is sent from the builder', async () => {

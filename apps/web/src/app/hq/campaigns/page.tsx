@@ -44,7 +44,7 @@ const SEGMENT_CONDITIONS: Record<
 export default function HqCampaignBuilderPage() {
   const { t } = useT();
   const { customer } = useAuth();
-  // A campaign just sent remounts the list below, which reads it again.
+  // Bumped after every send attempt; the list below reads itself again.
   const [listVersion, setListVersion] = useState(0);
   const { toast } = useToast();
   const params = useSearchParams();
@@ -286,13 +286,9 @@ export default function HqCampaignBuilderPage() {
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-bold">{t('hq.campaigns.listTitle')}</h2>
         <CampaignList
-          key={listVersion}
+          refresh={listVersion}
           canManage={canManageCampaigns(customer?.role)}
-          emptyHint={
-            canManageCampaigns(customer?.role)
-              ? t('dashboard.campaigns.noCampaignsManage')
-              : t('dashboard.campaigns.noCampaignsView')
-          }
+          emptyHint={t('hq.campaigns.listEmpty')}
         />
       </section>
     </div>

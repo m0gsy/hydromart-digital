@@ -170,7 +170,7 @@ function CampaignsBody() {
   const { t } = useT();
   const { customer } = useAuth();
   const canManage = canManageCampaigns(customer?.role);
-  // A new draft remounts the list, which reads it again.
+  // A new draft bumps this, and the list reads itself again.
   const [version, setVersion] = useState(0);
 
   return (
@@ -183,7 +183,7 @@ function CampaignsBody() {
         {canManage && <CreateForm onCreated={() => setVersion((v) => v + 1)} />}
       </div>
       <CampaignList
-        key={version}
+        refresh={version}
         canManage={canManage}
         emptyHint={
           canManage ? t('dashboard.campaigns.noCampaignsManage') : t('dashboard.campaigns.noCampaignsView')
