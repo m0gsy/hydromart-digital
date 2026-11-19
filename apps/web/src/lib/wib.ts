@@ -59,6 +59,31 @@ export function wibParts(at: Date = new Date()): { year: number; month: number; 
   return { year: Number(parts[0]), month: Number(parts[1]), day: Number(parts[2]) };
 }
 
+const monthLabelFmt = new Intl.DateTimeFormat('id-ID', {
+  timeZone: BUSINESS_TZ,
+  month: 'long',
+  year: 'numeric',
+});
+
+/**
+ * The last `count` business-timezone months, newest first, as `YYYY-MM` keys with an id-ID
+ * label — for a month picker. The arithmetic is UTC on parts already read in the business
+ * zone: no second timezone hop, and month overflow (month 0, month 13) is handled by Date.
+ */
+export function recentMonthsWib(
+  count: number,
+  at: Date = new Date(),
+): { key: string; label: string }[] {
+  const { year, month } = wibParts(at);
+  return Array.from({ length: count }, (_, i) => {
+    const first = new Date(Date.UTC(year, month - 1 - i, 1));
+    return {
+      key: `${first.getUTCFullYear()}-${String(first.getUTCMonth() + 1).padStart(2, '0')}`,
+      label: monthLabelFmt.format(first),
+    };
+  });
+}
+
 /**
  * `YYYY-MM-DD`, `n` days from today, on the BUSINESS calendar.
  *

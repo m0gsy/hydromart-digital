@@ -324,12 +324,21 @@ export interface DepotMonthlyReport {
   /** Distinct customers with a non-cancelled order in the month. */
   activeCustomers: number;
   /**
-   * Revenue − goods − payroll − operating cost, whole rupiah.
+   * Arus kas bersih (flow plan 5a, owner decision 2026-11-17): what the month's books took in
+   * and paid out — (revenue − refunded) − purchases received − net payroll − cash-book outflows,
+   * whole rupiah. It is NOT laba bersih: that is `netProfit` (@hydromart/platform), served by
+   * dashboard-service's monthly P&L, and the monthly review shows the two side by side.
    *
-   * **Null when ANY input is missing**, never a partial subtraction: a profit computed from
+   * **Null when ANY input is missing**, never a partial subtraction: a figure computed from
    * a payroll nobody could fetch is not a small error, it is the wrong number with a
-   * confident face. `profitBreakdown` carries the four terms so the screen can show the
+   * confident face. `profitBreakdown` carries the terms so the screen can show the
    * arithmetic rather than assert a conclusion.
+   */
+  netCashFlowIdr: number | null;
+  /**
+   * DEPRECATED — the same number as netCashFlowIdr under its old name. The Ops app's monthly
+   * review as installed (≤ mobile-v1.15.0) reads it and calls it "Laba bersih"; drop it once
+   * mobile-v1.16.0 is the oldest app in use.
    */
   netProfitIdr: number | null;
   /**
@@ -1382,7 +1391,8 @@ export class ReportService {
       refundedIdr,
       netRevenueIdr: revenueIdr - refundedIdr,
       activeCustomers: new Set(live.map((r) => r.customerId)).size,
-      // ORD-08: profit from the NET revenue, so a refunded sale does not read as full profit.
+      // ORD-08: from the NET revenue, so a refunded sale does not read as money kept.
+      netCashFlowIdr: ReportService.netProfit(revenueIdr - refundedIdr, breakdown),
       netProfitIdr: ReportService.netProfit(revenueIdr - refundedIdr, breakdown),
       profitBreakdown: { revenueIdr, ...breakdown },
       // Percent, to one decimal — the screen prints a percentage, and rounding to whole

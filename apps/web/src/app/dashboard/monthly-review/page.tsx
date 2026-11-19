@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
-import { BUSINESS_TZ, monthWib } from '@/lib/wib';
+import { recentMonthsWib } from '@/lib/wib';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Button, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
@@ -14,7 +14,7 @@ import { formatIDR } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { can, canViewMonthlyClose } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { ReportDepotMonthly } from '@/lib/types';
+import type { OperationalMonthlyPnl, ReportDepotMonthly } from '@/lib/types';
 
 /*
  * CA-2-63: the money period came from `toISOString()`, which is UTC.
@@ -25,19 +25,15 @@ import type { ReportDepotMonthly } from '@/lib/types';
  * frozen when the bundle loaded and computed on the server during SSR, so the answer also
  * depended on which machine rendered it.
  *
- * `monthWib` is the same helper every other business-date read in the app already uses.
+ * Flow 5a-3: and it was still a module constant, only ever the running month, so a month
+ * could not be reviewed (or sealed) once it had ended, which is exactly when a manager closes
+ * it. The month is now picked at render, from the same WIB helper the P&L uses.
  */
-const MONTH_KEY = monthWib();
-const MONTH = new Intl.DateTimeFormat('id-ID', {
-  timeZone: BUSINESS_TZ,
-  month: 'long',
-  year: 'numeric',
-}).format(new Date());
 
 type Stat = { label: string; value: string; caption: string };
 type Row = { label: string; value: string };
 
-function Panel({ title, rows }: { title: string; rows: Row[] }) {
+function Panel({ title, rows, note }: { title: string; rows: Row[]; note?: string }) {
   return (
     <Card className="flex flex-col gap-3 p-5">
       <h2 className="text-sm font-bold text-[color:var(--text-muted)]">{title}</h2>
@@ -49,6 +45,7 @@ function Panel({ title, rows }: { title: string; rows: Row[] }) {
           </div>
         ))}
       </dl>
+      {note && <p className="text-[11px] text-[color:var(--text-muted)]">{note}</p>}
     </Card>
   );
 }
@@ -67,14 +64,14 @@ const MISSING_DAYS_SHOWN = 5;
  * any day in the month is still open; this panel reads that same list to say WHICH days,
  * rather than a bare refusal the operator has to go find out about one day at a time.
  */
-function MonthlyClose({ depotId }: { depotId: string }) {
+function MonthlyClose({ depotId, monthKey }: { depotId: string; monthKey: string }) {
   const { t } = useT();
   const { customer } = useAuth();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const state = useAsync<MonthlyCloseView>(
-    () => api.get(endpoints.depots.monthlyClose(depotId, MONTH_KEY), true),
-    [depotId],
+    () => api.get(endpoints.depots.monthlyClose(depotId, monthKey), true),
+    [depotId, monthKey],
   );
 
   const closed = state.data?.close && !state.data.close.reopenedAt;
@@ -85,7 +82,7 @@ function MonthlyClose({ depotId }: { depotId: string }) {
     try {
       await api.post(
         reopen ? endpoints.depots.reopenMonth(depotId) : endpoints.depots.closeMonth(depotId),
-        { businessMonth: MONTH_KEY },
+        { businessMonth: monthKey },
         true,
       );
       state.reload();
@@ -168,21 +165,35 @@ function MonthlyReviewBody() {
   const depot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
   const depotName = depot ? `${depot.name}` : 'Depot';
 
+  const months = useMemo(() => recentMonthsWib(12), []);
+  const [monthKey, setMonthKey] = useState(months[0]!.key);
+  const monthLabel = months.find((m) => m.key === monthKey)?.label ?? monthKey;
+
   const review = useAsync<ReportDepotMonthly | null>(
     () =>
       depot
-        ? api.get(endpoints.reports.depotMonthly(depot.id, MONTH_KEY), true)
+        ? api.get(endpoints.reports.depotMonthly(depot.id, monthKey), true)
         : Promise.resolve(null),
-    [depot?.id],
+    [depot?.id, monthKey],
+  );
+  // Flow 5a-3: laba bersih is the depot P&L's figure — one formula, computed once — so this
+  // screen, /dashboard/monthly-pnl and /hq/pnl cannot show three numbers for one month.
+  const pnl = useAsync<OperationalMonthlyPnl | null>(
+    () =>
+      depot
+        ? api.get(endpoints.dashboard.monthlyPnl(depot.id, monthKey), true)
+        : Promise.resolve(null),
+    [depot?.id, monthKey],
   );
 
   const r = review.data;
+  const p = pnl.data;
   /**
    * "—" here now means one named service could not be read, not "nobody ever built this".
    * The caption says which, because a manager who can see that payroll is the missing term
    * can go and ask for it; a bare dash sends them nowhere.
    */
-  const missingTerms = (b: ReportDepotMonthly['profitBreakdown'] | undefined): string => {
+  const missingCashTerms = (b: ReportDepotMonthly['profitBreakdown'] | undefined): string => {
     if (!b) return t('hrFix.monthlyReview.needsCostData');
     const missing = [
       b.cogsIdr === null ? t('hrFix.monthlyReview.termCogs') : null,
@@ -191,13 +202,32 @@ function MonthlyReviewBody() {
     ].filter(Boolean);
     return missing.length > 0
       ? t('hrFix.monthlyReview.unreadTerms', { terms: missing.join(', ') })
-      : t('hrFix.monthlyReview.profitFormula');
+      : t('hrFix.monthlyReview.cashFlowFormula');
+  };
+  const profitCaption = (): string => {
+    if (pnl.loading) return '';
+    if (!p) return t('hrFix.monthlyReview.profitUnread');
+    if (p.netProfitIdr != null) return t('hrFix.monthlyReview.profitFormula');
+    const missing = [
+      p.revenueIdr == null ? t('hrFix.monthlyReview.termRevenue') : null,
+      p.cogsIdr == null ? t('hrFix.monthlyReview.termHpp') : null,
+      p.payrollIdr == null
+        ? p.sources?.payroll === 'pending'
+          ? t('hrFix.monthlyReview.payrollPending')
+          : t('hrFix.monthlyReview.termPayroll')
+        : null,
+      p.courierCommissionIdr == null || p.expenseClaimIdr == null
+        ? t('hrFix.monthlyReview.termPayout')
+        : null,
+      p.refundIdr == null ? t('hrFix.monthlyReview.termRefund') : null,
+    ].filter(Boolean);
+    return t('hrFix.monthlyReview.unreadTerms', { terms: missing.join(', ') });
   };
   const stats: Stat[] = [
     {
       label: t('hrFix.monthlyReview.orders'),
       value: r ? r.orders.toLocaleString('id-ID') : '—',
-      caption: t('hrFix.monthlyReview.thisMonth'),
+      caption: monthLabel,
     },
     {
       label: t('hrFix.monthlyReview.revenue'),
@@ -214,26 +244,32 @@ function MonthlyReviewBody() {
     },
     {
       label: t('hrFix.monthlyReview.netProfit'),
-      value: r?.netProfitIdr != null ? formatIDR(r.netProfitIdr) : '—',
-      caption: missingTerms(r?.profitBreakdown),
+      value: p?.netProfitIdr != null ? formatIDR(p.netProfitIdr) : '—',
+      caption: profitCaption(),
     },
   ];
 
   /**
-   * The arithmetic behind "Laba bersih", spelled out. A net profit nobody can decompose is
-   * a number nobody can dispute — and these two costs come from two places that CAN
-   * overlap (a purchase order in the system plus a "bayar supplier" line in the cash book),
-   * so showing the terms is what makes a double count visible instead of silent.
+   * Arus kas bersih (owner decision 2026-11-17): what the month's books took in and paid out,
+   * spelled out. It is not laba bersih (the stat above), and its two costs come from two
+   * places that CAN overlap (a purchase order in the system plus a "bayar supplier" line in
+   * the cash book), so showing the terms is what makes a double count visible.
    */
   const idrOrDash = (v: number | null | undefined): string => (v == null ? '—' : formatIDR(v));
-  const profit: Row[] = [
+  const cashFlow: Row[] = [
     { label: t('hrFix.monthlyReview.turnover'), value: r ? formatIDR(r.revenueIdr) : '—' },
+    { label: t('hrFix.monthlyReview.refunded'), value: idrOrDash(r?.refundedIdr) },
     {
       label: t('hrFix.monthlyReview.purchasesReceived'),
       value: idrOrDash(r?.profitBreakdown.cogsIdr),
     },
     { label: t('hrFix.monthlyReview.payrollNet'), value: idrOrDash(r?.profitBreakdown.payrollIdr) },
     { label: t('hrFix.monthlyReview.cashOut'), value: idrOrDash(r?.profitBreakdown.opexIdr) },
+    {
+      label: t('hrFix.monthlyReview.netCashFlow'),
+      // An order-service image from before 5a-3 sends only the old name for the same figure.
+      value: idrOrDash(r?.netCashFlowIdr !== undefined ? r.netCashFlowIdr : r?.netProfitIdr),
+    },
   ];
 
   /*
@@ -315,13 +351,28 @@ function MonthlyReviewBody() {
       <Card elevated className="flex flex-col gap-1 bg-brand-700 p-6 text-on-brand">
         <p className="text-sm font-medium text-on-brand/80">{t('hrFix.monthlyReview.title')}</p>
         <h1 className="text-xl font-bold">
-          {MONTH} · {depotName}
+          {monthLabel} · {depotName}
         </h1>
         <p className="text-sm text-on-brand/80">
           {t('hrFix.monthlyReview.forMeeting')}
           {customer?.fullName ? ` · ${customer.fullName}` : ''}
         </p>
       </Card>
+
+      <label className="flex items-center justify-between gap-3 text-sm">
+        <span className="text-[color:var(--text-muted)]">{t('hrFix.monthlyReview.monthLabel')}</span>
+        <select
+          value={monthKey}
+          onChange={(e) => setMonthKey(e.target.value)}
+          className="surface-elevated rounded-lg border border-app px-3 py-2 text-sm focus:outline focus:outline-2 focus:outline-brand-600"
+        >
+          {months.map((m) => (
+            <option key={m.key} value={m.key}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       {review.loading ? (
         <Skeleton className="h-72 w-full" />
@@ -341,14 +392,18 @@ function MonthlyReviewBody() {
 
           <Panel title={t('hrFix.monthlyReview.gallonSales')} rows={galon} />
 
-          <Panel title={t('hrFix.monthlyReview.profitBreakdown')} rows={profit} />
+          <Panel
+            title={t('hrFix.monthlyReview.netCashFlow')}
+            rows={cashFlow}
+            note={missingCashTerms(r?.profitBreakdown)}
+          />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Panel title={t('hrFix.monthlyReview.governance')} rows={governance} />
             <Panel title={t('hrFix.monthlyReview.teamCustomers')} rows={team} />
           </div>
 
-          {depot && <MonthlyClose depotId={depot.id} />}
+          {depot && <MonthlyClose depotId={depot.id} monthKey={monthKey} />}
         </>
       )}
 
