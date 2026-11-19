@@ -56,13 +56,20 @@ export function rgbToNchw(rgb: Uint8Array | readonly number[], size: number): Fl
   return out;
 }
 
-/** Highest-scoring enrolled vector for a probe. Empty set → score 0, index -1. */
+/**
+ * Highest-scoring enrolled vector for a probe. Empty set → score 0, index -1.
+ *
+ * Face plan PR-2: a template that cannot be compared (empty — a NEO enrolment keeps none, or one
+ * whose decryption failed — or of another length, from another model) is skipped rather than
+ * scored: comparing it crashed the punch with a 500 or produced a meaningless score.
+ */
 export function bestMatch(
   probe: readonly number[],
   enrolled: readonly (readonly number[])[],
 ): { score: number; index: number } {
   let best = { score: 0, index: -1 };
   for (let i = 0; i < enrolled.length; i++) {
+    if (enrolled[i].length === 0 || enrolled[i].length !== probe.length) continue;
     const score = cosineSimilarity(probe, enrolled[i]);
     if (score > best.score || best.index === -1) best = { score, index: i };
   }

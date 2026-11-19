@@ -43,6 +43,9 @@ function punchAt(capturedAt?: Date): FacePunch {
 }
 
 class FakeAtt implements AttendanceRepository {
+  async countPendingOlderThan(): Promise<number> {
+    return 0;
+  }
   // HR-4: the retention sweep reads then clears; these fakes hold no photos.
   async photosBefore(): Promise<string[]> {
     return [];

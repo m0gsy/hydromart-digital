@@ -8,6 +8,7 @@ import {
   FaceVerifyResult,
 } from '../../application/ports/face-verifier.port';
 import { bestMatch, meanNormalize, rgbToNchw } from '../../domain/face-math';
+import { FaceEngineUnavailableError } from '../../application/ports/face-verifier.port';
 
 const FACE_SIZE = 112;
 
@@ -78,7 +79,10 @@ export class OnnxArcFaceVerifier implements FaceVerifier {
     enrolled: number[][],
     _identity?: FaceIdentity,
   ): Promise<FaceVerifyResult> {
-    const { score } = bestMatch(await this.embed(image), enrolled);
+    const { score, index } = bestMatch(await this.embed(image), enrolled);
+    // Face plan PR-2: no template this engine can compare (none, unreadable, another model's)
+    // means it could not judge the face — held PENDING for HR, never a 403 "tidak cocok".
+    if (index === -1) throw new FaceEngineUnavailableError('no comparable face template');
     return { score, matched: score >= this.config.faceMatchThreshold };
   }
 

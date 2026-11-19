@@ -188,6 +188,12 @@ export class AttendancePrismaRepository implements AttendanceRepository {
     });
   }
 
+  countPendingOlderThan(cutoff: Date): Promise<number> {
+    // updatedAt, not createdAt: a check-out can put a days-old check-in row into the queue, and
+    // a row's last write is when it went (or last stood) PENDING.
+    return this.prisma.attendance.count({ where: { status: 'PENDING', updatedAt: { lt: cutoff } } });
+  }
+
   /**
    * Writes the check-out only while the row is still open, so the twin of a check-out in flight
    * cannot overwrite the first one (and orphan its frame). Null when it was already closed.

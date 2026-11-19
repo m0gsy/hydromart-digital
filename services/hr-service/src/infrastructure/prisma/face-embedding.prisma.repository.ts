@@ -6,6 +6,8 @@ import {
   OwnedVector,
 } from '../../application/ports/face-embedding.repository';
 import { HrConfigService } from '../../config/hr-config.service';
+import { alertServerError } from '@hydromart/platform';
+
 import { decryptVector, encryptVector } from '../crypto/face-vector.cipher';
 import { PrismaService } from './prisma.service';
 
@@ -19,10 +21,40 @@ export class FaceEmbeddingPrismaRepository implements FaceEmbeddingRepository {
     private readonly config: HrConfigService,
   ) {}
 
-  /** The usable vector for a row, whichever form it was stored in. */
-  private plain<T extends StoredVector>(row: T): T {
+  /** One message per process: a wrong key fails for every row, and ops need to hear it once. */
+  private decryptAlerted = false;
+
+  /**
+   * The usable vector for a row, whichever form it was stored in.
+   *
+   * Face plan PR-2: a row that will not decrypt (a rotated or wrong HR_FACE_ENCRYPTION_KEY)
+   * used to throw, and that turned every punch of every employee into a 500 — including NEO
+   * punches, which never use the local template. On the punch path it reads as no template
+   * ([]) now, which `bestMatch` skips, and ops get one alert. NOT on the enrolment path
+   * (`failSafe` false): the duplicate-face check must fail closed, or a template nobody can
+   * read lets one face enrol for a second employee.
+   */
+  private plain<T extends StoredVector>(row: T, failSafe = true): T {
     if (!row.vectorEnc) return row;
-    return { ...row, vector: decryptVector(row.vectorEnc, this.config.faceEncryptionKey) };
+    if (!failSafe) {
+      return { ...row, vector: decryptVector(row.vectorEnc, this.config.faceEncryptionKey) };
+    }
+    try {
+      return { ...row, vector: decryptVector(row.vectorEnc, this.config.faceEncryptionKey) };
+    } catch (e) {
+      if (!this.decryptAlerted) {
+        this.decryptAlerted = true;
+        alertServerError({
+          method: 'GET',
+          path: '/api/v1/attendance (face template decrypt)',
+          status: 500,
+          exception: new Error(
+            `A face template does not decrypt with HR_FACE_ENCRYPTION_KEY: ${(e as Error).message}`,
+          ),
+        });
+      }
+      return { ...row, vector: [] };
+    }
   }
 
   create(data: {
@@ -54,7 +86,7 @@ export class FaceEmbeddingPrismaRepository implements FaceEmbeddingRepository {
       select: { employeeId: true, vector: true, vectorEnc: true },
     });
     return rows.map((r) => {
-      const { employeeId: owner, vector } = this.plain(r);
+      const { employeeId: owner, vector } = this.plain(r, false);
       return { employeeId: owner, vector };
     });
   }
