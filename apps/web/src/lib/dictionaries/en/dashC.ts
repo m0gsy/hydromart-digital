@@ -198,6 +198,7 @@ export const dashC = {
       employeeAssign: 'Assign employees across depots',
       employeeAssignRequest: 'Request to borrow an employee for a depot',
       hrPayroll: 'Payroll',
+      payrollRead: 'Pay figures & net profit (read)',
       leaveApprove: 'Approve leave',
       kasbonApprove: 'Approve cash advance',
       hrView: 'HR reports (view)',

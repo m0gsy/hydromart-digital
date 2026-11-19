@@ -97,7 +97,8 @@ export class AnalyticsService {
     const workDate = this.today();
     const periodMonth = query.periodMonth ?? workDate.slice(0, 7);
     const workDateUtc = new Date(`${workDate}T00:00:00.000Z`);
-    const mayReadPayroll = can('hrPayroll', user.role);
+    // payrollRead, not hrPayroll: reading the totals is wider than running payroll (2026-11-19).
+    const mayReadPayroll = can('payrollRead', user.role);
 
     // CA-1-47 and CA-1-43: 30 days is a renewal window, not a deadline — a SIM or a contract takes
     // longer than a week to replace, and anything already past its date is included.
@@ -231,6 +232,7 @@ export class AnalyticsService {
 
   async employeeReport(user: AuthenticatedUser, depotIdParam?: string): Promise<ReportData> {
     const depotIds = depotScopeIds(user, depotIdParam);
+    const mayReadPay = can('payrollRead', user.role);
     const rows = await this.repo.employeesForReport(depotIds);
     /*
      * CA-1-62. This answered 11 of the import template's 29 columns. An HR officer who
@@ -296,8 +298,9 @@ export class AnalyticsService {
         e.role,
         e.employmentStatus,
         e.salaryType,
-        dec(e.dailyRate),
-        dec(e.monthlyRate),
+        // The template keeps its columns; the pay in them is payrollRead's (2026-11-19).
+        mayReadPay ? dec(e.dailyRate) : '',
+        mayReadPay ? dec(e.monthlyRate) : '',
         e.status,
         isoDate(e.joinDate),
         isoDate(e.contractEndDate),

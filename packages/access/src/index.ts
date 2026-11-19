@@ -420,6 +420,17 @@ export const CAPABILITIES = {
   employeeAssignRequest: ['MANAGER', 'SUPERVISOR'],
   // hr-service — generate/approve/pay payroll. HR desk + the office finance team.
   hrPayroll: ['HR', 'FINANCE', 'SUPER_ADMIN'],
+  /*
+   * READ pay figures: payroll runs and slips, the payroll export, allowance lines, an
+   * employee's rate, and every payroll total or net profit in a P&L or depot report.
+   *
+   * Owner decision 2026-11-19. Wider than `hrPayroll`, which writes: head office, direksi and
+   * the area manager read the money they are accountable for, and a franchise owner reads the
+   * P&L of the depots they own. NOT SUPERVISOR, ASSISTANT_SUPERVISOR or KEPALA_DEPOT: they open
+   * HR for attendance, leave and the roster, and in a depot of three or four people a payroll
+   * total is each person's pay — net profit gives it away by subtraction.
+   */
+  payrollRead: ['HR', 'FINANCE', 'SUPER_ADMIN', 'HEAD_OFFICE', 'DIREKTUR', 'MANAGER', 'FRANCHISE_OWNER'],
   // hr-service — stage 1 of a leave application. The depot manager decides for their own
   // depot (DepotScopeGuard enforces that); HR holds it too so a depot without a manager is
   // not stuck, and stage 2 stays hrAdmin either way.

@@ -16,6 +16,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from
 import { AuthenticatedUser, Can, CurrentUser, ImportSummary, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { EmployeeService } from '../application/services/employee.service';
+import { mayReadRates, withoutPayChange, withoutRate } from '../domain/pay-visibility';
 import {
   AnonymiseEmployeeDto,
   CreateEmployeeDto,
@@ -185,24 +186,29 @@ export class EmployeesController {
   @Get()
   @Can('hrView')
   @ApiOperation({ summary: 'List employees (depot-scoped for depot roles)' })
-  list(@Query() query: ListEmployeesDto, @CurrentUser() user: AuthenticatedUser): Promise<{ rows: Employee[]; total: number; page: number; pageSize: number }> {
-    return this.employees.list(user, query);
+  async list(@Query() query: ListEmployeesDto, @CurrentUser() user: AuthenticatedUser): Promise<{ rows: Employee[]; total: number; page: number; pageSize: number }> {
+    const page = await this.employees.list(user, query);
+    // The person, not the pay, for a role without payrollRead.
+    return mayReadRates(user) ? page : { ...page, rows: page.rows.map(withoutRate) };
   }
 
   @ApiOkResponse({ type: EmployeeResponseDto })
   @Get(':id')
   @Can('hrView')
   @ApiOperation({ summary: 'Get one employee' })
-  getById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<Employee> {
-    return this.employees.getById(user, id);
+  async getById(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<Employee> {
+    const employee = await this.employees.getById(user, id);
+    return mayReadRates(user) ? employee : withoutRate(employee);
   }
 
   @ApiOkResponse({ type: EmploymentHistoryResponseDto, isArray: true })
   @Get(':id/history')
   @Can('hrView')
   @ApiOperation({ summary: 'Employment change log for one employee' })
-  getHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<EmploymentHistory[]> {
-    return this.employees.getHistory(user, id);
+  async getHistory(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthenticatedUser): Promise<EmploymentHistory[]> {
+    const history = await this.employees.getHistory(user, id);
+    // A rate change is logged with both amounts: the rate, by another door.
+    return mayReadRates(user) ? history : history.map(withoutPayChange);
   }
 
   @ApiOkResponse({ type: EmployeeResponseDto })

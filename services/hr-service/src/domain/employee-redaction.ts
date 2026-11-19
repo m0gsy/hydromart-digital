@@ -8,15 +8,17 @@
 
 import type { Employee } from '../../prisma/generated/client';
 
+/** The employee's pay. Also blanked for a reader without `payrollRead` (domain/pay-visibility). */
+export const PAY_FIELDS = ['dailyRate', 'monthlyRate'] as const satisfies readonly (keyof Employee)[];
+
 const HIDDEN = [
+  ...PAY_FIELDS,
   'nik',
   'npwp',
   'bpjsKes',
   'bpjsTk',
   'bankName',
   'bankAccount',
-  'dailyRate',
-  'monthlyRate',
   'birthDate',
   'gender',
   'address',

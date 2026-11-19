@@ -310,6 +310,7 @@ export const hq = {
       employeeAssign: 'Assign employees across depots',
       employeeAssignRequest: 'Request to borrow an employee for a depot',
       hrPayroll: 'Payroll',
+      payrollRead: 'Read pay figures & net profit',
       leaveApprove: 'Approve leave (stage 1)',
       kasbonApprove: 'Approve cash advance (the depot’s assistant SPV)',
       priceOverrideDecide: 'Decide a depot price proposal',

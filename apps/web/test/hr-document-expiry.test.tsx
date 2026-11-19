@@ -29,6 +29,10 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/hr',
   useSearchParams: () => new URLSearchParams(),
 }));
+// The page reads the role for its pay figures (payrollRead); HR holds it.
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: { id: 'hr-1', role: 'HR' }, ready: true, signOut: vi.fn() }),
+}));
 
 import HrDashboardPage from '@/app/hr/page';
 

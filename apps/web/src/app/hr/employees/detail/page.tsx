@@ -76,6 +76,7 @@ export default function EmployeeDetailPage() {
   );
   const id = idParam || byAccount.data?.rows[0]?.id || '';
   const { customer } = useAuth();
+  const mayReadPay = can('payrollRead', customer?.role);
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const isAdmin = canManageHr(customer?.role);
@@ -218,12 +219,16 @@ export default function EmployeeDetailPage() {
           label={t('hrFix.employeeDetail.salaryType')}
           value={t(`hrFix.map.salaryType.${e.salaryType}`)}
         />
-        <Row
-          label={t('hrFix.employeeDetail.salaryAmount')}
-          value={
-            <Money amount={Number(e.salaryType === 'DAILY' ? e.dailyRate : e.monthlyRate) || 0} />
-          }
-        />
+        {/* Pay figures: payrollRead only. Without it the server sends no rate, and "Rp 0" would
+            read as a real number. */}
+        {mayReadPay && (
+          <Row
+            label={t('hrFix.employeeDetail.salaryAmount')}
+            value={
+              <Money amount={Number(e.salaryType === 'DAILY' ? e.dailyRate : e.monthlyRate) || 0} />
+            }
+          />
+        )}
         <Row
           label={t('hrFix.employeeDetail.bank')}
           value={e.bankName ? `${e.bankName} · ${e.bankAccount ?? ''}` : '—'}
@@ -255,7 +260,7 @@ export default function EmployeeDetailPage() {
         />
       </Card>
 
-      <EmployeeAllowances employeeId={id} />
+      {mayReadPay && <EmployeeAllowances employeeId={id} />}
       <EmployeeDocuments employeeId={id} isAdmin={isAdmin} />
       <EmployeeAssets employeeId={id} />
 
@@ -264,12 +269,14 @@ export default function EmployeeDetailPage() {
       {can('employeeAssign', customer?.role) && <EmployeeDepotAssignment employeeId={id} />}
 
       <div className="flex flex-wrap gap-3">
-        <Link
-          href={`/hr/payroll?employeeId=${id}`}
-          className="tap-44 text-sm font-semibold text-brand-700 hover:underline"
-        >
-          {t('hrFix.employeeDetail.viewPayroll')}
-        </Link>
+        {mayReadPay && (
+          <Link
+            href={`/hr/payroll?employeeId=${id}`}
+            className="tap-44 text-sm font-semibold text-brand-700 hover:underline"
+          >
+            {t('hrFix.employeeDetail.viewPayroll')}
+          </Link>
+        )}
         <Link
           href={`/hr/attendance?employeeId=${id}`}
           className="tap-44 text-sm font-semibold text-brand-700 hover:underline"

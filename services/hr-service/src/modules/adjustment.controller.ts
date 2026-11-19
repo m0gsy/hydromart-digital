@@ -12,6 +12,7 @@ import {
 } from './dto/payroll.dto';
 import { Bonus, Deduction } from '../../prisma/generated/client';
 import { BonusResponseDto, DeductionResponseDto, ImportResponseDto } from './dto/responses.generated.dto';
+import { assertMayReadPay } from '../domain/pay-visibility';
 
 @ApiTags('HR Bonuses')
 @ApiBearerAuth()
@@ -24,6 +25,8 @@ export class BonusController {
   @Can('hrView')
   @ApiOperation({ summary: 'List an employee’s bonuses for a period' })
   list(@Query() q: AdjustmentQueryDto, @CurrentUser() user: AuthenticatedUser): Promise<Bonus[]> {
+    // A bonus line is part of someone's pay (payrollRead, 2026-11-19).
+    assertMayReadPay(user);
     return this.adjustments.listBonuses(user, q.employeeId, q.periodMonth);
   }
 
@@ -59,6 +62,8 @@ export class DeductionController {
   @Can('hrView')
   @ApiOperation({ summary: 'List an employee’s deductions for a period' })
   list(@Query() q: AdjustmentQueryDto, @CurrentUser() user: AuthenticatedUser): Promise<Deduction[]> {
+    // So is a deduction line.
+    assertMayReadPay(user);
     return this.adjustments.listDeductions(user, q.employeeId, q.periodMonth);
   }
 

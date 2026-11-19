@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { canRunPayroll } from '@/lib/roles';
+import { can, canRunPayroll } from '@/lib/roles';
 import { useT } from '@/lib/locale-context';
 
 import { useToast } from '@/components/toast';
@@ -159,19 +159,21 @@ export default function ReportsPage() {
         </Card>
       ))}
 
-      <Card className="space-y-3 p-4">
-        <div>
-          <p className="font-semibold">{t('hrFix.reports.payroll')}</p>
-          <p className="text-xs text-muted">{t('hrFix.reports.payrollBody')}</p>
-        </div>
-        <Formats
-          busy={busy}
-          prefix="pay"
-          onPick={(f) =>
-            run(`pay-${f}`, endpoints.hr.reportPayroll(period, scope, f), `payroll-${period}.${f}`)
-          }
-        />
-      </Card>
+      {can('payrollRead', customer?.role) && (
+        <Card className="space-y-3 p-4">
+          <div>
+            <p className="font-semibold">{t('hrFix.reports.payroll')}</p>
+            <p className="text-xs text-muted">{t('hrFix.reports.payrollBody')}</p>
+          </div>
+          <Formats
+            busy={busy}
+            prefix="pay"
+            onPick={(f) =>
+              run(`pay-${f}`, endpoints.hr.reportPayroll(period, scope, f), `payroll-${period}.${f}`)
+            }
+          />
+        </Card>
+      )}
 
       {canRunPayroll(customer?.role) && (
         <Card className="space-y-3 p-4">
