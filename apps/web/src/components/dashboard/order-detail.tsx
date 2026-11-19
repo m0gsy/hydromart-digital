@@ -22,7 +22,7 @@ import { useToast } from '@/components/toast';
 import { useAuth } from '@/lib/auth-context';
 import { canReadRoster } from '@/lib/drivers-scope';
 import { can, canConfirmPayment } from '@/lib/roles';
-import { dispatchableDrivers, type CourierShift } from '@/lib/roster';
+import { courierAvailability, type CourierShift } from '@/lib/roster';
 import { useAsync } from '@/lib/use-async';
 import { canOpenRoute } from '@/lib/route-access';
 import type { Customer, Delivery, Order, Page, Payment } from '@/lib/types';
@@ -275,7 +275,6 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
         .catch(() => null)
     );
   }, [order.depotId]);
-  const onDuty = dispatchableDrivers(shifts ?? []);
   const [driverId, setDriverId] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -345,12 +344,21 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
             className="w-full rounded-xl border border-app bg-transparent px-3 py-2.5 text-sm font-medium"
           >
             <option value="">{t('hrFix.orderDetail.pickCourier')}</option>
-            {drivers.data.map((d) => (
-              <option key={d.id} value={d.id} disabled={shifts != null && !onDuty.has(d.id)}>
-                {d.fullName || d.phone}
-                {shifts != null && !onDuty.has(d.id) ? ` ${t('hrFix.orderDetail.noShift')}` : ''}
-              </option>
-            ))}
+            {drivers.data.map((d) => {
+              // Flow 5b: the same rule as the queue's picker — the server's answer (shift + cap).
+              const { state, active } =
+                shifts == null ? { state: 'ok' as const, active: 0 } : courierAvailability(shifts, d.id);
+              return (
+                <option key={d.id} value={d.id} disabled={state !== 'ok'}>
+                  {d.fullName || d.phone}
+                  {state === 'offshift'
+                    ? ` ${t('hrFix.orderDetail.noShift')}`
+                    : state === 'busy'
+                      ? ` ${t('hrFix.orderDetail.courierFull', { n: active })}`
+                      : ''}
+                </option>
+              );
+            })}
           </select>
         </Field>
       )}

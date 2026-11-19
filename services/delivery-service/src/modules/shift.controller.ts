@@ -3,9 +3,9 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 
 import { AuthenticatedUser, Can, CurrentUser, reportScopeIds } from '@hydromart/platform';
 
-import { ShiftService, ShiftView } from '../application/services/shift.service';
+import { DispatchShiftView, ShiftService } from '../application/services/shift.service';
 import { ListShiftsQueryDto } from './dto/shift.dto';
-import { ShiftResponseDto } from './dto/responses.generated.dto';
+import { DispatchShiftResponseDto } from './dto/responses.generated.dto';
 
 /** Dispatch view: who is on shift at a depot right now (design Operator 1a/1c). */
 @ApiTags('Shifts')
@@ -16,14 +16,14 @@ export class ShiftController {
   constructor(private readonly shifts: ShiftService) {}
 
   // `trackingRead`, not the class's `tracking` — see delivery.controller.ts's list() for why.
-  @ApiOkResponse({ type: ShiftResponseDto, isArray: true })
+  @ApiOkResponse({ type: DispatchShiftResponseDto, isArray: true })
   @Can('trackingRead')
   @Get()
   @ApiOperation({ summary: 'List courier shifts at a depot over a window' })
   list(
     @Query() query: ListShiftsQueryDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<ShiftView[]> {
+  ): Promise<DispatchShiftView[]> {
     return this.shifts.search({
       // SEC-AUDIT DLV-3: without this an omitted depotId listed every depot's shifts —
       // including each courier's check-in and check-out coordinates.

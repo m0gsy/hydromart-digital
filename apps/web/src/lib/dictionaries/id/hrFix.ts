@@ -887,6 +887,7 @@ export const hrFix = {
     pickCourierFirst: 'Pilih kurir.',
     assignFailed: 'Gagal menugaskan kurir.',
     noShift: '— belum buka shift',
+    courierFull: '— penuh ({n} tugas aktif)',
     updateFailed: 'Gagal memperbarui pesanan.',
   },
   vouchers: {

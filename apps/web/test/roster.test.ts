@@ -4,8 +4,7 @@ import {
   deriveRoster,
   dispatchableDrivers,
   type CourierShift,
-  type RosterRow,
-} from '@/lib/roster';
+  type RosterRow, courierAvailability } from '@/lib/roster';
 import type { Customer, Delivery } from '@/lib/types';
 
 const DEPOT_A = 'depot-a';
@@ -146,5 +145,39 @@ describe('dispatchableDrivers', () => {
       shift({ driverId: 'drv-2', acceptsAssignments: false }),
     ]);
     expect([...set]).toEqual(['drv-1']);
+  });
+});
+
+describe('courierAvailability (flow 5b: one rule for both assign pickers)', () => {
+  const shift = (over: Partial<CourierShift> = {}): CourierShift => ({
+    driverId: 'd1',
+    depotId: 'dep',
+    status: 'ONLINE',
+    acceptsAssignments: true,
+    canTakeDelivery: true,
+    activeDeliveries: 1,
+    maxActiveDeliveries: 3,
+    ...over,
+  });
+
+  it('takes the server answer: an open shift under the cap is free, at the cap is busy', () => {
+    expect(courierAvailability([shift()], 'd1')).toEqual({ state: 'ok', active: 1 });
+    expect(courierAvailability([shift({ canTakeDelivery: false, activeDeliveries: 3 })], 'd1')).toEqual({
+      state: 'busy',
+      active: 3,
+    });
+  });
+
+  it('a courier with no shift accepting work is off shift', () => {
+    expect(courierAvailability([], 'd1').state).toBe('offshift');
+    expect(courierAvailability([shift({ acceptsAssignments: false, status: 'BREAK' })], 'd1').state).toBe(
+      'offshift',
+    );
+  });
+
+  it('an older delivery-service (no canTakeDelivery) still offers an open shift', () => {
+    const old: CourierShift = shift();
+    delete old.canTakeDelivery;
+    expect(courierAvailability([old], 'd1').state).toBe('ok');
   });
 });

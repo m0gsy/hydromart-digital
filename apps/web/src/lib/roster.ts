@@ -33,6 +33,29 @@ export interface CourierShift {
   depotId: string | null;
   status: string;
   acceptsAssignments: boolean;
+  /**
+   * Flow 5b: the server's whole answer to "may this courier be handed another delivery" — an
+   * open shift that accepts work AND fewer active deliveries than the depot's cap. Optional:
+   * an older delivery-service sends only `acceptsAssignments`.
+   */
+  canTakeDelivery?: boolean;
+  activeDeliveries?: number;
+  maxActiveDeliveries?: number;
+}
+
+/**
+ * Flow 5b: the one rule both assign pickers (the queue and the order panel) show a courier by.
+ * The queue used to call anyone with ONE delivery busy whatever the depot's cap, and the order
+ * panel ignored load altogether — so each refused couriers the server would take, or offered
+ * ones it refuses. Both now read the server's own answer.
+ */
+export function courierAvailability(
+  shifts: readonly CourierShift[],
+  driverId: string,
+): { state: 'ok' | 'offshift' | 'busy'; active: number } {
+  const open = shifts.find((s) => s.driverId === driverId && s.acceptsAssignments);
+  if (!open) return { state: 'offshift', active: 0 };
+  return { state: open.canTakeDelivery === false ? 'busy' : 'ok', active: open.activeDeliveries ?? 0 };
 }
 
 /** Couriers with a shift that is open AND accepting work, by account id. */

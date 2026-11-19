@@ -345,6 +345,16 @@ export class ShiftResponseDto {
   acceptsAssignments!: boolean;
 }
 
+/** Mirrors `DispatchShiftView`: a shift plus whether its courier can take another delivery. */
+export class DispatchShiftResponseDto extends ShiftResponseDto {
+  @ApiProperty({ type: Number })
+  activeDeliveries!: number;
+  @ApiProperty({ type: Number, description: "The depot's cap (maxActiveDeliveriesPerDriver)." })
+  maxActiveDeliveries!: number;
+  @ApiProperty({ type: Boolean, description: 'An open shift that accepts work, and under the cap.' })
+  canTakeDelivery!: boolean;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class PurgeExpiredResponseDto {
   @ApiProperty({ type: Number })
