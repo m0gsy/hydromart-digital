@@ -59,7 +59,7 @@ groups:
         expr: |
           histogram_quantile(
             0.95,
-            sum by (service, le) (rate(http_request_duration_seconds_bucket{route!~"/api/v1/attendance/check-in|/api/v1/attendance/check-out|/api/v1/attendance/me/face(/enroll)?|/api/v1/employees/:id/face(/enroll)?"}[5m]))
+            sum by (service, le) (rate(http_request_duration_seconds_bucket{route!~"/api/v1/attendance/check-in|/api/v1/attendance/check-out|/api/v1/attendance/me/face(/enroll)?|/api/v1/employees/:id/face(/enroll)?|/api/v1/internal/embed"}[5m]))
           ) > 1.5
         for: 10m
         labels: { severity: warning }

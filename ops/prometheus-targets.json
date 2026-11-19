@@ -57,6 +57,14 @@
   },
   {
     "targets": [
+      "face:3019"
+    ],
+    "labels": {
+      "service": "face-service"
+    }
+  },
+  {
+    "targets": [
       "forecast:3014"
     ],
     "labels": {
