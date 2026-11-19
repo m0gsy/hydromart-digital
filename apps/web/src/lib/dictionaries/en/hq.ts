@@ -1070,11 +1070,8 @@ export const hq = {
   },
   churn: {
     title: 'Churn & retention',
-    subtitle: 'Customer cohorts by order recency',
-    active: 'Active',
-    slowing: 'Slowing',
-    atRisk: 'At risk',
-    churned: 'Churned',
+    subtitle: "Customers by churn risk from forecast-service, the same as the depot's churn list",
+    band: { HIGH: 'High risk', MEDIUM: 'Medium risk', LOW: 'Low risk' },
     reengage: 'Re-engage',
     reengageError: 'Could not send the re-engagement message.',
     campaignName: 'Re-engagement — {name}',

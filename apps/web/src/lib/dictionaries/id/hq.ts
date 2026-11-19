@@ -1074,11 +1074,8 @@ export const hq = {
   },
   churn: {
     title: 'Churn & retensi',
-    subtitle: 'Cohort pelanggan menurut keterakhiran pesanan',
-    active: 'Aktif',
-    slowing: 'Melambat',
-    atRisk: 'Berisiko',
-    churned: 'Churned',
+    subtitle: 'Pelanggan menurut risiko churn dari forecast-service, sama dengan daftar churn depot',
+    band: { HIGH: 'Risiko tinggi', MEDIUM: 'Risiko sedang', LOW: 'Risiko rendah' },
     reengage: 'Re-engage',
     reengaged: 'Pesan reaktivasi dikirim',
     reengageError: 'Gagal mengirim pesan reaktivasi.',
