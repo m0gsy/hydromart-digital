@@ -733,8 +733,10 @@ services:
       STORAGE_S3_BUCKET: ${HR_STORAGE_S3_BUCKET:-}
       STORAGE_S3_ACCESS_KEY_ID: ${HR_STORAGE_S3_ACCESS_KEY_ID:-}
       STORAGE_S3_SECRET_ACCESS_KEY: ${HR_STORAGE_S3_SECRET_ACCESS_KEY:-}
-      # Face plan: the local embedder hr falls back to when NEO is down. Read only once the
-      # fallback ships (FACE_FALLBACK, default off); until then it is an address, not a call.
+      # Face plan: the local embedder beside NEO. off = never called. shadow = NEO still
+      # decides; the local engine is asked in the background and only logged, and enrolment
+      # photos are backfilled into local templates. Only read with FACE_VERIFIER_DRIVER=neo.
+      FACE_FALLBACK: ${FACE_FALLBACK:-off}
       FACE_SERVICE_URL: http://face:3019
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3018/api/v1/health"]
