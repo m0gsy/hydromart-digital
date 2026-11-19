@@ -14,7 +14,8 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canConfirmPayment, canViewDepotFinance } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import { BUSINESS_TZ, dateInDaysWib, dayStartWib, todayWib } from '@/lib/wib';
+import { useWibDay } from '@/lib/use-wib-day';
+import { BUSINESS_TZ, dateInDaysWib, dayStartWib } from '@/lib/wib';
 import type { Order, Page, Payment, PaymentMethod, PaymentStatus } from '@/lib/types';
 
 /*
@@ -182,8 +183,11 @@ function PaymentReconBody() {
   const { customer } = useAuth();
   const canSettle = canConfirmPayment(customer?.role);
   const { scopedId, ready, depots } = useDepot();
-  const [day, setDay] = useState(() => todayWib());
-  const [shown, setShown] = useState(ROWS);
+  const wibDay = useWibDay();
+  const { day } = wibDay;
+  // Rows drawn, per day: another day starts again at twenty.
+  const [more, setMore] = useState({ day, n: ROWS });
+  const shown = more.day === day ? more.n : ROWS;
   const dayLabel = useMemo(
     () =>
       new Date(dayStartWib(day)).toLocaleDateString('id-ID', {
@@ -203,7 +207,8 @@ function PaymentReconBody() {
     if (!scopedId) throw new ApiError(0, 'no depot');
     // Flow 8c-1 (owner decision 2026-11-19): EVERY order placed in the chosen WIB day, so the
     // totals are the day's and not the sum of the twenty newest rows.
-    const from = dayStartWib(day);
+    // At call time: a reload on resume after WIB midnight reads the new day.
+    const from = dayStartWib(wibDay.current());
     const to = dayStartWib(dateInDaysWib(1, new Date(from)));
     const orders = await fetchAllByCursor<Order>(({ cursor, limit }) =>
       api.get<Page<Order> & { nextCursor?: string | null }>(
@@ -241,18 +246,7 @@ function PaymentReconBody() {
         </div>
         <label className="flex items-center gap-2 text-sm">
           <span className="text-muted">{t('dashB.paymentRecon.day')}</span>
-          <Input
-            type="date"
-            className="w-auto"
-            value={day}
-            max={todayWib()}
-            onChange={(e) => {
-              // A cleared field keeps the day on screen rather than reading "no day".
-              if (!e.target.value) return;
-              setDay(e.target.value);
-              setShown(ROWS);
-            }}
-          />
+          <Input className="w-auto" {...wibDay.inputProps} />
         </label>
       </div>
 
@@ -289,7 +283,7 @@ function PaymentReconBody() {
                   shown={Math.min(shown, rows.length)}
                   total={rows.length}
                   hasMore={shown < rows.length}
-                  onMore={() => setShown((n) => n + ROWS)}
+                  onMore={() => setMore({ day, n: shown + ROWS })}
                 />
               </div>
             )}

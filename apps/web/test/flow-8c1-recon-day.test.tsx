@@ -117,6 +117,19 @@ describe('payment reconciliation covers the whole day', () => {
     expect(screen.getAllByText('Dibatalkan')).toHaveLength(2);
   });
 
+  it('a half-typed year neither crashes the screen nor reads a day', async () => {
+    serveDay();
+    view();
+    await screen.findByText(/HM-20261119-000001/);
+    get.mockClear();
+    // Typing 2025 into the year passes through these; before 1924 the zone has no clean offset.
+    for (const partial of ['0002-11-18', '0020-11-18', '0202-11-18', '2999-01-01']) {
+      fireEvent.change(screen.getByLabelText(/Tanggal|Date/), { target: { value: partial } });
+    }
+    expect(get).not.toHaveBeenCalled();
+    expect(screen.getByText(/HM-20261119-000001/)).toBeTruthy();
+  });
+
   it("asks for the chosen WIB day's window and reads it again on another date", async () => {
     serveDay();
     view();
