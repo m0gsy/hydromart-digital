@@ -116,6 +116,43 @@ const BACK: Record<string, string> = {
 };
 
 /**
+ * Mobile rule B (flow plan): the console screens' parents, for an in-page back with nothing
+ * behind it. The courier app's screens and the manager's approval detail called a plain
+ * router back; opened from a push, that did nothing or left the app.
+ */
+const CONSOLE_BACK: Record<string, string> = {
+  '/driver/deliveries/detail': '/driver',
+  '/driver/deliveries/detail/fail': '/driver/deliveries/detail',
+  '/driver/deliveries/detail/no-show': '/driver/deliveries/detail',
+  '/driver/deliveries/detail/pay': '/driver/deliveries/detail',
+  '/driver/deliveries/detail/reschedule': '/driver/deliveries/detail',
+  '/driver/deliveries/detail/returns': '/driver/deliveries/detail',
+  '/driver/earnings': '/driver',
+  '/driver/earnings/history': '/driver/earnings',
+  '/driver/expenses': '/driver/earnings',
+  '/driver/goal': '/driver/earnings',
+  '/driver/settlement': '/driver/earnings',
+  '/driver/settlement/history': '/driver/settlement',
+  '/driver/help': '/driver/profile',
+  '/driver/incidents/new': '/driver/profile',
+  '/driver/performance': '/driver/profile',
+  '/driver/settings': '/driver/profile',
+  '/m/manager/approvals/detail': '/m/manager/approvals',
+};
+
+/**
+ * Where a back with nothing behind it goes: the screen's parent (BACK for the shop,
+ * CONSOLE_BACK for the consoles, home otherwise). A delivery's sub-screen keeps its delivery.
+ */
+export function parentOf(pathname: string, id?: string | null): string {
+  const path = normalisePath(pathname);
+  const parent = BACK[path] ?? CONSOLE_BACK[path] ?? '/';
+  return parent === '/driver/deliveries/detail' && id
+    ? `${parent}?id=${encodeURIComponent(id)}`
+    : parent;
+}
+
+/**
  * `trailingSlash: true` in the exported build means the router can hand us `/products/`
  * where the dev server hands us `/products`. Both name the same screen.
  *

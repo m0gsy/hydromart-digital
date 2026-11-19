@@ -1,11 +1,11 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, LockSimple } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
+import { useBack } from '@/lib/use-back';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
@@ -14,7 +14,7 @@ import type { CourierEarningRule, CourierEarningsSummary, CourierPerformance, Sh
 import { mondayWib } from '@/lib/wib';
 
 function ShiftGoal() {
-  const router = useRouter();
+  const back = useBack();
   const { t } = useT();
   const { customer } = useAuth();
   const depotId = customer?.assignedDepotId ?? undefined;
@@ -70,7 +70,7 @@ function ShiftGoal() {
   return (
     <div className="space-y-3 px-4 py-5">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
+        <button type="button" onClick={back} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
         <div>

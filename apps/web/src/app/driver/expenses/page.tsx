@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
-import { useRouter } from 'next/navigation';
+import { useBack } from '@/lib/use-back';
 import { ArrowLeft, Receipt } from '@phosphor-icons/react';
 
 import { DriverShell } from '@/components/driver/driver-shell';
@@ -35,7 +35,7 @@ const STATUS: Record<ExpenseClaimStatus, { label: string; tone: string }> = {
 
 function Expenses() {
   const { t } = useT();
-  const router = useRouter();
+  const back = useBack();
   const { customer } = useAuth();
   const depotId = customer?.assignedDepotId ?? null;
 
@@ -105,7 +105,7 @@ function Expenses() {
   return (
     <div className="space-y-3 px-4 py-5">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
+        <button type="button" onClick={back} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1 text-sm font-extrabold">{t('hrFix.expenses.title')}</div>

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useT } from '@/lib/locale-context';
+import { useBack } from '@/lib/use-back';
 import { useState } from 'react';
 import { ArrowLeft, Check, Clock, Coins, NavigationArrow, Phone, Recycle, SealCheck, Truck } from '@phosphor-icons/react';
 
@@ -33,6 +34,7 @@ const ORDER: DeliveryStatus[] = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY', 'DELIVE
 function Detail() {
   const { t } = useT();
   const router = useRouter();
+  const back = useBack();
   const id = useQueryParam('id');
   /*
    * C1(c): the delivery, plus whether it still owes cash at the door.
@@ -99,7 +101,7 @@ function Detail() {
   return (
     <div className="space-y-3 px-4 py-5">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
+        <button type="button" onClick={back} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
         <div className="flex-1">

@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   ChatCircleText,
@@ -22,6 +21,7 @@ import { ExternalLink } from '@/components/external-link';
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Card } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
+import { useBack } from '@/lib/use-back';
 
 /**
  * The courier hotline, from configuration — it used to be `+62 812-9000-0100` written into
@@ -47,7 +47,7 @@ const CATEGORIES: { icon: Icon; key: string }[] = [
 const FAQ_KEYS = ['podUpload', 'noShow', 'cod', 'payout', 'damage'] as const;
 
 function Help() {
-  const router = useRouter();
+  const back = useBack();
   const { t } = useT();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<number | null>(0);
@@ -74,7 +74,7 @@ function Help() {
       <header className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={back}
           className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]"
         >
           <ArrowLeft size={18} />

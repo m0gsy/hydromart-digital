@@ -8,6 +8,7 @@ import { ArrowLeft, ChatCircleText, CheckCircle, MapPin, Phone, WarningCircle } 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { Button, Card, FormError } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { useBack } from '@/lib/use-back';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import type { Delivery, NoShowStatus } from '@/lib/types';
@@ -49,6 +50,7 @@ function Remaining({ eligibleAt }: { eligibleAt: string | null }) {
 
 function NoShow() {
   const router = useRouter();
+  const back = useBack();
   const { t } = useT();
   const id = useQueryParam('id');
   const [status, setStatus] = useState<NoShowStatus | null>(null);
@@ -194,7 +196,7 @@ function NoShow() {
   return (
     <div className="space-y-3 px-4 py-5">
       <header className="flex items-center gap-3">
-        <button type="button" onClick={() => router.back()} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
+        <button type="button" onClick={back} className="flex size-11 items-center justify-center rounded-xl border border-[color:var(--border)]">
           <ArrowLeft size={18} />
         </button>
         <div className="text-sm font-extrabold">{t('driver.noShow.title')}</div>
