@@ -100,6 +100,9 @@ const KNOWN_CALLERS = {
   // bottle of mineral water — the picker is what makes that a choice rather than a default.
   'apps/web/src/app/dashboard/wholesale/page.tsx': 'product-service',
   'apps/web/src/app/dashboard/subscriptions/page.tsx': 'product-service',
+  // The customer's subscription form (owner decision 2026-11-19): every product, since the
+  // product page offers "Jadikan langganan" on all of them. Public browse caps limit at 100.
+  'apps/web/src/app/subscriptions/page.tsx': 'product-service',
   // The product picker on the promo-rule and voucher forms (item 5 D): the full catalogue, so a
   // rule can name ANY product. Depots go through all-depots.ts above; categories are unpaged.
   'apps/web/src/components/catalog-select.tsx': 'product-service',
