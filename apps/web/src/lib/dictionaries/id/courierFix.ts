@@ -76,6 +76,7 @@ export const courierFix = {
     retention: 'Bukti disimpan 12 bulan lalu dihapus otomatis sesuai kebijakan retensi UU PDP.',
     next: 'Tugas berikutnya',
     backToList: 'Kembali ke daftar',
+    settleNow: 'Setor sekarang',
   },
   checkIn: {
     verifyHeading: 'Verifikasi mulai shift',

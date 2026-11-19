@@ -922,6 +922,7 @@ export const hrFix = {
     overWarning: 'Lebih {amount} dari yang seharusnya. Periksa lagi hitungannya.',
     checkOutFirst: 'Selesaikan dan check-out shift dulu. Setoran muncul setelah kamu check-out.',
     viewHistory: 'Lihat riwayat setoran',
+    closeShift: 'Tutup shift',
     countHint:
       'Hitung semua uang tunai COD yang kamu kumpulkan shift ini, lalu masukkan jumlah yang kamu setor ke kasir.',
     handToCashier: 'Setor ke kasir',

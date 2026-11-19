@@ -26,14 +26,16 @@ function Settlement() {
   const router = useRouter();
   const back = useBack();
   // The next shift to settle = the newest checked-out shift with no settlement yet.
-  const load = useAsync<{ shift: Shift | null }>(async () => {
+  const load = useAsync<{ shift: Shift | null; open: boolean }>(async () => {
     const [shifts, settled] = await Promise.all([
       api.get<Shift[]>(endpoints.deliveries.shifts.history, true),
       api.get<CashSettlement[]>(endpoints.deliveries.settlement.history, true),
     ]);
     const done = new Set(settled.map((s) => s.shiftId));
     const shift = shifts.find((s) => s.status === 'ENDED' && !done.has(s.id)) ?? null;
-    return { shift };
+    // Flow PR-7a: "Setor sekarang" lands here straight from the last stop, before check-out.
+    // The history holds the open shift too, so this screen can offer to close it.
+    return { shift, open: shifts.some((s) => s.status !== 'ENDED') };
   }, []);
 
   /*
@@ -66,7 +68,7 @@ function Settlement() {
     return <div className="p-5"><ErrorState message={load.error ?? t('hrFix.settlement.loadFailed')} onRetry={load.reload} /></div>;
   }
 
-  const { shift } = load.data;
+  const { shift, open } = load.data;
 
   const submit = async () => {
     if (!shift) return;
@@ -107,6 +109,11 @@ function Settlement() {
           <p className="text-sm text-[color:var(--text-muted)]">
             {t('hrFix.settlement.checkOutFirst')}
           </p>
+          {open && (
+            <Button className="mt-2" onClick={() => router.push('/driver/shift/status')}>
+              {t('hrFix.settlement.closeShift')}
+            </Button>
+          )}
           <Button variant="ghost" className="mt-2" onClick={() => router.push('/driver/settlement/history')}>
             {t('hrFix.settlement.viewHistory')}
           </Button>

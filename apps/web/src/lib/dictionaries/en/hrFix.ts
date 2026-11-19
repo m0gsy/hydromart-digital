@@ -908,6 +908,7 @@ export const hrFix = {
     checkOutFirst:
       'Finish and check out of your shift first. The deposit appears after you check out.',
     viewHistory: 'View deposit history',
+    closeShift: 'Close shift',
     countHint:
       'Count all the COD cash you collected this shift, then enter the amount you hand to the cashier.',
     handToCashier: 'Hand over to the cashier',

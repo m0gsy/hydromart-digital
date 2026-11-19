@@ -12,23 +12,23 @@ import { useT } from '@/lib/locale-context';
 import { canUseCourierApp, consoleHome } from '@/lib/roles';
 import { normalisePath } from '@/lib/screen-chrome';
 
+// Flow PR-7a: Dompet is always a tab. It used to appear only once the courier was already in
+// the wallet, so the cash hand-in was reachable only through Profile.
+const WALLET_HREF = '/driver/earnings';
 const TABS = [
   { href: '/driver', labelKey: 'tabTasks', icon: ListChecks },
   { href: '/driver/history', labelKey: 'tabHistory', icon: ClockCounterClockwise },
+  { href: WALLET_HREF, labelKey: 'tabWallet', icon: Wallet },
   { href: '/driver/profile', labelKey: 'tabProfile', icon: User },
 ] as const;
+const WALLET_ROUTES = [WALLET_HREF, '/driver/settlement', '/driver/expenses'];
 
-// Wallet section (earnings/settlement/expenses) surfaces a 4th Dompet tab for quick return.
-const WALLET_TAB = { href: '/driver/earnings', labelKey: 'tabWallet', icon: Wallet } as const;
-const WALLET_ROUTES = ['/driver/earnings', '/driver/settlement', '/driver/expenses'];
-
-/** Bottom tab bar — 3 tabs per the courier design (+ Dompet on wallet screens). */
+/** Bottom tab bar — tasks, history, wallet, profile. */
 function DriverNav() {
   const { t } = useT();
   // The APK export runs with `trailingSlash: true`: a path with or without its final slash is one screen.
   const pathname = normalisePath(usePathname() ?? '');
   const inWallet = WALLET_ROUTES.some((r) => pathname.startsWith(r));
-  const tabs = inWallet ? [...TABS, WALLET_TAB] : TABS;
   // B1+E0. `env(safe-area-inset-bottom)` on its own reports 0 on any WebView older than
   // 140 — most of the courier fleet — so this nav sat directly on the gesture bar, and the
   // tab a courier taps a hundred times a shift was the one competing with a system swipe.
@@ -36,10 +36,10 @@ function DriverNav() {
   // 0.5rem floor when both are absent.
   return (
     <nav className="sticky bottom-0 flex border-t border-[color:var(--border)] bg-[color:var(--surface)] pb-[max(0.5rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
-      {tabs.map(({ href, labelKey, icon: Icon }) => {
-        // The Dompet tab appears for all three wallet screens, so it is current on all three.
+      {TABS.map(({ href, labelKey, icon: Icon }) => {
+        // The Dompet tab stands for all three wallet screens, so it is current on all three.
         const active =
-          href === WALLET_TAB.href
+          href === WALLET_HREF
             ? inWallet
             : href === '/driver'
               ? pathname === href

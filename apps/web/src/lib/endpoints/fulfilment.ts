@@ -58,6 +58,9 @@ cancel: (id: string) => `/deliveries/api/v1/deliveries/${id}/cancel`,
       const base = '/deliveries/api/v1/driver/deliveries';
       return status ? `${base}?status=${status}` : base;
     },
+    // Still in flight only: the plain list is the newest 20 by assignment, so an older open
+    // stop can sit past its end behind today's delivered ones.
+    active: '/deliveries/api/v1/driver/deliveries?statuses=ASSIGNED,PICKED_UP,ON_DELIVERY',
     get: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}`,
     // pickup/start/fail are PATCH on the service — use api.patch, not api.post.
     pickup: (id: string) => `/deliveries/api/v1/driver/deliveries/${id}/pickup`,

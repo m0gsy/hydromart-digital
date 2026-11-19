@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Check, CheckCircle, ClockCountdown, MapPin, ShieldCheck } from '@phosphor-icons/react';
+import { ArrowRight, Check, CheckCircle, ClockCountdown, MapPin, ShieldCheck, Wallet } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
 import { DriverShell } from '@/components/driver/driver-shell';
@@ -34,7 +34,7 @@ function Success() {
     () => (queued ? Promise.resolve(null) : api.get(endpoints.deliveries.driver.get(id), true)),
     [id, queued],
   );
-  const list = useAsync<Page<Delivery>>(() => api.get(endpoints.deliveries.driver.list(), true), []);
+  const list = useAsync<Page<Delivery>>(() => api.get(endpoints.deliveries.driver.active, true), []);
 
   if (!queued && d.loading) return <div className="p-5"><Skeleton className="h-96 w-full" /></div>;
   if (!queued && (d.error || !d.data)) return <div className="p-5"><ErrorState message={d.error ?? t('courierFix.podSuccess.title')} onRetry={d.reload} /></div>;
@@ -42,6 +42,9 @@ function Success() {
   const delivery = d.data;
   const proof = delivery?.proof;
   const next = (list.data?.items ?? []).find((x) => x.id !== id && ACTIVE.includes(x.status));
+  // Flow PR-7a: only a list that was READ and holds no other active stop says "that was the
+  // last one". Unread (offline, failed), it claims nothing and keeps the old way to the list.
+  const lastStop = list.data != null && !next;
 
   return (
     <div className="flex min-h-dvh flex-col px-5 py-6">
@@ -117,11 +120,15 @@ function Success() {
       <div className="space-y-3 pt-6">
         <button
           type="button"
-          onClick={() => router.replace(next ? `/driver/deliveries/detail?id=${next.id}` : '/driver')}
+          onClick={() =>
+            router.replace(
+              lastStop ? '/driver/settlement' : next ? `/driver/deliveries/detail?id=${next.id}` : '/driver',
+            )
+          }
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-600 py-3.5 text-sm font-extrabold text-on-brand shadow-lg shadow-brand-600/20"
         >
-          {t('courierFix.podSuccess.next')}
-          <ArrowRight size={17} weight="bold" />
+          {lastStop ? t('courierFix.podSuccess.settleNow') : t('courierFix.podSuccess.next')}
+          {lastStop ? <Wallet size={17} weight="bold" /> : <ArrowRight size={17} weight="bold" />}
         </button>
         <button
           type="button"
