@@ -4,6 +4,7 @@ import { ImageTooSmallError, NoFaceError, UnreadableImageError } from '../../src
 import { DET_INPUT } from '../../src/domain/pipeline';
 import {
   DETECTOR_MODEL,
+  MAX_INPUT_PIXELS,
   RECOGNIZER_MODEL,
   createOnnxFaceEngine,
   loadNativeDeps,
@@ -39,6 +40,8 @@ function detectorOutputs(face: boolean) {
   return out;
 }
 
+const sharpCalls: unknown[][] = [];
+
 interface Fakes {
   face?: boolean;
   recognizerLength?: number;
@@ -73,7 +76,13 @@ function deps(f: Fakes = {}): EngineDeps & { cache: jest.Mock; created: unknown[
     raw: () => chain,
     toBuffer: decode,
   };
-  const sharp = Object.assign(() => chain, { cache });
+  const sharp = Object.assign(
+    (...args: unknown[]) => {
+      sharpCalls.push(args);
+      return chain;
+    },
+    { cache },
+  );
   return {
     cache,
     created,
@@ -136,6 +145,13 @@ describe('createOnnxFaceEngine', () => {
   it('refuses to start on its own when the models are not where it was told', async () => {
     // The real native modules where installed, or a refusal to load them: either way, no engine.
     await expect(createOnnxFaceEngine('/no/such/model/dir')).rejects.toThrow();
+  });
+
+  it('decodes at most MAX_INPUT_PIXELS, so a small JPEG cannot expand to hundreds of MB', async () => {
+    sharpCalls.length = 0;
+    const engine = await createOnnxFaceEngine('/models', deps());
+    await engine.embed(JPEG);
+    expect(sharpCalls[0][1]).toEqual({ limitInputPixels: MAX_INPUT_PIXELS });
   });
 
   it('embeds the face as a unit 128-d vector with the detector score', async () => {

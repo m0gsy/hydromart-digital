@@ -49,6 +49,6 @@ export class EmbedController {
     // The parser already caps it; this holds even if the route is ever mounted without one.
     if (body.length > MAX_JPEG_BYTES) throw new PayloadTooLargeException('Foto lebih dari 2 MB.');
     if (!isJpeg(body)) throw new UnreadableImageError();
-    return this.embedder.embed(body);
+    return this.embedder.embed(body, () => req.socket?.destroyed === true);
   }
 }

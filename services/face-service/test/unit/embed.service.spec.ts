@@ -1,6 +1,6 @@
 import { EmbedService } from '../../src/application/embed.service';
 import { FaceConfigService } from '../../src/config/face-config.service';
-import { EngineBusyError } from '../../src/domain/errors';
+import { CallerGoneError, EngineBusyError, EngineTimeoutError } from '../../src/domain/errors';
 import type { EmbedResult, FaceEngine } from '../../src/infrastructure/onnx-face.engine';
 
 function deferred<T>() {
@@ -14,7 +14,8 @@ function deferred<T>() {
 }
 
 const result = (n: number): EmbedResult => ({ vector: [n], detScore: 0.9 });
-const config = (queueMax: number) => ({ queueMax }) as FaceConfigService;
+const config = (queueMax: number, inferTimeoutMs = 10_000) =>
+  ({ queueMax, inferTimeoutMs }) as FaceConfigService;
 
 describe('EmbedService', () => {
   it('runs one inference at a time, in order', async () => {
@@ -49,6 +50,32 @@ describe('EmbedService', () => {
     await a;
     // Room again once the first settled.
     await expect(svc.embed(Buffer.from('c'))).resolves.toEqual(result(1));
+  });
+
+  it('gives up on a run past its deadline, and the next one is not held behind it', async () => {
+    const hung = new Promise<EmbedResult>(() => undefined); // never settles
+    let calls = 0;
+    const engine: FaceEngine = {
+      selfCheck: async () => undefined,
+      embed: () => (++calls === 1 ? hung : Promise.resolve(result(2))),
+    };
+    const svc = new EmbedService(engine, config(8, 20));
+    await expect(svc.embed(Buffer.from('a'))).rejects.toBeInstanceOf(EngineTimeoutError);
+    await expect(svc.embed(Buffer.from('b'))).resolves.toEqual(result(2));
+  });
+
+  it('does not run a request whose caller hung up while it waited', async () => {
+    const first = deferred<EmbedResult>();
+    const engine: FaceEngine = { selfCheck: async () => undefined, embed: jest.fn(() => first.promise) };
+    const svc = new EmbedService(engine, config(8));
+    const a = svc.embed(Buffer.from('a'));
+    let left = false;
+    const b = svc.embed(Buffer.from('b'), () => left);
+    left = true; // b's caller gives up while a runs
+    first.resolve(result(1));
+    await a;
+    await expect(b).rejects.toBeInstanceOf(CallerGoneError);
+    expect(engine.embed).toHaveBeenCalledTimes(1);
   });
 
   it('passes a failure to its caller and keeps serving the next one', async () => {

@@ -14,4 +14,7 @@ export class FaceConfigService {
   get queueMax(): number {
     return Number(this.config.getOrThrow('FACE_QUEUE_MAX'));
   }
+  get inferTimeoutMs(): number {
+    return Number(this.config.getOrThrow('FACE_INFER_TIMEOUT_MS'));
+  }
 }

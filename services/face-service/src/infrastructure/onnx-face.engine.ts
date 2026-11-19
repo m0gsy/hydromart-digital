@@ -43,6 +43,12 @@ export const MODEL_SHA256: Record<string, string> = {
 export const DETECTOR_MODEL = 'face_detection_yunet_2023mar.onnx';
 export const RECOGNIZER_MODEL = 'face_recognition_sface_2021dec.onnx';
 const EMBEDDING_SIZE = 128;
+/**
+ * The most pixels decoded. A 2 MB JPEG of one flat colour can declare 16000×16000 — ~768 MB
+ * of RGB, then a full-resolution resize on the event loop. 12 MP is a large phone photo; the
+ * punch camera sends far less. sharp refuses past it, which reads here as UNREADABLE_IMAGE.
+ */
+export const MAX_INPUT_PIXELS = 12_000_000;
 
 // ---- the two native modules, as little of each as is used ----
 
@@ -58,7 +64,7 @@ interface SharpChain {
   toBuffer(opts: { resolveWithObject: true }): Promise<RawImage>;
 }
 export interface SharpLike {
-  (input: Buffer): SharpChain;
+  (input: Buffer, opts?: { limitInputPixels?: number }): SharpChain;
   cache(on: boolean): unknown;
 }
 interface TensorLike {
@@ -175,7 +181,12 @@ export async function createOnnxFaceEngine(
     async embed(jpeg) {
       let decoded: RawImage;
       try {
-        decoded = await sharp(jpeg).rotate().toColourspace('srgb').removeAlpha().raw().toBuffer({
+        decoded = await sharp(jpeg, { limitInputPixels: MAX_INPUT_PIXELS })
+          .rotate()
+          .toColourspace('srgb')
+          .removeAlpha()
+          .raw()
+          .toBuffer({
           resolveWithObject: true,
         });
       } catch {

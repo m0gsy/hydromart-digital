@@ -30,6 +30,24 @@ export class UnreadableImageError extends DomainError {
   }
 }
 
+/** One inference ran past its deadline; the caller treats it like the engine being down. */
+export class EngineTimeoutError extends DomainError {
+  readonly code = 'ENGINE_TIMEOUT';
+  readonly status = HTTP_STATUS.SERVICE_UNAVAILABLE;
+  constructor() {
+    super('Mesin wajah terlalu lama menjawab.');
+  }
+}
+
+/** The caller hung up while the request waited; its answer would go nowhere, so it is not run. */
+export class CallerGoneError extends DomainError {
+  readonly code = 'CALLER_GONE';
+  readonly status = HTTP_STATUS.SERVICE_UNAVAILABLE;
+  constructor() {
+    super('Pemanggil sudah tidak menunggu.');
+  }
+}
+
 /** The queue is full: the caller treats it like the engine being down (PENDING), not a crash. */
 export class EngineBusyError extends DomainError {
   readonly code = 'ENGINE_BUSY';

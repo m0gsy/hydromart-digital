@@ -11,7 +11,11 @@ export const envValidationSchema = Joi.object({
   INTERNAL_SERVICE_KEY_PREVIOUS: optionalSecret(16),
   // Where the two pinned ONNX models sit (the image puts them there at build time).
   FACE_MODEL_DIR: Joi.string().default('/app/models'),
-  // Inference runs one at a time; this many may wait. One more is a 503, not a queue that
-  // grows until the container is killed for memory.
+  // Inference runs one at a time; at most this many requests in flight, the running one
+  // included. One more is a 503 at once, not a queue that grows until the container is killed
+  // for memory.
   FACE_QUEUE_MAX: Joi.number().integer().min(1).max(64).default(8),
+  // One inference past this is given up (503 ENGINE_TIMEOUT) and the next one starts: a single
+  // hung run must not hold every later request behind it. hr-service's own deadline is shorter.
+  FACE_INFER_TIMEOUT_MS: Joi.number().integer().min(1000).max(60000).default(10000),
 });

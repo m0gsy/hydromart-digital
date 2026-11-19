@@ -1,6 +1,6 @@
 import { TEST_KEY as KEY } from './http-env';
 
-import { BadRequestException, type INestApplication, PayloadTooLargeException, VersioningType } from '@nestjs/common';
+import { BadRequestException, type INestApplication, PayloadTooLargeException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,7 +9,8 @@ import request from 'supertest';
 import { AppModule } from '../../src/app.module';
 import { EmbedService } from '../../src/application/embed.service';
 import { EngineBusyError, NoFaceError } from '../../src/domain/errors';
-import { configureBodyLimits, MAX_JPEG_BYTES } from '../../src/http/body-limits';
+import { configureApp } from '../../src/app.setup';
+import { MAX_JPEG_BYTES } from '../../src/http/body-limits';
 import { FACE_ENGINE, type FaceEngine } from '../../src/infrastructure/onnx-face.engine';
 import { EmbedController } from '../../src/modules/embed.controller';
 
@@ -28,9 +29,7 @@ describe('face-service over HTTP', () => {
       .useValue(engine)
       .compile();
     app = moduleRef.createNestApplication({ bodyParser: false, logger: false });
-    configureBodyLimits(app);
-    app.setGlobalPrefix('api');
-    app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+    configureApp(app);
     await app.init();
   });
   afterAll(async () => {
@@ -94,7 +93,7 @@ describe('face-service over HTTP', () => {
 describe('EmbedController, called directly', () => {
   const svc = { embed: jest.fn() } as unknown as EmbedService;
   const controller = new EmbedController(svc);
-  const req = (body: unknown) => ({ body }) as never;
+  const req = (body: unknown) => ({ body, socket: { destroyed: false } }) as never;
 
   it('refuses an empty or missing body', async () => {
     await expect(controller.embed(req(Buffer.alloc(0)))).rejects.toBeInstanceOf(BadRequestException);
