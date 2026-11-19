@@ -8,7 +8,6 @@ import {
   NotFoundException,
   Optional,
   ServiceUnavailableException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import {
   AuthenticatedUser,
@@ -116,7 +115,11 @@ export class AttendanceService {
    * The newest check-in still waiting for its check-out, no more than a day old: what a
    * night shift closes after midnight, when today's date holds no row at all.
    */
-  private async openRowBefore(employeeId: string, at: Date): Promise<Attendance | null> {
+  private async openRowBefore(
+    employeeId: string,
+    at: Date,
+    punch: FacePunch,
+  ): Promise<Attendance | null> {
     const today = localDayKey(at, this.config.timeZone);
     const { rows } = await this.repo.list({
       employeeId,
@@ -125,6 +128,13 @@ export class AttendanceService {
       skip: 0,
       take: 5,
     });
+    // A replay of the check-out that already closed last night's shift: that row, not a 400.
+    const own = rows.find(
+      (r) =>
+        r.checkInAt &&
+        this.isSameCheckOut(r, punch, AttendanceService.checkOutInstant(at, r.checkInAt)),
+    );
+    if (own) return own;
     const open = rows
       .filter(
         (r) =>
@@ -143,16 +153,17 @@ export class AttendanceService {
     now: Date = new Date(),
   ): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
-    const score = await this.assertFace(employee, punch);
-
-    // The moment of the punch comes first now: the geofence is the one of the depot worked at
-    // on THAT day, and that cannot be known before the day is.
-    const offlineAt = this.offlineAt(punch, now, employee.depotId);
-    const at = offlineAt ?? now;
-    const { workDate, minutesOfDay } = this.localParts(at, this.config.timeZone);
-    const workDepotId = await this.workDepotOn(employee, localDayKey(at, this.config.timeZone));
-    const { holdForReview } = this.geofenceOutcome({ depotId: workDepotId }, user, punch);
-    const existing = await this.repo.findByEmployeeAndDate(employee.id, workDate);
+    // Face plan PR-2: everything that needs no face is settled BEFORE the face is checked, so a NEO
+    // hit is spent only on a punch that can be recorded — not on a replay of one that already was,
+    // a second check-in, a punch past the offline age limit or one outside the geofence.
+    // `claimed` is offlineAt() without its age refusal: a replay is answered however late it comes.
+    const claimed = punch.capturedAt
+      ? new Date(Math.min(punch.capturedAt.getTime(), now.getTime()))
+      : now;
+    const existing = await this.repo.findByEmployeeAndDate(
+      employee.id,
+      this.localParts(claimed, this.config.timeZone).workDate,
+    );
     // Any row for the day stops a new one: (employeeId, workDate) is unique, so a row with no
     // check-in (approved leave, an HR entry) used to fail the write below with a 500 every time.
     if (existing) {
@@ -163,16 +174,21 @@ export class AttendanceService {
        * and the queue retries a job it never got an answer for — including the answer lost
        * AFTER this row was written. That retry used to get "Sudah check-in hari ini", a 400,
        * which `isRetryable` in that file correctly does not retry: the job was marked failed
-       * and the employee was told their attendance did not record while it had.
-       *
-       * Identified precisely rather than guessed. `offlineAt` is `min(capturedAt, now)`, so
-       * a queued punch replaying the same `capturedAt` computes the same instant to the
-       * millisecond — if the stored check-in is that instant, this is that punch arriving
-       * twice. A punch with no `capturedAt` is a live one, and a second live punch is a
-       * genuine second attempt that must still be refused.
+       * and the employee was told their attendance did not record while it had. It is matched
+       * on the phone's capturedAt as sent (see isSameCheckIn); a punch with no capturedAt is a
+       * live one, and a second live punch is a genuine second attempt that is still refused.
        */
-      return this.alreadyCheckedIn(existing, punch, at);
+      return this.alreadyCheckedIn(existing, punch, claimed);
     }
+
+    // The moment of the punch comes first: the geofence is the one of the depot worked at on THAT
+    // day, and that cannot be known before the day is.
+    const offlineAt = this.offlineAt(punch, now, employee.depotId);
+    const at = offlineAt ?? now;
+    const { workDate, minutesOfDay } = this.localParts(at, this.config.timeZone);
+    const workDepotId = await this.workDepotOn(employee, localDayKey(at, this.config.timeZone));
+    const { holdForReview } = this.geofenceOutcome({ depotId: workDepotId }, user, punch);
+    const score = await this.assertFace(employee, punch);
 
     // Late is measured against THIS employee's shift for THIS day (C3), falling back to the
     // depot's shift and then config — so anyone HR has not assigned is judged exactly as
@@ -208,6 +224,7 @@ export class AttendanceService {
         checkInLng: punch.lng,
         lateMinutes,
         status,
+        checkInClientAt: punch.capturedAt ?? null,
       });
     } catch (err) {
       /*
@@ -256,8 +273,35 @@ export class AttendanceService {
           : 'Hari ini sudah tercatat tanpa jam masuk. Minta HR mengoreksi absensi Anda.',
       );
     }
-    if (punch.capturedAt && existing.checkInAt.getTime() === at.getTime()) return existing;
+    if (this.isSameCheckIn(existing, punch, at)) return existing;
     throw new BadRequestException('Sudah check-in hari ini');
+  }
+
+  /**
+   * This punch's own check-in? The stored check-in is min(capturedAt, server time), so when the
+   * phone's clock ran ahead a replay could not recognise itself from it and was told "Sudah
+   * check-in hari ini" for a punch that had landed. So the phone's capturedAt as sent decides
+   * whenever the row kept it; the stored instant only for rows from before it was kept — a
+   * different punch that happens to clamp to the same instant is not this one.
+   */
+  private isSameCheckIn(row: Attendance, punch: FacePunch, at: Date): boolean {
+    if (!punch.capturedAt || !row.checkInAt) return false;
+    return row.checkInClientAt
+      ? row.checkInClientAt.getTime() === punch.capturedAt.getTime()
+      : row.checkInAt.getTime() === at.getTime();
+  }
+
+  /** The check-out twin of isSameCheckIn, same rule. `at` is the instant this punch would store. */
+  private isSameCheckOut(row: Attendance, punch: FacePunch, at: Date): boolean {
+    if (!punch.capturedAt || !row.checkOutAt) return false;
+    return row.checkOutClientAt
+      ? row.checkOutClientAt.getTime() === punch.capturedAt.getTime()
+      : row.checkOutAt.getTime() === at.getTime();
+  }
+
+  /** The instant an offline check-out stores: its claim, floored at the check-in it closes. */
+  private static checkOutInstant(claimed: Date, checkInAt: Date): Date {
+    return new Date(Math.max(claimed.getTime(), checkInAt.getTime()));
   }
 
   /** Clock skew below this is not worth a trail entry. */
@@ -309,18 +353,28 @@ export class AttendanceService {
     now: Date = new Date(),
   ): Promise<Attendance> {
     const employee = await this.resolveSelf(user);
-    const score = await this.assertFace(employee, punch);
-
-    const offlineAt = this.offlineAt(punch, now, employee.depotId);
-    const { workDate } = this.localParts(offlineAt ?? now, this.config.timeZone);
-    // Today's row first (the ordinary day shift). Failing that, the open row from the
-    // evening before: a night shift closes after midnight, and looking only at today's date
-    // answered "Belum check-in" to everyone who worked past it.
+    // Face plan PR-2, as in checkIn: the row and every refusal that needs no face come first.
+    const claimed = punch.capturedAt
+      ? new Date(Math.min(punch.capturedAt.getTime(), now.getTime()))
+      : now;
+    const { workDate } = this.localParts(claimed, this.config.timeZone);
+    // Today's row first (the ordinary day shift). Failing that, the row from the evening before:
+    // a night shift closes after midnight, and looking only at today's date answered "Belum
+    // check-in" to everyone who worked past it.
     const todays = await this.repo.findByEmployeeAndDate(employee.id, workDate);
-    const row = todays?.checkInAt ? todays : await this.openRowBefore(employee.id, offlineAt ?? now);
+    const row = todays?.checkInAt ? todays : await this.openRowBefore(employee.id, claimed, punch);
     if (!row?.checkInAt) {
       throw new BadRequestException('Belum check-in hari ini');
     }
+    // Floored at check-in and capped at server time, so an offline check-out can only ever report
+    // a shorter shift than the reconnect moment — it needs no HR approval.
+    const at = punch.capturedAt ? AttendanceService.checkOutInstant(claimed, row.checkInAt) : now;
+    if (row.checkOutAt) {
+      // Same replay rule as `checkIn` above, and for the same queue.
+      if (this.isSameCheckOut(row, punch, at)) return row;
+      throw new BadRequestException('Sudah check-out hari ini');
+    }
+    this.offlineAt(punch, now, employee.depotId); // refuses a punch past the offline age limit
     // Fenced by the depot the shift was STAMPED with at check-in, not whatever the live row
     // says now: closing a shift that began before the sweep moved someone is that shift's depot.
     const { holdForReview } = this.geofenceOutcome(
@@ -328,20 +382,13 @@ export class AttendanceService {
       user,
       punch,
     );
-    // Floored at check-in and capped at server time by offlineAt(), so an offline check-out can
-    // only ever report a shorter shift than the reconnect moment — it needs no HR approval.
-    const at = offlineAt ? new Date(Math.max(offlineAt.getTime(), row.checkInAt.getTime())) : now;
-    if (row.checkOutAt) {
-      // Same replay rule as `checkIn` above, and for the same queue.
-      if (punch.capturedAt && row.checkOutAt.getTime() === at.getTime()) return row;
-      throw new BadRequestException('Sudah check-out hari ini');
-    }
+    const score = await this.assertFace(employee, punch);
 
     const workingMinutes = Math.max(
       0,
       Math.round((at.getTime() - row.checkInAt.getTime()) / 60000),
     );
-    const { photoUrl } = await this.frameFor(punch, score);
+    const { photoUrl, clientPhoto } = await this.frameFor(punch, score);
     const updated = await this.repo.patchCheckOut(row.id, {
       checkOutAt: at,
       checkOutPhotoUrl: photoUrl,
@@ -349,7 +396,23 @@ export class AttendanceService {
       checkOutLat: punch.lat,
       checkOutLng: punch.lng,
       workingMinutes,
+      checkOutClientAt: punch.capturedAt ?? null,
     });
+    if (!updated) {
+      /*
+       * The twin in flight: the other copy of this check-out closed the row while this one was at
+       * the face engine (the close only writes an OPEN row, so it cannot be overwritten). The frame
+       * this request stored belongs to no row now; answer as the replay this is, or refuse.
+       */
+      if (photoUrl && !clientPhoto) {
+        await this.storage?.remove(photoUrl).catch((e: unknown) =>
+          this.logger.warn(`Check-out frame ${photoUrl} left behind: ${String(e)}`),
+        );
+      }
+      const closed = await this.repo.findById(row.id);
+      if (closed && this.isSameCheckOut(closed, punch, at)) return closed;
+      throw new BadRequestException('Sudah check-out hari ini');
+    }
     // A check-out taken away from every supervised site puts the whole day in front of HR,
     // not just the closing punch — the day is what payroll counts. Already-PENDING days stay
     // where they are rather than being re-queued. A check-out the engine could not judge sends a
@@ -866,7 +929,7 @@ export class AttendanceService {
      * cannot be ASKED about (`FaceEngineUnavailableError`: quota, outage, timeout) is still
      * RECORDED, held PENDING with no score (null), and HR decides from the stored frame. What
      * the engine DID answer still decides — no face found is a retake (400), a mismatch is
-     * refused (401) — and a misconfiguration stays a plain 503 that pages.
+     * refused (403) — and a misconfiguration stays a plain 503 that pages.
      */
     let result: FaceVerifyResult;
     try {
@@ -882,14 +945,17 @@ export class AttendanceService {
       this.logger.warn(`Face engine unavailable, punch held PENDING for HR: ${err.message}`);
       return null;
     }
+    // 403, not 401 (face plan PR-2): every client reads a 401 as an expired session, refreshes
+    // and sends the punch AGAIN — a second NEO hit for the same face — and the offline queue
+    // stopped altogether on one. A 403 is a plain refusal, shown once, never retried.
     if (!result.matched) {
-      throw new UnauthorizedException('Wajah tidak cocok');
+      throw new ForbiddenException('Wajah tidak cocok');
     }
     // `live` is undefined unless server-side liveness is switched on. false is a spoof the
     // match alone accepted; it is refused with its own words so the audit trail can tell a
     // photo-of-a-photo from an honest mismatch.
     if (result.live === false) {
-      throw new UnauthorizedException('Wajah terdeteksi bukan wajah asli (foto/layar)');
+      throw new ForbiddenException('Wajah terdeteksi bukan wajah asli (foto/layar)');
     }
     return result.score;
   }

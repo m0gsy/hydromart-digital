@@ -188,8 +188,16 @@ export class AttendancePrismaRepository implements AttendanceRepository {
     });
   }
 
-  patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance> {
-    return this.prisma.attendance.update({ where: { id }, data: patch });
+  /**
+   * Writes the check-out only while the row is still open, so the twin of a check-out in flight
+   * cannot overwrite the first one (and orphan its frame). Null when it was already closed.
+   */
+  async patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance | null> {
+    const { count } = await this.prisma.attendance.updateMany({
+      where: { id, checkOutAt: null },
+      data: patch,
+    });
+    return count === 0 ? null : this.prisma.attendance.findUnique({ where: { id } });
   }
 
   patchStatus(id: string, status: AttendanceStatus): Promise<Attendance> {

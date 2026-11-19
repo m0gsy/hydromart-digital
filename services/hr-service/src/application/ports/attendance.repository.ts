@@ -15,6 +15,8 @@ export interface CreateAttendanceInput {
   checkInLng: number;
   lateMinutes: number;
   status: AttendanceStatus;
+  /** The phone's `capturedAt` exactly as sent; null for a live punch. The replay key. */
+  checkInClientAt?: Date | null;
 }
 
 export interface CheckOutPatch {
@@ -24,6 +26,8 @@ export interface CheckOutPatch {
   checkOutLat: number;
   checkOutLng: number;
   workingMinutes: number;
+  /** The phone's `capturedAt` exactly as sent; null for a live punch. The replay key. */
+  checkOutClientAt?: Date | null;
 }
 
 /**
@@ -171,7 +175,8 @@ export interface AttendanceRepository {
    */
   listWorkedMinutes(employeeId: string, from: Date, to: Date): Promise<WorkedMinutesRow[]>;
   create(input: CreateAttendanceInput): Promise<Attendance>;
-  patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance>;
+  /** Closes the row only while it is still open; null when it was already closed. */
+  patchCheckOut(id: string, patch: CheckOutPatch): Promise<Attendance | null>;
   /** Settle a PENDING offline punch (HR approve/reject). */
   patchStatus(id: string, status: AttendanceStatus): Promise<Attendance>;
   list(filter: AttendanceListFilter): Promise<{ rows: AttendanceListRow[]; total: number }>;
