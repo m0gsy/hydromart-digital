@@ -222,10 +222,14 @@ export class ShiftService {
    * is one somebody assumes has already been asked. `assignableShift` says what it decides,
    * so a place that forgot to ask fails to compile rather than shipping a delivery outside
    * every shift.
+   *
+   * It answers with the shift itself (or null): the active-order cap is the cap of the depot
+   * the courier is on shift at (owner decision 2026-11-19), the same one `canTakeDelivery`
+   * shows dispatch.
    */
-  async assignableShift(driverId: string): Promise<boolean> {
+  async assignableShift(driverId: string): Promise<ShiftRecord | null> {
     const shift = await this.shifts.findOpenByDriver(driverId);
-    return shift != null && acceptsAssignments(shift.status);
+    return shift != null && acceptsAssignments(shift.status) ? shift : null;
   }
 
   private async loadDepot(depotId: string) {

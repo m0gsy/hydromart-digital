@@ -281,11 +281,18 @@ export class DeliveryService {
     }
     // Every delivery must fall inside exactly one shift, or the end-of-shift COD
     // settlement has orders it cannot account for. No shift, no assignment.
-    if (!(await this.shifts.assignableShift(input.driverId))) {
+    const shift = await this.shifts.assignableShift(input.driverId);
+    if (!shift) {
       throw new DriverNotOnShiftError();
     }
+    /*
+     * The cap is the one of the depot the courier is on SHIFT at (owner decision 2026-11-19),
+     * the same one the dispatch view's `canTakeDelivery` reads. It used to be the order's
+     * depot: a courier lent across depots was shown as free and then refused, or the reverse.
+     */
+    const cap = this.config.maxActiveDeliveriesPerDriver(shift.depotId);
     const active = await this.deliveries.countActiveByDriver(input.driverId);
-    if (active >= this.config.maxActiveDeliveriesPerDriver(input.depotId ?? null)) {
+    if (active >= cap) {
       throw new DriverBusyError();
     }
 
@@ -330,7 +337,6 @@ export class DeliveryService {
      * courier on paper and no delivery behind it — and an order cannot be moved back.
      * Order-service refusing the move undoes the row instead.
      */
-    const cap = this.config.maxActiveDeliveriesPerDriver(input.depotId ?? null);
     const delivery = existing
       ? await this.deliveries.reassignIfUnderCap(
           existing.id,
