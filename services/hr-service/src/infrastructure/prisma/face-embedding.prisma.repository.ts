@@ -14,6 +14,9 @@ import { PrismaService } from './prisma.service';
 /** Row as stored: `vectorEnc` on anything enrolled since B-19, `vector` on older rows. */
 type StoredVector = { vector: number[]; vectorEnc: Uint8Array | null };
 
+/** Whose face may get a local template: an ACTIVE employee who consented to face biometrics. */
+const CONSENTING_ACTIVE = { status: 'ACTIVE' as const, faceConsentAt: { not: null } };
+
 @Injectable()
 export class FaceEmbeddingPrismaRepository implements FaceEmbeddingRepository {
   constructor(
@@ -78,6 +81,37 @@ export class FaceEmbeddingPrismaRepository implements FaceEmbeddingRepository {
   async listActiveByEmployee(employeeId: string): Promise<FaceEmbedding[]> {
     const rows = await this.prisma.faceEmbedding.findMany({ where: { employeeId, active: true } });
     return rows.map((r) => this.plain(r));
+  }
+
+  listActiveWithoutLocalTemplate(
+    limit: number,
+    exclude: string[] = [],
+  ): Promise<{ id: string; employeeId: string; sourcePhotoUrl: string | null }[]> {
+    return this.prisma.faceEmbedding.findMany({
+      where: {
+        active: true,
+        vectorEnc: null,
+        vector: { isEmpty: true },
+        // Our own frames only, in the query: a row that can never pass the caller's check must
+        // not take one of the `limit` places.
+        sourcePhotoUrl: { startsWith: 'hr/faces/' },
+        employee: CONSENTING_ACTIVE,
+        ...(exclude.length ? { id: { notIn: exclude } } : {}),
+      },
+      select: { id: true, employeeId: true, sourcePhotoUrl: true },
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+  }
+
+  async setVectorIfActive(id: string, vector: number[]): Promise<boolean> {
+    // updateMany, not update: the filter is the whole point. A face withdrawn — or an employee
+    // who left, or took consent back — while the template was being built gets none.
+    const { count } = await this.prisma.faceEmbedding.updateMany({
+      where: { id, active: true, employee: CONSENTING_ACTIVE },
+      data: { vector: [], vectorEnc: encryptVector(vector, this.config.faceEncryptionKey) },
+    });
+    return count > 0;
   }
 
   countActiveByEmployee(employeeId: string): Promise<number> {

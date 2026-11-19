@@ -65,6 +65,9 @@ export const envValidationSchema = Joi.object({
   HR_FACE_DUPLICATE_THRESHOLD: Joi.number().min(0).max(1).default(0.75),
   HR_FACE_MODEL_PATH: Joi.string().default('./models/arcface.onnx'),
   FACE_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // Face plan: the local engine (face-service) beside NEO. off = nothing changes; shadow = it is
+  // asked too, in the background, and only logged. 'on' (the real fallback) ships later.
+  FACE_FALLBACK: Joi.string().valid('off', 'shadow').default('off'),
   // B-19: key the enrolled face templates are encrypted with at rest (AES-256-GCM).
   // `openssl rand -hex 32`. Production must supply it — biometrics cannot be reissued
   // after a leak, so they must never sit in the table (or a backup dump) in the clear.

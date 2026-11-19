@@ -75,6 +75,18 @@ describe('HrConfigService — env-driven getters', () => {
     expect(defaults.faceServiceUrl).toBe('');
   });
 
+  it('reads the face fallback switch and the face-service target (face plan PR-4)', async () => {
+    const shadow = new HrConfigService(
+      config({ FACE_FALLBACK: 'shadow', FACE_SERVICE_URL: 'http://face:3019', INTERNAL_SERVICE_KEY: 'k' }),
+      await cacheWith(),
+    );
+    expect(shadow.faceFallback).toBe('shadow');
+    expect(shadow.faceService).toEqual({ url: 'http://face:3019', internalKey: 'k' });
+    const off = new HrConfigService(config({}), await cacheWith());
+    expect(off.faceFallback).toBe('off');
+    expect(off.faceService).toEqual({ url: '', internalKey: '' });
+  });
+
   it('exposes the order-service block (configured + empty defaults)', async () => {
     const wired = new HrConfigService(
       config({ ORDER_SERVICE_URL: 'http://order:3010', INTERNAL_SERVICE_KEY: 'k' }),

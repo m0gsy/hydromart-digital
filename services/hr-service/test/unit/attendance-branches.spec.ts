@@ -101,6 +101,8 @@ function make(geofence: { lat: number | null; lng: number | null; radiusM: numbe
     create: async () => ({}) as FaceEmbedding,
     listActiveByEmployee: async () => [{ vector: [1, 0] } as FaceEmbedding],
     countActiveByEmployee: async () => 1,
+    listActiveWithoutLocalTemplate: async () => [],
+    setVectorIfActive: async () => true,
     listActiveVectorsExcept: async () => [],
     deactivateForEmployee: async () => {},
     deleteForEmployee: async () => [],
