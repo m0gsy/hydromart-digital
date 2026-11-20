@@ -135,6 +135,7 @@ export function destinationFor(
      */
     case NotificationEvent.DEPOT_ORDER_INCOMING:
     case NotificationEvent.DEPOT_ORDER_RESCHEDULED:
+    case NotificationEvent.DEPOT_ORDER_ADDRESS_CHANGED:
     case NotificationEvent.DEPOT_ORDER_CANCELLED:
     case NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED:
     // Flow 6a: an order on the road past its depot's SLA opens that order too.

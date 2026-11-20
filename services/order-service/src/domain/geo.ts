@@ -50,3 +50,76 @@ export function selectNearestDepot(
   }
   return best?.depot ?? null;
 }
+
+/** A change to one depot, as the reroute preview applies it (absent = unchanged). */
+export interface DepotChange {
+  depotId: string;
+  /** `false`: the depot is suspended and stops serving anyone. */
+  active?: boolean;
+  lat?: number;
+  lng?: number;
+  serviceRadiusKm?: number;
+}
+
+/**
+ * The network after `change`. A suspended depot leaves; an edited one keeps its drawn area,
+ * which still decides over a radius, exactly as `selectNearestDepot` reads it.
+ * ponytail: a depot not in the active list (re-activating one) changes nothing here; add it
+ * when a screen previews a re-activation.
+ */
+export function withDepotChange(depots: DepotLocation[], change: DepotChange): DepotLocation[] {
+  if (change.active === false) return depots.filter((d) => d.id !== change.depotId);
+  return depots.map((d) =>
+    d.id === change.depotId
+      ? {
+          ...d,
+          lat: change.lat ?? d.lat,
+          lng: change.lng ?? d.lng,
+          serviceRadiusKm: change.serviceRadiusKm ?? d.serviceRadiusKm,
+        }
+      : d,
+  );
+}
+
+export interface RerouteMove {
+  fromDepotId: string | null;
+  toDepotId: string | null;
+  count: number;
+}
+
+export interface RerouteCounts {
+  /** Active plans whose depot would change, including to none. */
+  affected: number;
+  /** Of those, the plans no depot would serve any more. */
+  unserved: number;
+  /** Largest first. */
+  moves: RerouteMove[];
+}
+
+/**
+ * A dry run of the sweep's own routing (`selectNearestDepot` per plan pin) before and after a
+ * change to the network. Counts only: what somebody reads before suspending a depot or moving
+ * it / changing its radius (a drawn area is not previewed), not who the customers are.
+ * ponytail: 2 × pins × depots distance checks in one call — fine for hundreds of plans; route
+ * only the pins the changed depot wins before or after if the network reaches tens of thousands.
+ */
+export function rerouteCounts(
+  pins: { lat: number; lng: number }[],
+  before: DepotLocation[],
+  after: DepotLocation[],
+): RerouteCounts {
+  const moves = new Map<string, RerouteMove>();
+  let unserved = 0;
+  for (const pin of pins) {
+    const from = selectNearestDepot(pin.lat, pin.lng, before)?.id ?? null;
+    const to = selectNearestDepot(pin.lat, pin.lng, after)?.id ?? null;
+    if (from === to) continue;
+    if (to === null) unserved += 1;
+    const key = `${from}>${to}`;
+    const move = moves.get(key) ?? { fromDepotId: from, toDepotId: to, count: 0 };
+    move.count += 1;
+    moves.set(key, move);
+  }
+  const list = [...moves.values()].sort((a, b) => b.count - a.count);
+  return { affected: list.reduce((n, m) => n + m.count, 0), unserved, moves: list };
+}

@@ -324,6 +324,21 @@ export class InMemoryOrderRepository implements OrderRepository {
     return row ? structuredClone(row) : null;
   }
 
+  async changeAddressIf(
+    id: string,
+    depotId: string,
+    status: OrderStatus,
+    address: DeliveryAddressSnapshot,
+    changedBy: string,
+    note: string,
+  ): Promise<OrderRecord> {
+    const row = this.rows.find((r) => r.id === id && r.depotId === depotId && r.status === status);
+    if (!row) throw new StaleOrderStatusError();
+    Object.assign(row, address, { updatedAt: nextDate() });
+    row.history.push({ status, changedBy, note, createdAt: nextDate() } as never);
+    return structuredClone(row);
+  }
+
   async rescheduleSlot(
     id: string,
     scheduledFor: Date,
@@ -1122,6 +1137,7 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
   async setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord> {
     const r = this.rows.find((x) => x.id === id)!;
     r.status = status;
+    if (status === 'ACTIVE') Object.assign(r, { failureCount: 0, lastFailure: null, lastFailureAt: null });
     r.updatedAt = nextDate();
     return structuredClone(r);
   }
@@ -1129,9 +1145,10 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
   async setDeliveryAddress(
     id: string,
     address: DeliveryAddressSnapshot,
-  ): Promise<SubscriptionRecord> {
+  ): Promise<SubscriptionRecord | null> {
     const r = this.rows.find((x) => x.id === id)!;
-    Object.assign(r, address);
+    if (r.status === 'CANCELLED') return null;
+    Object.assign(r, address, { failureCount: 0, lastFailure: null, lastFailureAt: null });
     r.updatedAt = nextDate();
     return structuredClone(r);
   }
@@ -1167,6 +1184,12 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     r.lastFailureAt = at;
     r.updatedAt = nextDate();
     return r.failureCount;
+  }
+
+  async listActivePins(): Promise<{ lat: number; lng: number }[]> {
+    return this.rows
+      .filter((r) => r.status === 'ACTIVE' && r.latitude != null && r.longitude != null)
+      .map((r) => ({ lat: r.latitude as number, lng: r.longitude as number }));
   }
 
   async networkSummary(): Promise<SubscriptionNetworkSummary> {

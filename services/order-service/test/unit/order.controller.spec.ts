@@ -65,6 +65,7 @@ function makeService(): Mocked {
       .fn()
       .mockResolvedValue({ id: 'o1', scheduledFor: new Date('2026-09-01T04:00:00Z') }),
     repeat: jest.fn().mockResolvedValue({ items: ['x'] }),
+    changeAddress: jest.fn().mockResolvedValue({ id: 'o1' }),
     getReview: jest.fn().mockResolvedValue(null),
     reviewOrder: jest.fn().mockResolvedValue({ id: 'r1' }),
     confirmPaid: jest.fn().mockResolvedValue({ id: 'o1', status: 'CONFIRMED' }),
@@ -681,6 +682,60 @@ describe('OrderController', () => {
       'o1',
       '2026-09-01T04:00:00.000Z',
       'Bearer t',
+    );
+  });
+
+  it('changeAddress: hands the caller own order and the snapshot over, absent fields as null', async () => {
+    await controller.changeAddress(customer, 'o1', {
+      deliveryAddress: {
+        recipientName: 'Budi',
+        phone: '0811',
+        addressLine: 'Jl. Dago 99',
+        city: 'Bandung',
+        latitude: -6.91,
+        longitude: 107.61,
+      },
+    } as never);
+    expect(service.changeAddress).toHaveBeenCalledWith('cust-1', 'o1', {
+      recipientName: 'Budi',
+      phone: '0811',
+      addressLine: 'Jl. Dago 99',
+      city: 'Bandung',
+      province: null,
+      postalCode: null,
+      latitude: -6.91,
+      longitude: 107.61,
+      notes: null,
+    });
+  });
+
+  it('changeAddress: passes the optional fields through when they are given', async () => {
+    await controller.changeAddress(customer, 'o1', {
+      deliveryAddress: {
+        recipientName: 'Budi',
+        phone: '0811',
+        addressLine: 'Jl. Dago 99',
+        city: 'Bandung',
+        province: 'Jawa Barat',
+        postalCode: '40135',
+        latitude: -6.91,
+        longitude: 107.61,
+        notes: 'pagar biru',
+      },
+    } as never);
+    expect(service.changeAddress).toHaveBeenLastCalledWith(
+      'cust-1',
+      'o1',
+      expect.objectContaining({ province: 'Jawa Barat', postalCode: '40135', notes: 'pagar biru' }),
+    );
+    // No pin in the body reaches the service as null, which then refuses it (NO_PIN).
+    await controller.changeAddress(customer, 'o1', {
+      deliveryAddress: { recipientName: 'Budi', phone: '0811', addressLine: 'Jl. A', city: 'Bandung' },
+    } as never);
+    expect(service.changeAddress).toHaveBeenLastCalledWith(
+      'cust-1',
+      'o1',
+      expect.objectContaining({ latitude: null, longitude: null }),
     );
   });
 

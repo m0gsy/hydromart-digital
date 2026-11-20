@@ -26,6 +26,7 @@ import {
   DepotShipping,
   NewVsRepeatRow,
   OrderQuery,
+  DeliveryAddressSnapshot,
   OrderRecord,
   OrderTableRow,
   OrderRepository,
@@ -486,6 +487,41 @@ export class OrderPrismaRepository implements OrderRepository {
     });
     if (count === 0) throw new StaleOrderStatusError();
     const row = await this.prisma.order.findUniqueOrThrow({ where: { id }, include: INCLUDE });
+    return this.toRecord(row);
+  }
+
+  async changeAddressIf(
+    id: string,
+    depotId: string,
+    status: OrderStatus,
+    address: DeliveryAddressSnapshot,
+    changedBy: string,
+    note: string,
+  ): Promise<OrderRecord> {
+    // The depot and the status in the WHERE are the guard: a staff reroute or a status move
+    // that landed first wins, and the address is not written for a depot that never checked
+    // it. The history row goes in the same write, so the change is never unexplained.
+    const row = await this.prisma.order
+      .update({
+        where: { id, depotId, status: status as unknown as DbOrderStatus },
+        data: {
+          recipientName: address.recipientName,
+          phone: address.phone,
+          addressLine: address.addressLine,
+          city: address.city,
+          province: address.province ?? null,
+          postalCode: address.postalCode,
+          latitude: address.latitude,
+          longitude: address.longitude,
+          notes: address.notes,
+          history: { create: { status: status as unknown as DbOrderStatus, changedBy, note } },
+        },
+        include: INCLUDE,
+      })
+      .catch((error: unknown) => {
+        if ((error as { code?: string })?.code === 'P2025') throw new StaleOrderStatusError();
+        throw error;
+      });
     return this.toRecord(row);
   }
 

@@ -173,6 +173,16 @@ describe('Customer HTTP flows (e2e)', () => {
     const cleared = await auth(request(server()).patch(path).send({ notes: null })).expect(200);
     // …and the primary flag is exactly what it was: only the dedicated route moves it.
     expect(cleared.body).toMatchObject({ notes: null, isPrimary: a.body.isPrimary, city: 'Bandung' });
+
+    // How good the pin is: a customer says GPS or MANUAL, never STAFF/IMPORT/COURIER.
+    await auth(request(server()).patch(path).send({ pinSource: 'STAFF' })).expect(400);
+    await auth(request(server()).patch(path).send({ pinAccuracyM: 12.5 })).expect(400);
+    const moved = await auth(
+      request(server())
+        .patch(path)
+        .send({ latitude: -6.915, longitude: 107.61, pinAccuracyM: 9, pinSource: 'GPS' }),
+    ).expect(200);
+    expect(moved.body).toMatchObject({ pinAccuracyM: 9, pinSource: 'GPS' });
   });
 
   it('refuses a pin sent as text on create (400, not a 500 from the column)', async () => {

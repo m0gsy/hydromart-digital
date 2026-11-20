@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { FeatureFlagReader } from '@hydromart/platform';
 
 import {
+  DepotUnavailableError,
   ProductUnavailableError,
   SubscriptionsDisabledError,
   SubscriptionAddressNotRoutableError,
@@ -11,6 +12,7 @@ import {
   SubscriptionNotFoundError,
 } from '../../domain/errors';
 import { nextDeliveryOnOrAfter } from '../../domain/subscription';
+import { DepotChange, RerouteCounts, rerouteCounts, withDepotChange } from '../../domain/geo';
 import { OrderConfigService } from '../../config/order-config.service';
 import { DeliveryAddressSnapshot } from '../ports/order.repository';
 import { NotificationPort } from '../ports/notification.port';
@@ -50,6 +52,21 @@ const MAX_CONSECUTIVE_FAILURES = 3;
  * it surfaces.
  */
 const messageOf = (err: unknown): string => (err instanceof Error ? err.message : 'unknown');
+
+/**
+ * What the customer reads after "…kami jeda dulu karena {{reason}}." The raw message stays in
+ * the failure record and the log; it was an English sentence (and, for a pulled product, a
+ * UUID) inside an Indonesian one.
+ */
+export const pauseReason = (err: unknown): string => {
+  const code = (err as { code?: string } | null)?.code;
+  if (code === 'ORDER_OUT_OF_SERVICE_AREA') return 'alamatnya sekarang di luar area layanan depot kami';
+  if (code === 'ORDER_PRODUCT_UNAVAILABLE') return 'produknya sedang tidak dijual';
+  if (code === 'ORDER_PIN_REQUIRED' || code === 'SUBSCRIPTION_ADDRESS_NOT_ROUTABLE') {
+    return 'alamatnya belum punya pin lokasi';
+  }
+  return `pengirimannya gagal ${MAX_CONSECUTIVE_FAILURES} kali berturut-turut`;
+};
 
 /** Deliveries a single subscription generates per 30-day month, by cadence. */
 const MONTHLY_DELIVERY_RATE: Record<SubscriptionFrequency, number> = {
@@ -130,11 +147,9 @@ export class SubscriptionService {
     }
     // D3: refuse a plan nobody could ever fulfil, while somebody is still on the screen to
     // fix it. The sweep resolves a depot from this snapshot and has nothing to fall back on
-    // — no customer to ask, no depot picker, no session — so an address with no map pin
-    // becomes a subscription that is ACTIVE forever and delivers nothing.
-    if (input.address.latitude === null || input.address.longitude === null) {
-      throw new SubscriptionAddressNotRoutableError();
-    }
+    // — no customer to ask, no depot picker, no session — so an address with no map pin, or
+    // one no depot serves, becomes a subscription that fails every run and is then paused.
+    await this.assertDeliverable(input.address);
     const product = await this.catalog.getProduct(input.productId);
     if (!product || !product.active) {
       throw new ProductUnavailableError(input.productId);
@@ -191,6 +206,20 @@ export class SubscriptionService {
       summary.plans.reduce((n, p) => n + p.subscribers * MONTHLY_DELIVERY_RATE[p.frequency], 0),
     );
     return { ...summary, estMonthlyDeliveries };
+  }
+
+  /**
+   * P3-3: which active plans would change depot if `change` were saved. The sweep routes every
+   * plan by its pin on every run, so suspending or moving a depot silently re-routes them;
+   * this is the number to read first.
+   */
+  async reroutePreview(change: DepotChange): Promise<RerouteCounts> {
+    const [depots, pins] = await Promise.all([
+      this.orders.activeDepots(),
+      this.subs.listActivePins(),
+    ]);
+    if (!depots?.length) throw new DepotUnavailableError();
+    return rerouteCounts(pins, depots, withDepotChange(depots, change));
   }
 
   private async owned(customerId: string, id: string): Promise<SubscriptionRecord> {
@@ -268,7 +297,24 @@ export class SubscriptionService {
   ): Promise<SubscriptionRecord> {
     const sub = await this.owned(customerId, id);
     if (sub.status === 'CANCELLED') throw new SubscriptionNotActionableError();
-    return this.subs.setDeliveryAddress(id, address);
+    // The same check as create: a plan moved to an address nobody serves failed every run.
+    await this.assertDeliverable(address);
+    const moved = await this.subs.setDeliveryAddress(id, address);
+    // Cancelled (or erased) while the depot was being checked: nothing was written.
+    if (!moved) throw new SubscriptionNotActionableError();
+    return moved;
+  }
+
+  /**
+   * The address must be one the sweep can route: a pin, and a depot that serves it — asked
+   * through OrderService.resolveDepot, the very rule the sweep places the order by. A
+   * directory outage refuses too (fail-closed, like checkout); the customer can try again.
+   */
+  private async assertDeliverable(address: DeliveryAddressSnapshot): Promise<void> {
+    if (address.latitude == null || address.longitude == null) {
+      throw new SubscriptionAddressNotRoutableError();
+    }
+    await this.orders.resolveDepot(address);
   }
 
   /**
@@ -388,7 +434,7 @@ export class SubscriptionService {
       .notify(
         'SUBSCRIPTION_PAUSED',
         sub.phone,
-        { name: sub.recipientName, product: sub.productName, reason },
+        { name: sub.recipientName, product: sub.productName, reason: pauseReason(err) },
         sub.customerId,
         // No caller token: this runs from the scheduler. D2 meant this row to open the screen
         // that can resume it, but passed '/subscriptions' HERE, in the token's place, where it

@@ -29,6 +29,7 @@ import {
   OrderNotReschedulableError,
   InvalidDeliveryScheduleError,
   StaleOrderStatusError,
+  OrderAddressNotChangeableError,
   OrderNotCancellableError,
   OrderNotFoundError,
   OrderNotReviewableError,
@@ -48,6 +49,7 @@ import {
   OrderStatus,
   canTransition,
   hasBeenDispatched,
+  ADDRESS_CHANGEABLE_STATUSES,
   isCancellable,
   isVoidableInShift,
   notificationEventFor,
@@ -1951,6 +1953,98 @@ export class OrderService {
     return moved;
   }
 
+  /**
+   * Owner decision 2026-11-20: the customer changes the delivery address before the order is
+   * prepared (CREATED / CONFIRMED).
+   *
+   * Only to an address the order's OWN depot serves. Same depot means the same prices and
+   * fee (the fee is per galon, not per distance), so the payment already made — possibly
+   * into that depot's own account — stays right. Another depot would be another order: the
+   * customer is told to cancel and order again, or to call the depot.
+   */
+  async changeAddress(
+    customerId: string,
+    orderId: string,
+    address: DeliveryAddressSnapshot,
+  ): Promise<OrderRecord> {
+    let order = await this.getForCustomer(customerId, orderId);
+    if (!ADDRESS_CHANGEABLE_STATUSES.includes(order.status)) {
+      throw new OrderAddressNotChangeableError('STATUS');
+    }
+    if (!order.depotId) throw new OrderAddressNotChangeableError('UNROUTED');
+    // The same address again is not a change: no write, no history row, no depot message.
+    if (OrderService.sameAddress(order, address)) return order;
+    if (address.latitude === null || address.longitude === null) {
+      throw new OrderAddressNotChangeableError('NO_PIN');
+    }
+    const depots = await this.depotDirectory.listActiveDepots();
+    if (depots === null || depots.length === 0) throw new DepotUnavailableError();
+    const own = depots.find((d) => d.id === order.depotId);
+    // "Serves" is the routing rule itself (drawn area, else radius), asked of the own depot
+    // alone: a nearer depot that opened since checkout is no reason to refuse a typo fix.
+    if (!own || !selectNearestDepot(address.latitude, address.longitude, [own])) {
+      if (selectNearestDepot(address.latitude, address.longitude, depots)) {
+        throw new OrderAddressNotChangeableError('OTHER_DEPOT');
+      }
+      throw new OutOfServiceAreaError();
+    }
+    const before = [order.addressLine, order.city].filter(Boolean).join(', ');
+    // Two tries: a CREATED → CONFIRMED move in between (the depot accepting it) loses the
+    // compare-and-set on the status read, yet CONFIRMED still allows the change.
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const moved = await this.orders.changeAddressIf(
+          order.id,
+          own.id,
+          order.status,
+          address,
+          customerId,
+          `Alamat diubah pelanggan (sebelumnya: ${before})`,
+        );
+        // The depot may have printed the old address; fail-open like every notify.
+        await this.notification
+          .notify(
+            'DEPOT_ORDER_ADDRESS_CHANGED',
+            moved.phone,
+            {
+              orderNumber: moved.orderNumber,
+              orderId: moved.id,
+              address: [moved.addressLine, moved.city].filter(Boolean).join(', '),
+            },
+            null,
+            '',
+            own.id,
+          )
+          .catch((err: Error) => this.logger.warn(`Depot not told of address change: ${err.message}`));
+        return moved;
+      } catch (error) {
+        if (!(error instanceof StaleOrderStatusError)) throw error;
+        const now = await this.orders.findById(order.id);
+        if (
+          attempt > 0 ||
+          !now ||
+          now.depotId !== own.id ||
+          !ADDRESS_CHANGEABLE_STATUSES.includes(now.status)
+        ) {
+          throw new OrderAddressNotChangeableError('STATUS');
+        }
+        order = now;
+      }
+    }
+  }
+
+  private static sameAddress(order: OrderRecord, a: DeliveryAddressSnapshot): boolean {
+    return (
+      order.recipientName === a.recipientName &&
+      order.phone === a.phone &&
+      order.addressLine === a.addressLine &&
+      order.city === a.city &&
+      order.latitude === a.latitude &&
+      order.longitude === a.longitude &&
+      (order.notes ?? null) === (a.notes ?? null)
+    );
+  }
+
   async getForCustomer(customerId: string, orderId: string): Promise<OrderRecord> {
     const order = await this.orders.findById(orderId);
     // Cross-tenant reads return 404 (never reveal another customer's order).
@@ -3265,6 +3359,11 @@ export class OrderService {
     return this.cartService.view(customerId);
   }
 
+  /** The active depots, as checkout routes against them; null when the directory is down. */
+  activeDepots(): Promise<DepotLocation[] | null> {
+    return this.depotDirectory.listActiveDepots();
+  }
+
   /**
    * Resolves the fulfilling depot for a delivery address, and never returns null.
    *
@@ -3277,8 +3376,10 @@ export class OrderService {
    *   - no coordinates           → PinRequiredError (owner decision 2026-11-20)
    *   - directory down / no depots → DepotUnavailableError (retry later)
    */
-  private async resolveDepot(address: DeliveryAddressSnapshot): Promise<DepotLocation> {
-    if (address.latitude === null || address.longitude === null) {
+  // Public since 2026-11-20: a subscription checks its address with the SAME rule the
+  // sweep will route it by (subscription.service assertDeliverable).
+  async resolveDepot(address: DeliveryAddressSnapshot): Promise<DepotLocation> {
+    if (address.latitude == null || address.longitude == null) {
       throw new PinRequiredError();
     }
     const depots = await this.depotDirectory.listActiveDepots();

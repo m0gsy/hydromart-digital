@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
+  Equals,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -295,6 +296,15 @@ export class TaxPreviewResponseDto {
   percent!: number | null;
 }
 
+/** 2026-11-20: the customer moves their own order to another address (same depot only). */
+export class ChangeOrderAddressDto {
+  @ApiProperty({ type: DeliveryAddressDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => DeliveryAddressDto)
+  deliveryAddress!: DeliveryAddressDto;
+}
+
 /** FR-052: the customer moves their own delivery to another slot. */
 export class RescheduleOrderDto {
   @ApiProperty({
@@ -484,6 +494,36 @@ export class CreateSubscriptionForCustomerDto {
   @ApiProperty({ format: 'date-time', description: 'First scheduled delivery.' })
   @IsDateString()
   firstDeliveryAt!: string;
+}
+
+/** P3-3: the depot change to dry-run against every active plan (absent = unchanged). */
+export class SubscriptionReroutePreviewDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
+
+  // Only `false`: a re-activation is not previewed, and a silent "0 move" would read as one.
+  @ApiPropertyOptional({ enum: [false], description: '`false` previews suspending the depot.' })
+  @IsOptional()
+  @Equals(false)
+  active?: false;
+
+  @ApiPropertyOptional({ example: -6.9147 })
+  @IsOptional()
+  @IsLatitude()
+  lat?: number;
+
+  @ApiPropertyOptional({ example: 107.6098 })
+  @IsOptional()
+  @IsLongitude()
+  lng?: number;
+
+  @ApiPropertyOptional({ example: 5 })
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0)
+  @Max(1000)
+  serviceRadiusKm?: number;
 }
 
 /** Optional depot scope: which depot's subscription discount to answer against. */

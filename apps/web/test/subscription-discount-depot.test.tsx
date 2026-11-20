@@ -58,7 +58,7 @@ beforeEach(() => {
   post.mockReset().mockResolvedValue({});
   get.mockReset().mockImplementation(async (path: string) => {
     if (path.includes('/addresses')) return [ADDRESS];
-    if (path.includes('/depots/nearby')) return [{ id: 'depot-home', name: 'Depot Rumah' }];
+    if (path.includes('/depots/nearby')) return [{ id: 'depot-home', name: 'Depot Rumah', withinService: true }];
     if (path.includes('/subscriptions/discount')) return { rate: 0.05 };
     if (path.includes('/subscriptions')) return [];
     if (path.includes('/products')) return { items: [], total: 0, page: 1, limit: 50 };
@@ -89,7 +89,7 @@ describe('D7 · the saving quoted is the saving charged', () => {
   it('falls back to the global rate when the address has no map pin', async () => {
     get.mockImplementation(async (path: string) => {
       if (path.includes('/addresses')) return [{ ...ADDRESS, latitude: null, longitude: null }];
-      if (path.includes('/depots/nearby')) return [{ id: 'depot-home', name: 'Depot Rumah' }];
+      if (path.includes('/depots/nearby')) return [{ id: 'depot-home', name: 'Depot Rumah', withinService: true }];
       if (path.includes('/subscriptions/discount')) return { rate: 0.05 };
       if (path.includes('/subscriptions')) return [];
       if (path.includes('/products')) return { items: [], total: 0, page: 1, limit: 50 };

@@ -13,6 +13,7 @@ import { currentPosition, geoReason } from '@/lib/geo';
 import {
   PIN_POOR_M,
   AddressBookForm,
+  AddressTextField,
   EMPTY_ADDRESS_FORM,
   addressToBookForm,
   toAddressPayload,
@@ -40,12 +41,26 @@ function AddressesInner() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Address | null>(null);
 
-  const set = (k: keyof AddressBookForm) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: AddressTextField) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((f) => ({
+      ...f,
+      [k]: e.target.value,
+      // A typed coordinate is a pin placed by hand: no GPS accuracy to claim for it.
+      ...(k === 'latitude' || k === 'longitude'
+        ? { pinSource: 'MANUAL' as const, pinAccuracyM: null }
+        : {}),
+    }));
 
-  const setCoords = (lat: number, lng: number) =>
-    setForm((f) => ({ ...f, latitude: String(lat), longitude: String(lng) }));
-  const clearPin = () => setForm((f) => ({ ...f, latitude: '', longitude: '' }));
+  const setCoords = (lat: number, lng: number, accuracy: number | null) =>
+    setForm((f) => ({
+      ...f,
+      latitude: String(lat),
+      longitude: String(lng),
+      pinSource: 'GPS',
+      pinAccuracyM: accuracy,
+    }));
+  const clearPin = () =>
+    setForm((f) => ({ ...f, latitude: '', longitude: '', pinSource: null, pinAccuracyM: null }));
 
   function openCreate() {
     setForm(EMPTY_ADDRESS_FORM);
@@ -159,6 +174,12 @@ function AddressesInner() {
                       {t('profile.addresses.list.pinned')}
                     </span>
                   )}
+                  {/* Said where the customer can fix it: a rough GPS pin sends couriers astray. */}
+                  {pinned && a.pinAccuracyM != null && a.pinAccuracyM > PIN_POOR_M && (
+                    <span className="text-xs font-medium text-[color:var(--warning)]">
+                      {t('profile.addresses.pin.accuracyPoor', { m: a.pinAccuracyM })}
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm font-medium">
                   {a.recipientName} · {a.phone}
@@ -255,8 +276,8 @@ function AddressForm({
   error,
 }: {
   form: AddressBookForm;
-  set: (k: keyof AddressBookForm) => (e: React.ChangeEvent<HTMLInputElement>) => void;
-  setCoords: (lat: number, lng: number) => void;
+  set: (k: AddressTextField) => (e: React.ChangeEvent<HTMLInputElement>) => void;
+  setCoords: (lat: number, lng: number, accuracy: number | null) => void;
   clearPin: () => void;
   onSubmit: (e: React.FormEvent) => void;
   onCancel: () => void;
@@ -269,8 +290,8 @@ function AddressForm({
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const pinned = form.latitude.trim() !== '' && form.longitude.trim() !== '';
-
-  const [pinAccuracy, setPinAccuracy] = useState<number | null>(null);
+  // Of the pin taken in this form only: a stored one's accuracy shows on the list.
+  const pinAccuracy = form.pinAccuracyM ?? null;
 
   async function locate() {
     setGeoHint(null);
@@ -281,9 +302,12 @@ function AddressForm({
       // dialog holds COARSE only, and a high-accuracy-only request there simply times out.
       // A pin: GPS (this is the point the courier drives to), with a person's patience.
       const pos = await currentPosition({ pin: true });
-      setCoords(pos.coords.latitude, pos.coords.longitude);
       // Said, not hidden: a fallback to the approximate provider is hundreds of metres off.
-      setPinAccuracy(Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null);
+      setCoords(
+        pos.coords.latitude,
+        pos.coords.longitude,
+        Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null,
+      );
     } catch (err) {
       const reason = geoReason(err);
       setGeoHint(

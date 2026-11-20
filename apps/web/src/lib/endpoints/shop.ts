@@ -132,6 +132,7 @@ export const shop = {
     get: (id: string) => `/orders/api/v1/orders/${id}`,
     cancel: (id: string) => `/orders/api/v1/orders/${id}/cancel`,
     reschedule: (id: string) => `/orders/api/v1/orders/${id}/reschedule`,
+    changeAddress: (id: string) => `/orders/api/v1/orders/${id}/address`,
     // FR-034: the PPN already inside a total, by the same function checkout records.
     taxPreview: (total: number) => `/orders/api/v1/orders/tax-preview?total=${encodeURIComponent(total)}`,
     repeat: (id: string) => `/orders/api/v1/orders/${id}/repeat`,
@@ -201,6 +202,8 @@ export const shop = {
       `/orders/api/v1/subscriptions/discount${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
     // HQ network aggregate (18c, HEAD_OFFICE/SUPER_ADMIN): active counts + per-plan breakdown.
     adminSummary: '/orders/api/v1/subscriptions/admin/summary',
+    // P3-3 (POST, depotDirectory): which active plans a depot change would re-route.
+    reroutePreview: '/orders/api/v1/subscriptions/admin/reroute-preview',
   },
 
   promotions: {

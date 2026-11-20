@@ -512,6 +512,43 @@ describe('OrderPrismaRepository', () => {
    *
    * The column is written here, one release before the sweep reads it (B3b).
    */
+  // 2026-11-20: the customer's address change is a compare-and-set on depot AND status, with
+  // the history row in the same write.
+  it('changes the address only while the order is still at its depot and status', async () => {
+    order.update.mockResolvedValue(orderRow());
+    const address = {
+      recipientName: 'Budi',
+      phone: '0811',
+      addressLine: 'Jl. Dago 99',
+      city: 'Bandung',
+      province: 'Jawa Barat',
+      postalCode: null,
+      latitude: -6.91,
+      longitude: 107.61,
+      notes: 'pagar biru',
+    };
+    await repo.changeAddressIf('ord-1', 'depot-1', OrderStatus.CONFIRMED, address, 'cust-1', 'Alamat diubah');
+    const arg = order.update.mock.calls.at(-1)![0];
+    expect(arg.where).toEqual({ id: 'ord-1', depotId: 'depot-1', status: 'CONFIRMED' });
+    expect(arg.data).toMatchObject({
+      addressLine: 'Jl. Dago 99',
+      latitude: -6.91,
+      history: { create: { status: 'CONFIRMED', changedBy: 'cust-1', note: 'Alamat diubah' } },
+    });
+    expect(arg.data.statusChangedAt).toBeUndefined();
+    await repo.changeAddressIf('ord-1', 'depot-1', OrderStatus.CONFIRMED, { ...address, province: undefined }, 'c', 'x');
+    expect(order.update.mock.calls.at(-1)![0].data.province).toBeNull();
+
+    order.update.mockRejectedValueOnce(Object.assign(new Error('gone'), { code: 'P2025' }));
+    await expect(
+      repo.changeAddressIf('ord-1', 'depot-1', OrderStatus.CONFIRMED, address, 'cust-1', 'x'),
+    ).rejects.toBeInstanceOf(StaleOrderStatusError);
+    order.update.mockRejectedValueOnce(new Error('db down'));
+    await expect(
+      repo.changeAddressIf('ord-1', 'depot-1', OrderStatus.CONFIRMED, address, 'cust-1', 'x'),
+    ).rejects.toThrow('db down');
+  });
+
   it('stamps when the order entered its new status, not just that it moved', async () => {
     order.update.mockResolvedValue({ ...orderRow(), status: 'CONFIRMED' });
     await repo.applyStatus('ord-1', OrderStatus.CREATED, OrderStatus.CONFIRMED, 'staff', null);
@@ -2228,6 +2265,52 @@ describe('OrderPrismaRepository', () => {
  * writes is the fix: cancel, then scrub. Swap them and an ACTIVE plan keeps delivering to
  * the same door under a blank name, which is worse than doing nothing.
  */
+// 2026-11-20: a moved plan starts its failure count over (the failures were the old address's).
+describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
+  it('writes the new address and clears the failure record', async () => {
+    const update = jest.fn().mockResolvedValue({ count: 1 });
+    const findUniqueOrThrow = jest.fn().mockResolvedValue({ id: 's1', customerId: 'c1' });
+    const repo = new SubscriptionPrismaRepository({
+      subscription: { updateMany: update, findUniqueOrThrow },
+    } as unknown as PrismaService);
+    await repo.setDeliveryAddress('s1', {
+      recipientName: 'B',
+      phone: '0811',
+      addressLine: 'Jl. Baru 2',
+      city: 'Bandung',
+      postalCode: null,
+      latitude: -6.9,
+      longitude: 107.6,
+      notes: null,
+    });
+    expect(update.mock.calls[0][0].data).toMatchObject({
+      addressLine: 'Jl. Baru 2',
+      failureCount: 0,
+      lastFailure: null,
+      lastFailureAt: null,
+    });
+    // Cancelled (or erased) by the time the write lands: nothing written, null back.
+    update.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repo.setDeliveryAddress('s1', { ...update.mock.calls[0][0].data } as never),
+    ).resolves.toBeNull();
+  });
+
+  it('a resume (back to ACTIVE) starts the failure count over; a pause does not', async () => {
+    const update = jest.fn().mockResolvedValue({ id: 's1', customerId: 'c1' });
+    const repo = new SubscriptionPrismaRepository({ subscription: { update } } as unknown as PrismaService);
+    await repo.setStatus('s1', 'ACTIVE');
+    expect(update.mock.calls[0][0].data).toEqual({
+      status: 'ACTIVE',
+      failureCount: 0,
+      lastFailure: null,
+      lastFailureAt: null,
+    });
+    await repo.setStatus('s1', 'PAUSED');
+    expect(update.mock.calls[1][0].data).toEqual({ status: 'PAUSED' });
+  });
+});
+
 // P4: a PDP export shows every plan (the screen list keeps 5 cancelled), and says when it stopped.
 describe('SubscriptionPrismaRepository.listAllForExport', () => {
   const row = { id: 's1', customerId: 'cust-1', addressLine: 'Jl. A 1', latitude: -6.2 };
@@ -2251,6 +2334,21 @@ describe('SubscriptionPrismaRepository.listAllForExport', () => {
     const out = await repo.listAllForExport('cust-1');
     expect(out.items).toHaveLength(1000);
     expect(out.truncated).toBe(true);
+  });
+});
+
+describe('SubscriptionPrismaRepository.listActivePins (P3-3)', () => {
+  it('reads the pin of every ACTIVE plan that has one, and nothing else', async () => {
+    const subscription = {
+      findMany: jest.fn().mockResolvedValue([{ latitude: -6.9, longitude: 107.6 }]),
+    };
+    const repo = new SubscriptionPrismaRepository({ subscription } as unknown as PrismaService);
+    await expect(repo.listActivePins()).resolves.toEqual([{ lat: -6.9, lng: 107.6 }]);
+    expect(subscription.findMany).toHaveBeenCalledWith({
+      where: { status: 'ACTIVE', latitude: { not: null }, longitude: { not: null } },
+      select: { latitude: true, longitude: true },
+      take: 100_000,
+    });
   });
 });
 

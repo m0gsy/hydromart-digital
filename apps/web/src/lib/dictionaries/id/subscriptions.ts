@@ -33,6 +33,7 @@ export const subscriptions = {
   start: 'Mulai langganan',
   started: 'Langganan dibuat.',
   createError: 'Gagal membuat langganan.',
+  outOfArea: 'Alamat ini di luar area layanan depot kami. Pilih alamat lain atau perbaiki pinnya.',
   actionError: 'Gagal memperbarui langganan. Coba lagi.',
   benefitsTitle: 'Kenapa langganan?',
   benefits: [

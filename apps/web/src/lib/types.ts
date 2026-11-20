@@ -444,6 +444,9 @@ export interface Address {
   postalCode: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** Metres of possible error of a GPS pin; null when unknown (typed, older, or not GPS). */
+  pinAccuracyM?: number | null;
+  pinSource?: 'GPS' | 'MANUAL' | 'STAFF' | 'IMPORT' | 'COURIER' | null;
   notes: string | null;
   isPrimary: boolean;
 }
@@ -906,6 +909,7 @@ export type NotificationEvent =
   // O6: addressed to a DEPOT rather than to a buyer — the depot's own "an order arrived".
   | 'DEPOT_ORDER_INCOMING'
   | 'DEPOT_ORDER_RESCHEDULED'
+  | 'DEPOT_ORDER_ADDRESS_CHANGED'
   | 'DEPOT_ORDER_CANCELLED'
   | 'DEPOT_PAYMENT_PROOF'
   | 'DEPOT_PAYMENT_UNCONFIRMED'
@@ -968,6 +972,7 @@ export type NotificationEvent =
 export const OPS_EVENTS = [
   'DEPOT_ORDER_INCOMING',
   'DEPOT_ORDER_RESCHEDULED',
+  'DEPOT_ORDER_ADDRESS_CHANGED',
   'DEPOT_ORDER_CANCELLED',
   'DEPOT_PAYMENT_PROOF',
   'DEPOT_PAYMENT_UNCONFIRMED',
@@ -1225,6 +1230,14 @@ export interface SubscriptionNetworkSummary {
     frequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
     subscribers: number;
   }[];
+}
+
+/** P3-3: active plans a depot change would re-route (POST subscriptions/admin/reroute-preview). */
+export interface SubscriptionReroutePreview {
+  affected: number;
+  /** Of `affected`, the plans no depot would serve any more. */
+  unserved: number;
+  moves: { fromDepotId: string | null; toDepotId: string | null; count: number }[];
 }
 
 export interface TopDepots {

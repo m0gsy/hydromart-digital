@@ -42,6 +42,7 @@ export const notifications = {
     COURIER_DELIVERY_ASSIGNED: 'New delivery for you',
     DELIVERY_SLA_BREACHED: 'Delivery past SLA',
     DEPOT_ORDER_RESCHEDULED: 'Order rescheduled',
+    DEPOT_ORDER_ADDRESS_CHANGED: 'Order address changed',
     STOCK_LOW: 'Low stock',
     POINTS_EARNED: 'Points earned',
     MEMBERSHIP_TIER_UPGRADED: 'Membership tier upgraded',
