@@ -1,4 +1,6 @@
 export const ORDER_TOKENS = {
+  // Owner decision 2026-11-20: the corrector's name on a corrected meter day.
+  AccountNames: Symbol('AccountNames'),
   CartRepository: Symbol('CartRepository'),
   OutboxRepository: Symbol('OutboxRepository'),
   OrderRepository: Symbol('OrderRepository'),

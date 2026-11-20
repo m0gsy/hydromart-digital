@@ -517,6 +517,13 @@ export class MeterReadingResponseDto {
   alertedAt!: string | null;
   @ApiProperty({ type: String, nullable: true })
   note!: string | null;
+  // Owner decision 2026-11-20: the latest correction of a previous day.
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  correctedAt!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  correctedBy!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  correctionReason!: string | null;
 }
 
 /** Mirrors `TankStatus` exactly — #24. */
@@ -567,6 +574,8 @@ export class MeterReconciliationResponseDto {
   overTolerance!: boolean;
   @ApiProperty({ type: TankStatusResponseDto })
   tank!: TankStatusResponseDto;
+  @ApiProperty({ type: String, nullable: true, description: 'Who corrected this previous day (owner decision 2026-11-20).' })
+  correctedByName!: string | null;
 }
 
 /** Mirrors `MeterHistoryRow` exactly — generated for audit D-6, no field added or removed. */

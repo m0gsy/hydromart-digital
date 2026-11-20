@@ -26,6 +26,9 @@ interface MeterReadingRow {
   closedAt: Date | null;
   alertedAt: Date | null;
   note: string | null;
+  correctedAt: Date | null;
+  correctedBy: string | null;
+  correctionReason: string | null;
   updatedAt: Date;
 }
 
@@ -59,6 +62,9 @@ export class MeterReadingPrismaRepository implements MeterReadingRepository {
       closedAt: row.closedAt,
       alertedAt: row.alertedAt,
       note: row.note,
+      correctedAt: row.correctedAt,
+      correctedBy: row.correctedBy,
+      correctionReason: row.correctionReason,
       updatedAt: row.updatedAt,
     };
   }
@@ -71,6 +77,11 @@ export class MeterReadingPrismaRepository implements MeterReadingRepository {
    */
   async upsertForDate(data: UpsertMeterReadingData): Promise<MeterReading | null> {
     const readingDate = toDate(data.date);
+    // A previous day's correction says who, when and why (the latest one stands).
+    const correction =
+      data.correctionReason !== undefined
+        ? { correctedAt: new Date(), correctedBy: data.actorId, correctionReason: data.correctionReason }
+        : {};
     const existing = await this.prisma.meterReading.findUnique({
       where: { depotId_readingDate: { depotId: data.depotId, readingDate } },
     });
@@ -93,6 +104,7 @@ export class MeterReadingPrismaRepository implements MeterReadingRepository {
           closedBy: data.closingM3 === undefined ? null : data.actorId,
           closedAt: data.closingM3 === undefined ? null : new Date(),
           note: data.note ?? null,
+          ...correction,
         },
       });
       return this.toDomain(created);
@@ -110,6 +122,7 @@ export class MeterReadingPrismaRepository implements MeterReadingRepository {
         ...(data.closingTankPct !== undefined ? { closingTankPct: data.closingTankPct } : {}),
         ...(data.note !== undefined ? { note: data.note } : {}),
         ...(closingFirstTime ? { closedBy: data.actorId, closedAt: new Date() } : {}),
+        ...correction,
       },
     });
     return this.toDomain(updated);

@@ -23,6 +23,9 @@ function reading(over: Partial<MeterReading>): MeterReading {
     closedAt: null,
     alertedAt: null,
     note: null,
+    correctedAt: null,
+    correctedBy: null,
+    correctionReason: null,
     updatedAt: new Date(),
     ...over,
   };

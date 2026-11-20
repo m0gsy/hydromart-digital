@@ -10,13 +10,11 @@ import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
-import { formatIDR } from '@/lib/format';
+import { formatDateTime, formatIDR } from '@/lib/format';
 import { canRecordMeterReading, canViewMeterReading } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { MeterHistoryRow, MeterReconciliation } from '@/lib/types';
-import { todayWib } from '@/lib/wib';
-
-const TODAY = todayWib();
+import { useWibDay } from '@/lib/use-wib-day';
 
 const num = (v: number | null | undefined, digits = 0): string =>
   v == null ? '—' : v.toLocaleString('id-ID', { maximumFractionDigits: digits });
@@ -90,6 +88,10 @@ function MeterBody() {
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((d) => d.id === scopedId) ?? depots[0] ?? null;
   const writable = canRecordMeterReading(customer?.role);
+  // Owner decision 2026-11-20: any earlier day can be opened, and corrected with a reason.
+  const wibDay = useWibDay();
+  const { day: date, isToday } = wibDay;
+  const [reason, setReason] = useState('');
 
   const [opening, setOpening] = useState('');
   const [closing, setClosing] = useState('');
@@ -102,8 +104,8 @@ function MeterBody() {
 
   const day = useAsync<MeterReconciliation | null>(
     () =>
-      depot ? api.get(endpoints.reports.meterDay(depot.id, TODAY), true) : Promise.resolve(null),
-    [depot?.id],
+      depot ? api.get(endpoints.reports.meterDay(depot.id, wibDay.current()), true) : Promise.resolve(null),
+    [depot?.id, date],
   );
   const history = useAsync<MeterHistoryRow[]>(
     () => (depot ? api.get(endpoints.reports.meterHistory(depot.id), true) : Promise.resolve([])),
@@ -119,10 +121,15 @@ function MeterBody() {
     setSaveError(null);
     try {
       await api.put(
-        endpoints.reports.meterSave(depot.id, TODAY),
+        endpoints.reports.meterSave(depot.id, date),
         // CA-2-53: rewriting a day that already has readings says which version it read;
         // the first save of a day has nothing to overwrite and sends none.
-        { ...fields, seenUpdatedAt: reading?.updatedAt },
+        {
+          ...fields,
+          seenUpdatedAt: reading?.updatedAt,
+          // A previous day is a correction: the server refuses it without a reason.
+          ...(isToday ? {} : { correctionReason: reason.trim() }),
+        },
         true,
       );
       setOpening('');
@@ -131,6 +138,7 @@ function MeterBody() {
       setSourceClosing('');
       setTankOpening('');
       setTankClosing('');
+      setReason('');
       day.reload();
       history.reload();
     } catch (e) {
@@ -166,10 +174,28 @@ function MeterBody() {
         <div>
           <h1 className="text-2xl font-bold">{t('hrFix.meter.title')}</h1>
           <p className="text-sm text-[color:var(--text-muted)]">
-            {depot?.name ?? t('hrFix.meter.pickDepot')} · {TODAY}
+            {depot?.name ?? t('hrFix.meter.pickDepot')} · {date}
           </p>
         </div>
       </div>
+
+      <label className="flex items-center gap-2 text-sm">
+        <span className="text-[color:var(--text-muted)]">{t('hrFix.meter.day')}</span>
+        <Input className="w-auto" {...wibDay.inputProps} />
+      </label>
+
+      {reading?.correctedAt && (
+        <Card className="flex items-start gap-3 border border-[color:var(--warning)] p-4">
+          <Warning size={20} weight="fill" className="mt-0.5 shrink-0 text-[color:var(--warning)]" />
+          <p className="text-[12.5px]" role="note">
+            {t('hrFix.meter.correctedNote', {
+              name: data?.correctedByName ?? t('hrFix.meter.someone'),
+              when: formatDateTime(reading.correctedAt),
+              reason: reading.correctionReason ?? '—',
+            })}
+          </p>
+        </Card>
+      )}
 
       {writable && (
         <Card className="flex flex-col gap-4 p-5">
@@ -232,9 +258,20 @@ function MeterBody() {
               />
             </label>
           </div>
+          {!isToday && (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-[color:var(--text-muted)]">{t('hrFix.meter.correctionReason')}</span>
+              <Input
+                value={reason}
+                maxLength={300}
+                placeholder={t('hrFix.meter.correctionReasonPlaceholder')}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </label>
+          )}
           <FormError message={saveError} />
           <Button
-            disabled={saving || nothingToSave || !depot}
+            disabled={saving || nothingToSave || !depot || (!isToday && reason.trim().length < 4)}
             onClick={() =>
               save({
                 ...(openingValue !== null ? { openingM3: openingValue } : {}),
@@ -246,7 +283,7 @@ function MeterBody() {
               })
             }
           >
-            {saving ? t('hrFix.meter.saving') : t('hrFix.meter.save')}
+            {saving ? t('hrFix.meter.saving') : isToday ? t('hrFix.meter.save') : t('hrFix.meter.saveCorrection')}
           </Button>
           <p className="text-xs text-[color:var(--text-muted)]">{t('hrFix.meter.twiceHint')}</p>
         </Card>

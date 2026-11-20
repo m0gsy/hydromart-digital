@@ -72,6 +72,10 @@ export class OrderConfigService {
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');
   }
+  /** auth-service, for an account's display name (a corrected meter day's "oleh X"). */
+  get authServiceUrl(): string {
+    return this.config.get<string>('AUTH_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /**
    * Age (minutes) after which an unconfirmed CREATED order is auto-cancelled. The
    * abandoned-order sweep runs platform-wide (no single depot in scope), so this

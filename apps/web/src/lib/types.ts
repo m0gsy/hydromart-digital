@@ -3218,6 +3218,13 @@ export interface MeterReading {
   closedAt: string | null;
   alertedAt: string | null;
   note: string | null;
+  /**
+   * Owner decision 2026-11-20: the latest correction of a previous day (who, when, why).
+   * Absent from a server older than the change.
+   */
+  correctedAt?: string | null;
+  correctedBy?: string | null;
+  correctionReason?: string | null;
   /** CA-2-53: the version a form edits against. */
   updatedAt: string;
 }
@@ -3254,6 +3261,8 @@ export interface MeterReconciliation {
   toleranceLiters: number;
   overTolerance: boolean;
   tank: TankStatus;
+  /** "Dikoreksi oleh X": the corrector's name, when the server could resolve it. */
+  correctedByName?: string | null;
 }
 
 export interface MeterHistoryRow {

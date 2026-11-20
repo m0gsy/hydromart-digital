@@ -31,6 +31,7 @@ import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.pris
 import { SalesImportPrismaRepository } from '../infrastructure/prisma/sales-import.prisma.repository';
 import { ProductCatalogHttpAdapter } from '../infrastructure/http/product-catalog.http.adapter';
 import { DepotDirectoryHttpAdapter } from '../infrastructure/http/depot-directory.http.adapter';
+import { AccountNamesHttpAdapter } from '../infrastructure/http/account-names.http.adapter';
 import { DepotPricingHttpAdapter } from '../infrastructure/http/depot-pricing.http.adapter';
 import { LoyaltyCoordinationHttpAdapter } from '../infrastructure/http/loyalty-coordination.http.adapter';
 import { ReferralCoordinationHttpAdapter } from '../infrastructure/http/referral-coordination.http.adapter';
@@ -84,6 +85,7 @@ const providers: Provider[] = [
   { provide: ORDER_TOKENS.SubscriptionRepository, useClass: SubscriptionPrismaRepository },
   { provide: ORDER_TOKENS.ProductCatalog, useClass: ProductCatalogHttpAdapter },
   { provide: ORDER_TOKENS.DepotDirectory, useClass: DepotDirectoryHttpAdapter },
+  { provide: ORDER_TOKENS.AccountNames, useClass: AccountNamesHttpAdapter },
   { provide: ORDER_TOKENS.DepotPricing, useClass: DepotPricingHttpAdapter },
   { provide: ORDER_TOKENS.LoyaltyCoordination, useClass: LoyaltyCoordinationHttpAdapter },
   { provide: ORDER_TOKENS.ReferralCoordination, useClass: ReferralCoordinationHttpAdapter },

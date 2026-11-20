@@ -246,6 +246,11 @@ model MeterReading {
   /// again does not fire a second alert for the same day.
   alertedAt       DateTime?
   note            String?
+  /// Owner decision 2026-11-20: a PREVIOUS day may be corrected, with a reason, and the day
+  /// then says so ("Dikoreksi oleh X, kapan, alasan"). Stamped by the latest correction.
+  correctedAt      DateTime?
+  correctedBy      String?   @db.Uuid
+  correctionReason String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

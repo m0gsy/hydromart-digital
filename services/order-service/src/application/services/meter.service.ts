@@ -3,7 +3,8 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { assertFresh, addLocalDays, dayStartUtc, localDayKey } from '@hydromart/platform';
 
 import { OrderConfigService } from '../../config/order-config.service';
-import { MeterReadingBackwardsError, MeterReadingNotOpenedError } from '../../domain/errors';
+import { MeterReadingBackwardsError, MeterCorrectionReasonRequiredError,
+  MeterReadingNotOpenedError } from '../../domain/errors';
 import {
   MeterHistoryRow,
   MeterReading,
@@ -22,6 +23,7 @@ import { OrderStatus } from '../../domain/order-status';
 import { ORDER_TOKENS } from '../tokens';
 import { DepotDirectoryPort } from '../ports/depot-directory.port';
 import { gallonQty, isDelivered, type ReportTable } from './report.service';
+import { AccountNamesPort } from '../ports/account-names.port';
 
 /**
  * The sales side of one day, from that day's orders. CANCELLED never counts, and neither does
@@ -55,6 +57,8 @@ export interface SaveMeterReadingInput {
   openingTankPct?: number;
   closingTankPct?: number;
   note?: string;
+  /** Owner decision 2026-11-20: required when `date` is a previous day. */
+  correctionReason?: string;
 }
 
 const TANK_HISTORY_DAYS = 7;
@@ -84,6 +88,10 @@ export class MeterService {
     @Optional()
     @Inject(ORDER_TOKENS.DepotDirectory)
     private readonly depotDirectory?: DepotDirectoryPort,
+    // The corrector's name on a corrected day; optional, the note then has no name.
+    @Optional()
+    @Inject(ORDER_TOKENS.AccountNames)
+    private readonly accountNames?: AccountNamesPort,
   ) {}
 
   /**
@@ -178,6 +186,15 @@ export class MeterService {
     // write is refused under either one.
     assertFresh(existing?.updatedAt ?? null, seenUpdatedAt);
 
+    // Owner decision 2026-11-20: a previous day is corrected only with a reason, and the day
+    // then says who corrected it, when and why. Today's own saves are the normal flow.
+    const today = localDayKey(new Date(), this.config.businessTimeZone);
+    let correctionReason: string | undefined;
+    if (input.date < today) {
+      correctionReason = input.correctionReason?.trim();
+      if (!correctionReason || correctionReason.length < 4) throw new MeterCorrectionReasonRequiredError();
+    }
+
     const patch: UpsertMeterReadingData = {
       depotId: input.depotId,
       date: input.date,
@@ -189,6 +206,7 @@ export class MeterService {
       ...(input.openingTankPct !== undefined ? { openingTankPct: input.openingTankPct } : {}),
       ...(input.closingTankPct !== undefined ? { closingTankPct: input.closingTankPct } : {}),
       ...(input.note !== undefined ? { note: input.note } : {}),
+      ...(correctionReason !== undefined ? { correctionReason } : {}),
     };
     const saved = await this.readings.upsertForDate(patch);
     if (!saved) {
@@ -270,7 +288,12 @@ export class MeterService {
       referenceVolumeMl: this.config.meterReferenceVolumeMl(depotId),
       toleranceLiters: this.config.meterVarianceToleranceLiters(depotId),
     });
-    return { ...result, tank: await this.tankStatus(depotId, reading) };
+    return {
+      ...result,
+      tank: await this.tankStatus(depotId, reading),
+      correctedByName:
+        reading?.correctedBy && this.accountNames ? await this.accountNames.nameOf(reading.correctedBy) : null,
+    };
   }
 
   /**

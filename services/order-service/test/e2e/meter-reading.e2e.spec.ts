@@ -61,6 +61,9 @@ class InMemoryMeterReadings implements MeterReadingRepository {
         closedAt: data.closingM3 === undefined ? null : new Date(),
         alertedAt: null,
         note: data.note ?? null,
+        correctedAt: data.correctionReason !== undefined ? new Date() : null,
+        correctedBy: data.correctionReason !== undefined ? data.actorId : null,
+        correctionReason: data.correctionReason ?? null,
       };
       this.rows.set(key, created);
       return created;
@@ -78,6 +81,9 @@ class InMemoryMeterReadings implements MeterReadingRepository {
       ...(data.openingTankPct !== undefined ? { openingTankPct: data.openingTankPct } : {}),
       ...(data.closingTankPct !== undefined ? { closingTankPct: data.closingTankPct } : {}),
       ...(data.note !== undefined ? { note: data.note } : {}),
+      ...(data.correctionReason !== undefined
+        ? { correctedAt: new Date(), correctedBy: data.actorId, correctionReason: data.correctionReason }
+        : {}),
     };
     this.rows.set(key, merged);
     return { ...merged };
@@ -114,6 +120,16 @@ describe('Meter reading HTTP flows (e2e)', () => {
   let managerToken: string;
   let outsiderToken: string;
   let depotId: string;
+
+  // Owner decision 2026-11-20: a save for a day before today is a correction. These flows work
+  // on DATE as "today", so the clock says so (Date only; timers stay real).
+  beforeEach(() => {
+    jest.useFakeTimers({
+      now: new Date(`${DATE}T05:00:00.000Z`),
+      doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'clearImmediate', 'queueMicrotask'],
+    });
+  });
+  afterEach(() => jest.useRealTimers());
 
   beforeAll(async () => {
     const prismaStub = { onModuleInit: jest.fn(), onModuleDestroy: jest.fn() };
