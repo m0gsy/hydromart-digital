@@ -2266,6 +2266,36 @@ describe('OrderPrismaRepository', () => {
  * the same door under a blank name, which is worse than doing nothing.
  */
 // 2026-11-20: a moved plan starts its failure count over (the failures were the old address's).
+describe('SubscriptionPrismaRepository.followAddress (P3-5)', () => {
+  it('writes only the plan it read — still ACTIVE, same address, unchanged — and keeps its failures', async () => {
+    const updateMany = jest.fn().mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    const repo = new SubscriptionPrismaRepository({ subscription: { updateMany } } as unknown as PrismaService);
+    const seen = new Date('2026-07-01T00:00:00Z');
+    const address = {
+      recipientName: 'B',
+      phone: '0811',
+      addressLine: 'Jl. Baru 2',
+      city: 'Bandung',
+      province: null,
+      postalCode: null,
+      latitude: -6.9,
+      longitude: 107.6,
+      notes: 'Pagar biru',
+    };
+    await expect(repo.followAddress('s1', 'a-1', seen, address)).resolves.toBe(true);
+    expect(updateMany.mock.calls[0][0].where).toEqual({
+      id: 's1',
+      status: 'ACTIVE',
+      addressId: 'a-1',
+      updatedAt: seen,
+    });
+    expect(updateMany.mock.calls[0][0].data).toMatchObject({ notes: 'Pagar biru' });
+    expect(updateMany.mock.calls[0][0].data).not.toHaveProperty('failureCount');
+    // Moved by the customer meanwhile: nothing written.
+    await expect(repo.followAddress('s1', 'a-1', seen, address)).resolves.toBe(false);
+  });
+});
+
 describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
   it('writes the new address and clears the failure record', async () => {
     const update = jest.fn().mockResolvedValue({ count: 1 });
@@ -2289,6 +2319,11 @@ describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
       lastFailure: null,
       lastFailureAt: null,
     });
+    // P3-5: no addressId given, the link is left as it is…
+    expect(update.mock.calls[0][0].data).not.toHaveProperty('addressId');
+    // …and given (or null), it is written.
+    await repo.setDeliveryAddress('s1', { ...update.mock.calls[0][0].data } as never, 'a-9');
+    expect(update.mock.calls[1][0].data).toMatchObject({ addressId: 'a-9' });
     // Cancelled (or erased) by the time the write lands: nothing written, null back.
     update.mockResolvedValueOnce({ count: 0 });
     await expect(
@@ -2384,6 +2419,8 @@ describe('SubscriptionPrismaRepository.erasePerson', () => {
         postalCode: null,
         latitude: null,
         longitude: null,
+        // P3-5: and the link to the saved address the plan followed.
+        addressId: null,
       },
     });
     // Cancel is issued before the scrub — the whole point.

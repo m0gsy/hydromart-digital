@@ -33,6 +33,7 @@ interface SubscriptionRow {
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
+  addressId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -83,6 +84,7 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
       latitude: row.latitude,
       longitude: row.longitude,
       notes: row.notes,
+      addressId: row.addressId ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -159,6 +161,7 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
   async setDeliveryAddress(
     id: string,
     address: DeliveryAddressSnapshot,
+    addressId?: string | null,
   ): Promise<SubscriptionRecord | null> {
     // Not onto a CANCELLED plan: a PDP erasure (cancel + scrub) landing between the service's
     // status check and this write must not get its name and address written back.
@@ -174,6 +177,7 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
         latitude: address.latitude,
         longitude: address.longitude,
         notes: address.notes,
+        ...(addressId !== undefined ? { addressId } : {}),
         // A moved plan starts its failure count over: the failures were the old address's,
         // and a plan resumed after an auto-pause must not re-pause on its next single miss.
         failureCount: 0,
@@ -183,6 +187,29 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     });
     if (count === 0) return null;
     return this.toRecord(await this.prisma.subscription.findUniqueOrThrow({ where: { id } }));
+  }
+
+  async followAddress(
+    id: string,
+    addressId: string,
+    seenUpdatedAt: Date,
+    address: DeliveryAddressSnapshot,
+  ): Promise<boolean> {
+    const { count } = await this.prisma.subscription.updateMany({
+      where: { id, status: 'ACTIVE', addressId, updatedAt: seenUpdatedAt },
+      data: {
+        recipientName: address.recipientName,
+        phone: address.phone,
+        addressLine: address.addressLine,
+        city: address.city,
+        province: address.province,
+        postalCode: address.postalCode,
+        latitude: address.latitude,
+        longitude: address.longitude,
+        notes: address.notes,
+      },
+    });
+    return count === 1;
   }
 
   /** D4: status and schedule in one write — see the port for why not two. */
@@ -242,6 +269,7 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
           postalCode: null,
           latitude: null,
           longitude: null,
+          addressId: null,
         },
       }),
     ]);

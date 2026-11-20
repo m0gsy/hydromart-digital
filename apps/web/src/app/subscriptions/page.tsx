@@ -171,6 +171,8 @@ function Panel() {
             // The patokan: without it the courier of every delivery of this plan got none.
             notes: a.notes ?? undefined,
           },
+          // P3-5: the plan follows this saved address when the customer edits it.
+          addressId: a.id,
         },
         true,
       );
@@ -187,10 +189,10 @@ function Panel() {
   /**
    * K1.9. Moving a standing plan to another saved address.
    *
-   * A write the customer makes, never a side effect of editing the address book: the plan
-   * holds its own snapshot on purpose, because the sweep prices against the depot that
-   * snapshot routes to (D7). An address edit that silently re-routed a standing order
-   * would also silently change what it costs.
+   * A write the customer makes: the plan holds its own snapshot on purpose, because the
+   * sweep prices against the depot that snapshot routes to (D7). P3-5: edits to the saved
+   * address it follows (sent as `addressId`) reach it too, but only ones the same depot
+   * still serves — never a different depot or price.
    */
   async function moveAddress(id: string, next: Address) {
     setBusyId(id);
@@ -209,6 +211,7 @@ function Panel() {
             longitude: next.longitude,
             notes: next.notes ?? undefined,
           },
+          addressId: next.id,
         },
         true,
       );

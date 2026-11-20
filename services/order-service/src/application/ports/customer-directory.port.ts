@@ -30,7 +30,14 @@ export interface CustomerDirectoryPort {
    * caller must refuse rather than invent an address, because a subscription is a standing
    * instruction to send water somewhere.
    */
-  primaryAddress(customerId: string): Promise<DeliveryAddressSnapshot | null>;
+  primaryAddress(customerId: string): Promise<(DeliveryAddressSnapshot & { id?: string }) | null>;
+
+  /**
+   * P3-5: one saved address of the customer, as it is now — for the sweep, which keeps a
+   * plan's snapshot following the address it was made from. Null when it is gone or cannot
+   * be read: the plan then simply delivers to its snapshot, as it always did.
+   */
+  addressById(customerId: string, addressId: string): Promise<DeliveryAddressSnapshot | null>;
 
   /**
    * §I: the counter buyer, resolved (or pre-registered) from the phone the cashier typed.

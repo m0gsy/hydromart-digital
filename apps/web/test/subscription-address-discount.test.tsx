@@ -116,8 +116,13 @@ describe('K1.9 · a subscription is no longer locked to the primary address', ()
     fireEvent.click(screen.getByRole('button', { name: /mulai langganan|start a subscription/i }));
 
     await waitFor(() => expect(apiMock.post).toHaveBeenCalled());
-    const body = apiMock.post.mock.calls[0]![1] as { deliveryAddress: { addressLine: string } };
+    const body = apiMock.post.mock.calls[0]![1] as {
+      deliveryAddress: { addressLine: string };
+      addressId?: string;
+    };
     expect(body.deliveryAddress.addressLine).toBe('Jl. Asia Afrika 55');
+    // P3-5: and which saved address it is, so the plan follows the customer's edits to it.
+    expect(body.addressId).toBe('a-office');
   });
 
   // P1a: the patokan never reached a plan made here, so no courier of it ever got one.
@@ -174,6 +179,7 @@ describe('K1.9 · a subscription is no longer locked to the primary address', ()
             addressLine: 'Jl. Asia Afrika 55',
             notes: 'Lobi B, titip resepsionis',
           }),
+          addressId: 'a-office',
         }),
         true,
       ),

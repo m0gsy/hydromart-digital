@@ -1142,13 +1142,35 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     return structuredClone(r);
   }
   /** K1.9: the one deliberate move of a snapshot that otherwise never changes. */
+  async followAddress(
+    id: string,
+    addressId: string,
+    seenUpdatedAt: Date,
+    address: DeliveryAddressSnapshot,
+  ): Promise<boolean> {
+    const r = this.rows.find((x) => x.id === id);
+    if (
+      !r ||
+      r.status !== 'ACTIVE' ||
+      r.addressId !== addressId ||
+      r.updatedAt.getTime() !== seenUpdatedAt.getTime()
+    ) {
+      return false;
+    }
+    Object.assign(r, address);
+    r.updatedAt = nextDate();
+    return true;
+  }
+
   async setDeliveryAddress(
     id: string,
     address: DeliveryAddressSnapshot,
+    addressId?: string | null,
   ): Promise<SubscriptionRecord | null> {
     const r = this.rows.find((x) => x.id === id)!;
     if (r.status === 'CANCELLED') return null;
     Object.assign(r, address, { failureCount: 0, lastFailure: null, lastFailureAt: null });
+    if (addressId !== undefined) r.addressId = addressId;
     r.updatedAt = nextDate();
     return structuredClone(r);
   }
@@ -1620,9 +1642,15 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
    * default — a test that wants a depot-created subscription to succeed must say where it
    * delivers, because the service refuses rather than inventing one.
    */
-  primary: DeliveryAddressSnapshot | null = null;
-  async primaryAddress(): Promise<DeliveryAddressSnapshot | null> {
+  primary: (DeliveryAddressSnapshot & { id?: string }) | null = null;
+  async primaryAddress(): Promise<(DeliveryAddressSnapshot & { id?: string }) | null> {
     return this.primary;
+  }
+
+  /** P3-5: saved addresses by id, as customer-service has them now. */
+  saved = new Map<string, DeliveryAddressSnapshot>();
+  async addressById(_customerId: string, addressId: string): Promise<DeliveryAddressSnapshot | null> {
+    return this.saved.get(addressId) ?? null;
   }
 
   /** phone -> customer id, as customer-service would resolve it. Empty = unreachable. */
