@@ -87,7 +87,7 @@ export class DepotCrmController {
     @Body() dto: SetAddressPinDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<AddressRecord> {
-    return this.crm.setAddressPin(user, id, addressId, dto.depotId, dto.location);
+    return this.crm.setAddressPin(user, id, addressId, dto.depotId, dto.location, dto.seenUpdatedAt);
   }
 
   @Get(':id/depot-detail')

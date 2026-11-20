@@ -34,6 +34,7 @@ const address: DepotCustomerAddress = {
   isPrimary: true,
   inRadius: true,
   distanceKm: 1.2,
+  updatedAt: '2026-11-20T01:00:00.000Z',
 };
 
 const draw = (over: Partial<DepotCustomerAddress> = {}, canFix = true, onSaved = vi.fn()) =>
@@ -77,7 +78,7 @@ describe('AddressPinFix', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     expect(patch).toHaveBeenCalledWith(
       expect.stringContaining('/customers/c-1/addresses/a-1/location'),
-      { depotId: 'd-1', location: '-6.91, 107.61' },
+      { depotId: 'd-1', location: '-6.91, 107.61', seenUpdatedAt: '2026-11-20T01:00:00.000Z' },
       true,
     );
   });

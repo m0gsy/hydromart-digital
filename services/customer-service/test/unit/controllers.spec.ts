@@ -147,9 +147,21 @@ describe('DepotCrmController', () => {
     svc.setAddressPin.mockResolvedValue({ id: 'a1', pinSource: 'STAFF' });
     const staff = { sub: 'op-1' } as never;
     await expect(
-      c.setAddressPin('c1', 'a1', { depotId: 'd1', location: '-6.9, 107.6' }, staff),
+      c.setAddressPin(
+        'c1',
+        'a1',
+        { depotId: 'd1', location: '-6.9, 107.6', seenUpdatedAt: '2026-01-01T00:00:00.000Z' },
+        staff,
+      ),
     ).resolves.toEqual({ id: 'a1', pinSource: 'STAFF' });
-    expect(svc.setAddressPin).toHaveBeenCalledWith(staff, 'c1', 'a1', 'd1', '-6.9, 107.6');
+    expect(svc.setAddressPin).toHaveBeenCalledWith(
+      staff,
+      'c1',
+      'a1',
+      'd1',
+      '-6.9, 107.6',
+      '2026-01-01T00:00:00.000Z',
+    );
   });
 
   it('import hands the rows and depot to the import service', async () => {

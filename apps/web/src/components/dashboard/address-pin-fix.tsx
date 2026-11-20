@@ -47,7 +47,8 @@ export function AddressPinFix({
     try {
       await api.patch(
         endpoints.depotCrm.addressLocation(customerId, address.id),
-        { depotId, location: text.trim() },
+        // CA-2-53: the version this card showed; the server refuses (409) if it moved.
+        { depotId, location: text.trim(), seenUpdatedAt: address.updatedAt },
         true,
       );
       toast(t('dashA.customerDetail.pinSaved'), 'success');

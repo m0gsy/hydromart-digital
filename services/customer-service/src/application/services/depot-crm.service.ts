@@ -12,6 +12,7 @@ import {
   AuthenticatedUser,
   DEFAULT_MAX_ROWS,
   assertDepotAccess,
+  assertFresh,
   haversineKm,
   pointInServiceArea,
   recordAuditEvent,
@@ -92,6 +93,8 @@ export interface DepotCrmAddress {
   latitude: number | null;
   longitude: number | null;
   isPrimary: boolean;
+  /** CA-2-53: the version a pin fix sends back, so it cannot overwrite a newer edit. */
+  updatedAt: string;
   /** True/false when the depot serviceRadiusKm is known; null while the depot port is unwired. */
   inRadius: boolean | null;
   distanceKm: number | null;
@@ -220,6 +223,8 @@ export class DepotCrmService {
     addressId: string,
     depotId: string,
     location: string,
+    /** CA-2-53: the address version the card showed; a pin someone moved since is refused. */
+    seenUpdatedAt?: string,
   ): Promise<AddressRecord> {
     assertDepotAccess(user, depotId);
     let pin: { latitude: number; longitude: number };
@@ -240,6 +245,7 @@ export class DepotCrmService {
       (await this.orderCrm.customerOrders(depotId, customerId)).length > 0;
     if (!member) throw new NotFoundException('Pelanggan ini tidak terdaftar di depot ini.');
     if (!address) throw new NotFoundException('Alamat ini tidak ditemukan.');
+    assertFresh(address.updatedAt, seenUpdatedAt);
     if (address.latitude != null && address.longitude != null) {
       // A pin in another depot's area is that depot's (or head office's) to move: fixing it
       // here would route the customer to this depot. Unknown area = not checkable = refused.
@@ -588,6 +594,7 @@ export class DepotCrmService {
       latitude: a.latitude,
       longitude: a.longitude,
       isPrimary: a.isPrimary,
+      updatedAt: a.updatedAt.toISOString(),
       inRadius: servedBy(geo, a.latitude, a.longitude, distanceKm),
       distanceKm,
     };

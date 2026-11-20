@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsISO8601,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -171,6 +172,8 @@ export class DepotCrmAddressDto {
   longitude!: number | null;
   @ApiProperty()
   isPrimary!: boolean;
+  @ApiProperty({ format: 'date-time' })
+  updatedAt!: string;
   @ApiProperty({ nullable: true })
   inRadius!: boolean | null;
   @ApiProperty({ nullable: true })
@@ -265,4 +268,12 @@ export class SetAddressPinDto {
   @IsNotEmpty()
   @MaxLength(2048)
   location!: string;
+
+  @ApiPropertyOptional({
+    format: 'date-time',
+    description: 'CA-2-53: the address version the card showed; refused (409) if it moved since.',
+  })
+  @IsOptional()
+  @IsISO8601()
+  seenUpdatedAt?: string;
 }

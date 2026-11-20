@@ -1071,6 +1071,7 @@ describe('DepotCrmService.setAddressPin (P2-2)', () => {
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
   };
+  const SEEN = '2026-01-01T00:00:00.000Z'; // stored.updatedAt, as the card showed it
   const realFetch = global.fetch;
   afterEach(() => {
     global.fetch = realFetch;
@@ -1123,6 +1124,7 @@ describe('DepotCrmService.setAddressPin (P2-2)', () => {
       'a1',
       'depot-a',
       'https://www.google.com/maps/place/X/@-6.0,106.0,15z/data=!3d-6.914744!4d107.60981',
+      SEEN,
     );
     expect(update).toHaveBeenCalledWith('c1', 'a1', {
       latitude: -6.914744,
@@ -1143,7 +1145,9 @@ describe('DepotCrmService.setAddressPin (P2-2)', () => {
 
   it('serves a customer who ordered there with no favourite, and an address with no pin yet', async () => {
     const { svc, fetchMock } = build({ favorite: null, orders: 2, address: { ...stored, latitude: null, longitude: null } });
-    await expect(svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61')).resolves.toBeTruthy();
+    await expect(
+      svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61', SEEN),
+    ).resolves.toBeTruthy();
     expect(JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body).metadata.before).toBeNull();
   });
 
@@ -1169,7 +1173,7 @@ describe('DepotCrmService.setAddressPin (P2-2)', () => {
 
   it('asks order history only when the favourite does not already prove membership', async () => {
     const fav = build();
-    await fav.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61');
+    await fav.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61', SEEN);
     expect(fav.orderCrm.customerOrders).not.toHaveBeenCalled();
   });
 
@@ -1180,20 +1184,32 @@ describe('DepotCrmService.setAddressPin (P2-2)', () => {
    */
   it("refuses a pin in another depot's area, or when this depot's area is unknown", async () => {
     const far = build({ address: { ...stored, latitude: -6.2, longitude: 106.8 } });
-    await expect(far.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61')).rejects.toThrow(
+    await expect(far.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61', SEEN)).rejects.toThrow(
       /di luar area depot ini/,
     );
     const blind = build({ geo: null });
-    await expect(blind.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61')).rejects.toThrow(
+    await expect(blind.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61', SEEN)).rejects.toThrow(
       /di luar area depot ini/,
     );
     for (const b of [far, blind]) expect(b.update).not.toHaveBeenCalled();
   });
 
+  // CA-2-53: a pin somebody moved after this card was shown is not overwritten blind.
+  it('refuses a fix built on a stale card, or one that names no version', async () => {
+    const stale = build();
+    await expect(
+      stale.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61', '2025-12-31T00:00:00.000Z'),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      stale.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61'),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(stale.update).not.toHaveBeenCalled();
+  });
+
   it('leaves the same pin alone, with whatever is known about it', async () => {
     const same = build({ address: { ...stored, pinSource: 'GPS', pinAccuracyM: 8 } });
     await expect(
-      same.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.95, 107.65'),
+      same.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.95, 107.65', SEEN),
     ).resolves.toMatchObject({ pinSource: 'GPS', pinAccuracyM: 8 });
     expect(same.update).not.toHaveBeenCalled();
     expect(same.fetchMock).not.toHaveBeenCalled();
