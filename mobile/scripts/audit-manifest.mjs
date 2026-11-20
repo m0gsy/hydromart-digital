@@ -49,7 +49,7 @@ const ALLOWED = new Map([
   ],
   [
     'android.permission.ACCESS_FINE_LOCATION',
-    'Courier position while a delivery is open. Foreground only.',
+    'Courier position while a delivery is open; the customer address pin, only when tapped. Foreground only.',
   ],
   ['android.permission.USE_BIOMETRIC', 'Unlocks the stored session (F3b). Never sent anywhere.'],
   [

@@ -17,7 +17,7 @@ export const privacy: typeof base = {
     },
     {
       heading: 'Device location',
-      body: 'If you tap “Use my location” on the home screen or while saving an address, the app reads your device’s approximate location and sends it to our servers to find the nearest depot and to check whether that point falls inside a depot’s delivery range. The point is also stored on the address you save. This is optional: you can type an address yourself without granting location permission, and the app stays fully usable. Location is not shared with third parties, is not used for advertising or analytics, is sent over an encrypted connection, and can be deleted on request together with your account data. The customer app does not request precise (GPS) location permission; precise location is used only by the staff app for proof of delivery and courier attendance.',
+      body: 'If you tap “Use my location” on the home screen, while saving an address, or at checkout, the app reads your device’s location — precise location (GPS) if allowed, so the courier finds the delivery point — and sends it to our servers to find the nearest depot and check its delivery range. The point is stored on your address and order. Location permission is optional: you can set the point yourself (coordinates or a Google Maps link). Location is read only when you tap, never in the background, is not shared with third parties or used for ads or analytics, is sent encrypted, and can be deleted on request with your account data.',
     },
     {
       heading: 'How we use it',
