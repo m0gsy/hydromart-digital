@@ -599,6 +599,19 @@ export interface OrderRepository {
     deliveryWindow: string,
     allowedStatuses: OrderStatus[],
   ): Promise<OrderRecord>;
+  /**
+   * Rewrites the address snapshot only while the order is still at `depotId` and in `status`
+   * (compare-and-set), with a history row saying what it was. Throws StaleOrderStatusError
+   * when either moved first.
+   */
+  changeAddressIf(
+    id: string,
+    depotId: string,
+    status: OrderStatus,
+    address: DeliveryAddressSnapshot,
+    changedBy: string,
+    note: string,
+  ): Promise<OrderRecord>;
   /** Existing orders only, selected in one query for internal cross-service reporting. */
   findOrderValues(orderIds: string[]): Promise<OrderValue[]>;
   /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */

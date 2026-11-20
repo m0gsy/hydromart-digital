@@ -21,6 +21,7 @@ export const notifications = {
     CUSTOMER_REGISTERED: 'Selamat datang di Hydromart',
     DEPOT_ORDER_INCOMING: 'Pesanan baru masuk',
     DEPOT_ORDER_RESCHEDULED: 'Jadwal pesanan diubah',
+    DEPOT_ORDER_ADDRESS_CHANGED: 'Alamat pesanan diubah',
     DEPOT_ORDER_CANCELLED: 'Pesanan dibatalkan pelanggan',
     DEPOT_PAYMENT_PROOF: 'Bukti pembayaran masuk',
     DEPOT_PAYMENT_UNCONFIRMED: 'Bayar lunas, pesanan belum dikonfirmasi',

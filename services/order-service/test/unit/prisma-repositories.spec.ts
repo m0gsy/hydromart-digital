@@ -512,6 +512,43 @@ describe('OrderPrismaRepository', () => {
    *
    * The column is written here, one release before the sweep reads it (B3b).
    */
+  // 2026-11-20: the customer's address change is a compare-and-set on depot AND status, with
+  // the history row in the same write.
+  it('changes the address only while the order is still at its depot and status', async () => {
+    order.update.mockResolvedValue(orderRow());
+    const address = {
+      recipientName: 'Budi',
+      phone: '0811',
+      addressLine: 'Jl. Dago 99',
+      city: 'Bandung',
+      province: 'Jawa Barat',
+      postalCode: null,
+      latitude: -6.91,
+      longitude: 107.61,
+      notes: 'pagar biru',
+    };
+    await repo.changeAddressIf('ord-1', 'depot-1', OrderStatus.CONFIRMED, address, 'cust-1', 'Alamat diubah');
+    const arg = order.update.mock.calls.at(-1)![0];
+    expect(arg.where).toEqual({ id: 'ord-1', depotId: 'depot-1', status: 'CONFIRMED' });
+    expect(arg.data).toMatchObject({
+      addressLine: 'Jl. Dago 99',
+      latitude: -6.91,
+      history: { create: { status: 'CONFIRMED', changedBy: 'cust-1', note: 'Alamat diubah' } },
+    });
+    expect(arg.data.statusChangedAt).toBeUndefined();
+    await repo.changeAddressIf('ord-1', 'depot-1', OrderStatus.CONFIRMED, { ...address, province: undefined }, 'c', 'x');
+    expect(order.update.mock.calls.at(-1)![0].data.province).toBeNull();
+
+    order.update.mockRejectedValueOnce(Object.assign(new Error('gone'), { code: 'P2025' }));
+    await expect(
+      repo.changeAddressIf('ord-1', 'depot-1', OrderStatus.CONFIRMED, address, 'cust-1', 'x'),
+    ).rejects.toBeInstanceOf(StaleOrderStatusError);
+    order.update.mockRejectedValueOnce(new Error('db down'));
+    await expect(
+      repo.changeAddressIf('ord-1', 'depot-1', OrderStatus.CONFIRMED, address, 'cust-1', 'x'),
+    ).rejects.toThrow('db down');
+  });
+
   it('stamps when the order entered its new status, not just that it moved', async () => {
     order.update.mockResolvedValue({ ...orderRow(), status: 'CONFIRMED' });
     await repo.applyStatus('ord-1', OrderStatus.CREATED, OrderStatus.CONFIRMED, 'staff', null);

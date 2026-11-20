@@ -909,6 +909,7 @@ export type NotificationEvent =
   // O6: addressed to a DEPOT rather than to a buyer — the depot's own "an order arrived".
   | 'DEPOT_ORDER_INCOMING'
   | 'DEPOT_ORDER_RESCHEDULED'
+  | 'DEPOT_ORDER_ADDRESS_CHANGED'
   | 'DEPOT_ORDER_CANCELLED'
   | 'DEPOT_PAYMENT_PROOF'
   | 'DEPOT_PAYMENT_UNCONFIRMED'
@@ -971,6 +972,7 @@ export type NotificationEvent =
 export const OPS_EVENTS = [
   'DEPOT_ORDER_INCOMING',
   'DEPOT_ORDER_RESCHEDULED',
+  'DEPOT_ORDER_ADDRESS_CHANGED',
   'DEPOT_ORDER_CANCELLED',
   'DEPOT_PAYMENT_PROOF',
   'DEPOT_PAYMENT_UNCONFIRMED',

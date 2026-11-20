@@ -31,6 +31,11 @@ export function statusProgress(status: OrderStatus): number {
 }
 
 /** BR-006: a customer may cancel only before a driver is assigned. */
+/** Mirrors order-service ADDRESS_CHANGEABLE_STATUSES: before the depot starts preparing. */
+export function isAddressChangeable(status: OrderStatus): boolean {
+  return status === 'CREATED' || status === 'CONFIRMED';
+}
+
 export function isCancellable(status: OrderStatus): boolean {
   return status === 'CREATED' || status === 'CONFIRMED' || status === 'PREPARING';
 }

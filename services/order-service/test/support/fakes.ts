@@ -324,6 +324,21 @@ export class InMemoryOrderRepository implements OrderRepository {
     return row ? structuredClone(row) : null;
   }
 
+  async changeAddressIf(
+    id: string,
+    depotId: string,
+    status: OrderStatus,
+    address: DeliveryAddressSnapshot,
+    changedBy: string,
+    note: string,
+  ): Promise<OrderRecord> {
+    const row = this.rows.find((r) => r.id === id && r.depotId === depotId && r.status === status);
+    if (!row) throw new StaleOrderStatusError();
+    Object.assign(row, address, { updatedAt: nextDate() });
+    row.history.push({ status, changedBy, note, createdAt: nextDate() } as never);
+    return structuredClone(row);
+  }
+
   async rescheduleSlot(
     id: string,
     scheduledFor: Date,

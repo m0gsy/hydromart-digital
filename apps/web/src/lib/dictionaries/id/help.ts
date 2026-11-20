@@ -50,7 +50,7 @@ export const help = {
     },
     {
       q: 'Bisakah ubah alamat setelah pesan?',
-      a: 'Selama pesanan belum disiapkan depot, alamat masih bisa diubah dari halaman Lacak pesanan. Setelah kurir berangkat, hubungi CS untuk penyesuaian.',
+      a: 'Bisa, sebelum pesanan disiapkan: buka pesanan, tekan "Ubah alamat", pilih alamat yang dilayani depot yang sama. Beda depot? Batalkan lalu pesan ulang.',
     },
     {
       q: 'Apa itu poin & tier membership?',

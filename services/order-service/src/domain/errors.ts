@@ -457,6 +457,23 @@ export class InvalidDeliveryScheduleError extends DomainError {
   }
 }
 
+/** 2026-11-20: the customer can no longer, or not this way, change this order's address. */
+export class OrderAddressNotChangeableError extends DomainError {
+  readonly code = 'ORDER_ADDRESS_NOT_CHANGEABLE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(reason: 'STATUS' | 'NO_PIN' | 'OTHER_DEPOT' | 'UNROUTED') {
+    super(
+      {
+        STATUS: 'Pesanan ini sudah mulai disiapkan, alamatnya tidak bisa diubah lagi. Hubungi depot.',
+        UNROUTED: 'Pesanan ini belum terhubung ke depot. Hubungi CS untuk mengubah alamatnya.',
+        NO_PIN: 'Alamat baru belum punya pin lokasi. Pasang pinnya dulu di menu Alamat.',
+        OTHER_DEPOT:
+          'Alamat baru ini dilayani depot lain, jadi pesanan tidak bisa dipindah. Batalkan lalu pesan ulang, atau hubungi depot.',
+      }[reason],
+    );
+  }
+}
+
 /** FR-052: the customer can no longer move this order's delivery time. */
 export class OrderNotReschedulableError extends DomainError {
   readonly code = 'ORDER_NOT_RESCHEDULABLE';
