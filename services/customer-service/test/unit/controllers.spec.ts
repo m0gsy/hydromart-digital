@@ -137,10 +137,32 @@ describe('DepotCrmController', () => {
     listDepotCustomers: jest.fn(),
     getCrmDashboard: jest.fn(),
     getDepotDetail: jest.fn(),
+    setAddressPin: jest.fn(),
   };
   const imports = { importCustomers: jest.fn() };
   const c = new DepotCrmController(svc as never, imports as never);
   beforeEach(() => jest.clearAllMocks());
+
+  it('setAddressPin hands the caller, customer, address, depot and text to the service', async () => {
+    svc.setAddressPin.mockResolvedValue({ id: 'a1', pinSource: 'STAFF' });
+    const staff = { sub: 'op-1' } as never;
+    await expect(
+      c.setAddressPin(
+        'c1',
+        'a1',
+        { depotId: 'd1', location: '-6.9, 107.6', seenUpdatedAt: '2026-01-01T00:00:00.000Z' },
+        staff,
+      ),
+    ).resolves.toEqual({ id: 'a1', pinSource: 'STAFF' });
+    expect(svc.setAddressPin).toHaveBeenCalledWith(
+      staff,
+      'c1',
+      'a1',
+      'd1',
+      '-6.9, 107.6',
+      '2026-01-01T00:00:00.000Z',
+    );
+  });
 
   it('import hands the rows and depot to the import service', async () => {
     imports.importCustomers.mockResolvedValue({ created: 1, skipped: 0, failed: 0, results: [] });

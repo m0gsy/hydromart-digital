@@ -1046,3 +1046,172 @@ describe('DepotCrmService.getDepotDetail', () => {
     expect(d.addresses[0].inRadius).toBeNull();
   });
 });
+
+/*
+ * P2-2. A depot fixes where one of its customers' doors is: coordinates or a Maps link, the
+ * same reader the imports use. Only its own customer, only that customer's address, and the
+ * pin it replaced goes on the record — a pin decides which depot their orders route to.
+ */
+describe('DepotCrmService.setAddressPin (P2-2)', () => {
+  const staff = { sub: 'staff-1', role: 'MANAGER', depotId: 'depot-a', depotIds: ['depot-a'] } as never;
+  const stored: AddressRecord = {
+    id: 'a1',
+    customerId: 'c1',
+    label: 'Rumah',
+    recipientName: 'Budi',
+    phone: '0812',
+    addressLine: 'Jl. Air 1',
+    city: 'Bandung',
+    province: null,
+    postalCode: null,
+    latitude: -6.95,
+    longitude: 107.65,
+    notes: null,
+    isPrimary: true,
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  };
+  const SEEN = '2026-01-01T00:00:00.000Z'; // stored.updatedAt, as the card showed it
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  // depot-a: 10 km around -6.93, 107.62 — the stored pin (-6.95, 107.65) is inside it.
+  const AREA = { lat: -6.93, lng: 107.62, serviceRadiusKm: 10 };
+  function build(
+    opts: {
+      favorite?: string | null;
+      orders?: number;
+      address?: AddressRecord | null;
+      geo?: typeof AREA | null;
+    } = {},
+  ) {
+    const update = jest.fn(async (_c: string, _id: string, patch: object) => ({ ...stored, ...patch }));
+    const profiles = {
+      findByCustomerId: async () =>
+        opts.favorite === null ? null : { customerId: 'c1', favoriteDepotId: opts.favorite ?? 'depot-a' },
+    } as unknown as ProfileRepository;
+    const addresses = {
+      findByIdForCustomer: async () => (opts.address === undefined ? stored : opts.address),
+      update,
+    } as unknown as AddressRepository;
+    const orderCrm = {
+      depotCustomerStats: async () => [],
+      customerOrders: jest.fn(async () => Array.from({ length: opts.orders ?? 0 }, () => ({}))),
+    } as unknown as OrderCrmPort;
+    const depotProfile = { geo: async () => (opts.geo === undefined ? AREA : opts.geo) };
+    const fetchMock = jest.fn().mockResolvedValue({ ok: true });
+    global.fetch = fetchMock as never;
+    const svc = new DepotCrmService(
+      new FakeDepotCrmRepository(),
+      addresses,
+      profiles,
+      orderCrm,
+      {} as never,
+      new FakeIdentity(),
+      { authServiceUrl: 'http://auth', internalServiceKey: 'k' } as never,
+      depotProfile as never,
+    );
+    return { svc, update, fetchMock, orderCrm };
+  }
+
+  it('sets a pin from a Maps link, as STAFF with no accuracy claimed, and records what it replaced', async () => {
+    const { svc, update, fetchMock } = build();
+    const out = await svc.setAddressPin(
+      staff,
+      'c1',
+      'a1',
+      'depot-a',
+      'https://www.google.com/maps/place/X/@-6.0,106.0,15z/data=!3d-6.914744!4d107.60981',
+      SEEN,
+    );
+    expect(update).toHaveBeenCalledWith('c1', 'a1', {
+      latitude: -6.914744,
+      longitude: 107.60981,
+      pinSource: 'STAFF',
+      pinAccuracyM: null,
+    });
+    expect(out).toMatchObject({ pinSource: 'STAFF', latitude: -6.914744 });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('http://auth/api/v1/auth/audit/internal');
+    expect(JSON.parse((init as { body: string }).body)).toMatchObject({
+      action: 'customer.address.location.set',
+      actorId: 'staff-1',
+      target: 'c1',
+      metadata: { depotId: 'depot-a', addressId: 'a1', before: [-6.95, 107.65], after: [-6.914744, 107.60981] },
+    });
+  });
+
+  it('serves a customer who ordered there with no favourite, and an address with no pin yet', async () => {
+    const { svc, fetchMock } = build({ favorite: null, orders: 2, address: { ...stored, latitude: null, longitude: null } });
+    await expect(
+      svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61', SEEN),
+    ).resolves.toBeTruthy();
+    expect(JSON.parse((fetchMock.mock.calls[0]![1] as { body: string }).body).metadata.before).toBeNull();
+  });
+
+  it('refuses another depot, a stranger, a foreign address and an unreadable link — and writes nothing', async () => {
+    const other = build();
+    await expect(
+      other.svc.setAddressPin(staff, 'c1', 'a1', 'depot-b', '-6.91, 107.61'),
+    ).rejects.toThrow(/hanya boleh mengakses depot/);
+    const stranger = build({ favorite: 'depot-z', orders: 0 });
+    await expect(stranger.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61')).rejects.toThrow(
+      'Pelanggan ini tidak terdaftar di depot ini.',
+    );
+    const missing = build({ address: null });
+    await expect(missing.svc.setAddressPin(staff, 'c1', 'a9', 'depot-a', '-6.91, 107.61')).rejects.toThrow(
+      'Alamat ini tidak ditemukan.',
+    );
+    const short = build();
+    await expect(
+      short.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', 'https://maps.app.goo.gl/abc'),
+    ).rejects.toThrow(/Link pendek/);
+    for (const b of [stranger, missing, short]) expect(b.update).not.toHaveBeenCalled();
+  });
+
+  it('asks order history only when the favourite does not already prove membership', async () => {
+    const fav = build();
+    await fav.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61', SEEN);
+    expect(fav.orderCrm.customerOrders).not.toHaveBeenCalled();
+  });
+
+  /*
+   * A pin decides which depot the customer's orders route to. Moving a pin that sits in
+   * another depot's area would hand that customer to this one, so it is the other depot's
+   * (or head office's) to fix — and an area that cannot be read cannot be checked.
+   */
+  it("refuses a pin in another depot's area, or when this depot's area is unknown", async () => {
+    const far = build({ address: { ...stored, latitude: -6.2, longitude: 106.8 } });
+    await expect(far.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61', SEEN)).rejects.toThrow(
+      /di luar area depot ini/,
+    );
+    const blind = build({ geo: null });
+    await expect(blind.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61', SEEN)).rejects.toThrow(
+      /di luar area depot ini/,
+    );
+    for (const b of [far, blind]) expect(b.update).not.toHaveBeenCalled();
+  });
+
+  // CA-2-53: a pin somebody moved after this card was shown is not overwritten blind.
+  it('refuses a fix built on a stale card, or one that names no version', async () => {
+    const stale = build();
+    await expect(
+      stale.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61', '2025-12-31T00:00:00.000Z'),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      stale.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.91, 107.61'),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(stale.update).not.toHaveBeenCalled();
+  });
+
+  it('leaves the same pin alone, with whatever is known about it', async () => {
+    const same = build({ address: { ...stored, pinSource: 'GPS', pinAccuracyM: 8 } });
+    await expect(
+      same.svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.95, 107.65', SEEN),
+    ).resolves.toMatchObject({ pinSource: 'GPS', pinAccuracyM: 8 });
+    expect(same.update).not.toHaveBeenCalled();
+    expect(same.fetchMock).not.toHaveBeenCalled();
+  });
+});
