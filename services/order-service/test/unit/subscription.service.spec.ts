@@ -131,6 +131,42 @@ describe('SubscriptionService', () => {
    * plan that outlived its owner's deletion kept sending water to a phone number somebody
    * had asked us to forget. Cancelling is what stops that; scrubbing alone would not.
    */
+  // 2026-11-20 (address package 3): a plan is only made, or moved, to an address a depot serves.
+  describe('the area check', () => {
+    const plan = (a: typeof address) =>
+      service.create(customer, {
+        productId: seedProduct().id,
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+        address: a,
+      });
+    const nowhere = { ...address, latitude: -8.0, longitude: 110.0 };
+
+    it('refuses a plan nobody serves, in Indonesian, and stores nothing', async () => {
+      await expect(plan(nowhere)).rejects.toMatchObject({
+        code: 'ORDER_OUT_OF_SERVICE_AREA',
+        message: expect.stringContaining('di luar area layanan'),
+      });
+      expect(await service.list(customer)).toHaveLength(0);
+    });
+
+    it('refuses while the depot directory is down, rather than guessing', async () => {
+      depots.depots = [];
+      await expect(plan(address)).rejects.toMatchObject({ code: 'ORDER_DEPOT_UNAVAILABLE' });
+    });
+
+    it('refuses to move a plan to an address with no pin, or one nobody serves', async () => {
+      const sub = await plan(address);
+      await expect(
+        service.changeAddress(customer, sub.id, { ...address, latitude: null, longitude: null }),
+      ).rejects.toMatchObject({ code: 'SUBSCRIPTION_ADDRESS_NOT_ROUTABLE' });
+      await expect(service.changeAddress(customer, sub.id, nowhere)).rejects.toMatchObject({
+        code: 'ORDER_OUT_OF_SERVICE_AREA',
+      });
+    });
+  });
+
   it('cancels and scrubs a deleted person plans, so the sweep stops shipping to them', async () => {
     const customerId = randomUUID();
     const product = seedProduct();
@@ -146,6 +182,8 @@ describe('SubscriptionService', () => {
         city: 'Jakarta',
         province: 'DKI',
         postalCode: '10330',
+        latitude: address.latitude,
+        longitude: address.longitude,
         notes: 'pagar hijau',
       },
     } as never);
@@ -466,6 +504,16 @@ describe('SubscriptionService', () => {
       // dropped); the destination is crm's.
       const paused = notification.calls.find((c) => c.event === 'SUBSCRIPTION_PAUSED')!;
       expect(paused.authorization).toBe('');
+      // The customer reads Indonesian, not the product's UUID inside an English sentence.
+      expect(paused.vars.reason).toBe('produknya sedang tidak dijual');
+    });
+
+    it('a moved plan starts its failure count over', async () => {
+      const sub = await failingPlan();
+      await tick(2);
+      expect((await service.list(customer)).find((s) => s.id === sub.id)!.failureCount).toBe(1);
+      await service.changeAddress(customer, sub.id, { ...address, addressLine: 'Jl. Baru 2' });
+      expect((await service.list(customer)).find((s) => s.id === sub.id)!.failureCount).toBe(0);
     });
 
     /**
@@ -474,6 +522,17 @@ describe('SubscriptionService', () => {
      * sweep's own catch, and an exception thrown from a catch block leaves the loop and
      * takes every remaining subscription in the batch with it.
      */
+    it('says "outside the area" when that is why it paused', async () => {
+      const sub = await failingPlan();
+      catalog.products.set(sub.productId, { id: sub.productId, active: true, basePrice: 20000, name: 'Galon', unit: 'galon' } as never);
+      depots.depots = [{ ...depots.depots![0]!, serviceRadiusKm: 0.001, lat: 0, lng: 0 }];
+      await tick(2);
+      await tick(3);
+      await tick(4);
+      const paused = notification.calls.find((c) => c.event === 'SUBSCRIPTION_PAUSED')!;
+      expect(paused.vars.reason).toBe('alamatnya sekarang di luar area layanan depot kami');
+    });
+
     it('still pauses when telling the customer throws', async () => {
       const sub = await failingPlan();
       notification.notify = async () => {

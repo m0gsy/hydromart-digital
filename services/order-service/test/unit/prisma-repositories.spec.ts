@@ -2228,6 +2228,30 @@ describe('OrderPrismaRepository', () => {
  * writes is the fix: cancel, then scrub. Swap them and an ACTIVE plan keeps delivering to
  * the same door under a blank name, which is worse than doing nothing.
  */
+// 2026-11-20: a moved plan starts its failure count over (the failures were the old address's).
+describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
+  it('writes the new address and clears the failure record', async () => {
+    const update = jest.fn().mockResolvedValue({ id: 's1', customerId: 'c1' });
+    const repo = new SubscriptionPrismaRepository({ subscription: { update } } as unknown as PrismaService);
+    await repo.setDeliveryAddress('s1', {
+      recipientName: 'B',
+      phone: '0811',
+      addressLine: 'Jl. Baru 2',
+      city: 'Bandung',
+      postalCode: null,
+      latitude: -6.9,
+      longitude: 107.6,
+      notes: null,
+    });
+    expect(update.mock.calls[0][0].data).toMatchObject({
+      addressLine: 'Jl. Baru 2',
+      failureCount: 0,
+      lastFailure: null,
+      lastFailureAt: null,
+    });
+  });
+});
+
 describe('SubscriptionPrismaRepository.erasePerson', () => {
   const subscription = { updateMany: jest.fn() };
   const $transaction = jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops));

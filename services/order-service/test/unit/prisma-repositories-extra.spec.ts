@@ -261,7 +261,7 @@ describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
   const subscription = { update: jest.fn() };
   const repo = new SubscriptionPrismaRepository({ subscription } as unknown as PrismaService);
 
-  it('writes every field of the snapshot and nothing else', async () => {
+  it('writes every field of the snapshot, a fresh failure count, and nothing else', async () => {
     subscription.update.mockResolvedValue({
       id: 's1',
       customerId: 'c1',
@@ -312,6 +312,10 @@ describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
         latitude: -6.92,
         longitude: 107.61,
         notes: null,
+        // 2026-11-20: a moved plan starts its failure count over (the old address's failures).
+        failureCount: 0,
+        lastFailure: null,
+        lastFailureAt: null,
       },
     });
     // The schedule and the status are not in that payload, and the mapped row proves it.

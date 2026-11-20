@@ -21,6 +21,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { dateInDaysWib } from '@/lib/wib';
 import { useAsync } from '@/lib/use-async';
+import { servingDepot } from '@/lib/depots';
 import { fetchAllPages } from '@/lib/fetch-all-pages';
 import { useFeatureFlag } from '@/lib/feature-flags';
 import { useQueryParam } from '@/lib/use-query-param';
@@ -93,14 +94,21 @@ function Panel() {
             endpoints.depots.nearby({
               lat: chosenAddress.latitude,
               lng: chosenAddress.longitude,
-              limit: 1,
+              // Ten, not one: the nearest depot is not always the one that serves the point
+              // (radii differ), and the server routes to the one that does (A3, as checkout).
+              limit: 10,
             }),
             true,
           )
         : Promise.resolve([]),
     [chosenAddress?.latitude, chosenAddress?.longitude],
   );
-  const depotId = nearby.data?.[0]?.id ?? null;
+  const serving = servingDepot(nearby.data);
+  const depotId = serving?.id ?? null;
+  // Pinned, looked up, and nobody serves it: the server refuses such a plan (2026-11-20), so
+  // say it here instead of after the customer pressed the button.
+  const outOfArea =
+    chosenAddress?.latitude != null && !nearby.loading && nearby.data != null && serving === null;
   const discount = useAsync<{ rate: number }>(
     () => api.get(endpoints.subscriptions.discount(depotId)),
     [depotId],
@@ -398,8 +406,13 @@ function Panel() {
             )
           )}
 
+          {outOfArea && (
+            <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+              {copy.outOfArea}
+            </p>
+          )}
           <FormError message={error} />
-          <Button type="submit" loading={saving} disabled={!productId || !chosenAddress}>
+          <Button type="submit" loading={saving} disabled={!productId || !chosenAddress || outOfArea}>
             {copy.start}
           </Button>
         </form>

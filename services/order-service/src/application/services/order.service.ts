@@ -3264,7 +3264,9 @@ export class OrderService {
    *   - no coordinates           → PinRequiredError (owner decision 2026-11-20)
    *   - directory down / no depots → DepotUnavailableError (retry later)
    */
-  private async resolveDepot(address: DeliveryAddressSnapshot): Promise<DepotLocation> {
+  // Public since 2026-11-20: a subscription checks its address with the SAME rule the
+  // sweep will route it by (subscription.service assertDeliverable).
+  async resolveDepot(address: DeliveryAddressSnapshot): Promise<DepotLocation> {
     if (address.latitude === null || address.longitude === null) {
       throw new PinRequiredError();
     }

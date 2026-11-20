@@ -145,7 +145,9 @@ export class OutOfServiceAreaError extends DomainError {
   readonly code = 'ORDER_OUT_OF_SERVICE_AREA';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('This delivery address is outside our service area. No depot can deliver here.');
+    super(
+      'Alamat pengiriman ini di luar area layanan semua depot kami, jadi belum bisa diantar. Pilih alamat lain atau perbaiki titik petanya.',
+    );
   }
 }
 

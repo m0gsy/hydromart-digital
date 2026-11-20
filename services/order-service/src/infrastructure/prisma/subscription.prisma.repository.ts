@@ -153,6 +153,11 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
         latitude: address.latitude,
         longitude: address.longitude,
         notes: address.notes,
+        // A moved plan starts its failure count over: the failures were the old address's,
+        // and a plan resumed after an auto-pause must not re-pause on its next single miss.
+        failureCount: 0,
+        lastFailure: null,
+        lastFailureAt: null,
       },
     });
     return this.toRecord(row);

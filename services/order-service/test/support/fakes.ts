@@ -1123,7 +1123,7 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     address: DeliveryAddressSnapshot,
   ): Promise<SubscriptionRecord> {
     const r = this.rows.find((x) => x.id === id)!;
-    Object.assign(r, address);
+    Object.assign(r, address, { failureCount: 0, lastFailure: null, lastFailureAt: null });
     r.updatedAt = nextDate();
     return structuredClone(r);
   }
