@@ -534,6 +534,13 @@ export class SubscriptionReroutePreviewDto {
   @Min(0)
   @Max(1000)
   serviceRadiusKm?: number;
+
+  /** P3-4: a redrawn area (rings of {lat, lng}); null clears it. Shape checked in the handler. */
+  @ApiPropertyOptional({ nullable: true, description: 'Rings of { lat, lng }; null clears the area.' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  serviceArea?: { lat: number; lng: number }[][] | null;
 }
 
 /** Optional depot scope: which depot's subscription discount to answer against. */

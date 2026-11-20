@@ -1,4 +1,4 @@
-import { haversineKm, pointInServiceArea } from '@hydromart/platform';
+import { haversineKm, pointInServiceArea, type ServiceArea } from '@hydromart/platform';
 
 import { DepotLocation } from '../application/ports/depot-directory.port';
 
@@ -59,11 +59,35 @@ export interface DepotChange {
   lat?: number;
   lng?: number;
   serviceRadiusKm?: number;
+  /** P3-4: a redrawn area; null clears it, so the radius decides again. */
+  serviceArea?: ServiceArea | null;
+}
+
+/** A drawn area as the HQ depot form sends it: rings of 3+ real coordinates, a sane size. */
+export function isServiceArea(v: unknown): v is ServiceArea {
+  return (
+    Array.isArray(v) &&
+    v.length <= 20 &&
+    v.every(
+      (ring) =>
+        Array.isArray(ring) &&
+        ring.length >= 3 &&
+        ring.length <= 1000 &&
+        ring.every(
+          (p: { lat?: unknown; lng?: unknown } | null) =>
+            typeof p?.lat === 'number' &&
+            typeof p.lng === 'number' &&
+            Math.abs(p.lat) <= 90 &&
+            Math.abs(p.lng) <= 180,
+        ),
+    )
+  );
 }
 
 /**
- * The network after `change`. A suspended depot leaves; an edited one keeps its drawn area,
- * which still decides over a radius, exactly as `selectNearestDepot` reads it.
+ * The network after `change`. A suspended depot leaves; an edited one keeps its drawn area
+ * unless a new one (or none) is given — the area still decides over a radius, exactly as
+ * `selectNearestDepot` reads it.
  * ponytail: a depot not in the active list (re-activating one) changes nothing here; add it
  * when a screen previews a re-activation.
  */
@@ -76,6 +100,7 @@ export function withDepotChange(depots: DepotLocation[], change: DepotChange): D
           lat: change.lat ?? d.lat,
           lng: change.lng ?? d.lng,
           serviceRadiusKm: change.serviceRadiusKm ?? d.serviceRadiusKm,
+          serviceArea: change.serviceArea === undefined ? d.serviceArea : change.serviceArea,
         }
       : d,
   );
