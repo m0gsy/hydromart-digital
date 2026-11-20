@@ -13,7 +13,6 @@ import {
   BelowMinimumOrderError,
   ExpressUnavailableError,
   CatalogUnavailableError,
-  DepotRequiredError,
   DepotUnavailableError,
   CounterBasketChangedError,
   CounterTotalChangedError,
@@ -34,6 +33,7 @@ import {
   OrderNotFoundError,
   OrderNotReviewableError,
   OutOfServiceAreaError,
+  PinRequiredError,
   ProductUnavailableError,
   ResellerVoucherNotAllowedError,
   AnonymousVoucherNotAllowedError,
@@ -218,11 +218,6 @@ export interface WalkInSaleInput {
 
 export interface CheckoutInput {
   deliveryAddress: DeliveryAddressSnapshot;
-  /**
-   * Depot the customer picked, used only when the address carries no map pin so
-   * automatic routing cannot run. Ignored when the address has coordinates.
-   */
-  depotId?: string | null;
   /** Optional voucher code to apply (validated against the promo-service). */
   voucherCode?: string | null;
   /** Optional customer-preferred delivery time-window (free-form label, not slot-checked). */
@@ -567,8 +562,8 @@ export class OrderService {
     // Route to the fulfilling depot first: it prices the goods (per-depot overrides),
     // the delivery fee, and the minimum order amount. Resolution is fail-CLOSED — an
     // order that reaches no depot is an order nobody can see or fulfil, so checkout
-    // rejects instead (the customer picks a depot when the address has no map pin).
-    const depot = await this.resolveDepot(input.deliveryAddress, input.depotId);
+    // rejects instead. The pin decides the depot; without one there is no order.
+    const depot = await this.resolveDepot(input.deliveryAddress);
 
     // Pricing and reseller status are independent of each other — the reseller lookup only
     // needs the caller's token — so both are in flight at once (audit S-2). Checkout used to
@@ -3266,27 +3261,20 @@ export class OrderService {
    * is lost the moment it is placed. So every path now ends in a depot or an error
    * the caller can act on:
    *   - address has coordinates  → nearest depot within radius, else out-of-service
-   *   - no coordinates           → the depot the customer picked (`requestedDepotId`)
-   *   - neither                  → DepotRequiredError, so the UI can ask
+   *   - no coordinates           → PinRequiredError (owner decision 2026-11-20)
    *   - directory down / no depots → DepotUnavailableError (retry later)
    */
-  private async resolveDepot(
-    address: DeliveryAddressSnapshot,
-    requestedDepotId?: string | null,
-  ): Promise<DepotLocation> {
+  private async resolveDepot(address: DeliveryAddressSnapshot): Promise<DepotLocation> {
+    if (address.latitude === null || address.longitude === null) {
+      throw new PinRequiredError();
+    }
     const depots = await this.depotDirectory.listActiveDepots();
     if (depots === null || depots.length === 0) {
       throw new DepotUnavailableError();
     }
-    if (address.latitude !== null && address.longitude !== null) {
-      const nearest = selectNearestDepot(address.latitude, address.longitude, depots);
-      if (!nearest) throw new OutOfServiceAreaError();
-      return nearest;
-    }
-    if (!requestedDepotId) throw new DepotRequiredError();
-    const picked = depots.find((d) => d.id === requestedDepotId);
-    if (!picked) throw new DepotUnavailableError();
-    return picked;
+    const nearest = selectNearestDepot(address.latitude, address.longitude, depots);
+    if (!nearest) throw new OutOfServiceAreaError();
+    return nearest;
   }
 
   /**

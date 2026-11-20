@@ -80,11 +80,10 @@ export const order = {
     deliveryEst: 'Ongkir (est.) — {name}',
     deliveryNote: 'Ongkir dihitung saat depot ditentukan.',
     total: 'Total',
-    pickDepot: 'Pilih depot pengantar',
-    pickDepotHint:
-      'Alamat ini belum punya titik lokasi. Kalau Anda sudah menyetel lokasi di beranda, depotnya kami isikan dari situ — ganti di bawah bila bukan itu.',
-    pickDepotEmpty: 'Belum ada depot aktif. Coba lagi nanti.',
-    pickDepotRequired: 'Pilih depot dulu untuk melanjutkan.',
+    pinRequired: 'Pasang pin lokasi alamat ini dulu — pesanan diantar ke titik pin itu.',
+    servedBy: 'Diantar dari {name}',
+    savedNoPin: 'Alamat tersimpan ini belum punya pin. Pasang di sini — pinnya ikut disimpan ke alamat ini.',
+    keepPatokan: 'Simpan juga sebagai patokan alamat ini (untuk pesanan berikutnya)',
     outOfServiceArea:
       'Titik alamat ini di luar radius antar semua depot kami. Pilih alamat lain, atau ubah titik petanya ke lokasi yang kami layani.',
     placeOrder: 'Buat pesanan —',

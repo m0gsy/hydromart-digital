@@ -105,6 +105,30 @@ export function numOrNull(v: string): number | null {
 }
 
 /**
+ * A coordinate PAIR out of whatever was pasted: "-6.9147, 107.6098", or a Google Maps link that
+ * carries one. "!3d…!4d…" is the dropped pin and wins over "@…", which is only where the map
+ * was looking. Short links (maps.app.goo.gl) carry no coordinates and give null, as does 0,0.
+ */
+export function parseLatLngPair(text: string): { latitude: number; longitude: number } | null {
+  let t = text.replace(/−/g, '-'); // a typographic minus, as phones paste it
+  try {
+    t = decodeURIComponent(t);
+  } catch {
+    /* a stray % — read the text as it is */
+  }
+  const m =
+    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(t) ??
+    // Not in the middle of a longer number: "107.6098, -6.9147" (lng first) must not read
+    // as latitude 7.6098.
+    /(?<![\d.])(-?\d{1,2}\.\d{2,})\s*,\s*(-?\d{1,3}\.\d{2,})/.exec(t);
+  if (!m) return null;
+  const latitude = Number(m[1]);
+  const longitude = Number(m[2]);
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
+  return latitude === 0 && longitude === 0 ? null : { latitude, longitude };
+}
+
+/**
  * Coerce the string form into an API payload, or return the first validation error.
  * Required: label/recipientName/phone/addressLine/city. Optional: notes/patokan and
  * latitude/longitude (both must be supplied together and within range — coords are

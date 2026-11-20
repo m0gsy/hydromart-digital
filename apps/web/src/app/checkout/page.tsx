@@ -16,7 +16,6 @@ import {
   Plus,
   QrCode,
   ShieldCheck,
-  Storefront,
   Tag,
   WarningCircle,
 } from '@phosphor-icons/react';
@@ -24,6 +23,7 @@ import Link from 'next/link';
 
 import { Sheet } from '@/components/overlay';
 import { RequireAuth } from '@/components/require-auth';
+import { useToast } from '@/components/toast';
 import {
   Badge,
   Button,
@@ -45,10 +45,9 @@ import { voucherToApply } from '@/lib/vouchers';
 import { TaxPreviewLine } from '@/components/order/tax-preview-line';
 import { dayKey, slotInstant } from '@/lib/delivery-schedule';
 import { endpoints } from '@/lib/endpoints';
-import { addressToForm, numOrNull, pickDefaultAddress } from '@/lib/addresses';
-import { defaultDepotFromLocation, resolveDeliveryDepot } from '@/lib/depots';
+import { addressToForm, numOrNull, parseLatLngPair, pickDefaultAddress } from '@/lib/addresses';
+import { servingDepot } from '@/lib/depots';
 import { currentPosition, geoReason } from '@/lib/geo';
-import { useLocation } from '@/lib/location-context';
 import { depotOpenState } from '@/lib/opening-hours';
 import { formatIDR } from '@/lib/format';
 import { offeredMethods, PAYMENT_METHODS, rememberedMethod, rememberMethod } from '@/lib/payments';
@@ -61,12 +60,10 @@ import type {
   Address,
   Cart,
   DeliveryOptions,
-  Depot,
   LoyaltyAccount,
   MyVoucher,
   NearbyDepot,
   Order,
-  Page,
   PaymentMethod,
   VoucherQuote,
 } from '@/lib/types';
@@ -130,7 +127,7 @@ function buildDates(t: (k: string) => string): { key: string; num: number }[] {
   });
 }
 
-type SheetKey = 'address' | 'depot' | 'window' | 'payment' | 'voucher';
+type SheetKey = 'address' | 'window' | 'payment' | 'voucher';
 
 /** A manually typed address is unusable to a courier without these. */
 // No province: the form stopped asking, so it cannot be required. City stays — crm-service
@@ -148,6 +145,7 @@ const PAY_ICONS: Record<PaymentMethod, typeof Bank> = {
 function CheckoutInner() {
   const { t } = useT();
   const router = useRouter();
+  const { toast } = useToast();
   const { customer } = useAuth();
   // The cart is fetched further down, once the fulfilling depot is known: it is priced BY
   // that depot (A2), so asking for it before the depot is resolved asks the wrong question.
@@ -230,7 +228,33 @@ function CheckoutInner() {
   const [pinBusy, setPinBusy] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const [showManualPin, setShowManualPin] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // What is being typed into the manual boxes. A controlled number input ate "-" and ".", so
+  // "-6.9" could not be typed at all; the text is kept while typing and dropped on blur.
+  const [latDraft, setLatDraft] = useState<string | null>(null);
+  const [lngDraft, setLngDraft] = useState<string | null>(null);
+  /** A pasted "lat, lng" or Maps link fills both boxes; anything else is one coordinate. */
+  const typeCoord = (axis: 'latitude' | 'longitude', text: string) => {
+    const pair = parseLatLngPair(text);
+    if (pair) {
+      setPinAccuracy(null);
+      setCoords(pair);
+      setLatDraft(null);
+      setLngDraft(null);
+      return;
+    }
+    (axis === 'latitude' ? setLatDraft : setLngDraft)(text);
+  };
+  // Committed when the box is left, not per keystroke: every digit re-routed the pin, fetched
+  // the nearby depots and could re-price (and blank) the form under the finger typing it.
+  const commitCoord = (axis: 'latitude' | 'longitude', draft: string | null) => {
+    if (draft === null) return;
+    setPinAccuracy(null);
+    setCoords((c) => ({ ...c, [axis]: numOrNull(draft) }));
+    (axis === 'latitude' ? setLatDraft : setLngDraft)(null);
+  };
+  // K1.7 writes a changed patokan back to the saved address. A note meant for THIS order only
+  // ("titip ke satpam hari ini") overwrote the landmark every later courier reads, so it asks.
+  const [keepPatokan, setKeepPatokan] = useState(true);
   const [coords, setCoords] = useState<{ latitude: number | null; longitude: number | null }>({
     latitude: null,
     longitude: null,
@@ -269,48 +293,16 @@ function CheckoutInner() {
     [coords.latitude, coords.longitude],
   );
 
-  // No map pin on this address → order-service cannot route it to a depot, and it now
-  // refuses to place an unrouted order (one nobody could see or fulfil). So the customer
-  // picks the fulfilling depot here, and that choice goes with the checkout payload.
-  const needsDepotPick = coords.latitude == null || coords.longitude == null;
-  const [pickedDepotId, setPickedDepotId] = useState<string | null>(null);
-  const { data: depotChoices, loading: depotChoicesLoading } = useAsync<Page<Depot> | null>(
-    () =>
-      needsDepotPick ? api.get(endpoints.depots.browse({ limit: 100 })) : Promise.resolve(null),
-    [needsDepotPick],
-  );
-
-  // A pin arriving (saved address chosen) makes the manual choice meaningless — drop it.
-  useEffect(() => {
-    if (!needsDepotPick) setPickedDepotId(null);
-  }, [needsDepotPick]);
-
   /*
-   * G3. An address with no map pin still has a home location — the one set on Beranda,
-   * which already resolved to a depot. Default the fulfilling depot to that one instead of
-   * opening a hundred-row picker and blocking the order until somebody scrolls it.
-   *
-   * Only if that depot is still one of the choices: a stale id from an archived depot would
-   * otherwise sail past the disabled-submit guard and come back DepotUnavailableError. The
-   * picker below stays exactly as it was, as the override — this sets a default, it does
-   * not take the decision away.
+   * Owner decision 2026-11-20: no order without a map pin. The pin decides the depot and the
+   * server refuses an unpinned checkout, so there is no depot to pick by hand any more — the
+   * picker priced the order at whichever depot the customer liked, vouchers included.
    */
-  const { location } = useLocation();
-  useEffect(() => {
-    if (!needsDepotPick || pickedDepotId) return;
-    const fromHome = defaultDepotFromLocation(location?.depotId, depotChoices?.items);
-    if (fromHome) setPickedDepotId(fromHome);
-  }, [needsDepotPick, pickedDepotId, location?.depotId, depotChoices]);
+  const pinMissing = coords.latitude == null || coords.longitude == null;
 
-  // The depot that will fulfil this order, however it was determined. Everything the
-  // summary quotes — ongkir, membership rate — is that depot's, so it is resolved once
-  // here rather than per line.
-  const depot = resolveDeliveryDepot(
-    needsDepotPick,
-    pickedDepotId,
-    depotChoices?.items,
-    nearbyDepots,
-  );
+  // The depot that will fulfil this order: the first nearby one that serves the pin. Everything
+  // the summary quotes — ongkir, membership rate — is that depot's, so it is resolved once here.
+  const depot = pinMissing ? null : servingDepot(nearbyDepots);
 
   /*
    * L2.3: the method list is the platform's answer narrowed by THIS depot's. Derived here
@@ -368,8 +360,7 @@ function CheckoutInner() {
    *
    * `nearbyLoading` guards it: an empty list mid-fetch is not an out-of-area verdict.
    */
-  const outOfServiceArea =
-    !needsDepotPick && !nearbyLoading && nearbyDepots != null && depot === null;
+  const outOfServiceArea = !pinMissing && !nearbyLoading && nearbyDepots != null && depot === null;
 
   /*
    * A1/A2. The cart, priced by the depot that will actually fulfil the order — the depot's
@@ -489,7 +480,9 @@ function CheckoutInner() {
   const { data: depositRate } = useAsync<{ gallonDepositIdr: number } | null>(
     () =>
       depot?.id
-        ? api.get<{ gallonDepositIdr: number }>(endpoints.depots.gallonDeposit(depot.id), true).catch(() => null)
+        ? api
+            .get<{ gallonDepositIdr: number }>(endpoints.depots.gallonDeposit(depot.id), true)
+            .catch(() => null)
         : Promise.resolve(null),
     [depot?.id],
   );
@@ -524,12 +517,14 @@ function CheckoutInner() {
   }, [savedAddresses, selection]);
 
   function chooseSaved(address: Address) {
+    setKeepPatokan(true);
     setSelection(address.id);
     setForm((f) => ({ ...f, ...addressToForm(address) }));
     setCoords({ latitude: address.latitude, longitude: address.longitude });
   }
 
   function chooseNew() {
+    setKeepPatokan(true);
     setSelection('new');
     setCoords({ latitude: null, longitude: null });
     setForm({
@@ -545,7 +540,9 @@ function CheckoutInner() {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
     // G2: the `notes` exception stays, and now it earns its keep — patokan is a visible
     // field on this form, and typing one must not throw away the pin that was just taken.
-    if (k !== 'notes') {
+    // Only the street and the city say WHERE; a corrected name or phone used to throw the pin
+    // away too, and with a pin now required that sent people back outside to take it again.
+    if (k === 'addressLine' || k === 'city') {
       setCoords({ latitude: null, longitude: null });
       setPinAccuracy(null);
     }
@@ -599,7 +596,12 @@ function CheckoutInner() {
     try {
       const result = await api.post<VoucherQuote>(
         endpoints.vouchers.quote,
-        { code, subtotal: goodsSubtotal, shippingFee: shippingFeeEstimate, lines: voucherLinesFor(cart) },
+        {
+          code,
+          subtotal: goodsSubtotal,
+          shippingFee: shippingFeeEstimate,
+          lines: voucherLinesFor(cart),
+        },
         true,
       );
       setQuote(result);
@@ -681,8 +683,6 @@ function CheckoutInner() {
             longitude: coords.longitude ?? undefined,
             notes: form.notes || undefined,
           },
-          // Only meaningful without coordinates; with a pin, order-service routes itself.
-          depotId: needsDepotPick ? (pickedDepotId ?? undefined) : undefined,
           /*
            * CA-3-33: the code that was actually PRICED, not whatever is left in the box.
            *
@@ -700,7 +700,8 @@ function CheckoutInner() {
           deliveryWindow: deliveryWindow || undefined,
           // FR-036: the booked day as a real instant, so it survives in the order (the label
           // above says which weekday but not which one).
-          scheduledFor: !express && slotTime ? (slotInstant(slotDateIdx, slotTime) ?? undefined) : undefined,
+          scheduledFor:
+            !express && slotTime ? (slotInstant(slotDateIdx, slotTime) ?? undefined) : undefined,
           // The intent, not the price: order-service reads the surcharge from the depot's
           // own settings. Nothing this screen believes about money is sent.
           express: express || undefined,
@@ -737,8 +738,11 @@ function CheckoutInner() {
             true,
           );
         } catch (err) {
-          setSaveError(
+          // A toast, not a line on this form: the screen navigates to the order a moment later
+          // and the line went with it, so a failed save was never read.
+          toast(
             err instanceof ApiError ? err.message : t('order.checkout.saveAddressFailed'),
+            'error',
           );
         }
       }
@@ -750,13 +754,23 @@ function CheckoutInner() {
        * back only when it actually changed, and only for an address that exists.
        */
       const chosen = savedAddresses?.find((a) => a.id === selection);
-      if (chosen && form.notes.trim() !== (chosen.notes ?? '').trim()) {
+      const learned: Record<string, unknown> = {};
+      if (chosen && keepPatokan && form.notes.trim() !== (chosen.notes ?? '').trim()) {
+        learned.notes = form.notes.trim() || null;
+      }
+      // A saved address that had no pin keeps the one taken here, so the next order is not stuck.
+      if (
+        chosen &&
+        chosen.latitude == null &&
+        coords.latitude != null &&
+        coords.longitude != null
+      ) {
+        learned.latitude = coords.latitude;
+        learned.longitude = coords.longitude;
+      }
+      if (chosen && Object.keys(learned).length > 0) {
         try {
-          await api.patch(
-            endpoints.addresses.detail(chosen.id),
-            { notes: form.notes.trim() || null },
-            true,
-          );
+          await api.patch(endpoints.addresses.detail(chosen.id), learned, true);
         } catch {
           /* the order carries the corrected note either way; the book catches up next time */
         }
@@ -889,6 +903,107 @@ function CheckoutInner() {
       v.minSpend <= goodsSubtotal,
   );
 
+  const savedSelected = savedAddresses?.find((a) => a.id === selection) ?? null;
+
+  // The pin controls, for a new address and for a saved one that never had a pin (an import):
+  // with a pin required, a saved address without one was otherwise a dead end.
+  // O2. The pin, on the screen that needs it. The address book has required one all along;
+  // this form simply never offered a way to take it, so every "Simpan alamat" here was a 400
+  // nobody saw. Same one-tap control as /addresses — no map picker.
+  const pinSection = (
+    <div className="flex flex-col gap-2.5 rounded-2xl border border-app bg-[color:var(--surface-soft)] p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <MapPin size={16} weight="fill" className="text-brand-600" />
+        {t('profile.addresses.pin.title')}
+        <span className="text-xs font-normal text-muted">
+          {t('profile.addresses.pin.required')}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          loading={pinBusy}
+          onClick={capturePin}
+          className="rounded-full px-3.5 py-1.5 text-[13px]"
+        >
+          {t('profile.addresses.pin.useLocation')}
+        </Button>
+        {coords.latitude != null && (
+          <span className="text-[13px] font-semibold text-[color:var(--success)]">
+            {t('profile.addresses.pin.pinned')}
+          </span>
+        )}
+      </div>
+      {/* A coordinate pair cannot be judged by a human. These two lines can: how tight
+        the reading was, and which depot it lands next to. Both are already in hand —
+        `accuracy` from the same fix, the depot from the nearby lookup this screen
+        already runs. No map, no reverse-geocode, no new data leaving the device. */}
+      {coords.latitude != null && (
+        <p className="text-xs leading-relaxed text-muted">
+          {pinAccuracy != null && t('order.checkout.pinAccuracy', { m: Math.round(pinAccuracy) })}
+          {nearbyDepots?.[0] && (
+            <>
+              {pinAccuracy != null ? ' · ' : ''}
+              {t('order.checkout.pinNearDepot', {
+                depot: nearbyDepots[0].name,
+                km: nearbyDepots[0].distanceKm.toFixed(1),
+              })}
+            </>
+          )}
+        </p>
+      )}
+      {pinError && (
+        <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+          {pinError}
+        </p>
+      )}
+      {/*
+      The way out when the phone cannot answer.
+      `/addresses` has had this since it shipped; checkout had the same button, the
+      same failure and no second door — so a WebView that could not produce a fix
+      (reported from a real OPPO, 2 September 2026) left the pin permanently empty,
+      and with "simpan alamat" ticked that is a required field nothing can fill.
+      Shown always since the pin became required (2026-11-20): someone ordering for
+      another door cannot take its pin with their own phone, but can paste the link
+      or the coordinates they were sent.
+    */}
+      <button
+        type="button"
+        onClick={() => setShowManualPin((v) => !v)}
+        className="self-start text-xs font-semibold text-brand-600 hover:text-brand-700"
+      >
+        {showManualPin
+          ? t('profile.addresses.pin.hideManual')
+          : t('profile.addresses.pin.showManual')}
+      </button>
+      {showManualPin && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Latitude" htmlFor="ck-lat" hint={t('profile.addresses.form.latHint')}>
+            <Input
+              id="ck-lat"
+              inputMode="decimal"
+              placeholder="-6.9147"
+              value={latDraft ?? coords.latitude ?? ''}
+              onChange={(e) => typeCoord('latitude', e.target.value)}
+              onBlur={() => commitCoord('latitude', latDraft)}
+            />
+          </Field>
+          <Field label="Longitude" htmlFor="ck-lng" hint={t('profile.addresses.form.lngHint')}>
+            <Input
+              id="ck-lng"
+              inputMode="decimal"
+              placeholder="107.6098"
+              value={lngDraft ?? coords.longitude ?? ''}
+              onChange={(e) => typeCoord('longitude', e.target.value)}
+              onBlur={() => commitCoord('longitude', lngDraft)}
+            />
+          </Field>
+        </div>
+      )}
+    </div>
+  );
+
   const addressSection = (
     <>
       {/* Deliver to */}
@@ -933,6 +1048,14 @@ function CheckoutInner() {
             })}
           </div>
         )}
+        {isSavedSelection && pinMissing && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-medium text-[color:var(--warning)]">
+              {t('order.checkout.savedNoPin')}
+            </p>
+            {pinSection}
+          </div>
+        )}
 
         {/* Manual entry — the "new address" flow (hidden when a saved address is picked) */}
         {!isSavedSelection && (
@@ -964,116 +1087,7 @@ function CheckoutInner() {
             <Field label={t('order.checkout.city')} htmlFor="city">
               <Input id="city" value={form.city} onChange={set('city')} />
             </Field>
-            {/* O2. The pin, on the screen that needs it. The address book has required one all
-              along; this form simply never offered a way to take it, so every "Simpan
-              alamat" here was a 400 nobody saw. Same one-tap control as /addresses — no map
-              picker, and raw lat/lng is jargon to someone ordering water. */}
-            <div className="flex flex-col gap-2.5 rounded-2xl border border-app bg-[color:var(--surface-soft)] p-4">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <MapPin size={16} weight="fill" className="text-brand-600" />
-                {t('profile.addresses.pin.title')}
-                <span className="text-xs font-normal text-muted">
-                  {saveToBook
-                    ? t('profile.addresses.pin.required')
-                    : t('profile.addresses.pin.optional')}
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  loading={pinBusy}
-                  onClick={capturePin}
-                  className="rounded-full px-3.5 py-1.5 text-[13px]"
-                >
-                  {t('profile.addresses.pin.useLocation')}
-                </Button>
-                {coords.latitude != null && (
-                  <span className="text-[13px] font-semibold text-[color:var(--success)]">
-                    {t('profile.addresses.pin.pinned')}
-                  </span>
-                )}
-              </div>
-              {/* A coordinate pair cannot be judged by a human. These two lines can: how tight
-                the reading was, and which depot it lands next to. Both are already in hand —
-                `accuracy` from the same fix, the depot from the nearby lookup this screen
-                already runs. No map, no reverse-geocode, no new data leaving the device. */}
-              {coords.latitude != null && (
-                <p className="text-xs leading-relaxed text-muted">
-                  {pinAccuracy != null &&
-                    t('order.checkout.pinAccuracy', { m: Math.round(pinAccuracy) })}
-                  {nearbyDepots?.[0] && (
-                    <>
-                      {pinAccuracy != null ? ' · ' : ''}
-                      {t('order.checkout.pinNearDepot', {
-                        depot: nearbyDepots[0].name,
-                        km: nearbyDepots[0].distanceKm.toFixed(1),
-                      })}
-                    </>
-                  )}
-                </p>
-              )}
-              {pinError && (
-                <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
-                  {pinError}
-                </p>
-              )}
-              {/*
-              The way out when the phone cannot answer.
-              `/addresses` has had this since it shipped; checkout had the same button, the
-              same failure and no second door — so a WebView that could not produce a fix
-              (reported from a real OPPO, 2 September 2026) left the pin permanently empty,
-              and with "simpan alamat" ticked that is a required field nothing can fill.
-              Shown only after a failure: nobody types coordinates by choice.
-            */}
-              {pinError && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowManualPin((v) => !v)}
-                    className="self-start text-xs font-semibold text-brand-600 hover:text-brand-700"
-                  >
-                    {showManualPin
-                      ? t('profile.addresses.pin.hideManual')
-                      : t('profile.addresses.pin.showManual')}
-                  </button>
-                  {showManualPin && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <Field
-                        label="Latitude"
-                        htmlFor="ck-lat"
-                        hint={t('profile.addresses.form.latHint')}
-                      >
-                        <Input
-                          id="ck-lat"
-                          inputMode="decimal"
-                          placeholder="-6.9147"
-                          value={coords.latitude ?? ''}
-                          onChange={(e) =>
-                            setCoords((c) => ({ ...c, latitude: numOrNull(e.target.value) }))
-                          }
-                        />
-                      </Field>
-                      <Field
-                        label="Longitude"
-                        htmlFor="ck-lng"
-                        hint={t('profile.addresses.form.lngHint')}
-                      >
-                        <Input
-                          id="ck-lng"
-                          inputMode="decimal"
-                          placeholder="107.6098"
-                          value={coords.longitude ?? ''}
-                          onChange={(e) =>
-                            setCoords((c) => ({ ...c, longitude: numOrNull(e.target.value) }))
-                          }
-                        />
-                      </Field>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            {pinSection}
 
             <div className="flex flex-col gap-2 border-t border-app pt-3">
               <label className="flex items-center gap-2 text-sm">
@@ -1090,11 +1104,6 @@ function CheckoutInner() {
               {saveToBook && coords.latitude == null && (
                 <p className="text-xs font-medium text-[color:var(--danger)]">
                   {t('order.checkout.savePinRequired')}
-                </p>
-              )}
-              {saveError && (
-                <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
-                  {saveError}
                 </p>
               )}
               {saveToBook && (
@@ -1138,40 +1147,18 @@ function CheckoutInner() {
             maxLength={200}
           />
         </Field>
+        {savedSelected && form.notes.trim() !== (savedSelected.notes ?? '').trim() && (
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={keepPatokan}
+              onChange={(e) => setKeepPatokan(e.target.checked)}
+              className="accent-brand-600"
+            />
+            {t('order.checkout.keepPatokan')}
+          </label>
+        )}
       </div>
-    </>
-  );
-
-  const depotSection = (
-    <>
-      {/* Depot picker — only when the address has no map pin to route from */}
-      {needsDepotPick && (
-        <div className="flex flex-col gap-3">
-          <div>
-            <p className="text-[12.5px] text-muted">{t('order.checkout.pickDepotHint')}</p>
-          </div>
-          {depotChoicesLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : depotChoices && depotChoices.items.length > 0 ? (
-            <div data-testid="depot-picker" className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              {depotChoices.items.map((d) => (
-                <RadioCard
-                  key={d.id}
-                  selected={pickedDepotId === d.id}
-                  onSelect={() => setPickedDepotId(d.id)}
-                >
-                  <span className="block font-bold">{d.name}</span>
-                  <span className="block text-[12.5px] text-muted">
-                    {d.city} · {d.code}
-                  </span>
-                </RadioCard>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[12.5px] text-muted">{t('order.checkout.pickDepotEmpty')}</p>
-          )}
-        </div>
-      )}
     </>
   );
 
@@ -1474,11 +1461,9 @@ function CheckoutInner() {
     </>
   );
 
-  const pickedDepot = depotChoices?.items.find((d) => d.id === pickedDepotId) ?? null;
   const methodLabelKey = PAYMENT_METHODS.find((m) => m.value === method)?.label;
   const methodLabel = methodLabelKey ? t(methodLabelKey) : undefined;
   const PayIcon = PAY_ICONS[method];
-  const savedSelected = savedAddresses?.find((a) => a.id === selection) ?? null;
   const addressSummary = savedSelected
     ? `${savedSelected.label} · ${savedSelected.addressLine}`
     : form.addressLine
@@ -1487,7 +1472,6 @@ function CheckoutInner() {
 
   const SECTION_SHEETS: { key: SheetKey; titleKey: string; body: React.ReactNode }[] = [
     { key: 'address', titleKey: 'order.checkout.deliveryAddress', body: addressSection },
-    { key: 'depot', titleKey: 'order.checkout.pickDepot', body: depotSection },
     { key: 'window', titleKey: 'order.checkout.deliveryWindow', body: windowSection },
     { key: 'payment', titleKey: 'order.checkout.paymentMethod', body: paymentSection },
     { key: 'voucher', titleKey: 'order.checkout.voucher', body: voucherSection },
@@ -1496,6 +1480,12 @@ function CheckoutInner() {
   // One summary, two places: the rail at `lg:`, the sheet behind the sticky bar below it.
   const summaryBody = (
     <>
+      {/* The pin chose this depot; with no picker left, this line is where the customer sees it. */}
+      {depot && !nearbyLoading && (
+        <p className="text-[12.5px] text-muted">
+          {t('order.checkout.servedBy', { name: depot.name })}
+        </p>
+      )}
       {cart.items.map((l) => (
         <div key={l.productId} className="flex items-center gap-3">
           <div className="h-11 w-11 flex-shrink-0 rounded-[10px] bg-[color:var(--surface-muted)]" />
@@ -1596,13 +1586,13 @@ function CheckoutInner() {
           </div>
         )}
         {/*
-          * CA-3-14 — the express fee was in the total and on no line of its own.
-          *
-          * `displayedTotal` adds it, so a shopper who chose express saw the total rise by
-          * an amount the breakdown above it did not account for. Every other component of
-          * that number has a row; this one was the exception, and it is the one the
-          * shopper opted into a moment earlier.
-          */}
+         * CA-3-14 — the express fee was in the total and on no line of its own.
+         *
+         * `displayedTotal` adds it, so a shopper who chose express saw the total rise by
+         * an amount the breakdown above it did not account for. Every other component of
+         * that number has a row; this one was the exception, and it is the one the
+         * shopper opted into a moment earlier.
+         */}
         {expressFee > 0 && (
           <div className="flex justify-between">
             <span className="text-muted">{t('customerFix.slot.expressNow')}</span>
@@ -1648,14 +1638,6 @@ function CheckoutInner() {
             subtitle={addressSummary}
             onClick={() => setSheet('address')}
           />
-          {needsDepotPick && (
-            <ListRow
-              icon={<Storefront size={18} weight="fill" className="text-brand-600" />}
-              title={t('order.checkout.pickDepot')}
-              subtitle={pickedDepot?.name}
-              onClick={() => setSheet('depot')}
-            />
-          )}
           <ListRow
             icon={<Clock size={18} weight="fill" className="text-brand-600" />}
             title={t('order.checkout.deliveryWindow')}
@@ -1694,18 +1676,13 @@ function CheckoutInner() {
             type="submit"
             loading={submitting}
             disabled={
-              (needsDepotPick && !pickedDepotId) ||
-              outOfServiceArea ||
-              expressBlocked ||
-              belowMinimum
+              pinMissing || nearbyLoading || outOfServiceArea || expressBlocked || belowMinimum
             }
             className="h-[54px] rounded-full text-[15px] font-extrabold"
           >
             {t('order.checkout.placeOrder')} <Money amount={displayedTotal} />
           </Button>
-          {needsDepotPick && !pickedDepotId && (
-            <p className="text-xs text-muted">{t('order.checkout.pickDepotRequired')}</p>
-          )}
+          {pinMissing && <p className="text-xs text-muted">{t('order.checkout.pinRequired')}</p>}
           {outOfServiceArea && (
             <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
               {t('order.checkout.outOfServiceArea')}
@@ -1749,8 +1726,23 @@ function CheckoutInner() {
           {submitError}
         </p>
       )}
-      {needsDepotPick && !pickedDepotId && (
-        <p className="mb-2 text-xs text-muted lg:hidden">{t('order.checkout.pickDepotRequired')}</p>
+      {pinMissing && (
+        <p className="mb-2 text-xs text-muted lg:hidden">{t('order.checkout.pinRequired')}</p>
+      )}
+      {/* SF-02 on the phone too: the lookup failed, so nothing here is the depot's price. */}
+      {nearbyError && (
+        <div className="mb-2 flex flex-col gap-1 lg:hidden" role="alert">
+          <p className="text-xs font-medium text-[color:var(--danger)]">
+            {t('customerFix.checkout.depotLookupFailed')}
+          </p>
+          <button
+            type="button"
+            onClick={reloadNearby}
+            className="self-start text-xs font-bold text-brand-700 underline"
+          >
+            {t('customerFix.checkout.retryDepotLookup')}
+          </button>
+        </div>
       )}
       {outOfServiceArea && (
         <p className="mb-2 text-xs font-medium text-[color:var(--danger)] lg:hidden" role="alert">
@@ -1789,7 +1781,7 @@ function CheckoutInner() {
           type="submit"
           loading={submitting}
           disabled={
-            (needsDepotPick && !pickedDepotId) || outOfServiceArea || expressBlocked || belowMinimum
+            pinMissing || nearbyLoading || outOfServiceArea || expressBlocked || belowMinimum
           }
           className="h-13 flex-1 rounded-full text-[15px] font-extrabold"
         >

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { defaultDepotFromLocation, EMPTY_DEPOT_FORM, resolveDeliveryDepot, servingDepot, toDepotPayload } from '@/lib/depots';
-import type { Depot, NearbyDepot } from '@/lib/types';
+import { EMPTY_DEPOT_FORM, toDepotPayload } from '@/lib/depots';
 
 /** The key is what the test asserts: it names the rejection more precisely than copy. */
 const t = (key: string) => key;

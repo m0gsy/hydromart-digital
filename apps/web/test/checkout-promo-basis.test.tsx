@@ -33,6 +33,17 @@ import { LocaleProvider } from '@/lib/locale-context';
 import { ToastProvider } from '@/components/toast';
 import CheckoutPage from '@/app/checkout/page';
 
+/*
+ * Two pinned saved addresses. Since 2026-11-20 the pin decides the depot (no picker): the
+ * nearby lookup below answers Depot Satu for the first pin and Depot Dua for the second.
+ */
+const SAVED = [
+  { id: 'a-1', label: 'Rumah', recipientName: 'Wahyu', phone: '081234567890', addressLine: 'Jl. Satu 1', city: 'Jakarta', latitude: -6.2, longitude: 106.8, notes: null, isPrimary: true },
+  { id: 'a-2', label: 'Kantor', recipientName: 'Wahyu', phone: '081234567890', addressLine: 'Jl. Dua 2', city: 'Bandung', latitude: -6.9, longitude: 107.6, notes: null, isPrimary: false },
+];
+/** The pin of the second address (lat -6.9) is the one Depot Dua serves. */
+
+
 const depotRow = (id: string, name: string, deliveryFee: number) => ({
   id,
   code: id.toUpperCase(),
@@ -79,9 +90,8 @@ const serve = () => {
   get.mockReset().mockImplementation(async (path: string) => {
     const p = String(path);
     if (p.includes('/cart')) return CART;
-    if (p.includes('/depots/api/v1/depots?')) {
-      return { items: [depotRow('d-1', 'Depot Satu', 5_000)], total: 1, page: 1, limit: 100 };
-    }
+    if (p.includes('/addresses')) return SAVED.slice(0, 1);
+    if (p.includes('/depots/nearby')) return [depotRow('d-1', 'Depot Satu', 5_000)];
     if (p.includes('delivery-options')) return { expressEnabled: false, expressFee: 0, slots: [] };
     if (p.includes('/loyalty/')) return { tier: 'REGULAR', discountRate: 0, pointsBalance: 0 };
     return [];
@@ -134,9 +144,8 @@ describe('checkout prices on the post-promo basket (item 5)', () => {
           },
         };
       }
-      if (p.includes('/depots/api/v1/depots?')) {
-        return { items: [depotRow('d-1', 'Depot Satu', 5_000)], total: 1, page: 1, limit: 100 };
-      }
+      if (p.includes('/addresses')) return SAVED.slice(0, 1);
+      if (p.includes('/depots/nearby')) return [depotRow('d-1', 'Depot Satu', 5_000)];
       if (p.includes('delivery-options')) return { expressEnabled: false, expressFee: 0, slots: [] };
       if (p.includes('/loyalty/')) return { tier: 'REGULAR', discountRate: 0, pointsBalance: 0 };
       return [];

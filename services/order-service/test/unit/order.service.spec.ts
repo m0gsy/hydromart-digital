@@ -11,7 +11,6 @@ import {
   BelowMinimumOrderError,
   ExpressUnavailableError,
   CatalogUnavailableError,
-  DepotRequiredError,
   DepotUnavailableError,
   DuplicateCheckoutError,
   EmptyCartError,
@@ -27,6 +26,7 @@ import {
   OrderNotFoundError,
   OrderNotReviewableError,
   OutOfServiceAreaError,
+  PinRequiredError,
   ProductUnavailableError,
   ResellerVoucherNotAllowedError,
   StaleOrderStatusError,
@@ -75,7 +75,7 @@ const address: DeliveryAddressSnapshot = {
   notes: null,
 };
 
-/** Address with no map pin — the case that now forces an explicit depot choice. */
+/** Address with no map pin — refused at checkout since 2026-11-20 (owner: no pin, no order). */
 const unpinnedAddress: DeliveryAddressSnapshot = { ...address, latitude: null, longitude: null };
 
 /*
@@ -2508,31 +2508,17 @@ describe('OrderService', () => {
   // An order with no depot is invisible to every depot queue and reserves no stock,
   // so checkout refuses one instead of placing it. These four cases are that contract.
   describe('an order always gets a depot', () => {
-    it('refuses an unpinned address when the customer picked no depot', async () => {
+    // Owner decision 2026-11-20: the pin decides the depot, so no pin means no order. A
+    // depot picked from a list priced the order at whichever depot the customer liked.
+    it('refuses an unpinned address before reading the directory or the cart', async () => {
       await addToCart(20000, 1);
+      depots.depots = null as never; // would be DepotUnavailableError if it were read
       await expect(
         service.checkout(customer, { deliveryAddress: unpinnedAddress }),
-      ).rejects.toBeInstanceOf(DepotRequiredError);
+      ).rejects.toBeInstanceOf(PinRequiredError);
       expect(orders.rows).toHaveLength(0);
       expect(inventory.reserveCalls).toHaveLength(0);
       expect(await cart.findByCustomer(customer)).toHaveLength(1); // cart untouched
-    });
-
-    it('uses the depot the customer picked when the address has no pin', async () => {
-      await addToCart(20000, 1);
-      const order = await service.checkout(customer, {
-        deliveryAddress: unpinnedAddress,
-        depotId: homeDepot.id,
-      });
-      expect(order.depotId).toBe(homeDepot.id);
-      expect(inventory.reserveCalls).toHaveLength(1);
-    });
-
-    it('rejects a depot that is not in the active directory', async () => {
-      await addToCart(20000, 1);
-      await expect(
-        service.checkout(customer, { deliveryAddress: unpinnedAddress, depotId: randomUUID() }),
-      ).rejects.toBeInstanceOf(DepotUnavailableError);
     });
 
     // Legacy rows: orders placed back when checkout failed open. HQ has to be able to
@@ -4383,30 +4369,6 @@ describe('OrderService', () => {
     ).rejects.toBeInstanceOf(DepotUnavailableError);
   });
 
-  it('asks for a depot when the address has no coordinates', async () => {
-    depots.depots = [
-      {
-        id: 'depot-near',
-        lat: -6.9,
-        lng: 107.6,
-        serviceRadiusKm: 10,
-        deliveryFee: 7000,
-        minOrderAmount: null,
-      },
-    ];
-    await addToCart(20000, 1);
-    await expect(
-      service.checkout(customer, { deliveryAddress: unpinnedAddress }),
-    ).rejects.toBeInstanceOf(DepotRequiredError);
-    // ...and the picked depot's own fee applies once the customer chooses it.
-    const order = await service.checkout(customer, {
-      deliveryAddress: unpinnedAddress,
-      depotId: 'depot-near',
-    });
-    expect(order.depotId).toBe('depot-near');
-    expect(order.deliveryFee).toBe(7000);
-  });
-
   it('prices lines from the routed depot override, not the catalog base', async () => {
     depots.depots = [
       {
@@ -4471,12 +4433,9 @@ describe('OrderService', () => {
     expect(order.items[0].unitPrice).toBe(20000);
   });
 
-  it('looks up depot prices for the depot the customer picked', async () => {
+  it('looks up depot prices for the depot the pin routed to', async () => {
     await addToCart(20000, 1);
-    await service.checkout(customer, {
-      deliveryAddress: unpinnedAddress,
-      depotId: homeDepot.id,
-    });
+    await service.checkout(customer, { deliveryAddress: address });
     expect(pricing.calls).toHaveLength(1);
     expect(pricing.calls[0].depotId).toBe(homeDepot.id);
   });
