@@ -32,6 +32,7 @@ import {
 } from '@/lib/hr';
 import { can, canManageHr } from '@/lib/roles';
 import { usePagedList } from '@/lib/use-paged-list';
+import { FOCUS_RING, focusRowId, useFocusRow } from '@/lib/use-focus-row';
 
 /** The server's own default page for this endpoint; named here so the footer's count means something. */
 const PAGE_SIZE = 20;
@@ -175,7 +176,13 @@ export default function LeaveQueuePage() {
   const mayApprove = can('leaveApprove', customer?.role);
   // HR gives stage 2, so the queue must open on what is waiting for HR: opening everyone on the
   // manager's stage hid every request HR could act on until the filter was changed by hand.
-  const [status, setStatus] = useState<LeaveStatus | ''>(canManageHr(customer?.role) ? 'PENDING_HR' : 'PENDING_MANAGER');
+  // Flow 6a: a leave push opens this queue on the request it is about.
+  const focusId = useFocusRow();
+  // …and a request a push names is shown whatever its stage: a new one waits on the manager,
+  // and HR's default filter (their own stage) would hide it.
+  const [status, setStatus] = useState<LeaveStatus | ''>(
+    focusId ? '' : canManageHr(customer?.role) ? 'PENDING_HR' : 'PENDING_MANAGER',
+  );
   const [note, setNote] = useState<Record<string, string>>({});
 
   /*
@@ -192,7 +199,7 @@ export default function LeaveQueuePage() {
           true,
         )
         .then((p) => ({ items: p.rows, total: p.total })),
-    [status],
+    [status, focusId],
   );
 
   async function decide(row: LeaveRequest, approve: boolean) {
@@ -262,13 +269,19 @@ export default function LeaveQueuePage() {
       {queue.rows.length > 0 && (
         <Card className="divide-y divide-[color:var(--border)]">
           {queue.rows.map((r) => {
+            const focused = r.id === focusId;
             const waitingHr = r.status === 'PENDING_HR';
             // Stage 2 (PENDING_HR) is `hrAdmin`'s decision on the server — HR, head office, the
             // director — and NOT `leaveApprove`'s. Requiring both hid the button from the
             // director, whom the server accepts, behind a capability that is stage 1's.
             const actionable = waitingHr ? isHr : mayApprove && r.status === 'PENDING_MANAGER';
             return (
-              <div key={r.id} className="space-y-2 p-4">
+              <div
+                key={r.id}
+                id={focusRowId(r.id)}
+                aria-current={focused ? 'true' : undefined}
+                className={`space-y-2 p-4 ${focused ? `${FOCUS_RING} rounded-xl` : ''}`}
+              >
                 <div className="flex items-center justify-between gap-2">
                   {/* PG-06: whose leave this is. The row said the type, the dates and the
                       reason, and offered Approve / Reject — with nothing naming the person

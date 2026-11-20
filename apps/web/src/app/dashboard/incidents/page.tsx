@@ -23,6 +23,7 @@ import { useAuth } from '@/lib/auth-context';
 import { canReadRoster } from '@/lib/drivers-scope';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
+import { FOCUS_RING, focusRowId, useFocusRow } from '@/lib/use-focus-row';
 import { canViewIncidents } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
@@ -373,9 +374,11 @@ function CourierFieldIncidents({ depotId }: { depotId: string }) {
   const { t } = useT();
   const { customer } = useAuth();
   const rosterReadable = canReadRoster(customer?.role);
+  // Flow 6a: a COURIER_INCIDENT push opens this list on the report it is about.
+  const focusId = useFocusRow();
   const incidents = useAsync<FieldIncident[]>(
     () => api.get<FieldIncident[]>(endpoints.deliveries.incidents.forDepot(depotId), true),
-    [depotId],
+    [depotId, focusId],
   );
   // The same roster dispatch uses. It is a name lookup, so its failure is not the list's:
   // an incident with an unresolved courier still reads, it just says less.
@@ -404,7 +407,12 @@ function CourierFieldIncidents({ depotId }: { depotId: string }) {
       ) : (
         <ul className="divide-y divide-[color:var(--border)]">
           {rows.map((i) => (
-            <li key={i.id} className="flex flex-wrap items-start justify-between gap-2 py-2.5">
+            <li
+              key={i.id}
+              id={focusRowId(i.id)}
+              aria-current={i.id === focusId ? 'true' : undefined}
+              className={`flex flex-wrap items-start justify-between gap-2 py-2.5 ${i.id === focusId ? `${FOCUS_RING} rounded-lg` : ''}`}
+            >
               <div className="min-w-0">
                 <p className="text-sm font-semibold">
                   {t(`dashB.incidents.courierCategory.${i.category}`)} · {nameOf(i.driverId)}

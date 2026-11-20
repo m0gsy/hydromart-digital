@@ -2,6 +2,7 @@
 
 import { Badge, Button, Card, ErrorState, SectionHeader, Skeleton } from '@/components/ui';
 import { useT } from '@/lib/locale-context';
+import { FOCUS_RING, focusRowId, useFocusRow } from '@/lib/use-focus-row';
 import { useState } from 'react';
 
 import { api, ApiError } from '@/lib/api';
@@ -23,9 +24,11 @@ const LEVEL_TONE: Record<AnnouncementLevel, 'neutral' | 'warning' | 'danger'> = 
 /** What HR sent to me. The server decides membership; nothing here filters. */
 export default function MyAnnouncementsPage() {
   const { t } = useT();
+  // Flow 6a: an announcement push opens on that announcement (read again for a new one).
+  const focusId = useFocusRow();
   const feed = useAsync<(Announcement & { read: boolean })[]>(
     () => api.get<(Announcement & { read: boolean })[]>(endpoints.hr.announcementsMe, true),
-    [],
+    [focusId],
   );
 
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,13 @@ export default function MyAnnouncementsPage() {
         <Card className="p-5 text-sm text-muted">{t('hrFix.myAnnouncements.empty')}</Card>
       )}
       {(feed.data ?? []).map((a) => (
-        <Card key={a.id} className="space-y-2 p-5">
+        <div
+          key={a.id}
+          id={focusRowId(a.id)}
+          aria-current={a.id === focusId ? 'true' : undefined}
+          className={a.id === focusId ? `${FOCUS_RING} rounded-2xl` : undefined}
+        >
+        <Card className="space-y-2 p-5">
           <div className="flex flex-wrap items-center gap-2">
             <b>{a.title}</b>
             <Badge tone={LEVEL_TONE[a.level]}>{t(ANNOUNCEMENT_LEVEL_LABEL[a.level])}</Badge>
@@ -73,6 +82,7 @@ export default function MyAnnouncementsPage() {
             </Button>
           )}
         </Card>
+        </div>
       ))}
     </div>
   );
