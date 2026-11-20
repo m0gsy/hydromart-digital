@@ -166,6 +166,14 @@ describe('SubscriptionService', () => {
     expect(await subs.findDue(new Date('2030-01-01T00:00:00.000Z'))).toEqual([]);
   });
 
+  it('exports every plan of the person for a PDP request, through the repository', async () => {
+    subs.rows.push({ id: 'x1', customerId: 'cust-exp', addressLine: 'Jl. B 2' } as never);
+    await expect(service.exportPerson('cust-exp')).resolves.toEqual({
+      items: [expect.objectContaining({ id: 'x1', addressLine: 'Jl. B 2' })],
+      truncated: false,
+    });
+  });
+
   it('discountRate: quotes the depot ladder the sweep will actually charge', () => {
     // Same config the sweep prices against — the shop cannot quote a different saving.
     expect(service.discountRate(homeDepot.id)).toBe(0.05);

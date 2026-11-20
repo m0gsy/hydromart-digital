@@ -30,6 +30,7 @@ import {
   CreateSubscriptionForCustomerDto,
   DepotScopeQueryDto,
   PdpAnonymiseDto,
+  PdpSubscriptionExportResponseDto,
 } from './dto/order.dto';
 import {
   SubscriptionNetworkSummaryView,
@@ -258,14 +259,16 @@ export class SubscriptionController {
    * delivers to, which the export left out (it read customer-service's address book only).
    * A POST because the subject travels in the body, as on the erasure beside it.
    */
-  @ApiOkResponse({ type: SubscriptionResponseDto, isArray: true })
+  @ApiOkResponse({ type: PdpSubscriptionExportResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Post('internal/pdp-export')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "One person's subscriptions, for a PDP export (internal)" })
-  pdpExport(@Body() dto: PdpAnonymiseDto): Promise<SubscriptionRecord[]> {
-    return this.subscriptions.list(dto.customerId);
+  pdpExport(
+    @Body() dto: PdpAnonymiseDto,
+  ): Promise<{ items: SubscriptionRecord[]; truncated: boolean }> {
+    return this.subscriptions.exportPerson(dto.customerId);
   }
 }

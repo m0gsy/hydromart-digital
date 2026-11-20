@@ -391,8 +391,17 @@ describe('edges nothing else exercises', () => {
       deliveryWindow: null,
     });
 
+    // Still on the road: the person's number and note go, the destination stays until it lands.
     expect(await repo.erasePerson('cust-1', '+628111')).toBe(1);
+    expect(await repo.findById(created.id)).toMatchObject({
+      recipientPhone: null,
+      notes: null,
+      destinationAddress: 'Jl. Cikini 1',
+    });
 
+    // Delivered: the street and the pin go too (P4).
+    repo.rows.find((r) => r.id === created.id)!.status = 'DELIVERED' as never;
+    await repo.erasePerson('cust-1', null);
     const after = await repo.findById(created.id);
     expect(after).toMatchObject({
       recipientPhone: null,

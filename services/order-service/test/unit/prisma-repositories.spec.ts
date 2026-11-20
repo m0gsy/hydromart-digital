@@ -2228,6 +2228,32 @@ describe('OrderPrismaRepository', () => {
  * writes is the fix: cancel, then scrub. Swap them and an ACTIVE plan keeps delivering to
  * the same door under a blank name, which is worse than doing nothing.
  */
+// P4: a PDP export shows every plan (the screen list keeps 5 cancelled), and says when it stopped.
+describe('SubscriptionPrismaRepository.listAllForExport', () => {
+  const row = { id: 's1', customerId: 'cust-1', addressLine: 'Jl. A 1', latitude: -6.2 };
+  const subscription = { findMany: jest.fn() };
+  const repo = new SubscriptionPrismaRepository({ subscription } as unknown as PrismaService);
+
+  it('reads every plan of the person, cancelled ones included, newest first', async () => {
+    subscription.findMany.mockResolvedValueOnce([row]);
+    const out = await repo.listAllForExport('cust-1');
+    expect(subscription.findMany).toHaveBeenCalledWith({
+      where: { customerId: 'cust-1' },
+      orderBy: { createdAt: 'desc' },
+      take: 1001,
+    });
+    expect(out.truncated).toBe(false);
+    expect(out.items[0]).toMatchObject({ id: 's1', addressLine: 'Jl. A 1', latitude: -6.2 });
+  });
+
+  it('says so when the list stopped at its cap', async () => {
+    subscription.findMany.mockResolvedValueOnce(Array.from({ length: 1001 }, () => row));
+    const out = await repo.listAllForExport('cust-1');
+    expect(out.items).toHaveLength(1000);
+    expect(out.truncated).toBe(true);
+  });
+});
+
 describe('SubscriptionPrismaRepository.erasePerson', () => {
   const subscription = { updateMany: jest.fn() };
   const $transaction = jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops));

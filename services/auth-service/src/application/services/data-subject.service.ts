@@ -543,22 +543,26 @@ export class DataSubjectService {
       );
       customer = { error: 'customer-service unreachable; profile and addresses missing' };
     }
-    const held: Record<string, unknown> = {};
     const subject = { customerId, phone: account?.phone ?? null };
-    for (const source of this.sources ?? []) {
-      try {
-        held[source.section] = await source.collect(subject);
-      } catch (error) {
-        // Named in the payload, like customer-service above: a section missing in silence
-        // would make an incomplete export look complete.
-        this.logger.error(
-          `${source.section} export failed for ${customerId}: ${(error as Error).message}`,
-        );
-        held[source.section] = {
-          error: `${source.section}: layanan tidak menjawab; bagian ini tidak ikut`,
-        };
-      }
-    }
+    // Side by side: each owner has its own timeout, and approve() holds the request meanwhile.
+    const sections = await Promise.all(
+      (this.sources ?? []).map(async (source): Promise<[string, unknown]> => {
+        try {
+          return [source.section, await source.collect(subject)];
+        } catch (error) {
+          // Named in the payload, like customer-service above: a section missing in silence
+          // would make an incomplete export look complete.
+          this.logger.error(
+            `${source.section} export failed for ${customerId}: ${(error as Error).message}`,
+          );
+          return [
+            source.section,
+            { error: `${source.section}: layanan tidak menjawab; bagian ini tidak ikut` },
+          ];
+        }
+      }),
+    );
+    const held = Object.fromEntries(sections);
     return {
       exportedAt: new Date().toISOString(),
       account: account

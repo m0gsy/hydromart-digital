@@ -41,9 +41,14 @@ describe('SubscriptionController', () => {
     expect(service.erasePerson).toHaveBeenCalledWith('c1');
   });
 
-  it('answers a PDP export with the person\'s plans, address snapshot included', async () => {
-    await expect(controller.pdpExport({ customerId: 'c1' } as never)).resolves.toEqual(['sub']);
-    expect(service.list).toHaveBeenCalledWith('c1');
+  it('answers a PDP export with every plan, address snapshot included', async () => {
+    (service as unknown as { exportPerson: jest.Mock }).exportPerson = jest
+      .fn()
+      .mockResolvedValue({ items: ['sub'], truncated: false });
+    await expect(controller.pdpExport({ customerId: 'c1' } as never)).resolves.toEqual({
+      items: ['sub'],
+      truncated: false,
+    });
   });
 
 

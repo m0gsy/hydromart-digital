@@ -94,6 +94,24 @@ export interface AssignInput {
   deliveryWindow?: string;
 }
 
+/** One person's deliveries as a PDP export shows them (see exportPerson). */
+export interface PdpDeliveryExport {
+  truncated: boolean;
+  items: {
+    orderNumber: string;
+    status: string;
+    destinationAddress: string;
+    destinationLat: number | null;
+    destinationLng: number | null;
+    recipientPhone: string | null;
+    notes: string | null;
+    deliveryWindow: string | null;
+    assignedAt: Date;
+    deliveredAt: Date | null;
+    proof: { recipientName: string; latitude: number; longitude: number } | null;
+  }[];
+}
+
 export type ProofInput = Omit<ProofRecord, 'capturedAt'> & {
   /** Device time when the proof was captured offline; absent for a live handover. */
   capturedAt?: Date | null;
@@ -1122,9 +1140,35 @@ export class DeliveryService {
    * Called by auth-service's erasure registry, which reports a dataset it cannot reach as
    * UNENFORCED rather than skipping it — so the endpoint existing is half the fix.
    */
-  /** A PDP export: what this service holds about the person, destination and pin included. */
-  exportPerson(customerId: string, phone: string | null): Promise<DeliveryRecord[]> {
-    return this.deliveries.listForPerson(customerId, phone);
+  /**
+   * A PDP export: what this service holds ABOUT the person — where it went, the pin, the
+   * landmark, who signed. Not the courier's live position, staff ids or raw storage links:
+   * those are other people's data and internal handles.
+   */
+  async exportPerson(customerId: string, phone: string | null): Promise<PdpDeliveryExport> {
+    const { items, truncated } = await this.deliveries.listForPerson(customerId, phone);
+    return {
+      truncated,
+      items: items.map((d) => ({
+        orderNumber: d.orderNumber,
+        status: d.status,
+        destinationAddress: d.destinationAddress,
+        destinationLat: d.destinationLat,
+        destinationLng: d.destinationLng,
+        recipientPhone: d.recipientPhone,
+        notes: d.notes,
+        deliveryWindow: d.deliveryWindow,
+        assignedAt: d.assignedAt,
+        deliveredAt: d.deliveredAt,
+        proof: d.proof
+          ? {
+              recipientName: d.proof.recipientName,
+              latitude: d.proof.latitude,
+              longitude: d.proof.longitude,
+            }
+          : null,
+      })),
+    };
   }
 
   async erasePerson(customerId: string, phone: string | null): Promise<{ erased: number }> {

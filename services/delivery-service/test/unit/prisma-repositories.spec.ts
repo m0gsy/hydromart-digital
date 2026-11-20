@@ -1474,53 +1474,56 @@ describe('DeliveryPrismaRepository.erasePerson', () => {
     expect($transaction).toHaveBeenCalledTimes(1);
     // OR on the phone: a delivery created before the customer registered has the number
     // and no id, and that is the row the audit counted.
-    // The destination too (P4): the street and the pin are where the person lives.
-    expect(delivery.updateMany).toHaveBeenCalledWith({
-      where: { OR: [{ customerId: 'cust-1' }, { recipientPhone: '+628111' }] },
-      data: {
-        recipientPhone: null,
-        notes: null,
-        destinationAddress: '',
-        destinationLat: null,
-        destinationLng: null,
-      },
-    });
+    const match = { OR: [{ customerId: 'cust-1' }, { recipientPhone: '+628111' }] };
     // The recipient NAME only. Photo, signature and GPS belong to the 365-day retention
     // sweep, which deletes the objects too — racing it here would strand files.
     expect(proofOfDelivery.updateMany).toHaveBeenCalledWith({
-      where: { delivery: { OR: [{ customerId: 'cust-1' }, { recipientPhone: '+628111' }] } },
+      where: { delivery: match },
       data: { recipientName: '' },
     });
+    // The street and the pin (P4), only where the delivery is over: a live one still has to
+    // arrive, and on a shared number it can be someone else's order on the road.
+    expect(delivery.updateMany).toHaveBeenNthCalledWith(1, {
+      where: { ...match, status: { in: ['DELIVERED', 'FAILED'] } },
+      data: { destinationAddress: '', destinationLat: null, destinationLng: null },
+    });
+    expect(delivery.updateMany).toHaveBeenNthCalledWith(2, {
+      where: match,
+      data: { recipientPhone: null, notes: null },
+    });
+    // Every filter reads recipientPhone, so the statement that clears it runs LAST — with it
+    // first, a row made before registration (no customerId) was never matched again.
+    expect(proofOfDelivery.updateMany.mock.invocationCallOrder[0]).toBeLessThan(
+      delivery.updateMany.mock.invocationCallOrder[1],
+    );
   });
 
   it('falls back to the id alone when no phone is known', async () => {
     await repo.erasePerson('cust-1', null);
-    expect(delivery.updateMany).toHaveBeenCalledWith({
+    expect(delivery.updateMany).toHaveBeenLastCalledWith({
       where: { OR: [{ customerId: 'cust-1' }] },
-      data: {
-        recipientPhone: null,
-        notes: null,
-        destinationAddress: '',
-        destinationLat: null,
-        destinationLng: null,
-      },
+      data: { recipientPhone: null, notes: null },
     });
   });
 
-  it('lists one person for an export, by id or by the number on older rows, bounded', async () => {
+  it('exports only the person: their account, and number-only rows from before it', async () => {
     const findMany = jest.fn().mockResolvedValue([]);
     Object.assign(delivery, { findMany });
-    await repo.listForPerson('cust-1', '+628111');
+    await expect(repo.listForPerson('cust-1', '+628111')).resolves.toEqual({
+      items: [],
+      truncated: false,
+    });
+    // Not every row with the number: a recycled number would hand over someone else's home.
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { OR: [{ customerId: 'cust-1' }, { recipientPhone: '+628111' }] },
+        where: { OR: [{ customerId: 'cust-1' }, { customerId: null, recipientPhone: '+628111' }] },
         orderBy: { createdAt: 'desc' },
-        take: 1000,
+        take: 1001,
       }),
     );
     await repo.listForPerson('cust-1', null);
     expect(findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({ where: { OR: [{ customerId: 'cust-1' }] } }),
+      expect.objectContaining({ where: { customerId: 'cust-1' } }),
     );
   });
 });

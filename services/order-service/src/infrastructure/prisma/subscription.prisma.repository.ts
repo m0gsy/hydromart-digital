@@ -107,6 +107,17 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
    * hiding one would hide a standing charge. Cancelled ones are kept, but bounded — the
    * recent few, which is what "what did I cancel?" ever means.
    */
+  /** Every plan of one person, for a PDP export (listByCustomer keeps 5 cancelled, a screen's worth). */
+  async listAllForExport(customerId: string): Promise<{ items: SubscriptionRecord[]; truncated: boolean }> {
+    const rows = await this.prisma.subscription.findMany({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+      // ponytail: one person's plans; the cap only bounds a pathological account, and says so.
+      take: 1001,
+    });
+    return { items: rows.slice(0, 1000).map((r) => this.toRecord(r)), truncated: rows.length > 1000 };
+  }
+
   async listByCustomer(customerId: string): Promise<SubscriptionRecord[]> {
     const [live, cancelled] = await Promise.all([
       this.prisma.subscription.findMany({
