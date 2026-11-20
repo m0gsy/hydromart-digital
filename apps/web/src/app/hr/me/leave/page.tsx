@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useT } from '@/lib/locale-context';
+import { FOCUS_RING, focusRowId, useFocusRow } from '@/lib/use-focus-row';
 
 import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
@@ -51,9 +52,11 @@ export default function MyLeavePage() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Flow 6a: a decision push opens the request it is about (read again for a new one).
+  const focusId = useFocusRow();
   const requests = useAsync<HrPage<LeaveRequest>>(
     () => api.get<HrPage<LeaveRequest>>(endpoints.hr.leaveMe({ pageSize: 50 }), true),
-    [],
+    [focusId],
   );
   const balance = useAsync<LeaveBalance>(
     () => api.get<LeaveBalance>(endpoints.hr.leaveBalanceMe(), true),
@@ -172,7 +175,12 @@ export default function MyLeavePage() {
             <p className="p-5 text-sm text-muted">{t('hrFix.myLeave.empty')}</p>
           )}
           {requests.data.rows.map((r) => (
-            <div key={r.id} className="space-y-1 p-4">
+            <div
+              key={r.id}
+              id={focusRowId(r.id)}
+              aria-current={r.id === focusId ? 'true' : undefined}
+              className={`space-y-1 p-4 ${r.id === focusId ? `${FOCUS_RING} rounded-xl` : ''}`}
+            >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">{t(LEAVE_TYPE_LABEL[r.type])}</span>
                 <Badge tone={TONE[r.status]}>{t(LEAVE_STATUS_LABEL[r.status])}</Badge>
