@@ -13,7 +13,7 @@ import { depotOwnerIds } from '@/lib/depots';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { canManageDepots } from '@/lib/roles';
+import { canManageDepotLifecycle, canManageDepots } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
   Customer,
@@ -55,6 +55,8 @@ export default function HqDepotDetailPage() {
   // button whose every save answered 403; it is no longer shown. Super admin keeps it.
   const { customer } = useAuth();
   const canEdit = canManageDepots(customer?.role);
+  // Closing and reopening are head office's (depotLifecycle): shown only to who may do them.
+  const canLifecycle = canManageDepotLifecycle(customer?.role);
   const [reactivateError, setReactivateError] = useState<string | null>(null);
   // Another depot on the same page: the refusal was about the one before it.
   useEffect(() => setReactivateError(null), [id]);
@@ -189,15 +191,16 @@ export default function HqDepotDetailPage() {
                 {t('hq.depotDetail.edit')}
               </Button>
             )}
-            {d.active ? (
-              <Button variant="danger" onClick={() => setSuspendOpen(true)} disabled={busy}>
-                {t('hq.depotDetail.suspend')}
-              </Button>
-            ) : (
-              <Button variant="primary" onClick={reactivate} loading={busy}>
-                {t('hq.depotDetail.reactivate')}
-              </Button>
-            )}
+            {canLifecycle &&
+              (d.active ? (
+                <Button variant="danger" onClick={() => setSuspendOpen(true)} disabled={busy}>
+                  {t('hq.depotDetail.suspend')}
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={reactivate} loading={busy}>
+                  {t('hq.depotDetail.reactivate')}
+                </Button>
+              ))}
           </div>
         </div>
       </div>
@@ -207,7 +210,7 @@ export default function HqDepotDetailPage() {
         </p>
       )}
 
-      {editing && canEdit && (
+      {editing && (
         <DepotForm
           key={d.id}
           depot={d}

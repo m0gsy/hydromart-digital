@@ -218,5 +218,20 @@ describe('who is offered the edit form (owner decision 2026-11-21)', () => {
     );
     expect(await screen.findByText('Depot Menteng')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^(Ubah|Edit)$/i })).toBeNull();
+    // …while closing the depot, which is head office's, stays.
+    expect(screen.getByRole('button', { name: /Tangguhkan|Suspend/i })).toBeTruthy();
+  });
+
+  it('shows a role that may neither edit nor close a depot neither button', async () => {
+    auth.role = 'FINANCE';
+    serveDepot();
+    render(
+      <LocaleProvider>
+        <HqDepotDetailPage />
+      </LocaleProvider>,
+    );
+    expect(await screen.findByText('Depot Menteng')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^(Ubah|Edit)$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Tangguhkan|Suspend/i })).toBeNull();
   });
 });
