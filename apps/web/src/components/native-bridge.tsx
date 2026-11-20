@@ -8,6 +8,7 @@ import { callPlugin, askPlugin, onPluginEvent } from '@/lib/capacitor';
 import { resolveDeepLink } from '@/lib/deep-link';
 import { translate } from '@/lib/locale-context';
 import { consoleHome } from '@/lib/roles';
+import { pushTarget } from '@/lib/notification-link';
 import { normalisePath } from '@/lib/screen-chrome';
 import { getSession } from '@/lib/session-store';
 import { persistSafeAreaInsets } from '@/lib/safe-area-persist';
@@ -137,7 +138,8 @@ export function NativeBridge() {
       // Set HERE and not at the ask, so a blocked run leaves the launch URL unspent and the
       // next mount can still act on it.
       launchHandled = true;
-      router.push(path);
+      // Flow 6a: a screen this reader's role is refused sends them to their own feed instead.
+      router.push(pushTarget(path, getSession()?.customer?.role));
     };
 
     const recheck = () => {

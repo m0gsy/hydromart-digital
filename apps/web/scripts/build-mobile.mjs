@@ -96,7 +96,8 @@ const TARGETS = {
  */
 const SURFACES = {
   customer: {
-    serves: ['products', 'orders/detail', 'checkout', 'account', 'hapus-akun', 'waralaba'],
+    // `subscriptions`: SUBSCRIPTION_PAUSED's destination (flow 6a).
+    serves: ['products', 'orders/detail', 'checkout', 'account', 'hapus-akun', 'waralaba', 'subscriptions'],
     withholds: ['hq', 'hr', 'dashboard', 'driver', 'm', 'resellers'],
   },
   ops: {
@@ -114,6 +115,15 @@ const SURFACES = {
       // Flow PR-4 (owner decision 2026-11-17): a manager approves leave from the phone.
       'hr/leave',
       'm/manager',
+      // Flow 6a: where the depot and HR pushes land (crm notification-destination.ts).
+      'dashboard/inventory',
+      'dashboard/meter',
+      'dashboard/incidents',
+      'dashboard/reports',
+      'dashboard/orders',
+      'hr/me/leave',
+      'hr/me/announcements',
+      'hr/me/payroll/detail',
     ],
     withholds: ['hq', 'hr/payroll', 'hr/employees'],
   },

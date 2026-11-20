@@ -91,6 +91,28 @@ const PRUNED = (process.env.NEXT_PUBLIC_MOBILE_PRUNED ?? '').split(',').filter(B
 const SEGMENTS = (process.env.NEXT_PUBLIC_MOBILE_SEGMENTS ?? '').split(',').filter(Boolean);
 
 /**
+ * Flow 6a (plan PR-6): a notification destination written for the phone that has a desktop
+ * twin. An approval push names the manager's PHONE console; on the desktop console the same
+ * request opens on `/dashboard/approvals`. Applied to notification destinations only (the
+ * desktop feed, and `public/sw.js` for a browser push), never in `resolveDeepLink`: a login
+ * `next` back to the phone console must stay there. test/sw-deep-link-parity.test.ts holds
+ * this list and sw.js's together.
+ */
+export const WEB_TWINS: readonly (readonly [string, string])[] = [
+  ['/m/manager/approvals', '/dashboard/approvals'],
+];
+
+/** The desktop twin of a destination (path and query), or the destination itself. */
+export function webTwin(destination: string): string {
+  for (const [phone, desk] of WEB_TWINS) {
+    if (destination === phone || destination.startsWith(`${phone}/`) || destination.startsWith(`${phone}?`)) {
+      return desk + destination.slice(phone.length);
+    }
+  }
+  return destination;
+}
+
+/**
  * Does THIS binary serve `path`? Exported because in-app navigation needs the same answer a
  * deep link does: the Ops binary drops the whole `/hq` subtree, and every console screen used
  * to send an expired session to `/hq/login` — a route that is not in that bundle. Sign-out and
