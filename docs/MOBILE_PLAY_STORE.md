@@ -156,16 +156,25 @@ tampilan, yang ditangani sistem tanpa service milik aplikasi. Bila itu berubah �
 pelacakan kurir dipindah ke foreground service — deklarasinya WAJIB diisi dan barisnya
 harus kembali ke sini sebagai keputusan baru.
 
-**Halaman 16 KB (Android 15+).** Repo bungkam soal ini, jadi dicatat sekarang: syaratnya
-berlaku untuk **pustaka native (`.so`)**, dan aplikasi ini tidak mengirim satu pun kode
-native miliknya sendiri — tidak ada `ndk`, tidak ada `abiFilters`, tidak ada modul NDK di
-`build.gradle`. Yang bisa membawa `.so` adalah plugin pihak ketiga; hari ini tidak ada yang
-melakukannya. `compileSdk`/`targetSdk` sudah 36, jadi ambang Play-nya terpenuhi. Yang harus
-dijaga adalah aturannya, bukan angkanya: **plugin baru yang membawa `.so` mengubah jawaban
-ini**, dan pemeriksanya satu perintah pada AAB yang sudah dibangun:
+**Halaman 16 KB (Android 15+).** Syaratnya berlaku untuk **pustaka native (`.so`) 64-bit**
+(`arm64-v8a`, `x86_64`). Aplikasi ini tidak mengirim kode native miliknya sendiri — tidak ada
+`ndk`, tidak ada `abiFilters`, tidak ada modul NDK di `build.gradle` — tetapi dependensinya
+membawa beberapa. Teks lama di sini menyebut "tidak ada" dan itu salah: AAB v1.15.0 dan
+v1.16.0 (diukur 2026-11-21) sama-sama membawa:
+
+| `.so`                                              | Dibawa oleh                                | Binari   |
+| -------------------------------------------------- | ------------------------------------------ | -------- |
+| `libdatastore_shared_counter.so`                   | androidx.datastore                         | keduanya |
+| `libStarLogger.so`, `libStarXpandCommandParser.so` | SDK printer Star (plugin printer termal)   | Ops saja |
+
+Semua salinan 64-bit-nya ber-alignment 16 KB (`p_align` 0x4000 di setiap segmen `LOAD`).
+Salinan 32-bit SDK Star masih 4 KB; aturan 16 KB tidak berlaku untuk 32-bit.
+`compileSdk`/`targetSdk` sudah 36. Yang harus dijaga: **`.so` di luar tabel ini berarti
+plugin baru membawa kode native**, dan alignment 64-bit-nya harus diperiksa (misalnya
+`llvm-readelf -l` dari NDK, kolom `Align` tiap `LOAD` minimal `0x4000`) sebelum unggah:
 
 ```bash
-unzip -l app-release.aab | grep '\.so$'   # kosong = tidak ada pustaka native sama sekali
+unzip -Z1 hydromart-ops.aab | grep '\.so$'   # hanya nama dari tabel di atas, per ABI
 ```
 
 Satu lagi yang hanya terlihat di manifest hasil merge:
@@ -708,7 +717,7 @@ salah.
 | 10  | assetlinks masih benar               | `curl -s https://hydromart-digital.com/.well-known/assetlinks.json`                                          | 3 sidik jari per `package_name`                     |
 | 11  | Tag, lalu tunggu                     | `git tag mobile-v1.4.1 && git push origin mobile-v1.4.1` lalu `gh run watch`                                 | job `bundle` hijau (≈20–45 menit)                   |
 | 12  | Ambil AAB-nya                        | `gh run download <run-id> -n hydromart-aab-1.4.1`                                                            | `hydromart-customer.aab` + `hydromart-ops.aab`      |
-| 13  | Tidak ada pustaka native menyelundup | `unzip -l hydromart-customer.aab` lalu cari akhiran `.so`                                                    | **kosong** — lihat "Halaman 16 KB" di bagian 2      |
+| 13  | Tidak ada pustaka native baru        | `unzip -Z1` tiap AAB, ambil yang berakhiran `.so`                                                            | hanya `.so` dari tabel "Halaman 16 KB" di bagian 2  |
 | 14  | Catat `versionCode`-nya              | log run, step **Version numbers**                                                                            | angkanya, di catatan rilis Anda                     |
 | 15  | Unggah                               | Play Console → **Testing → Internal testing → Create new release**                                           | dua rilis, satu per aplikasi                        |
 | 16  | Catatan rilis                        | kolom **Release notes**, `id-ID`                                                                             | Bahasa Indonesia, apa yang berubah                  |
