@@ -51,8 +51,13 @@ export class IdentityHttpAdapter implements IdentityPort {
   async updateStaffProfile(input: UpdateStaffProfileInput): Promise<void> {
     // The one call here that can legitimately be refused by DATA rather than by an outage:
     // the number belongs to somebody else. A 503 "auth-service menolak (409)" told the
-    // person editing to try again later, which would never work.
-    await this.post('auth/internal/staff/profile', input, 'Nomor HP ini sudah dipakai akun lain');
+    // person editing to try again later, which would never work. An UNUSED customer account
+    // on the number no longer refuses — auth closes it — so what is left is named here.
+    await this.post(
+      'auth/internal/staff/profile',
+      input,
+      'Nomor HP ini sudah dipakai akun lain: staf lain, atau pelanggan yang sudah punya pesanan, langganan, atau poin',
+    );
   }
 
   private async post<T>(path: string, input: unknown, conflictMessage?: string): Promise<T> {

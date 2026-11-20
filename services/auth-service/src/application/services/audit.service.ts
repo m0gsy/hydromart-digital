@@ -47,6 +47,8 @@ export enum AuditAction {
   // table is read by staff, and a phone number is the identity itself.
   PHONE_CHANGE_REQUESTED = 'auth.phone.change_requested',
   PHONE_CHANGED = 'auth.phone.changed',
+  // HR moved a staff login onto its real number, closing the unused customer account there.
+  DUPLICATE_CUSTOMER_CLOSED = 'auth.customer.duplicate_closed',
 }
 
 /**
