@@ -506,6 +506,16 @@ export class CreateSubscriptionForCustomerDto {
   @ApiProperty({ format: 'date-time', description: 'First scheduled delivery.' })
   @IsDateString()
   firstDeliveryAt!: string;
+
+  /**
+   * 2026-11-20: the depot making the plan. A plan its customer's address routes to ANOTHER
+   * depot is refused (the sweep would deliver, price and credit it there). Optional so a
+   * depot-service image older than this field is not refused by the whitelist.
+   */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  depotId?: string;
 }
 
 /** P3-3: the depot change to dry-run against every active plan (absent = unchanged). */
@@ -536,6 +546,13 @@ export class SubscriptionReroutePreviewDto {
   @Min(0)
   @Max(1000)
   serviceRadiusKm?: number;
+
+  /** P3-4: a redrawn area (rings of {lat, lng}); null clears it. Shape checked in the handler. */
+  @ApiPropertyOptional({ nullable: true, description: 'Rings of { lat, lng }; null clears the area.' })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  serviceArea?: { lat: number; lng: number }[][] | null;
 }
 
 /** Optional depot scope: which depot's subscription discount to answer against. */

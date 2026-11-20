@@ -2941,6 +2941,8 @@ export interface DepotCustomerAddress {
   latitude: number | null;
   longitude: number | null;
   isPrimary: boolean;
+  /** CA-2-53: sent back with a pin fix. */
+  updatedAt?: string;
   /** null while the depot serviceRadiusKm port is unwired. */
   inRadius: boolean | null;
   distanceKm: number | null;
