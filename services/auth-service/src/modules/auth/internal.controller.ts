@@ -20,6 +20,7 @@ import { PublicCustomerDto } from './dto/responses.dto';
 import {
   AssignStaffRoleDto,
   LookupCustomerIdsDto,
+  StaffByRolesDto,
   PreRegisterCustomerDto,
   PreRegisterResultDto,
   ProvisionManagedStaffDto,
@@ -68,6 +69,18 @@ export class InternalAccountController {
     @Param('depotId', new ParseUUIDPipe()) depotId: string,
   ): Promise<DepotStaffIdsDto> {
     return { ids: await this.account.staffIdsForDepot(depotId) };
+  }
+
+  /**
+   * Flow 6b: the network-wide holders of a decision (finance, head office...), who belong to no
+   * depot roster. Ids only, for the same reason as the depot route above.
+   */
+  @ApiOkResponse({ type: DepotStaffIdsDto })
+  @Post('staff/by-roles')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Active staff account ids holding any of these roles (internal service auth)' })
+  async staffIdsByRoles(@Body() dto: StaffByRolesDto): Promise<DepotStaffIdsDto> {
+    return { ids: await this.account.staffIdsByRoles(dto.roles) };
   }
 
   @ApiOkResponse({ type: PublicCustomerDto })

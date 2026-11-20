@@ -182,6 +182,12 @@ export function destinationFor(
       return forDepot(withId('/dashboard/incidents', vars.incidentId), options.depotId);
     case NotificationEvent.DEPOT_SALES_UPDATE:
       return forDepot('/dashboard/reports', options.depotId);
+    // Flow 6b: the screen that decides it. Settlements is in the Ops APK; pricing is head
+    // office's, which no APK carries (a tap there lands home, the web opens it).
+    case NotificationEvent.COURIER_SETTLEMENT_SUBMITTED:
+      return forDepot(withId('/dashboard/settlements', vars.settlementId), options.depotId);
+    case NotificationEvent.PRICE_OVERRIDE_PROPOSED:
+      return '/hq/pricing';
     case NotificationEvent.LEAVE_SUBMITTED:
       return options.leaveScreen ? withId('/hr/leave', vars.leaveId) : INBOX;
     case NotificationEvent.LEAVE_APPROVED:

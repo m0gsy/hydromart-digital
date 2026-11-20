@@ -46,6 +46,9 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   DEPOT_PAYMENT_PROOF: 'orders',
   DEPOT_PAYMENT_UNCONFIRMED: 'orders',
   APPROVAL_REQUESTED: 'orders',
+  // Flow 6b: the courier's cash is a courier matter; a price change is the depot's sales.
+  COURIER_SETTLEMENT_SUBMITTED: 'courier',
+  PRICE_OVERRIDE_PROPOSED: 'sales',
   COURIER_DELIVERY_ASSIGNED: 'courier',
   DELIVERY_SLA_BREACHED: 'courier',
   STOCK_LOW: 'stock',

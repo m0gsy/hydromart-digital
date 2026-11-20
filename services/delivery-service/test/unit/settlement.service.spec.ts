@@ -27,6 +27,7 @@ import {
   InMemoryDeliveryRepository,
   InMemorySettlementRepository,
   InMemoryShiftRepository,
+  FakeOpsNotifier,
 } from '../support/fakes';
 
 const DEPOT_ID = '00000000-0000-4000-8000-000000000001';
@@ -162,6 +163,27 @@ describe('SettlementService', () => {
       const settlement = await service.submit(driver, shift.id, 150000, AUTH);
       expect(settlement.expectedAmount).toBe(150000);
       expect(settlement.variance).toBe(0);
+    });
+
+    // Flow 6b: the accounts that may verify the cash are told; the settlement never waits on it.
+    it('tells the verifiers once the cash is recorded, and survives an alert that fails', async () => {
+      const ops = new FakeOpsNotifier();
+      const told = new SettlementService(settlementRepo, shiftRepo, deliveryRepo, cash, payout, {
+        settlementExpectFromCod: () => true,
+      } as never, ops);
+      const shift = endShift();
+      await deliverCodOrder(150000);
+      cash.result = { total: 0, count: 0, byOrder: [] };
+
+      const settlement = await told.submit(driver, shift.id, 145000, AUTH);
+      await new Promise((r) => setImmediate(r));
+      expect(ops.settlements).toEqual([
+        { settlementId: settlement.id, depotId: DEPOT_ID, depositedAmount: 145000, variance: -5000 },
+      ]);
+
+      ops.throwOnAlert = true;
+      const second = endShift();
+      await expect(told.submit(driver, second.id, 0, AUTH)).resolves.toBeTruthy();
     });
 
     it('writes nothing — a preview is a read', async () => {

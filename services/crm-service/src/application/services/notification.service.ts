@@ -6,12 +6,16 @@ import {
   storedDestinationFor,
 } from '../../domain/notification-destination';
 import { DestinationBrakesPort } from '../ports/destination-brakes.port';
+import { ApproverDirectoryPort } from '../ports/approver-directory.port';
+import { can, rolesFor, type Capability } from '@hydromart/access';
+import { effectiveScope } from '@hydromart/platform';
 import {
   MessageLocale,
   NotificationEvent,
   OPS_EVENTS,
   OVERSEER_EVENTS,
   STAFF_TOGGLE_FOR_EVENT,
+  APPROVER_CAP_FOR_EVENT,
   renderMessage,
   templateFor,
 } from '../../domain/notification-event';
@@ -64,7 +68,34 @@ export class NotificationService {
     @Optional()
     @Inject(CRM_TOKENS.DestinationBrakes)
     private readonly brakes?: DestinationBrakesPort,
+    // Flow 6b. Optional: without it a decision event wakes nobody (its row is still in the feed).
+    @Optional()
+    @Inject(CRM_TOKENS.ApproverDirectory)
+    private readonly approvers?: ApproverDirectoryPort,
   ) {}
+
+  /**
+   * Flow 6b: the accounts that may make the decision this event asks for. The depot's own
+   * staff and its overseers, plus every account in a network-wide role holding the capability,
+   * each checked with `can(cap, role, [depot])` so a per-depot GRANT/DENY decides as the route
+   * would. Throws when the directory cannot be read; the caller logs and pushes nobody.
+   */
+  private async approversFor(cap: Capability, depotId: string | null): Promise<string[]> {
+    if (!this.approvers) return [];
+    const local = depotId && this.depotStaff ? await this.depotStaff.staffIdsForDepot(depotId) : [];
+    const above =
+      depotId && this.overseers ? await this.overseers.overseersOfDepot(depotId).catch(() => []) : [];
+    // SUPER_ADMIN holds every capability; it is nobody's queue, and waking every superuser for
+    // every courier's cash would only teach them to mute approvals they do need.
+    const networkRoles = rolesFor(cap).filter((r) => r !== 'SUPER_ADMIN' && effectiveScope(r) === 'GLOBAL');
+    const network = await this.approvers.staffIdsByRoles(networkRoles);
+    const ids = [...new Set([...local, ...above, ...network])];
+    const roles = await this.approvers.rolesOf(ids);
+    return ids.filter((id) => {
+      const role = roles.get(id);
+      return role !== undefined && can(cap, role, depotId ? [depotId] : undefined);
+    });
+  }
 
   /** Only the event behind a brake pays for reading it. */
   private async destinationOptions(event: NotificationEvent): Promise<DestinationOptions> {
@@ -181,10 +212,23 @@ export class NotificationService {
       .catch((e) => this.logger.warn(`Broadcast push for depot ${depotId} failed: ${(e as Error).message}`));
   }
 
-  private pushToDepotStaff(event: NotificationEvent, message: string, depotId: string, vars: Record<string, string>): void {
+  private pushToDepotStaff(
+    event: NotificationEvent,
+    message: string,
+    depotId: string | null,
+    vars: Record<string, string>,
+  ): void {
     const url = destinationFor(event, vars, { depotId });
-    if (!this.depotStaff) return;
-    void this.recipientsForDepot(event, depotId)
+    const cap = APPROVER_CAP_FOR_EVENT[event];
+    // Flow 6b: a decision goes to the accounts that may make it; any other depot alert to the
+    // depot's staff (and its overseers for the alerts that say something is wrong).
+    const recipients = cap
+      ? this.approversFor(cap, depotId)
+      : depotId && this.depotStaff
+        ? this.recipientsForDepot(event, depotId)
+        : null;
+    if (!recipients) return;
+    void recipients
       .then(async (ids) => {
         if (ids.length === 0) {
           this.logger.warn(`${event} for depot ${depotId}: no staff to push to`);
@@ -321,7 +365,7 @@ export class NotificationService {
         // A customer who muted push has not suffered a failed delivery — `pushAllowedFor`
         // resolves, nothing is sent, and the row stays SENT. Only a throw lands here.
         .catch(failed);
-    } else if (depotId && OPS_EVENTS.includes(event)) {
+    } else if (APPROVER_CAP_FOR_EVENT[event] || (depotId && OPS_EVENTS.includes(event))) {
       // No customer to push to, but a depot whose staff this is for. The preference check
       // above is deliberately NOT applied: it is a customer's mute on their own order
       // updates, not a staff member's opt-out from an incident at the depot they work at.
@@ -343,8 +387,22 @@ export class NotificationService {
     staffId: string,
     depotIds?: readonly string[],
     limit = 50,
+    role?: string | null,
   ): Promise<OpsNotificationRecord[]> {
-    return this.repo.listOpsFeedFor(OPS_EVENTS, staffId, clampLimit(limit), depotIds);
+    return this.repo.listOpsFeedFor(this.feedEvents(role, depotIds), staffId, clampLimit(limit), depotIds);
+  }
+
+  /**
+   * Flow 6b: a decision's row is for the readers who may make it. A courier's cash and its
+   * shortfall is not the other couriers' business, and a price change is head office's: the
+   * depot feed is read by everyone at the depot. `undefined` (no reader named) is every event.
+   */
+  private feedEvents(role: string | null | undefined, depotIds?: readonly string[]): NotificationEvent[] {
+    if (role === undefined) return OPS_EVENTS;
+    return OPS_EVENTS.filter((event) => {
+      const cap = APPROVER_CAP_FOR_EVENT[event];
+      return !cap || can(cap, role, depotIds);
+    });
   }
 
   /** Mark one ops notification read for this staff member. Idempotent; null when unknown. */
@@ -353,8 +411,13 @@ export class NotificationService {
   }
 
   /** Mark the whole current feed window read for this staff member. Idempotent. */
-  async markAllOpsRead(staffId: string, depotIds?: readonly string[], limit = 50): Promise<number> {
-    return this.repo.markAllOpsRead(OPS_EVENTS, staffId, clampLimit(limit), depotIds);
+  async markAllOpsRead(
+    staffId: string,
+    depotIds?: readonly string[],
+    limit = 50,
+    role?: string | null,
+  ): Promise<number> {
+    return this.repo.markAllOpsRead(this.feedEvents(role, depotIds), staffId, clampLimit(limit), depotIds);
   }
 }
 

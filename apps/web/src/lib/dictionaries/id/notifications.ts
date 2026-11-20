@@ -33,6 +33,8 @@ export const notifications = {
     RESELLER_PRICE_CHANGED: 'Harga reseller berubah',
     SUBSCRIPTION_PAUSED: 'Langganan dijeda',
     APPROVAL_REQUESTED: 'Menunggu persetujuan',
+    COURIER_SETTLEMENT_SUBMITTED: 'Setoran kurir menunggu verifikasi',
+    PRICE_OVERRIDE_PROPOSED: 'Usulan perubahan harga',
     PAYMENT_FAILED: 'Pembayaran belum berhasil',
     PAYMENT_REMINDER: 'Selesaikan pembayaran',
     REFUND_PROCESSED: 'Refund diproses',

@@ -65,6 +65,7 @@ import {
   OpsIncidentAlert,
   OpsNotifierPort,
   OpsSlaBreachAlert,
+  OpsSettlementAlert,
 } from '../../src/application/ports/ops-notifier.port';
 import {
   CashCollected,
@@ -776,6 +777,12 @@ export class FakeOpsNotifier implements OpsNotifierPort {
     if (this.slaAlertFails) return false;
     this.slaAlerts.push(alert);
     return true;
+  }
+
+  settlements: OpsSettlementAlert[] = [];
+  async settlementSubmitted(alert: OpsSettlementAlert): Promise<void> {
+    if (this.throwOnAlert) throw new Error('crm down');
+    this.settlements.push(alert);
   }
 }
 

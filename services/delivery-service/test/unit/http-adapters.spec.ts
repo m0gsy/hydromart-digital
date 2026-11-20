@@ -239,6 +239,20 @@ describe('OpsNotifierHttpAdapter', () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     await expect(new OpsNotifierHttpAdapter(makeConfig()).slaBreached(breach)).resolves.toBe(false);
   });
+
+  // Flow 6b: a courier's cash handed in, for crm to send to the accounts that verify it.
+  it('POSTs a COURIER_SETTLEMENT_SUBMITTED with the amounts as copy', async () => {
+    fetchMock.mockResolvedValue(res({ ok: true }));
+    await new OpsNotifierHttpAdapter(makeConfig()).settlementSubmitted({
+      settlementId: 'st-1',
+      depotId: 'dep-1',
+      depositedAmount: 1500000,
+      variance: -5000,
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body).toMatchObject({ event: 'COURIER_SETTLEMENT_SUBMITTED', depotId: 'dep-1' });
+    expect(body.vars).toEqual({ settlementId: 'st-1', amount: 'Rp 1.500.000', variance: '-Rp 5.000' });
+  });
 });
 
 describe('CashCollectionHttpAdapter', () => {

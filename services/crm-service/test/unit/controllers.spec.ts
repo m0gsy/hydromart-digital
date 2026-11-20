@@ -147,7 +147,8 @@ describe('NotificationController', () => {
     const out = await new NotificationController(notifications as never).listOps(user);
     // O6: the caller's depot scope rides along. This `user` is an HQ role with no depot of
     // its own, so the scope is `undefined` — "every depot", which is what it saw before.
-    expect(notifications.listOpsFeed).toHaveBeenCalledWith('user-1', undefined);
+    // Flow 6b: and the reader's role, which decides the decision rows they see.
+    expect(notifications.listOpsFeed).toHaveBeenCalledWith('user-1', undefined, undefined, user.role);
     expect(out[0].readAt).toBeNull();
   });
 
@@ -159,7 +160,7 @@ describe('NotificationController', () => {
     const notifications = { listOpsFeed: jest.fn().mockResolvedValue([ops]) };
     const staff = { sub: 'staff-1', role: 'STAFF_DEPOT', depotId: 'depot-a' } as never;
     await new NotificationController(notifications as never).listOps(staff);
-    expect(notifications.listOpsFeed).toHaveBeenCalledWith('staff-1', ['depot-a']);
+    expect(notifications.listOpsFeed).toHaveBeenCalledWith('staff-1', ['depot-a'], undefined, 'STAFF_DEPOT');
   });
 
   it('marks one ops notification read', async () => {

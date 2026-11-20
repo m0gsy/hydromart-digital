@@ -3,9 +3,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DeliveryConfigService } from '../../config/delivery-config.service';
 import {
   OpsIncidentAlert,
+  OpsSettlementAlert,
   OpsNotifierPort,
   OpsSlaBreachAlert,
 } from '../../application/ports/ops-notifier.port';
+
+/** "Rp 150.000", "-Rp 5.000": the copy crm puts in front of the verifier. */
+function idr(n: number): string {
+  return `${n < 0 ? '-' : ''}Rp ${Math.abs(Math.round(n)).toLocaleString('id-ID')}`;
+}
 
 /**
  * Pushes operational alerts to crm-service's internal notification endpoint — they land
@@ -13,8 +19,8 @@ import {
  * Authenticated by the shared INTERNAL_SERVICE_KEY (x-internal-key). Alerting is OFF
  * when the crm URL, the internal key or the ops phone is blank (the dev default).
  *
- * The two callers want different things from a failure, and that is the only difference
- * between them:
+ * The callers want different things from a failure, and that is the only difference
+ * between them (settlementSubmitted forgets, like incidentReported: the settlement is stored):
  *
  *   incidentReported  forgets. The incident row is already stored and a human is looking
  *                     at the feed; a dropped alert costs a notification, not the record.
@@ -46,6 +52,14 @@ export class OpsNotifierHttpAdapter implements OpsNotifierPort {
       minutes: String(alert.minutes),
       threshold: String(alert.thresholdMinutes),
       over: String(alert.minutes - alert.thresholdMinutes),
+    });
+  }
+
+  async settlementSubmitted(alert: OpsSettlementAlert): Promise<void> {
+    await this.post('COURIER_SETTLEMENT_SUBMITTED', alert.depotId, {
+      settlementId: alert.settlementId,
+      amount: idr(alert.depositedAmount),
+      variance: idr(alert.variance),
     });
   }
 

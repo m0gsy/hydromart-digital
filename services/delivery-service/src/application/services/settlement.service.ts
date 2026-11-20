@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import { can } from '@hydromart/access';
 import { AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
@@ -42,6 +42,7 @@ import {
 } from '../ports/settlement.repository';
 import { ShiftRepository } from '../ports/shift.repository';
 import { DELIVERY_TOKENS } from '../tokens';
+import { OpsNotifierPort } from '../ports/ops-notifier.port';
 import { DeliveryConfigService } from '../../config/delivery-config.service';
 
 export interface ResolveInput {
@@ -89,6 +90,8 @@ export class SettlementService {
     @Inject(DELIVERY_TOKENS.CashCollection) private readonly cash: CashCollectionPort,
     @Inject(DELIVERY_TOKENS.CourierPayout) private readonly payout: CourierPayoutPort,
     private readonly config: DeliveryConfigService,
+    // Flow 6b. Optional: without it a settlement is stored and nobody is woken, as before.
+    @Optional() @Inject(DELIVERY_TOKENS.OpsNotifier) private readonly ops?: OpsNotifierPort,
   ) {}
 
   /**
@@ -243,6 +246,17 @@ export class SettlementService {
     this.logger.log(
       `Settlement ${settlement.id} submitted for shift ${shiftId}: expected ${expectedAmount}, deposited ${deposited}`,
     );
+    // Flow 6b: the accounts that may verify it are told. Fire-and-log: the cash is recorded.
+    if (this.ops) {
+      void this.ops
+        .settlementSubmitted({
+          settlementId: settlement.id,
+          depotId: settlement.depotId ?? null,
+          depositedAmount: deposited,
+          variance: settlement.variance,
+        })
+        .catch((e: unknown) => this.logger.warn(`Settlement ${settlement.id} alert failed: ${(e as Error).message}`));
+    }
     return settlement;
   }
 

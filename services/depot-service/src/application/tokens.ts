@@ -7,6 +7,8 @@ export const DEPOT_TOKENS = {
   AccountNames: Symbol('AccountNameResolver'),
   InventoryRepository: Symbol('InventoryRepository'),
   LowStockAlert: Symbol('LowStockAlert'),
+  // Flow 6b: price changes proposed, to the accounts that may decide them.
+  PriceOverrideAlert: Symbol('PriceOverrideAlert'),
   /** CA-2-58: head office's complaint queue. */
   HqComplaint: Symbol('HqComplaint'),
   UntrackedSaleAlert: Symbol('UntrackedSaleAlert'),

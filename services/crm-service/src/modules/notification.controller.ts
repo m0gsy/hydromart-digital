@@ -65,7 +65,8 @@ export class NotificationController {
     // O6: a depot's staff see their own depot's alerts (plus the ones belonging to no
     // depot). Head office and the director have no depot of their own — `depotScopeIds`
     // answers `undefined` for them, which is "every depot", exactly as before this filter.
-    const records = await this.notifications.listOpsFeed(user.sub, depotScopeIds(user));
+    // The reader's role: a decision's row is shown to those who may make it (flow 6b).
+    const records = await this.notifications.listOpsFeed(user.sub, depotScopeIds(user), undefined, user.role);
     return records.map((record) => OpsNotificationDto.fromOps(record));
   }
 
@@ -89,7 +90,7 @@ export class NotificationController {
   @ApiOperation({ summary: 'Mark the whole operational feed read (idempotent)' })
   @ApiOkResponse({ type: OpsReadAllResultDto })
   async markAllOpsRead(@CurrentUser() user: AuthenticatedUser): Promise<OpsReadAllResultDto> {
-    return { marked: await this.notifications.markAllOpsRead(user.sub, depotScopeIds(user)) };
+    return { marked: await this.notifications.markAllOpsRead(user.sub, depotScopeIds(user), undefined, user.role) };
   }
 
   /*

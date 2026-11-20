@@ -25,6 +25,19 @@ export interface OpsNotifierPort {
    * the next tick tries the same delivery again instead of losing the breach quietly.
    */
   slaBreached(alert: OpsSlaBreachAlert): Promise<boolean>;
+  /**
+   * Flow 6b: a courier handed in a shift's cash; crm wakes the accounts that may verify it
+   * (`courierSettle`). Fail-open like the incident alert: the settlement is already stored.
+   */
+  settlementSubmitted(alert: OpsSettlementAlert): Promise<void>;
+}
+
+export interface OpsSettlementAlert {
+  settlementId: string;
+  depotId: string | null;
+  depositedAmount: number;
+  /** Deposited minus expected: negative is a shortfall. */
+  variance: number;
 }
 
 /**
