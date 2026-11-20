@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+
+import { SubscriptionResponseDto } from './responses.generated.dto';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -991,4 +993,10 @@ export class PdpAnonymiseDto {
   @IsString()
   @MaxLength(32)
   phone?: string | null;
+}
+
+/** The internal create's answer: the plan, and the depot it belongs to (owner decision 2026-11-21). */
+export class InternalSubscriptionResponseDto extends SubscriptionResponseDto {
+  @ApiProperty({ type: String, description: 'The depot whose area the plan pin is in.' })
+  servingDepotId!: string;
 }

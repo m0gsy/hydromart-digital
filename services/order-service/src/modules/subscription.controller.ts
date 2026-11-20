@@ -6,6 +6,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Logger,
   Param,
   ParseUUIDPipe,
   Post,
@@ -34,6 +35,7 @@ import {
   CreateSubscriptionDto,
   CreateSubscriptionForCustomerDto,
   DepotScopeQueryDto,
+  InternalSubscriptionResponseDto,
   PdpAnonymiseDto,
   PdpSubscriptionExportResponseDto,
   SubscriptionReroutePreviewDto,
@@ -44,7 +46,6 @@ import {
 } from '../application/services/subscription.service';
 import {
   Discount2ResponseDto,
-  InternalSubscriptionResponseDto,
   PdpErasedResponseDto,
   ProcessDue2ResponseDto,
   SubscriptionNetworkSummaryResponseDto,
@@ -57,6 +58,8 @@ import { isServiceArea, type RerouteCounts } from '../domain/geo';
 @ApiBearerAuth()
 @Controller({ path: 'subscriptions', version: '1' })
 export class SubscriptionController {
+  private readonly logger = new Logger(SubscriptionController.name);
+
   constructor(private readonly subscriptions: SubscriptionService) {}
 
   @ApiOkResponse({ type: SubscriptionResponseDto, isArray: true })
@@ -223,17 +226,24 @@ export class SubscriptionController {
   @Post('internal')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Create a subscription for a customer (internal, depot console)' })
-  createInternal(
+  async createInternal(
     @Body() dto: CreateSubscriptionForCustomerDto,
   ): Promise<SubscriptionRecord & { servingDepotId: string }> {
     // `dto.depotId` (the depot typing it in) decides nothing: the plan belongs to the depot
-    // its pin routes to, which the answer names (owner decision 2026-11-21).
-    return this.subscriptions.createForCustomer(dto.customerId, {
+    // its pin routes to, which the answer names (owner decision 2026-11-21). It is kept for
+    // the log line that says where a plan went when it did not stay with its maker.
+    const created = await this.subscriptions.createForCustomer(dto.customerId, {
       productId: dto.productId,
       quantity: dto.quantity,
       frequency: dto.frequency,
       firstDeliveryAt: new Date(dto.firstDeliveryAt),
     });
+    if (dto.depotId && dto.depotId.toLowerCase() !== created.servingDepotId) {
+      this.logger.log(
+        `Subscription ${created.id} made by depot ${dto.depotId} belongs to depot ${created.servingDepotId}`,
+      );
+    }
+    return created;
   }
 
   /** DEP-23: the depot console paused a plan; the engine must stop placing its deliveries. */

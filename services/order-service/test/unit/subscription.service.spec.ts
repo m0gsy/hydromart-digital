@@ -1000,8 +1000,10 @@ describe('SubscriptionService', () => {
     it('makes the plan for another depot\'s address, and names the depot that serves it', async () => {
       const p = seedProduct();
       customers.primary = address;
+      // Only depot B serves the address; whoever typed it in, the answer names B.
+      depots.depots = [{ ...homeDepot, id: 'depot-b' }];
       const sub = await service.createForCustomer(customer, { ...input, productId: p.id });
-      expect(sub).toMatchObject({ customerId: customer, servingDepotId: homeDepot.id });
+      expect(sub).toMatchObject({ customerId: customer, servingDepotId: 'depot-b' });
       expect(subs.rows).toHaveLength(1);
     });
 

@@ -1656,9 +1656,3 @@ export class PdpErasedResponseDto {
   @ApiProperty({ type: Number })
   erased!: number;
 }
-
-/** The internal create's answer: the plan, and the depot it belongs to (owner decision 2026-11-21). */
-export class InternalSubscriptionResponseDto extends SubscriptionResponseDto {
-  @ApiProperty({ type: String, description: 'The depot whose area the plan pin is in.' })
-  servingDepotId!: string;
-}

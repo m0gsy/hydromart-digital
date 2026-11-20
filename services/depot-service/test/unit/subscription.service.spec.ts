@@ -115,9 +115,10 @@ describe('SubscriptionService', () => {
   let service: SubscriptionService;
   let engine: StubEngine;
   let depotId: string;
+  let depotRepo: InMemoryDepotRepository;
 
   beforeEach(async () => {
-    const depotRepo = new InMemoryDepotRepository();
+    depotRepo = new InMemoryDepotRepository();
     repo = new InMemorySubscriptionRepository();
     engine = new StubEngine();
     service = new SubscriptionService(repo, depotRepo, engine as never);
@@ -236,10 +237,36 @@ describe('SubscriptionService', () => {
 
   // Owner decision 2026-11-21: made for another depot's address, it belongs to that depot.
   it('records the plan under the depot that serves the address, not the one typing it in', async () => {
-    engine.servingDepotId = '99999999-9999-4999-8999-999999999999';
+    const other = await new DepotService(depotRepo).create({
+      code: 'BDG-01',
+      name: 'Depot Bandung',
+      ownershipType: OwnershipType.HKP,
+      address: 'b',
+      city: 'Bandung',
+      province: 'Jabar',
+      lat: -6.9,
+      lng: 107.6,
+      serviceRadiusKm: 5,
+      deliveryFee: 5000,
+      minOrderAmount: null,
+      ownerId: null,
+      operatingHours: {},
+      holidays: [],
+    });
+    engine.servingDepotId = other.id;
     const sub = await seed();
-    expect(sub.depotId).toBe('99999999-9999-4999-8999-999999999999');
+    expect(sub.depotId).toBe(other.id);
     expect((engine.lastInput as { depotId: string }).depotId).toBe(depotId);
+  });
+
+  // The engine plan is already running: a depot this service does not know — or junk —
+  // must not take (and fail) the row, or the plan is left with nothing to pause it from.
+  it('keeps the row with the depot typing it in when the named depot is unknown or junk', async () => {
+    for (const named of ['99999999-9999-4999-8999-999999999999', 'not-a-uuid']) {
+      engine.servingDepotId = named;
+      const sub = await seed();
+      expect(sub.depotId).toBe(depotId);
+    }
   });
 
   it('throws NotFound pausing, resuming or reading a missing subscription', async () => {

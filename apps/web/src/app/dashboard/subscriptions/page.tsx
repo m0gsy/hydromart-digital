@@ -151,7 +151,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
       );
       // Owner decision 2026-11-21: an address another depot serves is that depot's plan — made,
       // and listed there rather than here. Said, or it reads as a plan that vanished.
-      if (created?.depotId && created.depotId !== depotId) {
+      if (created?.depotId && created.depotId.toLowerCase() !== depotId.toLowerCase()) {
         toast(t('opsFix.subs.routedElsewhere'), 'success');
       }
       reset();
