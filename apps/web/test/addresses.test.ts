@@ -5,6 +5,7 @@ import {
   addressToBookForm,
   addressToForm,
   pickDefaultAddress,
+  pinQuality,
   toAddressPayload,
 } from '@/lib/addresses';
 import type { Address } from '@/lib/types';
@@ -162,5 +163,45 @@ describe('E6 · address validation speaks the customer’s language', () => {
   it('rejects an out-of-range longitude through the dictionary', () => {
     const out = toAddressPayload({ ...form, longitude: '-999' }, t);
     expect(out).toMatchObject({ ok: false, error: 'errors.address.longitudeRange' });
+  });
+});
+
+// P2-1: how good a pin is travels with it — GPS with its metres, a typed one with none.
+describe('the pin says how it was taken', () => {
+  const form = {
+    ...EMPTY_ADDRESS_FORM,
+    label: 'Rumah',
+    recipientName: 'Budi',
+    phone: '0812',
+    addressLine: 'Jl. Merdeka 10',
+    city: 'Bandung',
+    latitude: '-6.9',
+    longitude: '107.6',
+  };
+  const payload = (over: object) => {
+    const out = toAddressPayload({ ...form, ...over }, t);
+    if (!out.ok) throw new Error(out.error);
+    return out.value;
+  };
+
+  it('sends a GPS fix with its accuracy, rounded and capped at what the API takes', () => {
+    expect(payload({ pinSource: 'GPS', pinAccuracyM: 12.6 })).toMatchObject({
+      pinSource: 'GPS',
+      pinAccuracyM: 13,
+    });
+    expect(pinQuality('GPS', 250_000)).toEqual({ pinSource: 'GPS', pinAccuracyM: 100_000 });
+  });
+
+  it('claims no accuracy for a typed pin, nor for a GPS one that gave none', () => {
+    expect(payload({ pinSource: 'MANUAL', pinAccuracyM: 40 })).toEqual(
+      expect.not.objectContaining({ pinAccuracyM: expect.anything() }),
+    );
+    expect(pinQuality('GPS', null)).toEqual({ pinSource: 'GPS' });
+  });
+
+  it('says nothing about a pin this form did not touch, so the stored quality stays', () => {
+    const v = payload({});
+    expect(v).not.toHaveProperty('pinSource');
+    expect(v).not.toHaveProperty('pinAccuracyM');
   });
 });

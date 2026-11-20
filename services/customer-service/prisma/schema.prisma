@@ -54,6 +54,15 @@ model CustomerProfile {
 }
 
 /// A delivery address. BR-004: max 20 per customer. Exactly one is primary.
+/// Where an address pin came from (address package 2, 2026-11-20).
+enum PinSource {
+  GPS
+  MANUAL
+  STAFF
+  IMPORT
+  COURIER
+}
+
 model Address {
   id            String   @id @default(uuid()) @db.Uuid
   customerId    String   @db.Uuid
@@ -69,6 +78,9 @@ model Address {
   postalCode    String?
   latitude      Float?
   longitude     Float?
+  // 2026-11-20: the pin's quality — metres of possible error (GPS only) and where it came from.
+  pinAccuracyM  Int?
+  pinSource     PinSource?
   // Free-text landmark / patokan the customer adds ("pagar hijau sebelah warung Bu Ani").
   // Optional; flows to the courier via the per-order note at checkout.
   notes         String?

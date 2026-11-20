@@ -84,6 +84,10 @@ export class AddressResponseDto {
   latitude!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   longitude!: number | null;
+  @ApiProperty({ type: Number, nullable: true, required: false })
+  pinAccuracyM?: number | null;
+  @ApiProperty({ type: String, nullable: true, required: false, enum: ['GPS', 'MANUAL', 'STAFF', 'IMPORT', 'COURIER'] })
+  pinSource?: string | null;
   @ApiProperty({ type: String, nullable: true })
   notes!: string | null;
   @ApiProperty({ type: Boolean })

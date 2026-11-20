@@ -59,6 +59,9 @@ describe('PdpPrismaRepository (UU PDP tahap 1)', () => {
         postalCode: null,
         latitude: null,
         longitude: null,
+        // What the pin's quality said goes with the pin.
+        pinAccuracyM: null,
+        pinSource: null,
       },
     });
     expect(address.findMany).not.toHaveBeenCalled();

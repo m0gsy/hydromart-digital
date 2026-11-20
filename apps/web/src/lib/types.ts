@@ -444,6 +444,9 @@ export interface Address {
   postalCode: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** Metres of possible error of a GPS pin; null when unknown (typed, older, or not GPS). */
+  pinAccuracyM?: number | null;
+  pinSource?: 'GPS' | 'MANUAL' | 'STAFF' | 'IMPORT' | 'COURIER' | null;
   notes: string | null;
   isPrimary: boolean;
 }

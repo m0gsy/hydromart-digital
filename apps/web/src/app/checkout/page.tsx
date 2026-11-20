@@ -45,7 +45,13 @@ import { voucherToApply } from '@/lib/vouchers';
 import { TaxPreviewLine } from '@/components/order/tax-preview-line';
 import { dayKey, slotInstant } from '@/lib/delivery-schedule';
 import { endpoints } from '@/lib/endpoints';
-import { addressToForm, numOrNull, parseLatLngPair, pickDefaultAddress } from '@/lib/addresses';
+import {
+  addressToForm,
+  numOrNull,
+  parseLatLngPair,
+  pickDefaultAddress,
+  pinQuality,
+} from '@/lib/addresses';
 import { servingDepot } from '@/lib/depots';
 import { currentPosition, geoReason } from '@/lib/geo';
 import { depotOpenState } from '@/lib/opening-hours';
@@ -518,6 +524,7 @@ function CheckoutInner() {
 
   function chooseSaved(address: Address) {
     setKeepPatokan(true);
+    setPinAccuracy(null); // that reading was of another pin
     setSelection(address.id);
     setForm((f) => ({ ...f, ...addressToForm(address) }));
     setCoords({ latitude: address.latitude, longitude: address.longitude });
@@ -525,6 +532,7 @@ function CheckoutInner() {
 
   function chooseNew() {
     setKeepPatokan(true);
+    setPinAccuracy(null);
     setSelection('new');
     setCoords({ latitude: null, longitude: null });
     setForm({
@@ -720,6 +728,9 @@ function CheckoutInner() {
        * and a refusal is shown rather than eaten. Still non-blocking: the ORDER is placed,
        * and a failed book entry must not read as a failed purchase.
        */
+      // How the pin was taken, for both writes below: a reading means a GPS fix (the
+      // Geolocation API always gives one); none means it was typed or pasted.
+      const pinMeta = pinQuality(pinAccuracy != null ? 'GPS' : 'MANUAL', pinAccuracy);
       if (saveToBook && !savedAddresses?.some((a) => a.id === selection)) {
         try {
           await api.post(
@@ -732,6 +743,7 @@ function CheckoutInner() {
               city: form.city,
               latitude: coords.latitude ?? undefined,
               longitude: coords.longitude ?? undefined,
+              ...pinMeta,
               // K1.7: the patokan travels with the address, which is the whole point of
               // saving it — a courier reads it on every future order to this door.
               notes: form.notes.trim() || undefined,
@@ -768,6 +780,7 @@ function CheckoutInner() {
       ) {
         learned.latitude = coords.latitude;
         learned.longitude = coords.longitude;
+        Object.assign(learned, pinMeta);
       }
       if (chosen && Object.keys(learned).length > 0) {
         try {

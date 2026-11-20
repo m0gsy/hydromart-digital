@@ -56,6 +56,55 @@ describe('AddressService', () => {
       );
     });
 
+    it('keeps how good the pin is with the pin, and only with it', async () => {
+      const gps = { latitude: -6.9, longitude: 107.6, pinAccuracyM: 12, pinSource: 'GPS' as const };
+      const a = await service.create(CUST, { ...input('Rumah'), ...gps });
+      expect(a).toMatchObject({ pinAccuracyM: 12, pinSource: 'GPS' });
+      // No pin, no claim about one.
+      const bare = await service.create(CUST, { ...input('Kantor'), pinAccuracyM: 5, pinSource: 'GPS' });
+      expect(bare).toMatchObject({ pinAccuracyM: null, pinSource: null });
+
+      // The /addresses form re-sends the same pin on every edit: what it knew is kept.
+      await expect(
+        service.update(CUST, a.id, { latitude: -6.9, longitude: 107.6, city: 'Cimahi' }),
+      ).resolves.toMatchObject({ pinAccuracyM: 12, pinSource: 'GPS' });
+      // A moved pin takes what came with it…
+      await expect(
+        service.update(CUST, a.id, { latitude: -6.91, longitude: 107.6, pinSource: 'MANUAL' }),
+      ).resolves.toMatchObject({ pinAccuracyM: null, pinSource: 'MANUAL' });
+      // …or nothing, never the old pin's accuracy.
+      await expect(
+        service.update(CUST, a.id, { latitude: -6.92, longitude: 107.6 }),
+      ).resolves.toMatchObject({ pinAccuracyM: null, pinSource: null });
+      // A typed pin claims no accuracy, whatever was sent with it.
+      await expect(
+        service.update(CUST, a.id, {
+          latitude: -6.93,
+          longitude: 107.6,
+          pinSource: 'MANUAL',
+          pinAccuracyM: 350,
+        }),
+      ).resolves.toMatchObject({ pinAccuracyM: null, pinSource: 'MANUAL' });
+      // Clearing the pin (an internal caller can) clears what it said.
+      const b = await service.create(CUST, { ...input('Gudang'), ...gps });
+      await expect(
+        service.update(CUST, b.id, { latitude: null, longitude: null, pinAccuracyM: 3 }),
+      ).resolves.toMatchObject({ latitude: null, pinAccuracyM: null, pinSource: null });
+    });
+
+    it('learns the quality of a pin saved before it was kept, and only then', async () => {
+      const old = await service.create(CUST, { ...input('Rumah'), latitude: -6.9, longitude: 107.6 });
+      expect(old).toMatchObject({ pinSource: null });
+      const same = { latitude: -6.9, longitude: 107.6 };
+      await expect(
+        service.update(CUST, old.id, { ...same, pinSource: 'GPS', pinAccuracyM: 8 }),
+      ).resolves.toMatchObject({ pinSource: 'GPS', pinAccuracyM: 8 });
+      // Known now: the same pin re-sent with other words about it changes nothing.
+      await expect(
+        service.update(CUST, old.id, { ...same, pinSource: 'MANUAL' }),
+      ).resolves.toMatchObject({ pinSource: 'GPS', pinAccuracyM: 8 });
+    });
+
     it('takes a real pin, including one on the equator', async () => {
       const a = await service.create(CUST, { ...input('Rumah'), latitude: 0, longitude: 109.3 });
       await expect(service.update(CUST, a.id, { latitude: -0.03, longitude: 109.34 })).resolves.toMatchObject({
