@@ -83,6 +83,33 @@ describe('AddressPinFix', () => {
     );
   });
 
+  // P2-4: the courier's handover, offered when the pin is clearly off; one tap sends it.
+  it('offers the delivery location as the pin, and sends it as coordinates', async () => {
+    patch.mockResolvedValue({});
+    const onSaved = vi.fn();
+    render(
+      <LocaleProvider>
+        <ToastProvider>
+          <AddressPinFix
+            customerId="c-1"
+            depotId="d-1"
+            address={address}
+            canFix
+            onSaved={onSaved}
+            hint={{ latitude: -6.9167, longitude: 107.6012, distanceM: 230, deliveryId: 'dl-1' }}
+          />
+        </ToastProvider>
+      </LocaleProvider>,
+    );
+    expect(screen.getByText('Bukti kirim terakhir 230 m dari pin ini.')).toBeTruthy();
+    fireEvent.click(screen.getByText('Pakai lokasi bukti kirim'));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(patch.mock.calls[0]![1]).toMatchObject({
+      depotId: 'd-1',
+      location: '-6.9167000, 107.6012000',
+    });
+  });
+
   it("shows the server's own words when it cannot read the link", async () => {
     patch.mockRejectedValue(new ApiError(400, 'Link pendek tidak bisa dibaca.'));
     draw();

@@ -1153,6 +1153,18 @@ describe('DeliveryService', () => {
     expect(miss.total).toBe(0);
   });
 
+  // P2-4: the depot card asks for ONE customer's deliveries, to compare handovers with the
+  // pin — from the controller's query through the service to the repository.
+  it("lists one customer's deliveries when asked by customer", async () => {
+    const d = await assign();
+    const row = repo.rows.find((r) => r.id === d.id)!;
+    row.customerId = 'c-1';
+    // Somebody else's delivery at the same depot.
+    repo.rows.push({ ...structuredClone(row), id: randomUUID(), orderId: randomUUID(), customerId: 'c-2' });
+    const mine = await service.listAll({ customerId: 'c-1' });
+    expect(mine.items.map((x) => x.id)).toEqual([d.id]);
+  });
+
   it('purges proof-of-delivery records past the retention window (UU PDP)', async () => {
     const d = await assign();
     await service.pickup(driver, d.id, AUTH);

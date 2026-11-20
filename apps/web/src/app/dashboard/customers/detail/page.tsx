@@ -31,11 +31,12 @@ import {
   canWriteDepotCrm,
 } from '@/lib/roles';
 import { AddressPinFix } from '@/components/dashboard/address-pin-fix';
+import { podPinHint } from '@/lib/pod-pin';
 import { canOpenRoute } from '@/lib/route-access';
 import { CustomerReferralCard } from '@/components/dashboard/customer-referral-card';
 import { useAsync } from '@/lib/use-async';
 import type { Reseller } from '@/lib/reseller';
-import type { DepotCustomerDetail } from '@/lib/types';
+import type { Delivery, DepotCustomerDetail, Page } from '@/lib/types';
 import { useQueryParam } from '@/lib/use-query-param';
 
 function initials(name: string | null): string {
@@ -69,6 +70,24 @@ function DetailBody({ id }: { id: string }) {
 
   const { customer } = useAuth();
   const isManager = canUseManagerConsole(customer?.role);
+  const canFixPin = canWriteDepotCrm(customer?.role);
+  // P2-4: the last deliveries to this customer, to spot a pin couriers keep finding wrong.
+  // Read only for whoever can fix it; a refusal or outage simply shows no suggestion.
+  const pods = useAsync<Page<Delivery> | null>(
+    () =>
+      canFixPin && scopedId
+        ? api.get(
+            endpoints.deliveries.list({
+              depotId: scopedId,
+              customerId: id,
+              statuses: ['DELIVERED'],
+              limit: 20,
+            }),
+            true,
+          )
+        : Promise.resolve(null),
+    [id, scopedId, canFixPin],
+  );
 
   // SOP §7: if this customer is an agen, show their registration photo here too — this is
   // the screen a depot opens to check who they are dealing with. 404 = not an agen, which
@@ -265,8 +284,12 @@ function DetailBody({ id }: { id: string }) {
                               customerId={id}
                               depotId={scopedId}
                               address={a}
-                              canFix={canWriteDepotCrm(customer?.role)}
-                              onSaved={detail.reload}
+                              canFix={canFixPin}
+                              hint={podPinHint(a, pods.data?.items ?? [])}
+                              onSaved={() => {
+                                detail.reload();
+                                pods.reload();
+                              }}
                             />
                           )}
                         </div>

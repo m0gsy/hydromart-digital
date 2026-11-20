@@ -280,6 +280,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     const all = this.rows
       .filter((r) => !query.driverId || r.driverId === query.driverId)
       .filter((r) => !query.orderId || r.orderId === query.orderId)
+      .filter((r) => !query.customerId || r.customerId === query.customerId)
       .filter((r) => !query.depotIds || (r.depotId != null && query.depotIds.includes(r.depotId)))
       .filter((r) => !query.status || r.status === query.status)
       .sort((a, b) => b.assignedAt.getTime() - a.assignedAt.getTime());

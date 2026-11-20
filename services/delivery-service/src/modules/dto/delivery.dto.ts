@@ -368,6 +368,15 @@ export class ListDeliveriesQueryDto {
   @IsUUID()
   orderId?: string;
 
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      "P2-4: one customer's deliveries — the depot card compares where couriers handed over with the address pin.",
+  })
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsOptional()
   @Type(() => Number)

@@ -129,6 +129,8 @@ export interface ListDeliveriesInput {
   depotIds?: readonly string[];
   /** One order's delivery (flow PR-2a-ii: the order panel names its courier from it). */
   orderId?: string;
+  /** P2-4: one customer's deliveries (the depot card's pin hint). */
+  customerId?: string;
 }
 
 /** No-show gate view for the app timer (design 5a). */
@@ -1448,6 +1450,7 @@ export class DeliveryService {
       driverId: input.driverId,
       depotIds: input.depotIds,
       orderId: input.orderId,
+      customerId: input.customerId,
       status: input.status,
       statuses: input.statuses,
     });

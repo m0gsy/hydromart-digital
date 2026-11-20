@@ -125,6 +125,8 @@ export interface DeliveryQuery {
   driverId?: string;
   /** One order's delivery: `orderId` is unique on the table. */
   orderId?: string;
+  /** P2-4: one customer's deliveries (null-customer rows never match). */
+  customerId?: string;
   /** Depot to scope to. When set, only that depot's deliveries match (null-depot rows excluded). */
   depotIds?: readonly string[];
   status?: DeliveryStatus;

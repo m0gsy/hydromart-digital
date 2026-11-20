@@ -345,6 +345,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     const where = {
       ...(query.driverId ? { driverId: query.driverId } : {}),
       ...(query.orderId ? { orderId: query.orderId } : {}),
+      ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.depotIds ? { depotId: depotWhere(query.depotIds) } : {}),
       // `statuses` first: it is the narrower question, and a caller sending both means
       // the set, not the single value it had to send before the set existed.
