@@ -1,4 +1,4 @@
-import { resolveDeepLink } from './deep-link';
+import { resolveDeepLink, webTwin } from './deep-link';
 
 /**
  * Where a row in a notification feed should take the person who taps it, or null when it
@@ -14,9 +14,13 @@ import { resolveDeepLink } from './deep-link';
  * Anything left is a route this app serves. Anything else stays plain text, because an
  * affordance that leads nowhere is worse than none.
  */
-export function notificationHref(destination: string | null | undefined): string | null {
+export function notificationHref(
+  destination: string | null | undefined,
+  /** The desktop console's feed: a phone-console destination opens on its desktop twin. */
+  desk = false,
+): string | null {
   const internal =
     destination && destination.startsWith('/') && !destination.startsWith('//') ? destination : null;
-  const resolved = internal ? resolveDeepLink(internal) : null;
+  const resolved = internal ? resolveDeepLink(desk ? webTwin(internal) : internal) : null;
   return resolved === '/' && internal !== '/' ? null : resolved;
 }

@@ -6,6 +6,7 @@ import { api } from './api';
 import { endpoints } from './endpoints';
 import { getDepot, setDepot, subscribe } from './depot-store';
 import { getSession, subscribe as subscribeSession } from './session-store';
+import { useQueryState } from './use-query-param';
 import type { Depot } from './types';
 
 export interface DepotContextValue {
@@ -110,6 +111,17 @@ export function DepotProvider({ children }: { children: React.ReactNode }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
+
+  // Flow 6a: a depot alert names its depot (`?depot=`), so an overseer of several opens the
+  // right one rather than the one selected last. Taken when it is in scope, then dropped from
+  // the URL so a later switch is not undone.
+  const [askedDepot, clearAskedDepot] = useQueryState('depot');
+  useEffect(() => {
+    // Not on a failed list read: the request waits for the retry instead of being thrown away.
+    if (!askedDepot || !ready || error) return;
+    if (depots.some((d) => d.id === askedDepot)) setDepot(askedDepot);
+    clearAskedDepot('');
+  }, [askedDepot, ready, error, depots, clearAskedDepot]);
 
   const value = useMemo<DepotContextValue>(() => {
     const selected = depots.find((d) => d.id === selectedId) ?? null;

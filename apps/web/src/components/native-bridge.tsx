@@ -137,7 +137,12 @@ export function NativeBridge() {
       // Set HERE and not at the ask, so a blocked run leaves the launch URL unspent and the
       // next mount can still act on it.
       launchHandled = true;
-      router.push(path);
+      // Flow 6a: a screen this reader's role is refused sends them to their own feed instead.
+      // Loaded on the tap, not with every page (notification-access carries the nav tables).
+      const role = getSession()?.customer?.role;
+      void import('@/lib/notification-access')
+        .then(({ pushTarget }) => router.push(pushTarget(path, role)))
+        .catch(() => router.push(path));
     };
 
     const recheck = () => {

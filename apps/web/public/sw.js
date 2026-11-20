@@ -140,6 +140,8 @@ const DYNAMIC_PARENTS = [
   '/orders',
 ];
 const NOT_AN_ID = ['detail', 'new', 'import', 'settings'];
+// Flow 6a: deep-link.ts WEB_TWINS. This file only runs in a browser, so the twin always applies.
+const WEB_TWINS = [['/m/manager/approvals', '/dashboard/approvals']];
 
 function safeDecode(segment) {
   try {
@@ -156,8 +158,15 @@ function safeDecode(segment) {
  */
 function rewriteLegacyPath(raw) {
   const q = raw.indexOf('?');
-  const path = q === -1 ? raw : raw.slice(0, q);
+  let path = q === -1 ? raw : raw.slice(0, q);
   const query = q === -1 ? '' : raw.slice(q + 1);
+  for (const [phone, desk] of WEB_TWINS) {
+    if (path === phone || path.indexOf(phone + '/') === 0) {
+      path = desk + path.slice(phone.length);
+      break;
+    }
+  }
+  const unchanged = query ? path + '?' + query : path;
   let parent = null;
   for (const p of DYNAMIC_PARENTS) {
     if (path.indexOf(p + '/') === 0) {
@@ -165,11 +174,11 @@ function rewriteLegacyPath(raw) {
       break;
     }
   }
-  if (parent === null) return raw;
+  if (parent === null) return unchanged;
 
   const rest = path.slice(parent.length + 1).split('/');
   const id = rest[0];
-  if (!id || NOT_AN_ID.indexOf(id) !== -1) return raw;
+  if (!id || NOT_AN_ID.indexOf(id) !== -1) return unchanged;
 
   const child = rest.slice(1).join('/');
   const suffix = child ? '/' + child : '';

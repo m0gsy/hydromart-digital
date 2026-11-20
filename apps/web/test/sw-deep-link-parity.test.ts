@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { DYNAMIC_PARENTS, NOT_AN_ID, resolveDeepLink } from '@/lib/deep-link';
+import { DYNAMIC_PARENTS, NOT_AN_ID, WEB_TWINS, resolveDeepLink, webTwin } from '@/lib/deep-link';
 
 /**
  * K5.5. Two tap handlers, one payload, two behaviours.
@@ -46,6 +46,25 @@ describe('K5.5 · sw.js and deep-link.ts agree', () => {
     expect(swList('DYNAMIC_PARENTS')).toEqual([...DYNAMIC_PARENTS]);
   });
 
+  // Flow 6a: a browser push opens a phone-console destination on its desktop twin, exactly as
+  // the desktop feed does (notificationHref with desk).
+  it('carries the same web twins, and twins a browser push as the desktop feed does', () => {
+    const twins = new Function('self', `${SW_SRC}\nreturn WEB_TWINS;`)({
+      addEventListener: () => {},
+      location: { origin: 'https://app.test' },
+    }) as [string, string][];
+    expect(twins).toEqual(WEB_TWINS.map(([a, b]) => [a, b]));
+    const rewrite = swRewrite();
+    for (const raw of [
+      '/m/manager/approvals/detail?id=a-1',
+      '/m/manager/approvals',
+      '/m/manager/approvals/a-1',
+      '/m/manager/approvalsx',
+    ]) {
+      expect(rewrite(raw), raw).toBe(resolveDeepLink(webTwin(raw)));
+    }
+  });
+
   it('carries the same not-an-id segments', () => {
     expect(swList('NOT_AN_ID').sort()).toEqual([...NOT_AN_ID].sort());
   });
@@ -54,7 +73,8 @@ describe('K5.5 · sw.js and deep-link.ts agree', () => {
     const rewrite = swRewrite();
     for (const parent of DYNAMIC_PARENTS) {
       const raw = `${parent}/abc-123`;
-      expect(rewrite(raw), raw).toBe(resolveDeepLink(raw));
+      // sw.js runs only in a browser, so it applies the desktop twin a notification gets there.
+      expect(rewrite(raw), raw).toBe(resolveDeepLink(webTwin(raw)));
     }
   });
 
@@ -77,7 +97,7 @@ describe('K5.5 · sw.js and deep-link.ts agree', () => {
       '/',
     ];
     for (const raw of cases) {
-      expect(rewrite(raw), raw).toBe(resolveDeepLink(raw));
+      expect(rewrite(raw), raw).toBe(resolveDeepLink(webTwin(raw)));
     }
   });
 

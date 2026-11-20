@@ -7,7 +7,8 @@ import { Bell, CaretRight, Lock, Package, Siren, Warning, type Icon } from '@pho
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
-import { notificationHref } from '@/lib/notification-link';
+import { feedHref } from '@/lib/notification-access';
+import { isNativeShell } from '@/lib/platform';
 import { useT, type TVars } from '@/lib/locale-context';
 import { OPS_FILTERS, groupOpsFeedByDay, useOpsNotifications } from '@/lib/ops-notifications';
 import { canViewOpsNotifications } from '@/lib/roles';
@@ -35,12 +36,14 @@ function dayBucket(iso: string, t: T): string {
 
 function NotifRow({ n, read, onToggle }: { n: OpsNotification; read: boolean; onToggle: () => void }) {
   const { t } = useT();
+  const { customer } = useAuth();
   const style = EVENT_STYLE[n.event];
   const RIcon = style?.icon ?? FALLBACK_STYLE.icon;
   const failed = n.status === 'FAILED';
   // The row opens what the alert is about (an order, the payments screen); tapping it also
   // marks it read. A row with nowhere to go keeps its old behaviour: tap to toggle read.
-  const href = notificationHref(n.destination);
+  // Flow 6a: plain text when this role may not open the screen the alert is about.
+  const href = feedHref(n.destination, customer?.role, !isNativeShell());
   const className = `flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-[color:var(--surface-soft)] ${read ? 'opacity-65' : ''}`;
   const title = style ? t(style.labelKey) : t(`notifications.events.${n.event}`);
   const inner = (

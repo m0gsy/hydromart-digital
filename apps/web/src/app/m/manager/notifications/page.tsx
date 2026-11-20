@@ -5,8 +5,9 @@ import { useMemo } from 'react';
 import { Bell, CaretRight, Siren, WarningOctagon, type Icon } from '@phosphor-icons/react';
 
 import { Badge, CenterState, ErrorState, Skeleton } from '@/components/ui';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { notificationHref } from '@/lib/notification-link';
+import { feedHref } from '@/lib/notification-access';
 import { OPS_FILTERS, groupOpsFeedByDay, useOpsNotifications } from '@/lib/ops-notifications';
 import type { OpsNotification } from '@/lib/types';
 
@@ -28,13 +29,14 @@ function dayBucket(iso: string, today: string, yesterday: string): string {
 
 function NotifRow({ n, read, onRead }: { n: OpsNotification; read: boolean; onRead: () => void }) {
   const { t } = useT();
+  const { customer } = useAuth();
   const style = EVENT_STYLE[n.event] ?? { icon: Bell, wrap: 'bg-brand-50', fg: 'text-brand-700' };
   const Glyph = style.icon;
   const specific = t(`mgrFix.mMgr.events.${n.event}`);
   // The manager dictionary only names the two original events; every other one takes the
   // shared notification title rather than showing the raw event key.
   const label = specific.startsWith('mgrFix.') ? t(`notifications.events.${n.event}`) : specific;
-  const href = notificationHref(n.destination);
+  const href = feedHref(n.destination, customer?.role);
   // Plain button / link, not <Card>: a Card renders a <div>, which a <button> may not contain.
   const className = `surface flex w-full items-start gap-3 rounded-2xl border border-app p-3.5 text-left shadow-card transition-opacity ${read ? 'opacity-65' : ''}`;
   const inner = (

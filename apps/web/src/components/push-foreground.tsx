@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { useToast } from '@/components/toast';
 import { callPlugin, onPluginEvent } from '@/lib/capacitor';
 import { resolveDeepLink } from '@/lib/deep-link';
+import { getSession } from '@/lib/session-store';
 import { isNativeShell } from '@/lib/platform';
 import { startPushTokenSync } from '@/lib/push';
 
@@ -63,7 +64,13 @@ export function PushForeground() {
         // count without a poll and without this component knowing where the badge is.
         window.dispatchEvent(new Event('hydromart:push-received'));
         const path = notification?.data?.url ? resolveDeepLink(notification.data.url) : null;
-        toast(text, 'info', path ? () => router.push(path) : undefined);
+        // Flow 6a: the same landing as a tray tap, for a role refused the screen.
+        // Loaded on the tap, not with every page (notification-access carries the nav tables).
+        const open = (to: string) =>
+          void import('@/lib/notification-access')
+            .then(({ pushTarget }) => router.push(pushTarget(to, getSession()?.customer?.role)))
+            .catch(() => router.push(to));
+        toast(text, 'info', path ? () => open(path) : undefined);
         /*
          * The tray copy. `id` must be an int32 and must differ per message or Android
          * REPLACES the previous one — a courier with three tasks would see one. The

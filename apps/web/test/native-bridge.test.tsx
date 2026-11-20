@@ -6,6 +6,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NativeBridge } from '@/components/native-bridge';
+import { setSession } from '@/lib/session-store';
 import { openExternal, printDocument, saveFile } from '@/lib/platform';
 
 // The bridge navigates, and outside a Next app there is no router to navigate with.
@@ -320,6 +321,21 @@ describe('deep links and notification taps', () => {
       notification: { data: { url: '/orders/detail?id=o-7' } },
     });
     await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/orders/detail?id=o-7'));
+  });
+
+  // Flow 6a: a depot alert reaches every account at the depot; a role refused the screen it
+  // names lands on its own feed, where the alert is, not on a page that refuses it.
+  it('sends a tap this role may not open to its own feed', async () => {
+    setSession({ customer: { id: 'u-1', role: 'CUSTOMER' } } as never);
+    try {
+      render(<NativeBridge />);
+      listeners.pushNotificationActionPerformed?.({
+        notification: { data: { url: '/dashboard/meter?depot=d-1' } },
+      });
+      await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/notifications'));
+    } finally {
+      setSession(null);
+    }
   });
 
   it('ignores a notification with no destination and a link to another origin', async () => {
