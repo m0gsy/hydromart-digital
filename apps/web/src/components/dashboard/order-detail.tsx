@@ -12,7 +12,7 @@ import { Badge, Button, Field, Input, LoadError, Money } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { entityHref } from '@/lib/entity-href';
-import { formatDateTime, mediaUrl, parseIdr } from '@/lib/format';
+import { formatAddress, formatDateTime, mediaUrl, parseIdr } from '@/lib/format';
 import { nextStatus, staffCanAdvance, statusLabel, tone } from '@/lib/order-status';
 import { printReceipt } from '@/lib/receipt';
 import { thermalErrorKey } from '@/lib/receipt-thermal';
@@ -461,9 +461,7 @@ export function OrderDetail({
           </p>
           <p className="text-muted">{order.phone}</p>
           <p className="text-muted">
-            {order.addressLine}, {order.city}
-            {order.province ? `, ${order.province}` : ''}
-            {order.postalCode ? ` ${order.postalCode}` : ''}
+            {formatAddress(order, true)}
           </p>
           {order.notes && (
             <p className="mt-1 text-muted">

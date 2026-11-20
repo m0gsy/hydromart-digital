@@ -20,6 +20,7 @@ import {
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Address } from '@/lib/types';
+import { formatAddress } from '@/lib/format';
 
 function AddressesInner() {
   const { t } = useT();
@@ -163,7 +164,7 @@ function AddressesInner() {
                   {a.recipientName} · {a.phone}
                 </p>
                 <p className="text-sm text-muted">
-                  {a.addressLine}, {a.city}
+                  {formatAddress(a)}
                 </p>
                 <div className="mt-1 flex flex-wrap gap-2">
                   {!a.isPrimary && (

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  formatAddress,
   formatDate,
   formatIDR,
   parseIdr,
@@ -130,5 +131,30 @@ describe('parseIdr', () => {
     ['abc', 0],
   ])('reads %j as %d whole rupiah', (raw, want) => {
     expect(parseIdr(raw)).toBe(want);
+  });
+});
+
+describe('formatAddress', () => {
+  it('prints street and city as one line', () => {
+    expect(formatAddress({ addressLine: 'Jl. Merdeka 10', city: 'Bandung' })).toBe(
+      'Jl. Merdeka 10, Bandung',
+    );
+  });
+
+  // A counter pick-up sale stores "-" for city and province; a stray space is not a part
+  // either. No dangling ", -".
+  it.each([
+    [{ addressLine: 'Ambil langsung di depot', city: '-', province: '-' }, 'Ambil langsung di depot'],
+    [{ addressLine: 'Jl. Merdeka 10', city: '' }, 'Jl. Merdeka 10'],
+    [{ addressLine: '  ', city: 'Bandung ' }, 'Bandung'],
+    [{ addressLine: null, city: undefined }, ''],
+  ])('leaves out a blank part: %j', (a, out) => {
+    expect(formatAddress(a, true)).toBe(out);
+  });
+
+  it('adds province and postcode only when asked (detail screens, receipt)', () => {
+    const a = { addressLine: 'Jl. Merdeka 10', city: 'Bandung', province: 'Jawa Barat', postalCode: '40111' };
+    expect(formatAddress(a)).toBe('Jl. Merdeka 10, Bandung');
+    expect(formatAddress(a, true)).toBe('Jl. Merdeka 10, Bandung, Jawa Barat 40111');
   });
 });
