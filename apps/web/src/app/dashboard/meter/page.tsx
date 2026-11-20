@@ -89,7 +89,8 @@ function MeterBody() {
   const depot = selected ?? depots.find((d) => d.id === scopedId) ?? depots[0] ?? null;
   const writable = canRecordMeterReading(customer?.role);
   // Owner decision 2026-11-20: any earlier day can be opened, and corrected with a reason.
-  const wibDay = useWibDay();
+  // Pinned: the form edits the day it shows, even across WIB midnight (it then asks for a reason).
+  const wibDay = useWibDay(false);
   const { day: date, isToday } = wibDay;
   const [reason, setReason] = useState('');
 
@@ -104,7 +105,7 @@ function MeterBody() {
 
   const day = useAsync<MeterReconciliation | null>(
     () =>
-      depot ? api.get(endpoints.reports.meterDay(depot.id, wibDay.current()), true) : Promise.resolve(null),
+      depot ? api.get(endpoints.reports.meterDay(depot.id, date), true) : Promise.resolve(null),
     [depot?.id, date],
   );
   const history = useAsync<MeterHistoryRow[]>(
@@ -112,7 +113,9 @@ function MeterBody() {
     [depot?.id],
   );
 
-  const data = day.data;
+  // Only the chosen day's answer: while another day loads, the last one is not shown under the
+  // new date, and nothing is saved against its version.
+  const data = day.data?.date === date ? day.data : null;
   const reading = data?.reading ?? null;
 
   async function save(fields: Record<string, number>) {
@@ -271,7 +274,7 @@ function MeterBody() {
           )}
           <FormError message={saveError} />
           <Button
-            disabled={saving || nothingToSave || !depot || (!isToday && reason.trim().length < 4)}
+            disabled={saving || nothingToSave || !depot || day.loading || !data || (!isToday && reason.trim().length < 4)}
             onClick={() =>
               save({
                 ...(openingValue !== null ? { openingM3: openingValue } : {}),

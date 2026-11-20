@@ -288,12 +288,13 @@ export class MeterService {
       referenceVolumeMl: this.config.meterReferenceVolumeMl(depotId),
       toleranceLiters: this.config.meterVarianceToleranceLiters(depotId),
     });
-    return {
-      ...result,
-      tank: await this.tankStatus(depotId, reading),
-      correctedByName:
-        reading?.correctedBy && this.accountNames ? await this.accountNames.nameOf(reading.correctedBy) : null,
-    };
+    const [tank, correctedByName] = await Promise.all([
+      this.tankStatus(depotId, reading),
+      reading?.correctedBy && this.accountNames
+        ? this.accountNames.nameOf(reading.correctedBy)
+        : Promise.resolve(null),
+    ]);
+    return { ...result, tank, correctedByName };
   }
 
   /**

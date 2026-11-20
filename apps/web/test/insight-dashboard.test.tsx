@@ -1753,6 +1753,11 @@ describe('the couriers tab', () => {
     getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
     renderPage();
     await screen.findByText('Kurir siaga');
+    // The heading renders before the shifts read is sent; wait for the read itself (this
+    // assertion raced it, and failed once in CI and once locally).
+    await waitFor(() =>
+      expect(get.mock.calls.some((c) => String(c[0]).includes('/deliveries/api/v1/shifts'))).toBe(true),
+    );
     const call = String(
       get.mock.calls.find((c) => String(c[0]).includes('/deliveries/api/v1/shifts'))?.[0],
     );
