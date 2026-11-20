@@ -158,13 +158,8 @@ export async function currentPosition({
     // than the first message.
     if (reasonOf(err) === 'denied') throw new GeoError('denied');
     try {
-      // A presence check (and a pin) never accepts a fix older than its own first try would
-      // have; a pin also waits less, the person is looking at a spinner.
-      return await ask({
-        ...OPTIONS.coarse,
-        timeout: mode === 'pin' ? 10_000 : OPTIONS.coarse.timeout,
-        maximumAge: OPTIONS[mode].maximumAge,
-      });
+      // A presence check (and a pin) never accepts a fix older than its own first try would.
+      return await ask({ ...OPTIONS.coarse, maximumAge: OPTIONS[mode].maximumAge });
     } catch (retry) {
       throw new GeoError(reasonOf(retry));
     }
