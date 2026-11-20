@@ -157,8 +157,8 @@ export class PromoHttpAdapter implements PromoPort {
   async release(orderId: string): Promise<void> {
     const { internalServiceKey } = this.config;
     if (!internalServiceKey) {
-      this.logger.error(`Voucher for voided order ${orderId} not released: no internal key`);
-      return;
+      this.logger.error(`Voucher for order ${orderId} not released: no internal key`);
+      throw new Error('INTERNAL_SERVICE_KEY is not set');
     }
     const url = `${this.config.promoServiceUrl}/api/v1/vouchers/release`;
     try {
@@ -173,9 +173,10 @@ export class PromoHttpAdapter implements PromoPort {
       });
       if (!res.ok) throw new Error(`promo-service responded ${res.status}`);
     } catch (error) {
-      this.logger.error(
-        `Voucher release failed for voided order ${orderId}: ${(error as Error).message}`,
-      );
+      // Thrown, not swallowed: the cancellation's outbox row retries it, and the void and
+      // checkout paths catch it themselves (they are fail-open by design).
+      this.logger.error(`Voucher release failed for order ${orderId}: ${(error as Error).message}`);
+      throw error;
     }
   }
 }

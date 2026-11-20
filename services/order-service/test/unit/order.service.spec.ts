@@ -231,12 +231,21 @@ describe('OrderService', () => {
       expect(promo.releaseCalls).toEqual([id]);
     });
 
-    it('and the order is still cancelled when promo-service cannot take the voucher back', async () => {
+    it('is still cancelled when promo-service is down, and keeps owing the voucher until it lands', async () => {
       const id = await placeOrder();
       promo.releaseError = new Error('promo-service unreachable');
       await expect(service.cancel(customer, id)).resolves.toMatchObject({
         status: OrderStatus.CANCELLED,
       });
+      const owed = orders.outbox!.rows.find((r) => r.topic === 'VOUCHER_RELEASE')!;
+      expect(owed).toMatchObject({ orderId: id, status: 'PENDING' });
+
+      // promo-service comes back; the sweep hands the voucher back on a CANCELLED order,
+      // which every other topic is told to leave alone.
+      promo.releaseError = null;
+      await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+      expect(promo.releaseCalls).toContain(id);
+      expect(orders.outbox!.rows.find((r) => r.topic === 'VOUCHER_RELEASE')!.status).toBe('DONE');
     });
 
     it('but not when the order moves on to anything other than cancelled', async () => {

@@ -350,6 +350,10 @@ export class OrderService {
     this.outboxService.register('PAYMENT_REVERSAL', (id) => this.reversePayment(id));
     this.outboxService.register('FRANCHISE_REVENUE_VOID', (id) => this.voidFranchiseRevenue(id));
     this.outboxService.register('REFERRAL_REVERSE', (id) => this.reverseReferralForVoid(id));
+    // Owner decision 2026-11-20: a cancelled order gives its voucher back. Throws on failure
+    // (the adapter does), so the row is retried; promo-service is idempotent per order and
+    // still checks the expiry when the voucher is used again.
+    this.outboxService.register('VOUCHER_RELEASE', (id) => this.promo.release(id));
   }
 
   private async reverseReferralForVoid(orderId: string): Promise<void> {
@@ -381,9 +385,15 @@ export class OrderService {
     await this.paymentReversal.cancelForOrder(order.id, cancellation?.note || 'Order cancelled');
   }
 
-  /** The row that makes a cancellation owe its customer the money back; see OutboxTopic. */
-  private static paymentReversalOutbox(orderId: string): OutboxWrite[] {
-    return [{ topic: 'PAYMENT_REVERSAL', orderId }];
+  /**
+   * What a cancellation owes its customer, written WITH the status change: the money back and,
+   * since 2026-11-20, the voucher back. See OutboxTopic.
+   */
+  private static cancellationOutbox(orderId: string): OutboxWrite[] {
+    return [
+      { topic: 'PAYMENT_REVERSAL', orderId },
+      { topic: 'VOUCHER_RELEASE', orderId },
+    ];
   }
 
   /**
@@ -2047,11 +2057,11 @@ export class OrderService {
       undefined,
       undefined,
       undefined,
-      OrderService.paymentReversalOutbox(order.id),
+      OrderService.cancellationOutbox(order.id),
     );
     // Right now, on the request that earned it; a failure here leaves the row for the sweep.
     await this.outboxService.processForOrder(cancelled.id, authorization);
-    await this.releaseHolds(cancelled, authorization);
+    await this.releaseStock(cancelled, authorization);
     // The customer's own cancel is silent to the customer, which left the depot preparing an
     // order that no longer existed. Fail-open like every notify: the order IS cancelled.
     await this.notifyDepotOfCancel(cancelled, authorization);
@@ -2282,7 +2292,7 @@ export class OrderService {
             undefined,
             undefined,
             undefined,
-            OrderService.paymentReversalOutbox(order.id),
+            OrderService.cancellationOutbox(order.id),
           );
         } catch (error) {
           if (error instanceof StaleOrderStatusError) {
@@ -2298,7 +2308,7 @@ export class OrderService {
           continue;
         }
         await this.outboxService.processForOrder(cancelled.id, authorization);
-        await this.releaseHolds(cancelled, authorization);
+        await this.releaseStock(cancelled, authorization);
         cancelledCount += 1;
         if (sweep.stalled) {
           stalledCount += 1;
@@ -3032,20 +3042,10 @@ export class OrderService {
   }
 
   /**
-   * Hands back what a cancelled order held: its voucher and its stock.
-   *
-   * The voucher since 2026-11-20 (owner decision): a customer whose order is cancelled — by
-   * them, by staff or by the stale sweep — can use it again; promo-service still checks the
-   * expiry when it is used. It also returns the rule promotions the order consumed. One place,
-   * so every way an order is cancelled does both. Fail-open, like the void path: the order IS
-   * cancelled, and a voucher not returned is not a reason to report otherwise.
+   * Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. The
+   * voucher goes back through the VOUCHER_RELEASE outbox row the cancellation wrote.
    */
-  private async releaseHolds(order: OrderRecord, authorization: string): Promise<void> {
-    await this.promo
-      .release(order.id)
-      .catch((err: Error) =>
-        this.logger.warn(`Voucher ${order.id} tidak bisa dikembalikan: ${err.message}`),
-      );
+  private async releaseStock(order: OrderRecord, authorization: string): Promise<void> {
     if (!order.depotId) {
       return;
     }
@@ -3153,7 +3153,7 @@ export class OrderService {
       to === OrderStatus.COMPLETED
         ? OrderService.completionOutbox(order)
         : to === OrderStatus.CANCELLED
-          ? OrderService.paymentReversalOutbox(order.id)
+          ? OrderService.cancellationOutbox(order.id)
           : [],
     );
     if (to === OrderStatus.CANCELLED) {
@@ -3162,9 +3162,9 @@ export class OrderService {
     if (to === OrderStatus.COMPLETED) {
       await this.runCompletion(updated, authorization);
     }
-    // Staff cancellation releases what the order held (customer cancels go through cancel()).
+    // Staff cancellation releases any stock the order held (customer cancels go through cancel()).
     if (to === OrderStatus.CANCELLED) {
-      await this.releaseHolds(updated, authorization);
+      await this.releaseStock(updated, authorization);
     }
     return updated;
   }
