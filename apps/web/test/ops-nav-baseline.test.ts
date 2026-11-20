@@ -15,6 +15,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * to the first HQ screen it may open instead of the overview that refuses it.
  */
 const ADDED: Record<string, string[]> = {
+  // Owner decision 2026-11-20: the sales-history import gets a door for every holder of
+  // salesImportAdmin (managers and franchise owners had none; head office had only an export-screen button).
+  DIREKTUR: ['salesImport /dashboard/sales-import'],
+  FRANCHISE_OWNER: ['salesImport /dashboard/sales-import'],
+  HEAD_OFFICE: ['salesImport /dashboard/sales-import'],
+  MANAGER: ['salesImport /dashboard/sales-import'],
+  SUPER_ADMIN: ['salesImport /dashboard/sales-import'],
   // and the head of depot's /dashboard (their operator home) is a row with the page's gate.
   KEPALA_DEPOT: ['operations /dashboard'],
 };

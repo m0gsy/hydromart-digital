@@ -349,7 +349,10 @@ export const CAPABILITIES = {
   resellerAdmin: ['MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // order-service — bulk-import a depot's pre-Hydromart sales history (items 3/11, 2026
   // evaluation list). Same tier as resellerAdmin: depot manager or above, never a line staffer.
-  salesImportAdmin: ['MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // Owner decision 2026-11-20: a franchise owner imports the history of the depots THEY OWN
+  // (order-service checks the depot's recorded owners; this role is network-wide to the scope
+  // guard). The import never feeds franchise revenue or payout: it is a separate ledger.
+  salesImportAdmin: ['MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN', 'FRANCHISE_OWNER'],
   // depot-service — operational incidents inbox (courier/vehicle/complaint reports)
   // and follow-up. Operators log & triage, managers resolve.
   incidents: ['KEPALA_DEPOT', 'MANAGER', 'SUPERVISOR', 'SUPER_ADMIN'],
