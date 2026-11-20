@@ -28,13 +28,14 @@ import { privacy } from '@/lib/dictionaries/id/privacy';
 const show = (node: React.ReactElement) => render(node, { wrapper: LocaleProvider });
 
 describe('PrivacyLink', () => {
-  it('opens the policy over the page instead of navigating', () => {
+  // `findBy`: the body loads on demand (next/dynamic), so the policy is not on /driver.
+  it('opens the policy over the page instead of navigating', async () => {
     show(<PrivacyLink>Kebijakan Privasi</PrivacyLink>);
     // Closed: the words are there, the policy is not.
     expect(screen.queryByText(privacy.sections[0]!.heading)).toBeNull();
 
     fireEvent.click(screen.getByText('Kebijakan Privasi'));
-    expect(screen.getByText(privacy.sections[0]!.heading)).toBeTruthy();
+    expect(await screen.findByText(privacy.sections[0]!.heading)).toBeTruthy();
     expect(screen.getByText(privacy.intro)).toBeTruthy();
   });
 

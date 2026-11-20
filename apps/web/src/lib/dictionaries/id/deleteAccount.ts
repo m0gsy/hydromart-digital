@@ -6,8 +6,6 @@
 // FINANCIAL (`retention.ts`, 3650 hari, tidak pernah di-purge).
 export const deleteAccount = {
   title: 'Penghapusan Akun Hydromart',
-  /** Short form — the full title does not fit a footer row. */
-  navLabel: 'Hapus Akun',
   effective: 'Berlaku sejak 8 Agustus 2026',
   developer: 'Aplikasi: Hydromart dan Hydromart Ops. Pengembang: PT Hydromart Digital.',
   intro:

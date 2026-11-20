@@ -20,8 +20,6 @@ import { dashC } from './id/dashC';
 import { driver } from './id/driver';
 import { hq } from './id/hq';
 import type { insight } from './id/insight';
-import { privacy } from './id/privacy';
-import { deleteAccount } from './id/deleteAccount';
 import { franchise } from './id/franchise';
 import { customerFix } from './id/customerFix';
 import { courierFix } from './id/courierFix';
@@ -259,8 +257,14 @@ export const id = {
   dashC,
   driver,
   hq,
-  privacy,
-  deleteAccount,
+  // Only the titles every route can show (footer, /account, the app bar) — and the one
+  // place they are written. The documents themselves, 13 KB of legal text, are imported by
+  // their pages, and the privacy sheet loads its body on demand, as the terms already do
+  // (audit F-5): merged here they rode along on every route, the courier's /driver
+  // included, and pushed its transfer budget for no reader.
+  // Short form: the full deletion title does not fit a footer row.
+  privacy: { title: 'Kebijakan Privasi' },
+  deleteAccount: { navLabel: 'Hapus Akun' },
   franchise,
   customerFix,
   courierFix,
