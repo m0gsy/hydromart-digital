@@ -1,4 +1,5 @@
 import type { Customer, Order } from './types';
+import { formatAddress } from './format';
 
 /**
  * What a console sends when it hands an order to a courier.
@@ -24,7 +25,7 @@ export function assignBody(
     depotId: order.depotId ?? undefined,
     // Same text the self-claim path builds, so a courier reads one format however the
     // order reached them (and an order with no city does not end in ", ").
-    destinationAddress: [order.addressLine, order.city].filter(Boolean).join(', '),
+    destinationAddress: formatAddress(order),
     destinationLat: order.latitude ?? undefined,
     destinationLng: order.longitude ?? undefined,
     recipientPhone: order.phone,

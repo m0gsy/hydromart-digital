@@ -9,6 +9,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { Order, Page, Payment, TaxSettings } from '@/lib/types';
+import { formatAddress } from '@/lib/format';
 
 // Design 24d — invoice/receipt print preview. Company identity + PPN come from the REAL
 // tax settings (19f, payment-service); the previewed order (lines, number, date, subtotal)
@@ -152,7 +153,7 @@ export default function HqInvoiceTemplatePage() {
               never anything to fetch — only a line nobody had wired. */}
           <p className="mt-1 text-sm font-semibold">
             {order
-              ? `${order.recipientName} · ${order.addressLine}, ${order.city}`
+              ? [order.recipientName, formatAddress(order)].filter(Boolean).join(' · ')
               : t('hq.invoiceTemplate.sampleCustomer')}
           </p>
         </div>

@@ -20,7 +20,7 @@ import { Badge, Button, Card, CenterState, Chip, ErrorState, LinkButton, Money, 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { entityHref } from '@/lib/entity-href';
-import { formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
+import { formatAddress, formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
@@ -250,7 +250,7 @@ function DetailBody({ id }: { id: string }) {
                             {a.isPrimary && <Chip tone="outline" className="ml-2">{t('dashA.customerDetail.primary')}</Chip>}
                           </p>
                           <p className="text-sm text-[color:var(--text-muted)]">
-                            {a.addressLine}, {a.city}
+                            {formatAddress(a)}
                           </p>
                         </div>
                         {a.inRadius != null && (

@@ -1,4 +1,4 @@
-import { formatDateTime, formatIDR } from './format';
+import { formatAddress, formatDateTime, formatIDR } from './format';
 import { statusLabel } from './order-status';
 import { printDocument } from './platform';
 import { COLUMNS, getPaperMm } from './printer-prefs';
@@ -106,7 +106,7 @@ export function buildReceiptModel(
     subtitle: `${t('hrFix.receipt.subtitle')} · ${order.orderNumber}`,
     stamp: `${formatDateTime(order.createdAt)} · ${statusLabel(order.status)}`,
     contact: `${order.recipientName} · ${order.phone}`,
-    address: `${order.addressLine}, ${order.city}${order.province ? `, ${order.province}` : ''}`,
+    address: formatAddress(order, true),
     items: order.items.map((it) => ({
       name: it.productName,
       detail: `${it.quantity} × ${formatIDR(it.unitPrice)}`,
