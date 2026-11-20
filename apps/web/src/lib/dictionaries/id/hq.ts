@@ -959,6 +959,7 @@ export const hq = {
     markedAll: 'Semua notifikasi ditandai dibaca',
     failed: 'Gagal kirim',
     empty: 'Tidak ada notifikasi.',
+    emptyFilter: 'Tidak ada notifikasi jenis ini.',
   },
   analytics: {
     title: 'Analitik jaringan',

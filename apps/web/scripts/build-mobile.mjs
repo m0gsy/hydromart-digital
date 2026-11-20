@@ -121,6 +121,8 @@ const SURFACES = {
       'dashboard/incidents',
       'dashboard/reports',
       'dashboard/orders',
+      // Flow 6b: where a courier's cash handed in is verified.
+      'dashboard/settlements',
       'hr/me/leave',
       'hr/me/announcements',
       'hr/me/payroll/detail',
