@@ -13,6 +13,7 @@ import { ProfileRepository } from '../ports/profile.repository';
 import { CUSTOMER_TOKENS } from '../tokens';
 import { AddressService } from './address.service';
 import { ResellerService } from './reseller.service';
+import { PinLocationError, pinFromRow } from '../../domain/pin-location';
 
 export interface ImportCustomerRow {
   fullName: string;
@@ -23,6 +24,10 @@ export interface ImportCustomerRow {
   province?: string;
   /** Free-text landmark ("patokan") that reaches the courier via the order note. */
   landmark?: string;
+  /** 2026-11-20: the address pin, as two numbers or a Google Maps link. */
+  latitude?: number;
+  longitude?: number;
+  mapsLink?: string;
 }
 
 export interface ImportAddressRow {
@@ -35,6 +40,9 @@ export interface ImportAddressRow {
   province?: string;
   postalCode?: string;
   landmark?: string;
+  latitude?: number;
+  longitude?: number;
+  mapsLink?: string;
 }
 
 export interface ImportResellerRow {
@@ -117,6 +125,11 @@ export class CustomerImportService {
     assertDepotAccess(user, depotId);
 
     return runImport(rows, async (row) => {
+      // Read before anything is written, so a bad pin fails the row and creates nobody.
+      const pin = pinFromRow(row);
+      if (pin && !row.addressLine) {
+        throw new PinLocationError('Pin perlu alamat: isi kolom addressLine dan city juga.');
+      }
       const { customerId, status } = await this.identity.preRegisterCustomer(
         row.phone,
         row.fullName,
@@ -158,9 +171,8 @@ export class CustomerImportService {
          */
         const same = (a: string) => a.trim().toLowerCase().replace(/\s+/g, ' ');
         const existing = await this.addresses.list(customerId);
-        const already = existing.some(
-          (a: { addressLine: string; city: string }) =>
-            same(a.addressLine) === same(row.addressLine!) && same(a.city) === same(row.city!),
+        const already = existing.find(
+          (a) => same(a.addressLine) === same(row.addressLine!) && same(a.city) === same(row.city!),
         );
         if (!already) {
           await this.addresses.create(customerId, {
@@ -171,7 +183,11 @@ export class CustomerImportService {
             city: row.city,
             province: row.province,
             notes: row.landmark,
+            ...(pin ?? {}),
           });
+        } else if (pin && already.latitude == null) {
+          // A re-upload "now with pins" fills the pin the address never had; one it has stays.
+          await this.addresses.update(customerId, already.id, pin);
         }
       }
 
@@ -202,12 +218,17 @@ export class CustomerImportService {
       if (status === 'active') {
         return { status: 'skipped', id: customerId, message: 'Nomor sudah punya akun aktif' };
       }
+      const pin = pinFromRow(row);
       const existing = await this.addresses.list(customerId);
-      const already = existing.some(
-        (a: { addressLine: string; city: string }) =>
-          same(a.addressLine) === same(row.addressLine) && same(a.city) === same(row.city),
+      const already = existing.find(
+        (a) => same(a.addressLine) === same(row.addressLine) && same(a.city) === same(row.city),
       );
       if (already) {
+        // A re-upload "now with pins" fills the pin the address never had; one it has stays.
+        if (pin && already.latitude == null) {
+          await this.addresses.update(customerId, already.id, pin);
+          return { status: 'updated', id: already.id, message: 'Pin ditambahkan ke alamat yang sudah ada' };
+        }
         return { status: 'skipped', id: customerId, message: 'Alamat ini sudah ada' };
       }
       const created = await this.addresses.create(customerId, {
@@ -219,6 +240,7 @@ export class CustomerImportService {
         province: row.province,
         postalCode: row.postalCode,
         notes: row.landmark,
+        ...(pin ?? {}),
       });
       return { status: 'created', id: created.id };
     });

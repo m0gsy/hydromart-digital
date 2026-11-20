@@ -5,6 +5,7 @@ import {
   IsArray,
   IsInt,
   IsISO8601,
+  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
@@ -52,6 +53,23 @@ export class ImportCustomerRowDto {
   @IsString()
   @MaxLength(255)
   landmark?: string;
+  /** 2026-11-20: the pin, as two numbers… */
+  @ApiPropertyOptional({ example: -6.914744 })
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  latitude?: number;
+
+  @ApiPropertyOptional({ example: 107.60981 })
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  longitude?: number;
+
+  /** …or as a Google Maps link that carries it (a short link is refused with what to do). */
+  @ApiPropertyOptional({ example: 'https://maps.google.com/?q=-6.914744,107.60981' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  mapsLink?: string;
 }
 
 export class ImportAddressRowDto {
@@ -98,6 +116,23 @@ export class ImportAddressRowDto {
   @IsString()
   @MaxLength(255)
   landmark?: string;
+  /** 2026-11-20: the pin, as two numbers… */
+  @ApiPropertyOptional({ example: -6.914744 })
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  latitude?: number;
+
+  @ApiPropertyOptional({ example: 107.60981 })
+  @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  longitude?: number;
+
+  /** …or as a Google Maps link that carries it (a short link is refused with what to do). */
+  @ApiPropertyOptional({ example: 'https://maps.google.com/?q=-6.914744,107.60981' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  mapsLink?: string;
 }
 
 export class ImportAddressesDto {
