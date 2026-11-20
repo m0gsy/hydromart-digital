@@ -75,7 +75,9 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
         const page = (await res.json()) as DirectoryRecipient[];
         const last = page[page.length - 1]?.customerId;
         if (after && last === after) break;
-        out.push(...page);
+        // A customer whose account owner could not be found comes back with no number (the
+        // page keeps its length so the paging above stays right); there is nobody to message.
+        out.push(...page.filter((r) => r.phone));
         if (page.length < CustomerDirectoryHttpAdapter.PAGE_SIZE || !last) break;
         after = last;
       }

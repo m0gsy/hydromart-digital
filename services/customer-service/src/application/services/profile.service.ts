@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { localDayKey } from '@hydromart/platform';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
@@ -10,6 +10,7 @@ import {
   SegmentFilter,
 } from '../ports/profile.repository';
 import { CustomerDepotDepositRow, DepotLedgerPort } from '../ports/depot-ledger.port';
+import { IdentityPort } from '../ports/identity.port';
 import { CUSTOMER_TOKENS } from '../tokens';
 
 export interface BirthdayRewardResult {
@@ -32,6 +33,8 @@ export class ProfileService {
     @Inject(CUSTOMER_TOKENS.LoyaltyRewardPort) private readonly loyalty: LoyaltyRewardPort,
     @Inject(CUSTOMER_TOKENS.DepotLedgerPort) private readonly depotLedger: DepotLedgerPort,
     private readonly config: CustomerConfigService,
+    // Optional so the existing construction sites keep compiling; the module always provides it.
+    @Optional() @Inject(CUSTOMER_TOKENS.IdentityPort) private readonly identity?: IdentityPort,
   ) {}
 
   /**
@@ -66,13 +69,40 @@ export class ProfileService {
   }
 
   /** Staff: resolve the CRM broadcast audience for an attribute segment (FR-087). */
-  findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
-    return this.profiles.findSegment(filter);
+  async findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
+    return this.toAccountOwners(await this.profiles.findSegment(filter));
   }
 
   /** PRM-9: one customer's contact, for a service addressing exactly one person. */
-  findRecipient(customerId: string): Promise<DirectoryRecipient | null> {
-    return this.profiles.findRecipient(customerId);
+  async findRecipient(customerId: string): Promise<DirectoryRecipient | null> {
+    const row = await this.profiles.findRecipient(customerId);
+    if (!row) return null;
+    const [owner] = await this.toAccountOwners([row]);
+    return owner.phone ? owner : null;
+  }
+
+  /**
+   * Owner decision 2026-11-20: a campaign or promo message goes to the ACCOUNT OWNER's number
+   * and name — the person who consented — not to the primary address's recipient, who can be
+   * a guard, a neighbour or a relative.
+   *
+   * A row stays even when its owner is not found (phone ''), because the directory is PAGED
+   * and the reader stops on a short page; it filters the empty numbers out itself. Nobody
+   * found at all means auth-service did not answer, and an empty audience would read as
+   * "nobody to reach", so that refuses instead.
+   */
+  private async toAccountOwners(rows: DirectoryRecipient[]): Promise<DirectoryRecipient[]> {
+    if (!this.identity || rows.length === 0) return rows;
+    const owners = await this.identity.getCustomerNames(rows.map((r) => r.customerId));
+    if (owners.size === 0) {
+      throw new ServiceUnavailableException(
+        'auth-service tidak menjawab; daftar penerima belum bisa disusun',
+      );
+    }
+    return rows.map((r) => {
+      const owner = owners.get(r.customerId);
+      return { customerId: r.customerId, name: owner?.fullName || r.name, phone: owner?.phone ?? '' };
+    });
   }
 
   /**
