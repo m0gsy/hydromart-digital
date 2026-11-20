@@ -347,7 +347,7 @@ function DepotCard({
     try {
       if (depot.active && !(await reroute.check({ depotId: depot.id, active: false }))) return;
       if (depot.active) await api.del(endpoints.depots.detail(depot.id), true);
-      else await api.patch(endpoints.depots.detail(depot.id), { active: true }, true);
+      else await api.post(endpoints.depots.reactivate(depot.id), undefined, true);
       // Done: a later deactivation (after a re-activation) is asked about again.
       reroute.reset();
       onChanged();

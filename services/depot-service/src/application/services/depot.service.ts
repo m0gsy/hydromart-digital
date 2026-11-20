@@ -158,18 +158,32 @@ export class DepotService {
     id: string,
     input: UpdateDepotData,
     seenUpdatedAt?: string,
-    canChangeOwners = true,
+    /**
+     * `depotLifecycle`: head office. Editing a depot is open to its manager; who owns it,
+     * and whether it is open at all, are head office's — the same people who may create or
+     * deactivate one.
+     */
+    canLifecycle = true,
   ): Promise<DepotRecord> {
     const patch = this.checkedSchedule(input);
     const current = await this.get(id, false);
     if (!isDecisionOnlyPatch(patch)) assertFresh(current.updatedAt, seenUpdatedAt);
+    // 2026-11-20: `active` rode along on the edit route, so a manager could switch their own
+    // depot off (or back on) with a PATCH, past the head-office rule DELETE enforces.
+    if (patch.active !== undefined && patch.active !== current.active && !canLifecycle) {
+      throw new ForbiddenException(
+        'Hanya kantor pusat yang boleh mengaktifkan atau menonaktifkan depot.',
+      );
+    }
+    // Switching off through an edit is still switching off: the same in-flight check (DEP-10).
+    if (patch.active === false && current.active) await this.assertNoBlockers(id);
     // Judged on the depot as it will be AFTER the patch: flipping HKP → WARALABA without
     // naming an owner, or clearing the owner of a franchise depot, both break the money path.
     const ownershipType = patch.ownershipType ?? current.ownershipType;
     const nextOwners = this.ownersAfter(current, patch);
     // Who is paid, and how much, is not a depot setting: editing a depot is open to its manager,
     // changing its owners is head office's (the same people who may create or deactivate one).
-    if (nextOwners !== undefined && !canChangeOwners) {
+    if (nextOwners !== undefined && !canLifecycle) {
       throw new ForbiddenException(
         'Hanya kantor pusat yang boleh mengubah pemilik dan pembagian hasil depot.',
       );
@@ -313,10 +327,20 @@ export class DepotService {
    */
   async deactivate(id: string, opts: { force?: boolean } = {}): Promise<DepotRecord> {
     await this.get(id, false);
-    if (!opts.force && this.probe) {
-      const blockers = await this.probe.blockers(id);
-      if (blockers.length > 0) throw new DepotDeactivationBlockedError(blockers);
-    }
+    if (!opts.force) await this.assertNoBlockers(id);
     return this.depots.update(id, { active: false });
+  }
+
+  /** Head office reopening a depot it closed (`depotLifecycle`, like closing it). */
+  async reactivate(id: string): Promise<DepotRecord> {
+    await this.get(id, false);
+    return this.depots.update(id, { active: true });
+  }
+
+  /** DEP-10: no closing a depot while work is still in flight against it. */
+  private async assertNoBlockers(id: string): Promise<void> {
+    if (!this.probe) return;
+    const blockers = await this.probe.blockers(id);
+    if (blockers.length > 0) throw new DepotDeactivationBlockedError(blockers);
   }
 }

@@ -564,6 +564,24 @@ export class DepotController {
     return removed;
   }
 
+  // 2026-11-20: switching a depot back on is head office's, like switching it off. It was a
+  // PATCH, which only a manager or super admin may send — so head office could close a depot
+  // and never reopen it, and the HQ screen swallowed the 403.
+  @ApiOkResponse({ type: DepotResponseDto })
+  @ApiBearerAuth()
+  @Can('depotLifecycle')
+  @Post(':depotId/reactivate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reactivate a depot (head office)' })
+  async reactivate(
+    @Param('depotId', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DepotRecord> {
+    const back = await this.depots.reactivate(id);
+    await this.audit('depot.reactivate', user, back.code, { depotId: id });
+    return back;
+  }
+
   /**
    * Who changed a depot, and which fields. Depot edits move money (bank account, QRIS) and
    * routing (radius, drawn area), and before this none of them left a trace. Fail-open, like

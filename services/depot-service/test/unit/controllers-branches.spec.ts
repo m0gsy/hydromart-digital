@@ -1103,6 +1103,7 @@ describe('DepotController', () => {
     update: jest.fn(),
     setQrisImage: jest.fn(),
     deactivate: jest.fn(),
+    reactivate: jest.fn(),
   };
   const storage = { put: jest.fn() };
   const c = new DepotController(svc as never, storage as never);
@@ -1427,6 +1428,9 @@ describe('DepotController', () => {
     expect(svc.deactivate).toHaveBeenLastCalledWith(ID, { force: true });
     await c.remove(ID, user, 'yes');
     expect(svc.deactivate).toHaveBeenLastCalledWith(ID, { force: false });
+    svc.reactivate.mockResolvedValueOnce({ id: ID, code: 'D1', active: true });
+    await expect(c.reactivate(ID, user)).resolves.toMatchObject({ active: true });
+    expect(svc.reactivate).toHaveBeenCalledWith(ID);
   });
 
   /*

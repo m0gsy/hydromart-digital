@@ -52,6 +52,52 @@ describe('DepotService.deactivate (DEP-10)', () => {
     const { svc, depot } = await create();
     await expect(svc.deactivate(depot.id)).resolves.toMatchObject({ active: false });
   });
+
+  /*
+   * 2026-11-20: \`active\` rode along on the edit route (\`PATCH /depots/:depotId\`, open to a
+   * depot's manager), so a manager could switch their own depot off — or back on — past the
+   * head-office rule DELETE enforces, and past the in-flight check above.
+   */
+  describe('through the edit route', () => {
+    const seen = async (svc: DepotService, id: string) =>
+      (await svc.get(id, false)).updatedAt.toISOString();
+
+    it('refuses a manager switching the depot off or on, and changes nothing', async () => {
+      const { svc, depot, repo } = await create({ blockers: async () => [] });
+      await expect(
+        svc.update(depot.id, { active: false }, await seen(svc, depot.id), false),
+      ).rejects.toThrow(/Hanya kantor pusat/);
+      expect(repo.rows.find((r) => r.id === depot.id)?.active).toBe(true);
+      // Re-sending the state it already has is not a switch, and stays an ordinary edit.
+      await expect(
+        svc.update(depot.id, { active: true, name: 'Baru' }, await seen(svc, depot.id), false),
+      ).resolves.toMatchObject({ name: 'Baru', active: true });
+    });
+
+    it('gives head office the same in-flight check as DELETE when switching it off', async () => {
+      const { svc, depot, repo } = await create({ blockers: async () => ['1 PO terkirim'] });
+      await expect(
+        svc.update(depot.id, { active: false }, await seen(svc, depot.id), true),
+      ).rejects.toBeInstanceOf(DepotDeactivationBlockedError);
+      expect(repo.rows.find((r) => r.id === depot.id)?.active).toBe(true);
+    });
+
+    it('reopens a closed depot through reactivate()', async () => {
+      const { svc, depot } = await create({ blockers: async () => [] });
+      await svc.deactivate(depot.id);
+      await expect(svc.reactivate(depot.id)).resolves.toMatchObject({ active: true });
+    });
+
+    it('lets head office switch a quiet depot off, and back on', async () => {
+      const { svc, depot } = await create({ blockers: async () => [] });
+      await expect(
+        svc.update(depot.id, { active: false }, await seen(svc, depot.id), true),
+      ).resolves.toMatchObject({ active: false });
+      await expect(
+        svc.update(depot.id, { active: true }, await seen(svc, depot.id), true),
+      ).resolves.toMatchObject({ active: true });
+    });
+  });
 });
 
 describe('DepotDeactivationPrismaProbe (DEP-10)', () => {

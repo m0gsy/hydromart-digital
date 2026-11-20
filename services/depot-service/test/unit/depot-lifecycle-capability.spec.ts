@@ -15,9 +15,12 @@ describe('depot lifecycle is its own capability', () => {
   const capabilityOf = (method: keyof DepotController) =>
     reflector.get<string>(CAPABILITY_KEY, DepotController.prototype[method] as never);
 
-  it('gates create and deactivate on depotLifecycle', () => {
+  it('gates create, deactivate and reactivate on depotLifecycle', () => {
     expect(capabilityOf('create')).toBe('depotLifecycle');
     expect(capabilityOf('remove')).toBe('depotLifecycle');
+    // 2026-11-20: reopening was a PATCH only a manager or super admin could send, so head
+    // office could close a depot and never open it again.
+    expect(capabilityOf('reactivate')).toBe('depotLifecycle');
   });
 
   it('leaves editing and the QRIS upload with the depot manager', () => {
