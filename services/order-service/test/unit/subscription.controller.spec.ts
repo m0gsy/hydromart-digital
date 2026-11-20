@@ -83,6 +83,19 @@ describe('SubscriptionController', () => {
       controller.reroutePreview(manager, { depotId: 'd1', serviceRadiusKm: 3 }),
     ).resolves.toMatchObject({ affected: 1 });
     await expect(controller.reroutePreview(hq, { depotId: 'd2', active: false })).resolves.toBeTruthy();
+    // A reopening must say where the depot will serve from.
+    expect(() => controller.reroutePreview(hq, { depotId: 'd2', active: true } as never)).toThrow(
+      /lokasi dan radiusnya/,
+    );
+    await expect(
+      controller.reroutePreview(hq, {
+        depotId: 'd2',
+        active: true,
+        lat: -6.9,
+        lng: 107.6,
+        serviceRadiusKm: 5,
+      } as never),
+    ).resolves.toBeTruthy();
     // A redrawn area is checked before it is routed against.
     expect(() =>
       controller.reroutePreview(hq, { depotId: 'd2', serviceArea: [[{ lat: 1, lng: 1 }]] } as never),

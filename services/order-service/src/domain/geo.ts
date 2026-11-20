@@ -54,7 +54,10 @@ export function selectNearestDepot(
 /** A change to one depot, as the reroute preview applies it (absent = unchanged). */
 export interface DepotChange {
   depotId: string;
-  /** `false`: the depot is suspended and stops serving anyone. */
+  /**
+   * `false`: the depot is suspended and stops serving anyone. `true`: a closed depot
+   * reopens, serving from the lat/lng/radius/area given with it.
+   */
   active?: boolean;
   lat?: number;
   lng?: number;
@@ -88,11 +91,31 @@ export function isServiceArea(v: unknown): v is ServiceArea {
  * The network after `change`. A suspended depot leaves; an edited one keeps its drawn area
  * unless a new one (or none) is given — the area still decides over a radius, exactly as
  * `selectNearestDepot` reads it.
- * ponytail: a depot not in the active list (re-activating one) changes nothing here; add it
- * when a screen previews a re-activation.
+ * A reopened depot joins the network where the change says it will serve from.
  */
 export function withDepotChange(depots: DepotLocation[], change: DepotChange): DepotLocation[] {
   if (change.active === false) return depots.filter((d) => d.id !== change.depotId);
+  if (
+    change.active === true &&
+    !depots.some((d) => d.id === change.depotId) &&
+    change.lat !== undefined &&
+    change.lng !== undefined &&
+    change.serviceRadiusKm !== undefined
+  ) {
+    return [
+      ...depots,
+      {
+        id: change.depotId,
+        lat: change.lat,
+        lng: change.lng,
+        serviceRadiusKm: change.serviceRadiusKm,
+        serviceArea: change.serviceArea ?? null,
+        // Routing reads neither; a preview prices nothing.
+        deliveryFee: 0,
+        minOrderAmount: null,
+      },
+    ];
+  }
   return depots.map((d) =>
     d.id === change.depotId
       ? {
