@@ -1098,7 +1098,7 @@ export class FakeOrderLookup implements OrderLookupPort {
     const full: ClaimableOrder = {
       orderNumber: `HM-${order.id}`,
       depotId: 'depot-1',
-      status: 'CONFIRMED',
+      status: 'PREPARING',
       statusChangedAt: new Date(Date.now() - 60 * 60_000),
       recipientName: 'Budi',
       phone: '+62800',

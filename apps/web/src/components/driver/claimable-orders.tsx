@@ -44,7 +44,8 @@ export function ClaimableOrders({
     () =>
       enabled
         ? api.get<Page<Order>>(
-            endpoints.orders.manage({ status: 'CONFIRMED', depotId, limit: 20 }),
+            // PREPARING: the only state a courier can be handed (and the server's claim rule).
+            endpoints.orders.manage({ status: 'PREPARING', depotId, limit: 20 }),
             true,
           )
         : Promise.resolve({ items: [], total: 0, page: 1, limit: 0 } as Page<Order>),
