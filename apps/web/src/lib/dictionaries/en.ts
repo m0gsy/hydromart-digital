@@ -18,8 +18,6 @@ import { dashC } from './en/dashC';
 import { driver } from './en/driver';
 import { hq } from './en/hq';
 import { insight } from './en/insight';
-import { privacy } from './en/privacy';
-import { deleteAccount } from './en/deleteAccount';
 import { franchise } from './en/franchise';
 import { customerFix } from './en/customerFix';
 import { courierFix } from './en/courierFix';
@@ -236,8 +234,9 @@ export const en: Dictionary = {
   driver,
   hq,
   insight,
-  privacy,
-  deleteAccount,
+  // The titles only; the documents load with their pages (see id.ts).
+  privacy: { title: 'Privacy Policy' },
+  deleteAccount: { navLabel: 'Delete account' },
   franchise,
   customerFix,
   courierFix,

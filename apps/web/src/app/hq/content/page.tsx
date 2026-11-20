@@ -7,6 +7,10 @@ import { HqPageHeader } from '@/components/hq/page-header';
 import { Button, Card, Chip, Input, Toggle } from '@/components/ui';
 import { id as idDict } from '@/lib/dictionaries/id';
 import { en as enDict } from '@/lib/dictionaries/en';
+import { deleteAccount as deleteEN } from '@/lib/dictionaries/en/deleteAccount';
+import { privacy as privacyEN } from '@/lib/dictionaries/en/privacy';
+import { deleteAccount as deleteID } from '@/lib/dictionaries/id/deleteAccount';
+import { privacy as privacyID } from '@/lib/dictionaries/id/privacy';
 import { useT } from '@/lib/locale-context';
 
 // Design 24c — bilingual dictionary editor. Real-read: flattens the live id/en dictionaries
@@ -27,8 +31,26 @@ function flatten(obj: unknown, prefix = '', out: Record<string, string> = {}): R
 
 export default function HqContentPage() {
   const { t } = useT();
-  const flatId = useMemo(() => flatten(idDict), []);
-  const flatEn = useMemo(() => flatten(enDict), []);
+  // The legal documents load with their own pages, not in the shared dictionary; merged
+  // back here so their copy is still reviewed for a missing English line.
+  const flatId = useMemo(
+    () =>
+      flatten({
+        ...idDict,
+        privacy: { ...idDict.privacy, ...privacyID },
+        deleteAccount: { ...idDict.deleteAccount, ...deleteID },
+      }),
+    [],
+  );
+  const flatEn = useMemo(
+    () =>
+      flatten({
+        ...enDict,
+        privacy: { ...enDict.privacy, ...privacyEN },
+        deleteAccount: { ...enDict.deleteAccount, ...deleteEN },
+      }),
+    [],
+  );
   const keys = useMemo(() => Object.keys(flatId), [flatId]);
 
   const [query, setQuery] = useState('');

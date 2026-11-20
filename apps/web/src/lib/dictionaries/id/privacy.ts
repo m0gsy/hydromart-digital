@@ -6,7 +6,6 @@
 // mengaku pelanggan menyetujui teks yang tidak pernah mereka lihat. Itu persis cacat yang
 // terjadi sampai 29 Agustus 2026 (versi tertulis '1.0', dokumennya belum ada).
 export const privacy = {
-  title: 'Kebijakan Privasi',
   effective: 'Berlaku sejak 2 September 2026',
   intro:
     'Hydromart menghormati privasimu. Kebijakan ini menjelaskan data pribadi apa yang kami kumpulkan, untuk apa, berapa lama kami simpan, dan hak-hakmu berdasarkan UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi (UU PDP).',
