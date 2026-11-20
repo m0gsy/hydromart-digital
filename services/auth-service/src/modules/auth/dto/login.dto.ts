@@ -9,11 +9,11 @@ export class LoginDto {
   phone!: string;
 
   @ApiPropertyOptional({
-    enum: ['STAFF'],
+    enum: ['STAFF', 'CUSTOMER'],
     description:
-      'Sent by the staff-only doors (the Ops app, /hq/login, the manager phone login): a number that is not a staff login is refused instead of being signed up as a customer.',
+      'Which app is asking. STAFF (the Ops app, /hq/login, the manager phone login): a number that is not a staff login is refused instead of being signed up as a customer. CUSTOMER (the customer app): a staff login is refused and sent to the Ops app.',
   })
   @IsOptional()
-  @IsIn(['STAFF'])
-  audience?: 'STAFF';
+  @IsIn(['STAFF', 'CUSTOMER'])
+  audience?: 'STAFF' | 'CUSTOMER';
 }

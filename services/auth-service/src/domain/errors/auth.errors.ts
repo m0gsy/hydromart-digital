@@ -117,6 +117,19 @@ export class NotStaffError extends DomainError {
   }
 }
 
+/**
+ * The customer app was given a staff login's number. Staff sign in to the Ops app, where their
+ * consoles live; the customer binary does not carry them, so a staff session there opened on
+ * screens that do not exist (owner decision 2026-11-20).
+ */
+export class StaffAccountError extends DomainError {
+  readonly code = 'AUTH_STAFF_ACCOUNT';
+  readonly status = HTTP.FORBIDDEN;
+  constructor() {
+    super('This number belongs to a staff account. Sign in with the Hydromart Ops app.');
+  }
+}
+
 export class AccountNotActiveError extends DomainError {
   readonly code = 'AUTH_ACCOUNT_NOT_ACTIVE';
   readonly status = HTTP.FORBIDDEN;

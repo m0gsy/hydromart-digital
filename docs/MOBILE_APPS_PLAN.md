@@ -641,6 +641,11 @@ Diurutkan berdasarkan risiko, bukan kenyamanan:
     sesi pelanggan yang sudah ada → sesi itu keluar sendiri ke `/login` dengan pesan yang
     sama. Buka app tanpa login → langsung halaman login, bukan katalog. Nomor staf tetap
     masuk seperti biasa.
+13. **App pelanggan hanya untuk pelanggan** (keputusan pemilik 2026-11-20). Login di app
+    Hydromart dengan nomor staf → ditolak "silakan masuk lewat aplikasi Hydromart Ops", tanpa
+    SMS. Pasang APK baru di atas sesi staf yang sudah ada → sesi itu keluar sendiri ke
+    `/login` dengan pesan yang sama, tanpa sempat jatuh ke layar kosong. Nomor pelanggan dan
+    nomor baru (daftar) tetap jalan seperti biasa.
 
 ## Yang sengaja TIDAK ada di rencana ini
 

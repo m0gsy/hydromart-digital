@@ -10,7 +10,7 @@ import { BrandMark, Button, Card, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
-import { isOpsApp } from '@/lib/platform';
+import { isCustomerApp, isOpsApp } from '@/lib/platform';
 import type { OtpChallenge } from '@/lib/types';
 
 // Fixed brand gradient — never flips under dark (spec 4c), so it's an inline literal.
@@ -82,15 +82,21 @@ function LoginForm() {
   // E8: /register hands the number over when it turns out to already have an account,
   // so the visitor does not retype what they just typed.
   const handedOver = useSearchParams().get('phone') ?? '';
-  // Owner decision 2026-11-20: the Ops app is staff-only. Its login asks for a STAFF account,
-  // so an unregistered number is refused instead of being signed up as a customer, and
-  // OpsStaffOnly sends a customer session that got in anyway back here with this reason.
+  // Owner decisions 2026-11-20: each app signs in its own people. The Ops app asks for a STAFF
+  // account (an unregistered number is refused, not signed up as a customer) and the customer
+  // app for a CUSTOMER one (a staff number is sent to Ops). The web serves both, so it asks for
+  // neither. AppAudienceGate sends a session that got into the wrong app back here with a reason.
   const opsApp = isOpsApp();
-  const notStaff = useSearchParams().get('reason') === 'not-staff';
+  const audience = opsApp ? 'STAFF' : isCustomerApp() ? 'CUSTOMER' : null;
+  const reason = useSearchParams().get('reason');
   const [phone, setPhone] = useState(handedOver);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(() =>
-    notStaff ? t('errors.byCode.AUTH_NOT_STAFF') : null,
+    reason === 'not-staff'
+      ? t('errors.byCode.AUTH_NOT_STAFF')
+      : reason === 'staff-account'
+        ? t('errors.byCode.AUTH_STAFF_ACCOUNT')
+        : null,
   );
 
   async function submit(e: React.FormEvent) {
@@ -100,7 +106,7 @@ function LoginForm() {
     try {
       const challenge = await api.post<OtpChallenge>(
         endpoints.auth.login,
-        opsApp ? { phone, audience: 'STAFF' } : { phone },
+        audience ? { phone, audience } : { phone },
       );
       // AUTH-3: the server decides. A number with no account is registered rather than
       // refused, and it answers REGISTRATION so /verify shows the signup wording and posts

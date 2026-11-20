@@ -1,7 +1,7 @@
 import { OtpPurpose } from '../../src/domain/otp/otp-purpose.enum';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
 import { Role } from '../../src/domain/customer/role.enum';
-import { NotStaffError } from '../../src/domain/errors/auth.errors';
+import { NotStaffError, StaffAccountError } from '../../src/domain/errors/auth.errors';
 import { AuditAction, AuditService } from '../../src/application/services/audit.service';
 import { LoginService } from '../../src/application/services/login.service';
 import { OtpService } from '../../src/application/services/otp.service';
@@ -110,7 +110,7 @@ describe('LoginService', () => {
       expect(delivery.sent).toHaveLength(0);
     });
 
-    it('lets a staff login through with a LOGIN code', async () => {
+    it('lets a staff login through with a LOGIN code, from a staff door', async () => {
       customers.seed(makeCustomer({ role: Role.STAFF_DEPOT }));
       const result = await service.requestLogin({
         phone: makeCustomer().phone,
@@ -119,6 +119,35 @@ describe('LoginService', () => {
       });
       expect(result.purpose).toBe('LOGIN');
       expect(delivery.sent[0]?.purpose).toBe(OtpPurpose.LOGIN);
+    });
+  });
+
+  // Owner decision 2026-11-20: staff sign in to the Ops app. The customer binary carries none of
+  // the consoles a staff session lands on, so it opened on screens that do not exist.
+  describe('from the customer app', () => {
+    it('refuses a staff login and sends no code', async () => {
+      customers.seed(makeCustomer({ role: Role.KEPALA_DEPOT }));
+      await expect(
+        service.requestLogin({ phone: makeCustomer().phone, audience: 'CUSTOMER', context: ctx }),
+      ).rejects.toBeInstanceOf(StaffAccountError);
+      expect(delivery.sent).toHaveLength(0);
+    });
+
+    it('still signs up an unknown number and lets a customer in', async () => {
+      const fresh = await service.requestLogin({
+        phone: '081234567891',
+        audience: 'CUSTOMER',
+        context: ctx,
+      });
+      expect(fresh.purpose).toBe('REGISTRATION');
+
+      customers.seed(makeCustomer());
+      const back = await service.requestLogin({
+        phone: makeCustomer().phone,
+        audience: 'CUSTOMER',
+        context: ctx,
+      });
+      expect(back.purpose).toBe('LOGIN');
     });
   });
 });

@@ -37,6 +37,14 @@ export function isOpsApp(): boolean {
 }
 
 /**
+ * The customer binary (id.hydromart.app). It carries none of the staff consoles, so its login
+ * refuses a staff number and it keeps no staff session. False on the web and in the Ops app.
+ */
+export function isCustomerApp(): boolean {
+  return process.env.NEXT_PUBLIC_MOBILE_APP === 'customer';
+}
+
+/**
  * Open something outside the app: a map, a phone dialler, WhatsApp, a receipt image.
  * Returns true when it took responsibility for the URL, so the caller can suppress the
  * browser's own default.
