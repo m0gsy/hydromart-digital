@@ -955,6 +955,7 @@ export const hq = {
     markedAll: 'All notifications marked read',
     failed: 'Send failed',
     empty: 'No notifications.',
+    emptyFilter: 'No notifications of this kind.',
   },
   analytics: {
     title: 'Network analytics',

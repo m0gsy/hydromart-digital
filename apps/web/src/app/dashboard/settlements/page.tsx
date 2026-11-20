@@ -17,6 +17,7 @@ import { useAsync } from '@/lib/use-async';
 import { whenRosterScoped } from '@/lib/drivers-scope';
 import { useDriversUrl } from '@/lib/use-drivers-url';
 import { useT } from '@/lib/locale-context';
+import { FOCUS_RING, focusRowId, useFocusRow } from '@/lib/use-focus-row';
 import type { CashSettlement, Customer, SettlementStatus } from '@/lib/types';
 
 const STATUSES: SettlementStatus[] = ['SUBMITTED', 'VERIFIED', 'DISPUTED'];
@@ -327,9 +328,11 @@ function Body() {
   const { scopedId, selected } = useDepot();
   const [status, setStatus] = useState<SettlementStatus>('SUBMITTED');
   const driverName = useDriverNames();
+  // Flow 6b: a settlement push opens this list on the cash it is about (read again for a new one).
+  const focusId = useFocusRow();
   const list = useAsync<CashSettlement[]>(
     () => (scopedId ? api.get(endpoints.settlements.list({ depotId: scopedId, status }), true) : Promise.resolve([])),
-    [scopedId, status],
+    [scopedId, status, focusId],
   );
 
   const waiting = list.data?.filter((s) => s.status === 'SUBMITTED').length ?? 0;
@@ -378,7 +381,14 @@ function Body() {
       ) : (
         <div className="flex flex-col gap-2.5">
           {list.data.map((s) => (
-            <SettlementRow key={s.id} s={s} onDone={list.reload} driverName={driverName} />
+            <div
+              key={s.id}
+              id={focusRowId(s.id)}
+              aria-current={s.id === focusId ? 'true' : undefined}
+              className={s.id === focusId ? `${FOCUS_RING} rounded-2xl` : undefined}
+            >
+              <SettlementRow s={s} onDone={list.reload} driverName={driverName} />
+            </div>
           ))}
         </div>
       )}

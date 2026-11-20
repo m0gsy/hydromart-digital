@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useConfirm } from '@/components/confirm';
 import { useT } from '@/lib/locale-context';
+import { FOCUS_RING, focusRowId, useFocusRow } from '@/lib/use-focus-row';
 import { Lock, Receipt } from '@phosphor-icons/react';
 
 import { ExternalLink } from '@/components/external-link';
@@ -122,6 +123,8 @@ function Body() {
   const { t } = useT();
   const { scopedId, selected } = useDepot();
   const [status, setStatus] = useState<ExpenseClaimStatus>('PENDING');
+  // Flow 6b: a claim push opens this queue on the claim it is about (read again for a new one).
+  const focusId = useFocusRow();
   // Flow PR-8a: The approval queue walks pages and says "N dari total"; it stopped at a fixed count and
   // drew that as the whole list.
   // A claim decided past the first page is buried work, not a short queue.
@@ -131,7 +134,7 @@ function Body() {
         endpoints.expenseApprovals.list({ depotId: scopedId ?? undefined, status, page, limit: 50 }),
         true,
       ),
-    [scopedId, status],
+    [scopedId, status, focusId],
   );
 
   return (
@@ -173,7 +176,14 @@ function Body() {
       ) : (
         <div className="flex flex-col gap-2.5">
           {list.rows.map((c) => (
-            <ClaimRow key={c.id} c={c} onDone={list.reload} />
+            <div
+              key={c.id}
+              id={focusRowId(c.id)}
+              aria-current={c.id === focusId ? 'true' : undefined}
+              className={c.id === focusId ? `${FOCUS_RING} rounded-2xl` : undefined}
+            >
+              <ClaimRow c={c} onDone={list.reload} />
+            </div>
           ))}
         </div>
       )}
