@@ -265,7 +265,8 @@ function AddressForm({
       // Shared `currentPosition`, not a second copy: precise first, then the coarse
       // provider. A phone whose owner chose "Perkiraan" in the Android 12+ permission
       // dialog holds COARSE only, and a high-accuracy-only request there simply times out.
-      const pos = await currentPosition();
+      // Precise: this is the point the courier drives to, not a "which depot" guess.
+      const pos = await currentPosition({ precise: true });
       setCoords(pos.coords.latitude, pos.coords.longitude);
     } catch (err) {
       const reason = geoReason(err);

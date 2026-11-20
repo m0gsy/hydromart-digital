@@ -21,7 +21,7 @@ export const privacy = {
     },
     {
       heading: 'Lokasi perangkat',
-      body: 'Kalau kamu menekan “Gunakan lokasi saya” di beranda atau saat menyimpan alamat, aplikasi membaca lokasi perkiraan (approximate) perangkatmu dan mengirimkannya ke server kami untuk mencari depot terdekat serta memeriksa apakah titik itu masuk jangkauan antar depot. Titik itu ikut tersimpan pada alamat yang kamu simpan. Ini opsional: kamu bisa mengetik alamat sendiri tanpa memberi izin lokasi, dan aplikasi tetap bisa dipakai sepenuhnya. Lokasi tidak dibagikan ke pihak ketiga, tidak dipakai untuk iklan maupun analitik, dikirim lewat koneksi terenkripsi, dan bisa kamu minta hapus bersama data akunmu. Aplikasi pelanggan tidak meminta izin lokasi presisi (GPS); lokasi presisi hanya dipakai aplikasi staf untuk bukti pengantaran dan absensi kurir.',
+      body: 'Kalau kamu menekan “Gunakan lokasi saya” di beranda, saat menyimpan alamat, atau saat memesan, aplikasi membaca lokasi perangkatmu — di layar alamat dan pemesanan dengan lokasi presisi (GPS), supaya kurir bisa menemukan titik antarnya — lalu mengirimkannya ke server kami untuk mencari depot terdekat serta memeriksa apakah titik itu masuk jangkauan antar depot. Titik itu ikut tersimpan pada alamat dan pesananmu. Izin lokasi opsional: kamu bisa mengisi titik alamat sendiri (mengetik koordinat atau menempel link Google Maps) tanpa memberi izin lokasi. Aplikasi hanya membaca lokasi saat kamu menekan tombol itu, tidak pernah di latar belakang. Lokasi tidak dibagikan ke pihak ketiga, tidak dipakai untuk iklan maupun analitik, dikirim lewat koneksi terenkripsi, dan bisa kamu minta hapus bersama data akunmu.',
     },
     {
       heading: 'Tujuan penggunaan',

@@ -248,9 +248,11 @@ if (!hydromartIsOps) {
                 "strip${variant.name.capitalize()}CustomerOnlyPermissions",
                 StripCustomerOnlyPermissions,
             ) {
+                // Not ACCESS_FINE_LOCATION any more (owner decision 2026-11-20): the customer
+                // app takes a delivery pin, and an approximate fix is hundreds of metres to
+                // kilometres off. Play declaration: Precise location (docs/MOBILE_PLAY_STORE.md).
                 permissions.set([
                     'android.permission.CAMERA',
-                    'android.permission.ACCESS_FINE_LOCATION',
                 ])
             }
             variant.artifacts

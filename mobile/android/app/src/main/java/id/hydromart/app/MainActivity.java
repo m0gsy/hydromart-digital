@@ -39,9 +39,9 @@ public class MainActivity extends BridgeActivity {
      * The fix backports that escape hatch below Android 12, and asks only for the
      * permissions this binary actually DECLARES:
      *
-     *  - customer build: coarse alone — which is all "find my nearest depot" ever needed,
-     *    and all the Data Safety form promises. Nothing changes for Play: the manifest is
-     *    untouched and the declaration stays Approximate location.
+     *  - customer build: both since 2026-11-20 (owner decision) — the delivery pin needs a
+     *    precise fix, and the Play declaration is Precise location. Before that it declared
+     *    coarse alone; this code asks for whatever the binary declares, so it did not change.
      *  - ops build: both, unchanged, so courier tracking keeps its precise fix. It also
      *    gains the Android 12+ case where the user picks "Approximate" in the dialog —
      *    coarse-only used to read as a refusal there too on this path.
