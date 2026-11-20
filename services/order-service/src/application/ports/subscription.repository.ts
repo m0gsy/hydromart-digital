@@ -65,6 +65,8 @@ export interface SubscriptionRepository {
    * job — the failure counter that stops asking.
    */
   findDue(now: Date, limit?: number): Promise<SubscriptionRecord[]>;
+  /** The pin of every ACTIVE plan that has one: what the sweep routes by (reroute preview). */
+  listActivePins(): Promise<{ lat: number; lng: number }[]>;
   setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord>;
   /**
    * K1.9: move a plan to a different saved address.

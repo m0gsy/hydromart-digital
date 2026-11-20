@@ -201,6 +201,8 @@ export const shop = {
       `/orders/api/v1/subscriptions/discount${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
     // HQ network aggregate (18c, HEAD_OFFICE/SUPER_ADMIN): active counts + per-plan breakdown.
     adminSummary: '/orders/api/v1/subscriptions/admin/summary',
+    // P3-3 (POST, depotDirectory): which active plans a depot change would re-route.
+    reroutePreview: '/orders/api/v1/subscriptions/admin/reroute-preview',
   },
 
   promotions: {

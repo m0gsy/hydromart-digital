@@ -8,7 +8,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
-import type { Page, Order } from '@/lib/types';
+import type { Page, Order, SubscriptionReroutePreview } from '@/lib/types';
 
 // Design 10b — destructive "Tangguhkan Depot?" confirm. Impact preview + a
 // typed-code guard: the deactivate button stays disabled until the operator types
@@ -30,6 +30,18 @@ export function DepotSuspendDialog({
   // Real signal: orders currently routed to this depot (limit 1 → read total).
   const orders = useAsync<Page<Order>>(
     () => api.get(endpoints.orders.manage({ depotId: depot.id, limit: 1 }), true),
+    [depot.id],
+  );
+
+  // P3-3: the sweep routes every plan by its pin on each run, so suspending a depot moves
+  // its subscribers silently — to a neighbour, or to nobody. The dry run says how many.
+  const reroute = useAsync<SubscriptionReroutePreview>(
+    () =>
+      api.post(
+        endpoints.subscriptions.reroutePreview,
+        { depotId: depot.id, active: false },
+        true,
+      ),
     [depot.id],
   );
 
@@ -90,6 +102,23 @@ export function DepotSuspendDialog({
                 // "0 orders affected" is the number somebody suspends a depot on.
                 <span className="shrink-0 font-bold tabular-nums">
                   {orders.error ? '—' : (orders.data?.total ?? 0)}
+                </span>
+              )}
+            </li>
+            <li className="flex items-start justify-between gap-3">
+              <span>
+                {t('hq.suspend.impact.subscriptions')}
+                {!!reroute.data?.unserved && (
+                  <span className="mt-0.5 block text-xs font-semibold text-[color:var(--warning)]">
+                    {t('hq.suspend.impact.unserved', { n: reroute.data.unserved })}
+                  </span>
+                )}
+              </span>
+              {reroute.loading ? (
+                <Skeleton className="h-4 w-8" />
+              ) : (
+                <span className="shrink-0 font-bold tabular-nums">
+                  {reroute.error ? '—' : (reroute.data?.affected ?? 0)}
                 </span>
               )}
             </li>
