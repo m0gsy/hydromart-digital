@@ -41,6 +41,16 @@ describe('SubscriptionController', () => {
     expect(service.erasePerson).toHaveBeenCalledWith('c1');
   });
 
+  it('answers a PDP export with every plan, address snapshot included', async () => {
+    (service as unknown as { exportPerson: jest.Mock }).exportPerson = jest
+      .fn()
+      .mockResolvedValue({ items: ['sub'], truncated: false });
+    await expect(controller.pdpExport({ customerId: 'c1' } as never)).resolves.toEqual({
+      items: ['sub'],
+      truncated: false,
+    });
+  });
+
 
   it('DEP-23: internal pause/resume go by engine id (no customer), resume carries "now"', async () => {
     await expect(controller.pauseInternal('s1')).resolves.toMatchObject({ status: 'PAUSED' });

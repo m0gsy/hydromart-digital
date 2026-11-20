@@ -34,3 +34,12 @@ export class PhotoLinkDto {
   @MaxLength(2048)
   url!: string;
 }
+
+/** A PDP export's delivery section: the person's own fields only (see DeliveryService.exportPerson). */
+export class PdpDeliveryExportResponseDto {
+  @ApiProperty({ description: 'True when the list stopped at its cap; the export then says so.' })
+  truncated!: boolean;
+
+  @ApiProperty({ type: [Object], description: 'Address, pin, landmark, window and proof signer per delivery.' })
+  items!: unknown[];
+}

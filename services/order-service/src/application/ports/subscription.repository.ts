@@ -51,6 +51,8 @@ export interface SubscriptionRepository {
   create(data: CreateSubscriptionData): Promise<SubscriptionRecord>;
   findById(id: string): Promise<SubscriptionRecord | null>;
   listByCustomer(customerId: string): Promise<SubscriptionRecord[]>;
+  /** Every plan of one person, cancelled ones included, for a PDP export. */
+  listAllForExport(customerId: string): Promise<{ items: SubscriptionRecord[]; truncated: boolean }>;
   /** ACTIVE subscriptions whose next delivery is due at or before `now`. */
   /**
    * D8: bounded, oldest first. The sweep places a real order per row, serially, inside one

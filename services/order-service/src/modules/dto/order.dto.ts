@@ -903,6 +903,15 @@ export class CounterBuyerResponseDto {
  * UU PDP item 13 — who to forget. `phone` is accepted for symmetry with the other erasure
  * endpoints; subscriptions are always keyed on `customerId`, so it is not read here.
  */
+/** A PDP export's subscription section: every plan, and whether the list stopped at its cap. */
+export class PdpSubscriptionExportResponseDto {
+  @ApiProperty({ description: 'True when the list stopped at its cap; the export then says so.' })
+  truncated!: boolean;
+
+  @ApiProperty({ type: [Object], description: 'Each plan with the address and pin it delivers to.' })
+  items!: unknown[];
+}
+
 export class PdpAnonymiseDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
