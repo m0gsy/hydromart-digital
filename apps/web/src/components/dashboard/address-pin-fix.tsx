@@ -8,6 +8,7 @@ import { Button, Input } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import type { PodPinHint } from '@/lib/pod-pin';
 import type { DepotCustomerAddress } from '@/lib/types';
 
 /**
@@ -24,6 +25,7 @@ export function AddressPinFix({
   address,
   canFix,
   onSaved,
+  hint,
 }: {
   customerId: string;
   depotId: string;
@@ -31,6 +33,8 @@ export function AddressPinFix({
   /** depotCrmWrite: HR reads the card but never writes it. */
   canFix: boolean;
   onSaved: () => void;
+  /** P2-4: where couriers actually handed over, when that is clearly not the pin. */
+  hint?: PodPinHint | null;
 }) {
   const { t } = useT();
   const { toast } = useToast();
@@ -42,22 +46,29 @@ export function AddressPinFix({
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    if (await saveLocation(text.trim())) {
+      setOpen(false);
+      setText('');
+    }
+  }
+
+  async function saveLocation(location: string): Promise<boolean> {
     setBusy(true);
     setError(null);
     try {
       await api.patch(
         endpoints.depotCrm.addressLocation(customerId, address.id),
         // CA-2-53: the version this card showed; the server refuses (409) if it moved.
-        { depotId, location: text.trim(), seenUpdatedAt: address.updatedAt },
+        { depotId, location, seenUpdatedAt: address.updatedAt },
         true,
       );
       toast(t('dashA.customerDetail.pinSaved'), 'success');
-      setOpen(false);
-      setText('');
       onSaved();
+      return true;
     } catch (err) {
       // The server says what to do with a short link or a half pin, in Indonesian.
       setError(err instanceof ApiError ? err.message : t('dashA.customerDetail.pinFailed'));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -92,6 +103,31 @@ export function AddressPinFix({
           </button>
         )}
       </div>
+      {canFix && hint && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-[color:var(--warning-bg)] px-2.5 py-1.5">
+          <span className="font-medium text-[color:var(--warning)]">
+            {hint.distanceM != null
+              ? t('dashA.customerDetail.podOff', { m: hint.distanceM })
+              : t('dashA.customerDetail.podNoPin')}
+          </span>
+          <ExternalLink
+            href={`https://www.google.com/maps/search/?api=1&query=${hint.latitude},${hint.longitude}`}
+            className="font-semibold text-brand-600 underline"
+          >
+            {t('dashA.customerDetail.pinView')}
+          </ExternalLink>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              saveLocation(`${hint.latitude.toFixed(7)}, ${hint.longitude.toFixed(7)}`)
+            }
+            className="font-semibold text-brand-600 hover:text-brand-700 disabled:opacity-60"
+          >
+            {t('dashA.customerDetail.podUse')}
+          </button>
+        </div>
+      )}
       {open && (
         <form onSubmit={save} className="flex flex-col gap-1.5 sm:flex-row">
           <Input

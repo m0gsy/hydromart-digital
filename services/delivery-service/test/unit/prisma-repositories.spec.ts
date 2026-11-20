@@ -332,6 +332,15 @@ describe('DeliveryPrismaRepository', () => {
     );
   });
 
+  it("search narrows to one customer's deliveries when asked (P2-4)", async () => {
+    delivery.findMany.mockResolvedValue([]);
+    delivery.count.mockResolvedValue(0);
+    await repo.search({ customerId: 'c-1', page: 1, limit: 20 } as never);
+    expect(delivery.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { customerId: 'c-1' } }),
+    );
+  });
+
   it('lets the set win over a single status when both arrive', async () => {
     delivery.findMany.mockResolvedValue([]);
     delivery.count.mockResolvedValue(0);
