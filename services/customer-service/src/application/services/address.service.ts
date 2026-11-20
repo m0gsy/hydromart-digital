@@ -77,7 +77,8 @@ export class AddressService {
       recipientName: input.recipientName,
       phone: input.phone,
       addressLine: input.addressLine,
-      city: input.city,
+      // Trimmed here, where every write passes (the imports call this directly, not the DTO).
+      city: input.city.trim(),
       province: input.province,
       postalCode: input.postalCode ?? null,
       latitude: input.latitude ?? null,
@@ -95,9 +96,10 @@ export class AddressService {
   }
 
   async update(customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord> {
+    await this.getOrThrow(customerId, id); // ownership first: someone else's address is a 404
     assertPin(patch.latitude, patch.longitude);
-    await this.getOrThrow(customerId, id);
-    return this.addresses.update(customerId, id, patch);
+    const data = patch.city === undefined ? patch : { ...patch, city: patch.city.trim() };
+    return this.addresses.update(customerId, id, data);
   }
 
   async setPrimary(customerId: string, id: string): Promise<AddressRecord> {

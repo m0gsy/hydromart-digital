@@ -42,6 +42,20 @@ describe('AddressService', () => {
       await expect(service.update(CUST, a.id, pin)).rejects.toBeInstanceOf(AddressPinInvalidError);
     });
 
+    it('trims the city on every write, imports included (they skip the DTO)', async () => {
+      const a = await service.create(CUST, { ...input('Rumah'), city: '  Bandung ' });
+      expect(a.city).toBe('Bandung');
+      await expect(service.update(CUST, a.id, { city: 'Cimahi  ' })).resolves.toMatchObject({
+        city: 'Cimahi',
+      });
+    });
+
+    it('answers 404 before judging the pin of an address that is not yours', async () => {
+      await expect(service.update(CUST, 'nope', { latitude: 1 })).rejects.toBeInstanceOf(
+        AddressNotFoundError,
+      );
+    });
+
     it('takes a real pin, including one on the equator', async () => {
       const a = await service.create(CUST, { ...input('Rumah'), latitude: 0, longitude: 109.3 });
       await expect(service.update(CUST, a.id, { latitude: -0.03, longitude: 109.34 })).resolves.toMatchObject({
