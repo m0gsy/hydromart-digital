@@ -182,12 +182,28 @@ describe('SubscriptionController', () => {
       firstDeliveryAt: '2026-09-01T00:00:00.000Z',
     } as never);
 
-    expect(service.createForCustomer).toHaveBeenCalledWith('cust-9', {
+    expect(service.createForCustomer).toHaveBeenCalledWith(
+      'cust-9',
+      {
+        productId: 'prod-9',
+        quantity: 3,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-09-01T00:00:00.000Z'),
+      },
+      undefined,
+    );
+  });
+
+  it("createInternal: passes the depot making the plan, so another depot's customer is refused", async () => {
+    await controller.createInternal({
+      customerId: 'cust-9',
       productId: 'prod-9',
-      quantity: 3,
+      quantity: 1,
       frequency: 'WEEKLY',
-      firstDeliveryAt: new Date('2026-09-01T00:00:00.000Z'),
-    });
+      firstDeliveryAt: '2026-09-01T00:00:00.000Z',
+      depotId: 'd-7',
+    } as never);
+    expect(service.createForCustomer).toHaveBeenLastCalledWith('cust-9', expect.any(Object), 'd-7');
   });
 
   it('processDue: sweeps due subscriptions as of now', async () => {

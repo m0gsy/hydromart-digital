@@ -213,12 +213,16 @@ export class SubscriptionController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Create a subscription for a customer (internal, depot console)' })
   createInternal(@Body() dto: CreateSubscriptionForCustomerDto): Promise<SubscriptionRecord> {
-    return this.subscriptions.createForCustomer(dto.customerId, {
-      productId: dto.productId,
-      quantity: dto.quantity,
-      frequency: dto.frequency,
-      firstDeliveryAt: new Date(dto.firstDeliveryAt),
-    });
+    return this.subscriptions.createForCustomer(
+      dto.customerId,
+      {
+        productId: dto.productId,
+        quantity: dto.quantity,
+        frequency: dto.frequency,
+        firstDeliveryAt: new Date(dto.firstDeliveryAt),
+      },
+      dto.depotId,
+    );
   }
 
   /** DEP-23: the depot console paused a plan; the engine must stop placing its deliveries. */

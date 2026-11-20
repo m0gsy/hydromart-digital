@@ -10,11 +10,13 @@ import {
   SubscriptionCustomerAddressMissingError,
   SubscriptionNotActionableError,
   SubscriptionNotFoundError,
+  SubscriptionServedByOtherDepotError,
 } from '../../domain/errors';
 import { nextDeliveryOnOrAfter } from '../../domain/subscription';
 import { DepotChange, RerouteCounts, rerouteCounts, withDepotChange } from '../../domain/geo';
 import { OrderConfigService } from '../../config/order-config.service';
 import { DeliveryAddressSnapshot } from '../ports/order.repository';
+import { DepotLocation } from '../ports/depot-directory.port';
 import { NotificationPort } from '../ports/notification.port';
 import { CustomerDirectoryPort } from '../ports/customer-directory.port';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
@@ -139,7 +141,12 @@ export class SubscriptionService {
     return this.config.subscriptionDiscountRate(depotId);
   }
 
-  async create(customerId: string, input: CreateSubscriptionInput): Promise<SubscriptionRecord> {
+  async create(
+    customerId: string,
+    input: CreateSubscriptionInput,
+    /** D10: the depot making the plan for the customer; it must be the one the pin routes to. */
+    byDepotId?: string,
+  ): Promise<SubscriptionRecord> {
     // Only NEW plans are refused: plans already running keep their schedule, so switching the
     // flag off never silently stops water a customer is already expecting.
     if (this.flags && !(await this.flags.isEnabled('subscriptions.galon'))) {
@@ -149,7 +156,12 @@ export class SubscriptionService {
     // fix it. The sweep resolves a depot from this snapshot and has nothing to fall back on
     // — no customer to ask, no depot picker, no session — so an address with no map pin, or
     // one no depot serves, becomes a subscription that fails every run and is then paused.
-    await this.assertDeliverable(input.address);
+    const serving = await this.assertDeliverable(input.address);
+    // 2026-11-20 (D10): the sweep routes by the pin at every run, so a plan made by a depot
+    // that does not serve the pin would be delivered, priced and credited somewhere else.
+    if (byDepotId && serving.id !== byDepotId.toLowerCase()) {
+      throw new SubscriptionServedByOtherDepotError();
+    }
     const product = await this.catalog.getProduct(input.productId);
     if (!product || !product.active) {
       throw new ProductUnavailableError(input.productId);
@@ -184,10 +196,16 @@ export class SubscriptionService {
   async createForCustomer(
     customerId: string,
     input: Omit<CreateSubscriptionInput, 'address'>,
+    /**
+     * The depot making the plan (D10). Optional only while depot-service images that do not
+     * send it are still running: make it required once a depot-service sending `depotId`
+     * has been deployed (the follow-up to this change).
+     */
+    byDepotId?: string,
   ): Promise<SubscriptionRecord> {
     const address = await this.customers.primaryAddress(customerId);
     if (!address) throw new SubscriptionCustomerAddressMissingError();
-    return this.create(customerId, { ...input, address });
+    return this.create(customerId, { ...input, address }, byDepotId);
   }
 
   async list(customerId: string): Promise<SubscriptionRecord[]> {
@@ -310,11 +328,11 @@ export class SubscriptionService {
    * through OrderService.resolveDepot, the very rule the sweep places the order by. A
    * directory outage refuses too (fail-closed, like checkout); the customer can try again.
    */
-  private async assertDeliverable(address: DeliveryAddressSnapshot): Promise<void> {
+  private async assertDeliverable(address: DeliveryAddressSnapshot): Promise<DepotLocation> {
     if (address.latitude == null || address.longitude == null) {
       throw new SubscriptionAddressNotRoutableError();
     }
-    await this.orders.resolveDepot(address);
+    return this.orders.resolveDepot(address);
   }
 
   /**
