@@ -2,13 +2,17 @@ import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs
 import { Transform, TransformFnParams } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
+  IsInt,
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 /** "Bandung " and "Bandung" are one city: a stray space split campaign segments and reports. */
@@ -87,6 +91,20 @@ export class CreateAddressDto {
   @IsString()
   @MaxLength(255)
   notes?: string;
+
+  /** 2026-11-20: how good the pin is, as the phone reported it (metres). */
+  @ApiPropertyOptional({ example: 12, description: 'Pin accuracy in metres (GPS fixes).' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100000)
+  pinAccuracyM?: number;
+
+  /** Where the customer's pin came from. STAFF / IMPORT / COURIER are set by the server only. */
+  @ApiPropertyOptional({ enum: ['GPS', 'MANUAL'] })
+  @IsOptional()
+  @IsIn(['GPS', 'MANUAL'])
+  pinSource?: 'GPS' | 'MANUAL';
 
   @ApiPropertyOptional({ description: 'Make this the primary address.', example: true })
   @IsOptional()

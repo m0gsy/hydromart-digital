@@ -230,7 +230,8 @@ describe('a saved address with no pin', () => {
     await waitFor(() =>
       expect(patch).toHaveBeenCalledWith(
         expect.stringContaining('/addresses/a-1'),
-        { latitude: -6.2001, longitude: 106.8001 },
+        // Pasted, not a GPS fix: said so, with no accuracy claimed for it.
+        { latitude: -6.2001, longitude: 106.8001, pinSource: 'MANUAL' },
         true,
       ),
     );

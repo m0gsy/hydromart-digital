@@ -1,3 +1,5 @@
+export type PinSource = 'GPS' | 'MANUAL' | 'STAFF' | 'IMPORT' | 'COURIER';
+
 export interface AddressRecord {
   id: string;
   customerId: string;
@@ -10,6 +12,10 @@ export interface AddressRecord {
   postalCode: string | null;
   latitude: number | null;
   longitude: number | null;
+  /** 2026-11-20: metres of possible error, as the phone reported it (GPS pins only). */
+  pinAccuracyM?: number | null;
+  /** Where the pin came from: GPS, MANUAL, STAFF, IMPORT or COURIER. Null = before this was kept. */
+  pinSource?: PinSource | null;
   notes: string | null;
   isPrimary: boolean;
   createdAt: Date;

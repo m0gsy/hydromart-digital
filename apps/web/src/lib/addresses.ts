@@ -24,6 +24,19 @@ export interface AddressForm {
 /** A pin less accurate than this (metres) is said to be too rough for a courier. */
 export const PIN_POOR_M = 100;
 
+/**
+ * How a pin was taken, as customer-service keeps it: the source, and the metres only for a
+ * GPS fix (capped at the 100 km the API takes — a desktop's IP guess can claim more).
+ */
+export function pinQuality(
+  source: 'GPS' | 'MANUAL',
+  accuracy: number | null,
+): { pinSource: 'GPS' | 'MANUAL'; pinAccuracyM?: number } {
+  return source === 'GPS' && accuracy != null && Number.isFinite(accuracy)
+    ? { pinSource: source, pinAccuracyM: Math.min(Math.round(accuracy), 100_000) }
+    : { pinSource: source };
+}
+
 /** The address to preselect at checkout: the primary one, else the first, else null. */
 export function pickDefaultAddress(addresses: Address[]): Address | null {
   return addresses.find((a) => a.isPrimary) ?? addresses[0] ?? null;
@@ -53,7 +66,16 @@ export interface AddressBookForm {
   latitude: string;
   longitude: string;
   notes: string;
+  /**
+   * How the pin in THIS form was set, sent with it. Null = not touched here: the server keeps
+   * what it knew about the stored pin, so an edit of the street does not erase it.
+   */
+  pinSource?: 'GPS' | 'MANUAL' | null;
+  pinAccuracyM?: number | null;
 }
+
+/** The form's text fields — the ones an input edits. */
+export type AddressTextField = Exclude<keyof AddressBookForm, 'pinSource' | 'pinAccuracyM'>;
 
 export const EMPTY_ADDRESS_FORM: AddressBookForm = {
   label: '',
@@ -94,6 +116,8 @@ export interface AddressPayload {
    * landmark in place, which is how a patokan somebody deleted kept reaching the courier.
    */
   notes?: string | null;
+  pinSource?: 'GPS' | 'MANUAL';
+  pinAccuracyM?: number;
 }
 
 /**
@@ -183,5 +207,6 @@ export function toAddressPayload(
   }
   value.latitude = lat;
   value.longitude = lng;
+  if (form.pinSource) Object.assign(value, pinQuality(form.pinSource, form.pinAccuracyM ?? null));
   return { ok: true, value };
 }

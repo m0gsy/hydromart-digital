@@ -56,6 +56,8 @@ export class PdpPrismaRepository implements PdpRepository {
           postalCode: null,
           latitude: null,
           longitude: null,
+          pinAccuracyM: null,
+          pinSource: null,
         },
       }),
       this.prisma.savedPaymentMethod.deleteMany({ where: { customerId } }),

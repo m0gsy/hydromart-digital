@@ -7,6 +7,7 @@ import {
   AddressRepository,
   CreateAddressData,
   UpdateAddressData,
+  PinSource,
 } from '../ports/address.repository';
 import { CUSTOMER_TOKENS } from '../tokens';
 
@@ -29,6 +30,8 @@ export interface CreateAddressInput {
   longitude?: number;
   notes?: string;
   isPrimary?: boolean;
+  pinAccuracyM?: number;
+  pinSource?: PinSource;
 }
 
 /**
@@ -38,6 +41,19 @@ export interface CreateAddressInput {
  *   promotes the most-recent remaining address.
  * - Every operation is scoped to the caller's customerId (no cross-tenant access).
  */
+/**
+ * What is kept about how good a pin is: nothing without a pin, and metres only for a GPS fix —
+ * a typed pin has no accuracy to claim, whatever was sent with it.
+ */
+function pinQualityFor(
+  lat: number | null | undefined,
+  source: PinSource | null | undefined,
+  accuracy: number | null | undefined,
+): { pinSource: PinSource | null; pinAccuracyM: number | null } {
+  if (lat == null) return { pinSource: null, pinAccuracyM: null };
+  return { pinSource: source ?? null, pinAccuracyM: source === 'GPS' ? (accuracy ?? null) : null };
+}
+
 @Injectable()
 export class AddressService {
   constructor(
@@ -83,6 +99,7 @@ export class AddressService {
       postalCode: input.postalCode ?? null,
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
+      ...pinQualityFor(input.latitude, input.pinSource, input.pinAccuracyM),
       notes: input.notes ?? null,
     };
 
@@ -96,9 +113,23 @@ export class AddressService {
   }
 
   async update(customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord> {
-    await this.getOrThrow(customerId, id); // ownership first: someone else's address is a 404
+    const current = await this.getOrThrow(customerId, id); // ownership first: someone else's is a 404
     assertPin(patch.latitude, patch.longitude);
-    const data = patch.city === undefined ? patch : { ...patch, city: patch.city.trim() };
+    const data = patch.city === undefined ? { ...patch } : { ...patch, city: patch.city.trim() };
+    // The quality belongs to the pin: a moved pin takes what was sent with it (or nothing);
+    // an edit that re-sends the same pin (the /addresses form always does) keeps it — unless
+    // the stored pin's quality was never known (saved before it was kept) and is now told.
+    const moved =
+      patch.latitude !== undefined &&
+      (patch.latitude !== current.latitude || patch.longitude !== current.longitude);
+    const told =
+      patch.latitude !== undefined && current.pinSource == null && patch.pinSource !== undefined;
+    if (moved || told) {
+      Object.assign(data, pinQualityFor(patch.latitude, patch.pinSource, patch.pinAccuracyM));
+    } else {
+      delete data.pinAccuracyM;
+      delete data.pinSource;
+    }
     return this.addresses.update(customerId, id, data);
   }
 
