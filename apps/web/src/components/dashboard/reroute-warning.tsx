@@ -7,7 +7,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import type { SubscriptionReroutePreview } from '@/lib/types';
 
-/** The depot change a save or a deactivation is about to make (absent = unchanged). */
+/** The depot change a save, a deactivation or a reopening is about to make (absent = unchanged). */
 export interface DepotChange {
   depotId: string;
   /** `false`: closing the depot. `true`: reopening it, from the location given with it. */
@@ -21,8 +21,8 @@ export interface DepotChange {
 
 /**
  * P3-4: the dry run before a depot change. The sweep routes every subscription by its pin,
- * so moving a depot, redrawing or shrinking where it delivers, or deactivating it re-routes
- * subscribers silently. Answers the preview only when somebody actually moves; null
+ * so moving a depot, redrawing or shrinking where it delivers, deactivating or reopening it
+ * re-routes subscribers silently. Answers the preview only when somebody actually moves; null
  * otherwise, and null when the preview could not be read — it warns, it never locks a save
  * (owner default 2026-11-20).
  */

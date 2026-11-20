@@ -146,8 +146,8 @@ export interface RerouteCounts {
 
 /**
  * A dry run of the sweep's own routing (`selectNearestDepot` per plan pin) before and after a
- * change to the network. Counts only: what somebody reads before suspending a depot or moving
- * it / changing its radius (a drawn area is not previewed), not who the customers are.
+ * change to the network. Counts only: what somebody reads before closing, reopening, moving
+ * or redrawing a depot, not who the customers are.
  * ponytail: 2 × pins × depots distance checks in one call — fine for hundreds of plans; route
  * only the pins the changed depot wins before or after if the network reaches tens of thousands.
  */

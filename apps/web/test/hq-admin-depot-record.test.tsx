@@ -109,6 +109,7 @@ function serveDepot(row = ADMIN_ROW) {
 const renderPage = (node: React.ReactElement) => render(<LocaleProvider>{node}</LocaleProvider>);
 
 beforeEach(() => {
+  post.mockReset();
   get.mockReset();
   patch.mockReset();
 });
@@ -174,7 +175,6 @@ describe('hq/depots/detail reads the admin record', () => {
     await vi.waitFor(() =>
       expect(post).toHaveBeenCalledWith(expect.stringContaining('/reactivate'), undefined, true),
     );
-    post.mockReset();
   });
 });
 

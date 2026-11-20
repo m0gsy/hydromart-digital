@@ -59,6 +59,9 @@ export default function HqDepotDetailPage() {
   const [suspendOpen, setSuspendOpen] = useState(false);
   // Reopening pulls subscribers back from the neighbours that took them: said first.
   const reroute = useRerouteGate();
+  const { reset: resetReroute } = reroute;
+  // Another depot on the same page: its warning was about the one before it.
+  useEffect(() => resetReroute(), [id, resetReroute]);
 
   /*
    * The ADMIN record, not the public one.
@@ -144,7 +147,7 @@ export default function HqDepotDetailPage() {
     setBusy(true);
     setReactivateError(null);
     try {
-      if (d && !(await reroute.check(reopenChange(d)))) return;
+      if (!(await reroute.check(reopenChange(d)))) return;
       await api.post(endpoints.depots.reactivate(id), undefined, true);
       reroute.reset();
       depot.reload();

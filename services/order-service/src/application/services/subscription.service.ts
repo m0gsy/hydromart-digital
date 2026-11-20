@@ -242,7 +242,11 @@ export class SubscriptionService {
       this.orders.activeDepots(),
       this.subs.listActivePins(),
     ]);
-    if (!depots?.length) throw new DepotUnavailableError();
+    // An empty network is a real answer for a reopening (every pin is unserved before it);
+    // for anything else there is nothing to preview against.
+    if (depots === null || (depots.length === 0 && change.active !== true)) {
+      throw new DepotUnavailableError();
+    }
     return rerouteCounts(pins, depots, withDepotChange(depots, change));
   }
 

@@ -343,7 +343,8 @@ function DepotCard({
   const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // P3-4: deactivating re-routes every subscriber of this depot; said before the second press.
+  // P3-4: closing re-routes every subscriber of this depot, reopening pulls them back; both
+  // are said before the second press.
   const reroute = useRerouteGate();
 
   async function toggleActive() {
