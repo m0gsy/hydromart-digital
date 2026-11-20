@@ -29,11 +29,13 @@ class StubEngine {
   lastInput: unknown = null;
   error: Error | null = null;
   nextId = 'eng-1';
+  /** The depot the engine says serves the address; unset = an older engine that says nothing. */
+  servingDepotId: string | undefined = undefined;
   calls: string[] = [];
-  async create(input: unknown): Promise<string> {
+  async create(input: unknown): Promise<{ id: string; servingDepotId?: string }> {
     if (this.error) throw this.error;
     this.lastInput = input;
-    return this.nextId;
+    return { id: this.nextId, ...(this.servingDepotId ? { servingDepotId: this.servingDepotId } : {}) };
   }
   async pause(engineId: string): Promise<void> {
     if (this.error) throw this.error;
@@ -230,6 +232,14 @@ describe('SubscriptionService', () => {
     ).rejects.toBeInstanceOf(CadenceNotSupportedError);
     expect(repo.rows).toHaveLength(0);
     expect(engine.lastInput).toBeNull();
+  });
+
+  // Owner decision 2026-11-21: made for another depot's address, it belongs to that depot.
+  it('records the plan under the depot that serves the address, not the one typing it in', async () => {
+    engine.servingDepotId = '99999999-9999-4999-8999-999999999999';
+    const sub = await seed();
+    expect(sub.depotId).toBe('99999999-9999-4999-8999-999999999999');
+    expect((engine.lastInput as { depotId: string }).depotId).toBe(depotId);
   });
 
   it('throws NotFound pausing, resuming or reading a missing subscription', async () => {

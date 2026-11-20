@@ -345,7 +345,7 @@ describe('OrderSubscriptionHttpAdapter', () => {
     const fetchMock = jest.fn().mockResolvedValue(jsonRes(200, { id: 'eng-9' }));
     (globalThis as { fetch: unknown }).fetch = fetchMock;
 
-    await expect(new OrderSubscriptionHttpAdapter(cfg()).create(input)).resolves.toBe('eng-9');
+    await expect(new OrderSubscriptionHttpAdapter(cfg()).create(input)).resolves.toEqual({ id: 'eng-9' });
 
     const [url, init] = fetchMock.mock.calls[0] as [
       string,
@@ -366,6 +366,16 @@ describe('OrderSubscriptionHttpAdapter', () => {
     // No address travels: the engine reads the customer's own, which is what stops an
     // operator from typing one on somebody else's behalf.
     expect('address' in body).toBe(false);
+  });
+
+  it('hands back the depot that serves the address when the engine names it', async () => {
+    (globalThis as { fetch: unknown }).fetch = jest
+      .fn()
+      .mockResolvedValue(jsonRes(200, { id: 'eng-9', servingDepotId: 'd-serving' }));
+    await expect(new OrderSubscriptionHttpAdapter(cfg()).create(input)).resolves.toEqual({
+      id: 'eng-9',
+      servingDepotId: 'd-serving',
+    });
   });
 
   // The engine knows WHY far better than this layer does. "This customer has no saved

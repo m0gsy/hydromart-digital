@@ -484,6 +484,8 @@ const opsFixShared = {
     cancel: 'Batal',
     save: 'Simpan',
     createError: 'Gagal membuat langganan.',
+    routedElsewhere:
+      'Langganan dibuat. Alamat pelanggan ini dilayani depot lain, jadi langganannya dicatat dan diantar oleh depot itu.',
     noName: 'Tanpa nama',
     gallonsSuffix: 'galon',
     autoOrder: 'Auto-order',

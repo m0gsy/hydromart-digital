@@ -24,7 +24,9 @@ export class OrderSubscriptionHttpAdapter implements OrderSubscriptionPort {
 
   constructor(private readonly config: DepotConfigService) {}
 
-  async create(input: CreateEngineSubscriptionInput): Promise<string> {
+  async create(
+    input: CreateEngineSubscriptionInput,
+  ): Promise<{ id: string; servingDepotId?: string }> {
     const { orderServiceUrl, internalServiceKey } = this.config;
     if (!orderServiceUrl || !internalServiceKey) {
       throw new EngineUnavailableError('Integrasi order-service belum dikonfigurasi.');
@@ -42,12 +44,19 @@ export class OrderSubscriptionHttpAdapter implements OrderSubscriptionPort {
       }),
       signal: AbortSignal.timeout(OrderSubscriptionHttpAdapter.TIMEOUT_MS),
     });
-    const body = (await res.json().catch(() => null)) as { id?: string; message?: string } | null;
+    const body = (await res.json().catch(() => null)) as {
+      id?: string;
+      servingDepotId?: string;
+      message?: string;
+    } | null;
     if (!res.ok || !body?.id) {
       // The engine's own words when it has them — it knows why far better than this layer.
       throw new EngineUnavailableError(body?.message ?? `order-service responded ${res.status}`);
     }
-    return body.id;
+    return {
+      id: body.id,
+      ...(typeof body.servingDepotId === 'string' ? { servingDepotId: body.servingDepotId } : {}),
+    };
   }
 
   pause(engineId: string): Promise<void> {

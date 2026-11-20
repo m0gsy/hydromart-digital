@@ -110,7 +110,7 @@ export class SubscriptionService {
     await this.requireDepot(input.depotId);
     const frequency = CADENCE_TO_FREQUENCY[input.cadence];
     if (!frequency) throw new CadenceNotSupportedError(input.cadence);
-    const engineId = await this.engine.create({
+    const engine = await this.engine.create({
       customerId: input.customerId,
       productId: input.productId,
       quantity: input.quantity,
@@ -118,13 +118,16 @@ export class SubscriptionService {
       firstDeliveryAt: input.firstDeliveryAt,
       depotId: input.depotId,
     });
+    // Owner decision 2026-11-21: a plan for an address another depot serves is made anyway,
+    // and belongs to that depot — the sweep routes by the pin, so it delivers, prices and is
+    // credited for it. The depot typing it in no longer lists it.
     return this.subscriptions.create({
-      depotId: input.depotId,
+      depotId: engine.servingDepotId ?? input.depotId,
       customerId: input.customerId,
       customerName: input.customerName,
       productLabel: input.productLabel,
       productId: input.productId,
-      orderSubscriptionId: engineId,
+      orderSubscriptionId: engine.id,
       quantity: input.quantity,
       cadence: input.cadence,
       nextRunAt: input.firstDeliveryAt,

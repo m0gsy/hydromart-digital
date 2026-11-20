@@ -25,7 +25,11 @@ export interface CreateEngineSubscriptionInput {
  */
 export interface OrderSubscriptionPort {
   /** The engine's subscription id, or a thrown error naming why it could not be made. */
-  create(input: CreateEngineSubscriptionInput): Promise<string>;
+  /**
+   * The engine's id for the plan, and the depot whose area its pin is in — who delivers,
+   * prices and is credited for it (owner decision 2026-11-21). Absent from older engines.
+   */
+  create(input: CreateEngineSubscriptionInput): Promise<{ id: string; servingDepotId?: string }>;
   /**
    * DEP-23: pause/resume were local-only, so a plan the operator paused kept placing (and
    * billing) deliveries from the engine. Same posture as `create`: throws when the engine

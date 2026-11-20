@@ -141,20 +141,6 @@ export class ExpressUnavailableError extends DomainError {
  * depot directory was reachable and returned depots — an outage is DepotUnavailableError
  * (fail-closed: checkout, and since 2026-11-20 a subscription's create and move, refuse).
  */
-/**
- * 2026-11-20: a depot signed a customer up whose primary address another depot serves. The
- * sweep routes by the pin, so that depot would deliver, price and be credited for the plan.
- */
-export class SubscriptionServedByOtherDepotError extends DomainError {
-  readonly code = 'SUBSCRIPTION_SERVED_BY_OTHER_DEPOT';
-  readonly status = HTTP_STATUS.UNPROCESSABLE;
-  constructor() {
-    super(
-      'Alamat utama pelanggan ini dilayani depot lain, jadi langganannya dibuat dari depot itu. Minta pelanggan berlangganan dari aplikasinya, atau hubungi depot yang melayani.',
-    );
-  }
-}
-
 export class OutOfServiceAreaError extends DomainError {
   readonly code = 'ORDER_OUT_OF_SERVICE_AREA';
   readonly status = HTTP_STATUS.UNPROCESSABLE;

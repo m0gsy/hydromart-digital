@@ -508,9 +508,9 @@ export class CreateSubscriptionForCustomerDto {
   firstDeliveryAt!: string;
 
   /**
-   * 2026-11-20: the depot making the plan. A plan its customer's address routes to ANOTHER
-   * depot is refused (the sweep would deliver, price and credit it there). Optional so a
-   * depot-service image older than this field is not refused by the whitelist.
+   * The depot typing it in. Informational: the plan belongs to the depot its pin routes to
+   * (owner decision 2026-11-21), which the answer names as `servingDepotId`. Accepted so a
+   * depot-service that sends it is not refused by the whitelist.
    */
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()

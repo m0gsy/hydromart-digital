@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { ArrowsClockwise, Info, Lock } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
+import { useToast } from '@/components/toast';
 import {
   Button,
   Card,
@@ -66,6 +67,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 /** Create a standing order. POSTs then reloads the roster. */
 function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => void }) {
   const { t } = useT();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   /**
    * A registered customer, not a typed name (S2).
@@ -128,7 +130,7 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
     setBusy(true);
     setError(null);
     try {
-      await api.post(
+      const created = await api.post<{ depotId?: string }>(
         endpoints.depotSubscriptions.create,
         {
           depotId,
@@ -147,6 +149,11 @@ function CreateForm({ depotId, onCreated }: { depotId: string; onCreated: () => 
         },
         true,
       );
+      // Owner decision 2026-11-21: an address another depot serves is that depot's plan — made,
+      // and listed there rather than here. Said, or it reads as a plan that vanished.
+      if (created?.depotId && created.depotId !== depotId) {
+        toast(t('opsFix.subs.routedElsewhere'), 'success');
+      }
       reset();
       setOpen(false);
       onCreated();

@@ -44,6 +44,7 @@ import {
 } from '../application/services/subscription.service';
 import {
   Discount2ResponseDto,
+  InternalSubscriptionResponseDto,
   PdpErasedResponseDto,
   ProcessDue2ResponseDto,
   SubscriptionNetworkSummaryResponseDto,
@@ -215,24 +216,24 @@ export class SubscriptionController {
    * address; an operator typing one on somebody else's behalf is how the unroutable plans
    * D3 refuses were created.
    */
-  @ApiOkResponse({ type: SubscriptionResponseDto })
+  @ApiOkResponse({ type: InternalSubscriptionResponseDto })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Post('internal')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Create a subscription for a customer (internal, depot console)' })
-  createInternal(@Body() dto: CreateSubscriptionForCustomerDto): Promise<SubscriptionRecord> {
-    return this.subscriptions.createForCustomer(
-      dto.customerId,
-      {
-        productId: dto.productId,
-        quantity: dto.quantity,
-        frequency: dto.frequency,
-        firstDeliveryAt: new Date(dto.firstDeliveryAt),
-      },
-      dto.depotId,
-    );
+  createInternal(
+    @Body() dto: CreateSubscriptionForCustomerDto,
+  ): Promise<SubscriptionRecord & { servingDepotId: string }> {
+    // `dto.depotId` (the depot typing it in) decides nothing: the plan belongs to the depot
+    // its pin routes to, which the answer names (owner decision 2026-11-21).
+    return this.subscriptions.createForCustomer(dto.customerId, {
+      productId: dto.productId,
+      quantity: dto.quantity,
+      frequency: dto.frequency,
+      firstDeliveryAt: new Date(dto.firstDeliveryAt),
+    });
   }
 
   /** DEP-23: the depot console paused a plan; the engine must stop placing its deliveries. */
