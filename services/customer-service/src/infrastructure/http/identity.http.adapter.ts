@@ -58,41 +58,70 @@ export class IdentityHttpAdapter implements IdentityPort {
    * An unreachable auth-service must degrade the names, never 503 the depot's customer list.
    */
   async getCustomerNames(ids: string[]): Promise<Map<string, CustomerIdentity>> {
+    return this.lookup(ids, false);
+  }
+
+  /**
+   * Fail-HARD twin, for a campaign audience: a batch that did not answer is an outage, not
+   * "these people have no account" — dropping them would send the campaign to part of the
+   * audience and report success.
+   */
+  async getAccountOwners(ids: string[]): Promise<Map<string, CustomerIdentity>> {
+    return this.lookup(ids, true);
+  }
+
+  private async lookup(ids: string[], strict: boolean): Promise<Map<string, CustomerIdentity>> {
     const out = new Map<string, CustomerIdentity>();
     const base = this.config.authServiceUrl;
     const key = this.config.internalServiceKey;
     const unique = [...new Set(ids.filter((id) => id.length > 0))];
-    if (!base || !key || unique.length === 0) return out;
+    if (unique.length === 0) return out;
+    if (!base || !key) {
+      if (strict) throw new ServiceUnavailableException('AUTH_SERVICE_URL/INTERNAL_SERVICE_KEY belum diset');
+      return out;
+    }
 
     const url = `${base.replace(/\/$/, '')}/api/v1/auth/internal/customers/by-ids`;
+    const batches: string[][] = [];
     for (let i = 0; i < unique.length; i += IdentityHttpAdapter.BATCH) {
-      const batch = unique.slice(i, i + IdentityHttpAdapter.BATCH);
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-internal-key': key },
-          body: JSON.stringify({ ids: batch }),
-          signal: AbortSignal.timeout(IdentityHttpAdapter.TIMEOUT_MS),
-        });
-        if (!res.ok) continue;
-        const rows = (await res.json()) as {
-          id?: string;
-          fullName?: string | null;
-          phone?: string | null;
-        }[];
-        for (const r of rows) {
-          if (r.id) out.set(r.id, { fullName: r.fullName ?? null, phone: r.phone ?? null });
-        }
-      } catch (error) {
-        // degrade this batch to "no account name" — the caller keeps its own fallback.
-        // Q-4: at debug, not warn: a customer list rendering without account names is a
-        // cosmetic degrade, but with no log at all an auth-service outage looked like a
-        // data problem in customer-service.
-        this.logger.debug(
-          `identity batch of ${batch.length} unresolved: ${(error as Error).message}`,
-        );
-      }
+      batches.push(unique.slice(i, i + IdentityHttpAdapter.BATCH));
     }
+    // Side by side: a 5000-row directory page is 25 batches, and one after another they
+    // outlasted the caller's own 5 s timeout.
+    await Promise.all(
+      batches.map(async (batch) => {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', 'x-internal-key': key },
+            body: JSON.stringify({ ids: batch }),
+            signal: AbortSignal.timeout(IdentityHttpAdapter.TIMEOUT_MS),
+          });
+          if (!res.ok) throw new Error(`auth-service responded ${res.status}`);
+          const rows = (await res.json()) as {
+            id?: string;
+            fullName?: string | null;
+            phone?: string | null;
+          }[];
+          for (const r of rows) {
+            if (r.id) out.set(r.id, { fullName: r.fullName ?? null, phone: r.phone ?? null });
+          }
+        } catch (error) {
+          if (strict) {
+            throw new ServiceUnavailableException(
+              `auth-service tidak menjawab: ${(error as Error).message}`,
+            );
+          }
+          // degrade this batch to "no account name" — the caller keeps its own fallback.
+          // Q-4: at debug, not warn: a customer list rendering without account names is a
+          // cosmetic degrade, but with no log at all an auth-service outage looked like a
+          // data problem in customer-service.
+          this.logger.debug(
+            `identity batch of ${batch.length} unresolved: ${(error as Error).message}`,
+          );
+        }
+      }),
+    );
     return out;
   }
 }

@@ -79,6 +79,23 @@ describe('CustomerDirectoryHttpAdapter', () => {
     expect(fetchMock.mock.calls[1][0]).toContain('tier=GOLD');
   });
 
+  // 2026-11-20: a customer whose account owner was not found comes back with no number. The
+  // page keeps its length (a short page would end the paging early); the number-less row is
+  // dropped here, and the cursor still moves past it.
+  it('drops a row with no number without cutting the paging short', async () => {
+    const page1 = Array.from({ length: 5000 }, (_, i) => ({
+      customerId: `c${String(i).padStart(5, '0')}`,
+      name: 'A',
+      phone: i === 4999 ? '' : '1',
+    }));
+    const page2 = [{ customerId: 'c99999', name: 'B', phone: '2' }];
+    fetchMock.mockResolvedValueOnce(res({ body: page1 })).mockResolvedValueOnce(res({ body: page2 }));
+    const out = await new CustomerDirectoryHttpAdapter(makeConfig()).resolveSegment({}, AUTH);
+    expect(out).toHaveLength(5000);
+    expect(out.some((r) => r.phone === '')).toBe(false);
+    expect(fetchMock.mock.calls[1][0]).toContain('after=c04999');
+  });
+
   it('stops when the server ignores the cursor and repeats the page (CUS-06)', async () => {
     const page = Array.from({ length: 5000 }, (_, i) => ({ customerId: `c${String(i).padStart(5, '0')}`, name: 'A', phone: '1' }));
     fetchMock.mockResolvedValue(res({ body: page }));

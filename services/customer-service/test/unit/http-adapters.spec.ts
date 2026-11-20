@@ -311,6 +311,36 @@ describe('IdentityHttpAdapter.preRegisterCustomer', () => {
 // The read side is the mirror image of the write side above: it must NEVER throw, because
 // a depot's customer list has to render even when auth-service is down — just with the
 // names the caller already had.
+// 2026-11-20: a campaign audience asks with the STRICT lookup — a batch that did not answer
+// is an outage, never "these customers have no account".
+describe('IdentityHttpAdapter.getAccountOwners', () => {
+  const config = makeConfig({ authServiceUrl: 'http://auth:3001/' });
+
+  it('maps the owners like the soft lookup, every batch at once', async () => {
+    fetchMock.mockResolvedValue(res({ json: [{ id: 'c1', fullName: 'Budi', phone: '0811' }] }));
+    const ids = Array.from({ length: 450 }, (_, i) => `c${i}`);
+    const out = await new IdentityHttpAdapter(config).getAccountOwners(ids);
+    expect(out.get('c1')).toEqual({ fullName: 'Budi', phone: '0811' });
+    expect(fetchMock).toHaveBeenCalledTimes(3); // 200 + 200 + 50
+  });
+
+  it('throws on a refused batch, a failed call, or nowhere to ask', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 502 }));
+    await expect(new IdentityHttpAdapter(config).getAccountOwners(['c1'])).rejects.toThrow(
+      'auth-service tidak menjawab',
+    );
+    fetchMock.mockRejectedValue(new Error('ETIMEDOUT'));
+    await expect(new IdentityHttpAdapter(config).getAccountOwners(['c1'])).rejects.toThrow(
+      'ETIMEDOUT',
+    );
+    await expect(
+      new IdentityHttpAdapter(makeConfig({ authServiceUrl: '' })).getAccountOwners(['c1']),
+    ).rejects.toThrow('belum diset');
+    // Nothing to ask is not an outage.
+    expect((await new IdentityHttpAdapter(config).getAccountOwners([])).size).toBe(0);
+  });
+});
+
 describe('IdentityHttpAdapter.getCustomerNames', () => {
   const config = makeConfig({ authServiceUrl: 'http://auth:3001/' });
 
