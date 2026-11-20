@@ -263,11 +263,9 @@ export class UpdateDepotDto extends PartialType(CreateDepotDto) {
   @IsOptional()
   @IsISO8601()
   seenUpdatedAt?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  active?: boolean;
+  // No `active` (2026-11-20): switching a depot off or on is DELETE and POST …/reactivate,
+  // head office's (depotLifecycle), with their own checks and audit — not a field of an edit
+  // its manager may send.
 }
 
 /* ---------- Public projection ---------- */

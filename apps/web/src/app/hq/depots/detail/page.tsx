@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, MapPin, Package, Receipt, Users, Wallet } from '@phosphor-icons/react';
 
 import { DepotForm } from '@/components/hq/depot-form';
@@ -48,6 +48,9 @@ export default function HqDepotDetailPage() {
   const id = useQueryParam('id');
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [reactivateError, setReactivateError] = useState<string | null>(null);
+  // Another depot on the same page: the refusal was about the one before it.
+  useEffect(() => setReactivateError(null), [id]);
   const [suspendOpen, setSuspendOpen] = useState(false);
 
   /*
@@ -129,15 +132,17 @@ export default function HqDepotDetailPage() {
   const perf = rollup.data?.depots.find((x) => x.depotId === id);
   const slaPct = perf?.slaRate != null ? Math.round(perf.slaRate * 100) : null;
 
-  // Reactivate is a direct, low-risk PATCH; suspend is destructive → guarded dialog.
+  // Reactivate is a direct, low-risk call; suspend is destructive → guarded dialog.
   async function reactivate() {
     setBusy(true);
+    setReactivateError(null);
     try {
-      await api.patch(endpoints.depots.detail(id), { active: true }, true);
+      await api.post(endpoints.depots.reactivate(id), undefined, true);
       depot.reload();
     } catch (err) {
-      // Surfaced by the reload path; keep it non-fatal.
+      // Said, not swallowed: a refused reopen used to look exactly like nothing happening.
       if (!(err instanceof ApiError)) throw err;
+      setReactivateError(err.message);
     } finally {
       setBusy(false);
     }
@@ -187,6 +192,11 @@ export default function HqDepotDetailPage() {
           </div>
         </div>
       </div>
+      {reactivateError && (
+        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
+          {reactivateError}
+        </p>
+      )}
 
       {editing && (
         <DepotForm

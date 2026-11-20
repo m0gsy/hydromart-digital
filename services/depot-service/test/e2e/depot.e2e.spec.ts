@@ -390,7 +390,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .set(auth(managerToken))
       .expect(403);
 
-    // admin manage still returns it to its own manager (so it can be reactivated)
+    // admin manage still returns it to its own manager (head office reopens it, below)
     await request(server())
       .get('/api/v1/depots/manage?search=manage')
       .set(auth(mgrAt))
@@ -403,13 +403,20 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
     // customer forbidden
     await request(server()).get('/api/v1/depots/manage').set(auth(customerToken)).expect(403);
 
-    // CA-2-53: reactivate via PATCH, carrying NO version — and that is the assertion. A
-    // one-tap flip holds nobody's typing, so demanding a stamp for it only made the button
-    // 409 forever, which is how a deactivated depot became one no console could revive.
+    // 2026-11-20: reopening is head office's, like closing (owner decision 2026-10-15) — the
+    // manager's edit route carries no `active` at all any more.
     await request(server())
       .patch(`/api/v1/depots/${depotId}`)
       .set(auth(mgrAt))
       .send({ active: true })
+      .expect(400);
+
+    // CA-2-53: reactivate carrying NO version — and that is the assertion. A one-tap flip
+    // holds nobody's typing, so demanding a stamp for it only made the button 409 forever,
+    // which is how a deactivated depot became one no console could revive.
+    await request(server())
+      .post(`/api/v1/depots/${depotId}/reactivate`)
+      .set(auth(headOfficeToken))
       .expect(200)
       .expect((r) => expect(r.body.active).toBe(true));
   });

@@ -1103,6 +1103,7 @@ describe('DepotController', () => {
     update: jest.fn(),
     setQrisImage: jest.fn(),
     deactivate: jest.fn(),
+    reactivate: jest.fn(),
   };
   const storage = { put: jest.fn() };
   const c = new DepotController(svc as never, storage as never);
@@ -1114,6 +1115,7 @@ describe('DepotController', () => {
     svc.create.mockResolvedValue(saved);
     svc.update.mockResolvedValue(saved);
     svc.deactivate.mockResolvedValue(saved);
+    svc.reactivate.mockResolvedValue(saved);
     svc.setQrisImage.mockResolvedValue(saved);
     svc.listAllActive.mockResolvedValue([]);
     svc.listByIds.mockResolvedValue([]);
@@ -1427,6 +1429,9 @@ describe('DepotController', () => {
     expect(svc.deactivate).toHaveBeenLastCalledWith(ID, { force: true });
     await c.remove(ID, user, 'yes');
     expect(svc.deactivate).toHaveBeenLastCalledWith(ID, { force: false });
+    svc.reactivate.mockResolvedValueOnce({ id: ID, code: 'D1', active: true });
+    await expect(c.reactivate(ID, user)).resolves.toMatchObject({ active: true });
+    expect(svc.reactivate).toHaveBeenCalledWith(ID);
   });
 
   /*
@@ -1601,11 +1606,18 @@ describe('DepotController', () => {
         user,
       );
       await c.remove(ID, user);
+      await c.reactivate(ID, user);
       expect(sent()).toEqual([
         expect.objectContaining({ action: 'depot.create', actorId: 'user-1', target: 'JKT-01' }),
         expect.objectContaining({ action: 'depot.update', actorId: 'user-1', target: 'JKT-01' }),
         expect.objectContaining({
           action: 'depot.deactivate',
+          actorId: 'user-1',
+          target: 'JKT-01',
+        }),
+        // Reopening is on the trail too: closings alone would tell half the story.
+        expect.objectContaining({
+          action: 'depot.reactivate',
           actorId: 'user-1',
           target: 'JKT-01',
         }),

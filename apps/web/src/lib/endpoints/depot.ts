@@ -44,9 +44,11 @@ export const depot = {
     create: '/depots/api/v1/depots',
     // Bulk create/update from the HQ spreadsheet wizard (body: { mode, rows }).
     import: '/depots/api/v1/depots/import',
-    // PATCH to update (incl. active:true to reactivate); DELETE to deactivate.
-    // GET on this path returns the PUBLIC projection only — no bank details, no ownerId.
+    // PATCH to update; DELETE to deactivate. GET on this path returns the PUBLIC projection
+    // only — no bank details, no ownerId.
     detail: (id: string) => `/depots/api/v1/depots/${id}`,
+    // POST: reopen a deactivated depot (depotLifecycle, head office — like closing it).
+    reactivate: (id: string) => `/depots/api/v1/depots/${id}/reactivate`,
     // Full record incl. payment + ownership. Staff/owner only.
     manageDetail: (id: string) => `/depots/api/v1/depots/manage/${id}`,
     // Where to send money for ONE depot. Any signed-in user; never anonymous.

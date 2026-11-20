@@ -52,6 +52,17 @@ describe('DepotService.deactivate (DEP-10)', () => {
     const { svc, depot } = await create();
     await expect(svc.deactivate(depot.id)).resolves.toMatchObject({ active: false });
   });
+
+  // 2026-11-20: head office reopens through reactivate() — the edit route no longer can.
+  it('reopens a closed depot, and leaves an open one untouched', async () => {
+    const { svc, depot, repo } = await create({ blockers: async () => [] });
+    await svc.deactivate(depot.id);
+    await expect(svc.reactivate(depot.id)).resolves.toMatchObject({ active: true });
+    const stamp = repo.rows.find((r) => r.id === depot.id)!.updatedAt;
+    // A second click: no write, so nobody's open edit is refused as stale.
+    await expect(svc.reactivate(depot.id)).resolves.toMatchObject({ active: true });
+    expect(repo.rows.find((r) => r.id === depot.id)!.updatedAt).toBe(stamp);
+  });
 });
 
 describe('DepotDeactivationPrismaProbe (DEP-10)', () => {
