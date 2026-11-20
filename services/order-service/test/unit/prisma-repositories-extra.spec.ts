@@ -258,11 +258,12 @@ describe('VoucherRejectedError', () => {
 
 /** K1.9: the one deliberate move of a snapshot that otherwise never changes. */
 describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
-  const subscription = { update: jest.fn() };
+  const subscription = { update: jest.fn(), updateMany: jest.fn(), findUniqueOrThrow: jest.fn() };
   const repo = new SubscriptionPrismaRepository({ subscription } as unknown as PrismaService);
 
   it('writes every field of the snapshot, a fresh failure count, and nothing else', async () => {
-    subscription.update.mockResolvedValue({
+    subscription.updateMany.mockResolvedValue({ count: 1 });
+    subscription.findUniqueOrThrow.mockResolvedValue({
       id: 's1',
       customerId: 'c1',
       productId: 'p1',
@@ -300,8 +301,9 @@ describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
       notes: null,
     });
 
-    expect(subscription.update).toHaveBeenCalledWith({
-      where: { id: 's1' },
+    expect(subscription.updateMany).toHaveBeenCalledWith({
+      // Never onto a CANCELLED plan (a PDP erasure that landed first).
+      where: { id: 's1', status: { not: 'CANCELLED' } },
       data: {
         recipientName: 'Budi',
         phone: '081234567890',

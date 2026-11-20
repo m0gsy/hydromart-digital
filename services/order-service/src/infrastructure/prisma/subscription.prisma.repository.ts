@@ -132,7 +132,15 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
   }
 
   async setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord> {
-    const row = await this.prisma.subscription.update({ where: { id }, data: { status } });
+    // Going back to ACTIVE (a resume) starts the failure count over: the failures were the
+    // ones that paused it, and one more miss must not re-pause it at once.
+    const row = await this.prisma.subscription.update({
+      where: { id },
+      data:
+        status === 'ACTIVE'
+          ? { status, failureCount: 0, lastFailure: null, lastFailureAt: null }
+          : { status },
+    });
     return this.toRecord(row);
   }
 
@@ -140,9 +148,11 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
   async setDeliveryAddress(
     id: string,
     address: DeliveryAddressSnapshot,
-  ): Promise<SubscriptionRecord> {
-    const row = await this.prisma.subscription.update({
-      where: { id },
+  ): Promise<SubscriptionRecord | null> {
+    // Not onto a CANCELLED plan: a PDP erasure (cancel + scrub) landing between the service's
+    // status check and this write must not get its name and address written back.
+    const { count } = await this.prisma.subscription.updateMany({
+      where: { id, status: { not: 'CANCELLED' } },
       data: {
         recipientName: address.recipientName,
         phone: address.phone,
@@ -160,7 +170,8 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
         lastFailureAt: null,
       },
     });
-    return this.toRecord(row);
+    if (count === 0) return null;
+    return this.toRecord(await this.prisma.subscription.findUniqueOrThrow({ where: { id } }));
   }
 
   /** D4: status and schedule in one write — see the port for why not two. */

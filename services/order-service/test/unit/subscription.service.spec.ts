@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 
 import { OrderService } from '../../src/application/services/order.service';
-import { SubscriptionService } from '../../src/application/services/subscription.service';
+import {
+  pauseReason,
+  SubscriptionService,
+} from '../../src/application/services/subscription.service';
 import {
   ProductUnavailableError,
   SubscriptionAddressNotRoutableError,
@@ -154,6 +157,14 @@ describe('SubscriptionService', () => {
     it('refuses while the depot directory is down, rather than guessing', async () => {
       depots.depots = [];
       await expect(plan(address)).rejects.toMatchObject({ code: 'ORDER_DEPOT_UNAVAILABLE' });
+    });
+
+    it('does not write a move onto a plan cancelled meanwhile (an erasure landing first)', async () => {
+      const sub = await plan(address);
+      jest.spyOn(subs, 'setDeliveryAddress').mockResolvedValueOnce(null);
+      await expect(service.changeAddress(customer, sub.id, address)).rejects.toMatchObject({
+        code: 'SUBSCRIPTION_NOT_ACTIONABLE',
+      });
     });
 
     it('refuses to move a plan to an address with no pin, or one nobody serves', async () => {
@@ -531,6 +542,24 @@ describe('SubscriptionService', () => {
       await tick(4);
       const paused = notification.calls.find((c) => c.event === 'SUBSCRIPTION_PAUSED')!;
       expect(paused.vars.reason).toBe('alamatnya sekarang di luar area layanan depot kami');
+    });
+
+    it('names each cause in Indonesian, with the count from the rule itself', () => {
+      expect(pauseReason({ code: 'ORDER_PIN_REQUIRED' })).toBe('alamatnya belum punya pin lokasi');
+      expect(pauseReason({ code: 'SUBSCRIPTION_ADDRESS_NOT_ROUTABLE' })).toBe(
+        'alamatnya belum punya pin lokasi',
+      );
+      expect(pauseReason(new Error('ECONNRESET'))).toBe('pengirimannya gagal 3 kali berturut-turut');
+      expect(pauseReason(null)).toBe('pengirimannya gagal 3 kali berturut-turut');
+    });
+
+    it('does not take the sweep down when the pause itself cannot be written', async () => {
+      const sub = await failingPlan();
+      await tick(2);
+      await tick(3);
+      jest.spyOn(subs, 'setStatus').mockRejectedValueOnce(new Error('db down'));
+      await expect(tick(4)).resolves.toBeDefined();
+      expect((await service.list(customer)).find((s) => s.id === sub.id)!.status).toBe('ACTIVE');
     });
 
     it('still pauses when telling the customer throws', async () => {

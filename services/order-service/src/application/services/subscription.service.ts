@@ -56,11 +56,14 @@ const messageOf = (err: unknown): string => (err instanceof Error ? err.message 
  * the failure record and the log; it was an English sentence (and, for a pulled product, a
  * UUID) inside an Indonesian one.
  */
-const pauseReason = (err: unknown): string => {
+export const pauseReason = (err: unknown): string => {
   const code = (err as { code?: string } | null)?.code;
   if (code === 'ORDER_OUT_OF_SERVICE_AREA') return 'alamatnya sekarang di luar area layanan depot kami';
   if (code === 'ORDER_PRODUCT_UNAVAILABLE') return 'produknya sedang tidak dijual';
-  return 'pengirimannya gagal tiga kali berturut-turut';
+  if (code === 'ORDER_PIN_REQUIRED' || code === 'SUBSCRIPTION_ADDRESS_NOT_ROUTABLE') {
+    return 'alamatnya belum punya pin lokasi';
+  }
+  return `pengirimannya gagal ${MAX_CONSECUTIVE_FAILURES} kali berturut-turut`;
 };
 
 /** Deliveries a single subscription generates per 30-day month, by cadence. */
@@ -275,7 +278,10 @@ export class SubscriptionService {
     if (sub.status === 'CANCELLED') throw new SubscriptionNotActionableError();
     // The same check as create: a plan moved to an address nobody serves failed every run.
     await this.assertDeliverable(address);
-    return this.subs.setDeliveryAddress(id, address);
+    const moved = await this.subs.setDeliveryAddress(id, address);
+    // Cancelled (or erased) while the depot was being checked: nothing was written.
+    if (!moved) throw new SubscriptionNotActionableError();
+    return moved;
   }
 
   /**

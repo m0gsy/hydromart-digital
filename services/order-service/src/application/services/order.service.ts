@@ -3267,7 +3267,7 @@ export class OrderService {
   // Public since 2026-11-20: a subscription checks its address with the SAME rule the
   // sweep will route it by (subscription.service assertDeliverable).
   async resolveDepot(address: DeliveryAddressSnapshot): Promise<DepotLocation> {
-    if (address.latitude === null || address.longitude === null) {
+    if (address.latitude == null || address.longitude == null) {
       throw new PinRequiredError();
     }
     const depots = await this.depotDirectory.listActiveDepots();

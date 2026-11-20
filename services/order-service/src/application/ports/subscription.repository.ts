@@ -72,7 +72,11 @@ export interface SubscriptionRepository {
    * sweep prices against (D7) cannot move under it. This is the deliberate move, made by
    * the customer, and it is the only way the snapshot changes after creation.
    */
-  setDeliveryAddress(id: string, address: DeliveryAddressSnapshot): Promise<SubscriptionRecord>;
+  /** Null when the plan is CANCELLED by the time the write lands (nothing written). */
+  setDeliveryAddress(
+    id: string,
+    address: DeliveryAddressSnapshot,
+  ): Promise<SubscriptionRecord | null>;
   /**
    * D4: resume, which is a status change AND a schedule move in one write.
    *

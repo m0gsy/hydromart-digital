@@ -2231,8 +2231,11 @@ describe('OrderPrismaRepository', () => {
 // 2026-11-20: a moved plan starts its failure count over (the failures were the old address's).
 describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
   it('writes the new address and clears the failure record', async () => {
-    const update = jest.fn().mockResolvedValue({ id: 's1', customerId: 'c1' });
-    const repo = new SubscriptionPrismaRepository({ subscription: { update } } as unknown as PrismaService);
+    const update = jest.fn().mockResolvedValue({ count: 1 });
+    const findUniqueOrThrow = jest.fn().mockResolvedValue({ id: 's1', customerId: 'c1' });
+    const repo = new SubscriptionPrismaRepository({
+      subscription: { updateMany: update, findUniqueOrThrow },
+    } as unknown as PrismaService);
     await repo.setDeliveryAddress('s1', {
       recipientName: 'B',
       phone: '0811',
@@ -2249,6 +2252,25 @@ describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
       lastFailure: null,
       lastFailureAt: null,
     });
+    // Cancelled (or erased) by the time the write lands: nothing written, null back.
+    update.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repo.setDeliveryAddress('s1', { ...update.mock.calls[0][0].data } as never),
+    ).resolves.toBeNull();
+  });
+
+  it('a resume (back to ACTIVE) starts the failure count over; a pause does not', async () => {
+    const update = jest.fn().mockResolvedValue({ id: 's1', customerId: 'c1' });
+    const repo = new SubscriptionPrismaRepository({ subscription: { update } } as unknown as PrismaService);
+    await repo.setStatus('s1', 'ACTIVE');
+    expect(update.mock.calls[0][0].data).toEqual({
+      status: 'ACTIVE',
+      failureCount: 0,
+      lastFailure: null,
+      lastFailureAt: null,
+    });
+    await repo.setStatus('s1', 'PAUSED');
+    expect(update.mock.calls[1][0].data).toEqual({ status: 'PAUSED' });
   });
 });
 

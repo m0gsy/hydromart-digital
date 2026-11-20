@@ -103,12 +103,14 @@ function Panel() {
         : Promise.resolve([]),
     [chosenAddress?.latitude, chosenAddress?.longitude],
   );
-  const serving = servingDepot(nearby.data);
+  // A failed lookup keeps the PREVIOUS address's rows in useAsync; never read those as this one.
+  const nearbyRows = nearby.error ? null : nearby.data;
+  const serving = servingDepot(nearbyRows);
   const depotId = serving?.id ?? null;
   // Pinned, looked up, and nobody serves it: the server refuses such a plan (2026-11-20), so
   // say it here instead of after the customer pressed the button.
   const outOfArea =
-    chosenAddress?.latitude != null && !nearby.loading && nearby.data != null && serving === null;
+    chosenAddress?.latitude != null && !nearby.loading && nearbyRows != null && serving === null;
   const discount = useAsync<{ rate: number }>(
     () => api.get(endpoints.subscriptions.discount(depotId)),
     [depotId],
