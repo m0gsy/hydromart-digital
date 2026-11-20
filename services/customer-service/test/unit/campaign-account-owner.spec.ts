@@ -19,7 +19,11 @@ const make = (owners: Map<string, { fullName: string | null; phone: string | nul
     findSegment: jest.fn().mockResolvedValue(ROWS),
     findRecipient: jest.fn().mockResolvedValue(ROWS[0]),
   };
-  const identity = { getCustomerNames: jest.fn().mockResolvedValue(owners), preRegisterCustomer: jest.fn() };
+  const identity = {
+    getAccountOwners: jest.fn().mockResolvedValue(owners),
+    getCustomerNames: jest.fn(),
+    preRegisterCustomer: jest.fn(),
+  };
   return new ProfileService(
     profiles as never,
     {} as never,
@@ -34,18 +38,29 @@ describe('campaign recipients are the account owners', () => {
     const svc = make(new Map([['c1', { fullName: 'Budi', phone: '+628111' }]]));
     await expect(svc.findSegment({})).resolves.toEqual([
       { customerId: 'c1', name: 'Budi', phone: '+628111' },
-      { customerId: 'c2', name: 'Tetangga', phone: '' },
+      { customerId: 'c2', name: '', phone: '' },
     ]);
   });
 
-  it('refuses rather than answering an empty audience when auth did not answer', async () => {
-    await expect(make(new Map()).findSegment({})).rejects.toBeInstanceOf(ServiceUnavailableException);
+  it('passes on an outage from the strict lookup instead of answering part of the audience', async () => {
+    const svc = make(new Map());
+    (svc as unknown as { identity: { getAccountOwners: jest.Mock } }).identity.getAccountOwners.mockRejectedValue(
+      new ServiceUnavailableException('auth-service tidak menjawab'),
+    );
+    await expect(svc.findSegment({})).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('keeps a customer with no account in place, with no number and no borrowed name', async () => {
+    await expect(make(new Map()).findSegment({})).resolves.toEqual([
+      { customerId: 'c1', name: '', phone: '' },
+      { customerId: 'c2', name: '', phone: '' },
+    ]);
   });
 
   it('gives one recipient as the owner, or nobody when the owner has no number', async () => {
     await expect(
       make(new Map([['c1', { fullName: null, phone: '+628111' }]])).findRecipient('c1'),
-    ).resolves.toEqual({ customerId: 'c1', name: 'Satpam Rumah', phone: '+628111' });
+    ).resolves.toEqual({ customerId: 'c1', name: '', phone: '+628111' });
     await expect(
       make(new Map([['c1', { fullName: 'Budi', phone: null }]])).findRecipient('c1'),
     ).resolves.toBeNull();

@@ -14,6 +14,9 @@ import {
  * which is the honest answer when depot-service is unreachable, and the one the screen
  * renders as "belum tersambung" rather than as a zero nobody checked.
  */
+/** The account lookup a campaign uses; these specs never reach it. */
+const NO_IDENTITY = { getAccountOwners: async () => new Map() } as never;
+
 const ledger = (rows: unknown = null): DepotLedgerPort =>
   ({ depositsForCustomer: async () => rows }) as unknown as DepotLedgerPort;
 
@@ -25,7 +28,7 @@ describe('ProfileService', () => {
   beforeEach(() => {
     repo = new InMemoryProfileRepository();
     loyalty = new FakeLoyaltyReward();
-    service = new ProfileService(repo, loyalty, ledger(), buildTestConfig());
+    service = new ProfileService(repo, loyalty, ledger(), buildTestConfig(), NO_IDENTITY);
   });
 
   // PRM-9: the service hands the one-customer lookup straight to the repository.
@@ -74,6 +77,7 @@ describe('ProfileService.myGallonDeposits (I5)', () => {
       new FakeLoyaltyReward(),
       ledger(rows),
       buildTestConfig(),
+      NO_IDENTITY,
     );
     await expect(svc.myGallonDeposits('c1')).resolves.toEqual(rows);
   });
@@ -84,6 +88,7 @@ describe('ProfileService.myGallonDeposits (I5)', () => {
       new FakeLoyaltyReward(),
       ledger(null),
       buildTestConfig(),
+      NO_IDENTITY,
     );
     await expect(svc.myGallonDeposits('c1')).resolves.toBeNull();
   });
@@ -98,7 +103,7 @@ describe('ProfileService birthday promo (FR-091)', () => {
   beforeEach(() => {
     repo = new InMemoryProfileRepository();
     loyalty = new FakeLoyaltyReward();
-    service = new ProfileService(repo, loyalty, ledger(), buildTestConfig());
+    service = new ProfileService(repo, loyalty, ledger(), buildTestConfig(), NO_IDENTITY);
   });
 
   const withBirthday = async (id: string, iso: string) => {
@@ -146,6 +151,7 @@ describe('ProfileService birthday promo (FR-091)', () => {
       loyalty,
       ledger(),
       buildTestConfig({ LOYALTY_SERVICE_URL: '' }),
+      NO_IDENTITY,
     );
     await withBirthday('bday-a', '1990-05-17');
     const res = await disabled.runBirthdayRewards('Bearer admin', TODAY);

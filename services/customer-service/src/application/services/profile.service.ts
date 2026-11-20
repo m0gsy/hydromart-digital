@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional, ServiceUnavailableException } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { localDayKey } from '@hydromart/platform';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
@@ -33,8 +33,8 @@ export class ProfileService {
     @Inject(CUSTOMER_TOKENS.LoyaltyRewardPort) private readonly loyalty: LoyaltyRewardPort,
     @Inject(CUSTOMER_TOKENS.DepotLedgerPort) private readonly depotLedger: DepotLedgerPort,
     private readonly config: CustomerConfigService,
-    // Optional so the existing construction sites keep compiling; the module always provides it.
-    @Optional() @Inject(CUSTOMER_TOKENS.IdentityPort) private readonly identity?: IdentityPort,
+    // Required: without it a campaign would quietly fall back to the address recipient.
+    @Inject(CUSTOMER_TOKENS.IdentityPort) private readonly identity: IdentityPort,
   ) {}
 
   /**
@@ -86,22 +86,18 @@ export class ProfileService {
    * and name — the person who consented — not to the primary address's recipient, who can be
    * a guard, a neighbour or a relative.
    *
-   * A row stays even when its owner is not found (phone ''), because the directory is PAGED
-   * and the reader stops on a short page; it filters the empty numbers out itself. Nobody
-   * found at all means auth-service did not answer, and an empty audience would read as
-   * "nobody to reach", so that refuses instead.
+   * A row stays even when it has no owner (phone ''), because the directory is PAGED and the
+   * reader stops on a short page; it drops the empty numbers itself. The lookup fails HARD:
+   * a batch auth-service did not answer is an outage (503), never "these people have no
+   * account". Name and number both come from the account; a nameless account greets nobody
+   * by somebody else's name.
    */
   private async toAccountOwners(rows: DirectoryRecipient[]): Promise<DirectoryRecipient[]> {
-    if (!this.identity || rows.length === 0) return rows;
-    const owners = await this.identity.getCustomerNames(rows.map((r) => r.customerId));
-    if (owners.size === 0) {
-      throw new ServiceUnavailableException(
-        'auth-service tidak menjawab; daftar penerima belum bisa disusun',
-      );
-    }
+    if (rows.length === 0) return rows;
+    const owners = await this.identity.getAccountOwners(rows.map((r) => r.customerId));
     return rows.map((r) => {
       const owner = owners.get(r.customerId);
-      return { customerId: r.customerId, name: owner?.fullName || r.name, phone: owner?.phone ?? '' };
+      return { customerId: r.customerId, name: owner?.fullName ?? '', phone: owner?.phone ?? '' };
     });
   }
 

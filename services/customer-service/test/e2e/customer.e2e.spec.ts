@@ -70,7 +70,8 @@ describe('Customer HTTP flows (e2e)', () => {
       .overrideProvider(CUSTOMER_TOKENS.IdentityPort)
       .useValue({
         preRegisterCustomer: jest.fn(),
-        getCustomerNames: async (ids: string[]) =>
+        getCustomerNames: async () => new Map(),
+        getAccountOwners: async (ids: string[]) =>
           new Map(ids.map((id) => [id, { fullName: `Pemilik ${id}`, phone: '+628999' }])),
       })
       .compile();
