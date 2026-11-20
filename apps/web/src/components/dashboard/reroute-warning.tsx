@@ -10,7 +10,8 @@ import type { SubscriptionReroutePreview } from '@/lib/types';
 /** The depot change a save or a deactivation is about to make (absent = unchanged). */
 export interface DepotChange {
   depotId: string;
-  active?: false;
+  /** `false`: closing the depot. `true`: reopening it, from the location given with it. */
+  active?: boolean;
   lat?: number;
   lng?: number;
   serviceRadiusKm?: number;
@@ -38,6 +39,24 @@ export async function rerouteImpact(
   } catch {
     return null;
   }
+}
+
+/** Reopening a closed depot: it rejoins the network where it would serve from. */
+export function reopenChange(d: {
+  id: string;
+  lat: number;
+  lng: number;
+  serviceRadiusKm: number;
+  serviceArea?: { lat: number; lng: number }[][] | null;
+}): DepotChange {
+  return {
+    depotId: d.id,
+    active: true,
+    lat: d.lat,
+    lng: d.lng,
+    serviceRadiusKm: d.serviceRadiusKm,
+    ...(d.serviceArea?.length ? { serviceArea: d.serviceArea } : {}),
+  };
 }
 
 /** Whether an edit moves the depot or changes its radius. */

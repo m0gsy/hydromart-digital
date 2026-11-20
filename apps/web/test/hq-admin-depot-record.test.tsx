@@ -15,9 +15,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * fails here for exactly the reason it failed in production.
  */
 
-const { get, patch } = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn() }));
+const { get, patch, post } = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn(), post: vi.fn() }));
 vi.mock('@/lib/api', () => ({
-  api: { get, getCached: get, patch },
+  api: { get, getCached: get, patch, post },
   ApiError: class ApiError extends Error {},
 }));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: () => 'dep-1' }));
@@ -149,6 +149,32 @@ describe('hq/depots/detail reads the admin record', () => {
 
     expect(await screen.findByText('Depot Menteng')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Aktifkan|Reactivate/i })).toBeTruthy();
+  });
+
+  // Reopening pulls subscribers back from the depots that took them over: the dry run says
+  // how many on the first press, the second press reopens.
+  it('says how many subscriptions a reopen pulls back before it reopens', async () => {
+    serveDepot({ ...ADMIN_ROW, active: false });
+    post.mockImplementation(async (url: string) =>
+      url.includes('reroute-preview') ? { affected: 3, unserved: 0, moves: [] } : { active: true },
+    );
+    renderPage(<HqDepotDetailPage />);
+    const reopen = await screen.findByRole('button', { name: /Aktifkan|Reactivate/i });
+
+    await userEvent.click(reopen);
+    expect(await screen.findByText(/3 langganan aktif terdampak/)).toBeTruthy();
+    expect(post).toHaveBeenCalledWith(
+      expect.stringContaining('reroute-preview'),
+      expect.objectContaining({ depotId: 'dep-1', active: true, lat: -6.1944, serviceRadiusKm: 5 }),
+      true,
+    );
+    expect(post).not.toHaveBeenCalledWith(expect.stringContaining('/reactivate'), undefined, true);
+
+    await userEvent.click(reopen);
+    await vi.waitFor(() =>
+      expect(post).toHaveBeenCalledWith(expect.stringContaining('/reactivate'), undefined, true),
+    );
+    post.mockReset();
   });
 });
 

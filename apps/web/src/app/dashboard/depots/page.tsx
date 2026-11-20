@@ -12,7 +12,12 @@ import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { EMPTY_DEPOT_FORM, ownerRowsFromDepot, toDepotPayload, type DepotForm } from '@/lib/depots';
-import { RerouteWarning, movesDepot, useRerouteGate } from '@/components/dashboard/reroute-warning';
+import {
+  RerouteWarning,
+  movesDepot,
+  reopenChange,
+  useRerouteGate,
+} from '@/components/dashboard/reroute-warning';
 import { endpoints } from '@/lib/endpoints';
 import { mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
@@ -345,7 +350,9 @@ function DepotCard({
     setBusy(true);
     setError(null);
     try {
-      if (depot.active && !(await reroute.check({ depotId: depot.id, active: false }))) return;
+      // Closing pushes the depot's subscribers to neighbours; reopening pulls them back.
+      const change = depot.active ? { depotId: depot.id, active: false } : reopenChange(depot);
+      if (!(await reroute.check(change))) return;
       if (depot.active) await api.del(endpoints.depots.detail(depot.id), true);
       else await api.post(endpoints.depots.reactivate(depot.id), undefined, true);
       // Done: a later deactivation (after a re-activation) is asked about again.

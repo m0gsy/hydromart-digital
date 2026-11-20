@@ -6,6 +6,11 @@ import { ArrowLeft, MapPin, Package, Receipt, Users, Wallet } from '@phosphor-ic
 
 import { DepotForm } from '@/components/hq/depot-form';
 import { DepotSuspendDialog } from '@/components/hq/depot-suspend-dialog';
+import {
+  RerouteWarning,
+  reopenChange,
+  useRerouteGate,
+} from '@/components/dashboard/reroute-warning';
 import { StockBar } from '@/components/hq/charts';
 import { Badge, Button, Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -52,6 +57,8 @@ export default function HqDepotDetailPage() {
   // Another depot on the same page: the refusal was about the one before it.
   useEffect(() => setReactivateError(null), [id]);
   const [suspendOpen, setSuspendOpen] = useState(false);
+  // Reopening pulls subscribers back from the neighbours that took them: said first.
+  const reroute = useRerouteGate();
 
   /*
    * The ADMIN record, not the public one.
@@ -137,7 +144,9 @@ export default function HqDepotDetailPage() {
     setBusy(true);
     setReactivateError(null);
     try {
+      if (d && !(await reroute.check(reopenChange(d)))) return;
       await api.post(endpoints.depots.reactivate(id), undefined, true);
+      reroute.reset();
       depot.reload();
     } catch (err) {
       // Said, not swallowed: a refused reopen used to look exactly like nothing happening.
@@ -192,6 +201,7 @@ export default function HqDepotDetailPage() {
           </div>
         </div>
       </div>
+      {reroute.impact && <RerouteWarning impact={reroute.impact} />}
       {reactivateError && (
         <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {reactivateError}
