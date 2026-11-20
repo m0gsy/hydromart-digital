@@ -83,6 +83,7 @@ export const order: typeof base = {
     total: 'Total',
     pinRequired: 'Set this address location pin first — the order is delivered to that pin.',
     servedBy: 'Delivered from {name}',
+    savedNoPin: 'This saved address has no pin yet. Set it here — it is saved to the address too.',
     keepPatokan: 'Also save as this address landmark (for later orders)',
     outOfServiceArea:
       'This address sits outside every depot delivery radius. Pick another address, or move its map pin to somewhere we serve.',

@@ -161,7 +161,9 @@ export class PinRequiredError extends DomainError {
   readonly code = 'ORDER_PIN_REQUIRED';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('Pasang pin lokasi alamat ini dulu. Pesanan diantar ke titik pin itu.');
+    super(
+      'Alamat ini belum punya pin lokasi. Pasang pinnya di menu Alamat, atau isi alamat baru dengan pin, lalu pesan lagi.',
+    );
   }
 }
 

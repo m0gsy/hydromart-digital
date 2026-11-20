@@ -118,7 +118,9 @@ export function parseLatLngPair(text: string): { latitude: number; longitude: nu
   }
   const m =
     /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(t) ??
-    /(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/.exec(t);
+    // Not in the middle of a longer number: "107.6098, -6.9147" (lng first) must not read
+    // as latitude 7.6098.
+    /(?<![\d.])(-?\d{1,2}\.\d{2,})\s*,\s*(-?\d{1,3}\.\d{2,})/.exec(t);
   if (!m) return null;
   const latitude = Number(m[1]);
   const longitude = Number(m[2]);

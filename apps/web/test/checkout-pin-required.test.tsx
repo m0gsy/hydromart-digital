@@ -145,6 +145,10 @@ describe('the manual coordinates', () => {
       fireEvent.change(field('ck-lat'), { target: { value: typed } });
       expect(field('ck-lat').value).toBe(typed);
     }
+    // ...and it counts once the box is left, not per keystroke (each digit re-routed the pin).
+    expect(get.mock.calls.some(([p]) => String(p).includes('/depots/nearby'))).toBe(false);
+    fireEvent.blur(field('ck-lat'));
+    expect(field('ck-lat').value).toBe('-6.9147');
   });
 
   it('fill both boxes from a pasted "lat, lng" or a Maps link', async () => {
@@ -210,6 +214,29 @@ describe('editing the address', () => {
   });
 });
 
+describe('a saved address with no pin', () => {
+  it('offers the pin controls, and saves the pin taken here to that address', async () => {
+    serve([{ ...HOME, latitude: null, longitude: null }]);
+    draw();
+    await openAddress();
+
+    expect(await screen.findByText(/Alamat tersimpan ini belum punya pin/)).toBeTruthy();
+    fireEvent.click(await screen.findByText('Masukkan koordinat manual'));
+    fireEvent.change(field('ck-lat'), { target: { value: '-6.2001, 106.8001' } });
+    expect((await screen.findAllByText('Diantar dari Depot Satu')).length).toBeGreaterThan(0);
+    await waitFor(() => expect(submitButtons()[0]).toBeEnabled());
+    fireEvent.click(submitButtons()[0]!);
+
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        expect.stringContaining('/addresses/a-1'),
+        { latitude: -6.2001, longitude: 106.8001 },
+        true,
+      ),
+    );
+  });
+});
+
 describe('parseLatLngPair', () => {
   it.each([
     ['-6.914744, 107.609810', { latitude: -6.914744, longitude: 107.60981 }],
@@ -220,7 +247,18 @@ describe('parseLatLngPair', () => {
     expect(parseLatLngPair(text)).toEqual(pin);
   });
 
-  it.each(['https://maps.app.goo.gl/abc', '-6.9', '0.000, 0.000', '95.1234, 10.1234', 'pagar hijau'])(
+  it('takes two decimals, the precision people copy by hand', () => {
+    expect(parseLatLngPair('-6.91, 107.61')).toEqual({ latitude: -6.91, longitude: 107.61 });
+  });
+
+  it.each([
+    'https://maps.app.goo.gl/abc',
+    '-6.9',
+    '0.000, 0.000',
+    '95.1234, 10.1234',
+    '107.6098, -6.9147',
+    'pagar hijau',
+  ])(
     'gives null for %s',
     (text) => {
       expect(parseLatLngPair(text)).toBeNull();

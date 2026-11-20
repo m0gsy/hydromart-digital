@@ -44,12 +44,12 @@ test('an authenticated customer can place an order through manual checkout', asy
   // No #province and no #postalCode: the form stopped asking for them. This spec is the
   // only place that drove them through a real browser, so it is also the only place that
   // would have noticed if the fields came back.
-  await page.getByRole('dialog').getByRole('button', { name: /selesai|done/i }).click();
-
-  // No map pin on a manually-typed address → pick the fulfilling depot, in its own sheet.
-  // The submit button stays disabled until one is chosen, so this is load-bearing.
-  await page.getByRole('button', { name: /pilih depot|choose.*depot/i }).click();
-  await page.getByTestId('depot-picker').getByRole('button').first().click();
+  // No order without a pin (2026-11-20): the pin, not a picked depot, decides where it goes.
+  // A pasted "lat, lng" fills both boxes; this one lies inside the seeded Depot Cikini's
+  // radius. The submit button stays disabled until there is one, so this is load-bearing.
+  await page.getByRole('button', { name: /koordinat manual|coordinates manually/i }).click();
+  await page.locator('#ck-lat').fill('-6.194400, 106.841200');
+  await page.locator('#ck-lat').blur();
   await page.getByRole('dialog').getByRole('button', { name: /selesai|done/i }).click();
 
   // CASH is the default payment method. Submit places the order and redirects to the
