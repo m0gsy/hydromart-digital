@@ -95,9 +95,10 @@ describe('geoReason', () => {
  *
  * `navigator.geolocation` inside an Android WebView is Chromium's implementation, not the
  * platform's, and its network provider — the only one a coarse-only permission can use —
- * frequently cannot answer in a WebView at all. The customer binary declares only
- * ACCESS_COARSE_LOCATION on purpose, so there was no working path left: the request ran out
- * the clock whether or not the phone knew where it was.
+ * frequently cannot answer in a WebView at all. The customer binary then declared only
+ * ACCESS_COARSE_LOCATION, so there was no working path left: the request ran out the clock
+ * whether or not the phone knew where it was. (It declares FINE too since 2026-11-20, but a
+ * person can still grant only the approximate one.)
  *
  * What is testable here is the contract: the shell is asked first, a phone that answers is
  * believed, and every way the plugin can let us down falls through to the web API rather
@@ -141,7 +142,7 @@ describe('currentPosition inside the native shell', () => {
         Promise.resolve({ coords: { latitude: -6.3, longitude: 107, accuracy: 900 }, timestamp: 1 }),
     });
 
-    // Coarse alone is a position, and coarse alone is all this binary ever declared.
+    // Coarse alone is a position — what a person who granted only "approximate" holds.
     await expect(currentPosition()).resolves.toMatchObject({ coords: { latitude: -6.3 } });
     expect(asked).toEqual(['check', 'request']);
   });

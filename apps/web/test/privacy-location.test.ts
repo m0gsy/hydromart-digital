@@ -15,16 +15,19 @@ import { privacy as id } from '@/lib/dictionaries/id/privacy';
 const body = (d: typeof id) => d.sections.map((s) => `${s.heading}\n${s.body}`).join('\n');
 
 describe('privacy policy declares customer device location', () => {
-  it('id discloses approximate device location, its purpose, and that it is optional', () => {
+  it('id discloses device location (precise for the address pin), its purpose, and that it is optional', () => {
     const text = body(id);
     expect(text).toMatch(/lokasi perkiraan|perkiraan lokasi|lokasi perangkat/i);
+    // Precise since 2026-11-20 (the address pin), and the Play declaration says so too.
+    expect(text).toMatch(/lokasi presisi/i);
     expect(text).toMatch(/depot terdekat/i);
     expect(text).toMatch(/opsional|tanpa memberi izin/i);
   });
 
   it('en mirrors it', () => {
     const text = body(en);
-    expect(text).toMatch(/approximate location/i);
+    // Precise since 2026-11-20: the address pin is where the courier drives to.
+    expect(text).toMatch(/precise location/i);
     expect(text).toMatch(/nearest depot/i);
     expect(text).toMatch(/optional|without granting/i);
   });
