@@ -499,8 +499,18 @@ describe('OrderLookupHttpAdapter (S1)', () => {
   const COURIER = 'Bearer courier-token';
   const adapter = () => new OrderLookupHttpAdapter(makeConfig());
 
+  // JSON has no dates; the wait check calls getTime() on this, and every real claim threw.
+  it('hands back statusChangedAt as a Date', async () => {
+    fetchMock.mockResolvedValue(
+      res({ body: { id: 'o1', status: 'PREPARING', statusChangedAt: '2026-11-20T01:00:00.000Z' } }),
+    );
+    const order = await adapter().findForClaim('o1', COURIER);
+    expect(order?.statusChangedAt).toBeInstanceOf(Date);
+    expect(order?.statusChangedAt.toISOString()).toBe('2026-11-20T01:00:00.000Z');
+  });
+
   it("carries the COURIER's bearer, never the internal key", async () => {
-    fetchMock.mockResolvedValue(res({ body: { id: 'o1', status: 'CONFIRMED' } }));
+    fetchMock.mockResolvedValue(res({ body: { id: 'o1', status: 'PREPARING' } }));
     await adapter().findForClaim('o1', COURIER);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('http://order:3005/api/v1/orders/manage/o1');

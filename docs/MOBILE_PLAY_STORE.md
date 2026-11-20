@@ -46,7 +46,7 @@ Tiga jawaban berlaku untuk **semua** baris di kedua tabel, jadi tidak diulang:
 | Purchase history          | Ya     | Wajib    | Fungsi aplikasi              | Riwayat pesanan, poin, tier                                          |
 | Device or other IDs       | Ya     | Opsional | Fungsi aplikasi              | Token FCM, hanya kalau notifikasi diizinkan                          |
 | App interactions          | Ya     | Wajib    | Fungsi aplikasi              | Status pesanan & notifikasi in-app                                   |
-| Approximate location      | Ya     | Opsional | Fungsi aplikasi              | Dikirim ke server untuk cari depot terdekat — lihat catatan di bawah |
+| Precise location          | Ya     | Opsional | Fungsi aplikasi              | Pin titik antar alamat + cari depot terdekat — lihat catatan di bawah |
 | Crash logs                | Ya     | Wajib    | Diagnostik                   | Ke Sentry (server Jerman). Pesan error + jejak kode + versi aplikasi |
 | Diagnostics               | Ya     | Wajib    | Diagnostik                   | Alamat halaman tanpa query string. Replay & breadcrumb dimatikan     |
 
@@ -60,9 +60,24 @@ lalu **mengirimnya ke server** untuk mencari depot terdekat — menurut definisi
 _dikumpulkan_. Yang benar: **Approximate location**, dikumpulkan **ya**, dibagikan ke
 pihak ketiga **tidak**, **opsional** (pelanggan bisa mengetik alamat tanpa memberi izin),
 tujuan **fungsi aplikasi** saja, terenkripsi saat transit **ya**, bisa diminta hapus
-**ya**. Binari pelanggan tidak membawa `ACCESS_FINE_LOCATION` — izin itu dicabut dari
-merged manifest — jadi deklarasinya tetap Approximate, bukan Precise. Mengisi formulir
-Data Safety-nya adalah pekerjaan N1.
+**ya**.
+
+**Diubah 2026-11-20 (keputusan pemilik): Precise location.** Pesanan kini wajib punya pin, dan
+pin dari lokasi perkiraan meleset ratusan meter sampai 1–2 km. Binari pelanggan sekarang
+membawa `ACCESS_FINE_LOCATION` (tidak lagi dicabut di `build.gradle`), dan layar alamat +
+checkout meminta posisi presisi saat tombol "Gunakan lokasi saya" ditekan — hanya saat itu,
+tidak pernah di latar belakang. **Yang diisi pemilik di Play Console saat upload:**
+
+- Data Safety: ganti "Approximate location" menjadi **Precise location** — dikumpulkan ya,
+  dibagikan tidak, **opsional**, tujuan **fungsi aplikasi**, terenkripsi saat transit ya,
+  bisa diminta hapus ya. (Biarkan "Approximate location" tetap dicentang juga: halaman
+  beranda masih memakai posisi perkiraan untuk memilih depot.)
+- Teks alasan bila diminta: _"Lokasi presisi dipakai hanya saat pelanggan menekan 'Gunakan
+  lokasi saya' di layar alamat atau pemesanan, untuk memasang titik antar yang akurat bagi
+  kurir dan memilih depot yang melayani titik itu. Tidak dipakai di latar belakang, tidak
+  dibagikan, tidak untuk iklan."_
+- Kebijakan privasi (halaman /privacy di web, sudah diperbarui di rilis yang sama) menyebut
+  lokasi presisi, tujuannya, dan bahwa izinnya opsional (titik bisa diisi manual / link Maps).
 
 ### App 2 — Hydromart Ops (`id.hydromart.ops`, staf)
 
@@ -109,7 +124,7 @@ sama ada di `mobile/scripts/audit-manifest.mjs`; keduanya harus tetap sama.
 | `POST_NOTIFICATIONS`                               | Notifikasi status pesanan (FCM)                                  | Setelah pesanan pertama, bukan saat boot |
 | `CAMERA`                                           | Foto bukti kirim & absen wajah (`getUserMedia`, bukan galeri)    | Saat kamera dibuka                       |
 | `ACCESS_COARSE_LOCATION`                           | Posisi kurir selama antaran terbuka                              | Saat antaran dibuka                      |
-| `ACCESS_FINE_LOCATION`                             | Sama, akurasi alamat                                             | Saat antaran dibuka                      |
+| `ACCESS_FINE_LOCATION`                             | Kurir: akurasi posisi antaran. Pelanggan (sejak 2026-11-20): pin alamat yang akurat | Kurir: saat antaran dibuka. Pelanggan: hanya saat menekan "Gunakan lokasi saya" |
 | `USE_BIOMETRIC`                                    | Membuka sesi tersimpan di perangkat                              | Saat aplikasi dibuka, kalau ada sesi     |
 | `BLUETOOTH_SCAN`                                   | **Ops saja.** Mencari printer struk konter (`neverForLocation`)  | Saat kasir menekan "Cari printer"        |
 | `BLUETOOTH_CONNECT`                                | **Ops saja.** Menyambung ke printer struk yang sudah dipasangkan | Saat kasir memakai printer               |

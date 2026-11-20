@@ -211,6 +211,50 @@ describe('OrderService', () => {
    * cancellation happens), and the reversal is owed through the outbox, retried until it
    * lands. See the specs below for why the old order — money first, failing closed — had to go.
    */
+  // Owner decision 2026-11-20: a cancelled order gives its voucher back, whoever cancels it
+  // (promo-service still checks the expiry when it is used again).
+  describe('a cancelled order gives its voucher back', () => {
+    const placeOrder = async (): Promise<string> => {
+      await addToCart(20000, 1);
+      return (await service.checkout(customer, { deliveryAddress: address })).id;
+    };
+
+    it('when the customer cancels', async () => {
+      const id = await placeOrder();
+      await service.cancel(customer, id, 'ganti hari');
+      expect(promo.releaseCalls).toEqual([id]);
+    });
+
+    it('when staff cancel it', async () => {
+      const id = await placeOrder();
+      await service.updateStatus(id, OrderStatus.CANCELLED, 'staff-1', 'stok habis');
+      expect(promo.releaseCalls).toEqual([id]);
+    });
+
+    it('is still cancelled when promo-service is down, and keeps owing the voucher until it lands', async () => {
+      const id = await placeOrder();
+      promo.releaseError = new Error('promo-service unreachable');
+      await expect(service.cancel(customer, id)).resolves.toMatchObject({
+        status: OrderStatus.CANCELLED,
+      });
+      const owed = orders.outbox!.rows.find((r) => r.topic === 'VOUCHER_RELEASE')!;
+      expect(owed).toMatchObject({ orderId: id, status: 'PENDING' });
+
+      // promo-service comes back; the sweep hands the voucher back on a CANCELLED order,
+      // which every other topic is told to leave alone.
+      promo.releaseError = null;
+      await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+      expect(promo.releaseCalls).toContain(id);
+      expect(orders.outbox!.rows.find((r) => r.topic === 'VOUCHER_RELEASE')!.status).toBe('DONE');
+    });
+
+    it('but not when the order moves on to anything other than cancelled', async () => {
+      const id = await placeOrder();
+      await service.updateStatus(id, OrderStatus.CONFIRMED, 'staff-1');
+      expect(promo.releaseCalls).toEqual([]);
+    });
+  });
+
   describe('cancellation settles the payment (K2.3)', () => {
     const placeOrder = async (): Promise<string> => {
       await addToCart(20000, 1);

@@ -191,9 +191,12 @@ dependencies {
  * the nearest depot. Both are permissions a Play reviewer asks you to justify in writing.
  *
  * N1: `ACCESS_COARSE_LOCATION` stays in the customer binary on purpose — the rough
- * position is read and SENT to `depots.nearby`, so Play calls it collected. It is
- * declared as Approximate location in the Data Safety form and in the privacy policy
- * (`lib/dictionaries/{id,en}/privacy.ts`). Only the precise one is stripped here.
+ * position is read and SENT to `depots.nearby`, so Play calls it collected.
+ *
+ * 2026-11-20 (owner decision): `ACCESS_FINE_LOCATION` stays too now. An order needs an
+ * address pin, and a pin from the approximate provider was hundreds of metres to 1–2 km
+ * off. Declared as Precise location in the Data Safety form and in the privacy policy
+ * (`lib/dictionaries/{id,en}/privacy.ts`). Only CAMERA is stripped here.
  *
  * Why a manifest TRANSFORM and not something simpler:
  *
@@ -248,9 +251,11 @@ if (!hydromartIsOps) {
                 "strip${variant.name.capitalize()}CustomerOnlyPermissions",
                 StripCustomerOnlyPermissions,
             ) {
+                // Not ACCESS_FINE_LOCATION any more (owner decision 2026-11-20): the customer
+                // app takes a delivery pin, and an approximate fix is hundreds of metres to
+                // kilometres off. Play declaration: Precise location (docs/MOBILE_PLAY_STORE.md).
                 permissions.set([
                     'android.permission.CAMERA',
-                    'android.permission.ACCESS_FINE_LOCATION',
                 ])
             }
             variant.artifacts

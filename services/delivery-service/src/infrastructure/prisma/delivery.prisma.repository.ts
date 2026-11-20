@@ -121,6 +121,16 @@ const INCLUDE = {
   history: { orderBy: { createdAt: 'asc' as const } },
 };
 
+/**
+ * One person's OWN rows, for an export: their account's, and rows made on their number
+ * before the account existed. Not every row with the number: a recycled number would hand
+ * over the previous owner's deliveries, address and pin included.
+ */
+const personMatch = (customerId: string, phone: string | null) =>
+  phone ? { OR: [{ customerId }, { customerId: null, recipientPhone: phone }] } : { customerId };
+/** ponytail: one person's deliveries; the cap only bounds a pathological account. */
+const EXPORT_CAP = 1000;
+
 @Injectable()
 export class DeliveryPrismaRepository implements DeliveryRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -708,15 +718,31 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.toRecord(row);
   }
 
+  async listForPerson(
+    customerId: string,
+    phone: string | null,
+  ): Promise<{ items: DeliveryRecord[]; truncated: boolean }> {
+    const rows = await this.prisma.delivery.findMany({
+      where: personMatch(customerId, phone),
+      include: INCLUDE,
+      orderBy: { createdAt: 'desc' },
+      take: EXPORT_CAP + 1,
+    });
+    // Over the cap is SAID, not dropped: an export that stops early must not look complete.
+    return {
+      items: rows.slice(0, EXPORT_CAP).map((row) => this.toRecord(row)),
+      truncated: rows.length > EXPORT_CAP,
+    };
+  }
+
   async erasePerson(customerId: string, phone: string | null): Promise<number> {
     // OR on the phone as well as the id: a delivery created before the customer registered
     // carries the number and no id, and that is the row the audit counted.
     const match = phone ? [{ customerId }, { recipientPhone: phone }] : [{ customerId }];
-    const [deliveries, proofs] = await this.prisma.$transaction([
-      this.prisma.delivery.updateMany({
-        where: { OR: match },
-        data: { recipientPhone: null, notes: null },
-      }),
+    // ORDER MATTERS: every filter below reads recipientPhone, which the LAST statement clears.
+    // With the phone scrub first, a row made before registration (no customerId) was never
+    // matched again, and its proof kept the name.
+    const [proofs, , deliveries] = await this.prisma.$transaction([
       // The proof's recipient NAME only. Photo, signature and GPS belong to the 365-day
       // retention sweep, which deletes the objects too — racing it here would leave rows
       // pointing at files nobody deleted.
@@ -724,10 +750,19 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
         where: { delivery: { OR: match } },
         data: { recipientName: '' },
       }),
+      // The street and the pin, where the delivery is over. A live one still has to arrive,
+      // and on a shared number it can be someone else's order on the road.
+      this.prisma.delivery.updateMany({
+        where: { OR: match, status: { in: [DeliveryStatus.DELIVERED, DeliveryStatus.FAILED] } },
+        data: { destinationAddress: '', destinationLat: null, destinationLng: null },
+      }),
+      this.prisma.delivery.updateMany({
+        where: { OR: match },
+        data: { recipientPhone: null, notes: null },
+      }),
     ]);
     return deliveries.count + proofs.count;
   }
-
   async purgeProofsBefore(cutoff: Date): Promise<{ count: number; urls: string[] }> {
     // Read the URLs before the rows go: once they are deleted there is nothing left to say
     // which objects in the bucket belonged to them (H-22).

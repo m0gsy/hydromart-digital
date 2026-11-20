@@ -103,7 +103,7 @@ export const SETTING_DEFS: SettingDef[] = [
    * depot dispatches before anybody there has agreed to it, so a depot opts in.
    *
    * The wait is not a throttle, it is the whole of the decision: without it the fastest
-   * phone wins every order the instant it is confirmed, and the dispatcher who was about to
+   * phone wins every order the instant it is ready (PREPARING), and the dispatcher who was about to
    * assign it deliberately loses the race. With it, self-claim is what happens to an order
    * NOBODY picked up.
    */

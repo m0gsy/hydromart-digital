@@ -160,6 +160,8 @@ export const profile = {
       clear: 'Hapus pin',
       useLocation: 'Gunakan lokasi saya',
       showManual: 'Masukkan koordinat manual',
+      accuracyPoor:
+        'Akurasi ±{m} m — kurang tepat untuk kurir. Coba lagi di luar ruangan, atau isi koordinat / tempel link Maps.',
       hideManual: 'Sembunyikan koordinat manual',
       unsupported: 'Perangkat ini tidak mendukung lokasi otomatis. Masukkan koordinat manual.',
       failed: 'Tidak bisa mengambil lokasi. Izinkan akses lokasi atau isi manual.',

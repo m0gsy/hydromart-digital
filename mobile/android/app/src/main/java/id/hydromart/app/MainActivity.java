@@ -24,8 +24,8 @@ public class MainActivity extends BridgeActivity {
      * refusal. Its one escape hatch — "coarse alone is enough" — is guarded by
      * `SDK_INT >= S`, so it never runs on Android 11 and below.
      *
-     * The customer binary strips `ACCESS_FINE_LOCATION` out of the merged manifest
-     * (`build.gradle`, and deliberately: the Play declaration says Approximate location).
+     * The customer binary used to strip `ACCESS_FINE_LOCATION` out of the merged manifest
+     * (`build.gradle`; until 2026-11-20 the Play declaration said Approximate location).
      * A permission that is not declared is denied by the system instantly and WITHOUT a
      * dialog — so the aggregate is false, the SDK 31 escape hatch is closed, the callback is
      * invoked with `false`, and the WebView reports code 1. `lib/geo.ts` maps code 1 to
@@ -39,9 +39,9 @@ public class MainActivity extends BridgeActivity {
      * The fix backports that escape hatch below Android 12, and asks only for the
      * permissions this binary actually DECLARES:
      *
-     *  - customer build: coarse alone — which is all "find my nearest depot" ever needed,
-     *    and all the Data Safety form promises. Nothing changes for Play: the manifest is
-     *    untouched and the declaration stays Approximate location.
+     *  - customer build: both since 2026-11-20 (owner decision) — the delivery pin needs a
+     *    precise fix, and the Play declaration is Precise location. Before that it declared
+     *    coarse alone; this code asks for whatever the binary declares, so it did not change.
      *  - ops build: both, unchanged, so courier tracking keeps its precise fix. It also
      *    gains the Android 12+ case where the user picks "Approximate" in the dialog —
      *    coarse-only used to read as a refusal there too on this path.

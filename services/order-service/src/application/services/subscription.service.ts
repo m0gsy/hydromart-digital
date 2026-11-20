@@ -192,6 +192,11 @@ export class SubscriptionService {
     return this.subs.listByCustomer(customerId);
   }
 
+  /** A PDP export: every plan, with the address and pin each one delivers to. */
+  exportPerson(customerId: string): Promise<{ items: SubscriptionRecord[]; truncated: boolean }> {
+    return this.subs.listAllForExport(customerId);
+  }
+
   /** HQ network summary (18c): active counts, per-plan breakdown + delivery estimate. */
   async networkSummary(): Promise<SubscriptionNetworkSummaryView> {
     const summary = await this.subs.networkSummary();

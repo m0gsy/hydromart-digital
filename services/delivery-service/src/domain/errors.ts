@@ -122,7 +122,7 @@ export class SelfClaimDisabledError extends DomainError {
  * S1: the order has not sat unclaimed long enough yet.
  *
  * The wait is the whole of the decision, not a throttle. Without it the fastest phone wins
- * every order the instant it is confirmed, and a dispatcher who was about to assign it
+ * every order the instant it is ready (PREPARING), and a dispatcher who was about to assign it
  * deliberately loses the race — the queue stops being a queue. With it, self-claim is what
  * happens to an order NOBODY picked up.
  */

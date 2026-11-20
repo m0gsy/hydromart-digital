@@ -11,6 +11,7 @@ import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { currentPosition, geoReason } from '@/lib/geo';
 import {
+  PIN_POOR_M,
   AddressBookForm,
   EMPTY_ADDRESS_FORM,
   addressToBookForm,
@@ -23,9 +24,12 @@ import type { Address } from '@/lib/types';
 function AddressesInner() {
   const { t } = useT();
   const { toast } = useToast();
-  const { data: addresses, error, loading, reload } = useAsync<Address[]>(() =>
-    api.get(endpoints.addresses.list, true),
-  );
+  const {
+    data: addresses,
+    error,
+    loading,
+    reload,
+  } = useAsync<Address[]>(() => api.get(endpoints.addresses.list, true));
 
   // `editing`: 'new' shows the create form, an id shows that row's edit form, null hides it.
   const [editing, setEditing] = useState<'new' | string | null>(null);
@@ -94,7 +98,10 @@ function AddressesInner() {
     try {
       await fn();
     } catch (err) {
-      toast(err instanceof ApiError ? err.message : t('profile.addresses.list.actionError'), 'error');
+      toast(
+        err instanceof ApiError ? err.message : t('profile.addresses.list.actionError'),
+        'error',
+      );
     } finally {
       reload();
       setBusyId(null);
@@ -119,7 +126,9 @@ function AddressesInner() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h1 className="hidden text-[30px] font-extrabold tracking-tight sm:block">{t('profile.addresses.list.title')}</h1>
+        <h1 className="hidden text-[30px] font-extrabold tracking-tight sm:block">
+          {t('profile.addresses.list.title')}
+        </h1>
         <Button type="button" onClick={openCreate} className="rounded-full">
           <Plus size={17} weight="bold" />
           {t('profile.addresses.list.add')}
@@ -127,9 +136,7 @@ function AddressesInner() {
       </div>
 
       {list.length === 0 ? (
-        <Card className="p-6 text-sm text-muted">
-          {t('profile.addresses.list.empty')}
-        </Card>
+        <Card className="p-6 text-sm text-muted">{t('profile.addresses.list.empty')}</Card>
       ) : (
         <div className="flex flex-col gap-3">
           {list.map((a) => {
@@ -200,7 +207,11 @@ function AddressesInner() {
       <Sheet
         open={editing !== null}
         onClose={() => setEditing(null)}
-        title={editing === 'new' ? t('profile.addresses.sheet.newTitle') : t('profile.addresses.sheet.editTitle')}
+        title={
+          editing === 'new'
+            ? t('profile.addresses.sheet.newTitle')
+            : t('profile.addresses.sheet.editTitle')
+        }
       >
         <AddressForm
           form={form}
@@ -258,6 +269,8 @@ function AddressForm({
 
   const pinned = form.latitude.trim() !== '' && form.longitude.trim() !== '';
 
+  const [pinAccuracy, setPinAccuracy] = useState<number | null>(null);
+
   async function locate() {
     setGeoHint(null);
     setLocating(true);
@@ -265,8 +278,11 @@ function AddressForm({
       // Shared `currentPosition`, not a second copy: precise first, then the coarse
       // provider. A phone whose owner chose "Perkiraan" in the Android 12+ permission
       // dialog holds COARSE only, and a high-accuracy-only request there simply times out.
-      const pos = await currentPosition();
+      // A pin: GPS (this is the point the courier drives to), with a person's patience.
+      const pos = await currentPosition({ pin: true });
       setCoords(pos.coords.latitude, pos.coords.longitude);
+      // Said, not hidden: a fallback to the approximate provider is hundreds of metres off.
+      setPinAccuracy(Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null);
     } catch (err) {
       const reason = geoReason(err);
       setGeoHint(
@@ -282,11 +298,20 @@ function AddressForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={t('profile.addresses.form.label')} htmlFor="label" hint={t('profile.addresses.form.labelHint')}>
+        <Field
+          label={t('profile.addresses.form.label')}
+          htmlFor="label"
+          hint={t('profile.addresses.form.labelHint')}
+        >
           <Input id="label" required value={form.label} onChange={set('label')} maxLength={50} />
         </Field>
         <Field label={t('profile.addresses.form.recipient')} htmlFor="recipientName">
-          <Input id="recipientName" required value={form.recipientName} onChange={set('recipientName')} />
+          <Input
+            id="recipientName"
+            required
+            value={form.recipientName}
+            onChange={set('recipientName')}
+          />
         </Field>
       </div>
       <Field label={t('profile.addresses.form.phone')} htmlFor="phone">
@@ -301,7 +326,11 @@ function AddressForm({
           placeholder={t('profile.addresses.form.addressPlaceholder')}
         />
       </Field>
-      <Field label={t('profile.addresses.form.notes')} htmlFor="notes" hint={t('profile.addresses.form.notesHint')}>
+      <Field
+        label={t('profile.addresses.form.notes')}
+        htmlFor="notes"
+        hint={t('profile.addresses.form.notesHint')}
+      >
         <Input
           id="notes"
           value={form.notes}
@@ -321,7 +350,9 @@ function AddressForm({
         <div className="flex items-center gap-2 text-sm font-semibold">
           <MapPin size={16} weight="fill" className="text-brand-600" />
           {t('profile.addresses.pin.title')}
-          <span className="text-xs font-normal text-muted">{t('profile.addresses.pin.required')}</span>
+          <span className="text-xs font-normal text-muted">
+            {t('profile.addresses.pin.required')}
+          </span>
         </div>
         {pinned ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -354,21 +385,49 @@ function AddressForm({
           </Button>
         )}
         {geoHint && <p className="text-xs text-muted">{geoHint}</p>}
+        {pinAccuracy != null && (
+          <p
+            className={`text-xs ${pinAccuracy > PIN_POOR_M ? 'font-medium text-[color:var(--warning)]' : 'text-muted'}`}
+          >
+            {t(
+              pinAccuracy > PIN_POOR_M
+                ? 'profile.addresses.pin.accuracyPoor'
+                : 'order.checkout.pinAccuracy',
+              {
+                m: Math.round(pinAccuracy),
+              },
+            )}
+          </p>
+        )}
 
         <button
           type="button"
           onClick={() => setShowAdvanced((v) => !v)}
           className="self-start text-xs font-semibold text-brand-600 hover:text-brand-700"
         >
-          {showAdvanced ? t('profile.addresses.pin.hideManual') : t('profile.addresses.pin.showManual')}
+          {showAdvanced
+            ? t('profile.addresses.pin.hideManual')
+            : t('profile.addresses.pin.showManual')}
         </button>
         {showAdvanced && (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Latitude" htmlFor="latitude" hint={t('profile.addresses.form.latHint')}>
-              <Input id="latitude" value={form.latitude} onChange={set('latitude')} inputMode="decimal" placeholder="-6.9147" />
+              <Input
+                id="latitude"
+                value={form.latitude}
+                onChange={set('latitude')}
+                inputMode="decimal"
+                placeholder="-6.9147"
+              />
             </Field>
             <Field label="Longitude" htmlFor="longitude" hint={t('profile.addresses.form.lngHint')}>
-              <Input id="longitude" value={form.longitude} onChange={set('longitude')} inputMode="decimal" placeholder="107.6098" />
+              <Input
+                id="longitude"
+                value={form.longitude}
+                onChange={set('longitude')}
+                inputMode="decimal"
+                placeholder="107.6098"
+              />
             </Field>
           </div>
         )}

@@ -27,4 +27,10 @@ export interface IdentityPort {
 
   /** Account name/phone by customer id. Ids with no account are simply absent from the map. */
   getCustomerNames(ids: string[]): Promise<Map<string, CustomerIdentity>>;
+
+  /**
+   * The same lookup, failing HARD: any batch that does not answer throws. For a campaign
+   * audience, where a silently missing batch is customers silently not messaged.
+   */
+  getAccountOwners(ids: string[]): Promise<Map<string, CustomerIdentity>>;
 }
