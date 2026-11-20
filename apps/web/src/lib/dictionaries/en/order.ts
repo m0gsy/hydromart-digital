@@ -138,8 +138,7 @@ export const order: typeof base = {
     rescheduleTitle: 'Change delivery time',
     changeAddress: 'Change address',
     changeAddressTitle: 'Change delivery address',
-    changeAddressIntro:
-      'Possible until the order is being prepared, to an address the same depot serves — price and delivery fee stay the same. Served by another depot? Cancel and order again.',
+    changeAddressIntro: 'Until the order is being prepared, to an address the same depot serves. Price and fee stay.',
     changeAddressPick: 'Move to',
     changeAddressEmpty: 'No saved address with a location pin yet.',
     changeAddressManage: 'Manage addresses',

@@ -137,8 +137,7 @@ export const order = {
     rescheduleTitle: 'Ubah jadwal pengiriman',
     changeAddress: 'Ubah alamat',
     changeAddressTitle: 'Ubah alamat pengiriman',
-    changeAddressIntro:
-      'Bisa selama pesanan belum disiapkan, ke alamat yang masih dilayani depot yang sama — harga dan ongkir tetap. Alamat dilayani depot lain? Batalkan lalu pesan ulang.',
+    changeAddressIntro: 'Bisa sebelum pesanan disiapkan, ke alamat yang dilayani depot yang sama. Harga & ongkir tetap.',
     changeAddressPick: 'Pindahkan ke',
     changeAddressEmpty: 'Belum ada alamat tersimpan dengan pin lokasi.',
     changeAddressManage: 'Kelola alamat',
