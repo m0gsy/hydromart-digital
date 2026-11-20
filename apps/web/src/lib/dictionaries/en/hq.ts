@@ -479,6 +479,8 @@ export const hq = {
       orders: 'Active orders reassigned to the nearest depot',
       staff: 'Depot staff & couriers lose access',
       coverage: 'Coverage radius reverts to the nearest depot',
+      subscriptions: 'Active subscriptions changing depot',
+      unserved: '{n} beyond every other depot',
     },
     estimate: 'Estimate',
     guard: {

@@ -64,6 +64,27 @@ describe('SubscriptionController', () => {
     expect(service.list).toHaveBeenCalledWith('cust-1');
   });
 
+  it('reroutePreview: a manager previews their own depot only; head office any', async () => {
+    (service as unknown as { reroutePreview: jest.Mock }).reroutePreview = jest
+      .fn()
+      .mockResolvedValue({ affected: 1, unserved: 0, moves: [] });
+    const manager = { sub: 'm1', role: 'MANAGER', depotId: 'd1', depotIds: ['d1'] } as never;
+    const hq = { sub: 'h1', role: 'HEAD_OFFICE' } as never;
+
+    expect(() => controller.reroutePreview(manager, { depotId: 'd2', active: false })).toThrow(
+      /hanya boleh mengakses depot/,
+    );
+    // Sees the depot, cannot change it: no probing where subscribers live.
+    const owner = { sub: 'o1', role: 'FRANCHISE_OWNER', depotIds: ['d1'] } as never;
+    expect(() => controller.reroutePreview(owner, { depotId: 'd1', serviceRadiusKm: 50 })).toThrow(
+      /pengelola depot/,
+    );
+    await expect(
+      controller.reroutePreview(manager, { depotId: 'd1', serviceRadiusKm: 3 }),
+    ).resolves.toMatchObject({ affected: 1 });
+    await expect(controller.reroutePreview(hq, { depotId: 'd2', active: false })).resolves.toBeTruthy();
+  });
+
   it('adminSummary: delegates to the network aggregate', async () => {
     await expect(controller.adminSummary()).resolves.toEqual({ total: 3 });
     expect(service.networkSummary).toHaveBeenCalledTimes(1);

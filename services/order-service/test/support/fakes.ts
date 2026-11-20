@@ -1169,6 +1169,12 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     return r.failureCount;
   }
 
+  async listActivePins(): Promise<{ lat: number; lng: number }[]> {
+    return this.rows
+      .filter((r) => r.status === 'ACTIVE' && r.latitude != null && r.longitude != null)
+      .map((r) => ({ lat: r.latitude as number, lng: r.longitude as number }));
+  }
+
   async networkSummary(): Promise<SubscriptionNetworkSummary> {
     const active = this.rows.filter((r) => r.status === 'ACTIVE');
     const agg = new Map<string, SubscriptionNetworkSummary['plans'][number]>();

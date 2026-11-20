@@ -234,6 +234,16 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     return scrubbed.count;
   }
 
+  async listActivePins(): Promise<{ lat: number; lng: number }[]> {
+    const rows = await this.prisma.subscription.findMany({
+      where: { status: 'ACTIVE', latitude: { not: null }, longitude: { not: null } },
+      select: { latitude: true, longitude: true },
+      // ponytail: two floats a plan, the whole network at once; page it past ~100k plans.
+      take: 100_000,
+    });
+    return rows.map((r) => ({ lat: r.latitude as number, lng: r.longitude as number }));
+  }
+
   async networkSummary(): Promise<SubscriptionNetworkSummary> {
     const [grouped, distinctCustomers] = await Promise.all([
       this.prisma.subscription.groupBy({

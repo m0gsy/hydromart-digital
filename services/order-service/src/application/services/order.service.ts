@@ -3265,6 +3265,11 @@ export class OrderService {
     return this.cartService.view(customerId);
   }
 
+  /** The active depots, as checkout routes against them; null when the directory is down. */
+  activeDepots(): Promise<DepotLocation[] | null> {
+    return this.depotDirectory.listActiveDepots();
+  }
+
   /**
    * Resolves the fulfilling depot for a delivery address, and never returns null.
    *

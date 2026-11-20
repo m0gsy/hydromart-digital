@@ -482,6 +482,8 @@ export const hq = {
       orders: 'Pesanan aktif dialihkan ke depot terdekat',
       staff: 'Staf & kurir depot kehilangan akses',
       coverage: 'Radius cakupan dikembalikan ke depot terdekat',
+      subscriptions: 'Langganan aktif pindah depot',
+      unserved: '{n} tak terjangkau depot lain',
     },
     estimate: 'Perkiraan',
     guard: {

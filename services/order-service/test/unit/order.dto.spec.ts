@@ -15,6 +15,7 @@ import {
   ListOrdersQueryDto,
   OrderValueBatchDto,
   RescheduleOrderDto,
+  SubscriptionReroutePreviewDto,
   TaxPreviewQueryDto,
   WalkInLineDto,
   WalkInSaleDto,
@@ -409,5 +410,24 @@ describe('CheckoutDto scheduledFor (FR-036)', () => {
       (await validate(plainToInstance(CheckoutDto, { ...base, scheduledFor: 'besok pagi' })))
         .length,
     ).toBeGreaterThan(0);
+  });
+});
+
+describe('SubscriptionReroutePreviewDto (P3-3)', () => {
+  const id = '6f1c2b3a-1d2e-4f5a-8b9c-0d1e2f3a4b5c';
+  const errorsOf = async (body: object) =>
+    (await validate(plainToInstance(SubscriptionReroutePreviewDto, body))).map((e) => e.property);
+
+  it('takes a suspension or a moved / resized depot', async () => {
+    expect(await errorsOf({ depotId: id, active: false })).toEqual([]);
+    expect(await errorsOf({ depotId: id, lat: -6.9, lng: 107.6, serviceRadiusKm: 5 })).toEqual([]);
+  });
+
+  // A re-activation is not previewed: the dry run would answer that nobody moves.
+  it('refuses a re-activation, a bad pin and an absurd radius', async () => {
+    expect(await errorsOf({ depotId: id, active: true })).toEqual(['active']);
+    expect(await errorsOf({ depotId: id, lat: 91 })).toEqual(['lat']);
+    expect(await errorsOf({ depotId: id, serviceRadiusKm: -1 })).toEqual(['serviceRadiusKm']);
+    expect(await errorsOf({ depotId: 'nope' })).toEqual(['depotId']);
   });
 });

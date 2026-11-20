@@ -1230,6 +1230,14 @@ export interface SubscriptionNetworkSummary {
   }[];
 }
 
+/** P3-3: active plans a depot change would re-route (POST subscriptions/admin/reroute-preview). */
+export interface SubscriptionReroutePreview {
+  affected: number;
+  /** Of `affected`, the plans no depot would serve any more. */
+  unserved: number;
+  moves: { fromDepotId: string | null; toDepotId: string | null; count: number }[];
+}
+
 export interface TopDepots {
   from: string | null;
   to: string | null;

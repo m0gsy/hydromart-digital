@@ -427,6 +427,26 @@ export class SubscriptionNetworkSummaryResponseDto {
   estMonthlyDeliveries!: number;
 }
 
+/** Mirrors `RerouteMove` (P3-3). */
+export class RerouteMoveResponseDto {
+  @ApiProperty({ type: String, nullable: true })
+  fromDepotId!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  toDepotId!: string | null;
+  @ApiProperty({ type: Number })
+  count!: number;
+}
+
+/** Mirrors `RerouteCounts` (P3-3). */
+export class SubscriptionReroutePreviewResponseDto {
+  @ApiProperty({ type: Number })
+  affected!: number;
+  @ApiProperty({ type: Number })
+  unserved!: number;
+  @ApiProperty({ type: [RerouteMoveResponseDto] })
+  moves!: RerouteMoveResponseDto[];
+}
+
 /** Mirrors `CartLineView` exactly — generated for audit D-6, no field added or removed. */
 export class CartLineResponseDto {
   @ApiProperty({ type: String })

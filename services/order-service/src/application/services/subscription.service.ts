@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { FeatureFlagReader } from '@hydromart/platform';
 
 import {
+  DepotUnavailableError,
   ProductUnavailableError,
   SubscriptionsDisabledError,
   SubscriptionAddressNotRoutableError,
@@ -11,6 +12,7 @@ import {
   SubscriptionNotFoundError,
 } from '../../domain/errors';
 import { nextDeliveryOnOrAfter } from '../../domain/subscription';
+import { DepotChange, RerouteCounts, rerouteCounts, withDepotChange } from '../../domain/geo';
 import { OrderConfigService } from '../../config/order-config.service';
 import { DeliveryAddressSnapshot } from '../ports/order.repository';
 import { NotificationPort } from '../ports/notification.port';
@@ -191,6 +193,20 @@ export class SubscriptionService {
       summary.plans.reduce((n, p) => n + p.subscribers * MONTHLY_DELIVERY_RATE[p.frequency], 0),
     );
     return { ...summary, estMonthlyDeliveries };
+  }
+
+  /**
+   * P3-3: which active plans would change depot if `change` were saved. The sweep routes every
+   * plan by its pin on every run, so suspending or moving a depot silently re-routes them;
+   * this is the number to read first.
+   */
+  async reroutePreview(change: DepotChange): Promise<RerouteCounts> {
+    const [depots, pins] = await Promise.all([
+      this.orders.activeDepots(),
+      this.subs.listActivePins(),
+    ]);
+    if (!depots?.length) throw new DepotUnavailableError();
+    return rerouteCounts(pins, depots, withDepotChange(depots, change));
   }
 
   private async owned(customerId: string, id: string): Promise<SubscriptionRecord> {

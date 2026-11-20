@@ -1,5 +1,10 @@
 import { DepotLocation } from '../../src/application/ports/depot-directory.port';
-import { haversineKm, selectNearestDepot } from '../../src/domain/geo';
+import {
+  haversineKm,
+  rerouteCounts,
+  selectNearestDepot,
+  withDepotChange,
+} from '../../src/domain/geo';
 
 const depot = (over: Partial<DepotLocation> & { id: string }): DepotLocation => ({
   lat: -6.9,
@@ -115,5 +120,77 @@ describe('selectNearestDepot', () => {
       );
       expect(selectNearestDepot(-8.65, 115.22, [depot({ id: 'c', serviceArea: null })])).toBeNull();
     });
+  });
+});
+
+/*
+ * P3-3. 0.01° of latitude is ~1.11 km. Depot a sits at -6.90 (5 km), b at -7.00 (8 km):
+ *   -6.90 → a only · -6.93 → both, a nearer · -6.86 → a only · -6.95 → b only
+ */
+describe('rerouteCounts (P3-3 dry run)', () => {
+  const a = depot({ id: 'a', lat: -6.9, lng: 107.6, serviceRadiusKm: 5 });
+  const b = depot({ id: 'b', lat: -7.0, lng: 107.6, serviceRadiusKm: 8 });
+  const pins = [-6.9, -6.93, -6.86, -6.95].map((lat) => ({ lat, lng: 107.6 }));
+
+  it('counts who moves and who is left unserved when a depot is suspended', () => {
+    const after = withDepotChange([a, b], { depotId: 'a', active: false });
+    expect(rerouteCounts(pins, [a, b], after)).toEqual({
+      affected: 3,
+      unserved: 2,
+      moves: [
+        { fromDepotId: 'a', toDepotId: null, count: 2 },
+        { fromDepotId: 'a', toDepotId: 'b', count: 1 },
+      ],
+    });
+  });
+
+  it('counts a shrunk radius, and nothing for a change that moves nobody', () => {
+    const smaller = withDepotChange([a, b], { depotId: 'b', serviceRadiusKm: 3 });
+    expect(rerouteCounts(pins, [a, b], smaller)).toEqual({
+      affected: 1,
+      unserved: 1,
+      moves: [{ fromDepotId: 'b', toDepotId: null, count: 1 }],
+    });
+    const same = withDepotChange([a, b], { depotId: 'b', lat: -7.0, lng: 107.6 });
+    expect(rerouteCounts(pins, [a, b], same)).toEqual({ affected: 0, unserved: 0, moves: [] });
+  });
+
+  it('counts a moved depot: its pins go to the neighbour, the new street comes to it', () => {
+    // a moves 10 km north: -6.90/-6.86 still a? -6.86 is 4.4 km from -6.82, -6.90 is 8.9 km.
+    const moved = withDepotChange([a, b], { depotId: 'a', lat: -6.82, lng: 107.6 });
+    const r = rerouteCounts(pins, [a, b], moved);
+    expect(r.moves).toEqual(
+      expect.arrayContaining([
+        { fromDepotId: 'a', toDepotId: null, count: 1 },
+        { fromDepotId: 'a', toDepotId: 'b', count: 1 },
+      ]),
+    );
+    expect(r).toMatchObject({ affected: 2, unserved: 1 });
+  });
+
+  it('counts a pin nobody served that a grown radius now reaches', () => {
+    const outside = [{ lat: -7.15, lng: 107.6 }]; // 16.7 km from b, 27.8 from a
+    const grown = withDepotChange([a, b], { depotId: 'b', serviceRadiusKm: 20 });
+    expect(rerouteCounts(outside, [a, b], grown)).toEqual({
+      affected: 1,
+      unserved: 0,
+      moves: [{ fromDepotId: null, toDepotId: 'b', count: 1 }],
+    });
+  });
+
+  it('keeps a drawn area deciding: a radius edit moves nobody it covers', () => {
+    const square = [
+      [
+        { lat: -7.0, lng: 107.5 },
+        { lat: -7.0, lng: 107.7 },
+        { lat: -6.8, lng: 107.7 },
+        { lat: -6.8, lng: 107.5 },
+      ],
+    ];
+    const drawn = depot({ id: 'c', lat: -6.9, lng: 107.6, serviceRadiusKm: 5, serviceArea: square });
+    const after = withDepotChange([drawn], { depotId: 'c', serviceRadiusKm: 0.001 });
+    expect(rerouteCounts(pins, [drawn], after).affected).toBe(0);
+    // An edit to another depot leaves this one exactly as it was.
+    expect(withDepotChange([drawn], { depotId: 'other', serviceRadiusKm: 1 })).toEqual([drawn]);
   });
 });

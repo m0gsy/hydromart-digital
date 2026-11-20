@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -12,7 +13,10 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
+import { can } from '@hydromart/access';
+
 import {
+  assertDepotAccess,
   Can,
   AuthenticatedUser,
   CurrentUser,
@@ -31,6 +35,7 @@ import {
   DepotScopeQueryDto,
   PdpAnonymiseDto,
   PdpSubscriptionExportResponseDto,
+  SubscriptionReroutePreviewDto,
 } from './dto/order.dto';
 import {
   SubscriptionNetworkSummaryView,
@@ -41,8 +46,10 @@ import {
   PdpErasedResponseDto,
   ProcessDue2ResponseDto,
   SubscriptionNetworkSummaryResponseDto,
+  SubscriptionReroutePreviewResponseDto,
   SubscriptionResponseDto,
 } from './dto/responses.generated.dto';
+import type { RerouteCounts } from '../domain/geo';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth()
@@ -74,6 +81,25 @@ export class SubscriptionController {
   @ApiOperation({ summary: 'HQ network subscription aggregate (18c)' })
   adminSummary(): Promise<SubscriptionNetworkSummaryView> {
     return this.subscriptions.networkSummary();
+  }
+
+  // P3-3: read-only, but only for whoever can change the depot — edit it (`depotAdmin`, a
+  // manager on their own depot only, as `PATCH /depots/:depotId`) or suspend it
+  // (`depotLifecycle`). Probing other coordinates is a map of where subscribers live.
+  @ApiOkResponse({ type: SubscriptionReroutePreviewResponseDto })
+  @Can('depotDirectory')
+  @Post('admin/reroute-preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Dry run: active subscriptions that change depot if a depot changes' })
+  reroutePreview(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SubscriptionReroutePreviewDto,
+  ): Promise<RerouteCounts> {
+    if (!can('depotAdmin', user.role) && !can('depotLifecycle', user.role)) {
+      throw new ForbiddenException('Hanya pengelola depot yang bisa melihat pratinjau ini.');
+    }
+    assertDepotAccess(user, dto.depotId);
+    return this.subscriptions.reroutePreview(dto);
   }
 
   @ApiOkResponse({ type: SubscriptionResponseDto })

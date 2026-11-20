@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { OrderService } from '../../src/application/services/order.service';
 import { SubscriptionService } from '../../src/application/services/subscription.service';
 import {
+  DepotUnavailableError,
   ProductUnavailableError,
   SubscriptionAddressNotRoutableError,
   SubscriptionCustomerAddressMissingError,
@@ -171,6 +172,38 @@ describe('SubscriptionService', () => {
     await expect(service.exportPerson('cust-exp')).resolves.toEqual({
       items: [expect.objectContaining({ id: 'x1', addressLine: 'Jl. B 2' })],
       truncated: false,
+    });
+  });
+
+  describe('reroutePreview (P3-3)', () => {
+    const plan = (status: string, latitude: number | null) =>
+      subs.rows.push({ id: randomUUID(), status, latitude, longitude: 107.6 } as never);
+
+    it('dry-runs the suspension against every ACTIVE plan with a pin, and only those', async () => {
+      const neighbour = { ...homeDepot, id: 'depot-next', lat: -7.0, serviceRadiusKm: 15 };
+      depots.depots = [homeDepot, neighbour];
+      plan('ACTIVE', -6.9); // home serves; the neighbour (11 km, radius 15) takes it over
+      plan('ACTIVE', -6.83); // 7.8 km from home, 18.9 from the neighbour: left unserved
+      plan('PAUSED', -6.83); // not delivered today, not counted
+      plan('ACTIVE', null); // no pin, nothing to route
+
+      await expect(
+        service.reroutePreview({ depotId: homeDepot.id, active: false }),
+      ).resolves.toEqual({
+        affected: 2,
+        unserved: 1,
+        moves: [
+          { fromDepotId: homeDepot.id, toDepotId: 'depot-next', count: 1 },
+          { fromDepotId: homeDepot.id, toDepotId: null, count: 1 },
+        ],
+      });
+    });
+
+    it('refuses to guess while the depot directory is down', async () => {
+      depots.unreachable = true;
+      await expect(service.reroutePreview({ depotId: homeDepot.id })).rejects.toBeInstanceOf(
+        DepotUnavailableError,
+      );
     });
   });
 
