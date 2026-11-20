@@ -13,7 +13,6 @@ import {
   BelowMinimumOrderError,
   ExpressUnavailableError,
   CatalogUnavailableError,
-  DepotRequiredError,
   DepotUnavailableError,
   CounterBasketChangedError,
   CounterTotalChangedError,
@@ -34,6 +33,7 @@ import {
   OrderNotFoundError,
   OrderNotReviewableError,
   OutOfServiceAreaError,
+  PinRequiredError,
   ProductUnavailableError,
   ResellerVoucherNotAllowedError,
   AnonymousVoucherNotAllowedError,
@@ -218,11 +218,6 @@ export interface WalkInSaleInput {
 
 export interface CheckoutInput {
   deliveryAddress: DeliveryAddressSnapshot;
-  /**
-   * Depot the customer picked, used only when the address carries no map pin so
-   * automatic routing cannot run. Ignored when the address has coordinates.
-   */
-  depotId?: string | null;
   /** Optional voucher code to apply (validated against the promo-service). */
   voucherCode?: string | null;
   /** Optional customer-preferred delivery time-window (free-form label, not slot-checked). */
@@ -350,6 +345,10 @@ export class OrderService {
     this.outboxService.register('PAYMENT_REVERSAL', (id) => this.reversePayment(id));
     this.outboxService.register('FRANCHISE_REVENUE_VOID', (id) => this.voidFranchiseRevenue(id));
     this.outboxService.register('REFERRAL_REVERSE', (id) => this.reverseReferralForVoid(id));
+    // Owner decision 2026-11-20: a cancelled order gives its voucher back. Throws on failure
+    // (the adapter does), so the row is retried; promo-service is idempotent per order and
+    // still checks the expiry when the voucher is used again.
+    this.outboxService.register('VOUCHER_RELEASE', (id) => this.promo.release(id));
   }
 
   private async reverseReferralForVoid(orderId: string): Promise<void> {
@@ -381,9 +380,15 @@ export class OrderService {
     await this.paymentReversal.cancelForOrder(order.id, cancellation?.note || 'Order cancelled');
   }
 
-  /** The row that makes a cancellation owe its customer the money back; see OutboxTopic. */
-  private static paymentReversalOutbox(orderId: string): OutboxWrite[] {
-    return [{ topic: 'PAYMENT_REVERSAL', orderId }];
+  /**
+   * What a cancellation owes its customer, written WITH the status change: the money back and,
+   * since 2026-11-20, the voucher back. See OutboxTopic.
+   */
+  private static cancellationOutbox(orderId: string): OutboxWrite[] {
+    return [
+      { topic: 'PAYMENT_REVERSAL', orderId },
+      { topic: 'VOUCHER_RELEASE', orderId },
+    ];
   }
 
   /**
@@ -567,8 +572,8 @@ export class OrderService {
     // Route to the fulfilling depot first: it prices the goods (per-depot overrides),
     // the delivery fee, and the minimum order amount. Resolution is fail-CLOSED — an
     // order that reaches no depot is an order nobody can see or fulfil, so checkout
-    // rejects instead (the customer picks a depot when the address has no map pin).
-    const depot = await this.resolveDepot(input.deliveryAddress, input.depotId);
+    // rejects instead. The pin decides the depot; without one there is no order.
+    const depot = await this.resolveDepot(input.deliveryAddress);
 
     // Pricing and reseller status are independent of each other — the reseller lookup only
     // needs the caller's token — so both are in flight at once (audit S-2). Checkout used to
@@ -2047,7 +2052,7 @@ export class OrderService {
       undefined,
       undefined,
       undefined,
-      OrderService.paymentReversalOutbox(order.id),
+      OrderService.cancellationOutbox(order.id),
     );
     // Right now, on the request that earned it; a failure here leaves the row for the sweep.
     await this.outboxService.processForOrder(cancelled.id, authorization);
@@ -2282,7 +2287,7 @@ export class OrderService {
             undefined,
             undefined,
             undefined,
-            OrderService.paymentReversalOutbox(order.id),
+            OrderService.cancellationOutbox(order.id),
           );
         } catch (error) {
           if (error instanceof StaleOrderStatusError) {
@@ -3031,7 +3036,10 @@ export class OrderService {
     return input.idempotencyKey?.trim() || null;
   }
 
-  /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */
+  /**
+   * Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. The
+   * voucher goes back through the VOUCHER_RELEASE outbox row the cancellation wrote.
+   */
   private async releaseStock(order: OrderRecord, authorization: string): Promise<void> {
     if (!order.depotId) {
       return;
@@ -3140,7 +3148,7 @@ export class OrderService {
       to === OrderStatus.COMPLETED
         ? OrderService.completionOutbox(order)
         : to === OrderStatus.CANCELLED
-          ? OrderService.paymentReversalOutbox(order.id)
+          ? OrderService.cancellationOutbox(order.id)
           : [],
     );
     if (to === OrderStatus.CANCELLED) {
@@ -3266,27 +3274,20 @@ export class OrderService {
    * is lost the moment it is placed. So every path now ends in a depot or an error
    * the caller can act on:
    *   - address has coordinates  → nearest depot within radius, else out-of-service
-   *   - no coordinates           → the depot the customer picked (`requestedDepotId`)
-   *   - neither                  → DepotRequiredError, so the UI can ask
+   *   - no coordinates           → PinRequiredError (owner decision 2026-11-20)
    *   - directory down / no depots → DepotUnavailableError (retry later)
    */
-  private async resolveDepot(
-    address: DeliveryAddressSnapshot,
-    requestedDepotId?: string | null,
-  ): Promise<DepotLocation> {
+  private async resolveDepot(address: DeliveryAddressSnapshot): Promise<DepotLocation> {
+    if (address.latitude === null || address.longitude === null) {
+      throw new PinRequiredError();
+    }
     const depots = await this.depotDirectory.listActiveDepots();
     if (depots === null || depots.length === 0) {
       throw new DepotUnavailableError();
     }
-    if (address.latitude !== null && address.longitude !== null) {
-      const nearest = selectNearestDepot(address.latitude, address.longitude, depots);
-      if (!nearest) throw new OutOfServiceAreaError();
-      return nearest;
-    }
-    if (!requestedDepotId) throw new DepotRequiredError();
-    const picked = depots.find((d) => d.id === requestedDepotId);
-    if (!picked) throw new DepotUnavailableError();
-    return picked;
+    const nearest = selectNearestDepot(address.latitude, address.longitude, depots);
+    if (!nearest) throw new OutOfServiceAreaError();
+    return nearest;
   }
 
   /**

@@ -55,6 +55,9 @@ class FakeDepotCrmRepository implements DepotCrmRepository {
 
 /** auth-service stand-in. Empty by default = the fail-soft path (no account names). */
 class FakeIdentity implements IdentityPort {
+  async getAccountOwners(ids: string[]) {
+    return this.getCustomerNames(ids);
+  }
   names = new Map<string, CustomerIdentity>();
   asked: string[][] = [];
   preRegisterCustomer = jest.fn();

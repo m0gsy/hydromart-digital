@@ -94,6 +94,24 @@ export interface AssignInput {
   deliveryWindow?: string;
 }
 
+/** One person's deliveries as a PDP export shows them (see exportPerson). */
+export interface PdpDeliveryExport {
+  truncated: boolean;
+  items: {
+    orderNumber: string;
+    status: string;
+    destinationAddress: string;
+    destinationLat: number | null;
+    destinationLng: number | null;
+    recipientPhone: string | null;
+    notes: string | null;
+    deliveryWindow: string | null;
+    assignedAt: Date;
+    deliveredAt: Date | null;
+    proof: { recipientName: string; latitude: number; longitude: number } | null;
+  }[];
+}
+
 export type ProofInput = Omit<ProofRecord, 'capturedAt'> & {
   /** Device time when the proof was captured offline; absent for a live handover. */
   capturedAt?: Date | null;
@@ -202,8 +220,11 @@ export class DeliveryService {
    *  - self-claim is OFF for the depot (0 by default, so every depot starts here);
    *  - the order is not theirs to see — order-service answers 403 from the courier's own
    *    token, and that is the depot gate, not a second copy of it here;
+   *  - the order is not PREPARING. That is the only state a dispatcher can hand to a courier
+   *    (PREPARING → DRIVER_ASSIGNED is the transition); this used to ask for CONFIRMED, which
+   *    order-service then refused, so a claim could never succeed (fixed 2026-11-20);
    *  - the order has not sat long enough. This is the whole of the decision: without the
-   *    wait the fastest phone wins every order the instant it is confirmed, and a
+   *    wait the fastest phone wins every order the instant it is ready, and a
    *    dispatcher who was about to assign it loses the race. `statusChangedAt` is the clock
    *    — `updatedAt` moves for a note edit or a payment write and would make an untouched
    *    order look freshly claimed;
@@ -228,7 +249,10 @@ export class DeliveryService {
     if (!this.config.courierSelfClaimEnabled(order.depotId)) {
       throw new SelfClaimDisabledError();
     }
-    if (order.status !== 'CONFIRMED') throw new OrderNotClaimableError();
+    if (order.status !== 'PREPARING') throw new OrderNotClaimableError();
+    // No readable clock, no claim: an Invalid Date makes the wait check below false, which
+    // would let the order go at once — the one thing the wait is there to stop.
+    if (Number.isNaN(order.statusChangedAt.getTime())) throw new OrderNotClaimableError();
 
     const existing = await this.deliveries.findByOrder(orderId);
     if (existing) throw new DeliveryAlreadyExistsError();
@@ -1122,6 +1146,37 @@ export class DeliveryService {
    * Called by auth-service's erasure registry, which reports a dataset it cannot reach as
    * UNENFORCED rather than skipping it — so the endpoint existing is half the fix.
    */
+  /**
+   * A PDP export: what this service holds ABOUT the person — where it went, the pin, the
+   * landmark, who signed. Not the courier's live position, staff ids or raw storage links:
+   * those are other people's data and internal handles.
+   */
+  async exportPerson(customerId: string, phone: string | null): Promise<PdpDeliveryExport> {
+    const { items, truncated } = await this.deliveries.listForPerson(customerId, phone);
+    return {
+      truncated,
+      items: items.map((d) => ({
+        orderNumber: d.orderNumber,
+        status: d.status,
+        destinationAddress: d.destinationAddress,
+        destinationLat: d.destinationLat,
+        destinationLng: d.destinationLng,
+        recipientPhone: d.recipientPhone,
+        notes: d.notes,
+        deliveryWindow: d.deliveryWindow,
+        assignedAt: d.assignedAt,
+        deliveredAt: d.deliveredAt,
+        proof: d.proof
+          ? {
+              recipientName: d.proof.recipientName,
+              latitude: d.proof.latitude,
+              longitude: d.proof.longitude,
+            }
+          : null,
+      })),
+    };
+  }
+
   async erasePerson(customerId: string, phone: string | null): Promise<{ erased: number }> {
     const erased = await this.deliveries.erasePerson(customerId, phone);
     this.logger.log(`PDP erasure: scrubbed ${erased} delivery row(s) for ${customerId}`);

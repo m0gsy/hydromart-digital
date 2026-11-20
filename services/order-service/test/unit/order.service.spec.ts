@@ -11,7 +11,6 @@ import {
   BelowMinimumOrderError,
   ExpressUnavailableError,
   CatalogUnavailableError,
-  DepotRequiredError,
   DepotUnavailableError,
   DuplicateCheckoutError,
   EmptyCartError,
@@ -27,6 +26,7 @@ import {
   OrderNotFoundError,
   OrderNotReviewableError,
   OutOfServiceAreaError,
+  PinRequiredError,
   ProductUnavailableError,
   ResellerVoucherNotAllowedError,
   StaleOrderStatusError,
@@ -75,7 +75,7 @@ const address: DeliveryAddressSnapshot = {
   notes: null,
 };
 
-/** Address with no map pin — the case that now forces an explicit depot choice. */
+/** Address with no map pin — refused at checkout since 2026-11-20 (owner: no pin, no order). */
 const unpinnedAddress: DeliveryAddressSnapshot = { ...address, latitude: null, longitude: null };
 
 /*
@@ -211,6 +211,50 @@ describe('OrderService', () => {
    * cancellation happens), and the reversal is owed through the outbox, retried until it
    * lands. See the specs below for why the old order — money first, failing closed — had to go.
    */
+  // Owner decision 2026-11-20: a cancelled order gives its voucher back, whoever cancels it
+  // (promo-service still checks the expiry when it is used again).
+  describe('a cancelled order gives its voucher back', () => {
+    const placeOrder = async (): Promise<string> => {
+      await addToCart(20000, 1);
+      return (await service.checkout(customer, { deliveryAddress: address })).id;
+    };
+
+    it('when the customer cancels', async () => {
+      const id = await placeOrder();
+      await service.cancel(customer, id, 'ganti hari');
+      expect(promo.releaseCalls).toEqual([id]);
+    });
+
+    it('when staff cancel it', async () => {
+      const id = await placeOrder();
+      await service.updateStatus(id, OrderStatus.CANCELLED, 'staff-1', 'stok habis');
+      expect(promo.releaseCalls).toEqual([id]);
+    });
+
+    it('is still cancelled when promo-service is down, and keeps owing the voucher until it lands', async () => {
+      const id = await placeOrder();
+      promo.releaseError = new Error('promo-service unreachable');
+      await expect(service.cancel(customer, id)).resolves.toMatchObject({
+        status: OrderStatus.CANCELLED,
+      });
+      const owed = orders.outbox!.rows.find((r) => r.topic === 'VOUCHER_RELEASE')!;
+      expect(owed).toMatchObject({ orderId: id, status: 'PENDING' });
+
+      // promo-service comes back; the sweep hands the voucher back on a CANCELLED order,
+      // which every other topic is told to leave alone.
+      promo.releaseError = null;
+      await outbox.processDue(new Date(Date.now() + 60 * 60 * 1000));
+      expect(promo.releaseCalls).toContain(id);
+      expect(orders.outbox!.rows.find((r) => r.topic === 'VOUCHER_RELEASE')!.status).toBe('DONE');
+    });
+
+    it('but not when the order moves on to anything other than cancelled', async () => {
+      const id = await placeOrder();
+      await service.updateStatus(id, OrderStatus.CONFIRMED, 'staff-1');
+      expect(promo.releaseCalls).toEqual([]);
+    });
+  });
+
   describe('cancellation settles the payment (K2.3)', () => {
     const placeOrder = async (): Promise<string> => {
       await addToCart(20000, 1);
@@ -2508,31 +2552,17 @@ describe('OrderService', () => {
   // An order with no depot is invisible to every depot queue and reserves no stock,
   // so checkout refuses one instead of placing it. These four cases are that contract.
   describe('an order always gets a depot', () => {
-    it('refuses an unpinned address when the customer picked no depot', async () => {
+    // Owner decision 2026-11-20: the pin decides the depot, so no pin means no order. A
+    // depot picked from a list priced the order at whichever depot the customer liked.
+    it('refuses an unpinned address before reading the directory or the cart', async () => {
       await addToCart(20000, 1);
+      depots.depots = null as never; // would be DepotUnavailableError if it were read
       await expect(
         service.checkout(customer, { deliveryAddress: unpinnedAddress }),
-      ).rejects.toBeInstanceOf(DepotRequiredError);
+      ).rejects.toBeInstanceOf(PinRequiredError);
       expect(orders.rows).toHaveLength(0);
       expect(inventory.reserveCalls).toHaveLength(0);
       expect(await cart.findByCustomer(customer)).toHaveLength(1); // cart untouched
-    });
-
-    it('uses the depot the customer picked when the address has no pin', async () => {
-      await addToCart(20000, 1);
-      const order = await service.checkout(customer, {
-        deliveryAddress: unpinnedAddress,
-        depotId: homeDepot.id,
-      });
-      expect(order.depotId).toBe(homeDepot.id);
-      expect(inventory.reserveCalls).toHaveLength(1);
-    });
-
-    it('rejects a depot that is not in the active directory', async () => {
-      await addToCart(20000, 1);
-      await expect(
-        service.checkout(customer, { deliveryAddress: unpinnedAddress, depotId: randomUUID() }),
-      ).rejects.toBeInstanceOf(DepotUnavailableError);
     });
 
     // Legacy rows: orders placed back when checkout failed open. HQ has to be able to
@@ -4383,30 +4413,6 @@ describe('OrderService', () => {
     ).rejects.toBeInstanceOf(DepotUnavailableError);
   });
 
-  it('asks for a depot when the address has no coordinates', async () => {
-    depots.depots = [
-      {
-        id: 'depot-near',
-        lat: -6.9,
-        lng: 107.6,
-        serviceRadiusKm: 10,
-        deliveryFee: 7000,
-        minOrderAmount: null,
-      },
-    ];
-    await addToCart(20000, 1);
-    await expect(
-      service.checkout(customer, { deliveryAddress: unpinnedAddress }),
-    ).rejects.toBeInstanceOf(DepotRequiredError);
-    // ...and the picked depot's own fee applies once the customer chooses it.
-    const order = await service.checkout(customer, {
-      deliveryAddress: unpinnedAddress,
-      depotId: 'depot-near',
-    });
-    expect(order.depotId).toBe('depot-near');
-    expect(order.deliveryFee).toBe(7000);
-  });
-
   it('prices lines from the routed depot override, not the catalog base', async () => {
     depots.depots = [
       {
@@ -4471,12 +4477,9 @@ describe('OrderService', () => {
     expect(order.items[0].unitPrice).toBe(20000);
   });
 
-  it('looks up depot prices for the depot the customer picked', async () => {
+  it('looks up depot prices for the depot the pin routed to', async () => {
     await addToCart(20000, 1);
-    await service.checkout(customer, {
-      deliveryAddress: unpinnedAddress,
-      depotId: homeDepot.id,
-    });
+    await service.checkout(customer, { deliveryAddress: address });
     expect(pricing.calls).toHaveLength(1);
     expect(pricing.calls[0].depotId).toBe(homeDepot.id);
   });

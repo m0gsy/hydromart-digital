@@ -7,7 +7,7 @@ export const driver = {
     take: 'Ambil',
     taken: 'Pesanan diambil. Cek daftar pengantaran Anda.',
     waitedFor: 'Menunggu {minutes} menit',
-    tooSoon: 'Belum bisa diambil. Tunggu {minutes} menit sejak pesanan dikonfirmasi.',
+    tooSoon: 'Belum bisa diambil. Tunggu {minutes} menit sejak pesanan mulai disiapkan.',
     failed: 'Pesanan gagal diambil.',
   },
   home: {

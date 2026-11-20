@@ -154,9 +154,24 @@ describe('SubscriptionService', () => {
 
     const [row] = subs.rows;
     expect(row.status).toBe('CANCELLED');
-    expect(row).toMatchObject({ recipientName: '', phone: '', notes: null });
+    expect(row).toMatchObject({
+      recipientName: '',
+      phone: '',
+      notes: null,
+      addressLine: '',
+      latitude: null,
+      longitude: null,
+    });
     // The sweep can no longer find it, which is the outcome that matters.
     expect(await subs.findDue(new Date('2030-01-01T00:00:00.000Z'))).toEqual([]);
+  });
+
+  it('exports every plan of the person for a PDP request, through the repository', async () => {
+    subs.rows.push({ id: 'x1', customerId: 'cust-exp', addressLine: 'Jl. B 2' } as never);
+    await expect(service.exportPerson('cust-exp')).resolves.toEqual({
+      items: [expect.objectContaining({ id: 'x1', addressLine: 'Jl. B 2' })],
+      truncated: false,
+    });
   });
 
   it('discountRate: quotes the depot ladder the sweep will actually charge', () => {
@@ -665,7 +680,7 @@ describe('SubscriptionService', () => {
   /**
    * L0 REPRO (D3): a subscription whose saved address has no map pin can never be routed.
    * `placeScheduled` calls `resolveDepot(address)` with no depot to fall back on, so it
-   * throws `DepotRequiredError`, the sweep catches it and skips, and the schedule never
+   * throws `PinRequiredError`, the sweep catches it and skips, and the schedule never
    * advances — a plan that is ACTIVE forever, delivers nothing, and says nothing.
    *
    * The customer set it up, sees "Aktif", and waits.

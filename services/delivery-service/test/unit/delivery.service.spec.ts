@@ -249,6 +249,43 @@ describe('DeliveryService', () => {
 
   // Defaults nobody passes in the happy-path specs: the courier app omits the note, and the
   // internal callers (offline flush, ops tooling) carry no bearer at all.
+  // P4: the export is what is held ABOUT the person — not the courier's position or staff ids.
+  it('exports the deliveries of a person with their own fields only', async () => {
+    const d = await repo.create({
+      orderId: '00000000-0000-4000-8000-0000000000e1',
+      orderNumber: 'HM-EXP-1',
+      driverId: 'drv-x',
+      depotId: null,
+      destinationAddress: 'Jl. Cikini 1, Jakarta',
+      destinationLat: -6.19,
+      destinationLng: 106.84,
+      recipientPhone: '+628111',
+      customerId: 'cust-x',
+      items: null,
+      codAmount: null,
+      notes: 'pagar hijau',
+      deliveryWindow: 'Besok, 09:00-12:00',
+    });
+    repo.rows.find((r) => r.id === d.id)!.lastLat = -6.3;
+
+    const out = await service.exportPerson('cust-x', null);
+
+    expect(out.truncated).toBe(false);
+    expect(out.items).toEqual([
+      expect.objectContaining({
+        orderNumber: 'HM-EXP-1',
+        destinationAddress: 'Jl. Cikini 1, Jakarta',
+        destinationLat: -6.19,
+        notes: 'pagar hijau',
+        deliveryWindow: 'Besok, 09:00-12:00',
+        proof: null,
+      }),
+    ]);
+    for (const key of ['driverId', 'lastLat', 'history', 'id']) {
+      expect(out.items[0]).not.toHaveProperty(key);
+    }
+  });
+
   it('fails a delivery with no caller token and records a contact attempt with no note', async () => {
     const d = await assign();
     await service.pickup(driver, d.id, AUTH);

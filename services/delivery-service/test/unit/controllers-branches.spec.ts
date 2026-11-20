@@ -215,6 +215,17 @@ describe('RetentionController', () => {
     await controller.pdpAnonymise({ customerId: 'c1' } as never);
     expect(deliveries.erasePerson).toHaveBeenLastCalledWith('c1', null);
   });
+
+  it('answers a PDP export by id and number, like the erasure', async () => {
+    const deliveries = { exportPerson: jest.fn().mockResolvedValue([{ id: 'd1' }]) };
+    const controller = new RetentionController(deliveries as never);
+    expect(await controller.pdpExport({ customerId: 'c1', phone: '+628111' } as never)).toEqual([
+      { id: 'd1' },
+    ]);
+    expect(deliveries.exportPerson).toHaveBeenCalledWith('c1', '+628111');
+    await controller.pdpExport({ customerId: 'c1' } as never);
+    expect(deliveries.exportPerson).toHaveBeenLastCalledWith('c1', null);
+  });
 });
 
 describe('SettlementController (cashier)', () => {

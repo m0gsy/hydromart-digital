@@ -1008,20 +1008,26 @@ describe('PromoHttpAdapter', () => {
     expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBeTruthy();
   });
 
-  it('release: does not throw on a non-2xx', async () => {
+  // 2026-11-20: release THROWS now, so a cancellation's VOUCHER_RELEASE outbox row retries it;
+  // the void and checkout paths that want fail-open catch it themselves.
+  it('release: throws on a non-2xx, so the outbox retries', async () => {
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
-    await expect(new PromoHttpAdapter(makeConfig()).release('order-1')).resolves.toBeUndefined();
+    await expect(new PromoHttpAdapter(makeConfig()).release('order-1')).rejects.toThrow(
+      'promo-service responded 500',
+    );
   });
 
-  it('release: does not throw when the transport fails', async () => {
+  it('release: throws when the transport fails', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    await expect(new PromoHttpAdapter(makeConfig()).release('order-1')).resolves.toBeUndefined();
+    await expect(new PromoHttpAdapter(makeConfig()).release('order-1')).rejects.toThrow(
+      'ECONNREFUSED',
+    );
   });
 
-  it('release: asks nobody when no internal key is configured', async () => {
+  it('release: asks nobody, and says so, when no internal key is configured', async () => {
     await expect(
       new PromoHttpAdapter(makeConfig({ internalServiceKey: '' })).release('order-1'),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow('INTERNAL_SERVICE_KEY');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

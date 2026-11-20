@@ -378,7 +378,7 @@ export class VoucherService {
     await this.rules?.releaseApplications(orderId, new Date());
     const released = await this.repo.releaseAtomic(orderId);
     if (!released) return { released: false, discountReturned: 0 };
-    this.logger.log(`Voucher ${released.voucherCode} released for voided order ${orderId}`);
+    this.logger.log(`Voucher ${released.voucherCode} released for order ${orderId}`);
     return { released: true, discountReturned: released.discountApplied };
   }
 

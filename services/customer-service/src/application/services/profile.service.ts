@@ -10,6 +10,7 @@ import {
   SegmentFilter,
 } from '../ports/profile.repository';
 import { CustomerDepotDepositRow, DepotLedgerPort } from '../ports/depot-ledger.port';
+import { IdentityPort } from '../ports/identity.port';
 import { CUSTOMER_TOKENS } from '../tokens';
 
 export interface BirthdayRewardResult {
@@ -32,6 +33,8 @@ export class ProfileService {
     @Inject(CUSTOMER_TOKENS.LoyaltyRewardPort) private readonly loyalty: LoyaltyRewardPort,
     @Inject(CUSTOMER_TOKENS.DepotLedgerPort) private readonly depotLedger: DepotLedgerPort,
     private readonly config: CustomerConfigService,
+    // Required: without it a campaign would quietly fall back to the address recipient.
+    @Inject(CUSTOMER_TOKENS.IdentityPort) private readonly identity: IdentityPort,
   ) {}
 
   /**
@@ -66,13 +69,36 @@ export class ProfileService {
   }
 
   /** Staff: resolve the CRM broadcast audience for an attribute segment (FR-087). */
-  findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
-    return this.profiles.findSegment(filter);
+  async findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
+    return this.toAccountOwners(await this.profiles.findSegment(filter));
   }
 
   /** PRM-9: one customer's contact, for a service addressing exactly one person. */
-  findRecipient(customerId: string): Promise<DirectoryRecipient | null> {
-    return this.profiles.findRecipient(customerId);
+  async findRecipient(customerId: string): Promise<DirectoryRecipient | null> {
+    const row = await this.profiles.findRecipient(customerId);
+    if (!row) return null;
+    const [owner] = await this.toAccountOwners([row]);
+    return owner.phone ? owner : null;
+  }
+
+  /**
+   * Owner decision 2026-11-20: a campaign or promo message goes to the ACCOUNT OWNER's number
+   * and name — the person who consented — not to the primary address's recipient, who can be
+   * a guard, a neighbour or a relative.
+   *
+   * A row stays even when it has no owner (phone ''), because the directory is PAGED and the
+   * reader stops on a short page; it drops the empty numbers itself. The lookup fails HARD:
+   * a batch auth-service did not answer is an outage (503), never "these people have no
+   * account". Name and number both come from the account; a nameless account greets nobody
+   * by somebody else's name.
+   */
+  private async toAccountOwners(rows: DirectoryRecipient[]): Promise<DirectoryRecipient[]> {
+    if (rows.length === 0) return rows;
+    const owners = await this.identity.getAccountOwners(rows.map((r) => r.customerId));
+    return rows.map((r) => {
+      const owner = owners.get(r.customerId);
+      return { customerId: r.customerId, name: owner?.fullName ?? '', phone: owner?.phone ?? '' };
+    });
   }
 
   /**

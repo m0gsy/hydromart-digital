@@ -274,13 +274,13 @@ async function advanceToCompleted(staff, orderId) {
 }
 
 // 1. Core transaction loop: order COMPLETED + loyalty awarded across a real service boundary.
-//    Address carries no map pin, so this also covers the CUSTOMER-PICKED depot path:
-//    checkout is fail-CLOSED now, and an unpinned address is only placeable with an
-//    explicit `depotId` (order.service.ts resolveDepot).
+//    The address carries this run's depot pin: since 2026-11-20 an order needs a pin, and
+//    the pin (not a picked depot) decides where it goes (order.service.ts resolveDepot).
 async function coreLoop(staff) {
   const { productId } = await createProduct(staff);
+  const geo = remote(-6.2, 106.82);
   const depot = await createDepot(staff, {
-    ...remote(-6.2, 106.82),
+    ...geo,
     deliveryFee: 6000,
     minOrderAmount: 0,
     serviceRadiusKm: 5,
@@ -294,20 +294,21 @@ async function coreLoop(staff) {
   const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
     token,
     body: {
-      depotId: depot.id,
       deliveryAddress: {
         recipientName: 'Integration User',
         phone,
         addressLine: 'Jl. Test 1',
         city: 'Jakarta',
         province: 'DKI Jakarta',
+        latitude: geo.lat,
+        longitude: geo.lng,
       },
     },
   });
   ok(checkout, 'checkout');
   assert(
     checkout.body.depotId === depot.id,
-    `checkout: picked depot ignored — got ${checkout.body.depotId}`,
+    `checkout: routed to ${checkout.body.depotId}, expected this run's depot`,
   );
   const orderId = checkout.body.id;
   const total = checkout.body.total;
@@ -415,8 +416,9 @@ async function depotRoutedLoop(staff) {
 //    webhook path uses a genuinely-online method: EWALLET or VA.)
 async function onlineWebhookLoop(staff) {
   const { productId } = await createProduct(staff);
+  const geo = remote(-6.9, 107.6);
   const depot = await createDepot(staff, {
-    ...remote(-6.9, 107.6),
+    ...geo,
     deliveryFee: 6000,
     minOrderAmount: 0,
     serviceRadiusKm: 5,
@@ -430,13 +432,14 @@ async function onlineWebhookLoop(staff) {
   const checkout = await api('POST', '/orders/api/v1/orders/checkout', {
     token,
     body: {
-      depotId: depot.id,
       deliveryAddress: {
         recipientName: 'OW User',
         phone,
         addressLine: 'Jl. OW 1',
         city: 'Jakarta',
         province: 'DKI Jakarta',
+        latitude: geo.lat,
+        longitude: geo.lng,
       },
     },
   });
@@ -612,8 +615,8 @@ async function failurePaths(staff) {
     `fp: unrouted expected 422, got ${unrouted.status} — ${JSON.stringify(unrouted.body)}`,
   );
   assert(
-    unrouted.body.code === 'ORDER_DEPOT_REQUIRED',
-    `fp: unrouted expected ORDER_DEPOT_REQUIRED, got ${JSON.stringify(unrouted.body)}`,
+    unrouted.body.code === 'ORDER_PIN_REQUIRED',
+    `fp: unrouted expected ORDER_PIN_REQUIRED, got ${JSON.stringify(unrouted.body)}`,
   );
 
   console.log(

@@ -71,7 +71,9 @@ export interface PromoPort {
   ): Promise<void>;
 
   /**
-   * C4: give the buyer their voucher back when the sale it paid for is voided.
+   * C4: give the buyer their voucher back when the sale it paid for is voided — and, since
+   * 2026-11-20, when the order is cancelled (the VOUCHER_RELEASE outbox topic, which retries).
+   * Throws on failure; the void and checkout paths catch it, the outbox retries it.
    *
    * This port had NO reversal method at all, so a voided counter sale returned the goods
    * and the money while the voucher stayed burned — a single-use voucher spent on a sale
