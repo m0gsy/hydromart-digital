@@ -81,6 +81,7 @@ export class AuthController {
   async login(@Body() dto: LoginDto, @Req() req: Request): Promise<OtpChallengeResponseDto> {
     const result = await this.loginService.requestLogin({
       phone: dto.phone,
+      audience: dto.audience,
       context: getRequestContext(req),
     });
     return OtpChallengeResponseDto.from(result);

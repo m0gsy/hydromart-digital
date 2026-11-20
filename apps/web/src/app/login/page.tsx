@@ -10,6 +10,7 @@ import { BrandMark, Button, Card, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
+import { isOpsApp } from '@/lib/platform';
 import type { OtpChallenge } from '@/lib/types';
 
 // Fixed brand gradient — never flips under dark (spec 4c), so it's an inline literal.
@@ -81,16 +82,26 @@ function LoginForm() {
   // E8: /register hands the number over when it turns out to already have an account,
   // so the visitor does not retype what they just typed.
   const handedOver = useSearchParams().get('phone') ?? '';
+  // Owner decision 2026-11-20: the Ops app is staff-only. Its login asks for a STAFF account,
+  // so an unregistered number is refused instead of being signed up as a customer, and
+  // OpsStaffOnly sends a customer session that got in anyway back here with this reason.
+  const opsApp = isOpsApp();
+  const notStaff = useSearchParams().get('reason') === 'not-staff';
   const [phone, setPhone] = useState(handedOver);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    notStaff ? t('errors.byCode.AUTH_NOT_STAFF') : null,
+  );
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const challenge = await api.post<OtpChallenge>(endpoints.auth.login, { phone });
+      const challenge = await api.post<OtpChallenge>(
+        endpoints.auth.login,
+        opsApp ? { phone, audience: 'STAFF' } : { phone },
+      );
       // AUTH-3: the server decides. A number with no account is registered rather than
       // refused, and it answers REGISTRATION so /verify shows the signup wording and posts
       // the matching purpose — the walkover to /register below is no longer reachable for
@@ -192,15 +203,17 @@ function LoginForm() {
         {!loading && <ArrowRight size={17} weight="bold" />}
       </Button>
 
-      <p className="text-center text-[13px] text-muted">
-        {t('auth.login.noAccount')}{' '}
-        <Link
-          href={next ? `/register?next=${encodeURIComponent(next)}` : '/register'}
-          className="tap-44 font-bold text-brand-700 hover:underline"
-        >
-          {t('auth.login.registerCta')}
-        </Link>
-      </p>
+      {!opsApp && (
+        <p className="text-center text-[13px] text-muted">
+          {t('auth.login.noAccount')}{' '}
+          <Link
+            href={next ? `/register?next=${encodeURIComponent(next)}` : '/register'}
+            className="tap-44 font-bold text-brand-700 hover:underline"
+          >
+            {t('auth.login.registerCta')}
+          </Link>
+        </p>
+      )}
 
       <p className="text-center text-[11.5px] leading-relaxed text-muted">
         {t('auth.register.terms')}

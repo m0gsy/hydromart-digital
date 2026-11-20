@@ -104,6 +104,19 @@ export class AccountPendingVerificationError extends DomainError {
   }
 }
 
+/**
+ * A staff-only door (the Ops app, /hq/login, the manager phone login) was given a number that
+ * is no staff login. Refused rather than signed up as a customer: that is how staff whose HR
+ * record carried a wrong number kept landing in the shop (2026-11).
+ */
+export class NotStaffError extends DomainError {
+  readonly code = 'AUTH_NOT_STAFF';
+  readonly status = HTTP.FORBIDDEN;
+  constructor() {
+    super('This number is not registered as Hydromart staff.');
+  }
+}
+
 export class AccountNotActiveError extends DomainError {
   readonly code = 'AUTH_ACCOUNT_NOT_ACTIVE';
   readonly status = HTTP.FORBIDDEN;

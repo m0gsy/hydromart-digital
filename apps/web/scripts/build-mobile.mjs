@@ -328,6 +328,8 @@ try {
       // J2. Computed AFTER the prune has stashed its folders, so it lists what this binary
       // actually carries rather than what the repo contains.
       NEXT_PUBLIC_MOBILE_SEGMENTS: servedSegments().join(','),
+      // Which binary this is. The Ops one is staff-only: `isOpsApp()` in lib/platform.ts.
+      NEXT_PUBLIC_MOBILE_APP: target ?? '',
     },
   });
   ok = true;

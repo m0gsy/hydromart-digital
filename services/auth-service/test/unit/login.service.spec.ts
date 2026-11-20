@@ -1,5 +1,7 @@
 import { OtpPurpose } from '../../src/domain/otp/otp-purpose.enum';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
+import { Role } from '../../src/domain/customer/role.enum';
+import { NotStaffError } from '../../src/domain/errors/auth.errors';
 import { AuditAction, AuditService } from '../../src/application/services/audit.service';
 import { LoginService } from '../../src/application/services/login.service';
 import { OtpService } from '../../src/application/services/otp.service';
@@ -84,5 +86,39 @@ describe('LoginService', () => {
     await expect(
       service.requestLogin({ phone: makeCustomer().phone, context: ctx }),
     ).rejects.toThrow();
+  });
+
+  /*
+   * Owner decision 2026-11-20. The staff doors (Ops app, /hq/login, manager login) signed an
+   * unknown number up as a customer, so staff whose HR record carried a wrong number landed
+   * in the shop — and that customer account then blocked HR's correction.
+   */
+  describe('from a staff door', () => {
+    it('refuses an unknown number and creates nothing', async () => {
+      await expect(
+        service.requestLogin({ phone: '081234567890', audience: 'STAFF', context: ctx }),
+      ).rejects.toBeInstanceOf(NotStaffError);
+      expect(await customers.findByPhone('+6281234567890')).toBeNull();
+      expect(delivery.sent).toHaveLength(0);
+    });
+
+    it('refuses a customer number the same way, and sends no code', async () => {
+      customers.seed(makeCustomer());
+      await expect(
+        service.requestLogin({ phone: makeCustomer().phone, audience: 'STAFF', context: ctx }),
+      ).rejects.toBeInstanceOf(NotStaffError);
+      expect(delivery.sent).toHaveLength(0);
+    });
+
+    it('lets a staff login through with a LOGIN code', async () => {
+      customers.seed(makeCustomer({ role: Role.STAFF_DEPOT }));
+      const result = await service.requestLogin({
+        phone: makeCustomer().phone,
+        audience: 'STAFF',
+        context: ctx,
+      });
+      expect(result.purpose).toBe('LOGIN');
+      expect(delivery.sent[0]?.purpose).toBe(OtpPurpose.LOGIN);
+    });
   });
 });

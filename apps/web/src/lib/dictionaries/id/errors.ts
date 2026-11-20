@@ -23,6 +23,8 @@ export const errors = {
     AUTH_ACCOUNT_PENDING_VERIFICATION:
       'Nomor ini sudah terdaftar tapi belum diverifikasi. Kami kirim ulang kodenya.',
     AUTH_ACCOUNT_NOT_ACTIVE: 'Akun ini tidak aktif. Hubungi dukungan Hydromart.',
+    AUTH_NOT_STAFF:
+      'Nomor ini belum terdaftar sebagai staf Hydromart. Minta HR mengecek nomor HP kamu di data karyawan.',
     /*
      * CA-3-36. Satu entri untuk dua sumber. Setiap layanan Nest sudah memetakan HTTP 429 ke
      * kode ini lewat `all-exceptions.filter.ts`; gerbangnya adalah middleware express mentah

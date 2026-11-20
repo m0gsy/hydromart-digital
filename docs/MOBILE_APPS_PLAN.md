@@ -635,6 +635,11 @@ Diurutkan berdasarkan risiko, bukan kenyamanan:
 11. Biometrik: daftar → app dimatikan → buka ulang → sidik jari membuka sesi tanpa OTP;
     lalu gagal N kali → token terhapus → OTP dipaksa; lalu perangkat tanpa biometrik
     terdaftar tetap bisa masuk lewat OTP.
+12. **Ops hanya untuk staf** (keputusan pemilik 2026-11-20). Login dengan nomor yang tidak
+    terdaftar dan dengan nomor pelanggan → keduanya ditolak dengan "belum terdaftar sebagai
+    staf", tidak ada SMS, dan tidak ada akun pelanggan baru. Lalu pasang APK baru di atas
+    sesi pelanggan yang sudah ada → sesi itu keluar sendiri ke `/login` dengan pesan yang
+    sama. Nomor staf tetap masuk seperti biasa.
 
 ## Yang sengaja TIDAK ada di rencana ini
 
