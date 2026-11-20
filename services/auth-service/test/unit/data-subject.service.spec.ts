@@ -406,6 +406,38 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     expect(customerData.anonymise).not.toHaveBeenCalled();
   });
 
+  // P4 (2026-11-20): a subscription's and a delivery's address and pin are held about the
+  // person too; the export asks the services that hold them, and names one that is down.
+  it('files what each other service holds in its own section, and names one that did not answer', async () => {
+    const subscriptions = jest.fn().mockResolvedValue([{ addressLine: 'Jl. A 1', latitude: -6.2 }]);
+    const deliveries = jest.fn().mockRejectedValue(new Error('down'));
+    const withSources = new DataSubjectService(
+      requests as never,
+      customers as never,
+      customerData as never,
+      audit as never,
+      new ConsentService(new InMemoryConsentRepository()),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [
+        { section: 'subscriptions', collect: subscriptions },
+        { section: 'deliveries', collect: deliveries },
+      ] as never,
+    );
+    const created = await withSources.request(CUSTOMER, 'EXPORT', null);
+
+    const result = await withSources.approve(created.id, STAFF);
+
+    expect(subscriptions).toHaveBeenCalledWith({ customerId: CUSTOMER, phone: '+628111' });
+    expect(result.export?.held).toEqual({
+      subscriptions: [{ addressLine: 'Jl. A 1', latitude: -6.2 }],
+      deliveries: { error: expect.stringContaining('deliveries') },
+    });
+  });
+
   it('approving a DELETE scrubs both services before closing the request', async () => {
     const created = await service.request(CUSTOMER, 'DELETE', null);
 

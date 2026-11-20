@@ -394,7 +394,13 @@ describe('edges nothing else exercises', () => {
     expect(await repo.erasePerson('cust-1', '+628111')).toBe(1);
 
     const after = await repo.findById(created.id);
-    expect(after).toMatchObject({ recipientPhone: null, notes: null });
+    expect(after).toMatchObject({
+      recipientPhone: null,
+      notes: null,
+      destinationAddress: '',
+      destinationLat: null,
+      destinationLng: null,
+    });
     // The delivery itself stays: an order that was delivered still needs its delivery.
     expect(after?.orderNumber).toBe('ORD-9');
     // Somebody else is untouched, and a retry reports nothing rather than failing.

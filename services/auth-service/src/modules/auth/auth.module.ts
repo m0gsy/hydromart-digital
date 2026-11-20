@@ -42,6 +42,7 @@ import { CustomRolePrismaRepository } from '../../infrastructure/prisma/reposito
 import { DataSubjectRequestPrismaRepository } from '../../infrastructure/prisma/repositories/data-subject-request.prisma.repository';
 import { CustomerDataHttpAdapter } from '../../infrastructure/http/customer-data.http.adapter';
 import { HrDirectoryHttpAdapter } from '../../infrastructure/http/hr-directory.http.adapter';
+import { personalDataSourcesProvider } from '../../infrastructure/http/remote-personal-data.source';
 import {
   erasureExecutorProvider,
   erasureExemptionProvider,
@@ -97,6 +98,8 @@ const adapterProviders: Provider[] = [
   // forgotten, plus the written exemptions. Absent datasets are reported UNENFORCED.
   erasureExecutorProvider,
   erasureExemptionProvider,
+  // …and the same services read back for an export, so it shows what the erasure removes.
+  personalDataSourcesProvider,
   { provide: AUTH_TOKENS.ConsentRepository, useClass: ConsentPrismaRepository },
   {
     provide: AUTH_TOKENS.CapabilityOverrideRepository,

@@ -41,6 +41,11 @@ describe('SubscriptionController', () => {
     expect(service.erasePerson).toHaveBeenCalledWith('c1');
   });
 
+  it('answers a PDP export with the person\'s plans, address snapshot included', async () => {
+    await expect(controller.pdpExport({ customerId: 'c1' } as never)).resolves.toEqual(['sub']);
+    expect(service.list).toHaveBeenCalledWith('c1');
+  });
+
 
   it('DEP-23: internal pause/resume go by engine id (no customer), resume carries "now"', async () => {
     await expect(controller.pauseInternal('s1')).resolves.toMatchObject({ status: 'PAUSED' });

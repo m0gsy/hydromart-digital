@@ -2249,9 +2249,18 @@ describe('SubscriptionPrismaRepository.erasePerson', () => {
       where: { customerId: 'cust-1', status: { in: ['ACTIVE', 'PAUSED'] } },
       data: { status: 'CANCELLED' },
     });
+    // The street and pin go too (P4): a home's location is the most personal thing here.
     expect(scrub).toEqual({
       where: { customerId: 'cust-1' },
-      data: { recipientName: '', phone: '', notes: null },
+      data: {
+        recipientName: '',
+        phone: '',
+        notes: null,
+        addressLine: '',
+        postalCode: null,
+        latitude: null,
+        longitude: null,
+      },
     });
     // Cancel is issued before the scrub — the whole point.
     expect(subscription.updateMany.mock.invocationCallOrder[0]).toBeLessThan(

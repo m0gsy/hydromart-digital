@@ -708,6 +708,18 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.toRecord(row);
   }
 
+  async listForPerson(customerId: string, phone: string | null): Promise<DeliveryRecord[]> {
+    const match = phone ? [{ customerId }, { recipientPhone: phone }] : [{ customerId }];
+    const rows = await this.prisma.delivery.findMany({
+      where: { OR: match },
+      include: INCLUDE,
+      orderBy: { createdAt: 'desc' },
+      // ponytail: one person's deliveries; the cap only keeps a pathological account bounded.
+      take: 1000,
+    });
+    return rows.map((row) => this.toRecord(row));
+  }
+
   async erasePerson(customerId: string, phone: string | null): Promise<number> {
     // OR on the phone as well as the id: a delivery created before the customer registered
     // carries the number and no id, and that is the row the audit counted.
@@ -715,7 +727,14 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     const [deliveries, proofs] = await this.prisma.$transaction([
       this.prisma.delivery.updateMany({
         where: { OR: match },
-        data: { recipientPhone: null, notes: null },
+        // The destination too: the street and the pin are where the person lives.
+        data: {
+          recipientPhone: null,
+          notes: null,
+          destinationAddress: '',
+          destinationLat: null,
+          destinationLng: null,
+        },
       }),
       // The proof's recipient NAME only. Photo, signature and GPS belong to the 365-day
       // retention sweep, which deletes the objects too — racing it here would leave rows

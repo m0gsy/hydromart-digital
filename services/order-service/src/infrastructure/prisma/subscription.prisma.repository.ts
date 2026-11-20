@@ -204,7 +204,18 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
       }),
       this.prisma.subscription.updateMany({
         where: { customerId },
-        data: { recipientName: '', phone: '', notes: null },
+        // The street and the pin too: a home's location is the most personal thing on the
+        // row, and the plan is cancelled above, so nothing reads them again. The city stays
+        // (it names nobody) for the counts that group by it.
+        data: {
+          recipientName: '',
+          phone: '',
+          notes: null,
+          addressLine: '',
+          postalCode: null,
+          latitude: null,
+          longitude: null,
+        },
       }),
     ]);
     // The scrub count is the row count; the cancel count is a subset of it.

@@ -1474,9 +1474,16 @@ describe('DeliveryPrismaRepository.erasePerson', () => {
     expect($transaction).toHaveBeenCalledTimes(1);
     // OR on the phone: a delivery created before the customer registered has the number
     // and no id, and that is the row the audit counted.
+    // The destination too (P4): the street and the pin are where the person lives.
     expect(delivery.updateMany).toHaveBeenCalledWith({
       where: { OR: [{ customerId: 'cust-1' }, { recipientPhone: '+628111' }] },
-      data: { recipientPhone: null, notes: null },
+      data: {
+        recipientPhone: null,
+        notes: null,
+        destinationAddress: '',
+        destinationLat: null,
+        destinationLng: null,
+      },
     });
     // The recipient NAME only. Photo, signature and GPS belong to the 365-day retention
     // sweep, which deletes the objects too — racing it here would strand files.
@@ -1490,8 +1497,31 @@ describe('DeliveryPrismaRepository.erasePerson', () => {
     await repo.erasePerson('cust-1', null);
     expect(delivery.updateMany).toHaveBeenCalledWith({
       where: { OR: [{ customerId: 'cust-1' }] },
-      data: { recipientPhone: null, notes: null },
+      data: {
+        recipientPhone: null,
+        notes: null,
+        destinationAddress: '',
+        destinationLat: null,
+        destinationLng: null,
+      },
     });
+  });
+
+  it('lists one person for an export, by id or by the number on older rows, bounded', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    Object.assign(delivery, { findMany });
+    await repo.listForPerson('cust-1', '+628111');
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { OR: [{ customerId: 'cust-1' }, { recipientPhone: '+628111' }] },
+        orderBy: { createdAt: 'desc' },
+        take: 1000,
+      }),
+    );
+    await repo.listForPerson('cust-1', null);
+    expect(findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { OR: [{ customerId: 'cust-1' }] } }),
+    );
   });
 });
 

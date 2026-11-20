@@ -1122,6 +1122,11 @@ export class DeliveryService {
    * Called by auth-service's erasure registry, which reports a dataset it cannot reach as
    * UNENFORCED rather than skipping it — so the endpoint existing is half the fix.
    */
+  /** A PDP export: what this service holds about the person, destination and pin included. */
+  exportPerson(customerId: string, phone: string | null): Promise<DeliveryRecord[]> {
+    return this.deliveries.listForPerson(customerId, phone);
+  }
+
   async erasePerson(customerId: string, phone: string | null): Promise<{ erased: number }> {
     const erased = await this.deliveries.erasePerson(customerId, phone);
     this.logger.log(`PDP erasure: scrubbed ${erased} delivery row(s) for ${customerId}`);

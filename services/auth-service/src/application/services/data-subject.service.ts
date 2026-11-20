@@ -1,3 +1,4 @@
+import { PERSONAL_DATA_SOURCES, type PersonalDataSource } from '../ports/personal-data-source.port';
 import {
   BadRequestException,
   ConflictException,
@@ -67,6 +68,11 @@ export interface DataExport {
   /** What customer-service holds: profile, addresses, payment-method labels. */
   customer: Record<string, unknown>;
   /**
+   * What the other services hold, one section each (subscriptions, deliveries): the
+   * addresses and pins they deliver to. A service that does not answer is named, not dropped.
+   */
+  held: Record<string, unknown>;
+  /**
    * Stated in the payload itself so the recipient is not left guessing: order and
    * payment history is retained under the FINANCIAL class and is not part of tahap 1.
    */
@@ -111,6 +117,8 @@ export class DataSubjectService {
     @Optional() @Inject(OPEN_ORDERS_PORT) private readonly openOrders?: OpenOrdersPort,
     // AUT-07: only the franchise-owner deletion path asks it; absent = no check (unit specs).
     @Optional() @Inject(OWNED_DEPOTS_PORT) private readonly ownedDepots?: OwnedDepotsPort,
+    // Optional like the registry above: absent in the unit specs that do not care.
+    @Optional() @Inject(PERSONAL_DATA_SOURCES) private readonly sources?: PersonalDataSource[],
   ) {}
 
   /** Raise a request. A second one of the same type while the first is open is refused. */
@@ -161,9 +169,7 @@ export class DataSubjectService {
    * The names come from this service's own accounts table, so there is nothing to fail
    * open on; an account that no longer exists (a completed DELETE) simply has none.
    */
-  async listForStaff(
-    status?: DataSubjectRequestStatus,
-  ): Promise<
+  async listForStaff(status?: DataSubjectRequestStatus): Promise<
     (DataSubjectRequestRecord & {
       customerName: string | null;
       /** True when the requester holds a staff role NOW — approving erases a working login. */
@@ -176,7 +182,9 @@ export class DataSubjectService {
     // Live accounts only: a completed DELETE is anonymised and keeps the role it had, but
     // there is nothing left to warn about on a request that is already decided.
     const staff = new Set(
-      accounts.filter((a) => a.role !== Role.CUSTOMER && a.status !== CustomerStatus.DELETED).map((a) => a.id),
+      accounts
+        .filter((a) => a.role !== Role.CUSTOMER && a.status !== CustomerStatus.DELETED)
+        .map((a) => a.id),
     );
     return rows.map((r) => ({
       ...r,
@@ -535,6 +543,22 @@ export class DataSubjectService {
       );
       customer = { error: 'customer-service unreachable; profile and addresses missing' };
     }
+    const held: Record<string, unknown> = {};
+    const subject = { customerId, phone: account?.phone ?? null };
+    for (const source of this.sources ?? []) {
+      try {
+        held[source.section] = await source.collect(subject);
+      } catch (error) {
+        // Named in the payload, like customer-service above: a section missing in silence
+        // would make an incomplete export look complete.
+        this.logger.error(
+          `${source.section} export failed for ${customerId}: ${(error as Error).message}`,
+        );
+        held[source.section] = {
+          error: `${source.section}: layanan tidak menjawab; bagian ini tidak ikut`,
+        };
+      }
+    }
     return {
       exportedAt: new Date().toISOString(),
       account: account
@@ -549,6 +573,7 @@ export class DataSubjectService {
           }
         : {},
       customer,
+      held,
       consents,
       notIncluded: [
         'Riwayat pesanan dan pembayaran (kelas retensi FINANCIAL, disimpan 10 tahun)',

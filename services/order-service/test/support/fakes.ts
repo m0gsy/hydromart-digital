@@ -1070,6 +1070,10 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
       row.recipientName = '';
       row.phone = '';
       row.notes = null;
+      row.addressLine = '';
+      row.postalCode = null;
+      row.latitude = null;
+      row.longitude = null;
     }
     return mine.length;
   }
