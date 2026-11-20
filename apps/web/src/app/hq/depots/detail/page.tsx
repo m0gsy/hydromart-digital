@@ -16,7 +16,9 @@ import { Badge, Button, Card, ErrorState, LoadError, Money, Skeleton } from '@/c
 import { api, ApiError } from '@/lib/api';
 import { depotOwnerIds } from '@/lib/depots';
 import { endpoints } from '@/lib/endpoints';
+import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { canManageDepotLifecycle, canManageDepots } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
   Customer,
@@ -53,6 +55,13 @@ export default function HqDepotDetailPage() {
   const id = useQueryParam('id');
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Owner decision 2026-11-21 (and 2026-10-15): editing a depot is its manager's — the PATCH
+  // behind this form is depotAdmin. Head office (HEAD_OFFICE, DIREKTUR) was shown an Edit
+  // button whose every save answered 403; it is no longer shown. Super admin keeps it.
+  const { customer } = useAuth();
+  const canEdit = canManageDepots(customer?.role);
+  // Closing and reopening are head office's (depotLifecycle): shown only to who may do them.
+  const canLifecycle = canManageDepotLifecycle(customer?.role);
   const [reactivateError, setReactivateError] = useState<string | null>(null);
   // Another depot on the same page: the refusal was about the one before it.
   useEffect(() => setReactivateError(null), [id]);
@@ -189,18 +198,21 @@ export default function HqDepotDetailPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setEditing((v) => !v)} disabled={busy}>
-              {t('hq.depotDetail.edit')}
-            </Button>
-            {d.active ? (
-              <Button variant="danger" onClick={() => setSuspendOpen(true)} disabled={busy}>
-                {t('hq.depotDetail.suspend')}
-              </Button>
-            ) : (
-              <Button variant="primary" onClick={reactivate} loading={busy}>
-                {t('hq.depotDetail.reactivate')}
+            {canEdit && (
+              <Button variant="secondary" onClick={() => setEditing((v) => !v)} disabled={busy}>
+                {t('hq.depotDetail.edit')}
               </Button>
             )}
+            {canLifecycle &&
+              (d.active ? (
+                <Button variant="danger" onClick={() => setSuspendOpen(true)} disabled={busy}>
+                  {t('hq.depotDetail.suspend')}
+                </Button>
+              ) : (
+                <Button variant="primary" onClick={reactivate} loading={busy}>
+                  {t('hq.depotDetail.reactivate')}
+                </Button>
+              ))}
           </div>
         </div>
       </div>

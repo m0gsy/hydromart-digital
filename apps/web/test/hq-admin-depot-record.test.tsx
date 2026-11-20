@@ -21,6 +21,12 @@ vi.mock('@/lib/api', () => ({
   ApiError: class ApiError extends Error {},
 }));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: () => 'dep-1' }));
+// Editing a depot is depotAdmin (its manager, or super admin); head office does not get the
+// button (owner decision 2026-11-21). The edit tests below run as super admin.
+const auth = vi.hoisted(() => ({ role: 'SUPER_ADMIN' }));
+vi.mock('@/lib/auth-context', () => ({
+  useAuth: () => ({ customer: { id: 'u-1', role: auth.role }, ready: true }),
+}));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/hq/depots/detail',
@@ -220,5 +226,38 @@ describe('hq/onboarding counts the payment step', () => {
     await userEvent.setup().selectOptions(select, 'dep-1');
 
     expect(await screen.findByText('7/7 langkah selesai')).toBeTruthy();
+  });
+});
+
+describe('who is offered the edit form (owner decision 2026-11-21)', () => {
+  afterEach(() => {
+    auth.role = 'SUPER_ADMIN';
+  });
+
+  it('does not show head office an Edit button whose save could only be refused', async () => {
+    auth.role = 'HEAD_OFFICE';
+    serveDepot();
+    render(
+      <LocaleProvider>
+        <HqDepotDetailPage />
+      </LocaleProvider>,
+    );
+    expect(await screen.findByText('Depot Menteng')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^(Ubah|Edit)$/i })).toBeNull();
+    // …while closing the depot, which is head office's, stays.
+    expect(screen.getByRole('button', { name: /Tangguhkan|Suspend/i })).toBeTruthy();
+  });
+
+  it('shows a role that may neither edit nor close a depot neither button', async () => {
+    auth.role = 'FINANCE';
+    serveDepot();
+    render(
+      <LocaleProvider>
+        <HqDepotDetailPage />
+      </LocaleProvider>,
+    );
+    expect(await screen.findByText('Depot Menteng')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^(Ubah|Edit)$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Tangguhkan|Suspend/i })).toBeNull();
   });
 });
