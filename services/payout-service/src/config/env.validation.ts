@@ -46,6 +46,10 @@ export const envValidationSchema = Joi.object({
    * refusal, so it must not stop the service booting.
    */
   DELIVERY_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // Flow 6b: an expense claim waiting for a reviewer is sent through crm to the accounts that
+  // may decide it. Blank (either) = nobody is woken; the claim still waits in the queue.
+  CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  OPS_ALERT_PHONE: Joi.string().allow('').default(''),
   DEPOT_SERVICE_URL: Joi.string()
     .uri()
     .allow('')

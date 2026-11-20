@@ -334,6 +334,9 @@ services:
       ORDER_SERVICE_URL: http://order:3004
       # Feature-flag read (payments.cash_on_delivery). Fail-open: blank/unreachable = enabled.
       ADMIN_SERVICE_URL: http://admin:3017
+      # Flow 6b: a refund queued for HQ is sent to the accounts that decide it (via crm).
+      CRM_SERVICE_URL: http://crm:3012
+      OPS_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
       # Q-11: refunds strictly above this (IDR) need HQ approval. Unset = the documented
       # default in payment-service/src/domain/payment.ts, which is now the only place the
       # number lives. It was never set here at all, so nobody could tell whether the
@@ -637,6 +640,9 @@ services:
       # delivery-service holds the credentials, so it is asked to mint a short-lived link
       # each time a reviewer opens the queue. Unset costs a picture, never a refusal.
       DELIVERY_SERVICE_URL: http://delivery:3006
+      # Flow 6b: a claim waiting for a reviewer is sent to the accounts that decide it (via crm).
+      CRM_SERVICE_URL: http://crm:3012
+      OPS_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3016/api/v1/health"]
       interval: 30s

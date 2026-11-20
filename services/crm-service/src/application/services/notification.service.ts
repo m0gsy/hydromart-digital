@@ -82,9 +82,11 @@ export class NotificationService {
    */
   private async approversFor(cap: Capability, depotId: string | null): Promise<string[]> {
     if (!this.approvers) return [];
-    const local = depotId && this.depotStaff ? await this.depotStaff.staffIdsForDepot(depotId) : [];
+    // A capability only network roles hold (the refund queue) has nobody to find on a roster.
+    const onRoster = depotId !== null && rolesFor(cap).some((r) => effectiveScope(r) !== 'GLOBAL');
+    const local = onRoster && this.depotStaff ? await this.depotStaff.staffIdsForDepot(depotId) : [];
     const above =
-      depotId && this.overseers ? await this.overseers.overseersOfDepot(depotId).catch(() => []) : [];
+      onRoster && this.overseers ? await this.overseers.overseersOfDepot(depotId).catch(() => []) : [];
     // SUPER_ADMIN holds every capability; it is nobody's queue, and waking every superuser for
     // every courier's cash would only teach them to mute approvals they do need.
     const networkRoles = rolesFor(cap).filter((r) => r !== 'SUPER_ADMIN' && effectiveScope(r) === 'GLOBAL');

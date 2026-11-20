@@ -26,6 +26,7 @@ import { CashierShiftHttpAdapter } from '../infrastructure/http/cashier-shift.ht
 import { CASHIER_SHIFT_PORT } from '../application/ports/cashier-shift.port';
 import { PaymentController } from './payment.controller';
 import { TaxController } from './tax.controller';
+import { RefundAlertHttpAdapter } from '../infrastructure/http/refund-alert.http.adapter';
 
 const providers: Provider[] = [
   PrismaService,
@@ -53,6 +54,7 @@ const providers: Provider[] = [
   },
   // C2: which drawer a counter payment lands in, asked with the cashier's own token.
   { provide: CASHIER_SHIFT_PORT, useClass: CashierShiftHttpAdapter },
+  { provide: PAYMENT_TOKENS.RefundAlert, useClass: RefundAlertHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

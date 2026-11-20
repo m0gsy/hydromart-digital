@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Optional, Logger } from '@nestjs/common';
 import { AuthenticatedUser, assertDepotAccess, depotScopeIds } from '@hydromart/platform';
 
 import {
@@ -17,6 +17,7 @@ import { PayoutConfigService } from '../../config/payout-config.service';
 import { CourierLedgerRepository } from '../ports/courier-ledger.repository';
 import { ExpenseClaimRecord, ExpenseClaimRepository } from '../ports/expense-claim.repository';
 import { PhotoLinkPort } from '../ports/photo-link.port';
+import { ExpenseClaimAlertPort } from '../ports/expense-claim-alert.port';
 import { PAYOUT_TOKENS } from '../tokens';
 import { Page, buildPage } from '../pagination';
 
@@ -34,6 +35,8 @@ export interface SubmitExpenseInput {
 
 @Injectable()
 export class ExpenseClaimService {
+  private readonly logger = new Logger(ExpenseClaimService.name);
+
   constructor(
     @Inject(PAYOUT_TOKENS.ExpenseClaimRepository)
     private readonly claims: ExpenseClaimRepository,
@@ -41,6 +44,8 @@ export class ExpenseClaimService {
     private readonly ledger: CourierLedgerRepository,
     private readonly config: PayoutConfigService,
     @Optional() @Inject(PAYOUT_TOKENS.PhotoLink) private readonly photos?: PhotoLinkPort,
+    // Flow 6b. Optional: without it a claim waits in the queue and nobody is woken, as before.
+    @Optional() @Inject(PAYOUT_TOKENS.ExpenseClaimAlert) private readonly alert?: ExpenseClaimAlertPort,
   ) {}
 
   /**
@@ -103,9 +108,25 @@ export class ExpenseClaimService {
     ) {
       auto = false;
     }
-    if (!auto) return claim;
+    if (!auto) {
+      this.tellReviewers(claim);
+      return claim;
+    }
+    try {
+      return await this.approveAndCredit(claim, null, 'Disetujui otomatis (di bawah ambang)');
+    } catch (error) {
+      // The credit failed and the claim is back to PENDING: it waits for a reviewer now.
+      this.tellReviewers(claim);
+      throw error;
+    }
+  }
 
-    return this.approveAndCredit(claim, null, 'Disetujui otomatis (di bawah ambang)');
+  /** Flow 6b: the accounts that may decide a waiting claim are told. Fire-and-log. */
+  private tellReviewers(claim: ExpenseClaimRecord): void {
+    if (!this.alert) return;
+    void this.alert
+      .submitted({ claimId: claim.id, depotId: claim.depotId ?? null, amount: claim.amount, category: claim.category })
+      .catch((e: unknown) => this.logger.warn(`Claim ${claim.id} alert failed: ${(e as Error).message}`));
   }
 
   /**

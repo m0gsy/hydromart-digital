@@ -104,6 +104,29 @@ describe('a decision event goes to the accounts that may decide it', () => {
     expect(pushed[0]!.payload.url).toBe('/hq/pricing');
   });
 
+  // Flow 6b-2: a courier's expense claim (expenseApprove) and a refund in the HQ queue (refundQueue).
+  it('sends an expense claim to the manager above the depot and finance, not the depot head', async () => {
+    const { service, pushed } = build();
+    await service.notify(
+      NotificationEvent.EXPENSE_CLAIM_SUBMITTED,
+      '+62800',
+      { claimId: 'cl-1', amount: 'Rp 90.000', category: 'FUEL' },
+      null,
+      'dep-1',
+    );
+    await drain();
+    expect(pushed.map((p) => p.id).sort()).toEqual(['fi-1', 'mg-1']);
+    expect(pushed[0]!.payload.url).toBe('/dashboard/expense-claims?id=cl-1&depot=dep-1');
+  });
+
+  it('sends a refund waiting in the HQ queue to finance', async () => {
+    const { service, pushed } = build();
+    await service.notify(NotificationEvent.REFUND_REQUESTED, '+62800', { paymentId: 'p-1', amount: 'Rp 150.000' });
+    await drain();
+    expect(pushed.map((p) => p.id)).toEqual(['fi-1']);
+    expect(pushed[0]!.payload.url).toBe('/hq/refunds');
+  });
+
   it('works for a decision with no depot, and when the overseers cannot be read', async () => {
     const pushed: string[] = [];
     const service = new NotificationService(

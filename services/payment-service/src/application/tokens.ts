@@ -5,4 +5,6 @@ export const PAYMENT_TOKENS = {
   TaxSettingsRepository: Symbol('TaxSettingsRepository'),
   Storage: Symbol('Storage'),
   FeatureFlags: Symbol('FeatureFlags'),
+  // Flow 6b: a refund queued for HQ, to the accounts that may decide it (via crm).
+  RefundAlert: Symbol('RefundAlert'),
 } as const;

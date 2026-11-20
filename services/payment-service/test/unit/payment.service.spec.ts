@@ -385,6 +385,42 @@ describe('PaymentService', () => {
       expect(small.refundedAmount).toBe(60000);
     });
 
+    // Flow 6b: a refund queued for HQ tells the accounts that may decide it; a failing alert
+    // never fails the request, and a refund that settles at once tells nobody.
+    it('tells the deciders about a refund that waits in the HQ queue', async () => {
+      const told: unknown[] = [];
+      const alerted = new PaymentService(repo, gateway, orders, buildTestConfig(), undefined, undefined, {
+        requested: jest.fn(async (a: unknown) => void told.push(a)),
+      });
+      const payment = await initiate(PaymentMethod.VA, 250000);
+      await service.confirm(payment.id, 'staff');
+      await alerted.refund(payment.id, 'mgr', 'part', undefined, 120000);
+      expect(told).toEqual([{ paymentId: payment.id, depotId: null, amount: 120000 }]);
+      // The request grows (a cancellation after a part-refund): the deciders hear the new sum.
+      await alerted.refund(payment.id, 'mgr', 'cancel', undefined, 250000);
+      expect(told).toEqual([
+        { paymentId: payment.id, depotId: null, amount: 120000 },
+        { paymentId: payment.id, depotId: null, amount: 250000 },
+      ]);
+      told.length = 1;
+
+      const small = await initiate(PaymentMethod.VA, 150000);
+      await service.confirm(small.id, 'staff');
+      await alerted.refund(small.id, 'finance', 'part', undefined, 60000);
+      expect(told).toHaveLength(1);
+
+      const failing = new PaymentService(repo, gateway, orders, buildTestConfig(), undefined, undefined, {
+        requested: jest.fn(async () => {
+          throw new Error('crm down');
+        }),
+      });
+      const third = await initiate(PaymentMethod.VA, 250000);
+      await service.confirm(third.id, 'staff');
+      await expect(failing.refund(third.id, 'mgr', 'part', undefined, 120000)).resolves.toMatchObject({
+        refundApproval: RefundApproval.PENDING,
+      });
+    });
+
     it('queues a partial refund above the threshold and settles exactly that amount on approval', async () => {
       const payment = await initiate(PaymentMethod.VA, 250000);
       await service.confirm(payment.id, 'staff');

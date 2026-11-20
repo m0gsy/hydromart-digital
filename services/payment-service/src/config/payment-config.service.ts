@@ -72,6 +72,16 @@ export class PaymentConfigService {
   get adminServiceUrl(): string {
     return this.config.get<string>('ADMIN_SERVICE_URL', '').replace(/\/+$/, '');
   }
+
+  /** Flow 6b: crm, which sends a refund waiting in the HQ queue to the accounts that decide it. */
+  get crmServiceUrl(): string {
+    return this.config.get<string>('CRM_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+
+  /** The ops number crm's internal route requires on every alert (as delivery's). */
+  get opsAlertPhone(): string {
+    return this.config.get<string>('OPS_ALERT_PHONE', '');
+  }
   /** C2: where to ask which drawer is open. Empty leaves counter payments unattributed. */
   get depotServiceUrl(): string {
     return this.config.get<string>('DEPOT_SERVICE_URL', '').replace(/\/+$/, '');

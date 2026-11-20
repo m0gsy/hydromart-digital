@@ -188,6 +188,11 @@ export function destinationFor(
       return forDepot(withId('/dashboard/settlements', vars.settlementId), options.depotId);
     case NotificationEvent.PRICE_OVERRIDE_PROPOSED:
       return '/hq/pricing';
+    // The expense queue is in the Ops APK; the refund queue is head office's (web only).
+    case NotificationEvent.EXPENSE_CLAIM_SUBMITTED:
+      return forDepot(withId('/dashboard/expense-claims', vars.claimId), options.depotId);
+    case NotificationEvent.REFUND_REQUESTED:
+      return '/hq/refunds';
     case NotificationEvent.LEAVE_SUBMITTED:
       return options.leaveScreen ? withId('/hr/leave', vars.leaveId) : INBOX;
     case NotificationEvent.LEAVE_APPROVED:

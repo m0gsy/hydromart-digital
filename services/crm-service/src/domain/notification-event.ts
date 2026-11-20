@@ -46,6 +46,10 @@ export enum NotificationEvent {
   COURIER_SETTLEMENT_SUBMITTED = 'COURIER_SETTLEMENT_SUBMITTED',
   // A depot proposed a price change. Tokens: {{depot}}, {{count}}, {{product}}.
   PRICE_OVERRIDE_PROPOSED = 'PRICE_OVERRIDE_PROPOSED',
+  // A courier's expense claim waits for a reviewer. Tokens: {{amount}}, {{category}}, {{claimId}}.
+  EXPENSE_CLAIM_SUBMITTED = 'EXPENSE_CLAIM_SUBMITTED',
+  // A refund above the HQ threshold waits in the refund queue. Tokens: {{amount}}, {{paymentId}}.
+  REFUND_REQUESTED = 'REFUND_REQUESTED',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -196,6 +200,10 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Setoran kurir {{amount}} menunggu verifikasi (selisih {{variance}}). Buka menu Setoran untuk memeriksa.',
   [NotificationEvent.PRICE_OVERRIDE_PROPOSED]:
     '{{depot}} mengusulkan {{count}} perubahan harga ({{product}}). Buka menu Harga untuk memutuskan.',
+  [NotificationEvent.EXPENSE_CLAIM_SUBMITTED]:
+    'Klaim biaya kurir {{amount}} ({{category}}) menunggu persetujuan. Buka menu Klaim biaya untuk memutuskan.',
+  [NotificationEvent.REFUND_REQUESTED]:
+    'Refund {{amount}} menunggu persetujuan pusat. Buka antrean Refund untuk memutuskan.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
   [NotificationEvent.PAYMENT_REMINDER]:
@@ -304,6 +312,8 @@ export const OPS_EVENTS: NotificationEvent[] = [
   // the accounts that may decide it only (APPROVER_CAP_FOR_EVENT).
   NotificationEvent.COURIER_SETTLEMENT_SUBMITTED,
   NotificationEvent.PRICE_OVERRIDE_PROPOSED,
+  NotificationEvent.EXPENSE_CLAIM_SUBMITTED,
+  NotificationEvent.REFUND_REQUESTED,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -366,6 +376,8 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.APPROVAL_REQUESTED]: 'approval',
   [NotificationEvent.COURIER_SETTLEMENT_SUBMITTED]: 'approval',
   [NotificationEvent.PRICE_OVERRIDE_PROPOSED]: 'approval',
+  [NotificationEvent.EXPENSE_CLAIM_SUBMITTED]: 'approval',
+  [NotificationEvent.REFUND_REQUESTED]: 'approval',
   [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
 };
 
@@ -379,6 +391,8 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
 export const APPROVER_CAP_FOR_EVENT: Partial<Record<NotificationEvent, Capability>> = {
   [NotificationEvent.COURIER_SETTLEMENT_SUBMITTED]: 'courierSettle',
   [NotificationEvent.PRICE_OVERRIDE_PROPOSED]: 'priceOverrideDecide',
+  [NotificationEvent.EXPENSE_CLAIM_SUBMITTED]: 'expenseApprove',
+  [NotificationEvent.REFUND_REQUESTED]: 'refundQueue',
 };
 
 /**
@@ -416,6 +430,10 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'A courier handed in {{amount}} and it waits for checking (variance {{variance}}). Open Settlements to check it.',
   [NotificationEvent.PRICE_OVERRIDE_PROPOSED]:
     '{{depot}} proposed {{count}} price change(s) ({{product}}). Open Pricing to decide.',
+  [NotificationEvent.EXPENSE_CLAIM_SUBMITTED]:
+    'A courier expense claim of {{amount}} ({{category}}) waits for approval. Open Expense claims to decide.',
+  [NotificationEvent.REFUND_REQUESTED]:
+    'A refund of {{amount}} waits for head office approval. Open the Refund queue to decide.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Hi {{name}}, the payment for order {{orderNumber}} did not go through ({{reason}}). Please pay again from the app.',
   [NotificationEvent.PAYMENT_REMINDER]:
