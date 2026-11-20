@@ -66,6 +66,7 @@ export class IncidentService {
 
     if (escalatesToOps(incident.severity)) {
       await this.ops.incidentReported({
+        incidentId: incident.id,
         category: incident.category,
         severity: incident.severity,
         description: incident.description,

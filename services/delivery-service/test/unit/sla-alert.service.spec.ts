@@ -51,13 +51,15 @@ describe('SlaAlertService', () => {
   };
 
   it('calls someone when a delivery is past its depot SLA', async () => {
-    await onTheRoad(200);
+    const id = await onTheRoad(200);
 
     const result = await service.sweep(NOW);
 
     expect(result).toMatchObject({ ok: true, breached: 1, alerted: 1 });
     expect(ops.slaAlerts).toHaveLength(1);
     expect(ops.slaAlerts[0]).toMatchObject({
+      // Flow 6a: the tap opens this order in the depot queue.
+      orderId: repo.rows.find((r) => r.id === id)!.orderId,
       orderNumber: 'HM-200',
       minutes: 200,
       thresholdMinutes: 120,

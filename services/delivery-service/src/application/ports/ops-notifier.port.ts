@@ -1,6 +1,8 @@
 import { IncidentCategory, IncidentSeverity } from '../../domain/incident';
 
 export interface OpsIncidentAlert {
+  /** Flow 6a: crm opens this incident on the depot's incident screen when the push is tapped. */
+  incidentId: string;
   category: IncidentCategory;
   severity: IncidentSeverity;
   description: string;
@@ -31,6 +33,8 @@ export interface OpsNotifierPort {
  * message can say by how much rather than only that it happened.
  */
 export interface OpsSlaBreachAlert {
+  /** Flow 6a: the tap opens this order in the depot queue. */
+  orderId: string;
   orderNumber: string;
   minutes: number;
   thresholdMinutes: number;

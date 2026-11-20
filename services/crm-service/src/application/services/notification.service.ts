@@ -1,6 +1,11 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
-import { destinationFor, storedDestinationFor } from '../../domain/notification-destination';
+import {
+  DestinationOptions,
+  destinationFor,
+  storedDestinationFor,
+} from '../../domain/notification-destination';
+import { DestinationBrakesPort } from '../ports/destination-brakes.port';
 import {
   MessageLocale,
   NotificationEvent,
@@ -55,7 +60,17 @@ export class NotificationService {
     @Optional()
     @Inject(CRM_TOKENS.DepotOverseers)
     private readonly overseers?: DepotOverseersPort,
+    // Flow 6a. Optional, and absent means every brake held: the old destinations.
+    @Optional()
+    @Inject(CRM_TOKENS.DestinationBrakes)
+    private readonly brakes?: DestinationBrakesPort,
   ) {}
+
+  /** Only the event behind a brake pays for reading it. */
+  private async destinationOptions(event: NotificationEvent): Promise<DestinationOptions> {
+    if (event !== NotificationEvent.LEAVE_SUBMITTED || !this.brakes) return {};
+    return { leaveScreen: await this.brakes.leaveScreenLive() };
+  }
 
   /**
    * Retention enforcement: drop notification history past its window. admin-service owns
@@ -167,6 +182,7 @@ export class NotificationService {
   }
 
   private pushToDepotStaff(event: NotificationEvent, message: string, depotId: string, vars: Record<string, string>): void {
+    const url = destinationFor(event, vars, { depotId });
     if (!this.depotStaff) return;
     void this.recipientsForDepot(event, depotId)
       .then(async (ids) => {
@@ -181,7 +197,7 @@ export class NotificationService {
             this.push.sendToCustomer(id, {
               title: 'Hydromart',
               body: message,
-              url: destinationFor(event, vars),
+              url,
             }),
           ),
         );
@@ -229,6 +245,10 @@ export class NotificationService {
     dedupeKey: string | null = null,
   ): Promise<NotificationRecord> {
     const message = renderMessage(templateFor(event, await this.localeFor(customerId, event)), vars);
+    const destination: DestinationOptions = {
+      ...(await this.destinationOptions(event)),
+      depotId: OPS_EVENTS.includes(event) ? depotId : null,
+    };
     /*
      * The row first, the transport after — the reverse of how this used to read.
      *
@@ -250,7 +270,7 @@ export class NotificationService {
       // O1a: the column ships and starts filling one release before the client reads it,
       // so the list is never half-tappable — by the time the reader lands, every row
       // written since this release already carries its destination.
-      destination: storedDestinationFor(event, vars),
+      destination: storedDestinationFor(event, vars, destination),
       // O6: which depot this row belongs to. Null for customer rows — a customer's order
       // update is not a depot's alert — and null for every ops row written before the
       // column existed.
@@ -286,7 +306,7 @@ export class NotificationService {
             ? this.push.sendToCustomer(customerId, {
                 title: 'Hydromart',
                 body: message,
-                url: destinationFor(event, vars),
+                url: destinationFor(event, vars, destination),
               })
             : undefined,
         )

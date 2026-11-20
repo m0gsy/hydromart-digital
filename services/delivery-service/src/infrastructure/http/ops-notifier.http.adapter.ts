@@ -31,6 +31,8 @@ export class OpsNotifierHttpAdapter implements OpsNotifierPort {
 
   async incidentReported(alert: OpsIncidentAlert): Promise<void> {
     await this.post('COURIER_INCIDENT', alert.depotId, {
+      // Flow 6a: an id for crm's destination, never copy (no template names it).
+      incidentId: alert.incidentId,
       severity: alert.severity,
       category: alert.category,
       note: alert.description,
@@ -39,6 +41,7 @@ export class OpsNotifierHttpAdapter implements OpsNotifierPort {
 
   async slaBreached(alert: OpsSlaBreachAlert): Promise<boolean> {
     return this.post('DELIVERY_SLA_BREACHED', alert.depotId, {
+      orderId: alert.orderId,
       order: alert.orderNumber,
       minutes: String(alert.minutes),
       threshold: String(alert.thresholdMinutes),

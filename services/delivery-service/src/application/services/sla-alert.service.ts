@@ -83,6 +83,7 @@ export class SlaAlertService {
     thresholdMinutes: number,
   ): Promise<boolean> {
     return this.ops.slaBreached({
+      orderId: candidate.orderId,
       orderNumber: candidate.orderNumber,
       minutes,
       thresholdMinutes,

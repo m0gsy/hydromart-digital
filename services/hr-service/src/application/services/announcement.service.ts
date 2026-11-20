@@ -248,7 +248,8 @@ export class AnnouncementService {
       await this.notifications.notify(
         'HR_ANNOUNCEMENT',
         person.phone,
-        { title: announcement.title, body: announcement.body, level: announcement.level },
+        // Flow 6a: announcementId opens this one (an id, never copy).
+        { title: announcement.title, body: announcement.body, level: announcement.level, announcementId: announcement.id },
         person.authSubjectId,
       );
     }

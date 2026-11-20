@@ -105,9 +105,51 @@ describe('destinationFor', () => {
     expect(destinationFor(NotificationEvent.DEPOT_PAYMENT_PROOF, {})).toBe('/dashboard/orders');
   });
 
-  it('leaves staff-facing events on the inbox, which is where they are never pushed from', () => {
-    expect(destinationFor(NotificationEvent.STOCK_LOW, {})).toBe('/notifications');
-    expect(destinationFor(NotificationEvent.HR_ANNOUNCEMENT)).toBe('/notifications');
+  /*
+   * Flow 6a (plan PR-6): the events that still fell to the inbox now open their screen. Each is
+   * in the Ops APK from v1.15.0 on (checked against tag 10f600f65's prune list).
+   */
+  it.each([
+    [NotificationEvent.STOCK_LOW, {}, '/dashboard/inventory?low=1'],
+    [NotificationEvent.STOCK_UNTRACKED, {}, '/dashboard/inventory?low=1'],
+    [NotificationEvent.METER_VARIANCE, {}, '/dashboard/meter'],
+    [NotificationEvent.COURIER_INCIDENT, { incidentId: 'i 1' }, '/dashboard/incidents?id=i%201'],
+    [NotificationEvent.COURIER_INCIDENT, {}, '/dashboard/incidents'],
+    [NotificationEvent.DELIVERY_SLA_BREACHED, { orderId: 'o-1' }, '/dashboard/orders?order=o-1'],
+    [NotificationEvent.DELIVERY_SLA_BREACHED, {}, '/dashboard/orders'],
+    [NotificationEvent.DEPOT_SALES_UPDATE, {}, '/dashboard/reports'],
+    [NotificationEvent.LEAVE_APPROVED, { leaveId: 'l-1' }, '/hr/me/leave?id=l-1'],
+    [NotificationEvent.LEAVE_REJECTED, {}, '/hr/me/leave'],
+    [NotificationEvent.HR_ANNOUNCEMENT, { announcementId: 'a-1' }, '/hr/me/announcements?id=a-1'],
+    [NotificationEvent.HR_ANNOUNCEMENT, {}, '/hr/me/announcements'],
+    [NotificationEvent.SUBSCRIPTION_PAUSED, {}, '/subscriptions'],
+    [NotificationEvent.PAYSLIP_READY, { payrollId: 'p 1' }, '/hr/me/payroll/detail?id=p%201'],
+  ])('%s %j opens %s', (event, vars, url) => {
+    expect(destinationFor(event, vars)).toBe(url);
+    expect(storedDestinationFor(event, vars)).toBe(url);
+  });
+
+  // Owner decision 2026-11-19: /hr/leave is not in the Ops APK up to v1.15.0, so a leave
+  // request opens it only once the brake is released; held (the default), it stays the inbox.
+  it('names the depot on a depot screen when the alert says which', () => {
+    expect(destinationFor(NotificationEvent.METER_VARIANCE, {}, { depotId: 'd 1' })).toBe(
+      '/dashboard/meter?depot=d%201',
+    );
+    expect(
+      destinationFor(NotificationEvent.COURIER_INCIDENT, { incidentId: 'i-1' }, { depotId: 'd-1' }),
+    ).toBe('/dashboard/incidents?id=i-1&depot=d-1');
+    expect(destinationFor(NotificationEvent.DEPOT_SALES_UPDATE, {}, { depotId: null })).toBe(
+      '/dashboard/reports',
+    );
+  });
+
+  it('opens the leave queue for a new request only while its brake is released', () => {
+    expect(destinationFor(NotificationEvent.LEAVE_SUBMITTED, { leaveId: 'l-1' })).toBe('/notifications');
+    expect(storedDestinationFor(NotificationEvent.LEAVE_SUBMITTED, { leaveId: 'l-1' })).toBeNull();
+    expect(
+      destinationFor(NotificationEvent.LEAVE_SUBMITTED, { leaveId: 'l-1' }, { leaveScreen: true }),
+    ).toBe('/hr/leave?id=l-1');
+    expect(destinationFor(NotificationEvent.LEAVE_SUBMITTED, {}, { leaveScreen: true })).toBe('/hr/leave');
   });
 
   /*
@@ -165,8 +207,8 @@ describe('storedDestinationFor', () => {
   });
 
   it('is null where the push would fall back to the inbox itself', () => {
-    expect(storedDestinationFor(NotificationEvent.STOCK_LOW, {})).toBeNull();
-    // Called with no vars at all — the ops emitters do exactly this.
-    expect(storedDestinationFor(NotificationEvent.HR_ANNOUNCEMENT)).toBeNull();
+    expect(storedDestinationFor(NotificationEvent.BROADCAST, {})).toBeNull();
+    // Called with no vars or options at all: a held brake is the inbox too.
+    expect(storedDestinationFor(NotificationEvent.LEAVE_SUBMITTED)).toBeNull();
   });
 });

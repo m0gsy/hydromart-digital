@@ -21,6 +21,9 @@ const FLAGS = [
   // Flow 5d: the brake on the courier's one-tap check-in (read fail-closed by the Ops app).
   // Production gets the row from migration 20261119190000_flag_courier_one_tap.
   { key: 'attendance.courier_one_tap', label: 'Check-in kurir satu tap', description: 'Mulai shift sekaligus absen HR (wajah + GPS). Selain AKTIF = dua check-in terpisah.', state: 'ACTIVE', rolloutPct: null },
+  // Flow 6a: the brake on the leave push opening /hr/leave (read fail-closed by crm). OFF until
+  // the Ops APK that carries the screen is installed. Production: migration 20261120040000.
+  { key: 'notifications.leave_screen', label: 'Notifikasi cuti membuka layar cuti', description: 'Push pengajuan cuti membuka /hr/leave. Nyalakan (AKTIF) setelah APK Ops v1.16.0 terpasang; selain AKTIF = ke kotak notifikasi.', state: 'OFF', rolloutPct: null },
 ];
 
 async function main() {

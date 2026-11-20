@@ -630,6 +630,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       .slice(0, limit)
       .map((r) => ({
         id: r.id,
+        orderId: r.orderId,
         orderNumber: r.orderNumber,
         depotId: r.depotId,
         assignedAt: r.assignedAt,
