@@ -124,7 +124,7 @@ sama ada di `mobile/scripts/audit-manifest.mjs`; keduanya harus tetap sama.
 | `POST_NOTIFICATIONS`                               | Notifikasi status pesanan (FCM)                                  | Setelah pesanan pertama, bukan saat boot |
 | `CAMERA`                                           | Foto bukti kirim & absen wajah (`getUserMedia`, bukan galeri)    | Saat kamera dibuka                       |
 | `ACCESS_COARSE_LOCATION`                           | Posisi kurir selama antaran terbuka                              | Saat antaran dibuka                      |
-| `ACCESS_FINE_LOCATION`                             | Sama, akurasi alamat                                             | Saat antaran dibuka                      |
+| `ACCESS_FINE_LOCATION`                             | Kurir: akurasi posisi antaran. Pelanggan (sejak 2026-11-20): pin alamat yang akurat | Kurir: saat antaran dibuka. Pelanggan: hanya saat menekan "Gunakan lokasi saya" |
 | `USE_BIOMETRIC`                                    | Membuka sesi tersimpan di perangkat                              | Saat aplikasi dibuka, kalau ada sesi     |
 | `BLUETOOTH_SCAN`                                   | **Ops saja.** Mencari printer struk konter (`neverForLocation`)  | Saat kasir menekan "Cari printer"        |
 | `BLUETOOTH_CONNECT`                                | **Ops saja.** Menyambung ke printer struk yang sudah dipasangkan | Saat kasir memakai printer               |

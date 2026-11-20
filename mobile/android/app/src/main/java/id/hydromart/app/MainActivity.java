@@ -24,8 +24,8 @@ public class MainActivity extends BridgeActivity {
      * refusal. Its one escape hatch — "coarse alone is enough" — is guarded by
      * `SDK_INT >= S`, so it never runs on Android 11 and below.
      *
-     * The customer binary strips `ACCESS_FINE_LOCATION` out of the merged manifest
-     * (`build.gradle`, and deliberately: the Play declaration says Approximate location).
+     * The customer binary used to strip `ACCESS_FINE_LOCATION` out of the merged manifest
+     * (`build.gradle`; until 2026-11-20 the Play declaration said Approximate location).
      * A permission that is not declared is denied by the system instantly and WITHOUT a
      * dialog — so the aggregate is false, the SDK 31 escape hatch is closed, the callback is
      * invoked with `false`, and the WebView reports code 1. `lib/geo.ts` maps code 1 to

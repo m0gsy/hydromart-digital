@@ -562,8 +562,8 @@ function CheckoutInner() {
     setPinError(null);
     setPinBusy(true);
     try {
-      // Precise: this is the point the courier drives to, not a "which depot" guess.
-      const pos = await currentPosition({ precise: true });
+      // A pin: GPS (this is the point the courier drives to), with a person's patience.
+      const pos = await currentPosition({ pin: true });
       setCoords({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
       // `accuracy` is metres, and it is the only honest way to say "is this pin any good"
       // without a map. A 2km reading and a 12m reading look identical on a coordinate pair.

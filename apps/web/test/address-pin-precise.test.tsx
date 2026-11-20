@@ -40,7 +40,7 @@ import AddressesPage from '@/app/addresses/page';
 afterEach(() => vi.clearAllMocks());
 
 describe('the address pin', () => {
-  it('asks for a precise fix', async () => {
+  it('asks for a GPS pin and says how accurate it is', async () => {
     get.mockResolvedValue([]);
     currentPosition.mockResolvedValue({
       coords: { latitude: -6.2001, longitude: 106.8001, accuracy: 12 },
@@ -58,6 +58,8 @@ describe('the address pin', () => {
     await userEvent.click(add[0]!);
     await userEvent.click(await screen.findByRole('button', { name: /gunakan lokasi saya/i }));
 
-    await waitFor(() => expect(currentPosition).toHaveBeenCalledWith({ precise: true }));
+    await waitFor(() => expect(currentPosition).toHaveBeenCalledWith({ pin: true }));
+    // The accuracy is said, so a fix that fell back to the approximate provider is not silent.
+    expect(await screen.findByText(/±12 m/)).toBeTruthy();
   });
 });

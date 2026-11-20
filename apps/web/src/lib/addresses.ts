@@ -21,6 +21,9 @@ export interface AddressForm {
   notes: string;
 }
 
+/** A pin less accurate than this (metres) is said to be too rough for a courier. */
+export const PIN_POOR_M = 100;
+
 /** The address to preselect at checkout: the primary one, else the first, else null. */
 export function pickDefaultAddress(addresses: Address[]): Address | null {
   return addresses.find((a) => a.isPrimary) ?? addresses[0] ?? null;

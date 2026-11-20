@@ -162,6 +162,8 @@ export const profile: typeof base = {
       clear: 'Remove pin',
       useLocation: 'Use my location',
       showManual: 'Enter coordinates manually',
+      accuracyPoor:
+        'Accuracy ±{m} m — too rough for a courier. Try again outdoors, or enter coordinates / paste a Maps link.',
       hideManual: 'Hide manual coordinates',
       unsupported: "This device doesn't support automatic location. Enter coordinates manually.",
       failed: "Couldn't get location. Allow location access or enter it manually.",

@@ -18,6 +18,8 @@ describe('privacy policy declares customer device location', () => {
   it('id discloses device location (precise for the address pin), its purpose, and that it is optional', () => {
     const text = body(id);
     expect(text).toMatch(/lokasi perkiraan|perkiraan lokasi|lokasi perangkat/i);
+    // Precise since 2026-11-20 (the address pin), and the Play declaration says so too.
+    expect(text).toMatch(/lokasi presisi/i);
     expect(text).toMatch(/depot terdekat/i);
     expect(text).toMatch(/opsional|tanpa memberi izin/i);
   });

@@ -43,17 +43,25 @@ export class GeoError extends Error {
  * forget. An unknown throw is a timeout: it is the only reason that invites a retry, and
  * the retry is free.
  */
-export const geoReason = (err: unknown): GeoFailure => (err instanceof GeoError ? err.reason : 'timeout');
+export const geoReason = (err: unknown): GeoFailure =>
+  err instanceof GeoError ? err.reason : 'timeout';
 
 const ask = (options: PositionOptions): Promise<GeolocationPosition> =>
-  new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(resolve, reject, options));
+  new Promise((resolve, reject) =>
+    navigator.geolocation.getCurrentPosition(resolve, reject, options),
+  );
 
 /** Native first attempt per mode; the browser path reuses `precise` for its first try. */
 const OPTIONS = {
   coarse: { enableHighAccuracy: false, timeout: 20_000, maximumAge: 300_000 },
   // ponytail: 30 s covers a cold GPS indoors; raise it if couriers report timeouts.
   precise: { enableHighAccuracy: true, timeout: 30_000, maximumAge: 10_000 },
+  // An address pin (2026-11-20): GPS, but for a person waiting on a button — a short, fresh
+  // try. Whatever comes back carries its accuracy, and the screen shows it.
+  pin: { enableHighAccuracy: true, timeout: 12_000, maximumAge: 30_000 },
 } as const satisfies Record<string, PositionOptions>;
+
+type GeoMode = keyof typeof OPTIONS;
 
 const reasonOf = (err: unknown): GeoFailure => {
   const code = (err as GeolocationPositionError | undefined)?.code;
@@ -68,11 +76,11 @@ const reasonOf = (err: unknown): GeoFailure => {
  * `navigator.geolocation` inside an Android WebView is not the platform's location API — it
  * is Chromium's, and Chromium's NETWORK provider is the one a coarse-only permission can
  * use. In a WebView that provider is frequently unable to answer at all, so the request
- * neither resolves nor errors: it runs out the clock. On the customer build, which declares
- * only ACCESS_COARSE_LOCATION (the Play declaration says Approximate location, deliberately
- * — see MainActivity), that leaves no working path at all, and every attempt spent 28
- * seconds arriving at "Sinyal lokasi belum ketemu" whether the phone knew where it was or
- * not. Reported from a real OPPO, 2 September 2026, on three separate screens.
+ * neither resolves nor errors: it runs out the clock. On the customer build, which then
+ * declared only ACCESS_COARSE_LOCATION, that left no working path at all, and every attempt
+ * spent 28 seconds arriving at "Sinyal lokasi belum ketemu" whether the phone knew where it
+ * was or not. Reported from a real OPPO, 2 September 2026, on three separate screens. (Both
+ * binaries declare FINE since 2026-11-20; a person can still grant only the approximate one.)
  *
  * The Capacitor plugin calls Android's own location API, which coarse permission does
  * satisfy. It is asked FIRST in the shell and not at all in a browser.
@@ -81,7 +89,7 @@ const reasonOf = (err: unknown): GeoFailure => {
  * plugin is an older binary, and a failing one must not be worse than not having tried.
  * The reason the caller shows still comes from the web API, which has the codes.
  */
-async function nativePosition(precise: boolean): Promise<GeolocationPosition | null> {
+async function nativePosition(mode: GeoMode): Promise<GeolocationPosition | null> {
   const state = await tryPlugin<{ location?: string; coarseLocation?: string }>(
     'Geolocation',
     'checkPermissions',
@@ -99,17 +107,17 @@ async function nativePosition(precise: boolean): Promise<GeolocationPosition | n
       throw new GeoError('denied');
     }
   }
-  // Coarse by default: a depot is picked by neighbourhood, and asking for high accuracy on
-  // a binary with no ACCESS_FINE_LOCATION is asking for a fix that cannot arrive.
+  // Coarse by default: a depot is picked by neighbourhood.
   // `precise` is for a PRESENCE check (shift check-in, attendance, proof of delivery): a
   // network fix is off by a few hundred metres and a five-minute-old one may be from the
   // road, so a courier standing in the depot read "526 m from the depot" against a 100 m
-  // fence. The plugin only asks for FINE where the manifest declares it (Ops), and falls
-  // back to the network provider itself when GPS has nothing.
+  // fence. `pin` is an address pin: GPS too, with less patience. The plugin asks for FINE
+  // where the manifest declares it (both binaries since 2026-11-20), and falls back to the
+  // network provider itself when GPS has nothing.
   const fix = await tryPlugin<{
     coords?: { latitude?: number; longitude?: number; accuracy?: number };
     timestamp?: number;
-  }>('Geolocation', 'getCurrentPosition', OPTIONS[precise ? 'precise' : 'coarse']);
+  }>('Geolocation', 'getCurrentPosition', OPTIONS[mode]);
   const lat = fix.ok ? fix.value.coords?.latitude : undefined;
   const lng = fix.ok ? fix.value.coords?.longitude : undefined;
   if (typeof lat !== 'number' || typeof lng !== 'number') return null;
@@ -129,25 +137,34 @@ async function nativePosition(precise: boolean): Promise<GeolocationPosition | n
   } as GeolocationPosition;
 }
 
-export async function currentPosition(
-  { precise = false }: { precise?: boolean } = {},
-): Promise<GeolocationPosition> {
-  const native = await nativePosition(precise);
+export async function currentPosition({
+  precise = false,
+  pin = false,
+}: { precise?: boolean; pin?: boolean } = {}): Promise<GeolocationPosition> {
+  const mode: GeoMode = pin ? 'pin' : precise ? 'precise' : 'coarse';
+  const native = await nativePosition(mode);
   if (native) return native;
   if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
     throw new GeoError('unsupported');
   }
   try {
     return await ask(
-      precise ? OPTIONS.precise : { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 },
+      mode === 'coarse'
+        ? { enableHighAccuracy: true, timeout: 8000, maximumAge: 60_000 }
+        : OPTIONS[mode],
     );
   } catch (err) {
     // A refusal is final: retrying cannot turn it into a yes, and the second prompt is worse
     // than the first message.
     if (reasonOf(err) === 'denied') throw new GeoError('denied');
     try {
-      // A presence check never accepts a fix older than the precise one would have.
-      return await ask({ ...OPTIONS.coarse, maximumAge: precise ? OPTIONS.precise.maximumAge : OPTIONS.coarse.maximumAge });
+      // A presence check (and a pin) never accepts a fix older than its own first try would
+      // have; a pin also waits less, the person is looking at a spinner.
+      return await ask({
+        ...OPTIONS.coarse,
+        timeout: mode === 'pin' ? 10_000 : OPTIONS.coarse.timeout,
+        maximumAge: OPTIONS[mode].maximumAge,
+      });
     } catch (retry) {
       throw new GeoError(reasonOf(retry));
     }

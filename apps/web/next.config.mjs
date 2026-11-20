@@ -61,10 +61,9 @@ const nextConfig = {
   // the app is not embeddable, and camera/geolocation are Android runtime permissions.
   //
   // Not "declared in the manifest", which this said until J1: the CUSTOMER binary strips
-  // both `CAMERA` and `ACCESS_FINE_LOCATION` out of the merged manifest (see
-  // `mobile/android/app/build.gradle`), so on that build the gate is coarse location
-  // alone — and a stripped permission is denied by the system with no dialog at all,
-  // which is exactly how geolocation came to be dead there.
+  // `CAMERA` out of the merged manifest (and stripped `ACCESS_FINE_LOCATION` too until
+  // 2026-11-20, see `mobile/android/app/build.gradle`) — and a stripped permission is
+  // denied by the system with no dialog at all, which is how geolocation once died there.
   ...(MOBILE
     ? {}
     : {
