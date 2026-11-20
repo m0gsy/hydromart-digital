@@ -7,7 +7,7 @@ import { Bell, CaretRight, Lock, Package, Siren, Warning, type Icon } from '@pho
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Card, CenterState, ErrorState, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
-import { notificationHref } from '@/lib/notification-link';
+import { feedHref } from '@/lib/notification-access';
 import { isNativeShell } from '@/lib/platform';
 import { useT, type TVars } from '@/lib/locale-context';
 import { OPS_FILTERS, groupOpsFeedByDay, useOpsNotifications } from '@/lib/ops-notifications';
@@ -43,7 +43,7 @@ function NotifRow({ n, read, onToggle }: { n: OpsNotification; read: boolean; on
   // The row opens what the alert is about (an order, the payments screen); tapping it also
   // marks it read. A row with nowhere to go keeps its old behaviour: tap to toggle read.
   // Flow 6a: plain text when this role may not open the screen the alert is about.
-  const href = notificationHref(n.destination, customer?.role, !isNativeShell());
+  const href = feedHref(n.destination, customer?.role, !isNativeShell());
   const className = `flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors hover:bg-[color:var(--surface-soft)] ${read ? 'opacity-65' : ''}`;
   const title = style ? t(style.labelKey) : t(`notifications.events.${n.event}`);
   const inner = (

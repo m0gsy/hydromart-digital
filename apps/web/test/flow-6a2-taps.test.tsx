@@ -18,7 +18,7 @@ vi.mock('@/lib/api', async () => {
 
 import { resolveDeepLink } from '@/lib/deep-link';
 import { DepotProvider, useDepot } from '@/lib/depot-context';
-import { notificationHref, pushTarget } from '@/lib/notification-link';
+import { feedHref, pushTarget } from '@/lib/notification-access';
 
 afterEach(() => {
   get.mockReset();
@@ -27,15 +27,15 @@ afterEach(() => {
 
 describe('the approval notification on the desktop console', () => {
   it("opens on the depot console from the desktop feed, and nowhere else changes", () => {
-    expect(notificationHref('/m/manager/approvals/detail?id=a-1', 'MANAGER', true)).toBe(
+    expect(feedHref('/m/manager/approvals/detail?id=a-1', 'MANAGER', true)).toBe(
       '/dashboard/approvals/detail?id=a-1',
     );
-    expect(notificationHref('/m/manager/approvals?x=1', 'MANAGER', true)).toBe('/dashboard/approvals?x=1');
+    expect(feedHref('/m/manager/approvals?x=1', 'MANAGER', true)).toBe('/dashboard/approvals?x=1');
     // The phone console's own feed, and a sibling that only shares the prefix, stay put.
-    expect(notificationHref('/m/manager/approvals/detail?id=a-1', 'MANAGER')).toBe(
+    expect(feedHref('/m/manager/approvals/detail?id=a-1', 'MANAGER')).toBe(
       '/m/manager/approvals/detail?id=a-1',
     );
-    expect(notificationHref('/m/manager/approvalsx', 'MANAGER', true)).toBe('/m/manager/approvalsx');
+    expect(feedHref('/m/manager/approvalsx', 'MANAGER', true)).toBe('/m/manager/approvalsx');
     // A login `next` back to the phone console is not a notification: it is not twinned.
     expect(resolveDeepLink('/m/manager/approvals')).toBe('/m/manager/approvals');
   });
@@ -51,10 +51,10 @@ describe('a push tap for a role refused its screen', () => {
 
 describe('a feed row links only where its reader may go', () => {
   it('drops the link for a role refused the screen, and keeps it for one allowed', () => {
-    expect(notificationHref('/hr/me/leave?id=l-1', 'CUSTOMER')).toBeNull();
-    expect(notificationHref('/hr/me/leave?id=l-1', 'MANAGER')).toBe('/hr/me/leave?id=l-1');
+    expect(feedHref('/hr/me/leave?id=l-1', 'CUSTOMER')).toBeNull();
+    expect(feedHref('/hr/me/leave?id=l-1', 'MANAGER')).toBe('/hr/me/leave?id=l-1');
     // Without a reader, as before.
-    expect(notificationHref('/hr/me/leave?id=l-1')).toBe('/hr/me/leave?id=l-1');
+    expect(feedHref('/hr/me/leave?id=l-1', undefined)).toBe('/hr/me/leave?id=l-1');
   });
 });
 

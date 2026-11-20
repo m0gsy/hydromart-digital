@@ -75,7 +75,8 @@ describe('a push that arrives with the app open', () => {
     await userEvent.click(item);
     // Normalised by `resolveDeepLink`, trailing slash and all — asserting the shape the
     // rewriter actually produces, not the shape the payload happened to carry.
-    expect(push).toHaveBeenCalledWith('/orders/detail?id=ord_9');
+    // Flow 6a: the landing is decided on the tap, by a module loaded then (not with every page).
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith('/orders/detail?id=ord_9'));
   });
 
   it('is plain text, not a dead button, when the payload points nowhere', async () => {
