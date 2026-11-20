@@ -1424,6 +1424,14 @@ export class InternalCustomerOpenCountResponseDto {
   openCount!: number;
 }
 
+/** auth-service asks before closing a customer account that sits on a staff member's number. */
+export class InternalCustomerActivityResponseDto {
+  @ApiProperty({ type: Number })
+  orders!: number;
+  @ApiProperty({ type: Number })
+  subscriptions!: number;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class RemindStale2ResponseDto {
   @ApiProperty({ type: Number })
