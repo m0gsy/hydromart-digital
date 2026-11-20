@@ -1,6 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { DEFAULT_MAX_ROWS } from '@hydromart/platform';
 
 import { MembershipTier } from '../../domain/membership-tier.enum';
@@ -240,4 +249,20 @@ export class DepotCustomerDetailDto {
   depositLedger!: DepotDepositLedgerEntryDto[];
   @ApiProperty({ type: [DepotRecentOrderDto] })
   recentOrders!: DepotRecentOrderDto[];
+}
+
+/** P2-2: the pin a depot sets on one of its customers' addresses. */
+export class SetAddressPinDto {
+  @ApiProperty({ format: 'uuid', description: 'The depot doing it; the customer must be one of its own.' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({
+    example: '-6.914744, 107.609810',
+    description: 'Coordinates, or a Google Maps link that carries them (a short link is refused).',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(2048)
+  location!: string;
 }

@@ -327,6 +327,9 @@ export const insight = {
       `/customers/api/v1/customers/crm/dashboard?depotId=${encodeURIComponent(depotId)}`,
     import: '/customers/api/v1/customers/import',
     importAddresses: '/customers/api/v1/customers/import-addresses',
+    // P2-2 (PATCH, depotCrmWrite): staff set an address pin from coordinates or a Maps link.
+    addressLocation: (id: string, addressId: string) =>
+      `/customers/api/v1/customers/${id}/addresses/${addressId}/location`,
   },
 
   // HQ cross-service audit trail (auth-service, HEAD_OFFICE/SUPER_ADMIN). Paginated → { items, ... }.

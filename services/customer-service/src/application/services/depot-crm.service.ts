@@ -1,6 +1,21 @@
 import { DIRECTORY_PAGE_MAX } from '../ports/profile.repository';
-import { Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
-import { DEFAULT_MAX_ROWS, haversineKm, pointInServiceArea } from '@hydromart/platform';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import {
+  AuthenticatedUser,
+  DEFAULT_MAX_ROWS,
+  assertDepotAccess,
+  haversineKm,
+  pointInServiceArea,
+  recordAuditEvent,
+} from '@hydromart/platform';
 
 import { AddressRecord, AddressRepository } from '../ports/address.repository';
 import { DepotCrmRepository } from '../ports/depot-crm.repository';
@@ -11,6 +26,7 @@ import { ProfileRepository } from '../ports/profile.repository';
 import { ChurnRiskPort } from '../ports/churn-risk.port';
 import { DepotGeo, DepotProfilePort } from '../ports/depot-profile.port';
 import { MembershipTier } from '../../domain/membership-tier.enum';
+import { parseLocation } from '../../domain/pin-location';
 import { classifySegment, daysBetween, needsFollowUp, CrmSegment } from '../../domain/crm-segment';
 import { CustomerConfigService } from '../../config/customer-config.service';
 import { CUSTOMER_TOKENS } from '../tokens';
@@ -164,6 +180,8 @@ function servedBy(
 
 @Injectable()
 export class DepotCrmService {
+  private readonly logger = new Logger(DepotCrmService.name);
+
   constructor(
     @Inject(CUSTOMER_TOKENS.DepotCrmRepository) private readonly crm: DepotCrmRepository,
     @Inject(CUSTOMER_TOKENS.AddressRepository) private readonly addresses: AddressRepository,
@@ -188,6 +206,80 @@ export class DepotCrmService {
    * Record a first-checkout depot as this customer's favourite — §I. Only when they have
    * none: see `claimFavoriteDepotIfUnset` for why moving an existing one would be wrong.
    */
+  /**
+   * P2-2: a depot fixes the pin of one of its customers' addresses — typed coordinates or a
+   * Google Maps link, read by the same parser the imports use. Only a customer of this depot
+   * (the AUTHZ-A7 rule the detail card applies), only an address of that customer, only a pin
+   * that is in this depot's own area today, and recorded with the pin it replaced: a pin
+   * decides which depot their orders and subscriptions route to, so one depot must not move
+   * another's customer onto its own patch, and a wrong correction has to be traceable.
+   */
+  async setAddressPin(
+    user: AuthenticatedUser,
+    customerId: string,
+    addressId: string,
+    depotId: string,
+    location: string,
+  ): Promise<AddressRecord> {
+    assertDepotAccess(user, depotId);
+    let pin: { latitude: number; longitude: number };
+    try {
+      pin = parseLocation(location);
+    } catch (err) {
+      // The parser says what to do instead ("Link pendek tidak bisa dibaca…"), in Indonesian.
+      throw new BadRequestException((err as Error).message);
+    }
+    const [profile, address, geo] = await Promise.all([
+      this.profiles.findByCustomerId(customerId),
+      this.addresses.findByIdForCustomer(customerId, addressId),
+      this.depotProfile ? this.depotProfile.geo(depotId) : Promise.resolve(null),
+    ]);
+    // The favourite proves it; order history is asked only when it does not.
+    const member =
+      profile?.favoriteDepotId === depotId ||
+      (await this.orderCrm.customerOrders(depotId, customerId)).length > 0;
+    if (!member) throw new NotFoundException('Pelanggan ini tidak terdaftar di depot ini.');
+    if (!address) throw new NotFoundException('Alamat ini tidak ditemukan.');
+    if (address.latitude != null && address.longitude != null) {
+      // A pin in another depot's area is that depot's (or head office's) to move: fixing it
+      // here would route the customer to this depot. Unknown area = not checkable = refused.
+      const km = geo ? haversineKm(address.latitude, address.longitude, geo.lat, geo.lng) : null;
+      if (servedBy(geo, address.latitude, address.longitude, km) !== true) {
+        throw new ForbiddenException(
+          'Pin alamat ini ada di luar area depot ini; minta depot yang melayaninya atau kantor pusat untuk membetulkannya.',
+        );
+      }
+      if (address.latitude === pin.latitude && address.longitude === pin.longitude) {
+        return address; // the same pin: what is known about it (a GPS accuracy) stays
+      }
+    }
+    // A staff pin claims no GPS accuracy: whoever typed it vouches for it instead.
+    const updated = await this.addresses.update(customerId, addressId, {
+      ...pin,
+      pinSource: 'STAFF',
+      pinAccuracyM: null,
+    });
+    await recordAuditEvent(
+      {
+        authServiceUrl: this.config.authServiceUrl,
+        internalServiceKey: this.config.internalServiceKey,
+      },
+      {
+        action: 'customer.address.location.set',
+        actorId: user.sub,
+        target: customerId,
+        metadata: {
+          depotId,
+          addressId,
+          before: address.latitude == null ? null : [address.latitude, address.longitude],
+          after: [pin.latitude, pin.longitude],
+        },
+      },
+      this.logger,
+    );
+    return updated;
+  }
+
   claimFavoriteDepot(customerId: string, depotId: string): Promise<boolean> {
     return this.profiles.claimFavoriteDepotIfUnset(customerId, depotId);
   }
