@@ -108,6 +108,7 @@ const EXEMPT = new Map([
   ],
   ['auth-service:internal.controller.ts:preRegisterCustomer', 'order-service walk-in capture'],
   ['auth-service:internal.controller.ts:lookupByIds', 'a POST that reads — a batch lookup, not a write'],
+  ['auth-service:internal.controller.ts:staffIdsByRoles', 'a POST that reads — the ids holding some roles (flow 6b), not a write'],
   ['auth-service:internal.controller.ts:purgeAuditLogs', 'timer-driven retention purge'],
   ['auth-service:internal.controller.ts:purgeExpiredTokens', 'timer-driven retention purge'],
   ['auth-service:internal.controller.ts:sweepExpiredTokens', 'timer-driven retention purge (AUT-08, scheduled)'],
