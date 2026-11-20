@@ -44,7 +44,8 @@ export function ClaimableOrders({
     () =>
       enabled
         ? api.get<Page<Order>>(
-            endpoints.orders.manage({ status: 'CONFIRMED', depotId, limit: 20 }),
+            // PREPARING: the only state a courier can be handed (and the server's claim rule).
+            endpoints.orders.manage({ status: 'PREPARING', depotId, limit: 20 }),
             true,
           )
         : Promise.resolve({ items: [], total: 0, page: 1, limit: 0 } as Page<Order>),
@@ -70,6 +71,11 @@ export function ClaimableOrders({
       orders.reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('driver.claim.failed'));
+      // An order that already has a delivery (a rescheduled one goes back to PREPARING with its
+      // row kept) can never be claimed; struck from the list, or it would come back every reload.
+      if (e instanceof ApiError && e.code === 'DELIVERY_ALREADY_EXISTS') {
+        setClaimed((c) => [...c, orderId]);
+      }
       orders.reload();
     } finally {
       setBusy(null);

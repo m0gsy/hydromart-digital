@@ -220,8 +220,11 @@ export class DeliveryService {
    *  - self-claim is OFF for the depot (0 by default, so every depot starts here);
    *  - the order is not theirs to see — order-service answers 403 from the courier's own
    *    token, and that is the depot gate, not a second copy of it here;
+   *  - the order is not PREPARING. That is the only state a dispatcher can hand to a courier
+   *    (PREPARING → DRIVER_ASSIGNED is the transition); this used to ask for CONFIRMED, which
+   *    order-service then refused, so a claim could never succeed (fixed 2026-11-20);
    *  - the order has not sat long enough. This is the whole of the decision: without the
-   *    wait the fastest phone wins every order the instant it is confirmed, and a
+   *    wait the fastest phone wins every order the instant it is ready, and a
    *    dispatcher who was about to assign it loses the race. `statusChangedAt` is the clock
    *    — `updatedAt` moves for a note edit or a payment write and would make an untouched
    *    order look freshly claimed;
@@ -246,7 +249,10 @@ export class DeliveryService {
     if (!this.config.courierSelfClaimEnabled(order.depotId)) {
       throw new SelfClaimDisabledError();
     }
-    if (order.status !== 'CONFIRMED') throw new OrderNotClaimableError();
+    if (order.status !== 'PREPARING') throw new OrderNotClaimableError();
+    // No readable clock, no claim: an Invalid Date makes the wait check below false, which
+    // would let the order go at once — the one thing the wait is there to stop.
+    if (Number.isNaN(order.statusChangedAt.getTime())) throw new OrderNotClaimableError();
 
     const existing = await this.deliveries.findByOrder(orderId);
     if (existing) throw new DeliveryAlreadyExistsError();

@@ -41,7 +41,12 @@ export class OrderLookupHttpAdapter implements OrderLookupPort {
       if (!res.ok) {
         throw new Error(`order-service responded ${res.status}`);
       }
-      return (await res.json()) as ClaimableOrder;
+      // JSON has no dates: `statusChangedAt` arrives as a string, and the wait check calls
+      // `.getTime()` on it — every real claim threw there (fixed 2026-11-20).
+      const body = (await res.json()) as Omit<ClaimableOrder, 'statusChangedAt'> & {
+        statusChangedAt: string;
+      };
+      return { ...body, statusChangedAt: new Date(body.statusChangedAt) };
     } catch (error) {
       if (error instanceof ForbiddenException) throw error;
       this.logger.error(`GET order ${orderId} for claim failed: ${(error as Error).message}`);
