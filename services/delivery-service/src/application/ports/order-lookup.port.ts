@@ -9,6 +9,7 @@ export interface ClaimableOrder {
   recipientName: string;
   phone: string;
   addressLine: string;
+  city: string;
   latitude: number | null;
   longitude: number | null;
   notes: string | null;

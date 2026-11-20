@@ -27,6 +27,7 @@ import { useAsync } from '@/lib/use-async';
 import { canOpenRoute } from '@/lib/route-access';
 import { isServedHere } from '@/lib/deep-link';
 import type { Customer, Delivery, Order, Page, Payment } from '@/lib/types';
+import { assignBody } from '@/lib/dispatch';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
 
@@ -288,32 +289,7 @@ function AssignCourier({ order, onDone }: { order: Order; onDone: () => void }) 
     try {
       await api.post(
         endpoints.deliveries.assign,
-        {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          driverId,
-          driverName: driver?.fullName || undefined,
-          driverPhone: driver?.phone || undefined,
-          depotId: order.depotId ?? undefined,
-          destinationAddress: `${order.addressLine}, ${order.city}`,
-          destinationLat: order.latitude ?? undefined,
-          destinationLng: order.longitude ?? undefined,
-          recipientPhone: order.phone,
-          // Snapshotted so a notification about this delivery can thread into the
-          // customer's in-app feed, not only reach their phone.
-          customerId: order.customerId,
-          items: order.items.map((i) => ({ name: i.productName, qty: i.quantity })),
-          // No codAmount: delivery-service reads the payment itself now. This screen could
-          // not — `paymentSettle` excludes SUPERVISOR and ASSISTANT_SUPERVISOR, who are
-          // allowed to dispatch, so their read 403'd and every cash order they sent out
-          // went as non-COD.
-          // Snapshot the customer's landmark/note so the courier sees it on the delivery.
-          notes: order.notes ?? undefined,
-          // B5: snapshot the window onto the delivery, the same way the landmark is —
-          // the courier's screen must not need a second service to answer a question
-          // about the box in their hand.
-          deliveryWindow: order.deliveryWindow ?? undefined,
-        },
+        assignBody(order, driverId, driver),
         true,
       );
       onDone();

@@ -530,8 +530,15 @@ function WalkIn({ depotId }: { depotId: string }) {
         : t('opsFix.walkIn.emptiesNone', { y: galonQty });
   // One definition for the button and for Enter in the cash box, so the keyboard can never
   // sell something the button would have refused.
+  // "Antar" with half an address used to sell a PICK-UP: the sale went through without the
+  // address and nobody delivered anything. Finish the address or untick Antar.
   const payDisabled =
-    busy || lines.length === 0 || shiftOpen !== true || total === null || !quoteFresh;
+    busy ||
+    lines.length === 0 ||
+    shiftOpen !== true ||
+    total === null ||
+    !quoteFresh ||
+    (deliver && !deliveryReady);
   const appliedPromos = quote.data?.appliedPromos ?? [];
   // Ticked on the strip only for THIS basket: a stale quote would tick a promo it lost.
   const appliedRuleIds = new Set(
@@ -764,6 +771,8 @@ function WalkIn({ depotId }: { depotId: string }) {
 
   async function submit() {
     if (lines.length === 0) return toast(t('opsFix.walkIn.pickProductFirst'), 'error');
+    // The button already waits for it; this keeps any other path from selling a pick-up.
+    if (deliver && !deliveryReady) return toast(t('opsFix.walkIn.deliverIncomplete'), 'error');
     // C12: never sell against a total the server did not give. The old guard compared cash
     // to the SCREEN's sum of shelf prices, which is why an agen handing over exact money
     // was refused by the till — they were being asked for the retail number.

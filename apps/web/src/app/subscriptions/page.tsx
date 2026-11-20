@@ -158,6 +158,8 @@ function Panel() {
             postalCode: a.postalCode,
             latitude: a.latitude,
             longitude: a.longitude,
+            // The patokan: without it the courier of every delivery of this plan got none.
+            notes: a.notes ?? undefined,
           },
         },
         true,
@@ -195,6 +197,7 @@ function Panel() {
             postalCode: next.postalCode,
             latitude: next.latitude,
             longitude: next.longitude,
+            notes: next.notes ?? undefined,
           },
         },
         true,

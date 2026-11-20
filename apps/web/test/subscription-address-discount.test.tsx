@@ -38,6 +38,7 @@ const HOME = {
   postalCode: '40111',
   latitude: -6.9,
   longitude: 107.6,
+  notes: 'Pagar hijau',
   isPrimary: true,
 };
 const OFFICE = {
@@ -45,6 +46,7 @@ const OFFICE = {
   id: 'a-office',
   label: 'Kantor',
   addressLine: 'Jl. Asia Afrika 55',
+  notes: 'Lobi B, titip resepsionis',
   isPrimary: false,
 };
 
@@ -116,6 +118,35 @@ describe('K1.9 · a subscription is no longer locked to the primary address', ()
     await waitFor(() => expect(apiMock.post).toHaveBeenCalled());
     const body = apiMock.post.mock.calls[0]![1] as { deliveryAddress: { addressLine: string } };
     expect(body.deliveryAddress.addressLine).toBe('Jl. Asia Afrika 55');
+  });
+
+  // P1a: the patokan never reached a plan made here, so no courier of it ever got one.
+  it('carries the picked address patokan into a new plan and into a move', async () => {
+    route({ subs: [PLAN] });
+    apiMock.post.mockResolvedValue(PLAN);
+    renderPage();
+
+    const picker = (await screen.findAllByLabelText(/antar ke|deliver to/i)).find(
+      (el) => el.id !== 'sub-addr-s-1',
+    )!;
+    fireEvent.change(picker, { target: { value: 'a-office' } });
+    fireEvent.change(await screen.findByLabelText(/produk|product/i), { target: { value: 'p-1' } });
+    fireEvent.click(screen.getByRole('button', { name: /mulai langganan|start a subscription/i }));
+    await waitFor(() => expect(apiMock.post).toHaveBeenCalledTimes(1));
+    expect(apiMock.post.mock.calls[0]![1]).toMatchObject({
+      deliveryAddress: { notes: 'Lobi B, titip resepsionis' },
+    });
+
+    fireEvent.change(await screen.findByLabelText(/antar ke|deliver to/i, { selector: '#sub-addr-s-1' }), {
+      target: { value: 'a-office' },
+    });
+    await waitFor(() =>
+      expect(apiMock.post).toHaveBeenCalledWith(
+        '/orders/api/v1/subscriptions/s-1/address',
+        { deliveryAddress: expect.objectContaining({ notes: 'Lobi B, titip resepsionis' }) },
+        true,
+      ),
+    );
   });
 
   it('moves an existing plan to another address, with the plan own line named first', async () => {

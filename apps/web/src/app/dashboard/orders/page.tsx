@@ -21,6 +21,7 @@ import { useDriversUrl } from '@/lib/use-drivers-url';
 import { usePagedList } from '@/lib/use-paged-list';
 import { useDebounce } from '@/lib/use-debounce';
 import type { Customer, Order, Page } from '@/lib/types';
+import { assignBody } from '@/lib/dispatch';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
 
@@ -136,27 +137,7 @@ function AssignPanel({
     try {
       await api.post(
         endpoints.deliveries.assign,
-        {
-          orderId: order.id,
-          orderNumber: order.orderNumber,
-          driverId,
-          driverName: driver?.fullName || undefined,
-          driverPhone: driver?.phone || undefined,
-          depotId: order.depotId ?? undefined,
-          destinationAddress: `${order.addressLine}, ${order.city}`,
-          destinationLat: order.latitude ?? undefined,
-          destinationLng: order.longitude ?? undefined,
-          recipientPhone: order.phone,
-          items: order.items.map((i) => ({ name: i.productName, qty: i.quantity })),
-          // No codAmount: delivery-service reads the payment itself and ignores whatever
-          // the client sends. Deciding it here required a staff payment read the two
-          // supervisor roles are not granted, so their dispatches went out as non-COD.
-          // Snapshot the customer's landmark/note so the courier sees it on the delivery.
-          notes: order.notes ?? undefined,
-          // B5: and the window they chose, for the same reason — it was stored at checkout,
-          // returned by order-service, and reached neither this payload nor any screen.
-          deliveryWindow: order.deliveryWindow ?? undefined,
-        },
+        assignBody(order, driverId, driver),
         true,
       );
       onAssigned();
