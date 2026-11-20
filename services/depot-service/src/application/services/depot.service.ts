@@ -158,7 +158,12 @@ export class DepotService {
     id: string,
     input: UpdateDepotData,
     seenUpdatedAt?: string,
-    canChangeOwners = true,
+    /**
+     * `depotLifecycle`: head office. Editing a depot is open to its manager; who owns it is
+     * head office's — the same people who may create, close or reopen one. The HTTP route
+     * always passes it; the default is the internal callers' (the import is head office's).
+     */
+    canLifecycle = true,
   ): Promise<DepotRecord> {
     const patch = this.checkedSchedule(input);
     const current = await this.get(id, false);
@@ -169,7 +174,7 @@ export class DepotService {
     const nextOwners = this.ownersAfter(current, patch);
     // Who is paid, and how much, is not a depot setting: editing a depot is open to its manager,
     // changing its owners is head office's (the same people who may create or deactivate one).
-    if (nextOwners !== undefined && !canChangeOwners) {
+    if (nextOwners !== undefined && !canLifecycle) {
       throw new ForbiddenException(
         'Hanya kantor pusat yang boleh mengubah pemilik dan pembagian hasil depot.',
       );
@@ -313,10 +318,25 @@ export class DepotService {
    */
   async deactivate(id: string, opts: { force?: boolean } = {}): Promise<DepotRecord> {
     await this.get(id, false);
-    if (!opts.force && this.probe) {
-      const blockers = await this.probe.blockers(id);
-      if (blockers.length > 0) throw new DepotDeactivationBlockedError(blockers);
-    }
+    if (!opts.force) await this.assertNoBlockers(id);
     return this.depots.update(id, { active: false });
+  }
+
+  /**
+   * Head office reopening a depot it closed (`depotLifecycle`, like closing it). A depot
+   * already open is left untouched: a second click must not move its version under an edit
+   * someone else has open (CA-2-53 would then refuse their save).
+   */
+  async reactivate(id: string): Promise<DepotRecord> {
+    const current = await this.get(id, false);
+    if (current.active) return current;
+    return this.depots.update(id, { active: true });
+  }
+
+  /** DEP-10: no closing a depot while work is still in flight against it. */
+  private async assertNoBlockers(id: string): Promise<void> {
+    if (!this.probe) return;
+    const blockers = await this.probe.blockers(id);
+    if (blockers.length > 0) throw new DepotDeactivationBlockedError(blockers);
   }
 }
