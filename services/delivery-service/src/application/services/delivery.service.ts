@@ -232,6 +232,9 @@ export class DeliveryService {
       throw new SelfClaimDisabledError();
     }
     if (order.status !== 'PREPARING') throw new OrderNotClaimableError();
+    // No readable clock, no claim: an Invalid Date makes the wait check below false, which
+    // would let the order go at once — the one thing the wait is there to stop.
+    if (Number.isNaN(order.statusChangedAt.getTime())) throw new OrderNotClaimableError();
 
     const existing = await this.deliveries.findByOrder(orderId);
     if (existing) throw new DeliveryAlreadyExistsError();

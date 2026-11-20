@@ -6,7 +6,7 @@ export const driver = {
     take: 'Take it',
     taken: 'Order taken. Check your delivery list.',
     waitedFor: 'Waiting {minutes} min',
-    tooSoon: 'Not yet. Wait {minutes} minutes from when the order was confirmed.',
+    tooSoon: 'Not yet. Wait {minutes} minutes from when the order started being prepared.',
     failed: 'The order could not be taken.',
   },
   home: {

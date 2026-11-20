@@ -182,6 +182,14 @@ describe('DeliveryService.claimByDriver (S1)', () => {
     });
   });
 
+  it('refuses an order whose clock it cannot read, rather than skipping the wait', async () => {
+    const service = await make(1);
+    lookup.seed({ id: ORDER, depotId: DEPOT_ID, statusChangedAt: new Date(Number.NaN) });
+    await expect(service.claimByDriver(DRIVER, ORDER, AUTH)).rejects.toMatchObject({
+      code: 'DELIVERY_ORDER_NOT_CLAIMABLE',
+    });
+  });
+
   it('refuses an order that does not exist', async () => {
     const service = await make(1);
     await expect(service.claimByDriver(DRIVER, 'missing', AUTH)).rejects.toMatchObject({

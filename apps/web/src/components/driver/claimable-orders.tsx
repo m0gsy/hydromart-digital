@@ -71,6 +71,11 @@ export function ClaimableOrders({
       orders.reload();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : t('driver.claim.failed'));
+      // An order that already has a delivery (a rescheduled one goes back to PREPARING with its
+      // row kept) can never be claimed; struck from the list, or it would come back every reload.
+      if (e instanceof ApiError && e.code === 'DELIVERY_ALREADY_EXISTS') {
+        setClaimed((c) => [...c, orderId]);
+      }
       orders.reload();
     } finally {
       setBusy(null);
