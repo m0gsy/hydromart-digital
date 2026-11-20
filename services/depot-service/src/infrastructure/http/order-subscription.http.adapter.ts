@@ -38,6 +38,7 @@ export class OrderSubscriptionHttpAdapter implements OrderSubscriptionPort {
         quantity: input.quantity,
         frequency: input.frequency,
         firstDeliveryAt: input.firstDeliveryAt.toISOString(),
+        depotId: input.depotId,
       }),
       signal: AbortSignal.timeout(OrderSubscriptionHttpAdapter.TIMEOUT_MS),
     });

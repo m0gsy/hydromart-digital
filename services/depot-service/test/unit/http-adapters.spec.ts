@@ -336,6 +336,7 @@ describe('OrderSubscriptionHttpAdapter', () => {
     quantity: 2,
     frequency: 'WEEKLY' as const,
     firstDeliveryAt: new Date('2026-09-01T00:00:00Z'),
+    depotId: 'd-1',
   };
   const cfg = (over: Partial<Record<string, unknown>> = {}) =>
     makeConfig({ orderServiceUrl: 'http://order:3004', ...over });
@@ -359,6 +360,8 @@ describe('OrderSubscriptionHttpAdapter', () => {
       quantity: 2,
       frequency: 'WEEKLY',
       firstDeliveryAt: '2026-09-01T00:00:00.000Z',
+      // The depot making the plan: the engine refuses one whose address another depot serves.
+      depotId: 'd-1',
     });
     // No address travels: the engine reads the customer's own, which is what stops an
     // operator from typing one on somebody else's behalf.

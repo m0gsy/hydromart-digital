@@ -14,6 +14,8 @@ export interface CreateEngineSubscriptionInput {
   /** The engine's own cadence vocabulary. */
   frequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
   firstDeliveryAt: Date;
+  /** The depot making the plan: the engine refuses one whose address another depot serves. */
+  depotId: string;
 }
 
 /**

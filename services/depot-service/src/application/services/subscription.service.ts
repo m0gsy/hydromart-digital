@@ -116,6 +116,7 @@ export class SubscriptionService {
       quantity: input.quantity,
       frequency,
       firstDeliveryAt: input.firstDeliveryAt,
+      depotId: input.depotId,
     });
     return this.subscriptions.create({
       depotId: input.depotId,
