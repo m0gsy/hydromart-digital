@@ -55,7 +55,7 @@ import {
 import { servingDepot } from '@/lib/depots';
 import { currentPosition, geoReason } from '@/lib/geo';
 import { depotOpenState } from '@/lib/opening-hours';
-import { formatIDR } from '@/lib/format';
+import { formatAddress, formatIDR } from '@/lib/format';
 import { offeredMethods, PAYMENT_METHODS, rememberedMethod, rememberMethod } from '@/lib/payments';
 import { haptic } from '@/lib/platform';
 import { galonQuantity, memberDiscount, shippingFeeFor, voucherLinesFor } from '@/lib/pricing';
@@ -1054,7 +1054,7 @@ function CheckoutInner() {
                       {a.recipientName} · {a.phone}
                     </span>
                     <span className="block text-[13px] text-muted">
-                      {a.addressLine}, {a.city}
+                      {formatAddress(a)}
                     </span>
                   </span>
                 </RadioCard>
@@ -1481,7 +1481,7 @@ function CheckoutInner() {
   const addressSummary = savedSelected
     ? `${savedSelected.label} · ${savedSelected.addressLine}`
     : form.addressLine
-      ? `${form.addressLine}${form.city ? `, ${form.city}` : ''}`
+      ? formatAddress(form)
       : undefined;
 
   const SECTION_SHEETS: { key: SheetKey; titleKey: string; body: React.ReactNode }[] = [

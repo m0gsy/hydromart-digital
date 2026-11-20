@@ -161,3 +161,28 @@ export function shortMonths(locale: string): string[] {
   const fmt = new Intl.DateTimeFormat(intlLocale(locale), { month: 'short', timeZone: 'UTC' });
   return Array.from({ length: 12 }, (_, m) => fmt.format(new Date(Date.UTC(2024, m, 1))));
 }
+
+/**
+ * Where an order or an address goes, as one line: "Jl. Merdeka 10, Bandung" — and with
+ * `full`, the province and postcode the detail screens and the receipt add. One spelling on
+ * every screen: a blank part, or the "-" a counter pick-up sale stores for its city and
+ * province, leaves no dangling ", -".
+ */
+export function formatAddress(
+  a: {
+    addressLine?: string | null;
+    city?: string | null;
+    province?: string | null;
+    postalCode?: string | null;
+  },
+  full = false,
+): string {
+  const part = (s?: string | null) => {
+    const v = s?.trim();
+    return v && v !== '-' ? v : '';
+  };
+  const line = [part(a.addressLine), part(a.city), full ? part(a.province) : '']
+    .filter(Boolean)
+    .join(', ');
+  return [line, full ? part(a.postalCode) : ''].filter(Boolean).join(' ');
+}

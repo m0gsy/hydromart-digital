@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -49,7 +50,7 @@ import {
   SubscriptionReroutePreviewResponseDto,
   SubscriptionResponseDto,
 } from './dto/responses.generated.dto';
-import type { RerouteCounts } from '../domain/geo';
+import { isServiceArea, type RerouteCounts } from '../domain/geo';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth()
@@ -99,6 +100,9 @@ export class SubscriptionController {
       throw new ForbiddenException('Hanya pengelola depot yang bisa melihat pratinjau ini.');
     }
     assertDepotAccess(user, dto.depotId);
+    if (dto.serviceArea != null && !isServiceArea(dto.serviceArea)) {
+      throw new BadRequestException('Area layanan tidak valid: tiap poligon butuh minimal 3 titik koordinat.');
+    }
     return this.subscriptions.reroutePreview(dto);
   }
 
@@ -213,12 +217,16 @@ export class SubscriptionController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Create a subscription for a customer (internal, depot console)' })
   createInternal(@Body() dto: CreateSubscriptionForCustomerDto): Promise<SubscriptionRecord> {
-    return this.subscriptions.createForCustomer(dto.customerId, {
-      productId: dto.productId,
-      quantity: dto.quantity,
-      frequency: dto.frequency,
-      firstDeliveryAt: new Date(dto.firstDeliveryAt),
-    });
+    return this.subscriptions.createForCustomer(
+      dto.customerId,
+      {
+        productId: dto.productId,
+        quantity: dto.quantity,
+        frequency: dto.frequency,
+        firstDeliveryAt: new Date(dto.firstDeliveryAt),
+      },
+      dto.depotId,
+    );
   }
 
   /** DEP-23: the depot console paused a plan; the engine must stop placing its deliveries. */

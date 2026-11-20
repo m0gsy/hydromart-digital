@@ -20,11 +20,17 @@ import { Badge, Button, Card, CenterState, Chip, ErrorState, LinkButton, Money, 
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { entityHref } from '@/lib/entity-href';
-import { formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
+import { formatAddress, formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
-import { canViewDepotCrm, canUseManagerConsole, canViewResellers } from '@/lib/roles';
+import {
+  canViewDepotCrm,
+  canUseManagerConsole,
+  canViewResellers,
+  canWriteDepotCrm,
+} from '@/lib/roles';
+import { AddressPinFix } from '@/components/dashboard/address-pin-fix';
 import { canOpenRoute } from '@/lib/route-access';
 import { CustomerReferralCard } from '@/components/dashboard/customer-referral-card';
 import { useAsync } from '@/lib/use-async';
@@ -85,7 +91,9 @@ function DetailBody({ id }: { id: string }) {
         {t('dashA.customerDetail.back')}
       </Link>
 
-      {detail.loading ? (
+      {/* Only the FIRST load blanks the card: a reload after a pin fix keeps it, and the
+          address the person just fixed stays where they were looking. */}
+      {detail.loading && !detail.data ? (
         <Skeleton className="h-64 w-full" />
       ) : detail.error ? (
         <ErrorState message={detail.error} onRetry={detail.reload} />
@@ -250,8 +258,17 @@ function DetailBody({ id }: { id: string }) {
                             {a.isPrimary && <Chip tone="outline" className="ml-2">{t('dashA.customerDetail.primary')}</Chip>}
                           </p>
                           <p className="text-sm text-[color:var(--text-muted)]">
-                            {a.addressLine}, {a.city}
+                            {formatAddress(a)}
                           </p>
+                          {scopedId && (
+                            <AddressPinFix
+                              customerId={id}
+                              depotId={scopedId}
+                              address={a}
+                              canFix={canWriteDepotCrm(customer?.role)}
+                              onSaved={detail.reload}
+                            />
+                          )}
                         </div>
                         {a.inRadius != null && (
                           <Badge tone={a.inRadius ? 'success' : 'warning'}>

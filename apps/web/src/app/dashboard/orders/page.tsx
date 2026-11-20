@@ -22,6 +22,7 @@ import { usePagedList } from '@/lib/use-paged-list';
 import { useDebounce } from '@/lib/use-debounce';
 import type { Customer, Order, Page } from '@/lib/types';
 import { assignBody } from '@/lib/dispatch';
+import { formatAddress } from '@/lib/format';
 
 const TONE_BADGE = { active: 'brand', done: 'success', cancelled: 'danger' } as const;
 
@@ -72,7 +73,13 @@ function QueueRow({ order, selected, onSelect, onDetail }: {
           <Badge tone={TONE_BADGE[tone(order.status)]}>{statusLabel(order.status)}</Badge>
         </div>
         <p className="text-xs text-[color:var(--text-muted)]">
-          {order.recipientName} · {order.addressLine}, {order.city} · {t('dashB.orders.itemCount', { n: order.items.length })}
+          {[
+            order.recipientName,
+            formatAddress(order),
+            t('dashB.orders.itemCount', { n: order.items.length }),
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </p>
       </button>
       <div className="flex flex-col items-end justify-between gap-2 py-4 pr-4">
@@ -167,7 +174,7 @@ function AssignPanel({
         <p className="text-sm font-semibold">{t('dashB.orders.assignCourier')}</p>
         <p className="font-mono text-sm tabular-nums">{order.orderNumber}</p>
         <p className="text-xs text-[color:var(--text-muted)]">
-          {order.addressLine}, {order.city}
+          {formatAddress(order)}
         </p>
       </div>
 

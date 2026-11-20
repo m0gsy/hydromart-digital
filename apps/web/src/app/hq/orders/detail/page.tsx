@@ -11,7 +11,7 @@ import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/roles';
 import { endpoints } from '@/lib/endpoints';
 import { ANONYMOUS_CUSTOMER_ID, entityHref } from '@/lib/entity-href';
-import { formatDateTime } from '@/lib/format';
+import { formatAddress, formatDateTime } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { statusLabel, tone } from '@/lib/order-status';
 import { canOpenRoute } from '@/lib/route-access';
@@ -158,9 +158,7 @@ export default function HqOrderDetailPage() {
             </p>
             <p className="text-sm text-muted">{o.phone}</p>
             <p className="text-sm text-muted">
-              {o.addressLine}, {o.city}
-              {o.province ? `, ${o.province}` : ''}
-              {o.postalCode ? ` ${o.postalCode}` : ''}
+              {formatAddress(o, true)}
             </p>
           </div>
           <div>

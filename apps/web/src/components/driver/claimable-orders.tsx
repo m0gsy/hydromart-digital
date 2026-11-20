@@ -6,6 +6,7 @@ import { HandGrabbing } from '@phosphor-icons/react';
 import { Button, Card, LoadError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
+import { formatAddress } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
 import type { DriverSettings, Order, Page } from '@/lib/types';
@@ -110,7 +111,7 @@ export function ClaimableOrders({
           <div className="min-w-0 flex-1">
             <p className="truncate font-bold">{o.orderNumber}</p>
             <p className="truncate text-xs text-[color:var(--text-muted)]">
-              {o.addressLine}
+              {formatAddress(o)}
               {o.statusChangedAt
                 ? ` · ${t('driver.claim.waitedFor', { minutes: minutesSince(o.statusChangedAt) })}`
                 : ''}

@@ -471,6 +471,10 @@ export const hq = {
     notFound: 'Depot not found.',
   },
   // Design 10b — depot suspend confirm (destructive, with typed-code guard).
+  reroute: {
+    affected: '{n} active subscriptions are affected by this change.',
+    again: 'Press again to go ahead.',
+  },
   suspend: {
     title: 'Suspend depot?',
     subtitle: 'Depot "{name}" will be deactivated. This has wide impact.',

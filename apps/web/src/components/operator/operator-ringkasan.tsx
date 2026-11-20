@@ -12,6 +12,7 @@ import { useDepot } from '@/lib/depot-context';
 import { todayWib } from '@/lib/wib';
 import { useAsync } from '@/lib/use-async';
 import type { CashSettlement, Customer, Delivery, InventoryItem, Order, Page } from '@/lib/types';
+import { formatAddress } from '@/lib/format';
 
 // Operator daily summary (design: Depot Operator.dc.html cell 1a "Ringkasan"). The
 // operator's landing tab: the things that need action today, all real and depot-scoped —
@@ -180,7 +181,7 @@ function RingkasanBody({ depotId }: { depotId: string }) {
                       {o.orderNumber}
                     </span>
                     <span className="block truncate text-[11.5px] text-[color:var(--text-muted)]">
-                      {o.addressLine}, {o.city} · {o.items.length} item
+                      {formatAddress(o)} · {o.items.length} item
                     </span>
                   </span>
                   <Link

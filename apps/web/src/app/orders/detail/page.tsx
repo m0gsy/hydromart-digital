@@ -36,7 +36,7 @@ import {
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatSchedule, isExpressWindow } from '@/lib/delivery-schedule';
-import { formatDate, formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
+import { formatAddress, formatDate, formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
 import { compressImage } from '@/lib/image';
 import {
   hasBeenDispatched,
@@ -538,9 +538,7 @@ function OrderDetailInner({ id }: { id: string }) {
                 {order.recipientName} · {order.phone}
               </p>
               <p className="leading-relaxed text-muted">
-                {order.addressLine}, {order.city}
-                {order.province ? `, ${order.province}` : ''}
-                {order.postalCode ? ` ${order.postalCode}` : ''}
+                {formatAddress(order, true)}
               </p>
               {order.notes && (
                 <p className="text-[12.5px] text-muted">
