@@ -25,6 +25,12 @@ export const errors = {
     // A 22003 overflow, any service (AllExceptionsFilter).
     NUMBER_OUT_OF_RANGE: 'A number is larger than this field can hold. Check the amounts entered.',
     INVENTORY_QUANTITY_OUT_OF_RANGE: 'The stock quantity is too large. Check the number entered.',
+    CUSTOMER_ADDRESS_NOT_FOUND: 'This address no longer exists. Reload your addresses.',
+    CUSTOMER_ADDRESS_LIMIT: 'Your address list is full. Delete one first.',
+    CUSTOMER_PRIMARY_ADDRESS_CONFLICT: 'Your main address was just changed. Try again.',
+    CUSTOMER_ADDRESS_PIN_INVALID: 'The location pin is not valid. Set this address pin again.',
+    ORDER_OUT_OF_SERVICE_AREA: 'This address is outside every depot we deliver from.',
+    ORDER_DEPOT_UNAVAILABLE: 'The depot cannot take orders right now. Try again shortly.',
   },
   missingRouteId: 'This page was opened without the record it needs. Go back and pick one.',
   sessionLocked: 'Your session is not unlocked. Open it with your fingerprint or PIN to continue.',

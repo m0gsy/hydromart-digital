@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
-import { AddressNotFoundError } from '../../domain/errors';
+import { AddressNotFoundError, AddressPinInvalidError } from '../../domain/errors';
 import {
   AddressRecord,
   AddressRepository,
@@ -9,6 +9,13 @@ import {
   UpdateAddressData,
 } from '../ports/address.repository';
 import { CUSTOMER_TOKENS } from '../tokens';
+
+/** Both halves or neither (an import has none yet), and never 0,0. */
+function assertPin(lat: number | null | undefined, lng: number | null | undefined): void {
+  if ((lat == null) !== (lng == null) || (lat === 0 && lng === 0)) {
+    throw new AddressPinInvalidError();
+  }
+}
 
 export interface CreateAddressInput {
   label: string;
@@ -63,6 +70,7 @@ export class AddressService {
   }
 
   async create(customerId: string, input: CreateAddressInput): Promise<AddressRecord> {
+    assertPin(input.latitude, input.longitude);
     const data: Omit<CreateAddressData, 'isPrimary'> = {
       customerId,
       label: input.label,
@@ -87,6 +95,7 @@ export class AddressService {
   }
 
   async update(customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord> {
+    assertPin(patch.latitude, patch.longitude);
     await this.getOrThrow(customerId, id);
     return this.addresses.update(customerId, id, patch);
   }

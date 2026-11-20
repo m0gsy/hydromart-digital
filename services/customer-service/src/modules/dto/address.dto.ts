@@ -1,13 +1,19 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import { Transform, TransformFnParams } from 'class-transformer';
 import {
   IsBoolean,
   IsLatitude,
   IsLongitude,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
 } from 'class-validator';
+
+/** "Bandung " and "Bandung" are one city: a stray space split campaign segments and reports. */
+const trim = ({ value }: TransformFnParams): unknown =>
+  typeof value === 'string' ? value.trim() : value;
 
 export class CreateAddressDto {
   @ApiProperty({ example: 'Rumah' })
@@ -35,6 +41,7 @@ export class CreateAddressDto {
   addressLine!: string;
 
   @ApiProperty({ example: 'Bandung' })
+  @Transform(trim)
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
@@ -61,10 +68,14 @@ export class CreateAddressDto {
   // matched to a depot at all. Saving one silently produced an address that looked fine
   // in the list and then failed — or worse, routed anywhere — at checkout.
   @ApiProperty({ example: -6.9147, description: 'Map pin latitude; required for depot routing.' })
+  // A NUMBER: IsLatitude alone also accepts "-6.9", which reached the Float column as a
+  // string and came back as a 500.
+  @IsNumber({ allowNaN: false, allowInfinity: false })
   @IsLatitude()
   latitude!: number;
 
   @ApiProperty({ example: 107.6098, description: 'Map pin longitude; required for depot routing.' })
+  @IsNumber({ allowNaN: false, allowInfinity: false })
   @IsLongitude()
   longitude!: number;
 
@@ -83,5 +94,23 @@ export class CreateAddressDto {
   isPrimary?: boolean;
 }
 
-/** Patch: any subset of address fields (primary is changed via the dedicated endpoint). */
-export class UpdateAddressDto extends PartialType(CreateAddressDto) {}
+/**
+ * Patch: any subset of the fields, and only those.
+ *
+ * Not `isPrimary`: this accepted it, so `{ isPrimary: false }` on the primary address left the
+ * customer with none, and with no primary address they dropped out of every campaign and
+ * voucher. The dedicated endpoint keeps exactly one.
+ *
+ * Not `null` either, except for the landmark: PartialType skipped validation on null, so
+ * `{ city: null }` reached a NOT NULL column and answered 500.
+ */
+export class UpdateAddressDto extends PartialType(
+  OmitType(CreateAddressDto, ['isPrimary', 'notes'] as const),
+  { skipNullProperties: false },
+) {
+  @ApiPropertyOptional({ nullable: true, description: 'Landmark / patokan; null clears it.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  notes?: string | null;
+}

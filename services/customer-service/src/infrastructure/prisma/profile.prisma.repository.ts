@@ -158,7 +158,7 @@ export class ProfilePrismaRepository implements ProfileRepository {
         ON a."customerId" = p."customerId" AND a."isPrimary" = true
       WHERE p."anonymisedAt" IS NULL
         AND (${tier}::text IS NULL OR p."membershipTier"::text = ${tier})
-        AND (${city}::text IS NULL OR LOWER(a."city") = LOWER(${city}))
+        AND (${city}::text IS NULL OR LOWER(BTRIM(a."city")) = LOWER(BTRIM(${city})))
         AND (${after}::uuid IS NULL OR p."customerId" > ${after}::uuid)
         -- F1b: the marketing opt-out bites HERE, not at delivery. This is the only place
         -- that can do it without a network hop and without a failure mode — the preference
