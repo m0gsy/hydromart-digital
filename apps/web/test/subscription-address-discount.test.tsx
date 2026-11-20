@@ -121,32 +121,20 @@ describe('K1.9 · a subscription is no longer locked to the primary address', ()
   });
 
   // P1a: the patokan never reached a plan made here, so no courier of it ever got one.
-  it('carries the picked address patokan into a new plan and into a move', async () => {
-    route({ subs: [PLAN] });
+  it('carries the picked address patokan into a new plan', async () => {
     apiMock.post.mockResolvedValue(PLAN);
     renderPage();
 
-    const picker = (await screen.findAllByLabelText(/antar ke|deliver to/i)).find(
-      (el) => el.id !== 'sub-addr-s-1',
-    )!;
-    fireEvent.change(picker, { target: { value: 'a-office' } });
+    fireEvent.change(await screen.findByLabelText(/antar ke|deliver to/i), {
+      target: { value: 'a-office' },
+    });
     fireEvent.change(await screen.findByLabelText(/produk|product/i), { target: { value: 'p-1' } });
     fireEvent.click(screen.getByRole('button', { name: /mulai langganan|start a subscription/i }));
-    await waitFor(() => expect(apiMock.post).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => expect(apiMock.post).toHaveBeenCalled());
     expect(apiMock.post.mock.calls[0]![1]).toMatchObject({
       deliveryAddress: { notes: 'Lobi B, titip resepsionis' },
     });
-
-    fireEvent.change(await screen.findByLabelText(/antar ke|deliver to/i, { selector: '#sub-addr-s-1' }), {
-      target: { value: 'a-office' },
-    });
-    await waitFor(() =>
-      expect(apiMock.post).toHaveBeenCalledWith(
-        '/orders/api/v1/subscriptions/s-1/address',
-        { deliveryAddress: expect.objectContaining({ notes: 'Lobi B, titip resepsionis' }) },
-        true,
-      ),
-    );
   });
 
   it('moves an existing plan to another address, with the plan own line named first', async () => {
@@ -167,7 +155,11 @@ describe('K1.9 · a subscription is no longer locked to the primary address', ()
       expect(apiMock.post).toHaveBeenCalledWith(
         '/orders/api/v1/subscriptions/s-1/address',
         expect.objectContaining({
-          deliveryAddress: expect.objectContaining({ addressLine: 'Jl. Asia Afrika 55' }),
+          // …and its patokan travels with it (P1a).
+          deliveryAddress: expect.objectContaining({
+            addressLine: 'Jl. Asia Afrika 55',
+            notes: 'Lobi B, titip resepsionis',
+          }),
         }),
         true,
       ),
