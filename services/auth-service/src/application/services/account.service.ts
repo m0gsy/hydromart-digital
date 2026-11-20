@@ -766,7 +766,7 @@ export class AccountService {
    * The number HR is moving a staff login onto belongs to a CUSTOMER account that was never
    * used: the employee's HR record carried a wrong number, so they signed up on their real
    * one. Close it, or the correction 409s and ends in a hand-written DB fix — four staff in
-   * November 2026 alone (Ceceng, Riana, Saepul, Taufik).
+   * November 2026 alone (HR-0044, HR-0054, HR-0020, HR-0050).
    *
    * "Never used" is asked across services: no order of any status, no subscription, no
    * points. Anything else is a real customer's history and stays a conflict, so this is still

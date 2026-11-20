@@ -1019,7 +1019,7 @@ describe('AccountService', () => {
       });
 
       /*
-       * Ceceng, Riana, Saepul, Taufik (2026-11): HR's record carried a wrong number, the
+       * HR-0044, HR-0054, HR-0020, HR-0050 (2026-11): HR's record carried a wrong number, the
        * employee signed up as a customer on their real one, and HR's correction 409'd into a
        * hand-written DB fix every time. A customer account nobody ever used is closed instead.
        */
@@ -1060,7 +1060,7 @@ describe('AccountService', () => {
         });
 
         it('closes an unused one and moves the staff login onto the number', async () => {
-          const staff = await closing.inviteStaff('+628990004101', Role.STAFF_DEPOT, 'Taufik', 'depot-1');
+          const staff = await closing.inviteStaff('+628990004101', Role.STAFF_DEPOT, 'Andi', 'depot-1');
           const dup = makeCustomer({ phone: '+628990004102' });
           customers.seed(dup);
 
@@ -1083,7 +1083,7 @@ describe('AccountService', () => {
 
         it('keeps the conflict for an account with history, and touches nothing', async () => {
           footprint.unused = false;
-          const staff = await closing.inviteStaff('+628990004103', Role.STAFF_DEPOT, 'Nendi', 'depot-1');
+          const staff = await closing.inviteStaff('+628990004103', Role.STAFF_DEPOT, 'Dewi', 'depot-1');
           const customer = makeCustomer({ phone: '+628990004104' });
           customers.seed(customer);
 
@@ -1098,7 +1098,7 @@ describe('AccountService', () => {
 
         it('refuses the edit when the check cannot be made, and closes nothing', async () => {
           footprint.unused = new ServiceUnavailableException('order-service tidak terjangkau');
-          const staff = await closing.inviteStaff('+628990004105', Role.STAFF_DEPOT, 'Saepul', 'depot-1');
+          const staff = await closing.inviteStaff('+628990004105', Role.STAFF_DEPOT, 'Eko', 'depot-1');
           const customer = makeCustomer({ phone: '+628990004106' });
           customers.seed(customer);
 
