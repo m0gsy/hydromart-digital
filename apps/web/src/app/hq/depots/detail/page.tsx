@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, MapPin, Package, Receipt, Users, Wallet } from '@phosphor-icons/react';
 
 import { DepotForm } from '@/components/hq/depot-form';
@@ -49,6 +49,8 @@ export default function HqDepotDetailPage() {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [reactivateError, setReactivateError] = useState<string | null>(null);
+  // Another depot on the same page: the refusal was about the one before it.
+  useEffect(() => setReactivateError(null), [id]);
   const [suspendOpen, setSuspendOpen] = useState(false);
 
   /*

@@ -257,7 +257,8 @@ export class DepotImportService {
     if (Object.keys(fields).length > 0) {
       // The stamp of the row read at the start of this import: if someone edited the depot
       // in the meantime the write is refused (stale) instead of silently overwriting them.
-      depot = await this.depots.update(current.id, fields, current.updatedAt.toISOString());
+      // The import is head office's (depotLifecycle), owners included.
+      depot = await this.depots.update(current.id, fields, current.updatedAt.toISOString(), true);
     }
     await this.writeSettings(depot, settings, current.code, user);
     await this.auditRow('updated', depot, [...Object.keys(fields), ...settings.map(([k]) => `setting:${k}`)], user);

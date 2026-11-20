@@ -161,11 +161,12 @@ export const CAPABILITIES = {
   // promo rules directly, unlike Voucher which goes through VoucherRequest approval).
   promoRuleRead: ['KEPALA_DEPOT', 'MARKETING', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   promoRuleWrite: ['KEPALA_DEPOT', 'MARKETING', 'MANAGER', 'SUPER_ADMIN'],
-  // depot-service — depot admin (create/edit/deactivate) + dynamic pricing.
+  // depot-service — editing a depot (not opening, closing or reopening it) + dynamic pricing.
   depotAdmin: ['MANAGER', 'SUPER_ADMIN'],
   /*
-   * depot-service — OPEN a new depot and DEACTIVATE an existing one (`POST /depots`,
-   * `DELETE /depots/:depotId`), and nothing else. Editing a depot stays `depotAdmin`.
+   * depot-service — OPEN a new depot, DEACTIVATE one and REOPEN it (`POST /depots`,
+   * `DELETE /depots/:depotId`, `POST /depots/:depotId/reactivate`), and change who owns
+   * it. Editing a depot stays `depotAdmin`.
    *
    * Owner decision 2026-10-15: standing up or closing a depot is a network decision, not a
    * depot manager's. The screens already said so ("lewat head office") while the server let

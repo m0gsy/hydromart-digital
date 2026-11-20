@@ -1115,6 +1115,7 @@ describe('DepotController', () => {
     svc.create.mockResolvedValue(saved);
     svc.update.mockResolvedValue(saved);
     svc.deactivate.mockResolvedValue(saved);
+    svc.reactivate.mockResolvedValue(saved);
     svc.setQrisImage.mockResolvedValue(saved);
     svc.listAllActive.mockResolvedValue([]);
     svc.listByIds.mockResolvedValue([]);
@@ -1605,11 +1606,18 @@ describe('DepotController', () => {
         user,
       );
       await c.remove(ID, user);
+      await c.reactivate(ID, user);
       expect(sent()).toEqual([
         expect.objectContaining({ action: 'depot.create', actorId: 'user-1', target: 'JKT-01' }),
         expect.objectContaining({ action: 'depot.update', actorId: 'user-1', target: 'JKT-01' }),
         expect.objectContaining({
           action: 'depot.deactivate',
+          actorId: 'user-1',
+          target: 'JKT-01',
+        }),
+        // Reopening is on the trail too: closings alone would tell half the story.
+        expect.objectContaining({
+          action: 'depot.reactivate',
           actorId: 'user-1',
           target: 'JKT-01',
         }),

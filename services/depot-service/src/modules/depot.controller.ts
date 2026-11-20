@@ -484,7 +484,8 @@ export class DepotController {
       id,
       patch,
       seenUpdatedAt,
-      can('depotLifecycle', user.role),
+      // With the depot named, so a per-depot grant or deny reads the same as on DELETE.
+      can('depotLifecycle', user.role, [id]),
     );
     // Field NAMES only, never values: the bank account and QRIS are in this patch, and a trail
     // that repeated them would be the next place those numbers leak from.

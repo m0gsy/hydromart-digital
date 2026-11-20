@@ -159,24 +159,15 @@ export class DepotService {
     input: UpdateDepotData,
     seenUpdatedAt?: string,
     /**
-     * `depotLifecycle`: head office. Editing a depot is open to its manager; who owns it,
-     * and whether it is open at all, are head office's — the same people who may create or
-     * deactivate one.
+     * `depotLifecycle`: head office. Editing a depot is open to its manager; who owns it is
+     * head office's — the same people who may create, close or reopen one. The HTTP route
+     * always passes it; the default is the internal callers' (the import is head office's).
      */
     canLifecycle = true,
   ): Promise<DepotRecord> {
     const patch = this.checkedSchedule(input);
     const current = await this.get(id, false);
     if (!isDecisionOnlyPatch(patch)) assertFresh(current.updatedAt, seenUpdatedAt);
-    // 2026-11-20: `active` rode along on the edit route, so a manager could switch their own
-    // depot off (or back on) with a PATCH, past the head-office rule DELETE enforces.
-    if (patch.active !== undefined && patch.active !== current.active && !canLifecycle) {
-      throw new ForbiddenException(
-        'Hanya kantor pusat yang boleh mengaktifkan atau menonaktifkan depot.',
-      );
-    }
-    // Switching off through an edit is still switching off: the same in-flight check (DEP-10).
-    if (patch.active === false && current.active) await this.assertNoBlockers(id);
     // Judged on the depot as it will be AFTER the patch: flipping HKP → WARALABA without
     // naming an owner, or clearing the owner of a franchise depot, both break the money path.
     const ownershipType = patch.ownershipType ?? current.ownershipType;
@@ -331,9 +322,14 @@ export class DepotService {
     return this.depots.update(id, { active: false });
   }
 
-  /** Head office reopening a depot it closed (`depotLifecycle`, like closing it). */
+  /**
+   * Head office reopening a depot it closed (`depotLifecycle`, like closing it). A depot
+   * already open is left untouched: a second click must not move its version under an edit
+   * someone else has open (CA-2-53 would then refuse their save).
+   */
   async reactivate(id: string): Promise<DepotRecord> {
-    await this.get(id, false);
+    const current = await this.get(id, false);
+    if (current.active) return current;
     return this.depots.update(id, { active: true });
   }
 
