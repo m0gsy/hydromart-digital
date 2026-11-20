@@ -83,6 +83,13 @@ describe('SubscriptionController', () => {
       controller.reroutePreview(manager, { depotId: 'd1', serviceRadiusKm: 3 }),
     ).resolves.toMatchObject({ affected: 1 });
     await expect(controller.reroutePreview(hq, { depotId: 'd2', active: false })).resolves.toBeTruthy();
+    // A redrawn area is checked before it is routed against.
+    expect(() =>
+      controller.reroutePreview(hq, { depotId: 'd2', serviceArea: [[{ lat: 1, lng: 1 }]] } as never),
+    ).toThrow(/Area layanan tidak valid/);
+    await expect(
+      controller.reroutePreview(hq, { depotId: 'd2', serviceArea: null } as never),
+    ).resolves.toBeTruthy();
   });
 
   it('adminSummary: delegates to the network aggregate', async () => {

@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bank, Buildings, Clock, Lock, Money as MoneyIcon, QrCode } from '@phosphor-icons/react';
 
 import { RemoteImage } from '@/components/remote-image';
@@ -12,6 +12,7 @@ import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
 import { EMPTY_DEPOT_FORM, ownerRowsFromDepot, toDepotPayload, type DepotForm } from '@/lib/depots';
+import { RerouteWarning, movesDepot, useRerouteGate } from '@/components/dashboard/reroute-warning';
 import { endpoints } from '@/lib/endpoints';
 import { mediaUrl } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
@@ -167,6 +168,10 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
   const [form, setForm] = useState<DepotForm>(depot ? formFromDepot(depot) : EMPTY_DEPOT_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // P3-4: subscribers this edit re-routes, said before the second press that saves anyway.
+  const reroute = useRerouteGate();
+  const { reset: resetReroute } = reroute;
+  useEffect(() => resetReroute(), [form, resetReroute]);
   const set = (k: keyof DepotForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit() {
@@ -178,6 +183,15 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
     setBusy(true);
     setError(null);
     try {
+      if (depot && movesDepot(depot, parsed.value)) {
+        const goAhead = await reroute.check({
+          depotId: depot.id,
+          lat: parsed.value.lat,
+          lng: parsed.value.lng,
+          serviceRadiusKm: parsed.value.serviceRadiusKm,
+        });
+        if (!goAhead) return;
+      }
       if (depot)
         await api.patch(
           endpoints.depots.detail(depot.id),
@@ -288,6 +302,7 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
           {error}
         </p>
       )}
+      {reroute.impact && <RerouteWarning impact={reroute.impact} />}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
           {t('dashboard.depots.cancel')}
@@ -323,13 +338,18 @@ function DepotCard({
   const { t } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // P3-4: deactivating re-routes every subscriber of this depot; said before the second press.
+  const reroute = useRerouteGate();
 
   async function toggleActive() {
     setBusy(true);
     setError(null);
     try {
+      if (depot.active && !(await reroute.check({ depotId: depot.id, active: false }))) return;
       if (depot.active) await api.del(endpoints.depots.detail(depot.id), true);
       else await api.patch(endpoints.depots.detail(depot.id), { active: true }, true);
+      // Done: a later deactivation (after a re-activation) is asked about again.
+      reroute.reset();
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('dashboard.depots.updateError'));
@@ -368,6 +388,7 @@ function DepotCard({
           {error}
         </p>
       )}
+      {reroute.impact && <RerouteWarning impact={reroute.impact} />}
       <div className="flex flex-wrap justify-end gap-2 border-t border-app pt-2">
         <Button variant="ghost" onClick={onDetail} disabled={busy}>
           {t('dashboard.depots.detail')}

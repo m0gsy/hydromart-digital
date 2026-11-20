@@ -473,6 +473,11 @@ export const hq = {
     },
     notFound: 'Depot tidak ditemukan.',
   },
+  // P3-4: peringatan sebelum menyimpan perubahan lokasi/radius atau menonaktifkan depot.
+  reroute: {
+    affected: '{n} langganan aktif terdampak perubahan ini.',
+    again: 'Tekan sekali lagi untuk tetap lanjut.',
+  },
   // Design 10b — konfirmasi tangguhkan depot (destruktif, dengan guard ketik kode).
   suspend: {
     title: 'Tangguhkan Depot?',

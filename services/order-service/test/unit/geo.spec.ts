@@ -1,6 +1,7 @@
 import { DepotLocation } from '../../src/application/ports/depot-directory.port';
 import {
   haversineKm,
+  isServiceArea,
   rerouteCounts,
   selectNearestDepot,
   withDepotChange,
@@ -192,5 +193,35 @@ describe('rerouteCounts (P3-3 dry run)', () => {
     expect(rerouteCounts(pins, [drawn], after).affected).toBe(0);
     // An edit to another depot leaves this one exactly as it was.
     expect(withDepotChange([drawn], { depotId: 'other', serviceRadiusKm: 1 })).toEqual([drawn]);
+  });
+});
+
+describe('a redrawn area in the dry run (P3-4)', () => {
+  const pins = [{ lat: -6.9, lng: 107.6 }];
+  const square = (s: number) => [
+    [
+      { lat: -6.9 - s, lng: 107.6 - s },
+      { lat: -6.9 - s, lng: 107.6 + s },
+      { lat: -6.9 + s, lng: 107.6 + s },
+      { lat: -6.9 + s, lng: 107.6 - s },
+    ],
+  ];
+  const a = depot({ id: 'a', lat: -6.9, lng: 107.6, serviceRadiusKm: 5, serviceArea: square(0.1) });
+
+  it('counts the pins a smaller area leaves out, and none when the area is cleared to a radius that covers them', () => {
+    const smaller = withDepotChange([a], { depotId: 'a', serviceArea: square(0.1).map((r) => r.map((p) => ({ lat: p.lat + 0.5, lng: p.lng }))) });
+    expect(rerouteCounts(pins, [a], smaller)).toMatchObject({ affected: 1, unserved: 1 });
+    const cleared = withDepotChange([a], { depotId: 'a', serviceArea: null });
+    expect(cleared[0]!.serviceArea).toBeNull();
+    expect(rerouteCounts(pins, [a], cleared).affected).toBe(0);
+  });
+
+  it('knows an area from anything else', () => {
+    expect(isServiceArea(square(0.1))).toBe(true);
+    expect(isServiceArea([[{ lat: 1, lng: 1 }, { lat: 2, lng: 2 }]])).toBe(false);
+    expect(isServiceArea([[{ lat: 91, lng: 1 }, { lat: 2, lng: 2 }, { lat: 3, lng: 3 }]])).toBe(false);
+    expect(isServiceArea([[null, { lat: 2, lng: 2 }, { lat: 3, lng: 3 }]])).toBe(false);
+    expect(isServiceArea(['x'])).toBe(false);
+    expect(isServiceArea({})).toBe(false);
   });
 });

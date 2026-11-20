@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -49,7 +50,7 @@ import {
   SubscriptionReroutePreviewResponseDto,
   SubscriptionResponseDto,
 } from './dto/responses.generated.dto';
-import type { RerouteCounts } from '../domain/geo';
+import { isServiceArea, type RerouteCounts } from '../domain/geo';
 
 @ApiTags('Subscriptions')
 @ApiBearerAuth()
@@ -99,6 +100,9 @@ export class SubscriptionController {
       throw new ForbiddenException('Hanya pengelola depot yang bisa melihat pratinjau ini.');
     }
     assertDepotAccess(user, dto.depotId);
+    if (dto.serviceArea != null && !isServiceArea(dto.serviceArea)) {
+      throw new BadRequestException('Area layanan tidak valid: tiap poligon butuh minimal 3 titik koordinat.');
+    }
     return this.subscriptions.reroutePreview(dto);
   }
 

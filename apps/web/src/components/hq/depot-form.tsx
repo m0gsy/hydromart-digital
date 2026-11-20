@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Buildings, Storefront } from '@phosphor-icons/react';
 
 import { OwnersEditor } from '@/components/hq/owners-editor';
+import { RerouteWarning, movesDepot, useRerouteGate } from '@/components/dashboard/reroute-warning';
 import { ServiceAreaEditor } from '@/components/hq/service-area-editor';
 import { Button, Card, Field, Input, RadioCard } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -60,6 +61,11 @@ export function DepotForm({
   const [areaText, setAreaText] = useState(initialArea);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // P3-4: subscribers this edit re-routes, said before the second press that saves anyway.
+  const reroute = useRerouteGate();
+  const { reset: resetReroute } = reroute;
+  // Any edit after the warning is a different change: the warning goes, and is asked again.
+  useEffect(() => resetReroute(), [form, areaText, resetReroute]);
   const set = (k: keyof DepotForm) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
   const setOwnership = (v: string) => setForm((f) => ({ ...f, ownershipType: v }));
@@ -81,6 +87,16 @@ export function DepotForm({
     setBusy(true);
     setError(null);
     try {
+      if (depot && (areaChanged || movesDepot(depot, parsed.value))) {
+        const goAhead = await reroute.check({
+          depotId: depot.id,
+          lat: parsed.value.lat,
+          lng: parsed.value.lng,
+          serviceRadiusKm: parsed.value.serviceRadiusKm,
+          ...(areaChanged ? { serviceArea: area.value } : {}),
+        });
+        if (!goAhead) return;
+      }
       // CA-2-53: the stamp goes on the edit only. `api.post` below makes a new depot,
       // and a record that does not exist yet has no version to name.
       if (depot)
@@ -296,6 +312,7 @@ export function DepotForm({
           {error}
         </p>
       )}
+      {reroute.impact && <RerouteWarning impact={reroute.impact} />}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
           {t('hq.depots.form.cancel')}
