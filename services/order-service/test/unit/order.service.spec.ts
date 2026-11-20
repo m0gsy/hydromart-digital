@@ -220,6 +220,19 @@ describe('OrderService', () => {
     };
     const near = { ...address, addressLine: 'Jl. Dago 99', latitude: -6.91, longitude: 107.61, notes: 'pagar biru' };
 
+    it('tells the depot, which may have printed the old address', async () => {
+      const id = await placeOrder();
+      await service.changeAddress(customer, id, near);
+      expect(notification.calls.map((c) => c.event)).toContain('DEPOT_ORDER_ADDRESS_CHANGED');
+    });
+
+    it('treats the same address again as no change: no write, no history row', async () => {
+      const id = await placeOrder();
+      const before = await service.getAny(id);
+      const same = await service.changeAddress(customer, id, address);
+      expect(same.history).toHaveLength(before.history.length);
+    });
+
     it('rewrites the address, keeps the depot and the money, and says what it was', async () => {
       const id = await placeOrder();
       const before = await service.getAny(id);
@@ -297,9 +310,26 @@ describe('OrderService', () => {
       });
     });
 
-    it('loses cleanly to a status move or a reroute that landed first', async () => {
+    it('retries once when the depot accepted it meanwhile (CONFIRMED still allows it)', async () => {
       const id = await placeOrder();
       jest.spyOn(orders, 'changeAddressIf').mockRejectedValueOnce(new StaleOrderStatusError());
+      await expect(service.changeAddress(customer, id, near)).resolves.toMatchObject({
+        addressLine: 'Jl. Dago 99',
+      });
+    });
+
+    it('loses cleanly to a move past CONFIRMED, or to a second race', async () => {
+      const id = await placeOrder();
+      const spy = jest.spyOn(orders, 'changeAddressIf');
+      spy.mockImplementationOnce(async () => {
+        orders.rows.find((r) => r.id === id)!.status = OrderStatus.PREPARING;
+        throw new StaleOrderStatusError();
+      });
+      await expect(service.changeAddress(customer, id, near)).rejects.toMatchObject({
+        code: 'ORDER_ADDRESS_NOT_CHANGEABLE',
+      });
+      orders.rows.find((r) => r.id === id)!.status = OrderStatus.CREATED;
+      spy.mockRejectedValueOnce(new StaleOrderStatusError()).mockRejectedValueOnce(new StaleOrderStatusError());
       await expect(service.changeAddress(customer, id, near)).rejects.toMatchObject({
         code: 'ORDER_ADDRESS_NOT_CHANGEABLE',
       });

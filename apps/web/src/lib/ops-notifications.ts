@@ -42,6 +42,7 @@ export const OPS_FILTERS: { key: OpsNotifFilter; labelKey: string }[] = [
 export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   DEPOT_ORDER_INCOMING: 'orders',
   DEPOT_ORDER_RESCHEDULED: 'orders',
+  DEPOT_ORDER_ADDRESS_CHANGED: 'orders',
   DEPOT_ORDER_CANCELLED: 'orders',
   DEPOT_PAYMENT_PROOF: 'orders',
   DEPOT_PAYMENT_UNCONFIRMED: 'orders',

@@ -1957,10 +1957,13 @@ export class OrderService {
     orderId: string,
     address: DeliveryAddressSnapshot,
   ): Promise<OrderRecord> {
-    const order = await this.getForCustomer(customerId, orderId);
-    if (!ADDRESS_CHANGEABLE_STATUSES.includes(order.status) || !order.depotId) {
+    let order = await this.getForCustomer(customerId, orderId);
+    if (!ADDRESS_CHANGEABLE_STATUSES.includes(order.status)) {
       throw new OrderAddressNotChangeableError('STATUS');
     }
+    if (!order.depotId) throw new OrderAddressNotChangeableError('UNROUTED');
+    // The same address again is not a change: no write, no history row, no depot message.
+    if (OrderService.sameAddress(order, address)) return order;
     if (address.latitude === null || address.longitude === null) {
       throw new OrderAddressNotChangeableError('NO_PIN');
     }
@@ -1976,19 +1979,60 @@ export class OrderService {
       throw new OutOfServiceAreaError();
     }
     const before = [order.addressLine, order.city].filter(Boolean).join(', ');
-    try {
-      return await this.orders.changeAddressIf(
-        order.id,
-        own.id,
-        order.status,
-        address,
-        customerId,
-        `Alamat diubah pelanggan (sebelumnya: ${before})`,
-      );
-    } catch (error) {
-      if (error instanceof StaleOrderStatusError) throw new OrderAddressNotChangeableError('STATUS');
-      throw error;
+    // Two tries: a CREATED → CONFIRMED move in between (the depot accepting it) loses the
+    // compare-and-set on the status read, yet CONFIRMED still allows the change.
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const moved = await this.orders.changeAddressIf(
+          order.id,
+          own.id,
+          order.status,
+          address,
+          customerId,
+          `Alamat diubah pelanggan (sebelumnya: ${before})`,
+        );
+        // The depot may have printed the old address; fail-open like every notify.
+        await this.notification
+          .notify(
+            'DEPOT_ORDER_ADDRESS_CHANGED',
+            moved.phone,
+            {
+              orderNumber: moved.orderNumber,
+              orderId: moved.id,
+              address: [moved.addressLine, moved.city].filter(Boolean).join(', '),
+            },
+            null,
+            '',
+            own.id,
+          )
+          .catch((err: Error) => this.logger.warn(`Depot not told of address change: ${err.message}`));
+        return moved;
+      } catch (error) {
+        if (!(error instanceof StaleOrderStatusError)) throw error;
+        const now = await this.orders.findById(order.id);
+        if (
+          attempt > 0 ||
+          !now ||
+          now.depotId !== own.id ||
+          !ADDRESS_CHANGEABLE_STATUSES.includes(now.status)
+        ) {
+          throw new OrderAddressNotChangeableError('STATUS');
+        }
+        order = now;
+      }
     }
+  }
+
+  private static sameAddress(order: OrderRecord, a: DeliveryAddressSnapshot): boolean {
+    return (
+      order.recipientName === a.recipientName &&
+      order.phone === a.phone &&
+      order.addressLine === a.addressLine &&
+      order.city === a.city &&
+      order.latitude === a.latitude &&
+      order.longitude === a.longitude &&
+      (order.notes ?? null) === (a.notes ?? null)
+    );
   }
 
   async getForCustomer(customerId: string, orderId: string): Promise<OrderRecord> {

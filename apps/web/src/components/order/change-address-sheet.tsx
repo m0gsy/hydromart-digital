@@ -5,7 +5,7 @@ import { useState } from 'react';
 
 import { Sheet } from '@/components/overlay';
 import { useToast } from '@/components/toast';
-import { Button, Skeleton } from '@/components/ui';
+import { Button, LoadError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -51,6 +51,8 @@ export function ChangeAddressSheet({
             phone: chosen.phone,
             addressLine: chosen.addressLine,
             city: chosen.city,
+            province: chosen.province || undefined,
+            postalCode: chosen.postalCode || undefined,
             latitude: chosen.latitude,
             longitude: chosen.longitude,
             notes: chosen.notes || undefined,
@@ -73,6 +75,9 @@ export function ChangeAddressSheet({
         <p className="text-sm text-muted">{t('order.detail.changeAddressIntro')}</p>
         {book.loading ? (
           <Skeleton className="h-16 w-full" />
+        ) : book.error ? (
+          // A failed read is not an empty address book: say so, and offer the retry.
+          <LoadError onRetry={book.reload} />
         ) : choices.length === 0 ? (
           <p className="text-sm text-muted">
             {t('order.detail.changeAddressEmpty')}{' '}

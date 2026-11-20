@@ -19,6 +19,12 @@ export enum NotificationEvent {
    */
   DEPOT_ORDER_RESCHEDULED = 'DEPOT_ORDER_RESCHEDULED',
   /**
+   * 2026-11-20: the customer moved an order to another address (same depot, before it was
+   * prepared) — addressed to the DEPOT, which may have printed the old one already.
+   * Tokens: {{orderNumber}}, {{orderId}}, {{address}}.
+   */
+  DEPOT_ORDER_ADDRESS_CHANGED = 'DEPOT_ORDER_ADDRESS_CHANGED',
+  /**
    * The customer cancelled their own order — addressed to the DEPOT. The customer's own
    * cancel is silent by design (they just did it), which left the depot preparing an order
    * that no longer existed. Tokens: {{orderNumber}}, {{orderId}}, {{total}}.
@@ -194,6 +200,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Pesanan baru masuk: {{orderNumber}} · {{total}}. Buka antrean untuk memprosesnya.',
   [NotificationEvent.DEPOT_ORDER_RESCHEDULED]:
     'Jadwal pesanan {{orderNumber}} diubah pelanggan ke {{when}}. Cek antrean untuk menyesuaikan.',
+  [NotificationEvent.DEPOT_ORDER_ADDRESS_CHANGED]:
+    'Alamat pesanan {{orderNumber}} diubah pelanggan ke {{address}}. Pakai alamat baru ini, bukan yang tercetak.',
   [NotificationEvent.APPROVAL_REQUESTED]:
     'Menunggu persetujuan Anda: {{title}} ({{depot}}, {{amount}}). Buka menu Persetujuan untuk memutuskan.',
   [NotificationEvent.COURIER_SETTLEMENT_SUBMITTED]:
@@ -302,6 +310,7 @@ export const OPS_EVENTS: NotificationEvent[] = [
   // settings screen, defaulted ON, since before anything could emit it.
   NotificationEvent.DEPOT_ORDER_INCOMING,
   NotificationEvent.DEPOT_ORDER_RESCHEDULED,
+  NotificationEvent.DEPOT_ORDER_ADDRESS_CHANGED,
   NotificationEvent.DEPOT_ORDER_CANCELLED,
   NotificationEvent.DEPOT_PAYMENT_PROOF,
   NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED,
@@ -365,6 +374,7 @@ export type StaffToggle = 'newOrder' | 'lowStock' | 'courierFail' | 'approval' |
 export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffToggle>> = {
   [NotificationEvent.DEPOT_ORDER_INCOMING]: 'newOrder',
   [NotificationEvent.DEPOT_ORDER_RESCHEDULED]: 'newOrder',
+  [NotificationEvent.DEPOT_ORDER_ADDRESS_CHANGED]: 'newOrder',
   [NotificationEvent.DEPOT_ORDER_CANCELLED]: 'newOrder',
   [NotificationEvent.DEPOT_PAYMENT_PROOF]: 'newOrder',
   [NotificationEvent.DEPOT_PAYMENT_UNCONFIRMED]: 'newOrder',
@@ -424,6 +434,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'New order in: {{orderNumber}} · {{total}}. Open the queue to process it.',
   [NotificationEvent.DEPOT_ORDER_RESCHEDULED]:
     'The customer moved the delivery of order {{orderNumber}} to {{when}}. Check the queue to adjust.',
+  [NotificationEvent.DEPOT_ORDER_ADDRESS_CHANGED]:
+    'The customer moved order {{orderNumber}} to {{address}}. Use this address, not the printed one.',
   [NotificationEvent.APPROVAL_REQUESTED]:
     'Waiting for your approval: {{title}} ({{depot}}, {{amount}}). Open Approvals to decide.',
   [NotificationEvent.COURIER_SETTLEMENT_SUBMITTED]:

@@ -38,7 +38,13 @@ import { endpoints } from '@/lib/endpoints';
 import { formatSchedule, isExpressWindow } from '@/lib/delivery-schedule';
 import { formatDate, formatDateTime, formatIDR, mediaUrl } from '@/lib/format';
 import { compressImage } from '@/lib/image';
-import { hasBeenDispatched, isCancellable, isDepotOnlyCancel, tone } from '@/lib/order-status';
+import {
+  hasBeenDispatched,
+  isAddressChangeable,
+  isCancellable,
+  isDepotOnlyCancel,
+  tone,
+} from '@/lib/order-status';
 import { needsPayment, offeredMethods } from '@/lib/payments';
 import { requestPushOnce } from '@/lib/push';
 import { useReorder } from '@/lib/reorder';
@@ -543,7 +549,7 @@ function OrderDetailInner({ id }: { id: string }) {
                 </p>
               )}
               {/* 2026-11-20: before the depot starts preparing, the address can still move. */}
-              {(order.status === 'CREATED' || order.status === 'CONFIRMED') && (
+              {isAddressChangeable(order.status) && (
                 <button
                   type="button"
                   onClick={() => setAddressOpen(true)}
