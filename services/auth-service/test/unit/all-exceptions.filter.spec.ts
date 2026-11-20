@@ -1,7 +1,10 @@
 import { ArgumentsHost, BadRequestException } from '@nestjs/common';
 
 import { AllExceptionsFilter } from '../../src/common/filters/all-exceptions.filter';
-import { PhoneAlreadyRegisteredError } from '../../src/domain/errors/auth.errors';
+import {
+  PhoneAlreadyRegisteredError,
+  PhoneHeldByUnusedCustomerError,
+} from '../../src/domain/errors/auth.errors';
 
 function mockHost(): { host: ArgumentsHost; captured: { status?: number; body?: unknown } } {
   const captured: { status?: number; body?: unknown } = {};
@@ -37,6 +40,22 @@ describe('AllExceptionsFilter', () => {
       statusCode: 409,
       code: 'AUTH_PHONE_TAKEN',
       path: '/api/v1/auth/register',
+    });
+    expect(captured.body).not.toHaveProperty('details');
+  });
+
+  // hr-service names the account in the confirmation it shows HR; the facts travel here.
+  it("sends a domain error's details beside its message", () => {
+    const { host, captured } = mockHost();
+    filter.catch(
+      new PhoneHeldByUnusedCustomerError('Khoirul', new Date('2026-11-18T05:00:00.000Z')),
+      host,
+    );
+
+    expect(captured.status).toBe(409);
+    expect(captured.body).toMatchObject({
+      code: 'AUTH_PHONE_UNUSED_CUSTOMER',
+      details: { customerName: 'Khoirul', createdAt: '2026-11-18T05:00:00.000Z' },
     });
   });
 

@@ -7,6 +7,7 @@ import {
   ErasureRequestOpenError,
   InvalidStaffRoleError,
   PhoneAlreadyRegisteredError,
+  PhoneHeldByUnusedCustomerError,
   StaffDepotRequiredError,
   RoleEscalationError,
 } from '../../src/domain/errors/auth.errors';
@@ -1016,6 +1017,140 @@ describe('AccountService', () => {
             fullName: 'X',
           }),
         ).rejects.toBeInstanceOf(CustomerNotFoundError);
+      });
+
+      /*
+       * HR-0044, HR-0054, HR-0020, HR-0050 (2026-11): HR's record carried a wrong number, the
+       * employee signed up as a customer on their real one, and HR's correction 409'd into a
+       * hand-written DB fix every time. A customer account nobody ever used is closed instead.
+       */
+      describe('onto a number held by a customer account', () => {
+        let footprint: { unused: boolean | Error; asked: string[]; isUnused(id: string): Promise<boolean> };
+        let scrubbed: string[];
+        let closing: AccountService;
+
+        beforeEach(() => {
+          footprint = {
+            unused: true,
+            asked: [],
+            isUnused: async (id) => {
+              footprint.asked.push(id);
+              if (footprint.unused instanceof Error) throw footprint.unused;
+              return footprint.unused;
+            },
+          };
+          scrubbed = [];
+          closing = new AccountService(
+            customers,
+            sessions,
+            new AuditService(audit),
+            hr,
+            undefined,
+            {
+              findOpen: async () => null,
+              // The Prisma repository writes the tombstone, DELETED and drops every refresh token
+              // in one transaction; the identity half is what this test can see.
+              anonymiseCustomer: async (id: string, identity: Record<string, unknown>) => {
+                const row = customers.rows.get(id);
+                if (row) customers.rows.set(id, { ...row, ...identity, status: CustomerStatus.DELETED });
+              },
+            } as never,
+            footprint,
+            { anonymise: async (id: string) => void scrubbed.push(id) } as never,
+          );
+        });
+
+        // Owner decision 2026-11-20: a typo must not quietly close a stranger's account and hand
+        // them the staff login, so the first save names the account and HR confirms.
+        it('asks HR to confirm first, naming the account, and touches nothing', async () => {
+          const staff = await closing.inviteStaff('+628990004111', Role.STAFF_DEPOT, 'Andi', 'depot-1');
+          const createdAt = new Date('2026-11-18T05:00:00.000Z');
+          const dup = makeCustomer({ phone: '+628990004112', fullName: 'Andi', createdAt });
+          customers.seed(dup);
+
+          const refused = closing.updateStaffProfileInternal(staff.id, { phone: '+628990004112' });
+          await expect(refused).rejects.toBeInstanceOf(PhoneHeldByUnusedCustomerError);
+          await expect(refused).rejects.toMatchObject({
+            details: { customerName: 'Andi', createdAt: createdAt.toISOString() },
+          });
+
+          expect((await customers.findById(dup.id))?.status).toBe(CustomerStatus.ACTIVE);
+          expect((await customers.findById(staff.id))?.phone).toBe('+628990004111');
+          expect(scrubbed).toEqual([]);
+        });
+
+        it('closes an unused one and moves the staff login onto the number, once HR confirms', async () => {
+          const staff = await closing.inviteStaff('+628990004101', Role.STAFF_DEPOT, 'Andi', 'depot-1');
+          const dup = makeCustomer({ phone: '+628990004102' });
+          customers.seed(dup);
+
+          const updated = await closing.updateStaffProfileInternal(staff.id, {
+            phone: '08990004102',
+            closeUnusedCustomer: true,
+          });
+
+          expect(updated).toMatchObject({ id: staff.id, phone: '+628990004102', role: Role.STAFF_DEPOT });
+          const closed = await customers.findById(dup.id);
+          expect(closed?.status).toBe(CustomerStatus.DELETED);
+          expect(closed?.phone).toBe(`deleted-${dup.id}`);
+          expect(footprint.asked).toEqual([dup.id]);
+          expect(scrubbed).toEqual([dup.id]);
+          expect(audit.entries).toContainEqual(
+            expect.objectContaining({
+              customerId: dup.id,
+              action: AuditAction.DUPLICATE_CUSTOMER_CLOSED,
+              metadata: { staffId: staff.id },
+            }),
+          );
+        });
+
+        it('keeps the conflict for an account with history, and touches nothing', async () => {
+          footprint.unused = false;
+          const staff = await closing.inviteStaff('+628990004103', Role.STAFF_DEPOT, 'Dewi', 'depot-1');
+          const customer = makeCustomer({ phone: '+628990004104' });
+          customers.seed(customer);
+
+          await expect(
+            closing.updateStaffProfileInternal(staff.id, { phone: '+628990004104' }),
+          ).rejects.toBeInstanceOf(PhoneAlreadyRegisteredError);
+
+          expect((await customers.findById(customer.id))?.status).toBe(CustomerStatus.ACTIVE);
+          expect((await customers.findById(staff.id))?.phone).toBe('+628990004103');
+          expect(scrubbed).toEqual([]);
+        });
+
+        it('refuses the edit when the check cannot be made, and closes nothing', async () => {
+          footprint.unused = new ServiceUnavailableException('order-service tidak terjangkau');
+          const staff = await closing.inviteStaff('+628990004105', Role.STAFF_DEPOT, 'Eko', 'depot-1');
+          const customer = makeCustomer({ phone: '+628990004106' });
+          customers.seed(customer);
+
+          await expect(
+            closing.updateStaffProfileInternal(staff.id, { phone: '+628990004106' }),
+          ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+          expect((await customers.findById(customer.id))?.status).toBe(CustomerStatus.ACTIVE);
+          expect(scrubbed).toEqual([]);
+        });
+
+        it('never asks about a number held by another staff login', async () => {
+          const staff = await closing.inviteStaff('+628990004107', Role.STAFF_DEPOT, 'Joko', 'depot-1');
+          await closing.inviteStaff('+628990004108', Role.STAFF_DEPOT, 'Sari', 'depot-1');
+
+          await expect(
+            closing.updateStaffProfileInternal(staff.id, { phone: '+628990004108' }),
+          ).rejects.toBeInstanceOf(PhoneAlreadyRegisteredError);
+          expect(footprint.asked).toEqual([]);
+        });
+
+        it('stays a conflict where the history cannot be asked at all', async () => {
+          const staff = await service.inviteStaff('+628990004109', Role.STAFF_DEPOT, 'Rina', 'depot-1');
+          customers.seed(makeCustomer({ phone: '+628990004110' }));
+
+          await expect(
+            service.updateStaffProfileInternal(staff.id, { phone: '+628990004110' }),
+          ).rejects.toBeInstanceOf(PhoneAlreadyRegisteredError);
+        });
       });
     });
 

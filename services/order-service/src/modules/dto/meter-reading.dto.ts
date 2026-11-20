@@ -71,6 +71,15 @@ export class SaveMeterReadingDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Required when the date is before today (business time zone): why a previous day is corrected. Stamped with the corrector and the time.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  correctionReason?: string;
 }
 
 export class MeterHistoryQueryDto {

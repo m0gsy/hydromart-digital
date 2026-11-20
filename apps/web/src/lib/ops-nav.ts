@@ -343,6 +343,13 @@ export const GROUPS: RailGroup[] = [
         labelKey: 'reports',
         show: (role) => can('orderReportsDepot', role),
       },
+      // Owner decision 2026-11-20: the history import had a door on the head-office export
+      // screen only, so the managers and franchise owners who hold it had none at all.
+      {
+        href: '/dashboard/sales-import',
+        labelKey: 'salesImport',
+        show: (role) => can('salesImportAdmin', role),
+      },
       {
         href: '/dashboard/monthly-review',
         labelKey: 'monthlyReview',

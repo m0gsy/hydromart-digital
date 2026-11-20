@@ -30,6 +30,13 @@ export interface MeterReading {
   closedAt: Date | null;
   alertedAt: Date | null;
   note: string | null;
+  /**
+   * Owner decision 2026-11-20: the latest correction of a PREVIOUS day — who, when, why.
+   * Null on a reading nobody corrected after its day.
+   */
+  correctedAt: Date | null;
+  correctedBy: string | null;
+  correctionReason: string | null;
   /** CA-2-53: the version a console form edits against. */
   updatedAt: Date;
 }
@@ -69,6 +76,8 @@ export interface MeterReconciliation extends SoldTotals {
  */
 export interface MeterReconciliationWithTank extends MeterReconciliation {
   tank: TankStatus;
+  /** The corrector's name for "Dikoreksi oleh X"; null when uncorrected or unresolvable. */
+  correctedByName: string | null;
 }
 
 /**

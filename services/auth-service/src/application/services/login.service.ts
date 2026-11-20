@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
+import { NotStaffError, StaffAccountError } from '../../domain/errors/auth.errors';
 import { Role } from '../../domain/customer/role.enum';
 import { OtpPurpose } from '../../domain/otp/otp-purpose.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
@@ -12,6 +13,11 @@ import { OtpService } from './otp.service';
 
 export interface LoginRequestCommand {
   phone: string;
+  /**
+   * Which app is asking. 'STAFF' (a staff-only door): a number that is no staff login is refused,
+   * never registered. 'CUSTOMER' (the customer app): a staff login is refused, sent to Ops.
+   */
+  audience?: 'STAFF' | 'CUSTOMER';
   context: RequestContext;
 }
 
@@ -48,10 +54,26 @@ export class LoginService {
    * to be told something specific, and silently issuing codes nobody can use would make a
    * support call unanswerable. They are also not the enumeration surface: reaching that
    * state requires an account to have existed and been acted on by staff.
+   *
+   * The staff doors (`audience: 'STAFF'`) are the exception, by owner decision 2026-11-20.
+   * Signing an unknown number up there put staff whose HR record had a wrong number into the
+   * shop as customers, and the customer account then blocked HR's correction. So a number
+   * that is not a staff login is refused there and nothing is created. That door does tell a
+   * caller whether a number is a STAFF login — accepted, rate-limited like every OTP route —
+   * while a customer number and an unknown one still answer identically.
+   *
+   * The customer app (`audience: 'CUSTOMER'`) refuses the other way round: a staff login is sent
+   * to the Ops app, because the customer binary carries none of the consoles it would land on.
    */
   async requestLogin(command: LoginRequestCommand): Promise<OtpChallengeResult> {
     const phone = PhoneNumber.create(command.phone).value;
     const existing = await this.customers.findByPhone(phone);
+    if (command.audience === 'STAFF' && (!existing || existing.role === Role.CUSTOMER)) {
+      throw new NotStaffError();
+    }
+    if (command.audience === 'CUSTOMER' && existing && existing.role !== Role.CUSTOMER) {
+      throw new StaffAccountError();
+    }
     const customer =
       existing ?? (await this.customers.create({ phone, email: null, fullName: null, role: Role.CUSTOMER }));
 

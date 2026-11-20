@@ -21,8 +21,15 @@ const isPickable = (v: string): boolean =>
  * left open overnight reads the new day when it comes back, as these screens did before they
  * had a picker. `current()` answers at call time, for a loader `useAsync` re-runs on resume.
  */
-export function useWibDay() {
-  const [picked, setPicked] = useState<string | null>(null);
+export function useWibDay(
+  /**
+   * False for a page that EDITS the day it shows (the meter form): it stays on the day it
+   * opened on, so a value typed before WIB midnight and saved after it goes to that day,
+   * not to a new day the reader never saw. True (the default) for read screens.
+   */
+  rollOver = true,
+) {
+  const [picked, setPicked] = useState<string | null>(() => (rollOver ? null : todayWib()));
   // What the field shows while a date is being typed; only a whole, sane date becomes the day.
   const [draft, setDraft] = useState<string | null>(null);
   const today = todayWib();
@@ -33,7 +40,7 @@ export function useWibDay() {
     current: (): string => picked ?? todayWib(),
     /** Back to today (rolling), e.g. after recording something that is dated now. */
     reset: (): void => {
-      setPicked(null);
+      setPicked(rollOver ? null : todayWib());
       setDraft(null);
     },
     /** Spread onto an `<Input type="date">`. */
@@ -45,7 +52,7 @@ export function useWibDay() {
       onChange: (e: ChangeEvent<HTMLInputElement>): void => {
         const v = e.target.value;
         setDraft(v);
-        if (isPickable(v)) setPicked(v === todayWib() ? null : v);
+        if (isPickable(v)) setPicked(v === todayWib() && rollOver ? null : v);
       },
       onBlur: (): void => setDraft(null),
     },

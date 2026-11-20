@@ -24,6 +24,9 @@ function row(over: Record<string, unknown> = {}) {
     closedAt: null,
     alertedAt: null,
     note: null,
+    correctedAt: null,
+    correctedBy: null,
+    correctionReason: null,
     ...over,
   };
 }
@@ -59,6 +62,9 @@ describe('MeterReadingPrismaRepository', () => {
       closedAt: null,
       alertedAt: null,
       note: null,
+      correctedAt: null,
+      correctedBy: null,
+      correctionReason: null,
     });
     expect(model.findUnique).toHaveBeenCalledWith({
       where: { depotId_readingDate: { depotId: DEPOT, readingDate } },
@@ -138,6 +144,32 @@ describe('MeterReadingPrismaRepository', () => {
     const data = model.update.mock.calls[0][0].data;
     expect(data.closedBy).toBeUndefined();
     expect(data.closedAt).toBeUndefined();
+  });
+
+  // Owner decision 2026-11-20: a previous day's correction says who, when and why.
+  it('stamps a correction with the actor, the time and the reason, and maps it back', async () => {
+    model.findUnique.mockResolvedValue(row());
+    const at = new Date('2026-08-03T02:00:00.000Z');
+    model.update.mockResolvedValue(
+      row({ closingM3: dec(1003), correctedAt: at, correctedBy: 'hq-1', correctionReason: 'salah ketik' }),
+    );
+    const saved = await repo.upsertForDate({
+      depotId: DEPOT,
+      date: DATE,
+      actorId: 'hq-1',
+      closingM3: 1003,
+      correctionReason: 'salah ketik',
+    });
+    const data = model.update.mock.calls[0][0].data;
+    expect(data).toMatchObject({ correctedBy: 'hq-1', correctionReason: 'salah ketik' });
+    expect(data.correctedAt).toBeInstanceOf(Date);
+    expect(saved).toMatchObject({ correctedAt: at, correctedBy: 'hq-1', correctionReason: 'salah ketik' });
+
+    // A first entry for a past day is stamped too.
+    model.findUnique.mockResolvedValue(null);
+    model.create.mockResolvedValue(row({ correctedBy: 'hq-1', correctionReason: 'lupa dicatat' }));
+    await repo.upsertForDate({ depotId: DEPOT, date: DATE, actorId: 'hq-1', openingM3: 1000, correctionReason: 'lupa dicatat' });
+    expect(model.create.mock.calls.at(-1)[0].data).toMatchObject({ correctedBy: 'hq-1', correctionReason: 'lupa dicatat' });
   });
 
   it('patches a corrected opening reading without touching the rest', async () => {

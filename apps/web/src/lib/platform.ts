@@ -28,6 +28,23 @@ export function isNativeShell(): boolean {
 }
 
 /**
+ * The Ops binary (id.hydromart.ops), as `scripts/build-mobile.mjs` stamps it. It is staff-only:
+ * its login refuses a number that is no staff login, and it keeps no customer session. False
+ * on the web and in the customer app.
+ */
+export function isOpsApp(): boolean {
+  return process.env.NEXT_PUBLIC_MOBILE_APP === 'ops';
+}
+
+/**
+ * The customer binary (id.hydromart.app). It carries none of the staff consoles, so its login
+ * refuses a staff number and it keeps no staff session. False on the web and in the Ops app.
+ */
+export function isCustomerApp(): boolean {
+  return process.env.NEXT_PUBLIC_MOBILE_APP === 'customer';
+}
+
+/**
  * Open something outside the app: a map, a phone dialler, WhatsApp, a receipt image.
  * Returns true when it took responsibility for the URL, so the caller can suppress the
  * browser's own default.

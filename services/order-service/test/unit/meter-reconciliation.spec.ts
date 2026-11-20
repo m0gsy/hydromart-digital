@@ -23,6 +23,9 @@ function reading(over: Partial<MeterReading> = {}): MeterReading {
     closedAt: new Date('2026-08-02T12:00:00.000Z'),
     alertedAt: null,
     note: null,
+    correctedAt: null,
+    correctedBy: null,
+    correctionReason: null,
     ...over,
   };
 }

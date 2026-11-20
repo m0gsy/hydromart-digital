@@ -29,7 +29,10 @@ export default function ManagerLoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const challenge = await api.post<OtpChallenge>(endpoints.auth.login, { phone });
+      const challenge = await api.post<OtpChallenge>(endpoints.auth.login, {
+        phone,
+        audience: 'STAFF',
+      });
       const params = new URLSearchParams({ phone, purpose: 'LOGIN', next: '/m/manager' });
       // Same as the customer sign-in: a code still in flight is said to be in flight. This
       // screen also dropped the server's cooldown and lifetime, so /verify was counting its

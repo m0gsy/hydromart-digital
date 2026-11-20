@@ -85,6 +85,7 @@ export const ops = {
     commission: 'Komisi kurir',
     reports: 'Laporan',
     monthlyReview: 'Tinjauan bulanan',
+    salesImport: 'Impor penjualan',
     compare: 'Banding depot',
     roles: 'Peran & akses',
     audit: 'Audit log',

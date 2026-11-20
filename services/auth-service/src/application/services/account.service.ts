@@ -16,6 +16,7 @@ import {
   InvalidStaffRoleError,
   RoleEscalationError,
   PhoneAlreadyRegisteredError,
+  PhoneHeldByUnusedCustomerError,
   StaffDepotRequiredError,
 } from '../../domain/errors/auth.errors';
 // The locked-role set is the guards' own definition, imported rather than mirrored: the
@@ -34,7 +35,10 @@ import { Customer } from '../../domain/customer/customer.entity';
 import { Role } from '../../domain/customer/role.enum';
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
 import { PhoneNumber } from '../../domain/value-objects/phone-number';
+import { anonymisedIdentity } from '../../domain/data-subject/data-subject-request';
 import { CustomerRepository } from '../ports/customer.repository';
+import { CustomerDataPort } from '../ports/customer-data.port';
+import { CUSTOMER_FOOTPRINT_PORT, CustomerFootprintPort } from '../ports/customer-footprint.port';
 import { DataSubjectRequestRepository } from '../ports/data-subject-request.repository';
 import {
   HR_DIRECTORY_PORT,
@@ -101,6 +105,9 @@ export class AccountService {
     @Optional()
     @Inject(AUTH_TOKENS.DataSubjectRequestRepository)
     private readonly dataRequests?: DataSubjectRequestRepository,
+    // Optional for the same reason; only HR's phone correction asks these two.
+    @Optional() @Inject(CUSTOMER_FOOTPRINT_PORT) private readonly footprint?: CustomerFootprintPort,
+    @Optional() @Inject(AUTH_TOKENS.CustomerDataPort) private readonly customerData?: CustomerDataPort,
   ) {}
 
   /**
@@ -729,11 +736,12 @@ export class AccountService {
    * A phone already belonging to somebody else is a CONFLICT, never a silent skip and
    * never a merge — the number is the login identity, and moving it onto an account that
    * exists would hand one person another's session. The repository re-checks on the write
-   * itself, which closes the race this pre-check cannot.
+   * itself, which closes the race this pre-check cannot. The one exception is a customer
+   * account nobody ever used, which is closed instead once HR confirms (closeUnusedCustomer).
    */
   async updateStaffProfileInternal(
     customerId: string,
-    changes: { fullName?: string | null; phone?: string },
+    changes: { fullName?: string | null; phone?: string; closeUnusedCustomer?: boolean },
   ): Promise<PublicCustomer> {
     const customer = await this.customers.findById(customerId);
     if (!customer) {
@@ -744,7 +752,7 @@ export class AccountService {
       if (phone !== customer.phone) {
         const owner = await this.customers.findByPhone(phone);
         if (owner && owner.id !== customerId) {
-          throw new PhoneAlreadyRegisteredError();
+          await this.closeUnusedCustomer(owner, customerId, changes.closeUnusedCustomer === true);
         }
         customer.changePhone(phone);
       }
@@ -753,6 +761,59 @@ export class AccountService {
       customer.updateProfile(changes.fullName, undefined);
     }
     return toPublicCustomer(await this.customers.save(customer));
+  }
+
+  /**
+   * The number HR is moving a staff login onto belongs to a CUSTOMER account that was never
+   * used: the employee's HR record carried a wrong number, so they signed up on their real
+   * one. Close it, or the correction 409s and ends in a hand-written DB fix — four staff in
+   * November 2026 alone (HR-0044, HR-0054, HR-0020, HR-0050).
+   *
+   * "Never used" is asked across services: no order of any status, no subscription, no
+   * points. Anything else is a real customer's history and stays a conflict, so this is still
+   * not a merge. A failed check raises (fail closed). The account is closed the way PDP
+   * erasure closes one: profile PII scrubbed in customer-service first, then tombstone
+   * identity + DELETED + sessions dropped in one auth transaction.
+   *
+   * And only once HR confirms (owner decision 2026-11-20): the first save answers 409
+   * AUTH_PHONE_UNUSED_CUSTOMER naming the account, so a mistyped number cannot quietly close a
+   * stranger's account and hand them the staff login. HR's confirm resends with
+   * `closeUnusedCustomer`.
+   *
+   * Scrub first, close second, move the staff number last, each idempotent: a failure part-way
+   * leaves the customer account findable by its number, and HR saving again finishes the job.
+   * The reverse order could strand profile PII on a closed account nothing can look up again.
+   *
+   * ponytail: check-then-close is not atomic, so an order placed in the same second lands on a
+   * closed account. A cross-service lock is the upgrade if that is ever seen.
+   */
+  private async closeUnusedCustomer(
+    owner: Customer,
+    staffId: string,
+    confirmed: boolean,
+  ): Promise<void> {
+    if (
+      owner.role !== Role.CUSTOMER ||
+      !this.footprint ||
+      !this.dataRequests ||
+      !this.customerData ||
+      !(await this.footprint.isUnused(owner.id))
+    ) {
+      throw new PhoneAlreadyRegisteredError();
+    }
+    if (!confirmed) {
+      throw new PhoneHeldByUnusedCustomerError(owner.fullName, owner.createdAt);
+    }
+    await this.customerData.anonymise(owner.id);
+    await this.dataRequests.anonymiseCustomer(owner.id, anonymisedIdentity(owner.id));
+    await this.audit.record({
+      customerId: owner.id,
+      action: AuditAction.DUPLICATE_CUSTOMER_CLOSED,
+      success: true,
+      ipAddress: null,
+      userAgent: null,
+      metadata: { staffId },
+    });
   }
 
   /** The write half, with no outbound call. Used by the route hr-service calls. */

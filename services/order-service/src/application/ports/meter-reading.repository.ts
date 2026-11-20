@@ -14,6 +14,8 @@ export interface UpsertMeterReadingData {
   openingTankPct?: number;
   closingTankPct?: number;
   note?: string;
+  /** A previous day's correction: stamps correctedAt/correctedBy (the actor) and the reason. */
+  correctionReason?: string;
 }
 
 export interface MeterReadingRepository {

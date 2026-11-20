@@ -186,6 +186,18 @@ describe('InternalAccountController', () => {
       phone: '08129999999',
     });
     expect(out).toMatchObject({ fullName: 'Budi Santoso', phone: '+628129999999' });
+
+    // HR's confirmation to close a never-used customer account on that number rides along.
+    await controller.updateStaffProfile({
+      customerId: 'cust-3',
+      phone: '08129999999',
+      closeUnusedCustomer: true,
+    } as never);
+    expect(account.updateStaffProfileInternal).toHaveBeenLastCalledWith('cust-3', {
+      fullName: undefined,
+      phone: '08129999999',
+      closeUnusedCustomer: true,
+    });
   });
 
   it('resolves a batch of ids to public profiles', async () => {

@@ -13,6 +13,10 @@ export const errors = {
     AUTH_ACCOUNT_PENDING_VERIFICATION:
       'This number is registered but not verified yet. We are sending a new code.',
     AUTH_ACCOUNT_NOT_ACTIVE: 'This account is not active. Contact Hydromart support.',
+    AUTH_NOT_STAFF:
+      'This number is not registered as Hydromart staff. Ask HR to check the phone number on your employee record.',
+    AUTH_STAFF_ACCOUNT:
+      'This number belongs to a staff account. Sign in with the Hydromart Ops app.',
     // CA-3-36: see id/errors.ts — one entry answers both the gateway and every Nest service.
     RATE_LIMITED: 'Too many requests right now. Wait a moment and try again.',
     RATE_LIMITED_OTP: 'Too many code requests. Wait a moment, then ask for a new one.',

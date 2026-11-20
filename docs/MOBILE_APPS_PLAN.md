@@ -635,6 +635,17 @@ Diurutkan berdasarkan risiko, bukan kenyamanan:
 11. Biometrik: daftar → app dimatikan → buka ulang → sidik jari membuka sesi tanpa OTP;
     lalu gagal N kali → token terhapus → OTP dipaksa; lalu perangkat tanpa biometrik
     terdaftar tetap bisa masuk lewat OTP.
+12. **Ops hanya untuk staf** (keputusan pemilik 2026-11-20). Login dengan nomor yang tidak
+    terdaftar dan dengan nomor pelanggan → keduanya ditolak dengan "belum terdaftar sebagai
+    staf", tidak ada SMS, dan tidak ada akun pelanggan baru. Lalu pasang APK baru di atas
+    sesi pelanggan yang sudah ada → sesi itu keluar sendiri ke `/login` dengan pesan yang
+    sama. Buka app tanpa login → langsung halaman login, bukan katalog. Nomor staf tetap
+    masuk seperti biasa.
+13. **App pelanggan hanya untuk pelanggan** (keputusan pemilik 2026-11-20). Login di app
+    Hydromart dengan nomor staf → ditolak "silakan masuk lewat aplikasi Hydromart Ops", tanpa
+    SMS. Pasang APK baru di atas sesi staf yang sudah ada → sesi itu keluar sendiri ke
+    `/login` dengan pesan yang sama, tanpa sempat jatuh ke layar kosong. Nomor pelanggan dan
+    nomor baru (daftar) tetap jalan seperti biasa.
 
 ## Yang sengaja TIDAK ada di rencana ini
 

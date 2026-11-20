@@ -51,6 +51,8 @@ import { OWNED_DEPOTS_PORT } from '../../application/ports/owned-depots.port';
 import { OwnedDepotsHttpAdapter } from '../../infrastructure/http/owned-depots.http.adapter';
 import { OPEN_ORDERS_PORT } from '../../application/ports/open-orders.port';
 import { OpenOrdersHttpAdapter } from '../../infrastructure/http/open-orders.http.adapter';
+import { CUSTOMER_FOOTPRINT_PORT } from '../../application/ports/customer-footprint.port';
+import { CustomerFootprintHttpAdapter } from '../../infrastructure/http/customer-footprint.http.adapter';
 import { CustomerPrismaRepository } from '../../infrastructure/prisma/repositories/customer.prisma.repository';
 import { OtpTokenPrismaRepository } from '../../infrastructure/prisma/repositories/otp-token.prisma.repository';
 import { RefreshTokenPrismaRepository } from '../../infrastructure/prisma/repositories/refresh-token.prisma.repository';
@@ -89,6 +91,7 @@ const adapterProviders: Provider[] = [
   { provide: AUTH_TOKENS.CustomerDataPort, useClass: CustomerDataHttpAdapter },
   { provide: HR_DIRECTORY_PORT, useClass: HrDirectoryHttpAdapter },
   { provide: OPEN_ORDERS_PORT, useClass: OpenOrdersHttpAdapter },
+  { provide: CUSTOMER_FOOTPRINT_PORT, useClass: CustomerFootprintHttpAdapter },
   { provide: OWNED_DEPOTS_PORT, useClass: OwnedDepotsHttpAdapter },
   // The erasure registry: one entry per service that holds the person who asked to be
   // forgotten, plus the written exemptions. Absent datasets are reported UNENFORCED.

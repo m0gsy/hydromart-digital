@@ -340,6 +340,7 @@ export const hrFix = {
     rotation: 'Rotation',
   },
   employeeForm: {
+    closeCustomerAndSave: 'Close that customer account & save',
     phoneTakenTail: ' — not create a new account. If the number is a typo, fix it first.',
     phoneTakenSave: 'Saving will turn that account into',
     phoneTaken: 'The number {phone} already belongs to the account of',
@@ -1640,6 +1641,12 @@ export const hrFix = {
     noClosedDays: 'No day has had its meter closed yet.',
     twiceHint:
       'Enter the morning reading at opening and the evening one at closing. The same form is used twice.',
+    day: 'Date',
+    correctionReason: 'Reason for the correction (required for an earlier day)',
+    correctionReasonPlaceholder: 'e.g. evening reading mistyped',
+    saveCorrection: 'Save correction',
+    someone: 'someone',
+    correctedNote: 'Corrected by {name}, {when}. Reason: {reason}',
     varianceHistory: 'Variance history',
     gateBody2: 'Water-meter reconciliation is for depot staff and above.',
     title: 'Water meter',

@@ -16,6 +16,8 @@ interface ErrorBody {
   statusCode: number;
   code: string;
   message: string | string[];
+  /** Only from a domain error that carries some (see DomainError.details). */
+  details?: Record<string, unknown>;
   timestamp: string;
   path: string;
 }
@@ -61,6 +63,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         statusCode: exception.status,
         code: exception.code,
         message: exception.message,
+        ...(exception.details ? { details: exception.details } : {}),
         timestamp,
         path,
       };

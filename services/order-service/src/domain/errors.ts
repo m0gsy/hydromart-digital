@@ -405,6 +405,15 @@ export class MeterReadingBackwardsError extends DomainError {
   }
 }
 
+/** Owner decision 2026-11-20: a previous day is corrected only with a reason. */
+export class MeterCorrectionReasonRequiredError extends DomainError {
+  readonly code = 'ORDER_METER_CORRECTION_REASON_REQUIRED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Koreksi meteran hari sebelumnya wajib menulis alasan (minimal 4 karakter).');
+  }
+}
+
 /** A closing-only write for a day whose opening reading was never entered. */
 export class MeterReadingNotOpenedError extends DomainError {
   readonly code = 'ORDER_METER_READING_NOT_OPENED';

@@ -67,7 +67,10 @@ function HqLoginPanel() {
     setLoading(true);
     setError(null);
     try {
-      const challenge = await api.post<OtpChallenge>(endpoints.auth.login, { phone: phone.trim() });
+      const challenge = await api.post<OtpChallenge>(endpoints.auth.login, {
+        phone: phone.trim(),
+        audience: 'STAFF',
+      });
       setStep('otp');
       setCooldown(challenge.resendCooldownSeconds ?? RESEND_SECONDS);
     } catch (err) {

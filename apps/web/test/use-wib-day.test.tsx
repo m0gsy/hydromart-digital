@@ -32,6 +32,22 @@ describe('useWibDay', () => {
     expect(result.current.day).toBe('2026-11-20');
   });
 
+  // Review: a form page keeps its day across midnight, so a late save goes where it was typed.
+  it('stays on its day across WIB midnight when it does not roll over', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-19T16:59:00.000Z')); // 23:59 WIB on the 19th
+    const { result, rerender } = renderHook(() => useWibDay(false));
+    expect(result.current.day).toBe('2026-11-19');
+    vi.setSystemTime(new Date('2026-11-19T17:02:00.000Z')); // 00:02 WIB on the 20th
+    rerender();
+    expect(result.current.day).toBe('2026-11-19');
+    expect(result.current.current()).toBe('2026-11-19');
+    // …and now it is an earlier day: the page asks for a reason.
+    expect(result.current.isToday).toBe(false);
+    act(() => result.current.reset());
+    expect(result.current.day).toBe('2026-11-20');
+  });
+
   it('keeps a picked day, refuses partial or future values, and returns to rolling on today', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-20T03:00:00.000Z'));

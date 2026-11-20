@@ -1,6 +1,11 @@
 import { OrderConfigService } from '../../src/config/order-config.service';
 import { MeterService } from '../../src/application/services/meter.service';
-import { MeterReadingBackwardsError, MeterReadingNotOpenedError } from '../../src/domain/errors';
+import {
+  MeterCorrectionReasonRequiredError,
+  MeterReadingBackwardsError,
+  MeterReadingNotOpenedError,
+} from '../../src/domain/errors';
+import { AccountNamesPort } from '../../src/application/ports/account-names.port';
 import { MeterReading } from '../../src/domain/meter-reading';
 import {
   MeterReadingRepository,
@@ -35,6 +40,9 @@ class FakeMeterRepo implements MeterReadingRepository {
       closedAt: null,
       alertedAt: null,
       note: null,
+      correctedAt: null,
+      correctedBy: null,
+      correctionReason: null,
       ...over,
     };
     this.rows.set(`${row.depotId}|${row.date}`, row);
@@ -55,6 +63,10 @@ class FakeMeterRepo implements MeterReadingRepository {
         closingTankPct: data.closingTankPct ?? null,
         openedBy: data.actorId,
         note: data.note ?? null,
+        // Models the repository: a previous day's correction stamps who, when and why.
+        ...(data.correctionReason !== undefined
+          ? { correctedAt: new Date(), correctedBy: data.actorId, correctionReason: data.correctionReason }
+          : {}),
       });
     }
     const merged: MeterReading = {
@@ -66,6 +78,9 @@ class FakeMeterRepo implements MeterReadingRepository {
       ...(data.openingTankPct !== undefined ? { openingTankPct: data.openingTankPct } : {}),
       ...(data.closingTankPct !== undefined ? { closingTankPct: data.closingTankPct } : {}),
       ...(data.note !== undefined ? { note: data.note } : {}),
+      ...(data.correctionReason !== undefined
+        ? { correctedAt: new Date(), correctedBy: data.actorId, correctionReason: data.correctionReason }
+        : {}),
       // CA-2-53: the stored row moves on every write, so a second save cannot reuse the
       // version the first one read.
       updatedAt: new Date(existing.updatedAt.getTime() + 1000),
@@ -137,6 +152,7 @@ function build(
     alertPhone?: string;
     toleranceLiters?: number;
     tankCapacityLiters?: number;
+    accountNames?: AccountNamesPort;
   } = {},
 ): {
   service: MeterService;
@@ -155,7 +171,14 @@ function build(
     businessTimeZone: 'Asia/Jakarta',
   } as unknown as OrderConfigService;
   return {
-    service: new MeterService(repo, orders as unknown as OrderRepository, notifications, config),
+    service: new MeterService(
+      repo,
+      orders as unknown as OrderRepository,
+      notifications,
+      config,
+      undefined,
+      opts.accountNames,
+    ),
     repo,
     notifications,
     orders,
@@ -166,6 +189,15 @@ function build(
 const SEEDED_AT = '2026-09-09T00:00:00.000Z';
 
 describe('MeterService.save', () => {
+  // Owner decision 2026-11-20: a save for a day before today is a correction. These scenarios
+  // work on DATE as "today", so the clock says so (Date only; timers stay real).
+  beforeEach(() => {
+    jest.useFakeTimers({
+      now: new Date(`${DATE}T05:00:00.000Z`),
+      doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'clearImmediate', 'queueMicrotask'],
+    });
+  });
+  afterEach(() => jest.useRealTimers());
   it('records the opening reading in the morning and reports the day as not comparable', async () => {
     const { service } = build();
     const result = await service.save({
@@ -334,6 +366,15 @@ describe('MeterService.save', () => {
 });
 
 describe('MeterService variance alert', () => {
+  // Owner decision 2026-11-20: a save for a day before today is a correction. These scenarios
+  // work on DATE as "today", so the clock says so (Date only; timers stay real).
+  beforeEach(() => {
+    jest.useFakeTimers({
+      now: new Date(`${DATE}T05:00:00.000Z`),
+      doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'clearImmediate', 'queueMicrotask'],
+    });
+  });
+  afterEach(() => jest.useRealTimers());
   const wideGap = { openingM3: 1000, closingM3: 1010 }; // 10_000 L out vs 2_430 L sold
 
   it('fires once when the gap crosses the tolerance', async () => {
@@ -439,7 +480,66 @@ describe('MeterService variance alert', () => {
   });
 });
 
+/*
+ * Owner decision 2026-11-20: a previous day may be corrected, but only with a reason, and the
+ * day then says who corrected it, when and why.
+ */
+describe('MeterService · correcting a previous day', () => {
+  const TODAY = '2026-08-03'; // DATE is yesterday
+  // Owner decision 2026-11-20: a save for a day before today is a correction. These scenarios
+  // work on TODAY as "today", so the clock says so (Date only; timers stay real).
+  beforeEach(() => {
+    jest.useFakeTimers({
+      now: new Date(`${TODAY}T05:00:00.000Z`),
+      doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'clearImmediate', 'queueMicrotask'],
+    });
+  });
+  afterEach(() => jest.useRealTimers());
+
+  const names: AccountNamesPort = { nameOf: jest.fn(async (id: string) => (id === 'hq-1' ? 'Budi HQ' : null)) };
+  const correct = (service: MeterService, reason?: string) =>
+    service.save(
+      { depotId: DEPOT, date: DATE, actorId: 'hq-1', authorization: 'Bearer t', closingM3: 1003, correctionReason: reason },
+      SEEDED_AT,
+    );
+
+  it('refuses a previous day without a reason, or with one too short to say anything', async () => {
+    const { service, repo } = build({ accountNames: names });
+    repo.seed({ openingM3: 1000 });
+    await expect(correct(service)).rejects.toBeInstanceOf(MeterCorrectionReasonRequiredError);
+    await expect(correct(service, '  ab  ')).rejects.toBeInstanceOf(MeterCorrectionReasonRequiredError);
+    expect(repo.rows.get(`${DEPOT}|${DATE}`)?.closingM3).toBeNull();
+  });
+
+  it('records who corrected it, when and why, and names them', async () => {
+    const { service, repo } = build({ accountNames: names });
+    repo.seed({ openingM3: 1000 });
+    const result = await correct(service, '  angka sore salah ketik  ');
+    expect(result.reading).toMatchObject({
+      closingM3: 1003,
+      correctedBy: 'hq-1',
+      correctionReason: 'angka sore salah ketik',
+    });
+    expect(result.reading?.correctedAt).toBeInstanceOf(Date);
+    expect(result.correctedByName).toBe('Budi HQ');
+  });
+
+  it("does not mark today's own saves, and names nobody without a directory", async () => {
+    const { service } = build();
+    const result = await service.save({
+      depotId: DEPOT,
+      date: TODAY,
+      actorId: 'staff-1',
+      authorization: 'Bearer t',
+      openingM3: 1000,
+    });
+    expect(result.reading?.correctedAt).toBeNull();
+    expect(result.correctedByName).toBeNull();
+  });
+});
+
 describe('MeterService reads', () => {
+  afterEach(() => jest.useRealTimers());
   it('reconciles a stored day without writing to it', async () => {
     const { service, repo } = build();
     repo.seed({ openingM3: 1000, closingM3: 1002.6 });
@@ -569,6 +669,11 @@ describe('MeterService reads', () => {
    * last — on the readings a depot's production is reconciled against.
    */
   it('refuses a reading save built on a copy that is already out of date', async () => {
+    // DATE is "today" in this scenario (a previous day would need a correction reason).
+    jest.useFakeTimers({
+      now: new Date(`${DATE}T05:00:00.000Z`),
+      doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'clearImmediate', 'queueMicrotask'],
+    });
     const { service, repo } = build();
     repo.seed({ openingM3: 1000 });
     await service.save(

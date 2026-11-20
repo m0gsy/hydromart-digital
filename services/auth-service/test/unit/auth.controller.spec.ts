@@ -107,6 +107,15 @@ describe('AuthController', () => {
     expect(res).toEqual(CHALLENGE_RESPONSE);
   });
 
+  it('login() passes a staff door through to the service', async () => {
+    await controller.login({ phone: '+628123456789', audience: 'STAFF' }, req);
+    expect(login.requestLogin).toHaveBeenCalledWith({
+      phone: '+628123456789',
+      audience: 'STAFF',
+      context: CONTEXT,
+    });
+  });
+
   it('refresh() rotates the refresh token', async () => {
     const res = await controller.refresh({ refreshToken: 'rt' }, req);
     expect(tokens.refresh).toHaveBeenCalledWith({ refreshToken: 'rt', context: CONTEXT });

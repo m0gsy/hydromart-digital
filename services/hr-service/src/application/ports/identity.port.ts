@@ -1,4 +1,5 @@
 import type { HrManagedRole, StaffImportRole } from '@hydromart/access';
+import { DomainError, HTTP_STATUS } from '@hydromart/platform';
 
 export const IDENTITY_PORT = Symbol('IdentityPort');
 
@@ -82,6 +83,42 @@ export interface UpdateStaffProfileInput {
   fullName?: string;
   /** The login number itself. Omit to leave it alone. */
   phone?: string;
+  /**
+   * HR confirmed closing the never-used customer account that holds the new number. Without
+   * it auth-service refuses, and the port raises UnusedCustomerOnPhoneError naming the account.
+   */
+  closeUnusedCustomer?: boolean;
+}
+
+/**
+ * The new number belongs to a customer account that was never used — almost always the
+ * employee themselves, signed up on their real number because HR had a wrong one. Closing it
+ * is HR's to confirm (owner decision 2026-11-20), because a mistyped number would otherwise
+ * close a stranger's account and hand them the staff login. The message names the account so
+ * HR can tell their employee from a typo; the form resends with `confirmCloseCustomer`.
+ */
+export class UnusedCustomerOnPhoneError extends DomainError {
+  readonly code = 'HR_PHONE_UNUSED_CUSTOMER';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(customerName: string | null, createdAt: string | null) {
+    const when = createdAt ? formatDay(createdAt) : null;
+    const who = customerName?.trim() ? `atas nama ${customerName.trim()}` : 'tanpa nama';
+    super(
+      `Nomor HP ini dipakai akun pelanggan ${who}${when ? ` (dibuat ${when})` : ''} yang belum pernah dipakai: tanpa pesanan, langganan, atau poin. Kalau itu memang karyawan ini, tutup akun pelanggan itu dan pindahkan nomornya ke sini. Kalau bukan, nomornya salah ketik.`,
+    );
+  }
+}
+
+/** "18 November 2026", as a person in the business's time zone reads the day. */
+function formatDay(iso: string): string | null {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return null;
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta',
+  }).format(at);
 }
 
 export interface AssignRoleInput {

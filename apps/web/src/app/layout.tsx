@@ -5,6 +5,7 @@ import './globals.css';
 import { AppShell } from '@/components/app-shell';
 import { LocaleSync } from '@/components/locale-sync';
 import { NativeBridge } from '@/components/native-bridge';
+import { AppAudienceGate } from '@/components/app-audience-gate';
 import { PushForeground } from '@/components/push-foreground';
 import { SentryInit } from '@/components/sentry-init';
 import { ConfirmProvider } from '@/components/confirm';
@@ -130,6 +131,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       language. Inside both providers it needs; app-wide, because the
                       adoption used to live on /account and fired nowhere else. */}
                   <LocaleSync />
+                  {/* Staff use the Ops app, customers the customer app (owner 2026-11-20). */}
+                  <AppAudienceGate />
                   {/* Needs the toast, so it cannot live in NativeBridge above. */}
                   <PushForeground />
                   {/* Error reporting, and nothing at all when NEXT_PUBLIC_SENTRY_DSN is blank

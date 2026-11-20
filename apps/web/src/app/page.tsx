@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { consoleHome, isStaff } from '@/lib/roles';
+import { isServedHere } from '@/lib/deep-link';
 import { useLocation } from '@/lib/location-context';
 import { useT } from '@/lib/locale-context';
 import { endpoints } from '@/lib/endpoints';
@@ -30,7 +31,11 @@ export default function HomePage() {
   // from `/auth/me` on mount, so a stale cached CUSTOMER snapshot corrects itself too.
   const staffRole = customer && isStaff(customer.role) ? customer.role : null;
   useEffect(() => {
-    if (staffRole) router.replace(consoleHome(staffRole));
+    if (!staffRole) return;
+    // Only to a console this binary carries. The customer app has none: a route it does not
+    // serve is a blank screen with no way back, and AppAudienceGate signs that session out.
+    const home = consoleHome(staffRole);
+    if (isServedHere(home)) router.replace(home);
   }, [staffRole, router]);
   const { location } = useLocation();
   const { t } = useT();

@@ -351,6 +351,11 @@ export class UpdateEmployeeDto {
   @ValidateIf((o: UpdateEmployeeDto) => o.exitDate !== null)
   @IsISO8601()
   exitDate?: string | null;
+  /**
+   * HR confirmed closing the never-used customer account that holds the new phone (the 409
+   * HR_PHONE_UNUSED_CUSTOMER a first save answers). Never stored.
+   */
+  @IsOptional() @IsBoolean() confirmCloseCustomer?: boolean;
 }
 
 export class ListEmployeesDto {

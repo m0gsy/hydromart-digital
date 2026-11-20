@@ -82,6 +82,7 @@ export const ops = {
     commission: 'Courier commission',
     reports: 'Reports',
     monthlyReview: 'Monthly review',
+    salesImport: 'Sales import',
     compare: 'Compare depots',
     roles: 'Roles & access',
     audit: 'Audit log',

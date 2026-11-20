@@ -47,6 +47,24 @@ export class CustomerNotFoundError extends DomainError {
   }
 }
 
+/**
+ * HR is moving a staff login onto a number held by a customer account that was never used.
+ * Closing that account is HR's to confirm (owner decision 2026-11-20): a mistyped number would
+ * otherwise close a stranger's account and hand the staff login to the stranger's phone.
+ * `details` names the account so HR can tell their own employee from a typo.
+ */
+export class PhoneHeldByUnusedCustomerError extends DomainError {
+  readonly code = 'AUTH_PHONE_UNUSED_CUSTOMER';
+  readonly status = HTTP.CONFLICT;
+  readonly details: { customerName: string | null; createdAt: string };
+  constructor(customerName: string | null, createdAt: Date) {
+    super(
+      'This number belongs to a customer account that was never used; closing it needs confirmation.',
+    );
+    this.details = { customerName, createdAt: createdAt.toISOString() };
+  }
+}
+
 /** A staff invite/role change must target a non-customer role (PRD Module 7). */
 export class InvalidStaffRoleError extends DomainError {
   readonly code = 'AUTH_INVALID_STAFF_ROLE';
@@ -101,6 +119,32 @@ export class AccountPendingVerificationError extends DomainError {
   readonly status = HTTP.FORBIDDEN;
   constructor(message = 'This number is registered but not verified yet.') {
     super(message);
+  }
+}
+
+/**
+ * A staff-only door (the Ops app, /hq/login, the manager phone login) was given a number that
+ * is no staff login. Refused rather than signed up as a customer: that is how staff whose HR
+ * record carried a wrong number kept landing in the shop (2026-11).
+ */
+export class NotStaffError extends DomainError {
+  readonly code = 'AUTH_NOT_STAFF';
+  readonly status = HTTP.FORBIDDEN;
+  constructor() {
+    super('This number is not registered as Hydromart staff.');
+  }
+}
+
+/**
+ * The customer app was given a staff login's number. Staff sign in to the Ops app, where their
+ * consoles live; the customer binary does not carry them, so a staff session there opened on
+ * screens that do not exist (owner decision 2026-11-20).
+ */
+export class StaffAccountError extends DomainError {
+  readonly code = 'AUTH_STAFF_ACCOUNT';
+  readonly status = HTTP.FORBIDDEN;
+  constructor() {
+    super('This number belongs to a staff account. Sign in with the Hydromart Ops app.');
   }
 }
 

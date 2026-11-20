@@ -11,6 +11,7 @@ import {
 import { OrderController } from '../../src/modules/order.controller';
 import { OrderService } from '../../src/application/services/order.service';
 import { OutboxService } from '../../src/application/services/outbox.service';
+import { SubscriptionService } from '../../src/application/services/subscription.service';
 
 type Mocked = { [K in keyof OrderService]: jest.Mock };
 
@@ -79,8 +80,10 @@ describe('OrderController', () => {
   let service: Mocked;
   let controller: OrderController;
   let outbox: { processDue: jest.Mock; pending: jest.Mock };
+  let subscriptions: { list: jest.Mock };
 
   beforeEach(() => {
+    subscriptions = { list: jest.fn().mockResolvedValue([]) };
     service = makeService();
     outbox = {
       processDue: jest.fn().mockResolvedValue({ claimed: 2, delivered: 2, failed: 0, dead: 0 }),
@@ -89,6 +92,7 @@ describe('OrderController', () => {
     controller = new OrderController(
       service as unknown as OrderService,
       outbox as unknown as OutboxService,
+      subscriptions as unknown as SubscriptionService,
     );
   });
 
@@ -582,6 +586,18 @@ describe('OrderController', () => {
   it('internalCustomerOpenCount: wraps the service count', async () => {
     expect(await controller.internalCustomerOpenCount('c1')).toEqual({ openCount: 2 });
     expect(service.countOpenForCustomer).toHaveBeenCalledWith('c1');
+  });
+
+  it('internalCustomerActivity: counts every order (no status filter) and every subscription', async () => {
+    service.listForCustomer.mockResolvedValue({ items: [], total: 4 });
+    subscriptions.list.mockResolvedValue([{ id: 's1' }, { id: 's2' }]);
+    expect(await controller.internalCustomerActivity('c1')).toEqual({ orders: 4, subscriptions: 2 });
+    expect(service.listForCustomer).toHaveBeenCalledWith('c1', { limit: 1 });
+    expect(subscriptions.list).toHaveBeenCalledWith('c1');
+
+    service.listForCustomer.mockResolvedValue({ items: [], total: 0 });
+    subscriptions.list.mockResolvedValue([]);
+    expect(await controller.internalCustomerActivity('c1')).toEqual({ orders: 0, subscriptions: 0 });
   });
 
   // A junk `limit` must not become NaN or 0 rows — it falls through to the service default.

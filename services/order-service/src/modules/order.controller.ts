@@ -39,6 +39,7 @@ import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
 import { AbandonedSweepResult, OrderService } from '../application/services/order.service';
 import { OutboxService, OutboxSweepResult } from '../application/services/outbox.service';
+import { SubscriptionService } from '../application/services/subscription.service';
 import {
   OrderRecord,
   OrderReviewRecord,
@@ -78,6 +79,7 @@ import {
   ExpireAbandoned2ResponseDto,
   InternalCompleted2ResponseDto,
   InternalConfirm2ResponseDto,
+  InternalCustomerActivityResponseDto,
   InternalCustomerCompletedResponseDto,
   InternalCustomerOpenCountResponseDto,
   InternalCustomerOrdersResponseDto,
@@ -103,6 +105,7 @@ export class OrderController {
   constructor(
     private readonly orders: OrderService,
     private readonly outboxService: OutboxService,
+    private readonly subscriptions: SubscriptionService,
   ) {}
 
   @ApiOkResponse({ type: OrderResponseDto })
@@ -736,6 +739,27 @@ export class OrderController {
     @Query('customerId', ParseUUIDPipe) customerId: string,
   ): Promise<{ openCount: number }> {
     return { openCount: await this.orders.countOpenForCustomer(customerId) };
+  }
+
+  /**
+   * Has this customer ever used the account: orders of any status, subscriptions live or
+   * cancelled. auth-service closes a customer account sitting on a staff member's real number
+   * (HR correcting the phone) only when both are zero — anything else is somebody's history.
+   */
+  @ApiOkResponse({ type: InternalCustomerActivityResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/customer-activity')
+  @ApiOperation({ summary: 'Order and subscription counts for a customer (internal service auth)' })
+  async internalCustomerActivity(
+    @Query('customerId', ParseUUIDPipe) customerId: string,
+  ): Promise<{ orders: number; subscriptions: number }> {
+    const [orders, subscriptions] = await Promise.all([
+      this.orders.listForCustomer(customerId, { limit: 1 }),
+      this.subscriptions.list(customerId),
+    ]);
+    return { orders: orders.total, subscriptions: subscriptions.length };
   }
 
   @Public()
