@@ -2051,7 +2051,7 @@ export class OrderService {
     );
     // Right now, on the request that earned it; a failure here leaves the row for the sweep.
     await this.outboxService.processForOrder(cancelled.id, authorization);
-    await this.releaseStock(cancelled, authorization);
+    await this.releaseHolds(cancelled, authorization);
     // The customer's own cancel is silent to the customer, which left the depot preparing an
     // order that no longer existed. Fail-open like every notify: the order IS cancelled.
     await this.notifyDepotOfCancel(cancelled, authorization);
@@ -2298,7 +2298,7 @@ export class OrderService {
           continue;
         }
         await this.outboxService.processForOrder(cancelled.id, authorization);
-        await this.releaseStock(cancelled, authorization);
+        await this.releaseHolds(cancelled, authorization);
         cancelledCount += 1;
         if (sweep.stalled) {
           stalledCount += 1;
@@ -3031,8 +3031,21 @@ export class OrderService {
     return input.idempotencyKey?.trim() || null;
   }
 
-  /** Releases any stock this order held (on cancellation). Fail-open, no-op if unrouted. */
-  private async releaseStock(order: OrderRecord, authorization: string): Promise<void> {
+  /**
+   * Hands back what a cancelled order held: its voucher and its stock.
+   *
+   * The voucher since 2026-11-20 (owner decision): a customer whose order is cancelled — by
+   * them, by staff or by the stale sweep — can use it again; promo-service still checks the
+   * expiry when it is used. It also returns the rule promotions the order consumed. One place,
+   * so every way an order is cancelled does both. Fail-open, like the void path: the order IS
+   * cancelled, and a voucher not returned is not a reason to report otherwise.
+   */
+  private async releaseHolds(order: OrderRecord, authorization: string): Promise<void> {
+    await this.promo
+      .release(order.id)
+      .catch((err: Error) =>
+        this.logger.warn(`Voucher ${order.id} tidak bisa dikembalikan: ${err.message}`),
+      );
     if (!order.depotId) {
       return;
     }
@@ -3149,9 +3162,9 @@ export class OrderService {
     if (to === OrderStatus.COMPLETED) {
       await this.runCompletion(updated, authorization);
     }
-    // Staff cancellation releases any stock the order held (customer cancels go through cancel()).
+    // Staff cancellation releases what the order held (customer cancels go through cancel()).
     if (to === OrderStatus.CANCELLED) {
-      await this.releaseStock(updated, authorization);
+      await this.releaseHolds(updated, authorization);
     }
     return updated;
   }
