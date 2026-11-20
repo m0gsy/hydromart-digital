@@ -1,7 +1,8 @@
 export const CUSTOMER_FOOTPRINT_PORT = Symbol('CUSTOMER_FOOTPRINT_PORT');
 
 /**
- * Was this customer account ever used: an order of any status, a subscription, or a point.
+ * Was this customer account ever used: an order of any status, a subscription, or a point ever
+ * held (balance and lifetime total both zero).
  *
  * Asked before HR's phone correction closes the customer account that sits on a staff
  * member's real number. Fails CLOSED like `OpenOrdersPort`: an unreachable peer is not

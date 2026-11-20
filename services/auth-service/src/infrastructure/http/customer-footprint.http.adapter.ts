@@ -21,10 +21,13 @@ export class CustomerFootprintHttpAdapter implements CustomerFootprintPort {
       // Creates an empty loyalty account when there is none, which answers 0 all the same.
       this.read('LOYALTY_SERVICE_URL', `/api/v1/loyalty/accounts/${id}`),
     ]);
+    // Never had a point, not merely none left: a referral reward spent to zero is history too,
+    // and some movements change the balance and the lifetime total by different amounts.
     return (
       count(activity.orders) === 0 &&
       count(activity.subscriptions) === 0 &&
-      count(loyalty.pointsBalance) === 0
+      count(loyalty.pointsBalance) === 0 &&
+      count(loyalty.lifetimePoints) === 0
     );
   }
 
@@ -43,7 +46,9 @@ export class CustomerFootprintHttpAdapter implements CustomerFootprintPort {
         signal: AbortSignal.timeout(CustomerFootprintHttpAdapter.TIMEOUT_MS),
       });
     } catch (error) {
-      throw new ServiceUnavailableException(`${base} tidak terjangkau: ${(error as Error).message}`);
+      throw new ServiceUnavailableException(
+        `${base} tidak terjangkau: ${(error as Error).message}`,
+      );
     }
     if (!response.ok) {
       throw new ServiceUnavailableException(`${base} menolak permintaan (${response.status})`);
@@ -58,7 +63,9 @@ export class CustomerFootprintHttpAdapter implements CustomerFootprintPort {
 
 function count(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    throw new ServiceUnavailableException('Riwayat akun pelanggan mengembalikan angka yang tidak dikenali.');
+    throw new ServiceUnavailableException(
+      'Riwayat akun pelanggan mengembalikan angka yang tidak dikenali.',
+    );
   }
   return value;
 }

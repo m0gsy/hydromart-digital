@@ -774,6 +774,10 @@ export class AccountService {
    * erasure closes one: profile PII scrubbed in customer-service first, then tombstone
    * identity + DELETED + sessions dropped in one auth transaction.
    *
+   * Scrub first, close second, move the staff number last, each idempotent: a failure part-way
+   * leaves the customer account findable by its number, and HR saving again finishes the job.
+   * The reverse order could strand profile PII on a closed account nothing can look up again.
+   *
    * ponytail: check-then-close is not atomic, so an order placed in the same second lands on a
    * closed account. A cross-service lock is the upgrade if that is ever seen.
    */

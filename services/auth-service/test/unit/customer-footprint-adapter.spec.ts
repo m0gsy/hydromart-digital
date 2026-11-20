@@ -33,7 +33,7 @@ const answer = (order: unknown, loyalty: unknown) =>
 
 describe('CustomerFootprintHttpAdapter', () => {
   it('reads order and loyalty with the internal key; unused only when all three are zero', async () => {
-    answer({ orders: 0, subscriptions: 0 }, { pointsBalance: 0 });
+    answer({ orders: 0, subscriptions: 0 }, { pointsBalance: 0, lifetimePoints: 0 });
     await expect(new CustomerFootprintHttpAdapter(config()).isUnused('c 1')).resolves.toBe(true);
     const urls = fetchMock.mock.calls.map(([url]) => url).sort();
     expect(urls).toEqual([
@@ -43,9 +43,23 @@ describe('CustomerFootprintHttpAdapter', () => {
     for (const [, init] of fetchMock.mock.calls) expect(init.headers['x-internal-key']).toBe('k');
 
     for (const [order, loyalty] of [
-      [{ orders: 1, subscriptions: 0 }, { pointsBalance: 0 }],
-      [{ orders: 0, subscriptions: 2 }, { pointsBalance: 0 }],
-      [{ orders: 0, subscriptions: 0 }, { pointsBalance: 15 }],
+      [
+        { orders: 1, subscriptions: 0 },
+        { pointsBalance: 0, lifetimePoints: 0 },
+      ],
+      [
+        { orders: 0, subscriptions: 2 },
+        { pointsBalance: 0, lifetimePoints: 0 },
+      ],
+      [
+        { orders: 0, subscriptions: 0 },
+        { pointsBalance: 15, lifetimePoints: 15 },
+      ],
+      // A referral reward spent to zero: nothing left, but the account had points.
+      [
+        { orders: 0, subscriptions: 0 },
+        { pointsBalance: 0, lifetimePoints: 40 },
+      ],
     ]) {
       answer(order, loyalty);
       await expect(new CustomerFootprintHttpAdapter(config()).isUnused('c')).resolves.toBe(false);
@@ -58,24 +72,33 @@ describe('CustomerFootprintHttpAdapter', () => {
     await expect(new CustomerFootprintHttpAdapter(config(noLoyalty)).isUnused('c')).rejects.toThrow(
       /LOYALTY_SERVICE_URL/,
     );
-    await expect(new CustomerFootprintHttpAdapter(config(URLS, '')).isUnused('c')).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+    await expect(
+      new CustomerFootprintHttpAdapter(config(URLS, '')).isUnused('c'),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
 
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    await expect(new CustomerFootprintHttpAdapter(config()).isUnused('c')).rejects.toThrow(/ECONNREFUSED/);
+    await expect(new CustomerFootprintHttpAdapter(config()).isUnused('c')).rejects.toThrow(
+      /ECONNREFUSED/,
+    );
 
     fetchMock.mockResolvedValue(reply({ ok: false, status: 500 }));
     await expect(new CustomerFootprintHttpAdapter(config()).isUnused('c')).rejects.toThrow(/500/);
 
     fetchMock.mockResolvedValue(reply({ bad: true }));
-    await expect(new CustomerFootprintHttpAdapter(config()).isUnused('c')).rejects.toThrow(/tidak dikenali/);
+    await expect(new CustomerFootprintHttpAdapter(config()).isUnused('c')).rejects.toThrow(
+      /tidak dikenali/,
+    );
 
     for (const order of [{}, { orders: -1, subscriptions: 0 }, { orders: 'x', subscriptions: 0 }]) {
-      answer(order, { pointsBalance: 0 });
+      answer(order, { pointsBalance: 0, lifetimePoints: 0 });
       await expect(new CustomerFootprintHttpAdapter(config()).isUnused('c')).rejects.toThrow(
         /angka yang tidak dikenali/,
       );
     }
+    // A loyalty answer without the lifetime total is not "never had points".
+    answer({ orders: 0, subscriptions: 0 }, { pointsBalance: 0 });
+    await expect(new CustomerFootprintHttpAdapter(config()).isUnused('c')).rejects.toThrow(
+      /angka yang tidak dikenali/,
+    );
   });
 });
