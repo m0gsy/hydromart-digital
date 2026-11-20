@@ -15,6 +15,10 @@ function assertPin(lat: number | null | undefined, lng: number | null | undefine
   if ((lat == null) !== (lng == null) || (lat === 0 && lng === 0)) {
     throw new AddressPinInvalidError();
   }
+  // In range too: the imports and the staff correction call this directly, not via a DTO.
+  if (lat != null && lng != null && (Math.abs(lat) > 90 || Math.abs(lng) > 180)) {
+    throw new AddressPinInvalidError();
+  }
 }
 
 export interface CreateAddressInput {

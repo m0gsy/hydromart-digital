@@ -113,12 +113,15 @@ export function numOrNull(v: string): number | null {
  * was looking. Short links (maps.app.goo.gl) carry no coordinates and give null, as does 0,0.
  */
 export function parseLatLngPair(text: string): { latitude: number; longitude: number } | null {
-  let t = text.replace(/−/g, '-'); // a typographic minus, as phones paste it
+  let t = text;
   try {
     t = decodeURIComponent(t);
   } catch {
     /* a stray % — read the text as it is */
   }
+  // After decoding: every dash a phone or Word puts in is a minus ("–6.9" must not read as
+  // +6.9), and ",+" is how a search link encodes the space.
+  t = t.replace(/[−–—]/g, '-').replace(/,\+/g, ', ');
   const m =
     /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(t) ??
     // Not in the middle of a longer number: "107.6098, -6.9147" (lng first) must not read

@@ -1,6 +1,6 @@
 'use client';
 
-import { CsvImport, phoneCell, type ImportColumn } from '@/components/csv-import';
+import { CsvImport, numberCell, phoneCell, type ImportColumn } from '@/components/csv-import';
 import { useT } from '@/lib/locale-context';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/roles';
@@ -20,6 +20,10 @@ const COLUMNS: ImportColumn[] = [
   { key: 'province', example: 'Jawa Barat' },
   { key: 'postalCode', example: '17111', text: true },
   { key: 'landmark', example: 'pagar hijau sebelah warung Bu Ani' },
+  // 2026-11-20: the pin an order needs — two numbers, or a Google Maps link (not a short one).
+  { key: 'latitude', example: '-6.914744', parse: numberCell },
+  { key: 'longitude', example: '107.609810', parse: numberCell },
+  { key: 'mapsLink', example: 'https://maps.google.com/?q=-6.914744,107.609810' },
 ];
 
 function Body() {
