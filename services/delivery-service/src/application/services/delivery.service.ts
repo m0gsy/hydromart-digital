@@ -245,7 +245,9 @@ export class DeliveryService {
         orderNumber: order.orderNumber,
         driverId,
         depotId: order.depotId ?? undefined,
-        destinationAddress: order.addressLine,
+        // The line AND the city, as both consoles send it: the street alone is ambiguous
+        // across the cities a depot serves.
+        destinationAddress: [order.addressLine, order.city].filter(Boolean).join(', '),
         destinationLat: order.latitude ?? undefined,
         destinationLng: order.longitude ?? undefined,
         recipientPhone: order.phone,

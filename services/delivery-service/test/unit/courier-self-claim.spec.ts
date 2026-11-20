@@ -79,6 +79,17 @@ describe('DeliveryService.claimByDriver (S1)', () => {
     expect(orders.calls).toEqual([{ orderId: ORDER, status: 'DRIVER_ASSIGNED' }]);
     // …and the delivery carries what the courier hands over, not the catalogue row.
     expect(delivery.items).toEqual([{ name: 'Galon 19L', qty: 2 }]);
+    // The city too, as a console dispatch carries it — the street alone was all a claim got.
+    expect(delivery.destinationAddress).toBe('Jl. Air 1, Bandung');
+  });
+
+  it('keeps the street alone when the order has no city', async () => {
+    const service = await make(1);
+    lookup.seed({ id: ORDER, depotId: DEPOT_ID, city: '' });
+
+    const delivery = await service.claimByDriver(DRIVER, ORDER, AUTH);
+
+    expect(delivery.destinationAddress).toBe('Jl. Air 1');
   });
 
   /*

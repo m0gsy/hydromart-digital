@@ -14,7 +14,8 @@ export const walkIn = {
   deliverRecipientPlaceholder: 'Nama penerima',
   deliverPhonePlaceholder: 'Nomor yang bisa dihubungi kurir',
   deliverNotesPlaceholder: 'Patokan (opsional)',
-  deliverIncomplete: 'Alamat dan nomor belum lengkap — total di bawah masih harga ambil sendiri.',
+  deliverIncomplete:
+    'Alamat, kota dan nomor belum lengkap — lengkapi dulu, atau matikan antar untuk ambil sendiri.',
   deliverRecipientFallback: 'Pembeli konter',
   shipping: 'Ongkir',
 

@@ -173,6 +173,24 @@ describe('Delivery HTTP flows (e2e)', () => {
     expect(created.body.status).toBe('ASSIGNED');
   });
 
+  // Both consoles send the window and the controller dropped it, so the courier never saw
+  // it. The customer id in the same body stays untrusted: nothing ties it to the order.
+  it('keeps the delivery window a console sends, but not a customer id it cannot check', async () => {
+    const other = randomUUID();
+    await checkIn(other);
+    const created = await request(server())
+      .post('/api/v1/deliveries')
+      .set(auth(staffToken))
+      .send({
+        ...assignBody(),
+        driverId: other,
+        customerId: randomUUID(),
+        deliveryWindow: 'Besok, 09:00-12:00',
+      })
+      .expect(201);
+    expect(created.body).toMatchObject({ customerId: null, deliveryWindow: 'Besok, 09:00-12:00' });
+  });
+
   it('refuses to assign a courier who has not checked in (409)', async () => {
     await request(server())
       .post('/api/v1/deliveries')

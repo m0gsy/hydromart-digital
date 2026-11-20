@@ -1103,6 +1103,7 @@ export class FakeOrderLookup implements OrderLookupPort {
       recipientName: 'Budi',
       phone: '+62800',
       addressLine: 'Jl. Air 1',
+      city: 'Bandung',
       latitude: null,
       longitude: null,
       notes: null,

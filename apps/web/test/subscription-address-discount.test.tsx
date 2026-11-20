@@ -38,6 +38,7 @@ const HOME = {
   postalCode: '40111',
   latitude: -6.9,
   longitude: 107.6,
+  notes: 'Pagar hijau',
   isPrimary: true,
 };
 const OFFICE = {
@@ -45,6 +46,7 @@ const OFFICE = {
   id: 'a-office',
   label: 'Kantor',
   addressLine: 'Jl. Asia Afrika 55',
+  notes: 'Lobi B, titip resepsionis',
   isPrimary: false,
 };
 
@@ -118,6 +120,23 @@ describe('K1.9 · a subscription is no longer locked to the primary address', ()
     expect(body.deliveryAddress.addressLine).toBe('Jl. Asia Afrika 55');
   });
 
+  // P1a: the patokan never reached a plan made here, so no courier of it ever got one.
+  it('carries the picked address patokan into a new plan', async () => {
+    apiMock.post.mockResolvedValue(PLAN);
+    renderPage();
+
+    fireEvent.change(await screen.findByLabelText(/antar ke|deliver to/i), {
+      target: { value: 'a-office' },
+    });
+    fireEvent.change(await screen.findByLabelText(/produk|product/i), { target: { value: 'p-1' } });
+    fireEvent.click(screen.getByRole('button', { name: /mulai langganan|start a subscription/i }));
+
+    await waitFor(() => expect(apiMock.post).toHaveBeenCalled());
+    expect(apiMock.post.mock.calls[0]![1]).toMatchObject({
+      deliveryAddress: { notes: 'Lobi B, titip resepsionis' },
+    });
+  });
+
   it('moves an existing plan to another address, with the plan own line named first', async () => {
     route({ subs: [PLAN] });
     apiMock.post.mockResolvedValue({ ...PLAN, addressLine: 'Jl. Asia Afrika 55' });
@@ -136,7 +155,11 @@ describe('K1.9 · a subscription is no longer locked to the primary address', ()
       expect(apiMock.post).toHaveBeenCalledWith(
         '/orders/api/v1/subscriptions/s-1/address',
         expect.objectContaining({
-          deliveryAddress: expect.objectContaining({ addressLine: 'Jl. Asia Afrika 55' }),
+          // …and its patokan travels with it (P1a).
+          deliveryAddress: expect.objectContaining({
+            addressLine: 'Jl. Asia Afrika 55',
+            notes: 'Lobi B, titip resepsionis',
+          }),
         }),
         true,
       ),

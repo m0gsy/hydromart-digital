@@ -136,7 +136,13 @@ function Detail() {
         )}
         <div className="mt-3 flex gap-2">
           <ExternalLink
-            href={`https://maps.google.com/?q=${delivery.destinationLat ?? ''},${delivery.destinationLng ?? ''}`}
+            // No pin (a counter sale, an imported address): search the address itself. The
+            // old link sent `?q=,` and Maps opened on nothing.
+            href={`https://maps.google.com/?q=${
+              delivery.destinationLat != null && delivery.destinationLng != null
+                ? `${delivery.destinationLat},${delivery.destinationLng}`
+                : encodeURIComponent(delivery.destinationAddress)
+            }`}
             className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl bg-black/5 py-2.5 text-sm font-bold"
           >
             <NavigationArrow size={16} className="text-brand-700" weight="fill" />

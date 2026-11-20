@@ -62,10 +62,17 @@ export class DeliveryController {
         destinationLat: dto.destinationLat,
         destinationLng: dto.destinationLng,
         recipientPhone: dto.recipientPhone,
+        // `customerId` is still NOT taken from the body: nothing here ties it to the order, so
+        // a dispatcher could thread a delivery into any customer's feed (and an anonymous
+        // counter sale would land in the sentinel's). Read from the order server-side when
+        // that threading is wanted, as the self-claim path does.
         driverPhone: dto.driverPhone,
         items: dto.items,
         codAmount: dto.codAmount,
         notes: dto.notes,
+        // Both consoles send the window and this mapping dropped it, so a dispatched courier
+        // never saw the time the customer chose.
+        deliveryWindow: dto.deliveryWindow,
       },
       authorization,
     );

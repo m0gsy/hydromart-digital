@@ -426,7 +426,8 @@ export const opsFix = {
     deliverRecipientPlaceholder: 'Recipient name',
     deliverPhonePlaceholder: 'Number the courier can call',
     deliverNotesPlaceholder: 'Landmark (optional)',
-    deliverIncomplete: 'Address and number incomplete — the total below is still a pick-up price.',
+    deliverIncomplete:
+      'Address, city or number missing — complete it, or turn delivery off for a pick-up.',
     deliverRecipientFallback: 'Counter buyer',
     shipping: 'Delivery',
 
