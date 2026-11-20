@@ -76,6 +76,7 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
     // become, so confirming "Kurir" and then switching to "Kepala Depot" promoted somebody
     // to a role nobody agreed to — the confirmation was for a different sentence.
     if (k === 'phone' || k === 'role') setConfirmOwner(null);
+    if (k === 'phone') setCloseCustomer(null);
     setForm((f) => ({ ...f, [k]: v }));
   };
 
@@ -87,6 +88,13 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
    * than discovered afterwards by the person who lost their account.
    */
   const [confirmOwner, setConfirmOwner] = useState<Customer | null>(null);
+
+  /**
+   * The corrected phone belongs to a customer account that was never used — usually the
+   * employee's own signup on their real number, sometimes a typo. The server names the
+   * account; the next save closes it once HR has read whose it is (owner decision 2026-11-20).
+   */
+  const [closeCustomer, setCloseCustomer] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -110,12 +118,21 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
     }
     setSaving(true);
     try {
-      if (id) await api.patch(endpoints.hr.updateEmployee(id), payload.value, true);
+      if (id)
+        await api.patch(
+          endpoints.hr.updateEmployee(id),
+          closeCustomer ? { ...payload.value, confirmCloseCustomer: true } : payload.value,
+          true,
+        );
       else await api.post(endpoints.hr.createEmployee, payload.value, true);
       notify(id ? t('hrFix.employeeForm.updated') : t('hrFix.employeeForm.added'));
       router.push(id ? `/hr/employees/detail?id=${id}` : '/hr/employees');
       router.refresh();
     } catch (e2) {
+      if (id && e2 instanceof ApiError && e2.code === 'HR_PHONE_UNUSED_CUSTOMER') {
+        setCloseCustomer(e2.message);
+        return;
+      }
       setErr(e2 instanceof ApiError ? e2.message : t('hrFix.employeeForm.saveFailed'));
     } finally {
       setSaving(false);
@@ -392,13 +409,23 @@ export function EmployeeForm({ initial, id }: { initial: Form; id?: string }) {
         </Card>
       )}
 
+      {closeCustomer && (
+        <Card className="border-amber-300 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-[color:var(--warning)]" role="alert">
+            {closeCustomer}
+          </p>
+        </Card>
+      )}
+
       <div className="flex gap-3">
         <Button type="submit" loading={saving}>
           {confirmOwner
             ? t('hrFix.employeeForm.useThatAccount')
-            : id
-              ? t('hrFix.employeeForm.saveChanges')
-              : t('hrFix.employeeForm.addEmployee')}
+            : closeCustomer
+              ? t('hrFix.employeeForm.closeCustomerAndSave')
+              : id
+                ? t('hrFix.employeeForm.saveChanges')
+                : t('hrFix.employeeForm.addEmployee')}
         </Button>
         <Button type="button" variant="secondary" onClick={() => router.back()}>
           {t('hrFix.employeeForm.cancel2')}

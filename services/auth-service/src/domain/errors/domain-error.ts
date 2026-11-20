@@ -7,6 +7,8 @@
 export abstract class DomainError extends Error {
   abstract readonly code: string;
   abstract readonly status: number;
+  /** Structured facts the caller needs to act on the error, sent beside the message. */
+  readonly details?: Record<string, unknown>;
 
   protected constructor(message: string) {
     super(message);

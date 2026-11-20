@@ -7,6 +7,7 @@ import {
   ErasureRequestOpenError,
   InvalidStaffRoleError,
   PhoneAlreadyRegisteredError,
+  PhoneHeldByUnusedCustomerError,
   StaffDepotRequiredError,
   RoleEscalationError,
 } from '../../src/domain/errors/auth.errors';
@@ -1059,12 +1060,34 @@ describe('AccountService', () => {
           );
         });
 
-        it('closes an unused one and moves the staff login onto the number', async () => {
+        // Owner decision 2026-11-20: a typo must not quietly close a stranger's account and hand
+        // them the staff login, so the first save names the account and HR confirms.
+        it('asks HR to confirm first, naming the account, and touches nothing', async () => {
+          const staff = await closing.inviteStaff('+628990004111', Role.STAFF_DEPOT, 'Andi', 'depot-1');
+          const createdAt = new Date('2026-11-18T05:00:00.000Z');
+          const dup = makeCustomer({ phone: '+628990004112', fullName: 'Andi', createdAt });
+          customers.seed(dup);
+
+          const refused = closing.updateStaffProfileInternal(staff.id, { phone: '+628990004112' });
+          await expect(refused).rejects.toBeInstanceOf(PhoneHeldByUnusedCustomerError);
+          await expect(refused).rejects.toMatchObject({
+            details: { customerName: 'Andi', createdAt: createdAt.toISOString() },
+          });
+
+          expect((await customers.findById(dup.id))?.status).toBe(CustomerStatus.ACTIVE);
+          expect((await customers.findById(staff.id))?.phone).toBe('+628990004111');
+          expect(scrubbed).toEqual([]);
+        });
+
+        it('closes an unused one and moves the staff login onto the number, once HR confirms', async () => {
           const staff = await closing.inviteStaff('+628990004101', Role.STAFF_DEPOT, 'Andi', 'depot-1');
           const dup = makeCustomer({ phone: '+628990004102' });
           customers.seed(dup);
 
-          const updated = await closing.updateStaffProfileInternal(staff.id, { phone: '08990004102' });
+          const updated = await closing.updateStaffProfileInternal(staff.id, {
+            phone: '08990004102',
+            closeUnusedCustomer: true,
+          });
 
           expect(updated).toMatchObject({ id: staff.id, phone: '+628990004102', role: Role.STAFF_DEPOT });
           const closed = await customers.findById(dup.id);

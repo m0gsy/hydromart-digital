@@ -6,6 +6,7 @@ import {
   IdentityPort,
   ProvisionManagedStaffInput,
   ProvisionStaffInput,
+  UnusedCustomerOnPhoneError,
   UpdateStaffProfileInput,
 } from '../../application/ports/identity.port';
 
@@ -52,15 +53,31 @@ export class IdentityHttpAdapter implements IdentityPort {
     // The one call here that can legitimately be refused by DATA rather than by an outage:
     // the number belongs to somebody else. A 503 "auth-service menolak (409)" told the
     // person editing to try again later, which would never work. An UNUSED customer account
-    // on the number no longer refuses — auth closes it — so what is left is named here.
-    await this.post(
-      'auth/internal/staff/profile',
-      input,
-      'Nomor HP ini sudah dipakai akun lain: staf lain, atau pelanggan yang sudah punya pesanan, langganan, atau poin',
-    );
+    // on the number is closed once HR confirms, so auth names it for the confirmation; what is
+    // left after that is named here.
+    await this.post('auth/internal/staff/profile', input, async (res) => {
+      const body = (await res.json().catch(() => null)) as {
+        code?: unknown;
+        details?: { customerName?: unknown; createdAt?: unknown };
+      } | null;
+      if (body?.code === 'AUTH_PHONE_UNUSED_CUSTOMER') {
+        const { customerName, createdAt } = body.details ?? {};
+        throw new UnusedCustomerOnPhoneError(
+          typeof customerName === 'string' ? customerName : null,
+          typeof createdAt === 'string' ? createdAt : null,
+        );
+      }
+      throw new BadRequestException(
+        'Nomor HP ini sudah dipakai akun lain: staf lain, atau pelanggan yang sudah punya pesanan, langganan, atau poin',
+      );
+    });
   }
 
-  private async post<T>(path: string, input: unknown, conflictMessage?: string): Promise<T> {
+  private async post<T>(
+    path: string,
+    input: unknown,
+    onConflict?: (res: Response) => Promise<never>,
+  ): Promise<T> {
     const { url, internalKey } = this.config.authService;
     if (!url || !internalKey) {
       throw new ServiceUnavailableException('AUTH_SERVICE_URL/INTERNAL_SERVICE_KEY belum diset');
@@ -80,8 +97,8 @@ export class IdentityHttpAdapter implements IdentityPort {
       );
     }
 
-    if (res.status === 409 && conflictMessage) {
-      throw new BadRequestException(conflictMessage);
+    if (res.status === 409 && onConflict) {
+      return onConflict(res);
     }
     if (!res.ok) {
       // A 4xx with a sentence in it is auth-service saying WHY (role not grantable, depot

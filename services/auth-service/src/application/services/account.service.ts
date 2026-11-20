@@ -16,6 +16,7 @@ import {
   InvalidStaffRoleError,
   RoleEscalationError,
   PhoneAlreadyRegisteredError,
+  PhoneHeldByUnusedCustomerError,
   StaffDepotRequiredError,
 } from '../../domain/errors/auth.errors';
 // The locked-role set is the guards' own definition, imported rather than mirrored: the
@@ -736,11 +737,11 @@ export class AccountService {
    * never a merge — the number is the login identity, and moving it onto an account that
    * exists would hand one person another's session. The repository re-checks on the write
    * itself, which closes the race this pre-check cannot. The one exception is a customer
-   * account nobody ever used, which is closed instead (closeUnusedCustomer).
+   * account nobody ever used, which is closed instead once HR confirms (closeUnusedCustomer).
    */
   async updateStaffProfileInternal(
     customerId: string,
-    changes: { fullName?: string | null; phone?: string },
+    changes: { fullName?: string | null; phone?: string; closeUnusedCustomer?: boolean },
   ): Promise<PublicCustomer> {
     const customer = await this.customers.findById(customerId);
     if (!customer) {
@@ -751,7 +752,7 @@ export class AccountService {
       if (phone !== customer.phone) {
         const owner = await this.customers.findByPhone(phone);
         if (owner && owner.id !== customerId) {
-          await this.closeUnusedCustomer(owner, customerId);
+          await this.closeUnusedCustomer(owner, customerId, changes.closeUnusedCustomer === true);
         }
         customer.changePhone(phone);
       }
@@ -774,6 +775,11 @@ export class AccountService {
    * erasure closes one: profile PII scrubbed in customer-service first, then tombstone
    * identity + DELETED + sessions dropped in one auth transaction.
    *
+   * And only once HR confirms (owner decision 2026-11-20): the first save answers 409
+   * AUTH_PHONE_UNUSED_CUSTOMER naming the account, so a mistyped number cannot quietly close a
+   * stranger's account and hand them the staff login. HR's confirm resends with
+   * `closeUnusedCustomer`.
+   *
    * Scrub first, close second, move the staff number last, each idempotent: a failure part-way
    * leaves the customer account findable by its number, and HR saving again finishes the job.
    * The reverse order could strand profile PII on a closed account nothing can look up again.
@@ -781,7 +787,11 @@ export class AccountService {
    * ponytail: check-then-close is not atomic, so an order placed in the same second lands on a
    * closed account. A cross-service lock is the upgrade if that is ever seen.
    */
-  private async closeUnusedCustomer(owner: Customer, staffId: string): Promise<void> {
+  private async closeUnusedCustomer(
+    owner: Customer,
+    staffId: string,
+    confirmed: boolean,
+  ): Promise<void> {
     if (
       owner.role !== Role.CUSTOMER ||
       !this.footprint ||
@@ -790,6 +800,9 @@ export class AccountService {
       !(await this.footprint.isUnused(owner.id))
     ) {
       throw new PhoneAlreadyRegisteredError();
+    }
+    if (!confirmed) {
+      throw new PhoneHeldByUnusedCustomerError(owner.fullName, owner.createdAt);
     }
     await this.customerData.anonymise(owner.id);
     await this.dataRequests.anonymiseCustomer(owner.id, anonymisedIdentity(owner.id));

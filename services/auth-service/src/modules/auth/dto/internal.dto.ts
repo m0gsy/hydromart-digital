@@ -57,6 +57,14 @@ export class UpdateStaffProfileDto {
   @IsString()
   @MaxLength(32)
   phone?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'HR confirmed closing the never-used customer account that holds the new number. Without it that account answers 409 AUTH_PHONE_UNUSED_CUSTOMER.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  closeUnusedCustomer?: boolean;
 }
 
 export class AssignStaffRoleDto {

@@ -47,6 +47,24 @@ export class CustomerNotFoundError extends DomainError {
   }
 }
 
+/**
+ * HR is moving a staff login onto a number held by a customer account that was never used.
+ * Closing that account is HR's to confirm (owner decision 2026-11-20): a mistyped number would
+ * otherwise close a stranger's account and hand the staff login to the stranger's phone.
+ * `details` names the account so HR can tell their own employee from a typo.
+ */
+export class PhoneHeldByUnusedCustomerError extends DomainError {
+  readonly code = 'AUTH_PHONE_UNUSED_CUSTOMER';
+  readonly status = HTTP.CONFLICT;
+  readonly details: { customerName: string | null; createdAt: string };
+  constructor(customerName: string | null, createdAt: Date) {
+    super(
+      'This number belongs to a customer account that was never used; closing it needs confirmation.',
+    );
+    this.details = { customerName, createdAt: createdAt.toISOString() };
+  }
+}
+
 /** A staff invite/role change must target a non-customer role (PRD Module 7). */
 export class InvalidStaffRoleError extends DomainError {
   readonly code = 'AUTH_INVALID_STAFF_ROLE';

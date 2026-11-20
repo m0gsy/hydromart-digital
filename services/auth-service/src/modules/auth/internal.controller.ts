@@ -167,6 +167,7 @@ export class InternalAccountController {
     const staff = await this.account.updateStaffProfileInternal(dto.customerId, {
       fullName: dto.fullName,
       phone: dto.phone,
+      closeUnusedCustomer: dto.closeUnusedCustomer,
     });
     return PublicCustomerDto.from(staff);
   }

@@ -353,6 +353,7 @@ export const hrFix = {
     rotation: 'Rotasi',
   },
   employeeForm: {
+    closeCustomerAndSave: 'Tutup akun pelanggan itu & simpan',
     phoneTakenTail: ' — bukan membuat akun baru. Kalau nomornya salah ketik, betulkan dulu.',
     phoneTakenSave: 'Menyimpan akan mengubah akun itu menjadi',
     phoneTaken: 'Nomor {phone} sudah dipakai akun atas nama',

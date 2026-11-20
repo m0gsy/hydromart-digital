@@ -144,6 +144,8 @@ export type UpdateEmployeeInput = Omit<Partial<CreateEmployeeInput>, 'exitDate'>
   status?: Employee['status'];
   /** Last paid day; `null` clears it (a rehire). See `assertExitWindow`. */
   exitDate?: string | null;
+  /** HR confirmed closing the never-used customer account on the new phone. Never stored. */
+  confirmCloseCustomer?: boolean;
 };
 
 /**
@@ -1022,6 +1024,7 @@ export class EmployeeService {
         customerId: current.authSubjectId,
         fullName: nameMoved ? input.fullName : undefined,
         phone: phoneMoved ? input.phone : undefined,
+        closeUnusedCustomer: phoneMoved && input.confirmCloseCustomer === true ? true : undefined,
       });
     }
 

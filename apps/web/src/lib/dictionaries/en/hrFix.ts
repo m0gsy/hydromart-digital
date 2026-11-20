@@ -340,6 +340,7 @@ export const hrFix = {
     rotation: 'Rotation',
   },
   employeeForm: {
+    closeCustomerAndSave: 'Close that customer account & save',
     phoneTakenTail: ' — not create a new account. If the number is a typo, fix it first.',
     phoneTakenSave: 'Saving will turn that account into',
     phoneTaken: 'The number {phone} already belongs to the account of',

@@ -691,6 +691,19 @@ describe('EmployeeService (M1)', () => {
       expect(repo.rows[0]?.phone).toBe(baseInput.phone);
     });
 
+    // The second save, after HR confirmed closing a never-used customer account on the number.
+    it("passes HR's confirmation with a phone change only, and never stores it", async () => {
+      const { svc, identity, repo, id } = await accounted();
+
+      await svc.update(hr, id, { phone: '08129999', confirmCloseCustomer: true });
+      expect(identity.profileCalls[0]).toMatchObject({ phone: '08129999', closeUnusedCustomer: true });
+      expect(repo.rows[0]).not.toHaveProperty('confirmCloseCustomer');
+
+      identity.profileCalls.length = 0;
+      await svc.update(hr, id, { fullName: 'Budi Santoso', confirmCloseCustomer: true });
+      expect(identity.profileCalls[0]?.closeUnusedCustomer).toBeUndefined();
+    });
+
     it('says nothing when neither changed, and has nobody to tell without an account', async () => {
       const { svc, identity, repo, id } = await accounted();
 
