@@ -1,5 +1,5 @@
 {
-  "count": 66,
+  "count": 62,
   "routes": [
     "services/admin-service/src/modules/customer-support.controller.ts Post :id/messages @Can(-)",
     "services/auth-service/src/modules/auth/account.controller.ts Post sessions/:id/revoke @Can(-)",
@@ -47,6 +47,7 @@
     "services/order-service/src/modules/order.controller.ts Get :id/review @Can(-)",
     "services/order-service/src/modules/order.controller.ts Get :id/timeline @Can(-)",
     "services/order-service/src/modules/order.controller.ts Patch manage/:id/depot @Can(orderQueue)",
+    "services/order-service/src/modules/order.controller.ts Post :id/address @Can(-)",
     "services/order-service/src/modules/order.controller.ts Post :id/cancel @Can(-)",
     "services/order-service/src/modules/order.controller.ts Post :id/repeat @Can(-)",
     "services/order-service/src/modules/order.controller.ts Post :id/reschedule @Can(-)",
@@ -61,11 +62,6 @@
     "services/product-service/src/modules/category.controller.ts Patch :id @Can(catalogWrite)",
     "services/product-service/src/modules/product.controller.ts Delete :id @Can(catalogWrite)",
     "services/product-service/src/modules/product.controller.ts Get :id/price-history @Can(catalogWrite)",
-    "services/product-service/src/modules/product.controller.ts Patch :id @Can(catalogWrite)",
-    "services/promo-service/src/modules/promotion.controller.ts Delete :id @Can(promotionWrite)",
-    "services/promo-service/src/modules/promotion.controller.ts Patch :id @Can(promotionWrite)",
-    "services/promo-service/src/modules/voucher.controller.ts Delete :id @Can(voucherWrite)",
-    "services/promo-service/src/modules/voucher.controller.ts Patch :id @Can(voucherWrite)",
-    "services/promo-service/src/modules/voucher.controller.ts Post :id/grant @Can(voucherWrite)"
+    "services/product-service/src/modules/product.controller.ts Patch :id @Can(catalogWrite)"
   ]
 }

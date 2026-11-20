@@ -69,6 +69,16 @@ export function nextStatuses(from: OrderStatus): readonly OrderStatus[] {
  * derived from the transition graph — the system may cancel later than the customer may
  * (e.g. a delivery that failed on the road).
  */
+/**
+ * Owner decision 2026-11-20: a customer may change the delivery address before the order is
+ * prepared. CREATED and CONFIRMED are the states no courier has ever been near (the only
+ * backward edge lands on PREPARING), so nothing has been packed for the old door yet.
+ */
+export const ADDRESS_CHANGEABLE_STATUSES: readonly OrderStatus[] = [
+  OrderStatus.CREATED,
+  OrderStatus.CONFIRMED,
+];
+
 export function isCancellable(status: OrderStatus): boolean {
   return (
     status === OrderStatus.CREATED ||

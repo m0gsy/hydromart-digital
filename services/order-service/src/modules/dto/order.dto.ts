@@ -295,6 +295,15 @@ export class TaxPreviewResponseDto {
   percent!: number | null;
 }
 
+/** 2026-11-20: the customer moves their own order to another address (same depot only). */
+export class ChangeOrderAddressDto {
+  @ApiProperty({ type: DeliveryAddressDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => DeliveryAddressDto)
+  deliveryAddress!: DeliveryAddressDto;
+}
+
 /** FR-052: the customer moves their own delivery to another slot. */
 export class RescheduleOrderDto {
   @ApiProperty({

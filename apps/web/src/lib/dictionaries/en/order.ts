@@ -136,6 +136,15 @@ export const order: typeof base = {
     taxIncluded: 'Includes VAT {pct}%',
     reschedule: 'Reschedule',
     rescheduleTitle: 'Change delivery time',
+    changeAddress: 'Change address',
+    changeAddressTitle: 'Change delivery address',
+    changeAddressIntro:
+      'Possible until the order is being prepared, to an address the same depot serves — price and delivery fee stay the same. Served by another depot? Cancel and order again.',
+    changeAddressPick: 'Move to',
+    changeAddressEmpty: 'No saved address with a location pin yet.',
+    changeAddressManage: 'Manage addresses',
+    changeAddressSave: 'Move the order',
+    changeAddressError: 'The address could not be changed. Try again.',
     rescheduleIntro:
       'Pick a new day and time. The time can only be changed until 2 hours before the current one.',
     rescheduleDay: 'Day',
@@ -226,6 +235,7 @@ export const order: typeof base = {
     addFailed: 'Could not add',
     cancelled: 'Order cancelled',
     rescheduled: 'Delivery time changed',
+    addressChanged: 'Delivery address changed',
     itemsAdded: 'Items added to cart',
     updateFailed: 'Could not update your cart',
     removeFailed: 'Could not remove that item',

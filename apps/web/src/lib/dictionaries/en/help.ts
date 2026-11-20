@@ -50,7 +50,7 @@ export const help = {
     },
     {
       q: 'Can I change the address after ordering?',
-      a: 'While the depot has not started preparing your order, you can edit the address from the order tracking page. Once the courier departs, contact support to adjust.',
+      a: 'Until the depot starts preparing your order, open the order and tap "Change address" — pick a saved address the same depot serves (price and delivery fee stay the same). If the new address is served by another depot, cancel and order again. Once the order is being prepared, contact the depot.',
     },
     {
       q: 'What are points & membership tiers?',

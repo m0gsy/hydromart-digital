@@ -266,6 +266,49 @@ describe('Order HTTP flows (e2e)', () => {
     expect(placed.body.depotId).toBe(E2E_DEPOT.id);
   });
 
+  // 2026-11-20: the customer moves an order to another address before it is prepared.
+  it('changes the address before preparation (same depot), and refuses after it', async () => {
+    await request(server())
+      .post('/api/v1/cart/items')
+      .set(auth(customerToken))
+      .send({ productId, quantity: 1 })
+      .expect(201);
+    const order = await request(server())
+      .post('/api/v1/orders/checkout')
+      .set(auth(customerToken))
+      .send({ deliveryAddress: ADDRESS })
+      .expect(201);
+    const id = order.body.id;
+    const near = { ...ADDRESS, addressLine: 'Jl. Dago 99', latitude: -6.905, longitude: 107.605 };
+
+    await request(server())
+      .post(`/api/v1/orders/${id}/address`)
+      .set(auth(customerToken))
+      .send({})
+      .expect(400);
+    const moved = await request(server())
+      .post(`/api/v1/orders/${id}/address`)
+      .set(auth(customerToken))
+      .send({ deliveryAddress: near })
+      .expect(201);
+    expect(moved.body).toMatchObject({ addressLine: 'Jl. Dago 99', total: order.body.total });
+
+    // The order's depot is not the staff token's own; head office drives it, as below.
+    for (const status of ['CONFIRMED', 'PREPARING']) {
+      await request(server())
+        .patch(`/api/v1/orders/${id}/status`)
+        .set(auth(adminToken))
+        .send({ status })
+        .expect(200);
+    }
+    const refused = await request(server())
+      .post(`/api/v1/orders/${id}/address`)
+      .set(auth(customerToken))
+      .send({ deliveryAddress: near })
+      .expect(409);
+    expect(refused.body.code).toBe('ORDER_ADDRESS_NOT_CHANGEABLE');
+  });
+
   it('forbids a customer from driving order status (403) and lets staff do it', async () => {
     await request(server())
       .post('/api/v1/cart/items')

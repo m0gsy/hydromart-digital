@@ -51,6 +51,7 @@ import { Page } from '../application/pagination';
 import {
   AssignDepotDto,
   CancelOrderDto,
+  ChangeOrderAddressDto,
   RescheduleOrderDto,
   TaxPreviewQueryDto,
   TaxPreviewResponseDto,
@@ -849,6 +850,34 @@ export class OrderController {
     @Headers('authorization') authorization?: string,
   ): Promise<OrderRecord> {
     return this.orders.cancel(user.sub, id, dto.reason, authorization);
+  }
+
+  /*
+   * 2026-11-20 (owner decision): the customer changes the delivery address before the order is
+   * prepared, to an address the order's own depot serves. Customer-owned like reschedule:
+   * getForCustomer answers 404 for anybody else's order.
+   */
+  @ApiOkResponse({ type: OrderResponseDto })
+  @SelfScoped()
+  @Post(':id/address')
+  @ApiOperation({ summary: "Change an order's delivery address (before preparation, same depot)" })
+  changeAddress(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ChangeOrderAddressDto,
+  ): Promise<OrderRecord> {
+    const a = dto.deliveryAddress;
+    return this.orders.changeAddress(user.sub, id, {
+      recipientName: a.recipientName,
+      phone: a.phone,
+      addressLine: a.addressLine,
+      city: a.city,
+      province: a.province ?? null,
+      postalCode: a.postalCode ?? null,
+      latitude: a.latitude ?? null,
+      longitude: a.longitude ?? null,
+      notes: a.notes ?? null,
+    });
   }
 
   @ApiOkResponse({ type: OrderResponseDto })

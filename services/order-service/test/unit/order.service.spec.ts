@@ -211,6 +211,104 @@ describe('OrderService', () => {
    * cancellation happens), and the reversal is owed through the outbox, retried until it
    * lands. See the specs below for why the old order — money first, failing closed — had to go.
    */
+  // Owner decision 2026-11-20: the customer changes the address before the order is
+  // prepared, to an address the order's OWN depot serves (same prices, same payment).
+  describe('changing the address after ordering', () => {
+    const placeOrder = async (): Promise<string> => {
+      await addToCart(20000, 1);
+      return (await service.checkout(customer, { deliveryAddress: address })).id;
+    };
+    const near = { ...address, addressLine: 'Jl. Dago 99', latitude: -6.91, longitude: 107.61, notes: 'pagar biru' };
+
+    it('rewrites the address, keeps the depot and the money, and says what it was', async () => {
+      const id = await placeOrder();
+      const before = await service.getAny(id);
+
+      const moved = await service.changeAddress(customer, id, near);
+
+      expect(moved).toMatchObject({
+        addressLine: 'Jl. Dago 99',
+        latitude: -6.91,
+        notes: 'pagar biru',
+        depotId: before.depotId,
+        total: before.total,
+        status: OrderStatus.CREATED,
+      });
+      expect(moved.history[moved.history.length - 1]).toMatchObject({
+        status: OrderStatus.CREATED,
+        changedBy: customer,
+        note: expect.stringContaining('Jl. Merdeka 10'),
+      });
+    });
+
+    it('is still allowed once confirmed, and refused once preparation started', async () => {
+      const id = await placeOrder();
+      await service.updateStatus(id, OrderStatus.CONFIRMED, 'staff-1');
+      await expect(service.changeAddress(customer, id, near)).resolves.toMatchObject({
+        addressLine: 'Jl. Dago 99',
+      });
+      await service.updateStatus(id, OrderStatus.PREPARING, 'staff-1');
+      await expect(service.changeAddress(customer, id, near)).rejects.toMatchObject({
+        code: 'ORDER_ADDRESS_NOT_CHANGEABLE',
+        message: expect.stringContaining('disiapkan'),
+      });
+    });
+
+    it('refuses an address with no pin before asking the directory', async () => {
+      const id = await placeOrder();
+      depots.depots = null as never;
+      await expect(
+        service.changeAddress(customer, id, { ...near, latitude: null, longitude: null }),
+      ).rejects.toMatchObject({ message: expect.stringContaining('pin') });
+    });
+
+    it('refuses a pin another depot serves, and one nobody serves', async () => {
+      const id = await placeOrder();
+      depots.depots = [homeDepot, { ...homeDepot, id: 'depot-jkt', lat: -6.2, lng: 106.8 }];
+      await expect(
+        service.changeAddress(customer, id, { ...near, latitude: -6.2, longitude: 106.8 }),
+      ).rejects.toMatchObject({ message: expect.stringContaining('depot lain') });
+      await expect(
+        service.changeAddress(customer, id, { ...near, latitude: -8.0, longitude: 110.0 }),
+      ).rejects.toBeInstanceOf(OutOfServiceAreaError);
+    });
+
+    it('refuses while the depot directory is down, and for somebody else\'s order', async () => {
+      const id = await placeOrder();
+      await expect(service.changeAddress('someone-else', id, near)).rejects.toBeInstanceOf(
+        OrderNotFoundError,
+      );
+      depots.depots = [];
+      await expect(service.changeAddress(customer, id, near)).rejects.toBeInstanceOf(
+        DepotUnavailableError,
+      );
+    });
+
+    it('refuses an order with no depot, and one whose depot left the directory', async () => {
+      const id = await placeOrder();
+      // Its depot no longer active, another one serving the pin: that is "another depot".
+      depots.depots = [{ ...homeDepot, id: 'depot-new' }];
+      await expect(service.changeAddress(customer, id, near)).rejects.toMatchObject({
+        message: expect.stringContaining('depot lain'),
+      });
+      orders.rows.find((r) => r.id === id)!.depotId = null;
+      await expect(service.changeAddress(customer, id, near)).rejects.toMatchObject({
+        code: 'ORDER_ADDRESS_NOT_CHANGEABLE',
+      });
+    });
+
+    it('loses cleanly to a status move or a reroute that landed first', async () => {
+      const id = await placeOrder();
+      jest.spyOn(orders, 'changeAddressIf').mockRejectedValueOnce(new StaleOrderStatusError());
+      await expect(service.changeAddress(customer, id, near)).rejects.toMatchObject({
+        code: 'ORDER_ADDRESS_NOT_CHANGEABLE',
+      });
+      // Anything else is not a lost race, and is not dressed up as one.
+      jest.spyOn(orders, 'changeAddressIf').mockRejectedValueOnce(new Error('db down'));
+      await expect(service.changeAddress(customer, id, near)).rejects.toThrow('db down');
+    });
+  });
+
   describe('cancellation settles the payment (K2.3)', () => {
     const placeOrder = async (): Promise<string> => {
       await addToCart(20000, 1);

@@ -19,6 +19,7 @@ import { ExternalLink } from '@/components/external-link';
 import { RemoteImage } from '@/components/remote-image';
 import { OrderProgress, OrderTimeline } from '@/components/order-views';
 import { RescheduleSheet } from '@/components/order/reschedule-sheet';
+import { ChangeAddressSheet } from '@/components/order/change-address-sheet';
 import { Sheet } from '@/components/overlay';
 import { RequireAuth } from '@/components/require-auth';
 import { useToast } from '@/components/toast';
@@ -242,6 +243,7 @@ function OrderDetailInner({ id }: { id: string }) {
   // Cancel-with-reason (spec 10b): open the reason sheet, then submit the chosen reason.
   const [cancelOpen, setCancelOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [addressOpen, setAddressOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState<string>('');
   // One-time success banner right after checkout (spec 5b): gone on any reload
   // without the ?placed=1 flag, so it never re-shows on a revisit.
@@ -540,6 +542,16 @@ function OrderDetailInner({ id }: { id: string }) {
                   <span className="font-bold text-[color:var(--text)]">{order.notes}</span>
                 </p>
               )}
+              {/* 2026-11-20: before the depot starts preparing, the address can still move. */}
+              {(order.status === 'CREATED' || order.status === 'CONFIRMED') && (
+                <button
+                  type="button"
+                  onClick={() => setAddressOpen(true)}
+                  className="mt-1 self-start text-[13px] font-bold text-brand-700 hover:text-brand-800"
+                >
+                  {t('order.detail.changeAddress')}
+                </button>
+              )}
             </div>
           </div>
 
@@ -810,6 +822,17 @@ function OrderDetailInner({ id }: { id: string }) {
           </Button>
         )}
       </StickyActionBar>
+
+      {addressOpen && (
+        <ChangeAddressSheet
+          order={order}
+          onClose={() => setAddressOpen(false)}
+          onDone={() => {
+            setAddressOpen(false);
+            reload();
+          }}
+        />
+      )}
 
       {rescheduleOpen && (
         <RescheduleSheet

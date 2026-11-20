@@ -29,6 +29,7 @@ import {
   OrderNotReschedulableError,
   InvalidDeliveryScheduleError,
   StaleOrderStatusError,
+  OrderAddressNotChangeableError,
   OrderNotCancellableError,
   OrderNotFoundError,
   OrderNotReviewableError,
@@ -48,6 +49,7 @@ import {
   OrderStatus,
   canTransition,
   hasBeenDispatched,
+  ADDRESS_CHANGEABLE_STATUSES,
   isCancellable,
   isVoidableInShift,
   notificationEventFor,
@@ -1939,6 +1941,54 @@ export class OrderService {
         this.logger.warn(`Hold lama ${orderId}@${order.depotId} tidak terlepas: ${err.message}`),
       );
     return moved;
+  }
+
+  /**
+   * Owner decision 2026-11-20: the customer changes the delivery address before the order is
+   * prepared (CREATED / CONFIRMED).
+   *
+   * Only to an address the order's OWN depot serves. Same depot means the same prices and
+   * fee (the fee is per galon, not per distance), so the payment already made — possibly
+   * into that depot's own account — stays right. Another depot would be another order: the
+   * customer is told to cancel and order again, or to call the depot.
+   */
+  async changeAddress(
+    customerId: string,
+    orderId: string,
+    address: DeliveryAddressSnapshot,
+  ): Promise<OrderRecord> {
+    const order = await this.getForCustomer(customerId, orderId);
+    if (!ADDRESS_CHANGEABLE_STATUSES.includes(order.status) || !order.depotId) {
+      throw new OrderAddressNotChangeableError('STATUS');
+    }
+    if (address.latitude === null || address.longitude === null) {
+      throw new OrderAddressNotChangeableError('NO_PIN');
+    }
+    const depots = await this.depotDirectory.listActiveDepots();
+    if (depots === null || depots.length === 0) throw new DepotUnavailableError();
+    const own = depots.find((d) => d.id === order.depotId);
+    // "Serves" is the routing rule itself (drawn area, else radius), asked of the own depot
+    // alone: a nearer depot that opened since checkout is no reason to refuse a typo fix.
+    if (!own || !selectNearestDepot(address.latitude, address.longitude, [own])) {
+      if (selectNearestDepot(address.latitude, address.longitude, depots)) {
+        throw new OrderAddressNotChangeableError('OTHER_DEPOT');
+      }
+      throw new OutOfServiceAreaError();
+    }
+    const before = [order.addressLine, order.city].filter(Boolean).join(', ');
+    try {
+      return await this.orders.changeAddressIf(
+        order.id,
+        own.id,
+        order.status,
+        address,
+        customerId,
+        `Alamat diubah pelanggan (sebelumnya: ${before})`,
+      );
+    } catch (error) {
+      if (error instanceof StaleOrderStatusError) throw new OrderAddressNotChangeableError('STATUS');
+      throw error;
+    }
   }
 
   async getForCustomer(customerId: string, orderId: string): Promise<OrderRecord> {
