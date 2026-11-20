@@ -137,15 +137,17 @@ export class ExpressUnavailableError extends DomainError {
 }
 
 /**
- * The delivery address is outside every active depot's service radius. Only
- * thrown when the depot directory was reachable and returned depots — a directory
- * outage (or a platform with no depots configured) stays fail-open and unrouted.
+ * The delivery address is outside every active depot's service area. Only thrown when the
+ * depot directory was reachable and returned depots — an outage is DepotUnavailableError
+ * (fail-closed: checkout, and since 2026-11-20 a subscription's create and move, refuse).
  */
 export class OutOfServiceAreaError extends DomainError {
   readonly code = 'ORDER_OUT_OF_SERVICE_AREA';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('This delivery address is outside our service area. No depot can deliver here.');
+    super(
+      'Alamat pengiriman ini di luar area layanan semua depot kami, jadi belum bisa diantar. Pilih alamat lain atau perbaiki titik petanya.',
+    );
   }
 }
 
@@ -209,7 +211,7 @@ export class DepotUnavailableError extends DomainError {
   readonly code = 'ORDER_DEPOT_UNAVAILABLE';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('That depot is not available right now. Please pick another one.');
+    super('Depot belum bisa dijangkau saat ini. Coba lagi sebentar lagi.');
   }
 }
 

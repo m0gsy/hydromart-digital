@@ -77,7 +77,7 @@ function route(over: { discountFails?: boolean; subs?: unknown[] } = {}) {
     }
     if (url.includes('/addresses')) return Promise.resolve([HOME, OFFICE]);
     if (url.includes('/subscriptions')) return Promise.resolve(over.subs ?? []);
-    if (url.includes('/depots/nearby')) return Promise.resolve([{ id: 'd-1' }]);
+    if (url.includes('/depots/nearby')) return Promise.resolve([{ id: 'd-1', withinService: true }]);
     if (url.includes('/products')) {
       return Promise.resolve({
         items: [{ id: 'p-1', name: 'Galon 19L', unit: 'galon', basePrice: 20000 }],
@@ -135,6 +135,20 @@ describe('K1.9 · a subscription is no longer locked to the primary address', ()
     expect(apiMock.post.mock.calls[0]![1]).toMatchObject({
       deliveryAddress: { notes: 'Lobi B, titip resepsionis' },
     });
+  });
+
+  // 2026-11-20: nobody serves the picked address — said before the button, which waits.
+  it('says when no depot serves the picked address, and does not offer to start', async () => {
+    const base = apiMock.get.getMockImplementation()!;
+    apiMock.get.mockImplementation((url: string) =>
+      url.includes('/depots/nearby')
+        ? Promise.resolve([{ id: 'd-far', withinService: false }])
+        : base(url),
+    );
+    renderPage();
+
+    expect(await screen.findByText(/di luar area layanan/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /mulai langganan|start a subscription/i })).toBeDisabled();
   });
 
   it('moves an existing plan to another address, with the plan own line named first', async () => {

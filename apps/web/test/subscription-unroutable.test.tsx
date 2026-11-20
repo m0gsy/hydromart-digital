@@ -70,7 +70,7 @@ const PLAN = {
 
 const withPlan = (plan: Record<string, unknown>) => async (path: string) => {
   if (path.includes('/addresses')) return [ADDRESS];
-  if (path.includes('/depots/nearby')) return [{ id: 'depot-home', name: 'Depot Rumah' }];
+  if (path.includes('/depots/nearby')) return [{ id: 'depot-home', name: 'Depot Rumah', withinService: true }];
   if (path.includes('/subscriptions/discount')) return { rate: 0.05 };
   if (path.includes('/subscriptions')) return [plan];
   if (path.includes('/products')) return { items: [], total: 0, page: 1, limit: 50 };

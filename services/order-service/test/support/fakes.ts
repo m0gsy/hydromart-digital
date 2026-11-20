@@ -1137,6 +1137,7 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
   async setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord> {
     const r = this.rows.find((x) => x.id === id)!;
     r.status = status;
+    if (status === 'ACTIVE') Object.assign(r, { failureCount: 0, lastFailure: null, lastFailureAt: null });
     r.updatedAt = nextDate();
     return structuredClone(r);
   }
@@ -1144,9 +1145,10 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
   async setDeliveryAddress(
     id: string,
     address: DeliveryAddressSnapshot,
-  ): Promise<SubscriptionRecord> {
+  ): Promise<SubscriptionRecord | null> {
     const r = this.rows.find((x) => x.id === id)!;
-    Object.assign(r, address);
+    if (r.status === 'CANCELLED') return null;
+    Object.assign(r, address, { failureCount: 0, lastFailure: null, lastFailureAt: null });
     r.updatedAt = nextDate();
     return structuredClone(r);
   }

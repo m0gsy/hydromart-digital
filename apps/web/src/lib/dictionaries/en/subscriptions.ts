@@ -33,6 +33,7 @@ export const subscriptions = {
   start: 'Start subscription',
   started: 'Subscription created.',
   createError: 'Failed to create subscription.',
+  outOfArea: 'This address is outside every depot we deliver from. Pick another address or fix its pin.',
   actionError: 'Could not update the subscription. Try again.',
   benefitsTitle: 'Why subscribe?',
   benefits: [

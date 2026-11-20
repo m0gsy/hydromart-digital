@@ -2265,6 +2265,52 @@ describe('OrderPrismaRepository', () => {
  * writes is the fix: cancel, then scrub. Swap them and an ACTIVE plan keeps delivering to
  * the same door under a blank name, which is worse than doing nothing.
  */
+// 2026-11-20: a moved plan starts its failure count over (the failures were the old address's).
+describe('SubscriptionPrismaRepository.setDeliveryAddress', () => {
+  it('writes the new address and clears the failure record', async () => {
+    const update = jest.fn().mockResolvedValue({ count: 1 });
+    const findUniqueOrThrow = jest.fn().mockResolvedValue({ id: 's1', customerId: 'c1' });
+    const repo = new SubscriptionPrismaRepository({
+      subscription: { updateMany: update, findUniqueOrThrow },
+    } as unknown as PrismaService);
+    await repo.setDeliveryAddress('s1', {
+      recipientName: 'B',
+      phone: '0811',
+      addressLine: 'Jl. Baru 2',
+      city: 'Bandung',
+      postalCode: null,
+      latitude: -6.9,
+      longitude: 107.6,
+      notes: null,
+    });
+    expect(update.mock.calls[0][0].data).toMatchObject({
+      addressLine: 'Jl. Baru 2',
+      failureCount: 0,
+      lastFailure: null,
+      lastFailureAt: null,
+    });
+    // Cancelled (or erased) by the time the write lands: nothing written, null back.
+    update.mockResolvedValueOnce({ count: 0 });
+    await expect(
+      repo.setDeliveryAddress('s1', { ...update.mock.calls[0][0].data } as never),
+    ).resolves.toBeNull();
+  });
+
+  it('a resume (back to ACTIVE) starts the failure count over; a pause does not', async () => {
+    const update = jest.fn().mockResolvedValue({ id: 's1', customerId: 'c1' });
+    const repo = new SubscriptionPrismaRepository({ subscription: { update } } as unknown as PrismaService);
+    await repo.setStatus('s1', 'ACTIVE');
+    expect(update.mock.calls[0][0].data).toEqual({
+      status: 'ACTIVE',
+      failureCount: 0,
+      lastFailure: null,
+      lastFailureAt: null,
+    });
+    await repo.setStatus('s1', 'PAUSED');
+    expect(update.mock.calls[1][0].data).toEqual({ status: 'PAUSED' });
+  });
+});
+
 // P4: a PDP export shows every plan (the screen list keeps 5 cancelled), and says when it stopped.
 describe('SubscriptionPrismaRepository.listAllForExport', () => {
   const row = { id: 's1', customerId: 'cust-1', addressLine: 'Jl. A 1', latitude: -6.2 };
