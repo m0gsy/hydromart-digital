@@ -195,6 +195,19 @@ export class PurgeBeforeDto {
  * F8. Active staff account ids at one depot — the recipients of an operational alert about
  * that depot. Ids only, deliberately: crm needs somewhere to send a push, not a roster.
  */
+/**
+ * Flow 6b: the roles whose holders a decision should reach (crm resolves them from a
+ * capability). Bounded: there are twenty-odd roles in all.
+ */
+export class StaffByRolesDto {
+  @ApiProperty({ type: [String], example: ['FINANCE', 'SUPER_ADMIN'] })
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  roles!: string[];
+}
+
 export class DepotStaffIdsDto {
   @ApiProperty({ type: [String], format: 'uuid' })
   ids!: string[];

@@ -31,6 +31,8 @@ export const notifications = {
     RESELLER_PRICE_CHANGED: 'Reseller price changed',
     SUBSCRIPTION_PAUSED: 'Subscription paused',
     APPROVAL_REQUESTED: 'Waiting for approval',
+    COURIER_SETTLEMENT_SUBMITTED: 'Courier cash waiting for checking',
+    PRICE_OVERRIDE_PROPOSED: 'Price change proposed',
     PAYMENT_FAILED: 'Payment did not go through',
     PAYMENT_REMINDER: 'Complete your payment',
     REFUND_PROCESSED: 'Refund processed',

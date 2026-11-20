@@ -15,4 +15,6 @@ export const CRM_TOKENS = {
   DepotOverseers: Symbol('DepotOverseers'),
   // Flow 6a: destination brakes, read fail-closed from admin-service's public flags.
   DestinationBrakes: Symbol('DestinationBrakes'),
+  // Flow 6b: who holds a role, and what role an account holds (auth-service).
+  ApproverDirectory: Symbol('ApproverDirectory'),
 } as const;

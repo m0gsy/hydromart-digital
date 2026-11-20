@@ -1,3 +1,5 @@
+import type { Capability } from '@hydromart/access';
+
 // Transactional WhatsApp notifications (PRD §19 Notification Matrix, FR-093/FR-094).
 // Unlike broadcast campaigns (staff-authored, bulk), these are event-triggered, single
 // recipient, and automated: upstream services (order-service) fire them on lifecycle
@@ -39,6 +41,11 @@ export enum NotificationEvent {
   // To the manager at the top of the depot's supervision chain: an item is waiting for a
   // decision. Tokens: {{title}}, {{depot}}, {{amount}}, {{approvalId}}.
   APPROVAL_REQUESTED = 'APPROVAL_REQUESTED',
+  // Flow 6b (plan PR-6): to the accounts that may decide it (APPROVER_CAP_FOR_EVENT).
+  // A courier handed in the shift's cash. Tokens: {{amount}}, {{variance}}, {{settlementId}}.
+  COURIER_SETTLEMENT_SUBMITTED = 'COURIER_SETTLEMENT_SUBMITTED',
+  // A depot proposed a price change. Tokens: {{depot}}, {{count}}, {{product}}.
+  PRICE_OVERRIDE_PROPOSED = 'PRICE_OVERRIDE_PROPOSED',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -185,6 +192,10 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Jadwal pesanan {{orderNumber}} diubah pelanggan ke {{when}}. Cek antrean untuk menyesuaikan.',
   [NotificationEvent.APPROVAL_REQUESTED]:
     'Menunggu persetujuan Anda: {{title}} ({{depot}}, {{amount}}). Buka menu Persetujuan untuk memutuskan.',
+  [NotificationEvent.COURIER_SETTLEMENT_SUBMITTED]:
+    'Setoran kurir {{amount}} menunggu verifikasi (selisih {{variance}}). Buka menu Setoran untuk memeriksa.',
+  [NotificationEvent.PRICE_OVERRIDE_PROPOSED]:
+    '{{depot}} mengusulkan {{count}} perubahan harga ({{product}}). Buka menu Harga untuk memutuskan.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
   [NotificationEvent.PAYMENT_REMINDER]:
@@ -289,6 +300,10 @@ export const OPS_EVENTS: NotificationEvent[] = [
   // Addressed to one courier's account, so it is also in PERSONAL_OPS_EVENTS below.
   NotificationEvent.COURIER_DELIVERY_ASSIGNED,
   NotificationEvent.APPROVAL_REQUESTED,
+  // Flow 6b: in the depot's feed (and head office's) like any depot alert; the PUSH goes to
+  // the accounts that may decide it only (APPROVER_CAP_FOR_EVENT).
+  NotificationEvent.COURIER_SETTLEMENT_SUBMITTED,
+  NotificationEvent.PRICE_OVERRIDE_PROPOSED,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -349,7 +364,21 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.COURIER_INCIDENT]: 'courierFail',
   [NotificationEvent.DELIVERY_SLA_BREACHED]: 'courierFail',
   [NotificationEvent.APPROVAL_REQUESTED]: 'approval',
+  [NotificationEvent.COURIER_SETTLEMENT_SUBMITTED]: 'approval',
+  [NotificationEvent.PRICE_OVERRIDE_PROPOSED]: 'approval',
   [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
+};
+
+/**
+ * Flow 6b (plan PR-6, owner: "masing-masing ke penyetujunya"): an event that asks for a
+ * decision wakes the accounts holding the capability that decides it, not every account at
+ * the depot. The depot's own staff and its overseers are checked with `can(cap, role, [depot])`
+ * (a per-depot GRANT/DENY decides, as on the route), and the network roles that hold it
+ * (finance, head office...) are found by role.
+ */
+export const APPROVER_CAP_FOR_EVENT: Partial<Record<NotificationEvent, Capability>> = {
+  [NotificationEvent.COURIER_SETTLEMENT_SUBMITTED]: 'courierSettle',
+  [NotificationEvent.PRICE_OVERRIDE_PROPOSED]: 'priceOverrideDecide',
 };
 
 /**
@@ -383,6 +412,10 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'The customer moved the delivery of order {{orderNumber}} to {{when}}. Check the queue to adjust.',
   [NotificationEvent.APPROVAL_REQUESTED]:
     'Waiting for your approval: {{title}} ({{depot}}, {{amount}}). Open Approvals to decide.',
+  [NotificationEvent.COURIER_SETTLEMENT_SUBMITTED]:
+    'A courier handed in {{amount}} and it waits for checking (variance {{variance}}). Open Settlements to check it.',
+  [NotificationEvent.PRICE_OVERRIDE_PROPOSED]:
+    '{{depot}} proposed {{count}} price change(s) ({{product}}). Open Pricing to decide.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Hi {{name}}, the payment for order {{orderNumber}} did not go through ({{reason}}). Please pay again from the app.',
   [NotificationEvent.PAYMENT_REMINDER]:

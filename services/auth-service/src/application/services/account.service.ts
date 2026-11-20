@@ -310,6 +310,28 @@ export class AccountService {
   }
 
   /**
+   * Flow 6b: active staff holding any of these roles, network-wide — who a decision event
+   * reaches beyond a depot's roster. A built-in role or a custom role key (`C_…`, stored as is);
+   * CUSTOMER or anything else is skipped, never widened to "everyone". Bounded like below.
+   */
+  async staffIdsByRoles(roles: readonly string[]): Promise<string[]> {
+    const known = new Set<string>(Object.values(Role));
+    const ids: string[] = [];
+    for (const role of new Set(roles)) {
+      if ((!known.has(role) && !isCustomRoleKey(role)) || role === Role.CUSTOMER) continue;
+      let seen = 0;
+      for (let page = 1; ; page += 1) {
+        const { items, total } = await this.customers.listStaff(page, 100, role as Role);
+        seen += items.length;
+        for (const c of items) if (c.status === CustomerStatus.ACTIVE) ids.push(c.id);
+        if (items.length === 0 || seen >= total) break;
+        if (seen >= MAX_DRIVERS) throw new DriverRosterTooLargeError(MAX_DRIVERS);
+      }
+    }
+    return [...new Set(ids)];
+  }
+
+  /**
    * F8. The account ids of the ACTIVE staff at one depot — the people an operational alert
    * about that depot is for.
    *

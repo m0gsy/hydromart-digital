@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import {
   AccountNameResolver,
@@ -29,6 +29,7 @@ import {
 } from '../ports/price-override-proposal.repository';
 import { DepotRepository } from '../ports/depot.repository';
 import { DEPOT_TOKENS } from '../tokens';
+import { PriceOverrideAlertPort } from '../ports/price-override-alert.port';
 import { PricingService } from './pricing.service';
 
 export interface ProposeOverrideInput {
@@ -65,21 +66,53 @@ export class PriceOverrideService {
     private readonly pricing: PricingService,
     private readonly config: DepotConfigService,
     @Inject(DEPOT_TOKENS.AccountNames) private readonly accountNames: AccountNameResolver,
+    // Flow 6b. Optional: without it proposals wait in the queue and nobody is woken, as before.
+    @Optional() @Inject(DEPOT_TOKENS.PriceOverrideAlert) private readonly alert?: PriceOverrideAlertPort,
   ) {}
 
-  /** Bulk-propose overrides from the CSV wizard; each row still enters the HQ queue. */
+  /**
+   * Bulk-propose overrides from the CSV wizard; each row still enters the HQ queue. The
+   * deciders are told ONCE for the import, not once per row.
+   */
   async importProposals(
     depotId: string,
     proposedBy: string,
     rows: readonly ProposeOverrideInput[],
   ): Promise<ImportSummary> {
-    return runImport(rows, async (row) => ({
-      status: 'created',
-      id: (await this.propose(depotId, proposedBy, row)).id,
-    }));
+    let first: PriceOverrideProposalRecord | null = null;
+    const summary = await runImport(rows, async (row) => {
+      const created = await this.create(depotId, proposedBy, row);
+      first ??= created;
+      return { status: 'created', id: created.id };
+    });
+    if (first && summary.created > 0) this.tell(first, summary.created);
+    return summary;
   }
 
   async propose(
+    depotId: string,
+    proposedBy: string,
+    input: ProposeOverrideInput,
+  ): Promise<PriceOverrideProposalRecord> {
+    const created = await this.create(depotId, proposedBy, input);
+    this.tell(created, 1);
+    return created;
+  }
+
+  /** Flow 6b: the accounts that may decide are told; fire-and-log, the proposal never waits on it. */
+  private tell(first: PriceOverrideProposalRecord, count: number): void {
+    if (!this.alert) return;
+    void this.alert
+      .emit({
+        depotId: first.depotId,
+        depotName: first.depotName,
+        count,
+        product: count > 1 ? `${first.productName}, …` : first.productName,
+      })
+      .catch((e: unknown) => this.logger.warn(`Price-override alert failed: ${(e as Error).message}`));
+  }
+
+  private async create(
     depotId: string,
     proposedBy: string,
     input: ProposeOverrideInput,

@@ -1530,6 +1530,36 @@ describe('AccountService', () => {
    * first time somebody changed depots. Ids only: crm needs somewhere to send a push, not a
    * staff directory.
    */
+  describe('staffIdsByRoles (flow 6b)', () => {
+    it('returns the ACTIVE accounts holding those roles, network-wide, and nobody else', async () => {
+      customers.seed(makeCustomer({ phone: '+628994450001', role: Role.FINANCE, status: CustomerStatus.ACTIVE }));
+      customers.seed(makeCustomer({ phone: '+628994450002', role: Role.SUPER_ADMIN, status: CustomerStatus.ACTIVE }));
+      customers.seed(makeCustomer({ phone: '+628994450003', role: Role.FINANCE, status: CustomerStatus.SUSPENDED }));
+      customers.seed(makeCustomer({ phone: '+628994450004', role: Role.STAFF_DEPOT, status: CustomerStatus.ACTIVE }));
+      customers.seed(makeCustomer({ phone: '+628994450005', role: Role.CUSTOMER, status: CustomerStatus.ACTIVE }));
+
+      expect(await service.staffIdsByRoles(['FINANCE', 'SUPER_ADMIN', 'FINANCE'])).toHaveLength(2);
+      // CUSTOMER and a key that is no role at all are skipped, never widened.
+      expect(await service.staffIdsByRoles(['CUSTOMER', 'NOT_A_ROLE'])).toEqual([]);
+      // A custom role is stored as its key, and its holders are found like any other.
+      customers.seed(makeCustomer({ phone: '+628994450006', role: 'C_lead' as never, status: CustomerStatus.ACTIVE }));
+      expect(await service.staffIdsByRoles(['C_lead'])).toHaveLength(1);
+    });
+
+    it('refuses rather than returning a short list that looks complete', async () => {
+      const many = {
+        listStaff: jest.fn(async (page: number) => ({
+          items: Array.from({ length: 100 }, (_v, i) =>
+            makeCustomer({ phone: `+6287${page}${i}`, status: CustomerStatus.ACTIVE }),
+          ),
+          total: 100_000,
+        })),
+      };
+      const svc = new AccountService(many as never, sessions, new AuditService(audit));
+      await expect(svc.staffIdsByRoles(['FINANCE'])).rejects.toBeInstanceOf(DriverRosterTooLargeError);
+    });
+  });
+
   describe('staffIdsForDepot (F8)', () => {
     it('returns the ACTIVE staff at that depot, whatever their role', async () => {
       customers.seed(

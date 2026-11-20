@@ -123,6 +123,42 @@ describe('PriceOverrideService', () => {
       noNames,
     );
 
+  // Flow 6b: the accounts that may decide are told — once per proposal, once per import.
+  describe('telling the deciders (flow 6b)', () => {
+    const told = (fail = false) => {
+      const alerts: unknown[] = [];
+      const alert = {
+        emit: jest.fn(async (a: unknown) => {
+          if (fail) throw new Error('crm down');
+          alerts.push(a);
+        }),
+      };
+      const svc = new PriceOverrideService(repo, fakeDepots('Depot A'), pricing, fakeConfig(100000, false), noNames, alert);
+      return { svc, alerts, alert };
+    };
+
+    it('tells them about one proposal', async () => {
+      const { svc, alerts } = told();
+      await svc.propose('d1', 'mgr-1', PROPOSE);
+      expect(alerts).toEqual([{ depotId: 'd1', depotName: 'Depot A', count: 1, product: PROPOSE.productName }]);
+    });
+
+    it('tells them ONCE about a whole import, with the count', async () => {
+      const { svc, alerts } = told();
+      const summary = await svc.importProposals('d1', 'mgr-1', [PROPOSE, PROPOSE, PROPOSE]);
+      expect(summary.created).toBe(3);
+      expect(alerts).toEqual([{ depotId: 'd1', depotName: 'Depot A', count: 3, product: `${PROPOSE.productName}, …` }]);
+    });
+
+    it('keeps the proposal when the alert fails, and never waits on it', async () => {
+      const { svc } = told(true);
+      await expect(svc.propose('d1', 'mgr-1', PROPOSE)).resolves.toMatchObject({ depotId: 'd1' });
+      const hung = { emit: jest.fn(() => new Promise<void>(() => undefined)) };
+      const slow = new PriceOverrideService(repo, fakeDepots('Depot A'), pricing, fakeConfig(100000, false), noNames, hung);
+      await expect(slow.propose('d1', 'mgr-1', PROPOSE)).resolves.toMatchObject({ depotId: 'd1' });
+    });
+  });
+
   // H-29: a price override is money — the comment in this service used to say outright
   // that a log line WAS the trail, because depot-service has no audit store. It has one
   // now (auth-service's, over the internal ingest route), and all three outcomes land in

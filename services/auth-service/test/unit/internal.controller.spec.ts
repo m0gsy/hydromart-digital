@@ -301,6 +301,16 @@ describe('ProvisionManagedStaffDto role allowlist', () => {
  * F8. crm asks auth-service which accounts an operational alert about a depot should reach.
  * Ids only, behind the internal key: crm needs somewhere to send a push, not a roster.
  */
+// Flow 6b: the network-wide holders of a decision, who are on no depot roster.
+describe('InternalAccountController — staff ids by role (flow 6b)', () => {
+  it('answers with the ids the account service resolves', async () => {
+    const account = { staffIdsByRoles: jest.fn().mockResolvedValue(['f-1']) };
+    const controller = new InternalAccountController(account as never, {} as never, {} as never);
+    expect(await controller.staffIdsByRoles({ roles: ['FINANCE'] })).toEqual({ ids: ['f-1'] });
+    expect(account.staffIdsByRoles).toHaveBeenCalledWith(['FINANCE']);
+  });
+});
+
 describe('InternalAccountController — depot staff ids (F8)', () => {
   it('answers with the ids the account service resolves', async () => {
     const account = { staffIdsForDepot: jest.fn().mockResolvedValue(['s-1', 's-2']) };
