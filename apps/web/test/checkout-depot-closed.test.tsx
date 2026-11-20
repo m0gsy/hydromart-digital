@@ -38,6 +38,16 @@ vi.mock('next/navigation', () => ({
 import { LocaleProvider } from '@/lib/locale-context';
 import { ToastProvider } from '@/components/toast';
 import CheckoutPage from '@/app/checkout/page';
+
+/*
+ * Two pinned saved addresses. Since 2026-11-20 the pin decides the depot (no picker): the
+ * nearby lookup below answers Depot Satu for the first pin and Depot Dua for the second.
+ */
+const SAVED = [
+  { id: 'a-1', label: 'Rumah', recipientName: 'Wahyu', phone: '081234567890', addressLine: 'Jl. Satu 1', city: 'Jakarta', latitude: -6.2, longitude: 106.8, notes: null, isPrimary: true },
+  { id: 'a-2', label: 'Kantor', recipientName: 'Wahyu', phone: '081234567890', addressLine: 'Jl. Dua 2', city: 'Bandung', latitude: -6.9, longitude: 107.6, notes: null, isPrimary: false },
+];
+
 import type { DepotHours } from '@/lib/types';
 
 /** SOP hours: Monday 08.00–21.00. 2026-08-10 is a Monday. */
@@ -95,12 +105,10 @@ const serve = (
   get.mockReset().mockImplementation(async (path: string) => {
     const p = String(path);
     if (p.includes('/cart')) return CART;
-    if (p.includes('/depots/api/v1/depots?')) {
-      return { items: [depotRow(operatingHours)], total: 1, page: 1, limit: 100 };
-    }
+    if (p.includes('/depots/nearby')) return [depotRow(operatingHours)];
     if (p.includes('delivery-options')) return deliveryOptions;
     if (p.includes('/loyalty/')) return { tier: 'REGULAR', discountRate: 0, pointsBalance: 0 };
-    if (p.includes('/addresses')) return [];
+    if (p.includes('/addresses')) return SAVED.slice(0, 1);
     return [];
   });
 };

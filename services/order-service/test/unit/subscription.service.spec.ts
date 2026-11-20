@@ -665,7 +665,7 @@ describe('SubscriptionService', () => {
   /**
    * L0 REPRO (D3): a subscription whose saved address has no map pin can never be routed.
    * `placeScheduled` calls `resolveDepot(address)` with no depot to fall back on, so it
-   * throws `DepotRequiredError`, the sweep catches it and skips, and the schedule never
+   * throws `PinRequiredError`, the sweep catches it and skips, and the schedule never
    * advances — a plan that is ACTIVE forever, delivers nothing, and says nothing.
    *
    * The customer set it up, sees "Aktif", and waits.

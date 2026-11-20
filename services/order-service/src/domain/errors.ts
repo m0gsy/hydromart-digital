@@ -150,15 +150,18 @@ export class OutOfServiceAreaError extends DomainError {
 }
 
 /**
- * No depot could be resolved for the order and the caller did not pick one. An
- * order with no depot is invisible to every depot queue and reserves no stock, so
- * checkout refuses it instead of silently placing an unfulfillable order.
+ * Owner decision 2026-11-20: no order without a map pin.
+ *
+ * An unpinned address used to go to whichever depot the customer picked from a list, which
+ * priced the order (and its vouchers) at any depot they liked and gave the courier an
+ * address nobody had put on a map. The pin decides the depot now, so without one there is
+ * nothing to route by.
  */
-export class DepotRequiredError extends DomainError {
-  readonly code = 'ORDER_DEPOT_REQUIRED';
+export class PinRequiredError extends DomainError {
+  readonly code = 'ORDER_PIN_REQUIRED';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
   constructor() {
-    super('Pick a depot: this address has no map pin, so we cannot route it automatically.');
+    super('Pasang pin lokasi alamat ini dulu. Pesanan diantar ke titik pin itu.');
   }
 }
 

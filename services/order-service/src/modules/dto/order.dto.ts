@@ -100,8 +100,9 @@ export class CheckoutDto {
 
   @ApiPropertyOptional({
     format: 'uuid',
+    deprecated: true,
     description:
-      'Depot the customer picked. Required when the address carries no map pin, ignored when it does.',
+      'Ignored: the map pin decides the depot (an unpinned address is refused). Still accepted so app builds that send it are not refused by the whitelist.',
   })
   @IsOptional()
   @IsUUID()

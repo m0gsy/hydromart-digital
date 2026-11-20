@@ -32,8 +32,8 @@ import {
 const SECRET = 'test-access-secret-that-is-long-enough-01';
 const INTERNAL_KEY = 'test-internal-service-key-01';
 
-// Pinned inside E2E_DEPOT's radius — checkout is fail-closed, an unpinned address
-// without a picked depot is refused (422 ORDER_DEPOT_REQUIRED).
+// Pinned inside E2E_DEPOT's radius — checkout is fail-closed, and an unpinned address is
+// refused (422 ORDER_PIN_REQUIRED) whatever depot the body names.
 const ADDRESS = {
   recipientName: 'Budi',
   phone: '081234567890',
@@ -229,6 +229,32 @@ describe('Order HTTP flows (e2e)', () => {
       .set(auth(staffToken))
       .send({ deliveryAddress: ADDRESS })
       .expect(422);
+  });
+
+  // Owner decision 2026-11-20: no pin, no order, and a named depot does not stand in for one.
+  it('refuses an unpinned checkout (422 ORDER_PIN_REQUIRED) and routes a pinned one by its pin', async () => {
+    await request(server())
+      .post('/api/v1/cart/items')
+      .set(auth(customerToken))
+      .send({ productId, quantity: 1 })
+      .expect(201);
+    const refused = await request(server())
+      .post('/api/v1/orders/checkout')
+      .set(auth(customerToken))
+      .send({
+        deliveryAddress: { ...ADDRESS, latitude: undefined, longitude: undefined },
+        depotId: E2E_DEPOT.id,
+      })
+      .expect(422);
+    expect(refused.body.code).toBe('ORDER_PIN_REQUIRED');
+
+    // A build that still sends a depot is not refused for it: the pin decides.
+    const placed = await request(server())
+      .post('/api/v1/orders/checkout')
+      .set(auth(customerToken))
+      .send({ deliveryAddress: ADDRESS, depotId: '22222222-2222-4222-8222-222222222222' })
+      .expect(201);
+    expect(placed.body.depotId).toBe(E2E_DEPOT.id);
   });
 
   it('forbids a customer from driving order status (403) and lets staff do it', async () => {

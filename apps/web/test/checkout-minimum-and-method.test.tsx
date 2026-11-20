@@ -37,6 +37,18 @@ import { LocaleProvider } from '@/lib/locale-context';
 import { ToastProvider } from '@/components/toast';
 import CheckoutPage from '@/app/checkout/page';
 
+/*
+ * Two pinned saved addresses. Since 2026-11-20 the pin decides the depot (no picker): the
+ * nearby lookup below answers Depot Satu for the first pin and Depot Dua for the second.
+ */
+const SAVED = [
+  { id: 'a-1', label: 'Rumah', recipientName: 'Wahyu', phone: '081234567890', addressLine: 'Jl. Satu 1', city: 'Jakarta', latitude: -6.2, longitude: 106.8, notes: null, isPrimary: true },
+  { id: 'a-2', label: 'Kantor', recipientName: 'Wahyu', phone: '081234567890', addressLine: 'Jl. Dua 2', city: 'Bandung', latitude: -6.9, longitude: 107.6, notes: null, isPrimary: false },
+];
+/** The pin of the second address (lat -6.9) is the one Depot Dua serves. */
+const secondPin = (p: string): boolean => Number(new URL(p, 'http://x').searchParams.get('lat')) < -6.5;
+
+
 const depotRow = (id: string, name: string, over: Record<string, unknown> = {}) => ({
   id,
   code: id.toUpperCase(),
@@ -80,12 +92,12 @@ const serve = (depots: unknown[]) => {
   get.mockReset().mockImplementation(async (path: string) => {
     const p = String(path);
     if (p.includes('/cart')) return CART;
-    if (p.includes('/depots/api/v1/depots?')) {
-      return { items: depots, total: depots.length, page: 1, limit: 100 };
+    if (p.includes('/depots/nearby')) {
+      return secondPin(p) ? depots.slice(1, 2) : depots.slice(0, 1);
     }
     if (p.includes('delivery-options')) return { expressEnabled: false, expressFee: 0, slots: [] };
     if (p.includes('/loyalty/')) return { tier: 'REGULAR', discountRate: 0, pointsBalance: 0 };
-    if (p.includes('/addresses')) return [];
+    if (p.includes('/addresses')) return SAVED;
     /*
      * The PLATFORM's answer. Returning `[]` for it — the old catch-all — made
      * `available[m.value]` undefined for every method, so `offeredMethods` filtered the
@@ -111,11 +123,11 @@ const draw = async () => {
 
 const submitButtons = () => screen.getAllByRole('button', { name: /Buat pesanan/i });
 
+/** The pin picks the depot now: choose the saved address that depot serves. */
 const pickDepot = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
-  await user.click(screen.getAllByText(/Pilih depot pengantar/)[0]!);
-  const picker = await screen.findByTestId('depot-picker');
-  const row = [...picker.querySelectorAll('span')].find((el) => el.textContent === name);
-  await user.click(row!);
+  await user.click(screen.getAllByText(/Alamat pengiriman/)[0]!);
+  const line = name === 'Depot Dua' ? 'Jl. Dua 2, Bandung' : 'Jl. Satu 1, Jakarta';
+  await user.click((await screen.findAllByText(line))[0]!);
 };
 
 beforeEach(() => {

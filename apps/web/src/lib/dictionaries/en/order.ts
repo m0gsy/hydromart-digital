@@ -81,11 +81,9 @@ export const order: typeof base = {
     deliveryEst: 'Delivery (est.) — {name}',
     deliveryNote: 'Delivery is calculated once a depot is set.',
     total: 'Total',
-    pickDepot: 'Pick the fulfilling depot',
-    pickDepotHint:
-      'This address has no map pin. If you have set a location on Home we fill the depot in from it — change it below if that is not the one.',
-    pickDepotEmpty: 'No active depot right now. Please try again later.',
-    pickDepotRequired: 'Pick a depot to continue.',
+    pinRequired: 'Set this address location pin first — the order is delivered to that pin.',
+    servedBy: 'Delivered from {name}',
+    keepPatokan: 'Also save as this address landmark (for later orders)',
     outOfServiceArea:
       'This address sits outside every depot delivery radius. Pick another address, or move its map pin to somewhere we serve.',
     placeOrder: 'Place order —',

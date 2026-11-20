@@ -39,6 +39,18 @@ import { LocaleProvider } from '@/lib/locale-context';
 import { ToastProvider } from '@/components/toast';
 import CheckoutPage from '@/app/checkout/page';
 
+/*
+ * Two pinned saved addresses. Since 2026-11-20 the pin decides the depot (no picker): the
+ * nearby lookup below answers Depot Satu for the first pin and Depot Dua for the second.
+ */
+const SAVED = [
+  { id: 'a-1', label: 'Rumah', recipientName: 'Wahyu', phone: '081234567890', addressLine: 'Jl. Satu 1', city: 'Jakarta', latitude: -6.2, longitude: 106.8, notes: null, isPrimary: true },
+  { id: 'a-2', label: 'Kantor', recipientName: 'Wahyu', phone: '081234567890', addressLine: 'Jl. Dua 2', city: 'Bandung', latitude: -6.9, longitude: 107.6, notes: null, isPrimary: false },
+];
+/** The pin of the second address (lat -6.9) is the one Depot Dua serves. */
+const secondPin = (p: string): boolean => Number(new URL(p, 'http://x').searchParams.get('lat')) < -6.5;
+
+
 const depotRow = (id: string, name: string, deliveryFee: number) => ({
   id,
   code: id.toUpperCase(),
@@ -92,17 +104,12 @@ const serve = (carts: Record<string, unknown> = CARTS) => {
       const m = p.match(/depotId=([^&]+)/);
       return carts[m?.[1] ?? 'd-1'] ?? carts['d-1'];
     }
-    if (p.includes('/depots/api/v1/depots?')) {
-      return {
-        items: [depotRow('d-1', 'Depot Satu', 5_000), depotRow('d-2', 'Depot Dua', 9_000)],
-        total: 2,
-        page: 1,
-        limit: 100,
-      };
+    if (p.includes('/depots/nearby')) {
+      return secondPin(p) ? [depotRow('d-2', 'Depot Dua', 9_000)] : [depotRow('d-1', 'Depot Satu', 5_000)];
     }
     if (p.includes('delivery-options')) return { expressEnabled: false, expressFee: 0, slots: [] };
     if (p.includes('/loyalty/')) return { tier: 'REGULAR', discountRate: 0, pointsBalance: 0 };
-    if (p.includes('/addresses')) return [];
+    if (p.includes('/addresses')) return SAVED;
     return [];
   });
 };
@@ -133,12 +140,11 @@ const applyVoucher = async (user: ReturnType<typeof userEvent.setup>) => {
   await waitFor(() => expect(quoteCalls().length).toBe(1));
 };
 
+/** The pin picks the depot now: choose the saved address that depot serves. */
 const pickDepot = async (user: ReturnType<typeof userEvent.setup>, name: string) => {
-  await openSheet(user, /Pilih depot pengantar/);
-  // Inside the picker, not the summary row that also names the chosen depot.
-  const picker = await screen.findByTestId('depot-picker');
-  const row = [...picker.querySelectorAll('span')].find((el) => el.textContent === name);
-  await user.click(row!);
+  await openSheet(user, /Alamat pengiriman/);
+  const line = name === 'Depot Dua' ? 'Jl. Dua 2, Bandung' : 'Jl. Satu 1, Jakarta';
+  await user.click((await screen.findAllByText(line))[0]!);
 };
 
 beforeEach(() => {

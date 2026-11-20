@@ -140,7 +140,6 @@ export class OrderController {
           longitude: dto.deliveryAddress.longitude ?? null,
           notes: dto.deliveryAddress.notes ?? null,
         },
-        depotId: dto.depotId ?? null,
         voucherCode: dto.voucherCode ?? null,
         deliveryWindow: dto.deliveryWindow ?? null,
         scheduledFor: dto.scheduledFor ?? null,
