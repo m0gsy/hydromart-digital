@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+
+import { SubscriptionResponseDto } from './responses.generated.dto';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -508,9 +510,9 @@ export class CreateSubscriptionForCustomerDto {
   firstDeliveryAt!: string;
 
   /**
-   * 2026-11-20: the depot making the plan. A plan its customer's address routes to ANOTHER
-   * depot is refused (the sweep would deliver, price and credit it there). Optional so a
-   * depot-service image older than this field is not refused by the whitelist.
+   * The depot typing it in. Informational: the plan belongs to the depot its pin routes to
+   * (owner decision 2026-11-21), which the answer names as `servingDepotId`. Accepted so a
+   * depot-service that sends it is not refused by the whitelist.
    */
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
@@ -991,4 +993,10 @@ export class PdpAnonymiseDto {
   @IsString()
   @MaxLength(32)
   phone?: string | null;
+}
+
+/** The internal create's answer: the plan, and the depot it belongs to (owner decision 2026-11-21). */
+export class InternalSubscriptionResponseDto extends SubscriptionResponseDto {
+  @ApiProperty({ type: String, description: 'The depot whose area the plan pin is in.' })
+  servingDepotId!: string;
 }

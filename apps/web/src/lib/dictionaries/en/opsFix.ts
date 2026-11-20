@@ -624,6 +624,8 @@ export const opsFix = {
     cancel: 'Cancel',
     save: 'Save',
     createError: 'Could not create the subscription.',
+    routedElsewhere:
+      "Subscription created. This customer's address is served by another depot, so the plan is recorded and delivered there.",
     noName: 'No name',
     gallonsSuffix: 'gallons',
     autoOrder: 'Auto-order',

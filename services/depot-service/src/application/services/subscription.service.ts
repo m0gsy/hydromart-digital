@@ -55,6 +55,8 @@ const CADENCE_TO_FREQUENCY: Partial<
  * Customer recurring subscriptions (design 16b). A depot-scoped standing order (N units on a
  * cadence) with an ACTIVE ⇄ PAUSED lifecycle the manager manages.
  */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 @Injectable()
 export class SubscriptionService {
   constructor(
@@ -110,7 +112,7 @@ export class SubscriptionService {
     await this.requireDepot(input.depotId);
     const frequency = CADENCE_TO_FREQUENCY[input.cadence];
     if (!frequency) throw new CadenceNotSupportedError(input.cadence);
-    const engineId = await this.engine.create({
+    const engine = await this.engine.create({
       customerId: input.customerId,
       productId: input.productId,
       quantity: input.quantity,
@@ -118,13 +120,26 @@ export class SubscriptionService {
       firstDeliveryAt: input.firstDeliveryAt,
       depotId: input.depotId,
     });
+    // Owner decision 2026-11-21: a plan for an address another depot serves is made anyway,
+    // and belongs to that depot — the sweep routes by the pin, so it delivers, prices and is
+    // credited for it. The depot typing it in no longer lists it.
+    // A depot this service does not know (or junk) never takes the row: the engine plan is
+    // already running, and a failed insert would leave it with no console row to pause.
+    const serving = engine.servingDepotId;
+    const owner =
+      serving &&
+      UUID.test(serving) &&
+      serving.toLowerCase() !== input.depotId.toLowerCase() &&
+      (await this.depots.exists(serving))
+        ? serving
+        : input.depotId;
     return this.subscriptions.create({
-      depotId: input.depotId,
+      depotId: owner,
       customerId: input.customerId,
       customerName: input.customerName,
       productLabel: input.productLabel,
       productId: input.productId,
-      orderSubscriptionId: engineId,
+      orderSubscriptionId: engine.id,
       quantity: input.quantity,
       cadence: input.cadence,
       nextRunAt: input.firstDeliveryAt,

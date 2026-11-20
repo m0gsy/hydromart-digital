@@ -12,7 +12,6 @@ import {
   SubscriptionCustomerAddressMissingError,
   SubscriptionNotActionableError,
   SubscriptionNotFoundError,
-  SubscriptionServedByOtherDepotError,
 } from '../../src/domain/errors';
 import { DeliveryAddressSnapshot } from '../../src/application/ports/order.repository';
 import {
@@ -996,21 +995,16 @@ describe('SubscriptionService', () => {
       ).rejects.toBeInstanceOf(SubscriptionCustomerAddressMissingError);
     });
 
-    // 2026-11-20 (D10): made by the depot that serves the address, or not at all. The sweep
-    // routes by the pin, so a plan another depot serves would be delivered, priced and
-    // credited there. A depot-service image older than the field sends no depot: unchanged.
-    it('refuses a plan another depot serves, and takes one from the depot that serves it', async () => {
+    // Owner decision 2026-11-21: made even when another depot serves the address, and the
+    // answer names the depot it belongs to — the one its pin routes to.
+    it('makes the plan for another depot\'s address, and names the depot that serves it', async () => {
       const p = seedProduct();
       customers.primary = address;
-
-      await expect(
-        service.createForCustomer(customer, { ...input, productId: p.id }, 'depot-other'),
-      ).rejects.toBeInstanceOf(SubscriptionServedByOtherDepotError);
-      expect(subs.rows).toHaveLength(0);
-      // The same depot written in capitals is still that depot.
-      await expect(
-        service.createForCustomer(customer, { ...input, productId: p.id }, homeDepot.id.toUpperCase()),
-      ).resolves.toMatchObject({ customerId: customer });
+      // Only depot B serves the address; whoever typed it in, the answer names B.
+      depots.depots = [{ ...homeDepot, id: 'depot-b' }];
+      const sub = await service.createForCustomer(customer, { ...input, productId: p.id });
+      expect(sub).toMatchObject({ customerId: customer, servingDepotId: 'depot-b' });
+      expect(subs.rows).toHaveLength(1);
     });
 
     // D3 composes with it: an address that exists but has no map pin is refused too, by

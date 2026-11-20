@@ -189,28 +189,27 @@ describe('SubscriptionController', () => {
       firstDeliveryAt: '2026-09-01T00:00:00.000Z',
     } as never);
 
-    expect(service.createForCustomer).toHaveBeenCalledWith(
-      'cust-9',
-      {
-        productId: 'prod-9',
-        quantity: 3,
-        frequency: 'WEEKLY',
-        firstDeliveryAt: new Date('2026-09-01T00:00:00.000Z'),
-      },
-      undefined,
-    );
+    expect(service.createForCustomer).toHaveBeenCalledWith('cust-9', {
+      productId: 'prod-9',
+      quantity: 3,
+      frequency: 'WEEKLY',
+      firstDeliveryAt: new Date('2026-09-01T00:00:00.000Z'),
+    });
   });
 
-  it("createInternal: passes the depot making the plan, so another depot's customer is refused", async () => {
-    await controller.createInternal({
-      customerId: 'cust-9',
-      productId: 'prod-9',
-      quantity: 1,
-      frequency: 'WEEKLY',
-      firstDeliveryAt: '2026-09-01T00:00:00.000Z',
-      depotId: 'd-7',
-    } as never);
-    expect(service.createForCustomer).toHaveBeenLastCalledWith('cust-9', expect.any(Object), 'd-7');
+  it('createInternal: the depot typing it in decides nothing — the answer names the serving one', async () => {
+    service.createForCustomer.mockResolvedValueOnce({ id: 'sub-1', servingDepotId: 'd-serving' });
+    await expect(
+      controller.createInternal({
+        customerId: 'cust-9',
+        productId: 'prod-9',
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: '2026-09-01T00:00:00.000Z',
+        depotId: 'd-typing',
+      } as never),
+    ).resolves.toEqual({ id: 'sub-1', servingDepotId: 'd-serving' });
+    expect(service.createForCustomer).toHaveBeenLastCalledWith('cust-9', expect.any(Object));
   });
 
   it('processDue: sweeps due subscriptions as of now', async () => {
