@@ -639,7 +639,8 @@ Diurutkan berdasarkan risiko, bukan kenyamanan:
     terdaftar dan dengan nomor pelanggan → keduanya ditolak dengan "belum terdaftar sebagai
     staf", tidak ada SMS, dan tidak ada akun pelanggan baru. Lalu pasang APK baru di atas
     sesi pelanggan yang sudah ada → sesi itu keluar sendiri ke `/login` dengan pesan yang
-    sama. Nomor staf tetap masuk seperti biasa.
+    sama. Buka app tanpa login → langsung halaman login, bukan katalog. Nomor staf tetap
+    masuk seperti biasa.
 
 ## Yang sengaja TIDAK ada di rencana ini
 
