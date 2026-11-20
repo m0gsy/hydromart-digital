@@ -43,6 +43,11 @@ export const errors = {
     // A 22003 overflow, any service (AllExceptionsFilter).
     NUMBER_OUT_OF_RANGE: 'Angka yang dimasukkan terlalu besar. Periksa lagi isiannya.',
     INVENTORY_QUANTITY_OUT_OF_RANGE: 'Jumlah stok terlalu besar. Periksa lagi angka yang dimasukkan.',
+    CUSTOMER_ADDRESS_NOT_FOUND: 'Alamat ini sudah tidak ada. Muat ulang daftar alamat.',
+    CUSTOMER_ADDRESS_LIMIT: 'Daftar alamat sudah penuh. Hapus satu alamat dulu.',
+    CUSTOMER_PRIMARY_ADDRESS_CONFLICT: 'Alamat utama baru saja diubah. Coba lagi.',
+    ORDER_OUT_OF_SERVICE_AREA: 'Alamat ini di luar jangkauan semua depot kami.',
+    ORDER_DEPOT_UNAVAILABLE: 'Depot itu sedang tidak tersedia. Pilih depot lain, atau coba lagi nanti.',
   },
   // E3: a detail screen opened without its `?id=` used to build a URL with a hole in it
   // and show the server's 404, which reads as "this record was deleted" rather than

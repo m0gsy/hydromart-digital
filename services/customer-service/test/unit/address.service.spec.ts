@@ -1,5 +1,9 @@
 import { AddressService } from '../../src/application/services/address.service';
-import { AddressLimitError, AddressNotFoundError } from '../../src/domain/errors';
+import {
+  AddressLimitError,
+  AddressNotFoundError,
+  AddressPinInvalidError,
+} from '../../src/domain/errors';
 import { InMemoryAddressRepository, buildTestConfig } from '../support/fakes';
 
 const input = (label: string) => ({
@@ -19,6 +23,45 @@ describe('AddressService', () => {
   beforeEach(() => {
     repo = new InMemoryAddressRepository();
     service = new AddressService(repo, buildTestConfig());
+  });
+
+  describe('the pin', () => {
+    it('saves an address with no pin at all (an import has none yet)', async () => {
+      await expect(service.create(CUST, input('Rumah'))).resolves.toMatchObject({ latitude: null });
+    });
+
+    it.each([
+      ['one half', { latitude: -6.9 }],
+      ['the other half', { longitude: 107.6 }],
+      ['0,0', { latitude: 0, longitude: 0 }],
+    ])('refuses %s on create and on update', async (_name, pin) => {
+      await expect(service.create(CUST, { ...input('Rumah'), ...pin })).rejects.toBeInstanceOf(
+        AddressPinInvalidError,
+      );
+      const a = await service.create(CUST, { ...input('Rumah'), latitude: -6.9, longitude: 107.6 });
+      await expect(service.update(CUST, a.id, pin)).rejects.toBeInstanceOf(AddressPinInvalidError);
+    });
+
+    it('trims the city on every write, imports included (they skip the DTO)', async () => {
+      const a = await service.create(CUST, { ...input('Rumah'), city: '  Bandung ' });
+      expect(a.city).toBe('Bandung');
+      await expect(service.update(CUST, a.id, { city: 'Cimahi  ' })).resolves.toMatchObject({
+        city: 'Cimahi',
+      });
+    });
+
+    it('answers 404 before judging the pin of an address that is not yours', async () => {
+      await expect(service.update(CUST, 'nope', { latitude: 1 })).rejects.toBeInstanceOf(
+        AddressNotFoundError,
+      );
+    });
+
+    it('takes a real pin, including one on the equator', async () => {
+      const a = await service.create(CUST, { ...input('Rumah'), latitude: 0, longitude: 109.3 });
+      await expect(service.update(CUST, a.id, { latitude: -0.03, longitude: 109.34 })).resolves.toMatchObject({
+        latitude: -0.03,
+      });
+    });
   });
 
   it('makes the first address primary automatically', async () => {

@@ -223,6 +223,15 @@ describe('Order HTTP flows (e2e)', () => {
     expect(list.body.total).toBe(1);
   });
 
+  // A pin sent as text passed IsLatitude and reached the Float column: a 500, now a 400.
+  it('refuses a pin sent as text (400)', async () => {
+    await request(server())
+      .post('/api/v1/orders/checkout')
+      .set(auth(customerToken))
+      .send({ deliveryAddress: { ...ADDRESS, latitude: '-6.9', longitude: '107.6' } })
+      .expect(400);
+  });
+
   it('rejects checkout with an empty cart (422)', async () => {
     await request(server())
       .post('/api/v1/orders/checkout')

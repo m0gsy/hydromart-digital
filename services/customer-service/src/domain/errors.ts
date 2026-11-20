@@ -8,6 +8,15 @@ export class AddressNotFoundError extends DomainError {
   }
 }
 
+/** A pin is both halves or neither, and never 0,0 (the Atlantic: what an emptied field becomes). */
+export class AddressPinInvalidError extends DomainError {
+  readonly code = 'CUSTOMER_ADDRESS_PIN_INVALID';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Pin lokasi tidak valid: isi garis lintang dan bujur bersamaan, dan bukan 0,0.');
+  }
+}
+
 /** BR-004: a customer may have at most N addresses. */
 export class AddressLimitError extends DomainError {
   readonly code = 'CUSTOMER_ADDRESS_LIMIT';

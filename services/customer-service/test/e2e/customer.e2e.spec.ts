@@ -140,6 +140,46 @@ describe('Customer HTTP flows (e2e)', () => {
     expect(after.body).toHaveLength(1);
   });
 
+  it('keeps the patch to what it may change: no isPrimary, no null but the landmark', async () => {
+    const body = {
+      label: 'Rumah',
+      recipientName: 'Budi',
+      phone: '081234567890',
+      addressLine: 'Jl. Merdeka 10',
+      city: '  Bandung ',
+      latitude: -6.9147,
+      longitude: 107.6098,
+      notes: 'Pagar hijau',
+    };
+    const a = await auth(request(server()).post('/api/v1/addresses').send(body)).expect(201);
+    // Stored trimmed: a stray space made a second "city" in every segment and report.
+    expect(a.body.city).toBe('Bandung');
+    const path = `/api/v1/addresses/${a.body.id}`;
+
+    await auth(request(server()).patch(path).send({ isPrimary: false })).expect(400);
+    await auth(request(server()).patch(path).send({ city: null })).expect(400);
+    await auth(request(server()).patch(path).send({ latitude: '-6.9', longitude: '107.6' })).expect(400);
+    await auth(request(server()).patch(path).send({ latitude: -6.9 })).expect(422);
+
+    const cleared = await auth(request(server()).patch(path).send({ notes: null })).expect(200);
+    // …and the primary flag is exactly what it was: only the dedicated route moves it.
+    expect(cleared.body).toMatchObject({ notes: null, isPrimary: a.body.isPrimary, city: 'Bandung' });
+  });
+
+  it('refuses a pin sent as text on create (400, not a 500 from the column)', async () => {
+    await auth(
+      request(server()).post('/api/v1/addresses').send({
+        label: 'Rumah',
+        recipientName: 'Budi',
+        phone: '081234567890',
+        addressLine: 'Jl. Merdeka 10',
+        city: 'Bandung',
+        latitude: '-6.9147',
+        longitude: '107.6098',
+      }),
+    ).expect(400);
+  });
+
   it('validates the payload (400) and rejects a bad uuid param (400)', async () => {
     await auth(request(server()).post('/api/v1/addresses').send({ label: '' })).expect(400);
     await auth(request(server()).get('/api/v1/addresses/not-a-uuid')).expect(400);

@@ -49,6 +49,7 @@ export class DeliveryAddressDto {
   addressLine!: string;
 
   @ApiProperty({ example: 'Bandung' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
@@ -71,13 +72,16 @@ export class DeliveryAddressDto {
   @MaxLength(10)
   postalCode?: string;
 
+  // A number, as on the address book: IsLatitude alone lets "-6.9" through as a string.
   @ApiPropertyOptional({ example: -6.9147 })
   @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false })
   @IsLatitude()
   latitude?: number;
 
   @ApiPropertyOptional({ example: 107.6098 })
   @IsOptional()
+  @IsNumber({ allowNaN: false, allowInfinity: false })
   @IsLongitude()
   longitude?: number;
 
