@@ -36,6 +36,13 @@ describe('AddressController', () => {
     expect(svc.primary).toHaveBeenCalledWith('cust-9');
   });
 
+  // P3-5: one saved address by id, for the sweep a subscription follows it with.
+  it('byId → addresses.getOrThrow(customerId, addressId), for the internal caller', async () => {
+    svc.getOrThrow.mockResolvedValue({ id: 'a2' });
+    await expect(c.byId('cust-9', 'a2')).resolves.toEqual({ id: 'a2' });
+    expect(svc.getOrThrow).toHaveBeenCalledWith('cust-9', 'a2');
+  });
+
   it('list → addresses.list(user.sub)', async () => {
     svc.list.mockResolvedValue(['a']);
     expect(await c.list(user)).toEqual(['a']);

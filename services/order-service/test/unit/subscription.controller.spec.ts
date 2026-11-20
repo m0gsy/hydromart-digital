@@ -252,10 +252,10 @@ describe('SubscriptionController.changeAddress', () => {
       latitude: null,
       longitude: null,
       notes: null,
-    });
+    }, undefined);
   });
 
-  it('keeps the optional fields when they ARE given', async () => {
+  it('keeps the optional fields when they ARE given, and the saved address picked', async () => {
     const service = makeService();
     const controller = new SubscriptionController(service as never);
 
@@ -271,12 +271,14 @@ describe('SubscriptionController.changeAddress', () => {
         longitude: 107.61,
         notes: 'pagar hijau',
       },
+      addressId: 'a-9',
     } as never);
 
     expect(service.changeAddress).toHaveBeenCalledWith(
       'c1',
       's1',
       expect.objectContaining({ postalCode: '40112', latitude: -6.92, notes: 'pagar hijau' }),
+      'a-9',
     );
   });
 });

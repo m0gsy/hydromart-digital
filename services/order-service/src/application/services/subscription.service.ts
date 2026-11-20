@@ -13,7 +13,7 @@ import {
   SubscriptionServedByOtherDepotError,
 } from '../../domain/errors';
 import { nextDeliveryOnOrAfter } from '../../domain/subscription';
-import { DepotChange, RerouteCounts, rerouteCounts, withDepotChange } from '../../domain/geo';
+import { DepotChange, RerouteCounts, rerouteCounts, withDepotChange, selectNearestDepot } from '../../domain/geo';
 import { OrderConfigService } from '../../config/order-config.service';
 import { DeliveryAddressSnapshot } from '../ports/order.repository';
 import { DepotLocation } from '../ports/depot-directory.port';
@@ -36,6 +36,8 @@ export interface CreateSubscriptionInput {
   frequency: SubscriptionFrequency;
   firstDeliveryAt: Date;
   address: DeliveryAddressSnapshot;
+  /** P3-5: the saved address it was picked from; the plan then follows that address. */
+  addressId?: string;
 }
 
 /**
@@ -175,6 +177,7 @@ export class SubscriptionService {
       frequency: input.frequency,
       nextDeliveryAt: input.firstDeliveryAt,
       ...input.address,
+      addressId: input.addressId ?? null,
     };
     return this.subs.create(data);
   }
@@ -203,9 +206,12 @@ export class SubscriptionService {
      */
     byDepotId?: string,
   ): Promise<SubscriptionRecord> {
-    const address = await this.customers.primaryAddress(customerId);
-    if (!address) throw new SubscriptionCustomerAddressMissingError();
-    return this.create(customerId, { ...input, address }, byDepotId);
+    const primary = await this.customers.primaryAddress(customerId);
+    if (!primary) throw new SubscriptionCustomerAddressMissingError();
+    // The id names the saved address the plan follows; it must never reach the snapshot,
+    // where it would be read as the subscription's own id.
+    const { id: addressId, ...address } = primary;
+    return this.create(customerId, { ...input, address, addressId }, byDepotId);
   }
 
   async list(customerId: string): Promise<SubscriptionRecord[]> {
@@ -238,6 +244,44 @@ export class SubscriptionService {
     ]);
     if (!depots?.length) throw new DepotUnavailableError();
     return rerouteCounts(pins, depots, withDepotChange(depots, change));
+  }
+
+  /**
+   * P3-5: a plan made from a saved address follows it. When the customer edits that address
+   * (a better pin, a new patokan), the next delivery goes to the edit — but only while it is
+   * still the same depot's: a plan never changes depot behind anyone's back (the reroute
+   * preview is how a depot change is said out loud). Anything unreadable keeps the snapshot,
+   * and so does an address that lost its pin or moved to another depot's area.
+   */
+  private async followSavedAddress(
+    sub: SubscriptionRecord,
+    snapshot: DeliveryAddressSnapshot,
+    fresh: DeliveryAddressSnapshot | null,
+    depots: DepotLocation[] | null,
+  ): Promise<DeliveryAddressSnapshot> {
+    if (!sub.addressId || !depots?.length || !fresh) return snapshot;
+    if (fresh.latitude == null || fresh.longitude == null || sameSnapshot(fresh, snapshot)) {
+      return snapshot;
+    }
+    const after = selectNearestDepot(fresh.latitude, fresh.longitude, depots)?.id ?? null;
+    if (after === null) return snapshot;
+    // Never to another depot, nor out of an area no depot serves any more (that is the
+    // reroute preview's to say). Only a plan with no pin of its own — written before pins
+    // were required — has no depot to leave, and may take the pinned edit.
+    if (snapshot.latitude != null && snapshot.longitude != null) {
+      const before = selectNearestDepot(snapshot.latitude, snapshot.longitude, depots)?.id;
+      if (before !== after) return snapshot;
+    }
+    try {
+      // Only if the plan is still the one read: a move the customer made during this run
+      // must not be written over, and an automatic follow is not a reason to reset failures.
+      return (await this.subs.followAddress(sub.id, sub.addressId, sub.updatedAt, fresh))
+        ? fresh
+        : snapshot;
+    } catch (err) {
+      this.logger.warn(`Subscription ${sub.id} kept its address: ${messageOf(err)}`);
+      return snapshot;
+    }
   }
 
   private async owned(customerId: string, id: string): Promise<SubscriptionRecord> {
@@ -300,10 +344,11 @@ export class SubscriptionService {
    * primary address did not move it. Somebody who moved house had exactly one option: cancel
    * the plan and start a new one, losing its schedule.
    *
-   * Moving it is a WRITE the customer makes, never a side effect of editing the address
-   * book. The plan holds its own snapshot on purpose — the sweep prices against the depot
-   * that snapshot routes to (D7), so an address edit that silently re-routed a standing
-   * order would also silently change what it costs.
+   * Moving it is a WRITE the customer makes. The plan holds its own snapshot on purpose —
+   * the sweep prices against the depot that snapshot routes to (D7), so an address edit
+   * that silently re-routed a standing order would also silently change what it costs.
+   * P3-5: an edit to the saved address it follows does reach it, but only one the same
+   * depot still serves (see followSavedAddress) — never a different depot or price.
    *
    * A cancelled plan is not moved: nothing will ever be delivered against it, and letting
    * the address change would put a dead row in the customer's list looking alive.
@@ -312,12 +357,14 @@ export class SubscriptionService {
     customerId: string,
     id: string,
     address: DeliveryAddressSnapshot,
+    /** P3-5: the saved address picked; absent = a typed one, which the plan stops following. */
+    addressId?: string,
   ): Promise<SubscriptionRecord> {
     const sub = await this.owned(customerId, id);
     if (sub.status === 'CANCELLED') throw new SubscriptionNotActionableError();
     // The same check as create: a plan moved to an address nobody serves failed every run.
     await this.assertDeliverable(address);
-    const moved = await this.subs.setDeliveryAddress(id, address);
+    const moved = await this.subs.setDeliveryAddress(id, address, addressId ?? null);
     // Cancelled (or erased) while the depot was being checked: nothing was written.
     if (!moved) throw new SubscriptionNotActionableError();
     return moved;
@@ -362,8 +409,21 @@ export class SubscriptionService {
     const due = await this.subs.findDue(now);
     let placed = 0;
     let failed = 0;
+    // P3-5: one depot read for the whole run, and only when some plan follows an address.
+    // The directory answers null on an outage rather than throwing; null keeps every snapshot.
+    const followers = due.filter((s) => s.addressId);
+    const depots = followers.length ? await this.orders.activeDepots() : null;
+    // The saved addresses, read side by side rather than one timeout after another; the
+    // adapter answers null for anything it could not read.
+    const saved = new Map(
+      await Promise.all(
+        (depots?.length ? followers : []).map(
+          async (s) => [s.id, await this.customers.addressById(s.customerId, s.addressId!)] as const,
+        ),
+      ),
+    );
     for (const sub of due) {
-      const address: DeliveryAddressSnapshot = {
+      const snapshot: DeliveryAddressSnapshot = {
         recipientName: sub.recipientName,
         phone: sub.phone,
         addressLine: sub.addressLine,
@@ -374,6 +434,7 @@ export class SubscriptionService {
         longitude: sub.longitude,
         notes: sub.notes,
       };
+      const address = await this.followSavedAddress(sub, snapshot, saved.get(sub.id) ?? null, depots);
       try {
         await this.orders.placeScheduled(
           sub.customerId,
@@ -462,4 +523,21 @@ export class SubscriptionService {
       )
       .catch(() => false);
   }
+}
+
+const SNAPSHOT_KEYS = [
+  'recipientName',
+  'phone',
+  'addressLine',
+  'city',
+  'province',
+  'postalCode',
+  'latitude',
+  'longitude',
+  'notes',
+] as const;
+
+/** Every field the courier and the routing read; equal snapshots need no write. */
+function sameSnapshot(a: DeliveryAddressSnapshot, b: DeliveryAddressSnapshot): boolean {
+  return SNAPSHOT_KEYS.every((k) => (a[k] ?? null) === (b[k] ?? null));
 }

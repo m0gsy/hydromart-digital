@@ -257,6 +257,142 @@ describe('SubscriptionService', () => {
     });
   });
 
+  /*
+   * P3-5. A plan made from a saved address follows it: a better pin or a new patokan
+   * reaches the next delivery. Never across depots, though — a plan does not change depot
+   * behind anyone's back — and anything unreadable delivers to the snapshot as before.
+   */
+  describe('P3-5 · a plan follows its saved address', () => {
+    const due = new Date('2026-07-02T00:00:00Z');
+    const plan = async (addressId?: string) => {
+      const p = seedProduct();
+      return service.create(customer, {
+        productId: p.id,
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+        address,
+        addressId,
+      });
+    };
+
+    it('delivers to the edit, and keeps it, when the same depot still serves it', async () => {
+      const sub = await plan('a-home');
+      expect(sub.addressId).toBe('a-home');
+      customers.saved.set('a-home', { ...address, notes: 'Pagar biru', latitude: -6.901 });
+
+      expect((await service.processDue(due)).placed).toBe(1);
+      expect(orders.rows[0]).toMatchObject({ notes: 'Pagar biru', latitude: -6.901 });
+      expect(subs.rows[0]).toMatchObject({ notes: 'Pagar biru', addressId: 'a-home' });
+    });
+
+    it("keeps the snapshot when the edit is another depot's, or has no pin, or is gone", async () => {
+      const neighbour = { ...homeDepot, id: 'depot-next', lat: -7.2, serviceRadiusKm: 10 };
+      depots.depots = [homeDepot, neighbour];
+      const sub = await plan('a-home');
+      for (const edit of [
+        { ...address, latitude: -7.2 }, // the neighbour's area now
+        { ...address, latitude: null, longitude: null }, // pin removed
+      ]) {
+        customers.saved.set('a-home', edit);
+        await service.processDue(due);
+        expect(subs.rows.find((r) => r.id === sub.id)).toMatchObject({ latitude: -6.9 });
+      }
+      customers.saved.clear(); // deleted, or customer-service unreachable
+      await service.processDue(due);
+      expect(orders.rows.every((o) => o.latitude === -6.9)).toBe(true);
+    });
+
+    it('delivers to the snapshot when the saved address cannot be read at all', async () => {
+      await plan('a-home');
+      // The adapter fails to null rather than throwing; the write is what can still fail.
+      customers.saved.set('a-home', { ...address, notes: 'baru' });
+      jest.spyOn(subs, 'followAddress').mockRejectedValue(new Error('db down'));
+      expect((await service.processDue(due)).placed).toBe(1);
+      expect(orders.rows[0]).toMatchObject({ latitude: -6.9, notes: null });
+    });
+
+    it('writes nothing when the saved address is exactly the snapshot', async () => {
+      await plan('a-home');
+      customers.saved.set('a-home', { ...address });
+      const write = jest.spyOn(subs, 'followAddress');
+      await service.processDue(due);
+      expect(write).not.toHaveBeenCalled();
+    });
+
+    // Written before pins were required: no depot to move away from, so the pinned edit is
+    // what finally makes the plan deliverable.
+    it('lets a plan with no pin of its own take a pinned edit', async () => {
+      const sub = await plan('a-home');
+      const row = subs.rows.find((r) => r.id === sub.id)!;
+      row.latitude = null;
+      row.longitude = null;
+      customers.saved.set('a-home', { ...address, notes: 'Sekarang ada pin' });
+      expect((await service.processDue(due)).placed).toBe(1);
+      expect(orders.rows[0]).toMatchObject({ latitude: -6.9, notes: 'Sekarang ada pin' });
+    });
+
+    // A pin no depot serves any more (its depot was suspended) is the reroute preview's to
+    // announce: an edit must not quietly hop the plan to a neighbour.
+    it('keeps a plan whose own pin no depot serves, even when the edit is served', async () => {
+      const neighbour = { ...homeDepot, id: 'depot-next', lat: -7.2, serviceRadiusKm: 10 };
+      depots.depots = [neighbour];
+      const sub = await plan('a-home').catch(() => null); // home is gone: create refuses
+      expect(sub).toBeNull();
+      depots.depots = [homeDepot, neighbour];
+      const kept = await plan('a-home');
+      depots.depots = [neighbour];
+      customers.saved.set('a-home', { ...address, latitude: -7.2 });
+      await service.processDue(due);
+      expect(subs.rows.find((r) => r.id === kept.id)).toMatchObject({ latitude: -6.9 });
+    });
+
+    // The customer moved the plan while the sweep was running: the follow must not undo it,
+    // and an automatic follow leaves the failure record alone.
+    it('does not write over a move made during the run, nor reset failures', async () => {
+      const sub = await plan('a-home');
+      const row = subs.rows.find((r) => r.id === sub.id)!;
+      row.failureCount = 2;
+      customers.saved.set('a-home', { ...address, notes: 'baru' });
+      const stale = { ...row };
+      row.updatedAt = new Date(row.updatedAt.getTime() + 1); // moved meanwhile
+      await expect(
+        subs.followAddress(stale.id, 'a-home', stale.updatedAt, { ...address, notes: 'baru' }),
+      ).resolves.toBe(false);
+      await service.processDue(due);
+      expect(row.failureCount).toBe(0); // the delivery landed; the follow itself reset nothing
+      expect(row.notes).toBe('baru');
+    });
+
+    it('asks nothing for a plan that follows no saved address', async () => {
+      const spy = jest.spyOn(customers, 'addressById');
+      await plan();
+      await service.processDue(due);
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('a staff-made plan follows the primary address, whose id never becomes the plan id', async () => {
+      const p = seedProduct();
+      customers.primary = { ...address, id: 'a-primary' };
+      const sub = await service.createForCustomer(customer, {
+        productId: p.id,
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-09-01T00:00:00Z'),
+      });
+      expect(sub.addressId).toBe('a-primary');
+      expect(sub.id).not.toBe('a-primary');
+    });
+
+    it('a move to a picked address follows it; a move to a typed one follows none', async () => {
+      const sub = await plan('a-home');
+      await service.changeAddress(customer, sub.id, { ...address, addressLine: 'Jl. Baru 2' }, 'a-office');
+      expect(subs.rows[0]!.addressId).toBe('a-office');
+      await service.changeAddress(customer, sub.id, { ...address, addressLine: 'Jl. Baru 3' });
+      expect(subs.rows[0]!.addressId).toBeNull();
+    });
+  });
+
   it('discountRate: quotes the depot ladder the sweep will actually charge', () => {
     // Same config the sweep prices against — the shop cannot quote a different saving.
     expect(service.discountRate(homeDepot.id)).toBe(0.05);

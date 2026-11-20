@@ -55,6 +55,24 @@ export class AddressController {
     return this.addresses.primary(customerId);
   }
 
+  /**
+   * P3-5: one saved address of a customer, for order-service's sweep — a subscription made
+   * from it follows the customer's edits to it. Internal key, like `internal/primary`; a
+   * missing or someone else's address is a 404 there, and the sweep keeps its snapshot.
+   */
+  @ApiOkResponse({ type: AddressResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/by-id')
+  @ApiOperation({ summary: "One saved address of a customer (internal)" })
+  byId(
+    @Query('customerId', ParseUUIDPipe) customerId: string,
+    @Query('addressId', ParseUUIDPipe) addressId: string,
+  ): Promise<AddressRecord> {
+    return this.addresses.getOrThrow(customerId, addressId);
+  }
+
   @ApiOkResponse({ type: AddressResponseDto })
   @SelfScoped()
   @Post()

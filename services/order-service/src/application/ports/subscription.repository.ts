@@ -17,6 +17,8 @@ export interface SubscriptionRecord extends DeliveryAddressSnapshot {
   failureCount: number;
   lastFailureAt: Date | null;
   lastFailure: string | null;
+  /** P3-5: the saved address the snapshot follows; null when it follows none. */
+  addressId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +31,7 @@ export interface CreateSubscriptionData extends DeliveryAddressSnapshot {
   quantity: number;
   frequency: SubscriptionFrequency;
   nextDeliveryAt: Date;
+  addressId?: string | null;
 }
 
 /** Per-plan active-subscriber count (18c network aggregate). */
@@ -74,12 +77,26 @@ export interface SubscriptionRepository {
    * The address is a SNAPSHOT and stays one — the plan holds its own copy so that editing
    * an address book entry cannot silently re-route a standing order, and so the depot the
    * sweep prices against (D7) cannot move under it. This is the deliberate move, made by
-   * the customer, and it is the only way the snapshot changes after creation.
+   * the customer. P3-5: the sweep also refreshes it from the saved address it follows, but
+   * only to an edit the same depot still serves — so the depot never moves under a plan.
    */
+  /**
+   * P3-5: the sweep's follow of an edited saved address. Written only while the plan is still
+   * ACTIVE, still follows `addressId` and is unchanged since `seenUpdatedAt` — false when
+   * the customer moved it meanwhile. Unlike a move, the failure record stays.
+   */
+  followAddress(
+    id: string,
+    addressId: string,
+    seenUpdatedAt: Date,
+    address: DeliveryAddressSnapshot,
+  ): Promise<boolean>;
   /** Null when the plan is CANCELLED by the time the write lands (nothing written). */
   setDeliveryAddress(
     id: string,
     address: DeliveryAddressSnapshot,
+    /** P3-5: the saved address it now follows; null stops following; absent leaves it. */
+    addressId?: string | null,
   ): Promise<SubscriptionRecord | null>;
   /**
    * D4: resume, which is a status change AND a schedule move in one write.

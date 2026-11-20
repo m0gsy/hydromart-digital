@@ -53,10 +53,33 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
    * Fails to `null`, never throws and never invents: the caller refuses the subscription
    * rather than sending water to a guess.
    */
-  async primaryAddress(customerId: string): Promise<DeliveryAddressSnapshot | null> {
+  async primaryAddress(
+    customerId: string,
+  ): Promise<(DeliveryAddressSnapshot & { id?: string }) | null> {
+    return this.readAddress(
+      `internal/primary?customerId=${encodeURIComponent(customerId)}`,
+      'Primary address',
+    );
+  }
+
+  /** P3-5: see the port. Fails to null like the primary read: the snapshot is the fallback. */
+  async addressById(customerId: string, addressId: string): Promise<DeliveryAddressSnapshot | null> {
+    return this.readAddress(
+      `internal/by-id?customerId=${encodeURIComponent(customerId)}&addressId=${encodeURIComponent(addressId)}`,
+      'Saved address',
+      false,
+    );
+  }
+
+  private async readAddress(
+    route: string,
+    what: string,
+    /** Only the primary read wants it: a snapshot spread into an order must not carry one. */
+    withId = true,
+  ): Promise<(DeliveryAddressSnapshot & { id?: string }) | null> {
     const key = this.config.internalServiceKey;
     if (!key) return null;
-    const url = `${this.config.customerServiceUrl}/api/v1/addresses/internal/primary?customerId=${encodeURIComponent(customerId)}`;
+    const url = `${this.config.customerServiceUrl}/api/v1/addresses/${route}`;
     try {
       const res = await fetch(url, {
         headers: { 'x-internal-key': key },
@@ -68,6 +91,7 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
       const body = (await res.json()) as Record<string, unknown> | null;
       if (!body || typeof body.addressLine !== 'string') return null;
       return {
+        ...(withId && typeof body.id === 'string' ? { id: body.id } : {}),
         recipientName: String(body.recipientName ?? ''),
         phone: String(body.phone ?? ''),
         addressLine: body.addressLine,
@@ -79,7 +103,7 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
         notes: (body.notes as string | null) ?? null,
       };
     } catch (error) {
-      this.logger.warn(`Primary address not read: ${(error as Error).message}`);
+      this.logger.warn(`${what} not read: ${(error as Error).message}`);
       return null;
     }
   }

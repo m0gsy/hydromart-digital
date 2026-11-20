@@ -1720,6 +1720,27 @@ describe('CustomerDirectoryHttpAdapter', () => {
       await expect(blank.primaryAddress('c1')).resolves.toBeNull();
     });
 
+    // P3-5: the saved address a plan follows, by id — the same reader, the same null.
+    it('reads one saved address by id, without its id (a snapshot carries none); null when gone', async () => {
+      const fetchMock = jest.fn().mockResolvedValue(
+        res({ body: { id: 'a-1', recipientName: 'Budi', addressLine: 'Jl. Merdeka 10', latitude: -6.9 } }),
+      );
+      (globalThis as { fetch: unknown }).fetch = fetchMock;
+      await expect(
+        new CustomerDirectoryHttpAdapter(config).addressById('c1', 'a-1'),
+      ).resolves.toEqual(expect.objectContaining({ addressLine: 'Jl. Merdeka 10', latitude: -6.9 }));
+      const read = await new CustomerDirectoryHttpAdapter(config).addressById('c1', 'a-1');
+      expect(read).not.toHaveProperty('id');
+      expect(String(fetchMock.mock.calls[0]![0])).toContain(
+        '/addresses/internal/by-id?customerId=c1&addressId=a-1',
+      );
+
+      (globalThis as { fetch: unknown }).fetch = jest.fn().mockResolvedValue(res({ ok: false }));
+      await expect(
+        quiet(new CustomerDirectoryHttpAdapter(config)).addressById('c1', 'a-1'),
+      ).resolves.toBeNull();
+    });
+
     // K3.1: the assertion that used to stand here was the defect, written down as an
     // expectation — "resolves to null when there is no internal key". That null then became
     // "coba lagi" on a cashier's screen, forever. It is now the refusal test above.

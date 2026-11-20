@@ -131,6 +131,7 @@ export class SubscriptionController {
         longitude: a.longitude ?? null,
         notes: a.notes ?? null,
       },
+      addressId: dto.addressId,
     });
   }
 
@@ -185,17 +186,22 @@ export class SubscriptionController {
     @Body() dto: ChangeSubscriptionAddressDto,
   ): Promise<SubscriptionRecord> {
     const a = dto.deliveryAddress;
-    return this.subscriptions.changeAddress(user.sub, id, {
-      recipientName: a.recipientName,
-      phone: a.phone,
-      addressLine: a.addressLine,
-      city: a.city,
-      province: a.province,
-      postalCode: a.postalCode ?? null,
-      latitude: a.latitude ?? null,
-      longitude: a.longitude ?? null,
-      notes: a.notes ?? null,
-    });
+    return this.subscriptions.changeAddress(
+      user.sub,
+      id,
+      {
+        recipientName: a.recipientName,
+        phone: a.phone,
+        addressLine: a.addressLine,
+        city: a.city,
+        province: a.province,
+        postalCode: a.postalCode ?? null,
+        latitude: a.latitude ?? null,
+        longitude: a.longitude ?? null,
+        notes: a.notes ?? null,
+      },
+      dto.addressId,
+    );
   }
 
   /**

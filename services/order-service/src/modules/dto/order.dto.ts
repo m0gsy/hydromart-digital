@@ -444,6 +444,12 @@ export class CreateSubscriptionDto {
   @ValidateNested()
   @Type(() => DeliveryAddressDto)
   deliveryAddress!: DeliveryAddressDto;
+
+  /** P3-5: the saved address it was picked from; the plan then follows that address. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  addressId?: string;
 }
 
 /**
@@ -463,6 +469,12 @@ export class ChangeSubscriptionAddressDto {
   @ValidateNested()
   @Type(() => DeliveryAddressDto)
   deliveryAddress!: DeliveryAddressDto;
+
+  /** P3-5: the saved address it was picked from; the plan then follows that address. */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  addressId?: string;
 }
 
 /**
