@@ -1078,6 +1078,10 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
    * PDP erasure. Cancel first, then scrub — the order is the point: an ACTIVE plan with a
    * blank recipient keeps shipping to the same address under no name.
    */
+  async listAllForExport(customerId: string) {
+    return { items: this.rows.filter((r) => r.customerId === customerId), truncated: false };
+  }
+
   async erasePerson(customerId: string): Promise<number> {
     const mine = this.rows.filter((r) => r.customerId === customerId);
     for (const row of mine) {
@@ -1085,6 +1089,10 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
       row.recipientName = '';
       row.phone = '';
       row.notes = null;
+      row.addressLine = '';
+      row.postalCode = null;
+      row.latitude = null;
+      row.longitude = null;
     }
     return mine.length;
   }

@@ -101,7 +101,7 @@ export class DeliveryConfigService {
    * dispatches before anybody there has agreed to it.
    *
    * The wait is the whole of the decision. Without it the fastest phone wins every order
-   * the moment it is confirmed, and a dispatcher who was about to assign it deliberately
+   * the moment it is ready (PREPARING), and a dispatcher who was about to assign it deliberately
    * loses the race — the queue stops being a queue. With it, self-claim is what happens to
    * an order NOBODY picked up, which is the case it exists for.
    *

@@ -27,6 +27,9 @@ const operator = (depotId: string): AuthenticatedUser => ({
 });
 
 class FakeIdentity implements IdentityPort {
+  async getAccountOwners() {
+    return this.getCustomerNames();
+  }
   readonly calls: { phone: string; fullName?: string }[] = [];
   private seq = 0;
   constructor(

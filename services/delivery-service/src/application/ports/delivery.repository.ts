@@ -440,6 +440,11 @@ export interface DeliveryRepository {
    * Idempotent: a retry rewrites the same blanks and reports the same count.
    */
   erasePerson(customerId: string, phone: string | null): Promise<number>;
+  /** One person's deliveries (by account, or by the number on rows made before it), newest first. */
+  listForPerson(
+    customerId: string,
+    phone: string | null,
+  ): Promise<{ items: DeliveryRecord[]; truncated: boolean }>;
   /**
    * Delivery SLA aggregates over the window: delivered on-time vs breached +
    * failures. When `depotIds` is a non-empty array, only deliveries snapshotted

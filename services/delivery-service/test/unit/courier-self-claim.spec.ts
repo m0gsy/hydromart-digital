@@ -171,13 +171,27 @@ describe('DeliveryService.claimByDriver (S1)', () => {
     expect(delivery).toMatchObject({ orderId: ORDER, depotId: null, notes: null });
   });
 
-  it('refuses an order that is not confirmed, and one that does not exist', async () => {
+  // PREPARING is the only state a courier can be handed (PREPARING → DRIVER_ASSIGNED). The
+  // claim used to ask for CONFIRMED, which order-service then refused, so no claim succeeded.
+  it.each(['CONFIRMED', 'DELIVERED'])('refuses an order that is %s, not PREPARING', async (status) => {
     const service = await make(1);
-    lookup.seed({ id: ORDER, depotId: DEPOT_ID, status: 'DELIVERED' });
+    lookup.seed({ id: ORDER, depotId: DEPOT_ID, status });
     await expect(service.claimByDriver(DRIVER, ORDER, AUTH)).rejects.toMatchObject({
       code: 'DELIVERY_ORDER_NOT_CLAIMABLE',
       status: 409,
     });
+  });
+
+  it('refuses an order whose clock it cannot read, rather than skipping the wait', async () => {
+    const service = await make(1);
+    lookup.seed({ id: ORDER, depotId: DEPOT_ID, statusChangedAt: new Date(Number.NaN) });
+    await expect(service.claimByDriver(DRIVER, ORDER, AUTH)).rejects.toMatchObject({
+      code: 'DELIVERY_ORDER_NOT_CLAIMABLE',
+    });
+  });
+
+  it('refuses an order that does not exist', async () => {
+    const service = await make(1);
     await expect(service.claimByDriver(DRIVER, 'missing', AUTH)).rejects.toMatchObject({
       code: 'DELIVERY_ORDER_NOT_CLAIMABLE',
     });

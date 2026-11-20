@@ -69,6 +69,11 @@ export class DataExportResponseDto {
   consents!: unknown[];
   @ApiProperty({ type: Object })
   customer!: unknown;
+  @ApiProperty({
+    type: Object,
+    description: 'What the other services hold (subscriptions, deliveries), one section each.',
+  })
+  held!: unknown;
   @ApiProperty({ type: [String] })
   notIncluded!: string[];
 }

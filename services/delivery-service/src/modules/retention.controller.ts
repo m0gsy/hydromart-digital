@@ -3,8 +3,13 @@ import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagg
 
 import { InternalAuthGuard, Public } from '@hydromart/platform';
 
-import { DeliveryService } from '../application/services/delivery.service';
-import { PdpAnonymiseDto, PhotoLinkDto, PurgeProofsDto } from './dto/retention.dto';
+import { DeliveryService, type PdpDeliveryExport } from '../application/services/delivery.service';
+import {
+  PdpAnonymiseDto,
+  PdpDeliveryExportResponseDto,
+  PhotoLinkDto,
+  PurgeProofsDto,
+} from './dto/retention.dto';
 import {
   PdpErasedResponseDto,
   PhotoLinkResponseDto,
@@ -58,6 +63,18 @@ export class RetentionController {
   @ApiOperation({ summary: 'Scrub one person from deliveries + proofs (internal, UU PDP)' })
   pdpAnonymise(@Body() dto: PdpAnonymiseDto): Promise<{ erased: number }> {
     return this.deliveries.erasePerson(dto.customerId, dto.phone ?? null);
+  }
+
+  /** The same person's deliveries for a PDP export: destination, pin and landmark included. */
+  @ApiOkResponse({ type: PdpDeliveryExportResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/pdp-export')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "One person's deliveries, for a PDP export (internal, UU PDP)" })
+  pdpExport(@Body() dto: PdpAnonymiseDto): Promise<PdpDeliveryExport> {
+    return this.deliveries.exportPerson(dto.customerId, dto.phone ?? null);
   }
 
   /**

@@ -65,6 +65,15 @@ describe('Customer HTTP flows (e2e)', () => {
       .useValue(new InMemoryNotificationRepository())
       .overrideProvider(CUSTOMER_TOKENS.LoyaltyRewardPort)
       .useValue(loyalty)
+      // The account owners, as auth-service would answer them: a campaign goes to these
+      // (owner decision 2026-11-20), not to the primary address's recipient.
+      .overrideProvider(CUSTOMER_TOKENS.IdentityPort)
+      .useValue({
+        preRegisterCustomer: jest.fn(),
+        getCustomerNames: async () => new Map(),
+        getAccountOwners: async (ids: string[]) =>
+          new Map(ids.map((id) => [id, { fullName: `Pemilik ${id}`, phone: '+628999' }])),
+      })
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -266,7 +275,10 @@ describe('Customer HTTP flows (e2e)', () => {
     const res = await admin(
       request(server()).get('/api/v1/profile/directory').query({ tier: 'SILVER', city: 'depok' }),
     ).expect(200);
-    expect(res.body).toEqual([{ customerId: 'seg-silver', name: 'Sinta', phone: '+628111' }]);
+    // The account owner, not the address recipient (Sinta, +628111).
+    expect(res.body).toEqual([
+      { customerId: 'seg-silver', name: 'Pemilik seg-silver', phone: '+628999' },
+    ]);
   });
 
   /*
@@ -282,7 +294,10 @@ describe('Customer HTTP flows (e2e)', () => {
       .query({ tier: 'SILVER', city: 'depok' })
       .set('x-internal-key', INTERNAL_KEY)
       .expect(200);
-    expect(res.body).toEqual([{ customerId: 'seg-silver', name: 'Sinta', phone: '+628111' }]);
+    // The account owner, not the address recipient (Sinta, +628111).
+    expect(res.body).toEqual([
+      { customerId: 'seg-silver', name: 'Pemilik seg-silver', phone: '+628999' },
+    ]);
   });
 
   it('rejects an invalid tier filter (400)', async () => {
