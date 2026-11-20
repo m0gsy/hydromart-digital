@@ -202,6 +202,8 @@ describe('SubscriptionService', () => {
       quantity: 2,
       frequency: 'WEEKLY',
       firstDeliveryAt: new Date('2026-09-01T00:00:00Z'),
+      // The engine refuses a plan whose address another depot serves (D10, 2026-11-20).
+      depotId,
     });
     expect(sub.orderSubscriptionId).toBe('eng-1');
     expect(sub.productId).toBe('22222222-2222-4222-8222-222222222222');
