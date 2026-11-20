@@ -706,6 +706,8 @@ const opsFixShared = {
     out: 'Keluar',
     net: 'Kas bersih',
     todayTx: 'Transaksi hari ini',
+    dayTx: 'Transaksi tanggal ini',
+    day: 'Tanggal',
     record: 'Catat kas',
     category: 'Kategori',
     categoryPlaceholder: 'mis. Penjualan, Belanja',
