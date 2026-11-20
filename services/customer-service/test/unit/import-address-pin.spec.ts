@@ -14,6 +14,10 @@ describe('parseLocation', () => {
     ['https://www.google.com/maps/@-6.9147,107.6098,17z', -6.9147, 107.6098],
     ['https://www.google.com/maps/place/X/@-6.1,106.1,17z/data=!3d-6.2001!4d106.8002', -6.2001, 106.8002],
     ['-6.91, 107.61', -6.91, 107.61],
+    ['–6.914744, 107.609810', -6.914744, 107.60981],
+    ['https://maps.google.com/?q=%E2%88%926.9147,107.6098', -6.9147, 107.6098],
+    ['https://www.google.com/maps/search/-6.914744,+107.609810', -6.914744, 107.60981],
+    ['https://www.google.com/maps/@-6.0,106.0,15z?q=-6.9147,107.6098', -6.9147, 107.6098],
   ])('reads %s', (text, latitude, longitude) => {
     expect(parseLocation(text)).toEqual({ latitude, longitude });
   });
@@ -83,8 +87,8 @@ describe('the address import, with pins', () => {
     expect(create.mock.calls[1][1]).toMatchObject({ latitude: -6.25, longitude: 107.0 });
   });
 
-  it('fails the row on a short link or half a pin, with the reason', async () => {
-    const { svc, create } = build();
+  it('fails the row on a short link or half a pin, with the reason, pre-registering nobody', async () => {
+    const { svc, create, identity } = build();
     const r = await svc.importAddresses(user, DEPOT, [
       { ...row, mapsLink: 'https://maps.app.goo.gl/abc' },
       { ...row, latitude: -6.24 },
@@ -92,6 +96,7 @@ describe('the address import, with pins', () => {
     expect(r.results.map((x) => x.status)).toEqual(['failed', 'failed']);
     expect(r.results[0]!.message).toMatch(/Link pendek/);
     expect(create).not.toHaveBeenCalled();
+    expect(identity.preRegisterCustomer).not.toHaveBeenCalled();
   });
 
   it('fills the pin an existing address never had, and leaves one it has', async () => {
@@ -102,7 +107,10 @@ describe('the address import, with pins', () => {
 
     const pinned = build([{ id: 'a-old', addressLine: 'Jl. Melati 3', city: 'Bekasi', latitude: -6.1 }]);
     const kept = await pinned.svc.importAddresses(user, DEPOT, [{ ...row, latitude: -6.24, longitude: 106.99 }]);
-    expect(kept.results[0]).toMatchObject({ status: 'skipped' });
+    expect(kept.results[0]).toMatchObject({
+      status: 'skipped',
+      message: expect.stringContaining('pin di file tidak dipakai'),
+    });
     expect(pinned.update).not.toHaveBeenCalled();
   });
 });
@@ -122,11 +130,20 @@ describe('the customer import, with pins', () => {
       { ...customer, addressLine: 'Jl. Melati 3', city: 'Bekasi', mapsLink: '-6.24, 106.99' },
     ]);
     expect(again.update).toHaveBeenCalledWith('c-1', 'a-old', { latitude: -6.24, longitude: 106.99 });
+
+    const pinned = build([{ id: 'a-old', addressLine: 'Jl. Melati 3', city: 'Bekasi', latitude: -6.1 }]);
+    const r = await pinned.svc.importCustomers(user, DEPOT, [
+      { ...customer, addressLine: 'Jl. Melati 3', city: 'Bekasi', mapsLink: '-6.24, 106.99' },
+    ]);
+    expect(r.results[0]).toMatchObject({ status: 'updated', message: expect.stringContaining('tidak dipakai') });
+    expect(pinned.update).not.toHaveBeenCalled();
   });
 
   it('fails a row with a pin but no address, before creating anybody', async () => {
     const { svc, identity } = build();
-    const r = await svc.importCustomers(user, DEPOT, [{ ...customer, latitude: -6.24, longitude: 106.99 }]);
+    const r = await svc.importCustomers(user, DEPOT, [
+      { ...customer, addressLine: 'Jl. Melati 3', latitude: -6.24, longitude: 106.99 },
+    ]);
     expect(r.results[0]).toMatchObject({ status: 'failed', message: expect.stringMatching(/Pin perlu alamat/) });
     expect(identity.preRegisterCustomer).not.toHaveBeenCalled();
   });

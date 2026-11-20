@@ -5,6 +5,8 @@ import {
   IsArray,
   IsInt,
   IsISO8601,
+  IsLatitude,
+  IsLongitude,
   IsNumber,
   IsOptional,
   IsString,
@@ -57,11 +59,13 @@ export class ImportCustomerRowDto {
   @ApiPropertyOptional({ example: -6.914744 })
   @IsOptional()
   @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsLatitude()
   latitude?: number;
 
   @ApiPropertyOptional({ example: 107.60981 })
   @IsOptional()
   @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsLongitude()
   longitude?: number;
 
   /** …or as a Google Maps link that carries it (a short link is refused with what to do). */
@@ -120,11 +124,13 @@ export class ImportAddressRowDto {
   @ApiPropertyOptional({ example: -6.914744 })
   @IsOptional()
   @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsLatitude()
   latitude?: number;
 
   @ApiPropertyOptional({ example: 107.60981 })
   @IsOptional()
   @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsLongitude()
   longitude?: number;
 
   /** …or as a Google Maps link that carries it (a short link is refused with what to do). */

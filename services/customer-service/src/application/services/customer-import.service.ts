@@ -127,7 +127,7 @@ export class CustomerImportService {
     return runImport(rows, async (row) => {
       // Read before anything is written, so a bad pin fails the row and creates nobody.
       const pin = pinFromRow(row);
-      if (pin && !row.addressLine) {
+      if (pin && (!row.addressLine || !row.city)) {
         throw new PinLocationError('Pin perlu alamat: isi kolom addressLine dan city juga.');
       }
       const { customerId, status } = await this.identity.preRegisterCustomer(
@@ -188,6 +188,13 @@ export class CustomerImportService {
         } else if (pin && already.latitude == null) {
           // A re-upload "now with pins" fills the pin the address never had; one it has stays.
           await this.addresses.update(customerId, already.id, pin);
+          return { status: 'updated', id: customerId, message: 'Pin ditambahkan ke alamat yang sudah ada' };
+        } else if (pin) {
+          return {
+            status: 'updated',
+            id: customerId,
+            message: 'Alamat sudah punya pin; pin di file tidak dipakai (ubah lewat koreksi pin)',
+          };
         }
       }
 
@@ -214,11 +221,12 @@ export class CustomerImportService {
     const same = (a: string) => a.trim().toLowerCase().replace(/\s+/g, ' ');
 
     return runImport(rows, async (row) => {
+      // Read before anything is written: a bad pin fails the row and pre-registers nobody.
+      const pin = pinFromRow(row);
       const { customerId, status } = await this.identity.preRegisterCustomer(row.phone);
       if (status === 'active') {
         return { status: 'skipped', id: customerId, message: 'Nomor sudah punya akun aktif' };
       }
-      const pin = pinFromRow(row);
       const existing = await this.addresses.list(customerId);
       const already = existing.find(
         (a) => same(a.addressLine) === same(row.addressLine) && same(a.city) === same(row.city),
@@ -229,7 +237,13 @@ export class CustomerImportService {
           await this.addresses.update(customerId, already.id, pin);
           return { status: 'updated', id: already.id, message: 'Pin ditambahkan ke alamat yang sudah ada' };
         }
-        return { status: 'skipped', id: customerId, message: 'Alamat ini sudah ada' };
+        return {
+          status: 'skipped',
+          id: customerId,
+          message: pin
+            ? 'Alamat ini sudah ada dan sudah punya pin; pin di file tidak dipakai'
+            : 'Alamat ini sudah ada',
+        };
       }
       const created = await this.addresses.create(customerId, {
         label: row.label?.trim() || 'Rumah',

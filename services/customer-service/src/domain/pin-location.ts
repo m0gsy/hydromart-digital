@@ -16,16 +16,25 @@ export function parseLocation(text: string): { latitude: number; longitude: numb
       'Link pendek Google Maps tidak bisa dibaca — buka linknya, lalu salin koordinat atau URL lengkapnya.',
     );
   }
-  let t = text.replace(/−/g, '-');
+  let t = text;
   try {
     t = decodeURIComponent(t);
   } catch {
     /* a stray % — read the text as it is */
   }
+  // After decoding (a %E2%88%92 is a minus too): every dash a phone or Word puts in is a minus,
+  // or "–6.9" reads as +6.9 — a pin 1,500 km north, in the sea. And "-6.9,+107.6" is how a
+  // search link encodes the space.
+  t = t.replace(/[−–—]/g, '-').replace(/,\+/g, ', ');
+  const PAIR = String.raw`(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)`;
   const m =
+    // The dropped pin.
     /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/.exec(t) ??
-    // Not inside a longer number: "107.6098, -6.9147" (lng first) must not read as 7.6098.
-    /(?<![\d.])(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/.exec(t);
+    // What was searched for, before where the map happened to be looking ("@…").
+    new RegExp(String.raw`(?:[?&](?:q|query|ll|destination)=|/search/|/place/)` + PAIR).exec(t) ??
+    // Anything else (plain pasted text, or a bare "@" view): not inside a longer number, so
+    // "107.6098, -6.9147" (lng first) is refused, not read as 7.6098.
+    new RegExp(String.raw`(?<![\d.])` + PAIR).exec(t);
   if (!m) throw new PinLocationError('Tidak ada koordinat di situ. Contoh: -6.914744, 107.609810');
   return checkedPin(Number(m[1]), Number(m[2]));
 }
