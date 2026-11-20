@@ -11,6 +11,10 @@ export const envValidationSchema = Joi.object({
   // admin-service base URL for the payments.cash_on_delivery flag read. Fail-open: blank
   // or unreachable = COD stays enabled.
   ADMIN_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // Flow 6b: a refund queued for HQ approval is sent through crm to the accounts that may
+  // decide it. Blank (either) = nobody is woken; the request still waits in the queue.
+  CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  OPS_ALERT_PHONE: Joi.string().allow('').default(''),
   PUBLIC_HOLIDAYS: Joi.string().allow('').default(''),
   PAYMENT_GATEWAY_BASE_URL: Joi.string().uri().allow('').default(''),
   PAYMENT_GATEWAY_API_KEY: Joi.string().allow('').default(''),

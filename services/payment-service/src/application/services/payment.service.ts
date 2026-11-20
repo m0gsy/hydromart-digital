@@ -61,6 +61,7 @@ import { PaymentGatewayPort } from '../ports/payment-gateway.port';
 import { OrderCoordinationPort } from '../ports/order-coordination.port';
 import { CASHIER_SHIFT_PORT, CashierShiftPort } from '../ports/cashier-shift.port';
 import { PAYMENT_TOKENS } from '../tokens';
+import { RefundAlertPort } from '../ports/refund-alert.port';
 
 /**
  * `UnsettledMethodAggregate` widened by exactly one member for the revenue-by-method
@@ -230,6 +231,10 @@ export class PaymentService {
     @Optional()
     @Inject(PAYMENT_TOKENS.FeatureFlags)
     private readonly flags?: FeatureFlagReader,
+    // Flow 6b. Optional: without it a queued refund waits and nobody is woken, as before.
+    @Optional()
+    @Inject(PAYMENT_TOKENS.RefundAlert)
+    private readonly refundAlert?: RefundAlertPort,
   ) {}
 
   /**
@@ -988,6 +993,8 @@ export class PaymentService {
         toIdr: refundAmount,
         reason: reason ?? null,
       });
+      // Flow 6b: whoever was told the smaller sum is told the new one before approving it.
+      if (grown) this.tellDeciders(grown.id, grown.depotId ?? null, refundAmount);
       return grown ?? (await this.getAny(id));
     }
     if (refundAmount > this.config.refundApprovalThreshold) {
@@ -1023,7 +1030,10 @@ export class PaymentService {
         },
         { refundApproval: payment.refundApproval },
       );
-      if (queued) return queued;
+      if (queued) {
+        this.tellDeciders(queued.id, queued.depotId ?? null, refundAmount);
+        return queued;
+      }
       const current = await this.getAny(id);
       // Lost to another request for the same refund: the first one stands (see above).
       if (current.refundApproval === RefundApproval.PENDING && isRefundable(current.status)) {
@@ -1032,6 +1042,14 @@ export class PaymentService {
       throw new PaymentNotRefundableError(current.status);
     }
     return this.executeRefund(payment, changedBy, reason ?? null, RefundApproval.NONE, refundAmount);
+  }
+
+  /** Flow 6b: a refund waiting in the HQ queue is announced to the accounts that decide it. */
+  private tellDeciders(paymentId: string, depotId: string | null, amount: number): void {
+    if (!this.refundAlert) return;
+    void this.refundAlert
+      .requested({ paymentId, depotId, amount })
+      .catch((e: unknown) => this.logger.warn(`Refund alert for ${paymentId} failed: ${(e as Error).message}`));
   }
 
   /**

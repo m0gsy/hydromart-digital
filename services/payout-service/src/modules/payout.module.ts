@@ -6,6 +6,7 @@ import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydro
 
 import { PayoutConfigService } from '../config/payout-config.service';
 import { PhotoLinkHttpAdapter } from '../infrastructure/http/photo-link.http.adapter';
+import { ExpenseClaimAlertHttpAdapter } from '../infrastructure/http/expense-claim-alert.http.adapter';
 import { PAYOUT_TOKENS } from '../application/tokens';
 import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/settings.repository';
 import { PayoutService } from '../application/services/payout.service';
@@ -65,6 +66,7 @@ const providers: Provider[] = [
   { provide: PAYOUT_TOKENS.ExpenseClaimRepository, useClass: ExpenseClaimPrismaRepository },
   // CA-4-49: delivery-service owns the bucket a receipt lives in; this asks it for a link.
   { provide: PAYOUT_TOKENS.PhotoLink, useClass: PhotoLinkHttpAdapter },
+  { provide: PAYOUT_TOKENS.ExpenseClaimAlert, useClass: ExpenseClaimAlertHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

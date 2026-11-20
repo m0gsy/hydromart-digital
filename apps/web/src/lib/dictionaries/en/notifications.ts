@@ -33,6 +33,8 @@ export const notifications = {
     APPROVAL_REQUESTED: 'Waiting for approval',
     COURIER_SETTLEMENT_SUBMITTED: 'Courier cash waiting for checking',
     PRICE_OVERRIDE_PROPOSED: 'Price change proposed',
+    EXPENSE_CLAIM_SUBMITTED: 'Expense claim waiting for approval',
+    REFUND_REQUESTED: 'Refund waiting for approval',
     PAYMENT_FAILED: 'Payment did not go through',
     PAYMENT_REMINDER: 'Complete your payment',
     REFUND_PROCESSED: 'Refund processed',

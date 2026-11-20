@@ -73,6 +73,16 @@ export class PayoutConfigService {
     return this.config.get<string>('DELIVERY_SERVICE_URL', '').replace(/\/+$/, '');
   }
 
+  /** Flow 6b: crm, which sends a waiting claim to the accounts that may decide it. */
+  get crmServiceUrl(): string {
+    return this.config.get<string>('CRM_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+
+  /** The ops number crm's internal route requires on every alert (as delivery's). */
+  get opsAlertPhone(): string {
+    return this.config.get<string>('OPS_ALERT_PHONE', '');
+  }
+
   /** The shared internal-service key, the same one every peer route is guarded with. */
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '');

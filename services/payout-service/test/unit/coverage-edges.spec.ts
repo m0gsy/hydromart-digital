@@ -216,6 +216,56 @@ describe('ExpenseClaimService edges', () => {
     expect(claim.status).toBe('APPROVED');
   });
 
+  // Flow 6b: a claim that waits for a reviewer tells the accounts that may decide it; one that
+  // approved itself does not; a failing alert never fails the claim.
+  it('tells the reviewers about a claim that waits, and only that one', async () => {
+    const told: unknown[] = [];
+    const alert = { submitted: jest.fn(async (a: unknown) => void told.push(a)) };
+    const svc = new ExpenseClaimService(claims, ledger, config, { signedUrl: async () => null, exists: async () => true }, alert);
+    const pending = await svc.submit('cou-1', {
+      category: 'FUEL',
+      amount: 90_000,
+      description: 'Bensin',
+      depotId: 'dep-1',
+      receiptUrl: 'https://x/r.jpg',
+    });
+    await svc.submit('cou-1', {
+      category: 'FUEL',
+      amount: 10_000,
+      description: 'Bensin',
+      receiptUrl: `${RECEIPT_BASE}/pod/00000000-0000-4000-8000-000000000002.jpg`,
+    });
+    expect(told).toEqual([{ claimId: pending.id, depotId: 'dep-1', amount: 90_000, category: 'FUEL' }]);
+
+    const failing = new ExpenseClaimService(claims, ledger, config, undefined, {
+      submitted: jest.fn(async () => {
+        throw new Error('crm down');
+      }),
+    });
+    await expect(
+      failing.submit('cou-1', { category: 'FUEL', amount: 90_000, description: 'x', depotId: 'dep-1', receiptUrl: 'https://x/r.jpg' }),
+    ).resolves.toMatchObject({ status: 'PENDING' });
+  });
+
+  // Review: an auto-approval whose credit fails puts the claim back to PENDING, where it waits
+  // for a reviewer like any other, so the reviewers are told.
+  it('tells the reviewers about a claim the failed auto-credit put back in the queue', async () => {
+    const told: unknown[] = [];
+    jest.spyOn(ledger, 'create').mockRejectedValueOnce(new Error('db blip'));
+    const svc = new ExpenseClaimService(claims, ledger, config, { signedUrl: async () => null, exists: async () => true }, {
+      submitted: jest.fn(async (a: unknown) => void told.push(a)),
+    });
+    await expect(
+      svc.submit('cou-1', {
+        category: 'FUEL',
+        amount: 10_000,
+        description: 'Bensin',
+        receiptUrl: `${RECEIPT_BASE}/pod/00000000-0000-4000-8000-000000000003.jpg`,
+      }),
+    ).rejects.toThrow('db blip');
+    expect(told).toHaveLength(1);
+  });
+
   it('records no review note when the reviewer left one out', async () => {
     const pending = await service.submit('cou-1', {
       category: 'FUEL',
