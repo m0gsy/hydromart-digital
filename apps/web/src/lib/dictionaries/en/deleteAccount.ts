@@ -3,7 +3,6 @@ import { deleteAccount as base } from '../id/deleteAccount';
 // English — mirrors the shape of id/deleteAccount.ts (the source of truth for keys).
 export const deleteAccount: typeof base = {
   title: 'Deleting your Hydromart account',
-  navLabel: 'Delete account',
   effective: 'Effective 8 August 2026',
   developer: 'Apps: Hydromart and Hydromart Ops. Developer: PT Hydromart Digital.',
   intro:
