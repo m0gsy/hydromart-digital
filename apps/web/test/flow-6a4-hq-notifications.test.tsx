@@ -12,8 +12,9 @@ vi.mock('@/lib/api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api');
   return { ...actual, api: { ...actual.api, get, getCached: get, post: vi.fn().mockResolvedValue({}) } };
 });
+const who = vi.hoisted(() => ({ role: 'SUPER_ADMIN' }));
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 'u-1', role: 'SUPER_ADMIN' }, ready: true }),
+  useAuth: () => ({ customer: { id: 'u-1', role: who.role }, ready: true }),
 }));
 vi.mock('@/lib/locale-context', () => ({
   useT: () => ({ t: (k: string) => k, locale: 'id', setLocale: vi.fn() }),
@@ -37,7 +38,10 @@ const row = (id: string, event: string, destination: string | null) => ({
   createdAt: '2026-11-20T01:00:00.000Z',
 });
 
-afterEach(() => get.mockReset());
+afterEach(() => {
+  get.mockReset();
+  who.role = 'SUPER_ADMIN';
+});
 
 describe('/hq/notifications', () => {
   it('links a row to its screen (an approval on the desktop console) and filters by kind', async () => {
@@ -59,5 +63,21 @@ describe('/hq/notifications', () => {
     fireEvent.click(screen.getByRole('button', { name: 'opsFix.notif.filterStock' }));
     expect(screen.queryByText('pesan n-1')).toBeNull();
     expect(screen.getByText('pesan n-2')).toBeTruthy();
+  });
+
+  // Review: a reader refused the screen gets text, not a link; an empty kind says so; with
+  // everything read there is no "mark all read" and the unread chip says nothing is unread.
+  it('keeps a refused screen as text, and says why a filtered list is empty', async () => {
+    who.role = 'CUSTOMER';
+    get.mockResolvedValue([{ ...row('n-2', 'STOCK_LOW', '/dashboard/inventory?low=1'), readAt: '2026-11-20T02:00:00.000Z' }]);
+    render(<HqNotificationsPage />);
+    await screen.findByText('pesan n-2');
+    expect(screen.queryByRole('link', { name: 'notifications.events.STOCK_LOW' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'hq.notifications.markAll' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'opsFix.notif.filterUnread' }));
+    expect(screen.getByText('opsFix.notif.noUnread')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'opsFix.notif.filterCourier' }));
+    expect(screen.getByText('hq.notifications.emptyFilter')).toBeTruthy();
   });
 });

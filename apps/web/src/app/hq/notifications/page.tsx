@@ -31,7 +31,8 @@ export default function HqNotificationsPage() {
         subtitle={t('hq.notifications.subtitle')}
         action={
           <>
-            {items.length > 0 && (
+            {/* As the depot and manager feeds: nothing to mark, no button. */}
+            {unreadCount > 0 && (
               <Button variant="secondary" onClick={markAllRead}>
                 {t('hq.notifications.markAll')}
               </Button>
@@ -67,7 +68,9 @@ export default function HqNotificationsPage() {
       ) : items.length === 0 ? (
         <p className="py-4 text-center text-sm text-muted">{t('hq.notifications.empty')}</p>
       ) : visible.length === 0 ? (
-        <p className="py-4 text-center text-sm text-muted">{t('hq.notifications.emptyFilter')}</p>
+        <p className="py-4 text-center text-sm text-muted">
+          {filter === 'unread' ? t('opsFix.notif.noUnread') : t('hq.notifications.emptyFilter')}
+        </p>
       ) : (
         <div className="flex flex-col gap-2.5">
           {visible.map((n) => {
