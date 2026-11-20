@@ -248,6 +248,24 @@ describe('SubscriptionService', () => {
       });
     });
 
+    it('previews reopening the only depot: every plan it serves was unserved before', async () => {
+      depots.depots = [];
+      plan('ACTIVE', -6.9);
+      await expect(
+        service.reroutePreview({
+          depotId: homeDepot.id,
+          active: true,
+          lat: -6.9,
+          lng: 107.6,
+          serviceRadiusKm: 10,
+        }),
+      ).resolves.toMatchObject({ affected: 1, unserved: 0 });
+      // Closing or editing against an empty network previews nothing.
+      await expect(service.reroutePreview({ depotId: homeDepot.id, active: false })).rejects.toBeInstanceOf(
+        DepotUnavailableError,
+      );
+    });
+
     it('refuses to guess while the depot directory is down', async () => {
       depots.unreachable = true;
       await expect(service.reroutePreview({ depotId: homeDepot.id })).rejects.toBeInstanceOf(

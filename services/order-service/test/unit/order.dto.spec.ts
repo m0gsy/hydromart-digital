@@ -423,9 +423,9 @@ describe('SubscriptionReroutePreviewDto (P3-3)', () => {
     expect(await errorsOf({ depotId: id, lat: -6.9, lng: 107.6, serviceRadiusKm: 5 })).toEqual([]);
   });
 
-  // A re-activation is not previewed: the dry run would answer that nobody moves.
-  it('refuses a re-activation, a bad pin and an absurd radius', async () => {
-    expect(await errorsOf({ depotId: id, active: true })).toEqual(['active']);
+  it('takes a reopening (its location is checked by the handler), and refuses junk', async () => {
+    expect(await errorsOf({ depotId: id, active: true })).toEqual([]);
+    expect(await errorsOf({ depotId: id, active: 'yes' })).toEqual(['active']);
     expect(await errorsOf({ depotId: id, lat: 91 })).toEqual(['lat']);
     expect(await errorsOf({ depotId: id, serviceRadiusKm: -1 })).toEqual(['serviceRadiusKm']);
     expect(await errorsOf({ depotId: 'nope' })).toEqual(['depotId']);

@@ -225,3 +225,33 @@ describe('a redrawn area in the dry run (P3-4)', () => {
     expect(isServiceArea({})).toBe(false);
   });
 });
+
+describe('a reopened depot in the dry run', () => {
+  // b is closed; reopening it at -6.95 (8 km) takes the pins nearer to it than to a.
+  const a = depot({ id: 'a', lat: -6.9, lng: 107.6, serviceRadiusKm: 10 });
+  const pins = [-6.9, -6.96, -7.0].map((lat) => ({ lat, lng: 107.6 }));
+
+  it('counts the plans it pulls from its neighbour and the unserved it picks up', () => {
+    const reopened = withDepotChange([a], {
+      depotId: 'b',
+      active: true,
+      lat: -6.97,
+      lng: 107.6,
+      serviceRadiusKm: 8,
+    });
+    expect(reopened.map((d) => d.id)).toEqual(['a', 'b']);
+    expect(rerouteCounts(pins, [a], reopened)).toEqual({
+      affected: 2,
+      unserved: 0,
+      moves: expect.arrayContaining([
+        { fromDepotId: 'a', toDepotId: 'b', count: 1 }, // -6.96: nearer b now
+        { fromDepotId: null, toDepotId: 'b', count: 1 }, // -7.0: nobody served it
+      ]),
+    });
+  });
+
+  it('changes nothing for a depot already open, or one with nowhere to serve from', () => {
+    expect(withDepotChange([a], { depotId: 'a', active: true })).toEqual([a]);
+    expect(withDepotChange([a], { depotId: 'b', active: true, lat: -6.97 })).toEqual([a]);
+  });
+});

@@ -6,7 +6,6 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
-  Equals,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -526,11 +525,12 @@ export class SubscriptionReroutePreviewDto {
   @IsUUID()
   depotId!: string;
 
-  // Only `false`: a re-activation is not previewed, and a silent "0 move" would read as one.
-  @ApiPropertyOptional({ enum: [false], description: '`false` previews suspending the depot.' })
+  // `false` previews closing the depot; `true` previews reopening it, which needs where it
+  // would serve from (lat, lng, serviceRadiusKm — checked in the handler).
+  @ApiPropertyOptional({ description: '`false` previews closing the depot, `true` reopening it.' })
   @IsOptional()
-  @Equals(false)
-  active?: false;
+  @IsBoolean()
+  active?: boolean;
 
   @ApiPropertyOptional({ example: -6.9147 })
   @IsOptional()

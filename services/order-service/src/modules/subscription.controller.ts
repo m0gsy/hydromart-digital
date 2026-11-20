@@ -107,6 +107,10 @@ export class SubscriptionController {
     if (dto.serviceArea != null && !isServiceArea(dto.serviceArea)) {
       throw new BadRequestException('Area layanan tidak valid: tiap poligon butuh minimal 3 titik koordinat.');
     }
+    // A reopened depot is not in the active list: where it will serve from has to come along.
+    if (dto.active === true && (dto.lat == null || dto.lng == null || dto.serviceRadiusKm == null)) {
+      throw new BadRequestException('Pratinjau membuka kembali depot butuh lokasi dan radiusnya.');
+    }
     return this.subscriptions.reroutePreview(dto);
   }
 
