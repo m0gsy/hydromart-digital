@@ -2,7 +2,6 @@ import { privacy as base } from '../id/privacy';
 
 // English — mirrors the shape of id/privacy.ts (the source of truth for keys).
 export const privacy: typeof base = {
-  title: 'Privacy Policy',
   effective: 'Effective 2 September 2026',
   intro:
     'Hydromart respects your privacy. This policy explains what personal data we collect, why, how long we keep it, and your rights under Indonesia’s Law No. 27 of 2022 on Personal Data Protection (UU PDP).',
