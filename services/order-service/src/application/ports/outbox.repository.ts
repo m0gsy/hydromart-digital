@@ -38,7 +38,13 @@ export type OutboxTopic =
    * and from `cancelForOrder`.
    */
   | 'FRANCHISE_REVENUE_VOID'
-  | 'REFERRAL_REVERSE';
+  | 'REFERRAL_REVERSE'
+  /**
+   * A cancelled order gives its voucher back (owner decision 2026-11-20). Written with the
+   * CANCELLED status, beside PAYMENT_REVERSAL, so a promo-service that is down for a moment
+   * cannot keep the voucher burned for good: a CANCELLED order never runs again, the row does.
+   */
+  | 'VOUCHER_RELEASE';
 
 /**
  * C3: `CANCELLED` is a row the order stopped owing — a voided counter sale. It is not a

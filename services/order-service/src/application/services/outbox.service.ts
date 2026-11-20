@@ -189,9 +189,11 @@ export class OutboxService {
      * other half: a row a sweep was already holding when the void landed cannot be called
      * back, so the handler has to refuse it here.
      */
-    // PAYMENT_REVERSAL and FRANCHISE_REVENUE_VOID are the rows a CANCELLED / VOIDED order exists to be owed.
+    // PAYMENT_REVERSAL, FRANCHISE_REVENUE_VOID and VOUCHER_RELEASE are the rows a CANCELLED /
+    // VOIDED order exists to be owed.
     if (
       message.topic !== 'PAYMENT_REVERSAL' &&
+      message.topic !== 'VOUCHER_RELEASE' &&
       message.topic !== 'FRANCHISE_REVENUE_VOID' &&
       message.topic !== 'REFERRAL_REVERSE' &&
       (order.status === OrderStatus.VOIDED || order.status === OrderStatus.CANCELLED)
