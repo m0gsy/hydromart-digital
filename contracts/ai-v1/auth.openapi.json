@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "hydromart-digital auth for the AI web and machine accounts",
-    "version": "1.0.0",
-    "description": "HD-3. How the AI web (a person) and n8n (a machine account) get ES256 tokens, and where the keys to verify them are. Tokens: iss hydromart-auth, aud hydromart-ai (carries the person's role) or hydromart-machine (carries scopes, a closed capability list), exp 15 minutes, kid in the header. An empty key set means AI and machine access is switched off. Sign-in: the AI web sends the person to the hydromart-digital web with a PKCE S256 challenge and a state; that page, under the person's own session, asks auth-service (POST auth/handoff/code) for a 60-second one-time code and returns it to the AI web callback; the AI web server then calls handoff/token below. The hydromart-digital page is not built yet (it comes with AI-3)."
+    "version": "1.1.0",
+    "description": "HD-3. How the AI web (a person) and n8n (a machine account) get ES256 tokens, and where the keys to verify them are. Tokens: iss hydromart-auth, aud hydromart-ai (carries the person's role) or hydromart-machine (carries scopes, a closed capability list), exp 15 minutes, kid in the header. An empty key set means AI and machine access is switched off. Sign-in: the AI web sends the person to the hydromart-digital web with a PKCE S256 challenge and a state; that page, under the person's own session, asks auth-service (POST auth/handoff/code) for a 60-second one-time code and returns it to the AI web callback; the AI web server then calls handoff/token below. The hydromart-digital page is not built yet (it comes with AI-3). HD-4: Direksi, HQ, Finance and SUPER_ADMIN, and anyone else who set up an authenticator, pass a second factor at handoff/token: the 6-digit code from their authenticator app (totp), a one-time recoveryCode, or the secondFactorTicket an earlier exchange returned. A ticket lasts 12 hours, so the person types a code once per session and the automatic re-handoffs send the ticket. The authenticator is set up in the hydromart-digital web, never in the AI web."
   },
   "servers": [
     {
@@ -30,7 +30,7 @@
     },
     "/auth/api/v1/auth/handoff/token": {
       "post": {
-        "summary": "Called by the AI web's server: trade the code and the PKCE verifier for a 15-minute token. The code is spent on first use, right verifier or wrong.",
+        "summary": "Called by the AI web's server: trade the code and the PKCE verifier for a 15-minute token. The code is spent on first use, right verifier or wrong, with one exception: when only the second factor is missing (401 AUTH_TOTP_REQUIRED) it is kept once, for 60 more seconds, so the AI web can ask for the code and present the same code and verifier again.",
         "requestBody": {
           "required": true,
           "content": {
@@ -49,6 +49,18 @@
                   "codeVerifier": {
                     "type": "string",
                     "pattern": "^[A-Za-z0-9._~-]{43,128}$"
+                  },
+                  "totp": {
+                    "type": "string",
+                    "pattern": "^\\d{6}$"
+                  },
+                  "recoveryCode": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z2-7]{5}-?[A-Za-z2-7]{5}$"
+                  },
+                  "secondFactorTicket": {
+                    "type": "string",
+                    "maxLength": 100
                   }
                 }
               }
@@ -67,10 +79,19 @@
             }
           },
           "401": {
-            "description": "Unknown, used or expired code, or the wrong verifier: start again"
+            "description": "AUTH_HANDOFF_INVALID: unknown, used or expired code, or the wrong verifier: start again. AUTH_TOTP_REQUIRED: only the second factor is missing: ask the person and send the same code and verifier again with totp or recoveryCode within 60 seconds."
+          },
+          "403": {
+            "description": "AUTH_TOTP_ENROLMENT_REQUIRED: this person must set up an authenticator in the hydromart-digital web first. AUTH_HANDOFF_STAFF_ONLY: a customer account."
+          },
+          "422": {
+            "description": "AUTH_TOTP_INVALID: a wrong or used code. The handoff code is spent: start again."
+          },
+          "429": {
+            "description": "AUTH_TOTP_LOCKED: five wrong codes in a row. details.retryAfterSeconds says how long."
           },
           "503": {
-            "description": "Switched off"
+            "description": "AUTH_EXTERNAL_TOKENS_OFF: switched off. AUTH_TOTP_OFF: the server has no authenticator key and this person needs one."
           }
         }
       }
@@ -142,6 +163,13 @@
           },
           "expiresIn": {
             "const": 900
+          },
+          "secondFactorTicket": {
+            "type": "string",
+            "description": "Only after a totp or recoveryCode. Keep it server-side; send it on the next handoffs."
+          },
+          "secondFactorTicketExpiresIn": {
+            "const": 43200
           }
         }
       },

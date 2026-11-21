@@ -433,3 +433,80 @@ export class InvalidMachineCredentialsError extends DomainError {
     super('The machine account credentials are invalid or have expired.');
   }
 }
+
+/** HD-4: no TOTP_ENCRYPTION_KEY, so no authenticator can be set up or checked. */
+export class TotpOffError extends DomainError {
+  readonly code = 'AUTH_TOTP_OFF';
+  readonly status = HTTP.UNAVAILABLE;
+  constructor() {
+    super('Authenticator sign-in is not set up on this server.');
+  }
+}
+
+/** HD-4: a role that needs the authenticator step has not set one up. */
+export class TotpEnrolmentRequiredError extends DomainError {
+  readonly code = 'AUTH_TOTP_ENROLMENT_REQUIRED';
+  readonly status = HTTP.FORBIDDEN;
+  constructor() {
+    super('Set up an authenticator app in your HYDROMART account before signing in to the AI web.');
+  }
+}
+
+/**
+ * HD-4: the handoff code and verifier were right and only the second factor is missing.
+ * The code is kept for one more presentation, so the AI web can ask for it and try again.
+ */
+export class TotpRequiredError extends DomainError {
+  readonly code = 'AUTH_TOTP_REQUIRED';
+  readonly status = HTTP.UNAUTHORIZED;
+  constructor() {
+    super('Enter the 6-digit code from your authenticator app.');
+  }
+}
+
+/** HD-4: a wrong, expired or already used code (authenticator or recovery). */
+export class InvalidTotpCodeError extends DomainError {
+  readonly code = 'AUTH_TOTP_INVALID';
+  readonly status = HTTP.UNPROCESSABLE;
+  constructor() {
+    super('The code is wrong or has already been used.');
+  }
+}
+
+/** HD-4: five wrong codes in a row; the step is closed for a while. */
+export class TotpLockedError extends DomainError {
+  readonly code = 'AUTH_TOTP_LOCKED';
+  readonly status = HTTP.TOO_MANY;
+  readonly details: { retryAfterSeconds: number };
+  constructor(retryAfterSeconds: number) {
+    super(`Too many wrong codes. Try again in ${Math.ceil(retryAfterSeconds / 60)} minutes.`);
+    this.details = { retryAfterSeconds };
+  }
+}
+
+/** HD-4: an authenticator is already set up; only a reset by a SUPER_ADMIN replaces it. */
+export class TotpAlreadyEnrolledError extends DomainError {
+  readonly code = 'AUTH_TOTP_ENROLLED';
+  readonly status = HTTP.CONFLICT;
+  constructor() {
+    super('An authenticator is already set up. Ask a SUPER_ADMIN to reset it.');
+  }
+}
+
+/** HD-4: confirming before starting, or after the pending enrolment was replaced. */
+export class TotpNotStartedError extends DomainError {
+  readonly code = 'AUTH_TOTP_NOT_STARTED';
+  readonly status = HTTP.CONFLICT;
+  constructor() {
+    super('Start setting up the authenticator first.');
+  }
+}
+
+/** HD-4: only a SUPER_ADMIN resets an authenticator, and never their own. */
+export class TotpResetForbiddenError extends DomainError {
+  readonly code = 'AUTH_TOTP_RESET_FORBIDDEN';
+  readonly status = HTTP.FORBIDDEN;
+  constructor() {
+    super('Only another SUPER_ADMIN can reset this authenticator.');
+  }
+}

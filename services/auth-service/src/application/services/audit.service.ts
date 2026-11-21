@@ -55,6 +55,12 @@ export enum AuditAction {
   HANDOFF_FAILED = 'auth.handoff.failed',
   MACHINE_TOKEN_ISSUED = 'auth.machine.token_issued',
   MACHINE_TOKEN_FAILED = 'auth.machine.token_failed',
+  // HD-4: the authenticator (TOTP) step of the AI-web sign-in.
+  TOTP_ENROLMENT_STARTED = 'auth.totp.enrolment_started',
+  TOTP_ENROLLED = 'auth.totp.enrolled',
+  TOTP_FAILED = 'auth.totp.failed',
+  TOTP_RECOVERY_CODE_USED = 'auth.totp.recovery_code_used',
+  TOTP_RESET = 'auth.totp.reset',
 }
 
 /**

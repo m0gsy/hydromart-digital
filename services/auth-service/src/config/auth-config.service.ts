@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { MachineAccount, parseMachineAccounts } from './external-access';
+import { parseTotpKey, totpKeys as deriveTotpKeys, TotpKeys } from '../infrastructure/security/totp';
 
 export type OtpDeliveryChannel = 'console' | 'sms' | 'zenziva';
 
@@ -133,6 +134,16 @@ export class AuthConfigService {
   }
 
   private machineCache: { raw: string; accounts: MachineAccount[] } | null = null;
+
+  /** HD-4: the authenticator keys, or null when TOTP_ENCRYPTION_KEY is blank (feature off). */
+  get totpKeys(): TotpKeys | null {
+    const raw = this.config.get<string>('TOTP_ENCRYPTION_KEY', '').trim();
+    if (!raw) return null;
+    if (this.totpCache?.raw !== raw) this.totpCache = { raw, keys: deriveTotpKeys(parseTotpKey(raw)) };
+    return this.totpCache.keys;
+  }
+
+  private totpCache: { raw: string; keys: TotpKeys } | null = null;
 
   get zenziva(): { baseUrl: string; userkey: string; passkey: string } {
     return {

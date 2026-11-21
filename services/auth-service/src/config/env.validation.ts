@@ -2,10 +2,17 @@ import { internalServiceKey, optionalSecret, requiredSecret } from '@hydromart/p
 import * as Joi from 'joi';
 
 import { parseMachineAccounts, parseSigningKey } from './external-access';
+import { parseTotpKey } from '../infrastructure/security/totp';
 
 /** Joi custom rule: blank, or a key parseSigningKey accepts (it throws, Joi reports it). */
 function signingKey(value: string): string {
   if (value.trim()) parseSigningKey(value.trim());
+  return value;
+}
+
+/** Joi custom rule: blank, or 32 bytes in base64 (parseTotpKey throws, Joi reports it). */
+function totpKey(value: string): string {
+  if (value.trim()) parseTotpKey(value.trim());
   return value;
 }
 
@@ -111,6 +118,12 @@ export const envValidationSchema = Joi.object({
       parseMachineAccounts(value);
       return value;
     }),
+  /*
+   * HD-4: seals the authenticator secrets and keys the recovery-code hashes and the
+   * second-factor tickets. Blank = no authenticator: setting one up answers 503, and so
+   * does an AI-web sign-in for the roles that need one. Changing it voids every enrolment.
+   */
+  TOTP_ENCRYPTION_KEY: Joi.string().allow('').default('').custom(totpKey),
 
   // Registration welcome via crm-service (internal service auth). Both blank = disabled.
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),

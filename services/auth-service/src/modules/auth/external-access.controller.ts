@@ -66,7 +66,11 @@ export class ExternalAccessController {
   @ApiOperation({ summary: 'Exchange a handoff code + PKCE verifier for an AI-web token' })
   @ApiOkResponse({ type: ExternalTokenResponseDto })
   handoffToken(@Body() dto: HandoffTokenDto, @Req() req: Request): Promise<ExternalTokenResult> {
-    return this.external.exchangeHandoffCode(dto.code, dto.codeVerifier, getRequestContext(req));
+    return this.external.exchangeHandoffCode(dto.code, dto.codeVerifier, getRequestContext(req), {
+      totp: dto.totp,
+      recoveryCode: dto.recoveryCode,
+      ticket: dto.secondFactorTicket,
+    });
   }
 
   /** A machine account (n8n) trades its id and secret for a 15-minute token. */

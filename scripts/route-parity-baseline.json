@@ -1,6 +1,9 @@
 {
   "orphans": [
+    "DELETE auth: /auth/totp/:",
     "GET customer: /profile/directory",
-    "POST auth: /auth/handoff/code"
+    "POST auth: /auth/handoff/code",
+    "POST auth: /auth/totp/enrolment",
+    "POST auth: /auth/totp/enrolment/confirm"
   ]
 }

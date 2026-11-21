@@ -12,6 +12,7 @@ import {
   HandoffNotForCustomersError,
   InvalidHandoffCodeError,
   InvalidMachineCredentialsError,
+  TotpRequiredError,
 } from '../../domain/errors/auth.errors';
 import { ExternalTokenSigner } from '../../infrastructure/security/external-token-signer';
 import { ClockPort } from '../ports/clock.port';
@@ -19,8 +20,12 @@ import { CustomerRepository } from '../ports/customer.repository';
 import { RequestContext } from '../results';
 import { AUTH_TOKENS } from '../tokens';
 import { AuditAction, AuditService } from './audit.service';
+import { SecondFactor, TotpService } from './totp.service';
 
-/** A handoff code lives 60 seconds and is spent on first use (Plan Eksekusi section 4). */
+/**
+ * A handoff code lives 60 seconds and is spent on first use (Plan Eksekusi section 4). One
+ * exception (HD-4): when only the second factor is missing it is kept once, 60 seconds more.
+ */
 export const HANDOFF_CODE_TTL_SECONDS = 60;
 /** AI-web and machine tokens live 15 minutes; there is no refresh token, only a new handoff. */
 export const EXTERNAL_TOKEN_TTL_SECONDS = 900;
@@ -32,12 +37,17 @@ export interface ExternalTokenResult {
   tokenType: 'Bearer';
   accessToken: string;
   expiresIn: number;
+  /** HD-4: after a code from the authenticator app; sent instead of one on the next handoffs. */
+  secondFactorTicket?: string;
+  secondFactorTicketExpiresIn?: number;
 }
 
 interface PendingCode {
   customerId: string;
   codeChallenge: string;
   expiresAt: number;
+  /** HD-4: already kept once because only the second factor was missing. */
+  awaitingSecondFactor?: boolean;
 }
 
 const sha256 = (value: string): Buffer => createHash('sha256').update(value).digest();
@@ -75,6 +85,7 @@ export class ExternalAccessService {
     private readonly signer: ExternalTokenSigner,
     private readonly audit: AuditService,
     private readonly config: AuthConfigService,
+    private readonly totp: TotpService,
   ) {}
 
   /** Step 2 of a handoff: the signed-in person's session asks for a code for this challenge. */
@@ -116,6 +127,7 @@ export class ExternalAccessService {
     code: string,
     codeVerifier: string,
     context: RequestContext,
+    factor: SecondFactor = {},
   ): Promise<ExternalTokenResult> {
     this.assertOn();
     const key = sha256(code).toString('hex');
@@ -152,6 +164,22 @@ export class ExternalAccessService {
       throw error;
     }
 
+    // HD-4: Direksi, HQ, Finance and SUPER_ADMIN (and anyone who set one up) pass the
+    // authenticator step. A wrong code leaves the code spent, like every other failure.
+    const second = await this.totp.checkHandoff(customer, factor, context);
+    if (second.kind === 'missing') {
+      // The verifier was right, so this is the AI web itself: keep the code once, for
+      // another 60 seconds, while it asks the person for the code from their app.
+      if (!entry.awaitingSecondFactor) {
+        this.pending.set(key, {
+          ...entry,
+          awaitingSecondFactor: true,
+          expiresAt: now.getTime() + HANDOFF_CODE_TTL_SECONDS * 1000,
+        });
+      }
+      throw new TotpRequiredError();
+    }
+
     const accessToken = this.signer.sign(
       {
         aud: AI_TOKEN_AUDIENCE,
@@ -167,8 +195,18 @@ export class ExternalAccessService {
       action: AuditAction.HANDOFF_EXCHANGED,
       success: true,
       ...context,
+      metadata: { secondFactor: second.kind },
     });
-    return { tokenType: 'Bearer', accessToken, expiresIn: EXTERNAL_TOKEN_TTL_SECONDS };
+    const result: ExternalTokenResult = {
+      tokenType: 'Bearer',
+      accessToken,
+      expiresIn: EXTERNAL_TOKEN_TTL_SECONDS,
+    };
+    if (second.kind === 'totp' || second.kind === 'recovery') {
+      result.secondFactorTicket = second.ticket;
+      result.secondFactorTicketExpiresIn = second.ticketExpiresIn;
+    }
+    return result;
   }
 
   /** A machine account trades its id and secret for a token carrying its closed scopes. */

@@ -98,6 +98,9 @@ enum OtpPurpose {
   /// K1.4: proving control of a NEW number before it becomes the login identity.
   /// The only purpose whose code is delivered somewhere other than `customer.phone`.
   PHONE_CHANGE
+  /// HD-4: setting up an authenticator app. A session alone is not enough; the code
+  /// goes to the account's own number, so a stolen session cannot bind its own app.
+  TOTP_ENROLMENT
 }
 
 /// An identity. In the auth context a "Customer" is any human principal; role
@@ -128,6 +131,8 @@ model Customer {
 
   otpTokens     OtpToken[]
   refreshTokens RefreshToken[]
+  /// HD-4: the authenticator app behind the AI-web sign-in, when one is set up.
+  totp          TotpCredential?
 
   @@index([status])
   @@index([assignedDepotId])
@@ -242,4 +247,41 @@ model ConsentRecord {
 
   @@index([customerId, purpose, recordedAt])
   @@map("consent_records")
+}
+
+/// HD-4: a staff member's authenticator app (TOTP, RFC 6238), the second factor of the
+/// AI-web sign-in. One per account. A reset deletes the row, and its recovery codes with it.
+model TotpCredential {
+  customerId     String             @id @db.Uuid
+  customer       Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// The shared secret, AES-256-GCM sealed with TOTP_ENCRYPTION_KEY and bound to this
+  /// account. Never stored in the clear.
+  secretSealed   String
+  /// Null until the first code proves the app holds the secret: not enrolled yet.
+  confirmedAt    DateTime?
+  /// The newest 30-second step accepted, so one code is never accepted twice.
+  lastStep       Int?
+  /// Tries since the last good code, counted before each is checked. Five wrong ones
+  /// lock the step for 15 minutes.
+  failedAttempts Int                @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  recoveryCodes  TotpRecoveryCode[]
+
+  @@map("totp_credentials")
+}
+
+/// HD-4: one-time recovery codes for a lost phone. Stored as HMAC-SHA256 keyed from
+/// TOTP_ENCRYPTION_KEY, so a copy of this table cannot be searched offline.
+model TotpRecoveryCode {
+  id         String         @id @default(uuid()) @db.Uuid
+  customerId String         @db.Uuid
+  credential TotpCredential @relation(fields: [customerId], references: [customerId], onDelete: Cascade)
+  codeHash   String
+  usedAt     DateTime?
+  createdAt  DateTime       @default(now())
+
+  @@index([customerId])
+  @@map("totp_recovery_codes")
 }

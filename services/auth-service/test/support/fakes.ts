@@ -11,6 +11,7 @@ import {
   SignedAccessToken,
 } from '../../src/application/ports/access-token-signer.port';
 import { ClockPort } from '../../src/application/ports/clock.port';
+import { TotpCredentialRecord, TotpRepository } from '../../src/application/ports/totp.repository';
 import { CryptoPort } from '../../src/application/ports/crypto.port';
 import {
   CreateCustomerData,
@@ -560,5 +561,69 @@ export class FakeSecurityPolicy {
   async idleTimeoutMinutes(): Promise<number | null> {
     this.calls += 1;
     return this.minutes;
+  }
+}
+
+/** HD-4: the authenticator rows, with the same guarded-write answers as the Prisma adapter. */
+export class InMemoryTotpRepository implements TotpRepository {
+  readonly rows = new Map<string, TotpCredentialRecord>();
+  readonly codes: { customerId: string; codeHash: string; usedAt: Date | null }[] = [];
+
+  async find(customerId: string): Promise<TotpCredentialRecord | null> {
+    const row = this.rows.get(customerId);
+    return row ? { ...row } : null;
+  }
+  async startEnrolment(customerId: string, secretSealed: string): Promise<boolean> {
+    if (this.rows.get(customerId)?.confirmedAt) return false;
+    this.rows.set(customerId, {
+      customerId,
+      secretSealed,
+      confirmedAt: null,
+      lastStep: null,
+      failedAttempts: 0,
+      lockedUntil: null,
+    });
+    return true;
+  }
+  async confirm(customerId: string, step: number, at: Date, hashes: string[]): Promise<boolean> {
+    const row = this.rows.get(customerId);
+    if (!row || row.confirmedAt) return false;
+    Object.assign(row, { confirmedAt: at, lastStep: step, failedAttempts: 0, lockedUntil: null });
+    for (const codeHash of hashes) this.codes.push({ customerId, codeHash, usedAt: null });
+    return true;
+  }
+  async acceptStep(customerId: string, step: number): Promise<boolean> {
+    const row = this.rows.get(customerId);
+    if (!row?.confirmedAt || (row.lastStep !== null && row.lastStep >= step)) return false;
+    Object.assign(row, { lastStep: step, failedAttempts: 0, lockedUntil: null });
+    return true;
+  }
+  async spendRecoveryCode(customerId: string, codeHash: string, at: Date): Promise<boolean> {
+    const code = this.codes.find(
+      (c) => c.customerId === customerId && c.codeHash === codeHash && !c.usedAt,
+    );
+    if (!code) return false;
+    code.usedAt = at;
+    Object.assign(this.rows.get(customerId)!, { failedAttempts: 0, lockedUntil: null });
+    return true;
+  }
+  async countRecoveryCodesLeft(customerId: string): Promise<number> {
+    return this.codes.filter((c) => c.customerId === customerId && !c.usedAt).length;
+  }
+  async claimAttempt(customerId: string, now: Date): Promise<number | null> {
+    const row = this.rows.get(customerId);
+    if (!row || (row.lockedUntil && row.lockedUntil > now)) return null;
+    row.failedAttempts += 1;
+    return row.failedAttempts;
+  }
+  async lock(customerId: string, until: Date): Promise<void> {
+    const row = this.rows.get(customerId);
+    if (row) Object.assign(row, { failedAttempts: 0, lockedUntil: until });
+  }
+  async remove(customerId: string): Promise<boolean> {
+    for (let i = this.codes.length - 1; i >= 0; i -= 1) {
+      if (this.codes[i]!.customerId === customerId) this.codes.splice(i, 1);
+    }
+    return this.rows.delete(customerId);
   }
 }

@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Equals, IsString, IsUUID, Length, Matches } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Equals, IsOptional, IsString, IsUUID, Length, Matches, MaxLength } from 'class-validator';
 
 /** RFC 7636: a verifier is 43-128 unreserved characters; an S256 challenge is 43. */
 const VERIFIER = /^[A-Za-z0-9._~-]{43,128}$/;
@@ -26,6 +26,22 @@ export class HandoffTokenDto {
   @IsString()
   @Matches(VERIFIER, { message: 'codeVerifier must be 43-128 PKCE characters' })
   codeVerifier!: string;
+
+  @ApiPropertyOptional({ description: 'HD-4: the 6-digit code from the authenticator app.' })
+  @IsOptional()
+  @Matches(/^\d{6}$/, { message: 'totp must be 6 digits' })
+  totp?: string;
+
+  @ApiPropertyOptional({ description: 'HD-4: a one-time recovery code, instead of the app code.' })
+  @IsOptional()
+  @Matches(/^[A-Za-z2-7]{5}-?[A-Za-z2-7]{5}$/, { message: 'recoveryCode is not a recovery code' })
+  recoveryCode?: string;
+
+  @ApiPropertyOptional({ description: 'HD-4: the ticket an earlier exchange returned; no code needed while it lasts.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  secondFactorTicket?: string;
 }
 
 export class MachineTokenDto {
@@ -63,4 +79,7 @@ export class ExternalTokenResponseDto {
   @ApiProperty({ enum: ['Bearer'] }) tokenType!: 'Bearer';
   @ApiProperty({ description: 'ES256 JWT.' }) accessToken!: string;
   @ApiProperty({ example: 900 }) expiresIn!: number;
+  @ApiPropertyOptional({ description: 'HD-4: after an authenticator code; send it on the next handoffs.' })
+  secondFactorTicket?: string;
+  @ApiPropertyOptional({ example: 43200 }) secondFactorTicketExpiresIn?: number;
 }

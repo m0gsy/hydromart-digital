@@ -20,4 +20,6 @@ export const AUTH_TOKENS = {
   ConsentRepository: Symbol('ConsentRepository'),
   CapabilityOverrideRepository: Symbol('CapabilityOverrideRepository'),
   CustomRoleRepository: Symbol('CustomRoleRepository'),
+  /** HD-4: the authenticator (TOTP) rows. */
+  TotpRepository: Symbol('TotpRepository'),
 } as const;

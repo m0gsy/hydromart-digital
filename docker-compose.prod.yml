@@ -165,6 +165,8 @@ services:
       AI_TOKEN_SIGNING_KEY: ${AI_TOKEN_SIGNING_KEY:-}
       AI_TOKEN_SIGNING_KEY_PREVIOUS: ${AI_TOKEN_SIGNING_KEY_PREVIOUS:-}
       MACHINE_ACCOUNTS: ${MACHINE_ACCOUNTS:-}
+      # HD-4: seals authenticator secrets. Blank = no authenticator step (see the env template).
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-}
       CRM_SERVICE_URL: http://crm:3012
       # UU PDP tahap 1 (item 13): auth-service fans out to customer-service to export or
       # scrub the profile and addresses. The adapter fails closed, so a missing value
