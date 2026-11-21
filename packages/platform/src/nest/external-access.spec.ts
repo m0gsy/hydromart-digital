@@ -330,6 +330,9 @@ describe('verifiedExternalCaller', () => {
   it('names the verified account behind a Bearer header or a bare token', async () => {
     await warmStore();
     expect(verifiedExternalCaller(`Bearer ${liveAi()}`, AUTH_URL)?.sub).toBe('user-1');
+    // The guard takes the scheme in any case, so the rate-limit key must too.
+    expect(verifiedExternalCaller(`bearer ${liveAi()}`, AUTH_URL)?.sub).toBe('user-1');
+    expect(verifiedExternalCaller(`BEARER  ${liveAi()}`, AUTH_URL)?.sub).toBe('user-1');
     expect(verifiedExternalCaller(liveMachine(), AUTH_URL)?.via).toBe('machine');
   });
 
@@ -504,20 +507,30 @@ describe('AuditMutationsInterceptor for an external caller (HD-2)', () => {
     user: { sub: 'n8n', via: 'machine' },
   });
 
+  /** A sink that tells the two writes apart: `strict` holds what went through recordOrThrow. */
+  const recordingSink = () => {
+    const strict: AuditEvent[] = [];
+    const plain: AuditEvent[] = [];
+    const sink: AuditMutationSink = {
+      record: async (e) => void plain.push(e),
+      recordOrThrow: async (e) => void strict.push(e),
+    };
+    return { sink, strict, plain };
+  };
+
   it('records the change before it runs, with the account type, workflow and proposal', async () => {
-    const recorded: AuditEvent[] = [];
-    const sink: AuditMutationSink = { record: async (e) => void recorded.push(e) };
+    const { sink, strict, plain } = recordingSink();
     const run = jest.fn(() => of('done'));
     const out = new AuditMutationsInterceptor(sink).intercept(
       ctx(externalPost({ 'x-workflow': ' daily-price ', 'x-ai-proposal': 'P-17', 'x-other': 'x' })),
       { handle: run } as CallHandler,
     );
     await expect(firstValueFrom(out)).resolves.toBe('done');
-    expect(recorded.map((e) => e.action)).toEqual([
-      'price-proposals.created.requested',
-      'price-proposals.created',
-    ]);
-    expect(recorded[0].metadata).toMatchObject({
+    // The row the change depends on goes through the write that can fail; the outcome row
+    // after it is fail-open like every other.
+    expect(strict.map((e) => e.action)).toEqual(['price-proposals.created.requested']);
+    expect(plain.map((e) => e.action)).toEqual(['price-proposals.created']);
+    expect(strict[0].metadata).toMatchObject({
       via: 'machine',
       workflow: 'daily-price',
       proposalId: 'P-17',
@@ -526,13 +539,19 @@ describe('AuditMutationsInterceptor for an external caller (HD-2)', () => {
   });
 
   it('refuses the change, without running it, when the record cannot be made', async () => {
-    const sink: AuditMutationSink = { record: jest.fn().mockRejectedValue(new Error('db down')) };
+    // Like both real sinks, `record` swallows a failed write. The refusal must not depend on
+    // it: only recordOrThrow decides, and that one rejects.
+    const sink: AuditMutationSink = {
+      record: jest.fn().mockResolvedValue(undefined),
+      recordOrThrow: jest.fn().mockRejectedValue(new Error('db down')),
+    };
     const run = jest.fn(() => of('done'));
     const out = new AuditMutationsInterceptor(sink).intercept(ctx(externalPost()), {
       handle: run,
     } as CallHandler);
     await expect(firstValueFrom(out)).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(run).not.toHaveBeenCalled();
+    expect(sink.record).not.toHaveBeenCalled();
   });
 
   it('refuses it when this service has no audit sink at all', async () => {
@@ -545,26 +564,26 @@ describe('AuditMutationsInterceptor for an external caller (HD-2)', () => {
   });
 
   it("passes the handler's own error through, recorded as a failure", async () => {
-    const recorded: AuditEvent[] = [];
-    const sink: AuditMutationSink = { record: async (e) => void recorded.push(e) };
+    const { sink, strict, plain } = recordingSink();
     const out = new AuditMutationsInterceptor(sink).intercept(
       ctx(externalPost({ 'x-workflow': '   ', 'x-ai-proposal': 'P'.repeat(300) })),
       { handle: () => throwError(() => new ForbiddenException('no')) } as CallHandler,
     );
     await expect(firstValueFrom(out)).rejects.toBeInstanceOf(ForbiddenException);
     await new Promise((r) => setImmediate(r));
-    expect(recorded[1]).toMatchObject({ success: false });
-    expect(recorded[0].metadata).toMatchObject({ workflow: null });
-    expect(String(recorded[0].metadata?.proposalId)).toHaveLength(120);
+    expect(plain[0]).toMatchObject({ success: false });
+    expect(strict[0].metadata).toMatchObject({ workflow: null });
+    expect(String(strict[0].metadata?.proposalId)).toHaveLength(120);
   });
 
   it('lets an external read through with no record', async () => {
-    const sink: AuditMutationSink = { record: jest.fn() };
+    const sink: AuditMutationSink = { record: jest.fn(), recordOrThrow: jest.fn() };
     const out = new AuditMutationsInterceptor(sink).intercept(
       ctx({ ...externalPost(), method: 'GET' }),
       { handle: () => of('read') } as CallHandler,
     );
     await expect(firstValueFrom(out)).resolves.toBe('read');
     expect(sink.record).not.toHaveBeenCalled();
+    expect(sink.recordOrThrow).not.toHaveBeenCalled();
   });
 });

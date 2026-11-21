@@ -139,14 +139,17 @@ describe('redactBody (CA-2-67)', () => {
 
 describe('AuditMutationsInterceptor (CA-2-67)', () => {
   let recorded: AuditEvent[];
-  let sink: { record: jest.Mock };
+  let sink: { record: jest.Mock; recordOrThrow: jest.Mock };
 
   beforeEach(() => {
     recorded = [];
-    sink = jest.fn() as never;
     sink = {
       record: jest.fn(async (e: AuditEvent) => {
         recorded.push(e);
+      }),
+      // An internal caller never reaches the strict write; these specs prove that too.
+      recordOrThrow: jest.fn(async () => {
+        throw new Error('the strict write is only for the AI web and machine accounts');
       }),
     };
   });
@@ -255,6 +258,7 @@ describe('AuditMutationsInterceptor (CA-2-67)', () => {
   it('never lets a sink failure reach the caller, and logs the dropped entry', async () => {
     const interceptor = new AuditMutationsInterceptor({
       record: () => Promise.reject(new Error('auth-service down')),
+      recordOrThrow: () => Promise.reject(new Error('auth-service down')),
     });
     const logged: string[] = [];
     jest

@@ -55,7 +55,10 @@ export interface MachineAccount {
   secretSha256: string;
   /** The closed capability list the token carries. Every entry is a real capability. */
   scopes: string[];
-  /** The day this secret stops working. At most 90 days ahead. */
+  /**
+   * The moment this secret stops working, at most 90 days ahead. A date alone
+   * (`2027-02-19`) is 00:00 UTC at its start, 07:00 WIB that day: rotate before it.
+   */
   notAfter: Date;
 }
 
@@ -70,9 +73,15 @@ const SHA256_HEX = /^[0-9a-f]{64}$/;
  */
 export function parseMachineAccounts(raw: string, now: Date = new Date()): MachineAccount[] {
   if (!raw.trim()) return [];
-  const list: unknown = JSON.parse(raw);
+  let list: unknown;
+  try {
+    list = JSON.parse(raw);
+  } catch {
+    // Not the parser's own message: on recent Node it quotes a slice of the value.
+    throw new Error('MACHINE_ACCOUNTS is not valid JSON');
+  }
   if (!Array.isArray(list)) throw new Error('MACHINE_ACCOUNTS must be a JSON list');
-  return list.map((entry: unknown, i): MachineAccount => {
+  const accounts = list.map((entry: unknown, i): MachineAccount => {
     const e = (entry ?? {}) as Record<string, unknown>;
     const at = `MACHINE_ACCOUNTS[${i}]`;
     if (typeof e.id !== 'string' || !UUID.test(e.id)) throw new Error(`${at}.id must be a UUID`);
@@ -97,6 +106,15 @@ export function parseMachineAccounts(raw: string, now: Date = new Date()): Machi
     }
     return { id: e.id, name: e.name, secretSha256: e.secretSha256, scopes: [...e.scopes], notAfter };
   });
+  // One id may carry two secrets during a rotation; the same id and secret twice would
+  // leave which entry's scopes apply to the order of the list.
+  const seen = new Set<string>();
+  accounts.forEach((a, i) => {
+    const pair = `${a.id}:${a.secretSha256}`;
+    if (seen.has(pair)) throw new Error(`MACHINE_ACCOUNTS[${i}] repeats the id and secret of an earlier entry`);
+    seen.add(pair);
+  });
+  return accounts;
 }
 
 /** True while a secret may be used: not yet past its day, and never more than 90 days out. */

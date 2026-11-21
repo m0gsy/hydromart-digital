@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 
-import { recordAuditEvent } from './audit-trail';
+import { recordAuditEvent, recordAuditEventOrThrow } from './audit-trail';
 
 describe('recordAuditEvent (H-29)', () => {
   const config = { authServiceUrl: 'http://auth:3001/', internalServiceKey: 'k' };
@@ -81,5 +81,29 @@ describe('recordAuditEvent (H-29)', () => {
     );
     expect(fetchMock).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();
+  });
+});
+
+describe('recordAuditEventOrThrow (HD-2)', () => {
+  const config = { authServiceUrl: 'http://auth:3001', internalServiceKey: 'k' };
+  afterEach(() => jest.restoreAllMocks());
+
+  it('resolves only when auth-service stored the row', async () => {
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true } as Response);
+    await expect(recordAuditEventOrThrow(config, { action: 'a.requested' })).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('http://auth:3001/api/v1/auth/audit/internal');
+  });
+
+  it('throws on a refused write, an unreachable trail, and a trail that is not configured', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 500 } as Response);
+    await expect(recordAuditEventOrThrow(config, { action: 'a' })).rejects.toThrow('responded 500');
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(recordAuditEventOrThrow(config, { action: 'a' })).rejects.toThrow('ECONNREFUSED');
+    await expect(
+      recordAuditEventOrThrow({ authServiceUrl: '', internalServiceKey: 'k' }, { action: 'a' }),
+    ).rejects.toThrow('not configured');
+    await expect(
+      recordAuditEventOrThrow({ authServiceUrl: 'http://auth:3001', internalServiceKey: '' }, { action: 'a' }),
+    ).rejects.toThrow('not configured');
   });
 });

@@ -32,4 +32,19 @@ export class AuthAuditMutationSink implements AuditMutationSink {
       metadata: { ...(event.metadata ?? {}), ...(event.target ? { target: event.target } : {}) },
     });
   }
+
+  /**
+   * HD-2: a change by the AI web or a machine account runs only once its row is stored.
+   * `record` above swallows a failed write (AuditService.record); `ingest` lets it through,
+   * and writes the same row.
+   */
+  async recordOrThrow(event: AuditEvent): Promise<void> {
+    await this.audit.ingest({
+      actorId: event.actorId ?? null,
+      action: `auth.${event.action}`,
+      target: event.target,
+      success: event.success ?? true,
+      metadata: event.metadata,
+    });
+  }
 }

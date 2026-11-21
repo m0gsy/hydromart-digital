@@ -92,6 +92,27 @@ run_check
 case "$OUT" in *"1 for the AI web"*) ok "  ...and is counted as the AI web's" ;; *) bad "  expected it counted for the AI web: $OUT" ;; esac
 cp "$WORK/victim.orig" "$VICTIM"
 
+# The decorator in a COMMENT opens nothing to anybody, so it must not excuse an orphan.
+python - "$VICTIM" <<'PY'
+import io, sys
+p = sys.argv[1]
+s = io.open(p, encoding='utf-8').read()
+marker = "export class RewardController {"
+i = s.index(marker) + len(marker)
+route = """
+
+  // @ExternalAccess('ai') -- not yet
+  @Get('a-capability-with-a-comment-for-a-caller')
+  async commentedOut(): Promise<{ ok: true }> {
+    return { ok: true };
+  }
+"""
+io.open(p, 'w', encoding='utf-8', newline='\n').write(s[:i] + route + s[i:])
+PY
+run_check
+[ "$RC" = 1 ] && ok "a commented-out @ExternalAccess does not hide an orphan" || bad "a decorator in a comment must not count (rc=$RC): $OUT"
+cp "$WORK/victim.orig" "$VICTIM"
+
 # 2. A recorded orphan that stopped being one, with the baseline left behind. A ratchet that
 #    is never re-recorded stops being a ratchet — it becomes a list of excuses.
 python - "$BASELINE" <<'PY'

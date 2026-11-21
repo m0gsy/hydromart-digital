@@ -59,9 +59,16 @@ awk '/^networks:/{f=1;next} f&&/^[a-z]/{exit} f' docker-compose.prod.yml | grep 
 grep -qx 'import sites/\*\.caddy' infra/caddy/Caddyfile && [ -d infra/caddy/sites ] &&
   ok "the Caddyfile imports infra/caddy/sites/*.caddy" ||
   bad "the Caddyfile must end with \`import sites/*.caddy\` and infra/caddy/sites/ must exist"
+grep -qF "grep -q '^infra/caddy/' <<<\"\$CHANGED\"" scripts/deploy.sh &&
+  ok "deploy.sh reloads Caddy when the release changes infra/caddy/ (diffed from the built base)" ||
+  bad "deploy.sh must reload Caddy when infra/caddy/ changes, judged on CHANGED (the built base), not on PREV_SHA"
 grep -qF 'git diff --quiet "$PREV_SHA" "$NEW_SHA" -- infra/caddy/' scripts/deploy.sh &&
-  ok "deploy.sh reloads Caddy when a release changes infra/caddy/" ||
-  bad "deploy.sh must reload Caddy when infra/caddy/ changes: a directory mount is visible, not loaded"
+  bad "deploy.sh still judges the Caddy reload on the tree's HEAD (PREV_SHA)" ||
+  ok "the Caddy reload is not judged on the tree's HEAD"
+awk '/caddy reload --config/{found=1} END{exit !found}' scripts/deploy.sh &&
+  grep -qF 'for _ in 1 2 3; do' scripts/deploy.sh &&
+  ok "deploy.sh retries the Caddy reload (a recreated Caddy needs a moment)" ||
+  bad "deploy.sh must retry caddy reload: right after a recreate the admin API is not up yet"
 
 # ------------------------------------------------------------------------ the fake box
 W="$(mktemp -d)"
@@ -165,6 +172,19 @@ run "$W/containers.one" "$W/gc1.log" bash scripts/docker-gc.sh --old-images >/de
 [ "$(grep -c '^image prune .*label!=com.docker.compose.project$' "$W/gc1.log")" = 2 ] &&
   ok "alone on the box, docker-gc still reclaims unlabelled images (older CI pulls, third-party)" ||
   bad "alone on the box, docker-gc must prune unlabelled images too: $(grep '^image prune' "$W/gc1.log" | tr '\n' ';')"
+# A project declared in infra/ but with no container right now (mid-redeploy, stopped) is
+# still here: its unlabelled images are its rollback.
+mkdir -p "$W/infra/aiweb"
+printf 'name: hydromart-ai\nservices: {}\n' > "$W/infra/aiweb/docker-compose.yml"
+OUT="$(GC_INFRA_DIR="$W/infra" run "$W/containers.one" "$W/gc2.log" bash scripts/docker-gc.sh --old-images)"
+if grep -q 'label!=' "$W/gc2.log"; then
+  bad "docker-gc pruned unlabelled images while infra/ declares another project"
+else
+  case "$OUT" in
+    *hydromart-ai*) ok "a project declared in infra/ protects its images even with no container" ;;
+    *) bad "docker-gc should name the declared project it protects: $OUT" ;;
+  esac
+fi
 
 # The Postgres readers: they must exec into hydromart-postgres, never the other one.
 for s in go-live-report reset-test-data; do

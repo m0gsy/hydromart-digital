@@ -1,5 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { AuditEvent, AuditMutationSink, recordAuditEvent } from '@hydromart/platform';
+import {
+  AuditEvent,
+  AuditMutationSink,
+  recordAuditEvent,
+  recordAuditEventOrThrow,
+} from '@hydromart/platform';
 
 import { AdminConfigService } from '../../config/admin-config.service';
 
@@ -27,6 +32,17 @@ export class AdminAuditSink implements AuditMutationSink {
       // The trail is read across services, so the action carries the service that owns it.
       { ...event, action: `admin.${event.action}` },
       this.logger,
+    );
+  }
+
+  /** HD-2: a change by the AI web or a machine account runs only once its row is stored. */
+  async recordOrThrow(event: AuditEvent): Promise<void> {
+    await recordAuditEventOrThrow(
+      {
+        authServiceUrl: this.config.authServiceUrl,
+        internalServiceKey: this.config.internalServiceKey,
+      },
+      { ...event, action: `admin.${event.action}` },
     );
   }
 }

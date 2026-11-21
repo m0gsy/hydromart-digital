@@ -138,7 +138,7 @@ export class ExternalAccessService {
     const now = this.clock.now();
 
     const challenge = sha256(codeVerifier).toString('base64url');
-    const failed = (reason: string, customerId: string | null) =>
+    const failed = (reason: string, customerId: string) =>
       this.audit.record({
         customerId,
         action: AuditAction.HANDOFF_FAILED,
@@ -146,9 +146,12 @@ export class ExternalAccessService {
         ...context,
         metadata: { reason },
       });
-    if (!entry || entry.expiresAt <= now.getTime() || !sameText(challenge, entry.codeChallenge)) {
-      const reason = !entry ? 'unknown' : entry.expiresAt <= now.getTime() ? 'expired' : 'verifier';
-      await failed(reason, entry?.customerId ?? null);
+    // A code nobody issued gets no row: this route is public, and a row per made-up code
+    // would let anyone fill the trail the real security events share. A real code that
+    // expired or met the wrong verifier is recorded against its person.
+    if (!entry) throw new InvalidHandoffCodeError();
+    if (entry.expiresAt <= now.getTime() || !sameText(challenge, entry.codeChallenge)) {
+      await failed(entry.expiresAt <= now.getTime() ? 'expired' : 'verifier', entry.customerId);
       throw new InvalidHandoffCodeError();
     }
 
@@ -226,13 +229,18 @@ export class ExternalAccessService {
       }
     }
     if (!account || !machineSecretLive(account, now)) {
-      await this.audit.record({
-        customerId: null,
-        action: AuditAction.MACHINE_TOKEN_FAILED,
-        success: false,
-        ...context,
-        metadata: { accountId, reason: account ? 'expired' : 'credentials' },
-      });
+      // Only an account that exists is worth a row: a wrong secret for it, or a secret past
+      // its day. An id nobody configured is noise anyone can send, and on a public route a
+      // row per request would let them fill the trail the real security events share.
+      if (this.config.machineAccounts.some((a) => a.id === accountId)) {
+        await this.audit.record({
+          customerId: accountId,
+          action: AuditAction.MACHINE_TOKEN_FAILED,
+          success: false,
+          ...context,
+          metadata: { accountId, reason: account ? 'expired' : 'credentials' },
+        });
+      }
       throw new InvalidMachineCredentialsError();
     }
 

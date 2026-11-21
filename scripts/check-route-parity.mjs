@@ -69,6 +69,13 @@ function segmentMap() {
   return map;
 }
 
+/** Block and line comments replaced by spaces, newlines kept, so every offset still holds. */
+function blankComments(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/\/\/[^\n]*/g, (m) => ' '.repeat(m.length));
+}
+
 // ------------------------------------------------------------- declared routes
 
 /** Every route a service declares, plus whether its own decorators say "internal only". */
@@ -77,7 +84,10 @@ function declaredRoutes(service) {
   if (!existsSync(src)) return [];
   const routes = [];
   for (const file of walk(src, (p) => p.endsWith('.controller.ts'))) {
-    const text = readFileSync(file, 'utf8');
+    // Comments blanked, offsets kept: a decorator or guard name inside a comment (a
+    // commented-out `@ExternalAccess(...)`, a note about InternalAuthGuard) applies to
+    // nothing at runtime and must not classify the route below it.
+    const text = blankComments(readFileSync(file, 'utf8'));
     const controllers = [...text.matchAll(/@Controller\(([^)]*)\)/g)];
     for (let i = 0; i < controllers.length; i++) {
       const arg = controllers[i][1];
