@@ -96,10 +96,15 @@ export function matchStep(
  * to somebody else's account.
  */
 
+/** GCM's full 128-bit tag, written and required. */
+const TAG_BYTES = 16;
+
 /** `v1.<iv>.<tag>.<ciphertext>`, AES-256-GCM, bound to the account it belongs to. */
 export function sealSecret(key: Buffer, secret: Buffer, customerId: string): string {
   const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', key, iv).setAAD(Buffer.from(customerId));
+  const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: TAG_BYTES }).setAAD(
+    Buffer.from(customerId),
+  );
   const body = Buffer.concat([cipher.update(secret), cipher.final()]);
   const parts = [iv, cipher.getAuthTag(), body].map((part) => part.toString('base64url'));
   return ['v1', ...parts].join('.');
@@ -111,7 +116,11 @@ export function unsealSecret(key: Buffer, sealed: string, customerId: string): B
   if (version !== 'v1' || !iv || !tag || !body || extra !== undefined) {
     throw new Error('not a sealed TOTP secret');
   }
-  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'))
+  // The tag length is pinned: GCM would otherwise accept a tag cut down to 4 bytes, which a
+  // forger can hit by trying.
+  const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(iv, 'base64url'), {
+    authTagLength: TAG_BYTES,
+  })
     .setAAD(Buffer.from(customerId))
     .setAuthTag(Buffer.from(tag, 'base64url'));
   return Buffer.concat([decipher.update(Buffer.from(body, 'base64url')), decipher.final()]);

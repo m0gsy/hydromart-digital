@@ -106,6 +106,10 @@ describe('TOTP arithmetic (RFC 4226 / 6238)', () => {
     const [v, iv, tag, body] = sealed.split('.');
     const flipped = `${body!.slice(0, -2)}${body!.endsWith('AA') ? 'BB' : 'AA'}`;
     expect(() => unsealSecret(seal, [v, iv, tag, flipped].join('.'), 'account-a')).toThrow();
+    // A tag cut down to 4 bytes is refused outright, not checked on its first bytes.
+    const short = Buffer.from(tag!, 'base64url').subarray(0, 4).toString('base64url');
+    expect(() => unsealSecret(seal, [v, iv, short, body].join('.'), 'account-a')).toThrow();
+    expect(Buffer.from(tag!, 'base64url')).toHaveLength(16);
     for (const bad of ['v2.a.b.c', 'v1.a.b', 'v1.a.b.c.d', 'v1..b.c']) {
       expect(() => unsealSecret(seal, bad, 'account-a')).toThrow('not a sealed TOTP secret');
     }
