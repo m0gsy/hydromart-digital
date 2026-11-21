@@ -111,33 +111,23 @@ function numOrNull(v: string): number | null {
 }
 
 /**
- * Coerce the string form into an API payload, or return the first validation
- * error. Required: code/name/address/city/province, ownershipType (WARALABA|HKP),
- * lat/lng (valid ranges), deliveryFee (≥0). Optional: serviceRadiusKm (>0),
- * minOrderAmount (≥0; blank → null clears it).
+ * The ownership half of the depot form: its type and owners, or the first error. Also what
+ * head office's owners form sends on its own (PUT …/owners): the rest of the depot is the
+ * manager's to edit.
  */
-export function toDepotPayload(
-  form: DepotForm,
+export function toOwnershipPayload(
+  ownershipType: string,
+  ownerRows: OwnerRowForm[],
   t: Translate,
-): { ok: true; value: DepotPayload } | { ok: false; error: string } {
-  const text = {
-    code: form.code.trim(),
-    name: form.name.trim(),
-    address: form.address.trim(),
-    city: form.city.trim(),
-    province: form.province.trim(),
-  };
-  for (const [key, value] of Object.entries(text)) {
-    if (!value) return { ok: false, error: t('opsFix.depotForm.fieldRequired', { field: t(`opsFix.depotForm.field.${key}`) }) };
-  }
-  if (form.ownershipType !== 'WARALABA' && form.ownershipType !== 'HKP') {
+): { ok: true; value: { ownershipType: string; owners: DepotOwnerShare[] } } | { ok: false; error: string } {
+  if (ownershipType !== 'WARALABA' && ownershipType !== 'HKP') {
     return { ok: false, error: t('opsFix.depotForm.pickOwnership') };
   }
   // A franchise depot with no owner books its revenue — and HQ's commission — to nobody,
   // silently. depot-service rejects it too; this is the same rule stated early.
   let owners: DepotOwnerShare[] = [];
-  if (form.ownershipType === 'WARALABA') {
-    const rows = form.owners.filter((r) => r.ownerId.trim() !== '');
+  if (ownershipType === 'WARALABA') {
+    const rows = ownerRows.filter((r) => r.ownerId.trim() !== '');
     if (rows.length === 0) return { ok: false, error: t('opsFix.depotForm.ownerRequired') };
     if (new Set(rows.map((r) => r.ownerId)).size !== rows.length) {
       return { ok: false, error: t('opsFix.depotForm.ownersInvalid') };
@@ -160,6 +150,32 @@ export function toDepotPayload(
     }
     owners = parsed;
   }
+  return { ok: true, value: { ownershipType, owners } };
+}
+
+/**
+ * Coerce the string form into an API payload, or return the first validation
+ * error. Required: code/name/address/city/province, ownershipType (WARALABA|HKP),
+ * lat/lng (valid ranges), deliveryFee (≥0). Optional: serviceRadiusKm (>0),
+ * minOrderAmount (≥0; blank → null clears it).
+ */
+export function toDepotPayload(
+  form: DepotForm,
+  t: Translate,
+): { ok: true; value: DepotPayload } | { ok: false; error: string } {
+  const text = {
+    code: form.code.trim(),
+    name: form.name.trim(),
+    address: form.address.trim(),
+    city: form.city.trim(),
+    province: form.province.trim(),
+  };
+  for (const [key, value] of Object.entries(text)) {
+    if (!value) return { ok: false, error: t('opsFix.depotForm.fieldRequired', { field: t(`opsFix.depotForm.field.${key}`) }) };
+  }
+  const ownership = toOwnershipPayload(form.ownershipType, form.owners, t);
+  if (!ownership.ok) return ownership;
+  const { owners } = ownership.value;
   const lat = numOrNull(form.lat);
   if (lat === null || lat < -90 || lat > 90) return { ok: false, error: t('opsFix.depotForm.latRange') };
   const lng = numOrNull(form.lng);
