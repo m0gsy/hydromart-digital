@@ -24,8 +24,11 @@ export const franchise = {
   lat: 'Lintang (latitude)',
   lng: 'Bujur (longitude)',
   money: 'Rencana keuangan',
-  investmentAmount: 'Nilai investasi (Rp)',
-  projectedMonthlyRevenue: 'Proyeksi omzet per bulan (Rp)',
+  // Franchise copy never says "investasi" or "investor": a partner scheme worded as an
+  // investment can be judged an unlicensed investment offer (Rencana Induk 4.1). Both
+  // amounts are the applicant's own estimate, never a figure Hydromart promises.
+  investmentAmount: 'Kisaran modal (Rp)',
+  projectedMonthlyRevenue: 'Perkiraan omzet Anda per bulan (Rp)',
   // CA-3-53: formulir ini mengumpulkan nama, nomor WhatsApp, dan titik GPS tanpa pernah
   // meminta persetujuan dan tanpa pernah menautkan kebijakan privasi. Kalimatnya dipecah
   // supaya "Kebijakan Privasi" bisa jadi tombol yang membuka policy di tempat — link
@@ -43,7 +46,7 @@ export const franchise = {
   needCity: 'Kota wajib diisi.',
   needProvince: 'Provinsi wajib diisi.',
   needLocation: 'Titik lokasi wajib diisi.',
-  needMoney: 'Nilai investasi dan proyeksi omzet harus angka 0 atau lebih.',
+  needMoney: 'Kisaran modal dan perkiraan omzet harus angka 0 atau lebih.',
   submitError: 'Pengajuan gagal terkirim. Coba lagi sebentar lagi.',
   sentTitle: 'Pengajuan terkirim',
   sentBody:
