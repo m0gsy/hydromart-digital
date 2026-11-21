@@ -2387,6 +2387,26 @@ describe('SubscriptionPrismaRepository.listActivePins (P3-3)', () => {
   });
 });
 
+describe('SubscriptionPrismaRepository.routingPins (2026-11-21)', () => {
+  it('reads the pins of the plans named, and asks nothing for none', async () => {
+    const subscription = {
+      findMany: jest.fn().mockResolvedValue([{ id: 's1', latitude: -6.9, longitude: 107.6 }]),
+    };
+    const repo = new SubscriptionPrismaRepository({ subscription } as unknown as PrismaService);
+    await expect(repo.routingPins(['s1', 's2'])).resolves.toEqual([
+      { id: 's1', latitude: -6.9, longitude: 107.6 },
+    ]);
+    expect(subscription.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['s1', 's2'] } },
+      select: { id: true, latitude: true, longitude: true },
+      take: 2,
+    });
+    subscription.findMany.mockClear();
+    await expect(repo.routingPins([])).resolves.toEqual([]);
+    expect(subscription.findMany).not.toHaveBeenCalled();
+  });
+});
+
 describe('SubscriptionPrismaRepository.erasePerson', () => {
   const subscription = { updateMany: jest.fn() };
   const $transaction = jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops));

@@ -224,6 +224,33 @@ describe('SubscriptionService', () => {
     });
   });
 
+  // Owner decision 2026-11-21: depot-service lists a depot-made plan under the depot that
+  // delivers it, and asks this which one that is now.
+  describe('servingDepots', () => {
+    const add = (id: string, latitude: number | null, status = 'ACTIVE') =>
+      subs.rows.push({ id, status, latitude, longitude: 107.6 } as never);
+
+    it('answers the depot each plan routes to now, by the rule the sweep places orders by', async () => {
+      const neighbour = { ...homeDepot, id: 'depot-next', lat: -7.0, serviceRadiusKm: 15 };
+      depots.depots = [homeDepot, neighbour];
+      add('home', -6.9);
+      add('moved', -7.0, 'PAUSED'); // a paused plan still has a depot it will deliver from
+      add('far', -5.0); // no active depot serves it
+      add('nopin', null);
+      await expect(service.servingDepots(['home', 'moved', 'far', 'nopin', 'unknown'])).resolves.toEqual([
+        { id: 'home', depotId: 'depot-home' },
+        { id: 'moved', depotId: 'depot-next' },
+        { id: 'far', depotId: null },
+        { id: 'nopin', depotId: null },
+      ]);
+    });
+
+    it('without the depot network there is no answer, not "served by nobody"', async () => {
+      depots.unreachable = true;
+      await expect(service.servingDepots(['home'])).rejects.toBeInstanceOf(DepotUnavailableError);
+    });
+  });
+
   describe('reroutePreview (P3-3)', () => {
     const plan = (status: string, latitude: number | null) =>
       subs.rows.push({ id: randomUUID(), status, latitude, longitude: 107.6 } as never);

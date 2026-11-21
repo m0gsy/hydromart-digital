@@ -67,6 +67,32 @@ export class OrderSubscriptionHttpAdapter implements OrderSubscriptionPort {
     return this.transition(engineId, 'resume');
   }
 
+  async servingDepots(engineIds: readonly string[]): Promise<Map<string, string | null>> {
+    const { orderServiceUrl, internalServiceKey } = this.config;
+    if (!orderServiceUrl || !internalServiceKey) {
+      throw new EngineUnavailableError('Integrasi order-service belum dikonfigurasi.');
+    }
+    const res = await fetch(`${orderServiceUrl}/api/v1/subscriptions/internal/serving-depots`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+      body: JSON.stringify({ ids: engineIds }),
+      signal: AbortSignal.timeout(OrderSubscriptionHttpAdapter.TIMEOUT_MS),
+    });
+    const body = (await res.json().catch(() => null)) as {
+      items?: { id?: unknown; depotId?: unknown }[];
+      message?: string;
+    } | null;
+    if (!res.ok || !Array.isArray(body?.items)) {
+      throw new EngineUnavailableError(body?.message ?? `order-service responded ${res.status}`);
+    }
+    const out = new Map<string, string | null>();
+    for (const item of body.items) {
+      if (typeof item.id !== 'string') continue;
+      out.set(item.id, typeof item.depotId === 'string' ? item.depotId : null);
+    }
+    return out;
+  }
+
   /** DEP-23. Fails closed for the same reason `create` does. */
   private async transition(engineId: string, action: 'pause' | 'resume'): Promise<void> {
     const { orderServiceUrl, internalServiceKey } = this.config;

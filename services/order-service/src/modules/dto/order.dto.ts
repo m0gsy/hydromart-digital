@@ -983,6 +983,15 @@ export class PdpSubscriptionExportResponseDto {
   items!: unknown[];
 }
 
+/** depot-service asking where the plans behind its console rows deliver from now. */
+export class ServingDepotsDto {
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: 500 })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsUUID('all', { each: true })
+  ids!: string[];
+}
+
 export class PdpAnonymiseDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()

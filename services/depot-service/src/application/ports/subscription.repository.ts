@@ -43,4 +43,8 @@ export interface SubscriptionRepository {
   networkActiveCounts(): Promise<{ activeSubscriptions: number; activeSubscribers: number }>;
   findById(id: string): Promise<Subscription | null>;
   update(id: string, data: UpdateSubscriptionData): Promise<Subscription>;
+  /** Rows tied to an engine plan that may still deliver (ACTIVE or PAUSED), network-wide. */
+  listLinkedOpen(): Promise<Subscription[]>;
+  /** Move a row to another depot, only if it is still where it was read; true if it moved. */
+  moveDepot(id: string, fromDepotId: string, toDepotId: string): Promise<boolean>;
 }

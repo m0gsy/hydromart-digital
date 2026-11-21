@@ -155,6 +155,13 @@
 # already reminded inside the interval is skipped, so a double run sends nothing more.
 0 9 * * * sh /scripts/sweep.sh gallon-outstanding/internal/overdue-reminders depot:3007
 
+# A depot-made subscription is listed under the depot that delivers it (owner decision
+# 2026-11-21). The engine routes each plan by its pin on every run, so closing, moving or
+# redrawing a depot — or a customer moving the plan — changes who delivers it; this moves the
+# console rows to match. Every 15 minutes: the new depot should see a plan before it delivers it,
+# and a round is one depot-service read plus one order-service call per 500 plans.
+*/15 * * * * sh /scripts/sweep.sh subscriptions/internal/rehome depot:3007
+
 # Review requests: ask each customer how a delivery went, `reviewRequestDelayMinutes` (30) after
 # it arrived and until `reviewRequestWindowHours` (72) have passed. Every 10 minutes because the
 # point is to ask while the delivery is still fresh; each order is claimed before the message

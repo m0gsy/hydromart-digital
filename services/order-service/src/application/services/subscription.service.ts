@@ -250,6 +250,26 @@ export class SubscriptionService {
   }
 
   /**
+   * Where each plan named delivers from now: the depot its pin is in, by the very rule the sweep
+   * places its next order by. depot-service files the console row of a depot-made plan under
+   * this answer (owner decision 2026-11-21: a plan is listed under the depot that delivers it).
+   * A plan with no pin, or one no active depot serves, answers null; unknown ids are left out.
+   */
+  async servingDepots(ids: readonly string[]): Promise<{ id: string; depotId: string | null }[]> {
+    const depots = await this.orders.activeDepots();
+    // Without the network there is no answer at all, which is not "served by nobody".
+    if (depots === null) throw new DepotUnavailableError();
+    const pins = await this.subs.routingPins(ids);
+    return pins.map((p) => ({
+      id: p.id,
+      depotId:
+        p.latitude == null || p.longitude == null
+          ? null
+          : (selectNearestDepot(p.latitude, p.longitude, depots)?.id ?? null),
+    }));
+  }
+
+  /**
    * P3-5: a plan made from a saved address follows it. When the customer edits that address
    * (a better pin, a new patokan), the next delivery goes to the edit — but only while it is
    * still the same depot's: a plan never changes depot behind anyone's back (the reroute

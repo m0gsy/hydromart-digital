@@ -1836,11 +1836,18 @@ describe('SubscriptionController', () => {
     pause: jest.fn(),
     resume: jest.fn(),
     activeCustomerIds: jest.fn(),
+    rehome: jest.fn(),
   };
   const c = new SubscriptionController(svc as never);
   beforeEach(() => {
     jest.clearAllMocks();
     svc.get.mockResolvedValue({ depotId: DEPOT });
+  });
+
+  // Owner decision 2026-11-21: the scheduler's re-home sweep is a straight hand-off.
+  it('runs the re-home sweep for the scheduler', async () => {
+    svc.rehome.mockResolvedValue({ checked: 3, moved: 1, ok: true });
+    await expect(c.rehome()).resolves.toEqual({ checked: 3, moved: 1, ok: true });
   });
 
   // S2. Ids only: the caller is customer-service filling in one boolean per person, and the

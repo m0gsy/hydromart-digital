@@ -45,6 +45,14 @@ class StubEngine {
     if (this.error) throw this.error;
     this.calls.push(`resume:${engineId}`);
   }
+  /** Where each engine plan delivers from now; absent = the engine does not know it. */
+  serving: Record<string, string | null> = {};
+  asked: string[][] = [];
+  async servingDepots(ids: readonly string[]): Promise<Map<string, string | null>> {
+    if (this.error) throw this.error;
+    this.asked.push([...ids]);
+    return new Map(ids.filter((id) => id in this.serving).map((id) => [id, this.serving[id] ?? null]));
+  }
 }
 
 class InMemorySubscriptionRepository implements SubscriptionRepository {
@@ -105,6 +113,21 @@ class InMemorySubscriptionRepository implements SubscriptionRepository {
     const row = this.rows.find((r) => r.id === id)!;
     Object.assign(row, data, { updatedAt: new Date() });
     return row;
+  }
+
+  async listLinkedOpen(): Promise<Subscription[]> {
+    return this.rows.filter(
+      (r) =>
+        r.orderSubscriptionId !== null &&
+        (r.status === SubscriptionStatus.ACTIVE || r.status === SubscriptionStatus.PAUSED),
+    );
+  }
+
+  async moveDepot(id: string, fromDepotId: string, toDepotId: string): Promise<boolean> {
+    const row = this.rows.find((r) => r.id === id && r.depotId === fromDepotId);
+    if (!row) return false;
+    row.depotId = toDepotId;
+    return true;
   }
 }
 
@@ -424,5 +447,94 @@ describe('SubscriptionService.networkSummary', () => {
       activeSubscriptions: 0,
       activeSubscribers: 0,
     });
+  });
+});
+
+/*
+ * Owner decision 2026-11-21: a depot-made plan is listed under the depot that delivers it. The
+ * engine routes every plan by its pin on every run; the console row kept the depot stamped at
+ * creation, so after a depot closed, moved or was redrawn the delivering depot could neither see
+ * nor pause the plan.
+ */
+describe('SubscriptionService.rehome', () => {
+  const A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const GONE = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  let repo: InMemorySubscriptionRepository;
+  let engine: StubEngine;
+  let service: SubscriptionService;
+  const row = (
+    id: string,
+    depotId: string,
+    engineId: string | null,
+    status = SubscriptionStatus.ACTIVE,
+  ) =>
+    repo.rows.push({
+      id,
+      depotId,
+      customerId: null,
+      customerName: 'x',
+      productLabel: 'Galon',
+      productId: null,
+      orderSubscriptionId: engineId,
+      quantity: 1,
+      cadence: SubscriptionCadence.WEEKLY,
+      status,
+      nextRunAt: null,
+      note: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+  beforeEach(() => {
+    repo = new InMemorySubscriptionRepository();
+    engine = new StubEngine();
+    const depots = { exists: async (id: string) => id === A || id === B };
+    service = new SubscriptionService(repo, depots as never, engine as never);
+  });
+
+  it('moves a row to the depot its plan delivers from now, and only those that disagree', async () => {
+    row('moves', A, 'e1');
+    row('stays', A, 'e2');
+    row('paused', A, 'e3', SubscriptionStatus.PAUSED); // resumes into B: listed there already
+    row('unserved', A, 'e4'); // no depot serves it: stays where its failures are seen
+    row('unknown-depot', A, 'e5'); // a depot this service does not know never takes a row
+    row('cancelled', A, 'e6', SubscriptionStatus.CANCELLED);
+    row('unlinked', A, null);
+    engine.serving = { e1: B, e2: A, e3: B, e4: null, e5: GONE, e6: B };
+
+    await expect(service.rehome()).resolves.toEqual({ checked: 5, moved: 2, ok: true });
+    const at = (id: string) => repo.rows.find((r) => r.id === id)?.depotId;
+    expect([at('moves'), at('stays'), at('paused'), at('unserved'), at('unknown-depot')]).toEqual([
+      B,
+      A,
+      B,
+      A,
+      A,
+    ]);
+    expect([at('cancelled'), at('unlinked')]).toEqual([A, A]);
+    // Cancelled and unlinked plans were never asked about.
+    expect(engine.asked).toEqual([['e1', 'e2', 'e3', 'e4', 'e5']]);
+  });
+
+  it('asks in batches the engine accepts', async () => {
+    for (let i = 0; i < 501; i += 1) row(`r${i}`, A, `e${i}`);
+    await expect(service.rehome()).resolves.toMatchObject({ checked: 501, moved: 0, ok: true });
+    expect(engine.asked.map((b) => b.length)).toEqual([500, 1]);
+  });
+
+  it('moves nothing and says so when the engine cannot answer', async () => {
+    row('moves', A, 'e1');
+    engine.serving = { e1: B };
+    engine.error = new Error('order-service down');
+    await expect(service.rehome()).resolves.toEqual({ checked: 0, moved: 0, ok: false });
+    expect(repo.rows[0]?.depotId).toBe(A);
+  });
+
+  it('does not count a row somebody else moved in the meantime', async () => {
+    row('raced', A, 'e1');
+    engine.serving = { e1: B };
+    repo.moveDepot = async () => false;
+    await expect(service.rehome()).resolves.toEqual({ checked: 1, moved: 0, ok: true });
   });
 });

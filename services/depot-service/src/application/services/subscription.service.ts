@@ -56,6 +56,8 @@ const CADENCE_TO_FREQUENCY: Partial<
  * cadence) with an ACTIVE ⇄ PAUSED lifecycle the manager manages.
  */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Plans asked about per engine call; order-service caps one request at 500 ids. */
+const REHOME_BATCH = 500;
 
 @Injectable()
 export class SubscriptionService {
@@ -145,6 +147,38 @@ export class SubscriptionService {
       nextRunAt: input.firstDeliveryAt,
       note: input.note ?? null,
     });
+  }
+
+  /**
+   * Owner decision 2026-11-21: a depot-made plan is listed under the depot that delivers it.
+   *
+   * The engine routes every plan by its pin on every run, so a depot closed, reopened, moved or
+   * redrawn — or the customer moving the plan — changes who delivers it, while the row here kept
+   * the depot stamped at creation: the new depot could neither see nor pause the plan, and the
+   * old one listed a plan it no longer delivered. A scheduled sweep asks the engine where each
+   * open plan delivers from now and moves the rows that disagree. A plan no depot serves stays
+   * where it is (the engine pauses it after failed runs; its depot still sees that).
+   */
+  async rehome(): Promise<{ checked: number; moved: number; ok: boolean }> {
+    const rows = await this.subscriptions.listLinkedOpen();
+    let moved = 0;
+    for (let i = 0; i < rows.length; i += REHOME_BATCH) {
+      const batch = rows.slice(i, i + REHOME_BATCH);
+      let serving: Map<string, string | null>;
+      try {
+        serving = await this.engine.servingDepots(batch.map((r) => r.orderSubscriptionId!));
+      } catch {
+        // Nothing can be known without the engine: the round says so instead of moving rows.
+        return { checked: i, moved, ok: moved > 0 };
+      }
+      for (const row of batch) {
+        const to = serving.get(row.orderSubscriptionId!);
+        if (!to || !UUID.test(to) || to.toLowerCase() === row.depotId.toLowerCase()) continue;
+        if (!(await this.depots.exists(to))) continue;
+        if (await this.subscriptions.moveDepot(row.id, row.depotId, to)) moved += 1;
+      }
+    }
+    return { checked: rows.length, moved, ok: true };
   }
 
   async list(depotId: string, filters: ListSubscriptionFilters = {}): Promise<Subscription[]> {

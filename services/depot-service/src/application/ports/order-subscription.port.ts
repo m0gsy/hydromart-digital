@@ -37,4 +37,10 @@ export interface OrderSubscriptionPort {
    */
   pause(engineId: string): Promise<void>;
   resume(engineId: string): Promise<void>;
+  /**
+   * Owner decision 2026-11-21: where each engine plan delivers from now — the depot its pin is
+   * in (null: none serves it). Plans the engine does not know are absent from the map. Throws
+   * when the engine cannot answer; the caller then moves nothing.
+   */
+  servingDepots(engineIds: readonly string[]): Promise<Map<string, string | null>>;
 }

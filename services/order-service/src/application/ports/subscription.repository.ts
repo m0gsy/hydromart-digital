@@ -70,6 +70,10 @@ export interface SubscriptionRepository {
   findDue(now: Date, limit?: number): Promise<SubscriptionRecord[]>;
   /** The pin of every ACTIVE plan that has one: what the sweep routes by (reroute preview). */
   listActivePins(): Promise<{ lat: number; lng: number }[]>;
+  /** The pins of the plans named, whatever their status; unknown ids are left out. */
+  routingPins(
+    ids: readonly string[],
+  ): Promise<{ id: string; latitude: number | null; longitude: number | null }[]>;
   setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord>;
   /**
    * K1.9: move a plan to a different saved address.

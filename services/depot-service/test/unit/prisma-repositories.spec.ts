@@ -3150,3 +3150,28 @@ describe('WholesaleTierPrismaRepository', () => {
     expect(model.delete).toHaveBeenCalledWith({ where: { id: 'wt-1' } });
   });
 });
+
+describe('SubscriptionPrismaRepository re-home (2026-11-21)', () => {
+  const model = { findMany: jest.fn(), updateMany: jest.fn() };
+  const repo = new SubscriptionPrismaRepository({ subscription: model } as unknown as PrismaService);
+
+  it('lists the linked plans that may still deliver, network-wide', async () => {
+    model.findMany.mockResolvedValue([]);
+    await expect(repo.listLinkedOpen()).resolves.toEqual([]);
+    expect(model.findMany).toHaveBeenCalledWith({
+      where: { orderSubscriptionId: { not: null }, status: { in: ['ACTIVE', 'PAUSED'] } },
+      orderBy: { createdAt: 'asc' },
+      take: 10_000,
+    });
+  });
+
+  it('moves a row only from the depot it was read at', async () => {
+    model.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    await expect(repo.moveDepot('s1', 'd-a', 'd-b')).resolves.toBe(true);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 's1', depotId: 'd-a' },
+      data: { depotId: 'd-b' },
+    });
+    await expect(repo.moveDepot('s1', 'd-a', 'd-b')).resolves.toBe(false);
+  });
+});
