@@ -49,6 +49,12 @@ export enum AuditAction {
   PHONE_CHANGED = 'auth.phone.changed',
   // HR moved a staff login onto its real number, closing the unused customer account there.
   DUPLICATE_CUSTOMER_CLOSED = 'auth.customer.duplicate_closed',
+  // HD-3: signing in to the AI web, and machine accounts (n8n) taking a token.
+  HANDOFF_CODE_ISSUED = 'auth.handoff.code_issued',
+  HANDOFF_EXCHANGED = 'auth.handoff.exchanged',
+  HANDOFF_FAILED = 'auth.handoff.failed',
+  MACHINE_TOKEN_ISSUED = 'auth.machine.token_issued',
+  MACHINE_TOKEN_FAILED = 'auth.machine.token_failed',
 }
 
 /**

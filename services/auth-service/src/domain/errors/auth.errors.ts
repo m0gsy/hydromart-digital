@@ -388,3 +388,48 @@ export class PhoneUnchangedError extends DomainError {
     super('Nomor itu sudah menjadi nomor akun ini.');
   }
 }
+
+/** HD-3: no signing key is configured, which is the kill switch for AI and machine tokens. */
+export class ExternalTokensOffError extends DomainError {
+  readonly code = 'AUTH_EXTERNAL_TOKENS_OFF';
+  readonly status = HTTP.UNAVAILABLE;
+  constructor() {
+    super('AI and machine access is switched off.');
+  }
+}
+
+/** HD-3: the AI web is for staff; a customer account has nothing to do there. */
+export class HandoffNotForCustomersError extends DomainError {
+  readonly code = 'AUTH_HANDOFF_STAFF_ONLY';
+  readonly status = HTTP.FORBIDDEN;
+  constructor() {
+    super('Only staff accounts can sign in to the AI web.');
+  }
+}
+
+/** HD-3: unknown, used, expired, or presented with the wrong PKCE verifier. One answer for all. */
+export class InvalidHandoffCodeError extends DomainError {
+  readonly code = 'AUTH_HANDOFF_INVALID';
+  readonly status = HTTP.UNAUTHORIZED;
+  constructor() {
+    super('The sign-in code is invalid or has expired. Start the sign-in again.');
+  }
+}
+
+/** HD-3: too many sign-ins waiting to be exchanged at once; nothing is evicted to make room. */
+export class HandoffBusyError extends DomainError {
+  readonly code = 'AUTH_HANDOFF_BUSY';
+  readonly status = HTTP.TOO_MANY;
+  constructor() {
+    super('Too many sign-ins are in progress. Try again in a minute.');
+  }
+}
+
+/** HD-3: unknown account, wrong secret, or a secret past its day. One answer for all. */
+export class InvalidMachineCredentialsError extends DomainError {
+  readonly code = 'AUTH_MACHINE_INVALID';
+  readonly status = HTTP.UNAUTHORIZED;
+  constructor() {
+    super('The machine account credentials are invalid or have expired.');
+  }
+}

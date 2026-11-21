@@ -72,6 +72,9 @@ import { AuditController } from './audit.controller';
 import { AuthController } from './auth.controller';
 import { AvatarController } from './avatar.controller';
 import { InternalAccountController } from './internal.controller';
+import { ExternalAccessController } from './external-access.controller';
+import { ExternalAccessService } from '../../application/services/external-access.service';
+import { ExternalTokenSigner } from '../../infrastructure/security/external-token-signer';
 
 /** Binds each application port to its infrastructure adapter (dependency inversion). */
 const adapterProviders: Provider[] = [
@@ -81,6 +84,7 @@ const adapterProviders: Provider[] = [
   SmsOtpDeliveryAdapter,
   ZenzivaOtpDeliveryAdapter,
   InternalAuthGuard,
+  ExternalTokenSigner,
   { provide: AUTH_TOKENS.CustomerRepository, useClass: CustomerPrismaRepository },
   { provide: AUTH_TOKENS.OtpTokenRepository, useClass: OtpTokenPrismaRepository },
   { provide: AUTH_TOKENS.RefreshTokenRepository, useClass: RefreshTokenPrismaRepository },
@@ -158,6 +162,7 @@ const applicationServices: Provider[] = [
   DataSubjectService,
   ConsentService,
   AccessMatrixService,
+  ExternalAccessService,
 ];
 
 const globalGuards: Provider[] = [
@@ -182,6 +187,7 @@ const globalGuards: Provider[] = [
     DataSubjectController,
     ConsentController,
     AccessController,
+    ExternalAccessController,
   ],
   providers: [
     // CA-2-67: role grants and RBAC-matrix edits reached no trail at all. See
