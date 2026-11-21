@@ -72,6 +72,14 @@ describe('ShiftService', () => {
       ).rejects.toBeInstanceOf(NotAtDepotError);
     });
 
+    // 2026-11-21: a courier standing at the depot read 1409 m with GPS on — the phone's location
+    // permission was "Perkiraan". The refusal names that, not just "turn on GPS".
+    it('tells a courier who is already there to switch the permission to precise', async () => {
+      await expect(
+        service.checkIn(driver, DEPOT_ID, FAR_AWAY.lat, FAR_AWAY.lng),
+      ).rejects.toThrow(/pilih "Tepat" \(bukan "Perkiraan"\)/);
+    });
+
     /*
      * The check-in rides the offline capture queue, and the queue retries a job it never
      * got an answer for — including the answer lost after the shift was opened. That retry

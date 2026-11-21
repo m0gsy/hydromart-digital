@@ -206,8 +206,11 @@ export class NotAtDepotError extends DomainError {
   constructor(distanceMeters: number, radiusMeters: number) {
     super(
       // Indonesian like the HR punch's own fence message; this reaches a courier verbatim.
+      // 2026-11-21: a courier at the depot read 1409 m with GPS on — Android's "Perkiraan"
+      // (approximate) location permission. "Turn on GPS" sent them to fix what was already on.
       `Kamu ${Math.round(distanceMeters)} m dari depot. Check-in harus dalam ${radiusMeters} m. ` +
-        'Nyalakan lokasi akurat (GPS), tunggu sebentar di depot, lalu coba lagi.',
+        'Kalau sudah di sana, lokasi HP belum akurat: di izin lokasi aplikasi pilih "Tepat" (bukan "Perkiraan"), ' +
+        'nyalakan GPS, tunggu sebentar, lalu coba lagi.',
     );
   }
 }
