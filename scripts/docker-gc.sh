@@ -24,7 +24,7 @@ IMAGES_ONLY=0
 [ "${1:-}" = "--images-only" ] && IMAGES_ONLY=1
 
 #
-# `--old-images` � the weekly cron's job. Every deploy pulls/builds a TAGGED image per service
+# `--old-images` — the weekly cron's job. Every deploy pulls/builds a TAGGED image per service
 # and the previous tag stays on disk, which `image prune -f` (dangling only) never touches:
 # on 2026-11-08 the VPS held 3315 images / 130 GB, 44 GB of them used by no container, and
 # docker-gc.sh reclaimed 0B while the DiskSpaceLow alert fired. Unused tagged images older than
@@ -35,13 +35,40 @@ IMAGES_ONLY=0
 OLD_IMAGES=0
 [ "${1:-}" = "--old-images" ] && OLD_IMAGES=1
 
+#
+# HD-1 — this project's images only. The box also runs another compose project (the AI web),
+# and its rollback images are not ours to delete. Compose labels every image it BUILDS with
+# com.docker.compose.project, and images.yml puts the same label on every image CI publishes.
+#
+# An image with NO project label belongs to nobody we can name: the CI images published before
+# HD-1 (1972 on the box on 2026-11-21) and the third-party ones (postgres, prometheus, caddy).
+# They are pruned only while no other compose project has a container here. Once one does, an
+# unlabelled image may be its, and they stay.
+PROJECT=hydromart
+mine="label=com.docker.compose.project=$PROJECT"
+# `|| true`: grep exits 1 when it selects nothing, which is the normal case, and under
+# `set -euo pipefail` that would end this script before it pruned anything.
+others="$($DOCKER ps -a --format '{{.Label "com.docker.compose.project"}}' 2>/dev/null |
+  grep -vx -e "$PROJECT" -e '' | sort -u | tr '\n' ' ' || true)"
+
+prune_images() {
+  $DOCKER image prune -f "$@" --filter "$mine"
+  if [ -z "$others" ]; then
+    $DOCKER image prune -f "$@" --filter 'label!=com.docker.compose.project'
+  else
+    echo "docker-gc: other compose project(s) here: ${others}— unlabelled images left alone"
+  fi
+}
+
 before=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
 
-$DOCKER image prune -f                          # dangling/orphaned images (rebuild leftovers)
+prune_images                                    # dangling/orphaned images (rebuild leftovers)
 if [ "$OLD_IMAGES" -eq 1 ]; then
-  $DOCKER image prune -a -f --filter "until=168h" # unused tagged images older than 7 days
+  prune_images -a --filter "until=168h"         # unused tagged images older than 7 days
 fi
 if [ "$IMAGES_ONLY" -eq 0 ]; then
+  # Host-wide, and that is right: the build cache carries no project label, and only this
+  # project builds on this box (the AI web is pull-only, Plan Eksekusi §4 decision 1).
   $DOCKER builder prune -f --keep-storage 3g    # trim old build cache, keep 3G warm for fast rebuilds
 fi
 

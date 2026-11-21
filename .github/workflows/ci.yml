@@ -346,6 +346,12 @@ jobs:
       - name: docker-gc self-check
         run: bash scripts/docker-gc.test.sh
 
+      # HD-1: a second compose project shares the production box. The host scripts must find,
+      # restart and prune this project's containers and images only — run against a fake
+      # docker holding two projects whose container names collide.
+      - name: Project isolation self-check
+        run: bash scripts/project-isolation.test.sh
+
       # env-doctor --fix rewrites the live .env, so every branch of it is pinned by tests:
       # what it joins, what it refuses, and that it never prints the key.
       - name: .env doctor self-check
@@ -1200,9 +1206,10 @@ jobs:
       # authed.spec reads the OTP back from the auth-service log (console channel).
       # Deterministic under compose regardless of the runner's project name.
       # Playwright runs with cwd=apps/web (npm workspace), where `docker compose` finds
-      # no compose file — so point at the running container by name (compose project =
-      # checkout dir "hydromart-digital"). cwd-independent; the OTP scraper execSyncs this.
-      E2E_OTP_LOG_CMD: docker logs --tail 4000 hydromart-digital-auth-1
+      # no compose file — so point at the running container by name. The compose project
+      # is pinned (`name: hydromart` in docker-compose.yml, HD-1), so the name no longer
+      # depends on the checkout directory. cwd-independent; the OTP scraper execSyncs this.
+      E2E_OTP_LOG_CMD: docker logs --tail 4000 hydromart-auth-1
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 

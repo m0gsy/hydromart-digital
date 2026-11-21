@@ -29,6 +29,10 @@
 #   --list    print only the names of containers running a stale config, exit 0
 set -uo pipefail
 
+# HD-1: this project's containers only. deploy.sh RESTARTS whatever --list names, and the box
+# also runs another compose project, whose containers are not this script's to restart.
+PROJECT_FILTER='label=com.docker.compose.project=hydromart'
+
 LIST_ONLY=false
 [ "${1:-}" = "--list" ] && LIST_ONLY=true
 
@@ -54,7 +58,7 @@ while read -r container; do
   done < <(docker inspect --format \
     '{{range .Mounts}}{{if eq .Type "bind"}}{{.Source}}|{{.Destination}}{{println}}{{end}}{{end}}' \
     "$container" 2>/dev/null)
-done < <(docker ps --format '{{.Names}}' 2>/dev/null)
+done < <(docker ps --filter "$PROJECT_FILTER" --format '{{.Names}}' 2>/dev/null)
 
 if $LIST_ONLY; then
   for entry in "${drifted[@]:-}"; do [ -n "$entry" ] && echo "${entry%%|*}"; done | sort -u

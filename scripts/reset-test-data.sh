@@ -71,7 +71,10 @@ declare -A AFTER=(
   [depot]="UPDATE inventory_items SET reserved = 0 WHERE reserved <> 0;"
 )
 
-PG="${PG_CONTAINER:-$(docker ps --filter 'name=postgres' --format '{{.Names}}' 2>/dev/null | grep -v exporter | head -1)}"
+# HD-1: this project's Postgres only. `docker ps` lists the newest container first, so once
+# another compose project starts a Postgres here an unscoped dry run would count ITS rows and
+# name it as the container to hand to --execute.
+PG="${PG_CONTAINER:-$(docker ps --filter 'label=com.docker.compose.project=hydromart' --filter 'name=postgres' --format '{{.Names}}' 2>/dev/null | grep -v exporter | head -1)}"
 if [ -z "$PG" ] || ! docker exec "$PG" true >/dev/null 2>&1; then
   echo "!! cannot reach Postgres (PG_CONTAINER='${PG}'). Run this on the box, or set PG_CONTAINER." >&2
   exit 2
