@@ -922,8 +922,17 @@ DRIFTED="$(bash scripts/check-config-drift.sh --list 2>/dev/null || true)"
 # purpose (a new file inside one is visible at once). Visible is not loaded: Caddy reads its
 # config at start and on `caddy reload` only. So a release that edits the Caddyfile or adds a
 # site under infra/caddy/sites/ hands Caddy to the reload below.
-if ! git diff --quiet "$PREV_SHA" "$NEW_SHA" -- infra/caddy/ 2>/dev/null; then
-  DRIFTED="$DRIFTED $($COMPOSE ps --format '{{.Name}}' caddy 2>/dev/null || true)"
+#
+# Read off CHANGED, the diff against what the containers were BUILT from, not against the
+# tree's HEAD: after a deploy that died past its reset the two differ, and a Caddyfile that
+# deploy brought in would then never be loaded by any later one. Named once even when the
+# drift check named it too.
+if grep -q '^infra/caddy/' <<<"$CHANGED"; then
+  caddy_name="$($COMPOSE ps --format '{{.Name}}' caddy 2>/dev/null || true)"
+  case " $DRIFTED " in
+    *" $caddy_name "*) ;;
+    *) DRIFTED="$DRIFTED $caddy_name" ;;
+  esac
 fi
 for stale in $DRIFTED; do
   case "$stale" in

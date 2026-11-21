@@ -49,4 +49,19 @@ describe('AuthAuditMutationSink (CA-2-67)', () => {
       metadata: {},
     });
   });
+
+  // HD-2: record() swallows a failed write; the strict write the AI web path uses must not.
+  it('recordOrThrow writes the same row through ingest and lets a failure through', async () => {
+    const ingest = jest.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('db down'));
+    const sink = new AuthAuditMutationSink({ ingest } as unknown as AuditService);
+    await sink.recordOrThrow({ action: 'access.matrix.changed.requested', actorId: 'u-7', target: 'x' });
+    expect(ingest).toHaveBeenCalledWith({
+      actorId: 'u-7',
+      action: 'auth.access.matrix.changed.requested',
+      target: 'x',
+      success: true,
+      metadata: undefined,
+    });
+    await expect(sink.recordOrThrow({ action: 'a' })).rejects.toThrow('db down');
+  });
 });

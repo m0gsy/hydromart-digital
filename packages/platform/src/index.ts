@@ -94,7 +94,12 @@ export {
   SELF_SCOPED_KEY,
 } from './nest/decorators';
 export { assertCapability } from './nest/capability';
-export { recordAuditEvent, type AuditEvent, type AuditTrailConfig } from './nest/audit-trail';
+export {
+  recordAuditEvent,
+  recordAuditEventOrThrow,
+  type AuditEvent,
+  type AuditTrailConfig,
+} from './nest/audit-trail';
 export {
   AuditMutationsInterceptor,
   AUDIT_MUTATION_SINK,

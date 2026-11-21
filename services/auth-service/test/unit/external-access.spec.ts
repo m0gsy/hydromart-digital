@@ -118,10 +118,18 @@ describe('external-access config', () => {
       [[machine({ notAfter: 'soon' })], 'ISO date'],
       [[machine({ notAfter: 5 })], 'ISO date'],
       [[machine({ notAfter: new Date(NOW.getTime() + 91 * DAY).toISOString() })], '90 days'],
+      [[machine(), machine({ scopes: ['staffAdmin'] })], 'repeats the id and secret'],
     ];
     for (const [value, message] of bad) {
       expect(() => parseMachineAccounts(JSON.stringify(value), NOW)).toThrow(message);
     }
+    // A rotation (one id, two secrets) is allowed.
+    const rotated = [machine(), machine({ secretSha256: 'b'.repeat(64) })];
+    expect(parseMachineAccounts(JSON.stringify(rotated), NOW)).toHaveLength(2);
+    // Malformed JSON is named without quoting the value back.
+    expect(() => parseMachineAccounts('[{"id": "x", "secretSha256": "abc', NOW)).toThrow(
+      /^MACHINE_ACCOUNTS is not valid JSON$/,
+    );
   });
 
   it('a secret works until its day and never further than 90 days out', () => {
@@ -234,7 +242,8 @@ describe('ExternalAccessService handoff', () => {
     await expect(service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject({
       code: 'AUTH_HANDOFF_INVALID',
     });
-    expect(auditLog.entries.slice(1).map((e) => e.metadata?.reason)).toEqual(['verifier', 'unknown']);
+    // The second try finds no code at all: a code nobody holds gets no row (public route).
+    expect(auditLog.entries.slice(1).map((e) => e.metadata?.reason)).toEqual(['verifier']);
   });
 
   it('a code older than 60 seconds is refused', async () => {
@@ -341,10 +350,10 @@ describe('ExternalAccessService machine accounts', () => {
     await expect(service.issueMachineToken(ACCOUNT_ID, SECRET, ctx)).rejects.toMatchObject({
       code: 'AUTH_MACHINE_INVALID',
     });
-    expect(auditLog.entries.map((e) => e.metadata?.reason)).toEqual([
-      'credentials',
-      'credentials',
-      'expired',
+    // The unknown id leaves no row: anyone can send one, and the trail is shared.
+    expect(auditLog.entries.map((e) => [e.customerId, e.metadata?.reason])).toEqual([
+      [ACCOUNT_ID, 'credentials'],
+      [ACCOUNT_ID, 'expired'],
     ]);
   });
 });

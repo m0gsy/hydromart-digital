@@ -52,36 +52,52 @@ export async function recordAuditEvent(
   event: AuditEvent,
   logger: Logger,
 ): Promise<void> {
-  const base = config.authServiceUrl.replace(/\/+$/, '');
-  if (!base || !config.internalServiceKey) {
+  if (!config.authServiceUrl.replace(/\/+$/, '') || !config.internalServiceKey) {
     // Not configured in this environment (local, tests). Silent: warning on every
     // refund in a dev stack trains people to ignore the log.
     return;
   }
   try {
-    const res = await fetch(`${base}/api/v1/auth/audit/internal`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-internal-key': config.internalServiceKey,
-      },
-      body: JSON.stringify({
-        actorId: event.actorId ?? undefined,
-        action: event.action,
-        target: event.target,
-        success: event.success ?? true,
-        metadata: event.metadata,
-      }),
-      // stdlib timeout — no manual timer to create, clear, or leak.
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!res.ok) {
-      throw new Error(`auth-service responded ${res.status}`);
-    }
+    await recordAuditEventOrThrow(config, event);
   } catch (error) {
     logger.error(
       `Audit entry "${event.action}" was NOT recorded (${(error as Error).message}) — ` +
         `target=${event.target ?? 'n/a'} actor=${event.actorId ?? 'system'}`,
     );
+  }
+}
+
+/**
+ * The same write for a change that must not happen without its row (HD-2: the AI web or a
+ * machine account). Resolves once auth-service has stored it; throws when the trail is not
+ * configured, cannot be reached, or answers anything but 2xx. The ingest endpoint answers
+ * 5xx when its own database write fails, so a 2xx here means the row exists.
+ */
+export async function recordAuditEventOrThrow(
+  config: AuditTrailConfig,
+  event: AuditEvent,
+): Promise<void> {
+  const base = config.authServiceUrl.replace(/\/+$/, '');
+  if (!base || !config.internalServiceKey) {
+    throw new Error('the audit trail is not configured');
+  }
+  const res = await fetch(`${base}/api/v1/auth/audit/internal`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-internal-key': config.internalServiceKey,
+    },
+    body: JSON.stringify({
+      actorId: event.actorId ?? undefined,
+      action: event.action,
+      target: event.target,
+      success: event.success ?? true,
+      metadata: event.metadata,
+    }),
+    // stdlib timeout — no manual timer to create, clear, or leak.
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    throw new Error(`auth-service responded ${res.status}`);
   }
 }

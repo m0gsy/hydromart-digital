@@ -251,7 +251,9 @@ export function verifiedExternalCaller(
   authServiceUrl: string | undefined,
 ): ExternalClaims | null {
   if (!credential) return null;
-  const token = credential.startsWith('Bearer ') ? credential.slice(7).trim() : credential.trim();
+  // Any case, as JwtAuthGuard accepts it: `bearer <token>` passed the guard but missed the
+  // account's bucket and spent the shared address bucket of every AI-web user.
+  const token = credential.replace(/^bearer\s+/i, '').trim();
   if (tokenAlgorithm(token) !== EXTERNAL_TOKEN_ALGORITHM) return null;
   const store = externalKeyStore(authServiceUrl);
   if (!store) return null;

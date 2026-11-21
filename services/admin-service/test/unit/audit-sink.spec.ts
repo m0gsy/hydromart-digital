@@ -61,4 +61,21 @@ describe('AdminAuditSink (CA-2-67)', () => {
     });
     expect(global.fetch).not.toHaveBeenCalled();
   });
+
+  // HD-2: the write a change by the AI web or a machine account depends on.
+  it('recordOrThrow posts the same row and throws when it was not stored', async () => {
+    const calls: { body: string }[] = [];
+    global.fetch = jest.fn(async (_url: string, init: { body: string }) => {
+      calls.push(init);
+      return { ok: true, status: 201 } as never;
+    }) as never;
+    await new AdminAuditSink(config()).recordOrThrow({ action: 'flags.changed.requested' });
+    expect(JSON.parse(calls[0]!.body)).toMatchObject({ action: 'admin.flags.changed.requested' });
+
+    global.fetch = jest.fn(async () => ({ ok: false, status: 500 }) as never) as never;
+    await expect(new AdminAuditSink(config()).recordOrThrow({ action: 'a' })).rejects.toThrow('500');
+    await expect(
+      new AdminAuditSink(config({ authServiceUrl: '' } as never)).recordOrThrow({ action: 'a' }),
+    ).rejects.toThrow('not configured');
+  });
 });

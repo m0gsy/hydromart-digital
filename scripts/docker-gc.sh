@@ -50,6 +50,15 @@ mine="label=com.docker.compose.project=$PROJECT"
 # `set -euo pipefail` that would end this script before it pruned anything.
 others="$($DOCKER ps -a --format '{{.Label "com.docker.compose.project"}}' 2>/dev/null |
   grep -vx -e "$PROJECT" -e '' | sort -u | tr '\n' ' ' || true)"
+# A project this repository deploys beside us is DECLARED by its compose file
+# (infra/<dir>/docker-compose*.yml with its own `name:`, HD-9), and it counts as here even
+# with no container at this moment: mid-redeploy or stopped, its pulled images are still
+# its rollback. Asking only `docker ps` would prune them in exactly that window.
+INFRA_DIR="${GC_INFRA_DIR:-$(cd "$(dirname "$0")/.." && pwd)/infra}"
+declared="$(sed -n 's/^name:[[:space:]]*//p' "$INFRA_DIR"/*/docker-compose*.yml 2>/dev/null |
+  tr -d "\"'\r" | grep -vx -e "$PROJECT" -e '' | sort -u | tr '\n' ' ' || true)"
+others="$(printf '%s %s' "$others" "$declared" | tr ' ' '\n' | grep -v '^$' | sort -u |
+  tr '\n' ' ' || true)"
 
 prune_images() {
   $DOCKER image prune -f "$@" --filter "$mine"

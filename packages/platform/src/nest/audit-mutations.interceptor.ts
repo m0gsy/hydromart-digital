@@ -17,10 +17,14 @@ import { AuditEvent } from './audit-trail';
  * purpose: auth-service owns the audit table, so it writes straight to it; every other
  * service posts to auth-service's internal ingest via `recordAuditEvent`.
  *
- * Never throws — see the class note.
+ * `record` never throws (see the class note). `recordOrThrow` is for the one case that fails
+ * CLOSED (HD-2: a change by the AI web or a machine account). It resolves only once the row
+ * is written and rejects when it was not, so the interceptor can refuse the change. Both
+ * real sinks used to swallow every error, so the 503 that path promised could never happen.
  */
 export interface AuditMutationSink {
   record(event: AuditEvent): Promise<void>;
+  recordOrThrow(event: AuditEvent): Promise<void>;
 }
 
 export const AUDIT_MUTATION_SINK = 'AUDIT_MUTATION_SINK';
@@ -212,7 +216,13 @@ export class AuditMutationsInterceptor implements NestInterceptor {
       return throwError(() => new ServiceUnavailableException(AUDIT_REFUSED));
     }
     return from(
-      this.sink.record({ action: `${action}.requested`, actorId, target, success: true, metadata }),
+      this.sink.recordOrThrow({
+        action: `${action}.requested`,
+        actorId,
+        target,
+        success: true,
+        metadata,
+      }),
     ).pipe(
       // Placed before switchMap, so it sees only the record: a handler's own error passes.
       catchError((err: unknown) => {
