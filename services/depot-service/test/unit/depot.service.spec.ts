@@ -141,7 +141,8 @@ describe('DepotService', () => {
   });
 
   it('persists ownerId on create and update', async () => {
-    const d = await service.create(base({ ownerId: OWNER }));
+    // An owner means a franchise depot: HKP is company-owned and names nobody.
+    const d = await service.create(base({ ownershipType: OwnershipType.WARALABA, ownerId: OWNER }));
     expect(d.ownerId).toBe(OWNER);
 
     const next = '22222222-2222-4222-8222-222222222222';
@@ -242,10 +243,11 @@ describe('DepotService', () => {
   it("listMine returns only the owner's depots (active and inactive), excluding others", async () => {
     const owner = '11111111-1111-4111-8111-111111111111';
     const other = '22222222-2222-4222-8222-222222222222';
-    const active = await service.create(base({ code: 'MINE-A', ownerId: owner }));
-    const inactive = await service.create(base({ code: 'MINE-B', ownerId: owner }));
+    const franchise = { ownershipType: OwnershipType.WARALABA };
+    const active = await service.create(base({ ...franchise, code: 'MINE-A', ownerId: owner }));
+    const inactive = await service.create(base({ ...franchise, code: 'MINE-B', ownerId: owner }));
     await service.deactivate(inactive.id);
-    await service.create(base({ code: 'OTHER-1', ownerId: other }));
+    await service.create(base({ ...franchise, code: 'OTHER-1', ownerId: other }));
     await service.create(base({ code: 'NOOWNER' }));
 
     const mine = await service.listMine(owner);
@@ -437,6 +439,20 @@ describe('DepotService multi-owner', () => {
     const hkp = await service.update(d.id, { ownershipType: OwnershipType.HKP }, d.updatedAt.toISOString());
     expect(hkp.owners).toEqual([]);
     expect(hkp.ownerId).toBeNull();
+  });
+
+  // order-service credits any owners a depot has, whatever its type.
+  it('names no owner for a company (HKP) depot, at creation or after', async () => {
+    await expect(
+      service.create(base({ code: 'HKP-O', ownershipType: OwnershipType.HKP, ownerId: A })),
+    ).rejects.toBeInstanceOf(InvalidOwnerSharesError);
+    const hkp = await service.create(base({ code: 'HKP-1', ownershipType: OwnershipType.HKP }));
+    await expect(
+      service.setOwners(hkp.id, OwnershipType.HKP, split(60, 40), hkp.updatedAt.toISOString()),
+    ).rejects.toBeInstanceOf(InvalidOwnerSharesError);
+    await expect(
+      service.update(hkp.id, { owners: split(60, 40) }, hkp.updatedAt.toISOString()),
+    ).rejects.toBeInstanceOf(InvalidOwnerSharesError);
   });
 
   // Owner decision 2026-11-21: a retried credit could pay the new owner for a sale made before.

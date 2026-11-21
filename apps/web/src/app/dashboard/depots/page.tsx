@@ -11,7 +11,13 @@ import { OwnersEditor } from '@/components/hq/owners-editor';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Money, Skeleton } from '@/components/ui';
 import { api, ApiError, uploadFile } from '@/lib/api';
-import { EMPTY_DEPOT_FORM, ownerRowsFromDepot, toDepotPayload, type DepotForm } from '@/lib/depots';
+import {
+  EMPTY_DEPOT_FORM,
+  ownerRowsFromDepot,
+  toDepotPayload,
+  withoutOwnership,
+  type DepotForm,
+} from '@/lib/depots';
 import {
   RerouteWarning,
   movesDepot,
@@ -184,7 +190,8 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
   const set = (k: keyof DepotForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit() {
-    const parsed = toDepotPayload(form, t);
+    // Locked, the ownership is neither checked (its rows are not on screen to fix) nor sent.
+    const parsed = toDepotPayload(ownershipLocked ? { ...form, ownershipType: 'HKP', owners: [] } : form, t);
     if (!parsed.ok) {
       setError(parsed.error);
       return;
@@ -205,7 +212,10 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
         await api.patch(
           endpoints.depots.detail(depot.id),
           // CA-2-53: the version this edit started from; the server refuses (409) if it moved.
-          { ...parsed.value, seenUpdatedAt: depot.updatedAt },
+          {
+            ...(ownershipLocked ? withoutOwnership(parsed.value) : parsed.value),
+            seenUpdatedAt: depot.updatedAt,
+          },
           true,
         );
       else await api.post(endpoints.depots.create, parsed.value, true);

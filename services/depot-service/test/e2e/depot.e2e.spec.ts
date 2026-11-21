@@ -332,7 +332,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       await request(server())
         .post('/api/v1/depots')
         .set(auth(headOfficeToken))
-        .send({ ...depotBody, code: 'OWN-A', ownerId: OWNER_SUB })
+        .send({ ...depotBody, ownershipType: 'WARALABA', code: 'OWN-A', ownerId: OWNER_SUB })
         .expect(201)
     ).body;
     expect(a.ownerId).toBe(OWNER_SUB);
@@ -340,13 +340,13 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       await request(server())
         .post('/api/v1/depots')
         .set(auth(headOfficeToken))
-        .send({ ...depotBody, code: 'OWN-B', ownerId: OWNER_SUB })
+        .send({ ...depotBody, ownershipType: 'WARALABA', code: 'OWN-B', ownerId: OWNER_SUB })
         .expect(201)
     ).body;
     await request(server())
       .post('/api/v1/depots')
       .set(auth(headOfficeToken))
-      .send({ ...depotBody, code: 'OWN-C', ownerId: OTHER_OWNER })
+      .send({ ...depotBody, ownershipType: 'WARALABA', code: 'OWN-C', ownerId: OTHER_OWNER })
       .expect(201);
     // deactivate one of the owner's depots — listMine still returns it
     await request(server())

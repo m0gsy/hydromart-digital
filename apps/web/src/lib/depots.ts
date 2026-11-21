@@ -154,6 +154,21 @@ export function toOwnershipPayload(
 }
 
 /**
+ * The payload minus who owns the depot: what an editor that may not change ownership sends. A
+ * resend of what it read could still differ from what is stored (a legacy owner on an HKP
+ * depot) and be refused as an ownership change — on a save that only fixed an address.
+ */
+export function withoutOwnership(
+  payload: DepotPayload,
+): Omit<DepotPayload, 'ownershipType' | 'ownerId' | 'owners'> {
+  const rest: Partial<DepotPayload> = { ...payload };
+  delete rest.ownershipType;
+  delete rest.ownerId;
+  delete rest.owners;
+  return rest as Omit<DepotPayload, 'ownershipType' | 'ownerId' | 'owners'>;
+}
+
+/**
  * Coerce the string form into an API payload, or return the first validation
  * error. Required: code/name/address/city/province, ownershipType (WARALABA|HKP),
  * lat/lng (valid ranges), deliveryFee (≥0). Optional: serviceRadiusKm (>0),

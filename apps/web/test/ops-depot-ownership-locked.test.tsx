@@ -48,7 +48,7 @@ vi.mock('@/lib/api', () => ({
   uploadFile: vi.fn(),
   ApiError: class ApiError extends Error {},
 }));
-vi.mock('@/lib/all-depots', () => ({ fetchAllDepots: async () => [DEPOT] }));
+vi.mock('@/lib/all-depots', () => ({ fetchAllDepots: async () => [{ ...DEPOT, owners: [...depot.owners] }] }));
 vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 'u-1', role: auth.role, assignedDepotId: 'dep-1' }, ready: true }),
 }));
@@ -60,6 +60,8 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/dashboard/depots',
   useSearchParams: () => new URLSearchParams(),
 }));
+
+const depot = DEPOT;
 
 import { LocaleProvider } from '@/lib/locale-context';
 import DepotsPage from '@/app/dashboard/depots/page';
@@ -88,20 +90,32 @@ describe('ops depot form: ownership is head office’s', () => {
     expect(document.querySelector('#d-owner-ops-0')).toBeNull();
   });
 
-  it('a manager saving the rest of the depot sends the ownership it read, unchanged', async () => {
+  it('a manager saving the rest of the depot sends no ownership at all', async () => {
     patch.mockResolvedValue({});
     await openEditor();
     await userEvent.click(screen.getByRole('button', { name: /Simpan perubahan|Save changes/ }));
-    await vi.waitFor(() =>
-      expect(patch).toHaveBeenCalledWith(
-        '/depots/api/v1/depots/dep-1',
-        expect.objectContaining({
-          ownershipType: 'WARALABA',
-          owners: [{ ownerId: 'own-1', sharePct: 100, isPrimary: true }],
-        }),
-        true,
-      ),
-    );
+    await vi.waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    const body = patch.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(body).toMatchObject({ code: 'DPT-01', seenUpdatedAt: DEPOT.updatedAt });
+    // A resend could still differ from what is stored and be refused as an ownership change.
+    expect(body).not.toHaveProperty('ownershipType');
+    expect(body).not.toHaveProperty('owners');
+    expect(body).not.toHaveProperty('ownerId');
+  });
+
+  it('stored owners the form would reject do not block a manager save it cannot show', async () => {
+    patch.mockResolvedValue({});
+    depot.owners = [
+      { ownerId: 'own-1', sharePct: 50, isPrimary: true },
+      { ownerId: 'own-1', sharePct: 50, isPrimary: true },
+    ];
+    try {
+      await openEditor();
+      await userEvent.click(screen.getByRole('button', { name: /Simpan perubahan|Save changes/ }));
+      await vi.waitFor(() => expect(patch).toHaveBeenCalledTimes(1));
+    } finally {
+      depot.owners = [{ ownerId: 'own-1', sharePct: 100, isPrimary: true }];
+    }
   });
 
   it('leaves it editable for super admin, who holds head office’s capability too', async () => {

@@ -6,6 +6,7 @@ import {
   OutboxStatus,
   OutboxTopic,
 } from '../../application/ports/outbox.repository';
+import { Prisma } from '../../../prisma/generated/client';
 import { PrismaService } from './prisma.service';
 
 interface OutboxRow {
@@ -113,18 +114,18 @@ export class OutboxPrismaRepository implements OutboxRepository {
   }
 
   async countPendingRevenue(depotId: string): Promise<number> {
-    // Two reads: the outbox row holds no depot. Few rows are ever PENDING at once (the sweep
-    // drains them every ten minutes), so the order ids stay a short list.
-    const rows = await this.prisma.outboxMessage.findMany({
-      where: { status: 'PENDING', topic: { in: ['FRANCHISE_REVENUE', 'FRANCHISE_REVENUE_VOID'] } },
-      select: { orderId: true },
-      // ponytail: a backlog past 1000 owed credits is an outage the ops view already shows.
-      take: 1000,
-    });
-    if (rows.length === 0) return 0;
-    return this.prisma.order.count({
-      where: { id: { in: rows.map((r) => r.orderId) }, depotId },
-    });
+    // One joined count: the outbox row holds no depot. Capping the network-wide rows first and
+    // filtering after would answer 0 for a depot whose rows fell past the cap — a guard that
+    // fails open exactly during the backlog it exists for.
+    const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>(Prisma.sql`
+      SELECT COUNT(*) AS n
+      FROM "outbox_messages" m
+      JOIN "orders" o ON o."id" = m."orderId"
+      WHERE m."status" = 'PENDING'
+        AND m."topic" IN ('FRANCHISE_REVENUE', 'FRANCHISE_REVENUE_VOID')
+        AND o."depotId" = ${depotId}::uuid
+    `);
+    return Number(row?.n ?? 0);
   }
 
   async countByStatus(): Promise<Record<OutboxStatus, number>> {

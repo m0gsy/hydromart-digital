@@ -91,30 +91,26 @@ describe('OutboxPrismaRepository', () => {
   // Owner decision 2026-11-21: head office may not change who owns a depot while any of its
   // franchise revenue is still owed — a retried credit could pay the new owner.
   describe('countPendingRevenue', () => {
-    const order = { count: jest.fn() };
-    const withOrders = new OutboxPrismaRepository({
+    const queryRaw = jest.fn();
+    const withSql = new OutboxPrismaRepository({
       outboxMessage: model,
-      order,
+      $queryRaw: queryRaw,
     } as unknown as PrismaService);
 
-    it('counts the owed credits and voids that belong to the depot', async () => {
-      model.findMany.mockResolvedValueOnce([{ orderId: 'o1' }, { orderId: 'o2' }]);
-      order.count.mockResolvedValueOnce(1);
-      await expect(withOrders.countPendingRevenue('dep-1')).resolves.toBe(1);
-      expect(model.findMany).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          where: { status: 'PENDING', topic: { in: ['FRANCHISE_REVENUE', 'FRANCHISE_REVENUE_VOID'] } },
-          take: 1000,
-        }),
-      );
-      expect(order.count).toHaveBeenCalledWith({ where: { id: { in: ['o1', 'o2'] }, depotId: 'dep-1' } });
+    it('counts the owed credits and voids of that depot in one joined query, with no cap', async () => {
+      queryRaw.mockResolvedValueOnce([{ n: BigInt(3) }]);
+      await expect(withSql.countPendingRevenue('dep-1')).resolves.toBe(3);
+      const sql = queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+      const text = sql.strings.join('?');
+      expect(text).toContain('JOIN "orders"');
+      expect(text).toContain("'FRANCHISE_REVENUE', 'FRANCHISE_REVENUE_VOID'");
+      expect(text).not.toMatch(/LIMIT/i);
+      expect(sql.values).toEqual(['dep-1']);
     });
 
-    it('nothing owed anywhere is no second read', async () => {
-      order.count.mockClear();
-      model.findMany.mockResolvedValueOnce([]);
-      await expect(withOrders.countPendingRevenue('dep-1')).resolves.toBe(0);
-      expect(order.count).not.toHaveBeenCalled();
+    it('an empty answer is nothing owed', async () => {
+      queryRaw.mockResolvedValueOnce([]);
+      await expect(withSql.countPendingRevenue('dep-1')).resolves.toBe(0);
     });
   });
 });

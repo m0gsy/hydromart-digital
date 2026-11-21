@@ -19,6 +19,7 @@ import {
   DepotNotFoundError,
   DuplicateDepotCodeError,
   FranchiseOwnerRequiredError,
+  InvalidOwnerSharesError,
   OwnershipChangeRevenuePendingError,
   InvalidDepotScheduleError,
 } from '../../domain/errors';
@@ -149,6 +150,10 @@ export class DepotService {
     if (data.ownershipType === OwnershipType.WARALABA && given.length === 0) {
       throw new FranchiseOwnerRequiredError();
     }
+    // Company-owned: an owner named here would be paid a franchise share (see update).
+    if (data.ownershipType === OwnershipType.HKP && given.length > 0) {
+      throw new InvalidOwnerSharesError('Depot HKP tidak punya pemilik.');
+    }
     const owners = given.length > 0 ? assertValidOwners(given) : [];
     if (await this.depots.findByCode(data.code)) {
       throw new DuplicateDepotCodeError();
@@ -186,10 +191,16 @@ export class DepotService {
         ? []
         : undefined
       : this.ownersAfter(current, patch);
+    // HKP is company-owned and order-service credits any owners a depot has, whatever its type:
+    // an owner named for an HKP depot would be paid a franchise share.
+    if (ownershipType === OwnershipType.HKP && (nextOwners?.length ?? 0) > 0) {
+      throw new InvalidOwnerSharesError('Depot HKP tidak punya pemilik.');
+    }
+    const changesOwnership = nextOwners !== undefined || ownershipType !== current.ownershipType;
     // Who is paid, and how much, is not a depot setting: editing a depot is open to its manager,
     // changing its owners is head office's (the same people who may create or deactivate one).
     // So is the ownership type, which decides whether anybody is owed a share at all.
-    if ((nextOwners !== undefined || ownershipType !== current.ownershipType) && !canLifecycle) {
+    if (changesOwnership && !canLifecycle) {
       throw new ForbiddenException(
         'Hanya kantor pusat yang boleh mengubah kepemilikan, pemilik, dan pembagian hasil depot.',
       );
@@ -201,7 +212,7 @@ export class DepotService {
     // Revenue still owed is credited by the owners as of its completion, which before any owner
     // generation means the CURRENT ones: an HKP sale retried after the flip would pay the new
     // owner. So the change waits until order-service has booked what it owes this depot.
-    if (this.ledger && (nextOwners !== undefined || ownershipType !== current.ownershipType)) {
+    if (this.ledger && changesOwnership) {
       const pending = await this.ledger.pendingRevenue(id);
       if (pending > 0) throw new OwnershipChangeRevenuePendingError(pending);
     }
