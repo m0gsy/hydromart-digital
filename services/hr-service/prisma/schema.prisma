@@ -364,6 +364,24 @@ model FaceEmbedding {
   @@map("face_embeddings")
 }
 
+/// One shadow comparison (owner decision 2026-11-21): the local engine's answer beside NEO's for
+/// the same punch, kept 30 days by the daily face upkeep. The local threshold is set from these;
+/// container logs died with every deploy, so two weeks of them never accumulated.
+model FaceShadowSample {
+  id         String   @id @default(uuid()) @db.Uuid
+  employeeId String   @db.Uuid
+  neoScore   Float
+  neoMatched Boolean
+  /// Null unless the local engine produced a score.
+  localScore Float?
+  /// scored | no-template | no-face | bad-image | failed
+  outcome    String
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("face_shadow_samples")
+}
+
 /// Which engine judged a punch's face. Null on a punch held PENDING because no engine could.
 enum FaceEngine {
   NEO

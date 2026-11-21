@@ -92,4 +92,9 @@ export interface FaceVerifier {
    * when it was never there; throws when the engine could not be reached or refused.
    */
   remove?(identity: FaceIdentity): Promise<void>;
+  /**
+   * Every employee id the engine's own gallery holds a face for (owner decision 2026-11-21: the
+   * daily upkeep checks it against HR). Engines with no remote gallery leave it undefined.
+   */
+  listEnrolled?(): Promise<string[]>;
 }

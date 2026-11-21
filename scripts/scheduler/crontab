@@ -162,6 +162,12 @@
 # and a round is one depot-service read plus one order-service call per 500 plans.
 */15 * * * * sh /scripts/sweep.sh subscriptions/internal/rehome depot:3007
 
+# Face upkeep (owner decision 2026-11-21): HR's enrolments checked against NEO's gallery — a face
+# NEO lost is retired so the app asks for a new one before the morning check-ins (32 refused punches
+# on 2026-11-21), a face NEO keeps for a leaver is deleted there — and shadow samples past 30 days
+# purged. Daily at 04:00 WIB: after the 03:30 retention purge, before anyone enrols or punches.
+0 4 * * * sh /scripts/sweep.sh employees/internal/faces/maintain hr:3018
+
 # Review requests: ask each customer how a delivery went, `reviewRequestDelayMinutes` (30) after
 # it arrived and until `reviewRequestWindowHours` (72) have passed. Every 10 minutes because the
 # point is to ask while the delivery is still fresh; each order is claimed before the message

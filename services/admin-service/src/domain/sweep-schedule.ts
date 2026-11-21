@@ -92,6 +92,7 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
     everyMinutes: 15,
     label: 'Langganan konsol ikut depot pengantar',
   },
+  { job: 'employees/internal/faces/maintain', everyMinutes: 1440, label: 'Perawatan data wajah (HR–NEO)' },
   { job: 'orders/reminders/review', everyMinutes: 10, label: 'Permintaan ulasan' },
   { job: 'vouchers/internal/notify-expiring', everyMinutes: 60, label: 'Voucher segera berakhir' },
   {
