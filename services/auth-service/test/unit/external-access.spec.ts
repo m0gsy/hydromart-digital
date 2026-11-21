@@ -7,6 +7,8 @@ import {
   EXTERNAL_TOKEN_TTL_SECONDS,
   ExternalAccessService,
 } from '../../src/application/services/external-access.service';
+import { OtpService } from '../../src/application/services/otp.service';
+import { SECOND_FACTOR_TICKET_TTL_SECONDS, TotpService } from '../../src/application/services/totp.service';
 import {
   machineSecretLive,
   parseMachineAccounts,
@@ -17,11 +19,16 @@ import { envValidationSchema } from '../../src/config/env.validation';
 import { CustomerStatus } from '../../src/domain/customer/customer-status.enum';
 import { Role } from '../../src/domain/customer/role.enum';
 import { ExternalTokenSigner } from '../../src/infrastructure/security/external-token-signer';
+import { hotp, stepAt, unsealSecret } from '../../src/infrastructure/security/totp';
 import { ExternalAccessController } from '../../src/modules/auth/external-access.controller';
 import {
   FakeClock,
+  FakeCrypto,
+  FakeOtpDelivery,
   InMemoryAuditLogRepository,
   InMemoryCustomerRepository,
+  InMemoryOtpTokenRepository,
+  InMemoryTotpRepository,
   buildTestConfig,
   makeCustomer,
 } from '../support/fakes';
@@ -63,23 +70,24 @@ function setup(env: Record<string, string> = {}) {
   const config = buildTestConfig({
     AI_TOKEN_SIGNING_KEY: keyB64(),
     MACHINE_ACCOUNTS: JSON.stringify([machine()]),
+    TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString('base64'),
     ...env,
   });
   const signer = new ExternalTokenSigner(config);
   const customers = new InMemoryCustomerRepository();
   const auditLog = new InMemoryAuditLogRepository();
   const clock = new FakeClock(NOW);
-  const service = new ExternalAccessService(
-    customers,
-    clock,
-    signer,
-    new AuditService(auditLog),
-    config,
-  );
-  const staff = makeCustomer({ role: Role.HEAD_OFFICE, assignedDepotId: 'depot-1' });
+  const audit = new AuditService(auditLog);
+  const totpRepo = new InMemoryTotpRepository();
+  const sms = new FakeOtpDelivery();
+  const otp = new OtpService(new InMemoryOtpTokenRepository(), sms, new FakeCrypto(), clock, config);
+  const totp = new TotpService(totpRepo, customers, clock, audit, config, otp);
+  const service = new ExternalAccessService(customers, clock, signer, audit, config, totp);
+  // A role the authenticator step does not apply to; HD-4 below covers the ones it does.
+  const staff = makeCustomer({ role: Role.MANAGER, assignedDepotId: 'depot-1' });
   customers.seed(staff);
   const caller = { sub: staff.id, role: staff.role };
-  return { signer, customers, auditLog, clock, service, staff, caller };
+  return { signer, customers, auditLog, clock, service, staff, caller, totp, totpRepo, config, sms };
 }
 
 describe('external-access config', () => {
@@ -198,7 +206,7 @@ describe('ExternalAccessService handoff', () => {
     expect(verifyExternalToken(result.accessToken, verifierKeys(signer), NOW.getTime())).toEqual({
       sub: staff.id,
       via: 'ai',
-      role: Role.HEAD_OFFICE,
+      role: Role.MANAGER,
       depotId: 'depot-1',
       scopes: [],
     });
@@ -359,5 +367,132 @@ describe('ExternalAccessController', () => {
     await expect(
       controller.machineToken({ accountId: ACCOUNT_ID, secret: SECRET }, req),
     ).resolves.toMatchObject({ tokenType: 'Bearer' });
+  });
+});
+
+describe('ExternalAccessService handoff second factor (HD-4)', () => {
+  /** A HEAD_OFFICE account with its authenticator set up, 30 seconds after confirming it. */
+  async function enrolled(env: Record<string, string> = {}) {
+    const t = setup(env);
+    const hq = makeCustomer({ role: Role.HEAD_OFFICE });
+    t.customers.seed(hq);
+    const me = { sub: hq.id, role: hq.role };
+    const appCode = (): string => {
+      const row = t.totpRepo.rows.get(hq.id)!;
+      const secret = unsealSecret(t.config.totpKeys!.seal, row.secretSealed, hq.id);
+      return hotp(secret, stepAt(t.clock.now().getTime()));
+    };
+    /** A code the app shows for none of the three steps that would be accepted now. */
+    const wrongCode = (): string => {
+      const row = t.totpRepo.rows.get(hq.id)!;
+      const secret = unsealSecret(t.config.totpKeys!.seal, row.secretSealed, hq.id);
+      const step = stepAt(t.clock.now().getTime());
+      const live = [step - 1, step, step + 1].map((s) => hotp(secret, s));
+      return ['000000', '111111', '222222', '333333'].find((c) => !live.includes(c))!;
+    };
+    await t.totp.startEnrolment(me, ctx);
+    await t.totp.confirmEnrolment(me, appCode(), t.sms.lastCode!, ctx);
+    t.clock.advance(30);
+    const newCode = async () => (await t.service.issueHandoffCode(me, challengeOf(VERIFIER), ctx)).code;
+    return { ...t, hq, me, appCode, wrongCode, newCode };
+  }
+
+  it('a role that needs it but never set one up is told to, and the code is spent', async () => {
+    const t = setup();
+    const finance = makeCustomer({ role: Role.FINANCE });
+    t.customers.seed(finance);
+    const { code } = await t.service.issueHandoffCode(
+      { sub: finance.id, role: finance.role },
+      challengeOf(VERIFIER),
+      ctx,
+    );
+    await expect(t.service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject({
+      code: 'AUTH_TOTP_ENROLMENT_REQUIRED',
+    });
+    await expect(
+      t.service.exchangeHandoffCode(code, VERIFIER, ctx, { totp: '123456' }),
+    ).rejects.toMatchObject({ code: 'AUTH_HANDOFF_INVALID' });
+  });
+
+  it('asks for the app code, keeps the code once for it, and returns a 12-hour ticket', async () => {
+    const t = await enrolled();
+    const code = await t.newCode();
+    await expect(t.service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject({
+      code: 'AUTH_TOTP_REQUIRED',
+    });
+    t.clock.advance(50); // past the code's first minute, inside the one it was given again
+    const result = await t.service.exchangeHandoffCode(code, VERIFIER, ctx, { totp: t.appCode() });
+    expect(result).toMatchObject({
+      tokenType: 'Bearer',
+      secondFactorTicketExpiresIn: SECOND_FACTOR_TICKET_TTL_SECONDS,
+    });
+    expect(result.secondFactorTicket).toEqual(expect.any(String));
+    const exchanged = t.auditLog.entries.filter((e) => e.action === 'auth.handoff.exchanged');
+    expect(exchanged.map((e) => e.metadata)).toEqual([{ secondFactor: 'totp' }]);
+
+    // The next handoff sends the ticket instead of a code, and gets no new ticket.
+    const again = await t.service.exchangeHandoffCode(await t.newCode(), VERIFIER, ctx, {
+      ticket: result.secondFactorTicket,
+    });
+    expect(again.secondFactorTicket).toBeUndefined();
+  });
+
+  it('keeps a code only once, and only for 60 seconds more', async () => {
+    const t = await enrolled();
+    const code = await t.newCode();
+    const missing = { code: 'AUTH_TOTP_REQUIRED' };
+    await expect(t.service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject(missing);
+    await expect(t.service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject(missing);
+    await expect(
+      t.service.exchangeHandoffCode(code, VERIFIER, ctx, { totp: t.appCode() }),
+    ).rejects.toMatchObject({ code: 'AUTH_HANDOFF_INVALID' });
+
+    const late = await t.newCode();
+    await expect(t.service.exchangeHandoffCode(late, VERIFIER, ctx)).rejects.toMatchObject(missing);
+    t.clock.advance(61);
+    await expect(
+      t.service.exchangeHandoffCode(late, VERIFIER, ctx, { totp: t.appCode() }),
+    ).rejects.toMatchObject({ code: 'AUTH_HANDOFF_INVALID' });
+  });
+
+  it('a wrong app code spends the code; a wrong verifier never reaches the second factor', async () => {
+    const t = await enrolled();
+    const code = await t.newCode();
+    await expect(
+      t.service.exchangeHandoffCode(code, VERIFIER, ctx, { totp: t.wrongCode() }),
+    ).rejects.toMatchObject({ code: 'AUTH_TOTP_INVALID' });
+    await expect(
+      t.service.exchangeHandoffCode(code, VERIFIER, ctx, { totp: t.appCode() }),
+    ).rejects.toMatchObject({ code: 'AUTH_HANDOFF_INVALID' });
+
+    const other = await t.newCode();
+    await expect(t.service.exchangeHandoffCode(other, 'w'.repeat(43), ctx)).rejects.toMatchObject({
+      code: 'AUTH_HANDOFF_INVALID',
+    });
+    expect(t.auditLog.entries.filter((e) => e.action === 'auth.totp.failed')).toHaveLength(1);
+  });
+
+  it('with no TOTP_ENCRYPTION_KEY a role that needs it cannot sign in at all', async () => {
+    const t = setup({ TOTP_ENCRYPTION_KEY: '' });
+    const director = makeCustomer({ role: Role.DIREKTUR });
+    t.customers.seed(director);
+    const { code } = await t.service.issueHandoffCode(
+      { sub: director.id, role: director.role },
+      challengeOf(VERIFIER),
+      ctx,
+    );
+    await expect(t.service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject({
+      code: 'AUTH_TOTP_OFF',
+    });
+  });
+
+  it('the controller passes the second factor through', async () => {
+    const t = await enrolled();
+    const controller = new ExternalAccessController(t.service, t.signer);
+    const req = { ip: '10.0.0.9', headers: { 'user-agent': 'ai-web' } } as never;
+    const code = await t.newCode();
+    await expect(
+      controller.handoffToken({ code, codeVerifier: VERIFIER, totp: t.appCode() }, req),
+    ).resolves.toMatchObject({ secondFactorTicketExpiresIn: SECOND_FACTOR_TICKET_TTL_SECONDS });
   });
 });

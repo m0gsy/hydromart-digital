@@ -82,6 +82,10 @@ const EXEMPT = new Map([
   ['auth-service:external-access.controller.ts:handoffCode', 'writes auth.handoff.code_issued itself'],
   ['auth-service:external-access.controller.ts:handoffToken', 'writes auth.handoff.exchanged / failed'],
   ['auth-service:external-access.controller.ts:machineToken', 'writes auth.machine.token_issued / failed'],
+  // HD-4: the authenticator behind the AI-web sign-in. Each writes its own auth.totp.* row.
+  ['auth-service:totp.controller.ts:startEnrolment', 'writes auth.totp.enrolment_started itself'],
+  ['auth-service:totp.controller.ts:confirmEnrolment', 'writes auth.totp.enrolled / failed itself'],
+  ['auth-service:totp.controller.ts:reset', 'writes auth.totp.reset itself, actor and target'],
 
   /*
    * A customer acting on their own account is not a privileged decision, and this trail is

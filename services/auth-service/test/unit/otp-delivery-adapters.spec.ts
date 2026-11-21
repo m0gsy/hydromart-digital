@@ -156,6 +156,17 @@ describe('OTP delivery adapters', () => {
       expect(text.length).toBeLessThanOrEqual(400);
     });
 
+    // HD-4: the owner of the number learns an authenticator is being set up on their account.
+    it('uses the authenticator copy for an authenticator set-up', async () => {
+      const fetchMock = mockZenziva({ status: '1' });
+      await new ZenzivaOtpDeliveryAdapter(config).send({ ...message, purpose: OtpPurpose.TOTP_ENROLMENT });
+      const text = sentForm(fetchMock).get('message') ?? '';
+      expect(text).toContain('Kode Autentikator HYDROMART');
+      expect(text).toContain('memasang aplikasi autentikator di akun Anda');
+      expect(text).toContain('segera hubungi kantor pusat');
+      expect(text.length).toBeLessThanOrEqual(400);
+    });
+
     // Zenziva answers 200 even when it refuses the send; the real outcome is in `status`.
     it('throws when Zenziva returns a non-success status on a 200', async () => {
       mockZenziva({ status: '0', text: 'Insufficient balance' });

@@ -9,4 +9,9 @@ export enum OtpPurpose {
    * be spendable on the other.
    */
   PHONE_CHANGE = 'PHONE_CHANGE',
+  /**
+   * HD-4: setting up an authenticator app. Sent to the account's own number, so a stolen
+   * session alone cannot bind the thief's app as the account's second factor.
+   */
+  TOTP_ENROLMENT = 'TOTP_ENROLMENT',
 }

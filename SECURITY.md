@@ -75,6 +75,16 @@ Worth knowing before reporting, and worth keeping true:
   their own staff session; a machine account only with its secret, which expires within
   90 days. Tokens last 15 minutes and are never refreshed. See
   [`services/auth-service/src/application/services/external-access.service.ts`](services/auth-service/src/application/services/external-access.service.ts).
+  Direksi, HQ, Finance and SUPER_ADMIN, and anyone who set one up, also pass an
+  authenticator app code (TOTP) at that handoff (HD-4). Setting one up takes the person's
+  session and an SMS code to the account's number, so a stolen session cannot bind its own
+  app. The secrets are sealed with `TOTP_ENCRYPTION_KEY` (AES-256-GCM, bound to the
+  account); a code is accepted once; every try is counted before it is compared, and five
+  wrong codes lock the step for 15 minutes; ten single-use recovery codes are stored as
+  keyed hashes. A passed step yields a 12-hour ticket, a bearer value the AI web keeps on
+  its server, so the code is typed once per session; a reset voids it. Only another
+  SUPER_ADMIN resets an authenticator. See
+  [`services/auth-service/src/application/services/totp.service.ts`](services/auth-service/src/application/services/totp.service.ts).
 - **Personal data.** Consent and retention are enforced by a purge engine, not by
   intent; export and erasure paths exist for UU PDP.
 

@@ -300,3 +300,6 @@ echo "All indexes present."
 # webhook_event_outbox_eventId_key and webhook_event_outbox_status_nextAttemptAt_idx (delivery-service,
 # 2026-11-08) are built by their own migration, not here: they index a table that migration creates,
 # so it is empty and the build is instant.
+
+# totp_recovery_codes_customerId_idx (auth-service, 2026-11-22, HD-4) is built by its own migration,
+# not here: it indexes a table that migration creates, so it is empty and the build is instant.

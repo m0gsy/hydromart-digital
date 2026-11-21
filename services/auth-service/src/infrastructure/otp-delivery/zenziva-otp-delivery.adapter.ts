@@ -151,6 +151,15 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
         `Kode berlaku selama ${minutes} menit. Abaikan pesan ini jika Anda tidak melakukan permintaan login.`,
       ].join('\n');
     }
+    if (message.purpose === OtpPurpose.TOTP_ENROLMENT) {
+      return [
+        'Kode Autentikator HYDROMART',
+        '',
+        `Masukkan kode OTP ${message.code} untuk memasang aplikasi autentikator di akun Anda.`,
+        '',
+        `Kode berlaku selama ${minutes} menit. Jika bukan Anda yang memasangnya, segera hubungi kantor pusat.`,
+      ].join('\n');
+    }
     return [
       'Kode Verifikasi HYDROMART',
       '',

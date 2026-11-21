@@ -75,6 +75,9 @@ import { InternalAccountController } from './internal.controller';
 import { ExternalAccessController } from './external-access.controller';
 import { ExternalAccessService } from '../../application/services/external-access.service';
 import { ExternalTokenSigner } from '../../infrastructure/security/external-token-signer';
+import { TotpController } from './totp.controller';
+import { TotpService } from '../../application/services/totp.service';
+import { TotpPrismaRepository } from '../../infrastructure/prisma/repositories/totp.prisma.repository';
 
 /** Binds each application port to its infrastructure adapter (dependency inversion). */
 const adapterProviders: Provider[] = [
@@ -88,6 +91,7 @@ const adapterProviders: Provider[] = [
   { provide: AUTH_TOKENS.CustomerRepository, useClass: CustomerPrismaRepository },
   { provide: AUTH_TOKENS.OtpTokenRepository, useClass: OtpTokenPrismaRepository },
   { provide: AUTH_TOKENS.RefreshTokenRepository, useClass: RefreshTokenPrismaRepository },
+  { provide: AUTH_TOKENS.TotpRepository, useClass: TotpPrismaRepository },
   { provide: AUTH_TOKENS.AuditLogRepository, useClass: AuditLogPrismaRepository },
   {
     provide: AUTH_TOKENS.DataSubjectRequestRepository,
@@ -163,6 +167,7 @@ const applicationServices: Provider[] = [
   ConsentService,
   AccessMatrixService,
   ExternalAccessService,
+  TotpService,
 ];
 
 const globalGuards: Provider[] = [
@@ -188,6 +193,7 @@ const globalGuards: Provider[] = [
     ConsentController,
     AccessController,
     ExternalAccessController,
+    TotpController,
   ],
   providers: [
     // CA-2-67: role grants and RBAC-matrix edits reached no trail at all. See
