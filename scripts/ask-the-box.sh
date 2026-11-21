@@ -17,6 +17,11 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 
+# HD-1: every container lookup below is this project's only. Another compose project runs on
+# this box, and `docker ps` lists the newest container first, so a bare `--filter name=postgres`
+# would hand its database to every query here the day it starts one.
+OURS='label=com.docker.compose.project=hydromart'
+
 line() { printf '\n== %s\n' "$1"; }
 
 line "box"
@@ -76,7 +81,7 @@ fi
 # And what the RUNNING container has, which is the only thing that decides behaviour — a .env
 # edited after the last `up -d` has not reached the process yet.
 line "L2.1 — what the running auth container actually has"
-auth="$(docker ps --filter 'name=auth' --format '{{.Names}}' 2>/dev/null | head -1)"
+auth="$(docker ps --filter "$OURS" --filter 'name=auth' --format '{{.Names}}' 2>/dev/null | head -1)"
 if [ -n "$auth" ]; then
   docker exec "$auth" sh -c '
     echo "  container            : ok"
@@ -105,7 +110,7 @@ if [ -f .env ]; then
   echo "   docs/RUNBOOK_SECRET_ROTATION.md, and a key being set says nothing about its age.)"
 fi
 
-PG="$(docker ps --filter 'name=postgres' --format '{{.Names}}' 2>/dev/null | grep -v exporter | head -1)"
+PG="$(docker ps --filter "$OURS" --filter 'name=postgres' --format '{{.Names}}' 2>/dev/null | grep -v exporter | head -1)"
 q() { docker exec "$PG" psql -U hydromart -d "$1" -t -A -F'|' -c "$2" 2>/dev/null; }
 
 line "L2.3 — can a real depot actually be paid?"
@@ -184,8 +189,8 @@ fi
 line "M16 — is the scheduler actually running?"
 docker compose $COMPOSE_FILES ps --format '  {{.Service}}\t{{.State}}\t{{.Health}}' 2>/dev/null |
   grep -iE 'scheduler|^$' || echo "  no scheduler row in \`compose ps\`"
-echo "  containers named scheduler, any project:"
-docker ps -a --filter 'name=scheduler' --format '    {{.Names}}  {{.Status}}' 2>/dev/null |
+echo "  containers named scheduler in this project, stopped ones too:"
+docker ps -a --filter "$OURS" --filter 'name=scheduler' --format '    {{.Names}}  {{.Status}}' 2>/dev/null |
   head -5 || true
 
 # The scheduler answer above is one container. A `running` container can still be unhealthy —
@@ -245,7 +250,7 @@ echo "  sweep_runs rows that are not ok:"
 q hydromart_admin "select job, host, ok, \"consecutiveFailures\", \"lastRunAt\"::text, coalesce(\"lastOkAt\"::text, 'never'), left(coalesce(detail, ''), 90) from sweep_runs where ok = false order by \"lastRunAt\" desc limit 8" | sed -E 's/[0-9]{9,}/#/g; s/^/    /' || true
 echo "  5xx responses per service and route, last 36h (Prometheus):"
 PROMQ='sum%20by%20(job%2Croute%2Cstatus)%20(increase(http_request_duration_seconds_count%7Bstatus%3D~%225..%22%7D%5B36h%5D))'
-docker exec "$(docker ps --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)" wget -qO- "http://localhost:9090/api/v1/query?query=${PROMQ}" 2>/dev/null |
+docker exec "$(docker ps --filter "$OURS" --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)" wget -qO- "http://localhost:9090/api/v1/query?query=${PROMQ}" 2>/dev/null |
   grep -oE '"metric":\{[^}]*\},"value":\[[0-9.]+,"[0-9.]+"\]' |
   sed -E 's/"metric":\{//; s/"job":"([a-z-]+)"/\1/; s/,?"route":"([^"]*)"/ \1/; s/,?"status":"(5..)"/ \1/; s/\},"value":\[[0-9.]+,"([0-9.]+)"\]/ x\1/' | head -14 | sed 's/^/    /' || true
 
@@ -255,7 +260,7 @@ docker exec "$(docker ps --filter name=prometheus --format '{{.Names}}' | grep -
 # the second channel's URL file is there and non-empty (size only, never the URL), and whether it has
 # failed a notification since it started.
 line "ALERTMANAGER — is the second channel live in the RUNNING container?"
-AM_C="$(docker ps --filter name=alertmanager --format '{{.Names}}' | grep -v exporter | head -1)"
+AM_C="$(docker ps --filter "$OURS" --filter name=alertmanager --format '{{.Names}}' | grep -v exporter | head -1)"
 if [ -z "$AM_C" ]; then
   echo "  no alertmanager container is running"
 else
@@ -287,7 +292,7 @@ echo "  auth container: how long Zenziva took to accept each send (newest last):
 docker compose $COMPOSE_FILES logs --timestamps auth 2>&1 | grep 'Zenziva accepted the OTP send' | tail -8 | cut -c1-200 | sed -E 's/[0-9]{9,}/#/g; s/^/    /' || true
 echo "  auth container started: $(docker inspect -f '{{.State.StartedAt}}' "$(docker compose $COMPOSE_FILES ps -q auth 2>/dev/null | head -1)" 2>/dev/null || echo unknown)"
 echo "  the request that issues a code — latency at the auth service, POST, last 36h:"
-PROM_C="$(docker ps --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)"
+PROM_C="$(docker ps --filter "$OURS" --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)"
 pq() { docker exec "$PROM_C" wget -qO- "http://localhost:9090/api/v1/query?query=$1" 2>/dev/null; }
 for qtl in 0.5 0.95 0.99; do
   RES="$(pq "histogram_quantile($qtl%2Csum%20by%20(le%2Croute)(increase(http_request_duration_seconds_bucket%7Bmethod%3D%22POST%22%2Croute%3D~%22%2Fapi%2Fv1%2Fauth%2F(login%7Cregister%7Cotp%2Fresend)%22%7D%5B36h%5D)))")"
@@ -301,7 +306,7 @@ pq 'sum%20by%20(route%2Cstatus)%20(increase(http_request_duration_seconds_count%
 
 line "CONFIG DRIFT — does any container run a config file older than the one on disk?"
 bash scripts/check-config-drift.sh 2>&1 | tail -14 | sed 's/^/  /'
-PROM_D="$(docker ps --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)"
+PROM_D="$(docker ps --filter "$OURS" --filter name=prometheus --format '{{.Names}}' | grep -v exporter | head -1)"
 if [ -n "$PROM_D" ]; then
   echo "  alert-rules.yml md5  host: $(md5sum ops/alert-rules.yml | cut -c1-12)  container: $(docker exec "$PROM_D" md5sum /etc/prometheus/alert-rules.yml 2>/dev/null | cut -c1-12)"
   echo "  repo HEAD on the box: $(git rev-parse --short HEAD)  prometheus started: $(docker inspect -f '{{.State.StartedAt}}' "$PROM_D")"
@@ -312,7 +317,7 @@ fi
 line "capacity (context for M13/M15)"
 echo "  disk:"
 df -h / 2>/dev/null | sed 's/^/    /'
-echo "  docker space:"
+echo "  docker space (the whole box: every project shares this disk):"
 docker system df 2>/dev/null | sed 's/^/    /'
 echo "  memory:"
 free -h 2>/dev/null | sed 's/^/    /' || echo "    (free unavailable)"
@@ -379,7 +384,7 @@ line "PROMETHEUS — the rules it is actually evaluating, and what is firing rig
 # process. The route selectors are printed because two business alerts selected a route that
 # did not exist and fired — or stayed silent — on that basis; the firing list is what a
 # person on call would see first.
-PROM="$(docker ps --filter 'name=prometheus' --format '{{.Names}}' 2>/dev/null | head -1)"
+PROM="$(docker ps --filter "$OURS" --filter 'name=prometheus' --format '{{.Names}}' 2>/dev/null | head -1)"
 if [ -n "$PROM" ]; then
   LIVE_RULES="$(docker exec "$PROM" wget -qO- http://localhost:9090/api/v1/rules 2>/dev/null || true)"
   if [ -z "$LIVE_RULES" ]; then

@@ -239,12 +239,19 @@ stack sets them. A bare-IP deploy is a test posture, not a production one.
 
 Changing the API hostname means changing `connect-src` too — it is interpolated
 from `{$API_DOMAIN}`, so setting that variable is enough. Validate any edit before
-restarting:
+restarting, with the Caddy image the stack pins:
 
 ```bash
 docker run --rm -e WEB_DOMAIN -e API_DOMAIN -v "$PWD/infra/caddy:/etc/caddy:ro" \
-  caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+  "$(grep -o 'caddy:2-alpine@sha256:[0-9a-f]*' docker-compose.prod.yml)" \
+  caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 ```
+
+**More sites (HD-1).** The `Caddyfile` ends with `import sites/*.caddy`: one file per
+extra site in `infra/caddy/sites/` (see its README). Their upstreams join the `edge`
+network, never this project's default one. A release that changes anything under
+`infra/caddy/` reloads Caddy, and a file that does not validate leaves the old config
+serving and raises an alert.
 
 ---
 

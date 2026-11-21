@@ -23,7 +23,8 @@ full="$(DOCKER_BIN="$tmp/fake-docker" bash scripts/docker-gc.sh 2>/dev/null | gr
 images="$(DOCKER_BIN="$tmp/fake-docker" bash scripts/docker-gc.sh --images-only 2>/dev/null | grep -c 'builder prune' || true)"
 imagePrune="$(DOCKER_BIN="$tmp/fake-docker" bash scripts/docker-gc.sh --images-only 2>/dev/null | grep -c 'image prune' || true)"
 
-oldFlag="$(DOCKER_BIN="$tmp/fake-docker" bash scripts/docker-gc.sh --old-images 2>/dev/null | grep -c 'image prune -a -f --filter until=168h' || true)"
+# HD-1: scoped to this project's label (project-isolation.test.sh covers the two-project box).
+oldFlag="$(DOCKER_BIN="$tmp/fake-docker" bash scripts/docker-gc.sh --old-images 2>/dev/null | grep -c 'image prune -f -a --filter until=168h --filter label=com.docker.compose.project=hydromart' || true)"
 defaultAll="$(DOCKER_BIN="$tmp/fake-docker" bash scripts/docker-gc.sh 2>/dev/null | grep -c 'prune -a' || true)"
 batchAll="$(DOCKER_BIN="$tmp/fake-docker" bash scripts/docker-gc.sh --images-only 2>/dev/null | grep -c 'prune -a' || true)"
 check "--old-images prunes unused tagged images older than 7 days" 1 "$oldFlag"

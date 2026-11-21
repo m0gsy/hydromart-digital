@@ -8,6 +8,18 @@
 # data store, a persistent volume and a container's worth of RAM, kept alive by
 # this entry and three `depends_on` lines. Removed rather than "kept for later":
 # later can add the eight lines back.
+
+# HD-1: the project name is PINNED, not derived from the checkout directory. It was
+# `hydromart` on the box, `hydromart-digital` on a CI runner and the folder name in any
+# worktree. Production is about to host a second compose project (the AI web), every
+# deploy converges with `up -d --remove-orphans`, and an orphan is "a container carrying
+# this project's label that these files do not declare" — so the label must be one no
+# other stack can get by accident. The host scripts (docker-gc, check-config-drift,
+# ask-the-box, go-live-report, reset-test-data) filter on
+# com.docker.compose.project=hydromart; scripts/project-isolation.test.sh holds both
+# sides to this value.
+name: hydromart
+
 services:
   postgres:
     image: postgres:16-alpine

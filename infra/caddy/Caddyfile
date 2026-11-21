@@ -68,3 +68,10 @@ www.{$WEB_DOMAIN} {
 
 	reverse_proxy gateway:8080
 }
+
+# HD-1: one file per extra site, e.g. sites/aiweb.caddy for the AI web, which reaches its
+# upstream over the `edge` network. Last in this file so a site file can `import hsts`. The
+# path is relative to THIS file, and a glob that matches nothing is not an error, so an
+# empty sites/ is a valid config. deploy.sh reloads Caddy whenever a release changes
+# anything under infra/caddy/, and a reload validates the new config before it swaps.
+import sites/*.caddy

@@ -918,6 +918,13 @@ fi
 # nobody notices restarting are restarted here. Anything user-facing is named instead of
 # touched mid-deploy: an operator picks that moment, not a script.
 DRIFTED="$(bash scripts/check-config-drift.sh --list 2>/dev/null || true)"
+# HD-1: Caddy reads infra/caddy/ through a DIRECTORY mount, which the check above skips on
+# purpose (a new file inside one is visible at once). Visible is not loaded: Caddy reads its
+# config at start and on `caddy reload` only. So a release that edits the Caddyfile or adds a
+# site under infra/caddy/sites/ hands Caddy to the reload below.
+if ! git diff --quiet "$PREV_SHA" "$NEW_SHA" -- infra/caddy/ 2>/dev/null; then
+  DRIFTED="$DRIFTED $($COMPOSE ps --format '{{.Name}}' caddy 2>/dev/null || true)"
+fi
 for stale in $DRIFTED; do
   case "$stale" in
     *prometheus*|*alertmanager*|*grafana*|*exporter*)
@@ -937,7 +944,19 @@ for stale in $DRIFTED; do
       #
       # `--force` because the config on disk can be byte-identical to the one Caddy holds
       # after an earlier failed adopt; without it that reload is a no-op that reports success.
-      if docker exec "$stale" caddy reload --config /etc/caddy/Caddyfile --force >/dev/null 2>&1; then
+      #
+      # Three tries, five seconds apart: a release that also changed Caddy's definition
+      # recreated it seconds ago, and a reload sent before its admin API answers is not a
+      # Caddyfile that failed to validate.
+      reloaded=false
+      for _ in 1 2 3; do
+        if docker exec "$stale" caddy reload --config /etc/caddy/Caddyfile --force >/dev/null 2>&1; then
+          reloaded=true
+          break
+        fi
+        sleep 5
+      done
+      if $reloaded; then
         log "$stale reloaded its Caddyfile (no connections dropped)"
       else
         # A reload that fails means the new Caddyfile did not VALIDATE — Caddy keeps serving

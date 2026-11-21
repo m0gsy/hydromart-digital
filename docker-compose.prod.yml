@@ -1082,7 +1082,12 @@ services:
   # 127.0.0.1) so the public only hits Caddy. See DEPLOY.md §6.
   caddy:
     logging: *logging
-    image: caddy:2-alpine
+    # HD-1: pinned to the digest production already runs (read off the box 2026-11-18 and
+    # 2026-11-21), so a deploy can never pull a Caddy nobody tested — the front door of
+    # every app on this box. `2-alpine` is only the readable half; docker pulls the digest.
+    # To move it: pull the new tag somewhere safe, `caddy validate` this directory with it,
+    # then change the digest here in a PR.
+    image: caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
     restart: unless-stopped
     mem_limit: 128m
     cpus: 0.5
@@ -1120,6 +1125,14 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    networks:
+      # `default` must be named once a service lists networks at all, or Caddy loses
+      # web:3000 and gateway:8080.
+      - default
+      # HD-1: the network a second project's web front joins so Caddy can proxy to it,
+      # without either stack joining the other's default network. Caddy is this project's
+      # only member. Its site file goes in infra/caddy/sites/.
+      - edge
     volumes:
       # The DIRECTORY, not the file - and that difference is a live security finding.
       #
@@ -1137,6 +1150,11 @@ services:
       - ./infra/caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
+
+networks:
+  edge:
+    # A fixed name, not `hydromart_edge`, so the other project can declare it `external`.
+    name: edge
 
 volumes:
   caddy_data:

@@ -15,16 +15,22 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 NAME=hydromart-drift-selftest
+# HD-1: a container of ANOTHER compose project with the same stale mount. deploy.sh restarts
+# what the check lists, so it must never list this one.
+OTHER=hydromart-drift-selftest-other
 CONF="$(mktemp)"
-cleanup() { docker rm -f "$NAME" >/dev/null 2>&1; rm -f "$CONF" "$CONF.new"; }
+cleanup() { docker rm -f "$NAME" "$OTHER" >/dev/null 2>&1; rm -f "$CONF" "$CONF.new"; }
 trap cleanup EXIT
 cleanup
 
 printf 'setting = one\n' > "$CONF"
-docker run -d --name "$NAME" -v "$CONF:/etc/probe.conf:ro" alpine:3.20 sleep 120 >/dev/null || {
-  echo 'FAIL: could not start the fixture container'
-  exit 1
-}
+for c in "$NAME:hydromart" "$OTHER:another-project"; do
+  docker run -d --name "${c%%:*}" --label "com.docker.compose.project=${c#*:}" \
+    -v "$CONF:/etc/probe.conf:ro" alpine:3.20 sleep 120 >/dev/null || {
+    echo 'FAIL: could not start the fixture containers'
+    exit 1
+  }
+done
 
 if ! bash scripts/check-config-drift.sh >/tmp/drift1.out 2>&1; then
   echo 'FAIL: reported drift while the file and the container agreed'
@@ -52,6 +58,11 @@ grep -q 'restart' /tmp/drift2.out || {
   exit 1
 }
 echo 'ok: a replaced-on-disk file IS reported, naming the container and the fix'
+if grep -q "$OTHER" /tmp/drift2.out; then
+  echo "FAIL: reported $OTHER, a container of another compose project (deploy.sh would restart it)"
+  exit 1
+fi
+echo 'ok: the same drift in another compose project is not reported'
 
 # The remedy the report prints, executed. This assertion exists because the first draft of
 # the checker asserted the OPPOSITE — that a restart could not clear the drift and only a
