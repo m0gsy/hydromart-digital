@@ -171,10 +171,17 @@ export class DepotService {
     // Judged on the depot as it will be AFTER the patch: flipping HKP → WARALABA without
     // naming an owner, or clearing the owner of a franchise depot, both break the money path.
     const ownershipType = patch.ownershipType ?? current.ownershipType;
-    const nextOwners = this.ownersAfter(current, patch);
+    // HKP is company-owned, so turning a depot HKP ends its owners' shares: order-service
+    // credits whatever owners a depot still has, whatever its type.
+    const toHkp = ownershipType === OwnershipType.HKP && current.ownershipType !== OwnershipType.HKP;
+    const nextOwners = toHkp
+      ? currentOwners(current).length > 0
+        ? []
+        : undefined
+      : this.ownersAfter(current, patch);
     // Who is paid, and how much, is not a depot setting: editing a depot is open to its manager,
     // changing its owners is head office's (the same people who may create or deactivate one).
-    // So is the ownership type: a franchise depot turned HKP credits nobody, owners or not.
+    // So is the ownership type, which decides whether anybody is owed a share at all.
     if ((nextOwners !== undefined || ownershipType !== current.ownershipType) && !canLifecycle) {
       throw new ForbiddenException(
         'Hanya kantor pusat yang boleh mengubah kepemilikan, pemilik, dan pembagian hasil depot.',
@@ -198,6 +205,26 @@ export class DepotService {
       id,
       nextOwners ? { ...rest, owners: nextOwners, ownerId: primaryOwnerId(nextOwners) } : rest,
     );
+  }
+
+  /**
+   * PUT …/owners, head office's: the ownership type and owners, nothing else. `after` is null
+   * when the save changes neither, and then nothing is written — no new version for an open
+   * edit form to be refused over, and no audit line for a change nobody made.
+   */
+  async setOwners(
+    id: string,
+    ownershipType: OwnershipType,
+    owners: DepotOwnerShare[],
+    seenUpdatedAt: string,
+  ): Promise<{ before: DepotRecord; after: DepotRecord | null }> {
+    const before = await this.get(id, false);
+    assertFresh(before.updatedAt, seenUpdatedAt);
+    const patch = { ownershipType, owners };
+    if (ownershipType === before.ownershipType && this.ownersAfter(before, patch) === undefined) {
+      return { before, after: null };
+    }
+    return { before, after: await this.update(id, patch, seenUpdatedAt, true) };
   }
 
   /**

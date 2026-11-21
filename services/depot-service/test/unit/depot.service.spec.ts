@@ -430,6 +430,29 @@ describe('DepotService multi-owner', () => {
     expect(moved.owners).toEqual([]);
   });
 
+  // order-service credits whatever owners a depot still has, whatever its type.
+  it('ends the owners of a depot turned HKP, even when the change names none', async () => {
+    const d = await franchise({ owners: split(60, 40) });
+    const hkp = await service.update(d.id, { ownershipType: OwnershipType.HKP }, d.updatedAt.toISOString());
+    expect(hkp.owners).toEqual([]);
+    expect(hkp.ownerId).toBeNull();
+  });
+
+  it('writes nothing for an owners save that changes nothing', async () => {
+    const d = await franchise({ owners: split(60, 40) });
+    const seen = d.updatedAt.toISOString();
+    const same = await service.setOwners(d.id, OwnershipType.WARALABA, split(60, 40), seen);
+    expect(same.after).toBeNull();
+    expect(repo.history).toHaveLength(0);
+    // Still the version check first: a stale copy is refused, changed or not.
+    const moved = await service.setOwners(d.id, OwnershipType.WARALABA, split(50, 50), seen);
+    expect(moved.after?.owners?.map((o) => o.sharePct)).toEqual([50, 50]);
+    expect(moved.before.owners).toEqual(split(60, 40));
+    await expect(
+      service.setOwners(d.id, OwnershipType.WARALABA, split(50, 50), seen),
+    ).rejects.toThrow();
+  });
+
   it('falls back to the current set for a moment before any generation was recorded', async () => {
     const d = await franchise({ owners: split(60, 40) });
     expect(await service.ownersAsOf(d.id, new Date(0))).toEqual(split(60, 40));

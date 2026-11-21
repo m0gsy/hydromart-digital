@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Buildings, Storefront } from '@phosphor-icons/react';
 
 import { OwnersEditor } from '@/components/hq/owners-editor';
+import { useToast } from '@/components/toast';
 import { Button, Card, RadioCard } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { ownerRowsFromDepot, toOwnershipPayload } from '@/lib/depots';
@@ -26,6 +27,7 @@ export function DepotOwnersForm({
   onCancel: () => void;
 }) {
   const { t } = useT();
+  const { toast } = useToast();
   const [ownershipType, setOwnershipType] = useState(depot.ownershipType);
   const [owners, setOwners] = useState(() => ownerRowsFromDepot(depot));
   const [busy, setBusy] = useState(false);
@@ -47,6 +49,13 @@ export function DepotOwnersForm({
       );
       onDone();
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'STALE_WRITE') {
+        // Somebody changed the depot since it was read. The form closes and the depot is read
+        // again: kept open, every retry would send the same stale version and be refused.
+        toast(t('hq.common.staleWrite'), 'error');
+        onDone();
+        return;
+      }
       setError(err instanceof ApiError ? err.message : t('hq.depots.form.saveError'));
     } finally {
       setBusy(false);

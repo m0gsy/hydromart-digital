@@ -79,6 +79,15 @@ import {
   PagedPublicDepotResponseDto,
 } from './dto/responses.generated.dto';
 
+/** A depot's owners as the audit trail records them. */
+function shares(depot: DepotRecord): DepotOwnerShare[] {
+  return (depot.owners ?? []).map(({ ownerId, sharePct, isPrimary }) => ({
+    ownerId,
+    sharePct,
+    isPrimary,
+  }));
+}
+
 /** Is this account one of the depot's current owners (falls back to the mirrored primary)? */
 function isOwnerOf(depot: DepotRecord, accountId: string): boolean {
   return ownerIdsOf(depot).includes(accountId);
@@ -512,13 +521,16 @@ export class DepotController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<DepotRecord> {
     const { seenUpdatedAt, ownershipType, owners } = dto;
-    const updated = await this.depots.update(id, { ownershipType, owners }, seenUpdatedAt, true);
-    await this.audit('depot.owners.update', user, updated.code, {
+    const { before, after } = await this.depots.setOwners(id, ownershipType, owners, seenUpdatedAt);
+    if (!after) return before;
+    // Who was made the payee, and who stopped being one: unlike the bank fields, owner ids and
+    // shares are not secrets, and the trail is the one place a later dispute can read them.
+    await this.audit('depot.owners.update', user, after.code, {
       depotId: id,
-      ownershipType,
-      owners: owners.length,
+      from: { ownershipType: before.ownershipType, owners: shares(before) },
+      to: { ownershipType: after.ownershipType, owners: shares(after) },
     });
-    return updated;
+    return after;
   }
 
   // AUTHZ-B1 — see `update` above. Writing another depot's QRIS is writing where its

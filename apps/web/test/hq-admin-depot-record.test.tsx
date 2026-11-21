@@ -15,16 +15,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * fails here for exactly the reason it failed in production.
  */
 
-const { get, patch, post, put } = vi.hoisted(() => ({
+const { get, patch, post, put, toast } = vi.hoisted(() => ({
   get: vi.fn(),
   patch: vi.fn(),
   post: vi.fn(),
   put: vi.fn(),
+  toast: vi.fn(),
 }));
 vi.mock('@/lib/api', () => ({
   api: { get, getCached: get, patch, post, put },
-  ApiError: class ApiError extends Error {},
+  ApiError: class ApiError extends Error {
+    code?: string;
+  },
 }));
+vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: () => 'dep-1' }));
 // Editing a depot is depotAdmin (its manager, or super admin); head office does not get the
 // button (owner decision 2026-11-21). The edit tests below run as super admin.
@@ -37,6 +41,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/hq/depots/detail',
 }));
 
+import { ApiError } from '@/lib/api';
 import { LocaleProvider } from '@/lib/locale-context';
 import HqDepotDetailPage from '@/app/hq/depots/detail/page';
 import HqOnboardingPage from '@/app/hq/onboarding/page';
@@ -317,6 +322,40 @@ describe('head office sets who owns a depot (2026-11-21)', () => {
         true,
       ),
     );
+  });
+
+  it('closes and re-reads the depot when somebody changed it first', async () => {
+    auth.role = 'HEAD_OFFICE';
+    serveDepot({ ...ADMIN_ROW, updatedAt: SEEN } as typeof ADMIN_ROW);
+    put.mockRejectedValue(Object.assign(new ApiError(409, 'stale'), { code: 'STALE_WRITE' }));
+    const user = userEvent.setup();
+    renderPage(<HqDepotDetailPage />);
+
+    await user.click(await screen.findByRole('button', { name: /Ubah pemilik|Change owners/i }));
+    const reads = get.mock.calls.filter(([path]) => String(path).includes('/depots/manage/')).length;
+    await user.click(screen.getByRole('button', { name: /Simpan perubahan|Save changes/i }));
+
+    // Kept open, every retry would send the same stale version and be refused again.
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith(expect.stringMatching(/Orang lain|Someone else/), 'error'));
+    await vi.waitFor(() =>
+      expect(
+        get.mock.calls.filter(([path]) => String(path).includes('/depots/manage/')).length,
+      ).toBeGreaterThan(reads),
+    );
+    expect(await screen.findByText('Depot Menteng')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Simpan perubahan|Save changes/i })).toBeNull();
+  });
+
+  it('opens one form at a time, so a save in one cannot leave the other stale', async () => {
+    serveDepot();
+    const user = userEvent.setup();
+    renderPage(<HqDepotDetailPage />);
+
+    await user.click(await screen.findByRole('button', { name: /^(Ubah|Edit)$/i }));
+    expect(document.querySelector('#d-acct')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Ubah pemilik|Change owners/i }));
+    expect(document.querySelector('#d-acct')).toBeNull();
+    expect(screen.getByText(/Pemilik Depot Menteng|Owners of Depot Menteng/)).toBeTruthy();
   });
 
   it('is not offered to a role that may not change owners', async () => {

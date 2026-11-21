@@ -202,14 +202,26 @@ export default function HqDepotDetailPage() {
           </div>
           <div className="flex gap-2">
             {canEdit && (
-              <Button variant="secondary" onClick={() => setEditing((v) => !v)} disabled={busy}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  // One form at a time: both carry the version they read, so a save in one
+                  // would leave the other refused as stale.
+                  setEditingOwners(false);
+                  setEditing((v) => !v);
+                }}
+                disabled={busy}
+              >
                 {t('hq.depotDetail.edit')}
               </Button>
             )}
             {canLifecycle && (
               <Button
                 variant="secondary"
-                onClick={() => setEditingOwners((v) => !v)}
+                onClick={() => {
+                  setEditing(false);
+                  setEditingOwners((v) => !v);
+                }}
                 disabled={busy}
               >
                 {t('hq.depotDetail.owners')}
