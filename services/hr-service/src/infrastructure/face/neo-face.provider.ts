@@ -491,6 +491,9 @@ function getWithJsonBody(
         res.setEncoding('utf8');
         res.on('data', (chunk: string) => (text += chunk));
         res.on('end', () => resolve({ status: res.statusCode ?? 0, body: text }));
+        // A reply cut mid-body: unheard, the stream's error would be an uncaught exception.
+        res.on('error', reject);
+        res.on('aborted', () => reject(new Error('NEO reply aborted')));
       },
     );
     req.on('timeout', () => req.destroy(new Error('timeout')));

@@ -46,6 +46,21 @@ export class SubscriptionController {
    * subscription's product, cadence and note are none of its business. Internal key,
    * `@Public()` short-circuits the class-level @Can. Declared FIRST so the static segment wins.
    */
+
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/customer-ids')
+  @ApiOperation({
+    summary: 'Linked customer ids with an ACTIVE subscription at one depot (internal)',
+  })
+  @ApiOkResponse({ description: 'Distinct customer ids holding an active subscription.' })
+  activeCustomerIds(
+    @Query('depotId', ParseUUIDPipe) depotId: string,
+  ): Promise<{ customerIds: string[] }> {
+    return this.subscriptions.activeCustomerIds(depotId).then((customerIds) => ({ customerIds }));
+  }
+
   /**
    * Owner decision 2026-11-21: the scheduler's sweep (every 15 minutes) that files each
    * depot-made plan under the depot delivering it now. Internal key; `@Public()` short-circuits
@@ -60,20 +75,6 @@ export class SubscriptionController {
   @ApiOkResponse({ description: 'How many plans were checked and moved, and whether the round worked.' })
   rehome(): Promise<{ checked: number; moved: number; ok: boolean }> {
     return this.subscriptions.rehome();
-  }
-
-  @Public()
-  @UseGuards(InternalAuthGuard)
-  @ApiSecurity('internal-key')
-  @Get('internal/customer-ids')
-  @ApiOperation({
-    summary: 'Linked customer ids with an ACTIVE subscription at one depot (internal)',
-  })
-  @ApiOkResponse({ description: 'Distinct customer ids holding an active subscription.' })
-  activeCustomerIds(
-    @Query('depotId', ParseUUIDPipe) depotId: string,
-  ): Promise<{ customerIds: string[] }> {
-    return this.subscriptions.activeCustomerIds(depotId).then((customerIds) => ({ customerIds }));
   }
 
   /**

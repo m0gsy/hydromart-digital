@@ -13,6 +13,14 @@ import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
 
 /** How long shadow samples are kept: enough for the two weeks the local threshold is set from. */
 const SHADOW_KEEP_DAYS = 30;
+/** An enrolment younger than this may still be between the engine and HR's row: left alone. */
+const SETTLE_MS = 30 * 60_000;
+/**
+ * More than this in one night is not people losing faces or leaving: it is the engine listing
+ * short (a page, an outage, the wrong gallery). Nothing is retired or deleted then.
+ */
+const MAX_RETIRE_PER_RUN = 10;
+const MAX_REMOVE_PER_RUN = 20;
 
 export interface FaceMaintenanceResult {
   /** HR enrolments the engine no longer holds, retired so the app asks for a new one. */
@@ -21,6 +29,8 @@ export interface FaceMaintenanceResult {
   removed: number;
   purgedSamples: number;
   ok: boolean;
+  /** Why the round did nothing, when it stopped itself. */
+  reason?: string;
 }
 
 /**
@@ -29,14 +39,16 @@ export interface FaceMaintenanceResult {
  * 1. HR says enrolled, the engine's gallery does not hold the face: every punch of that person
  *    met "UserID Not Found" (2026-11-21, 32 refused check-ins). Retired here, before the morning,
  *    so the app asks them to enrol again instead of holding each punch for HR.
- * 2. The engine holds a face HR has no enrolment for: a leaver whose rows the retention purge
+ * 2. The engine holds a face HR has no enrolment for: a leaver whose rows the 03:30 retention purge
  *    deleted, or a withdrawal whose remote delete failed. Deleted there — biometrics kept by a
  *    third party after the reason for them ended (two RESIGNED employees on 2026-11-21).
  * 3. Shadow samples past their keep date are deleted.
  *
- * A list that disagrees with HR wholesale is the engine failing to list (or the wrong gallery),
- * not half the staff losing their faces overnight: then nothing is retired or deleted, and ops
- * are told. Runs at 04:00, after the retention purge and before anyone enrols.
+ * A list that disagrees with HR wholesale is the engine listing short (a page, an outage, the
+ * wrong gallery), not people losing faces overnight: then nothing is retired or deleted and the
+ * round reports itself failed (the scheduler tells ops, once). An enrolment made in the last half
+ * hour is left alone either way: it may be between the engine and HR's row. Runs at 04:00, after
+ * the retention purge and before anyone enrols.
  */
 @Injectable()
 export class FaceMaintenanceService {
@@ -61,25 +73,31 @@ export class FaceMaintenanceService {
     try {
       held = new Set((await listEnrolled()).map((id) => id.toLowerCase()));
     } catch (err) {
-      this.logger.warn(`Face upkeep could not list the engine's gallery: ${String(err)}`);
-      return { retired: 0, removed: 0, purgedSamples, ok: false };
+      const reason = `the engine's gallery could not be listed: ${String(err)}`;
+      this.logger.warn(`Face upkeep: ${reason}`);
+      return { retired: 0, removed: 0, purgedSamples, ok: false, reason };
     }
-    const enrolled = new Set((await this.upkeep.activeEnrolledEmployeeIds()).map((id) => id.toLowerCase()));
-    const missing = [...enrolled].filter((id) => !held.has(id));
-    const leftovers = [...held].filter((id) => !enrolled.has(id));
+    // HR is read AFTER the gallery, so an enrolment finishing in between counts as recent below.
+    const enrolled = new Map(
+      (await this.upkeep.activeEnrolments()).map((e) => [e.employeeId.toLowerCase(), e.createdAt]),
+    );
+    const since = new Date(now.getTime() - SETTLE_MS);
+    const settling = new Set((await this.upkeep.consentedSince(since)).map((id) => id.toLowerCase()));
+    const recent = (id: string) =>
+      settling.has(id) || (enrolled.get(id)?.getTime() ?? 0) >= since.getTime();
+    const missing = [...enrolled.keys()].filter((id) => !held.has(id) && !recent(id));
+    const leftovers = [...held].filter((id) => !enrolled.has(id) && !recent(id));
 
     if (
-      enrolled.size === 0 ||
-      missing.length > Math.max(5, Math.floor(enrolled.size / 2)) ||
-      leftovers.length > Math.max(5, Math.floor(held.size / 2))
+      (held.size === 0 && enrolled.size > 0) ||
+      missing.length > MAX_RETIRE_PER_RUN ||
+      leftovers.length > MAX_REMOVE_PER_RUN
     ) {
-      this.notify(
-        `Face upkeep stopped: the engine holds ${held.size} faces, HR has ${enrolled.size} enrolled ` +
-          `(${missing.length} missing, ${leftovers.length} extra). Nothing retired or deleted — check ` +
-          'NEO_FR_GALLERY_ID and the NEO account before the morning check-ins.',
-        503,
-      );
-      return { retired: 0, removed: 0, purgedSamples, ok: false };
+      const reason =
+        `the engine holds ${held.size} faces, HR has ${enrolled.size} enrolled (${missing.length} missing, ` +
+        `${leftovers.length} extra): nothing retired or deleted - check NEO_FR_GALLERY_ID and the NEO account`;
+      this.logger.warn(`Face upkeep stopped: ${reason}`);
+      return { retired: 0, removed: 0, purgedSamples, ok: false, reason };
     }
 
     for (const employeeId of missing) await this.faces.deactivateForEmployee(employeeId);
@@ -93,26 +111,25 @@ export class FaceMaintenanceService {
       }
     }
     if (missing.length > 0) {
-      this.notify(
+      // The round worked, so the scheduler stays quiet: this is the one message about it.
+      const message =
         `NEO lost the face of ${missing.length} enrolled employee(s) (${missing.join(', ')}). ` +
-          'Their enrolment was retired; the app asks them to enrol again.',
-        404,
-      );
+        'Their enrolment was retired; the app asks them to enrol again.';
+      this.logger.warn(message);
+      alertServerError({
+        method: 'POST',
+        path: '/api/v1/employees/internal/faces/maintain (face upkeep)',
+        status: 404,
+        exception: new Error(message),
+      });
     }
     this.logger.log(
       `Face upkeep: ${missing.length} retired, ${removed}/${leftovers.length} leftover face(s) deleted, ` +
         `${purgedSamples} shadow sample(s) purged`,
     );
-    return { retired: missing.length, removed, purgedSamples, ok: removed === leftovers.length };
-  }
-
-  private notify(message: string, status: number): void {
-    this.logger.warn(message);
-    alertServerError({
-      method: 'POST',
-      path: '/api/v1/employees/internal/faces/maintain (face upkeep)',
-      status,
-      exception: new Error(message),
-    });
+    // Failed only when it had deletions to make, made none and did nothing else: a partial round
+    // stays ok, as the scheduler's rule asks.
+    const ok = leftovers.length === 0 || removed > 0 || missing.length > 0;
+    return { retired: missing.length, removed, purgedSamples, ok };
   }
 }

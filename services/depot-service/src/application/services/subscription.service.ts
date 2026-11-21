@@ -162,6 +162,12 @@ export class SubscriptionService {
   async rehome(): Promise<{ checked: number; moved: number; ok: boolean }> {
     const rows = await this.subscriptions.listLinkedOpen();
     let moved = 0;
+    // One read per target depot a round, not one per plan moving into it.
+    const known = new Map<string, boolean>();
+    const exists = async (depotId: string) => {
+      if (!known.has(depotId)) known.set(depotId, await this.depots.exists(depotId));
+      return known.get(depotId) === true;
+    };
     for (let i = 0; i < rows.length; i += REHOME_BATCH) {
       const batch = rows.slice(i, i + REHOME_BATCH);
       let serving: Map<string, string | null>;
@@ -174,7 +180,7 @@ export class SubscriptionService {
       for (const row of batch) {
         const to = serving.get(row.orderSubscriptionId!);
         if (!to || !UUID.test(to) || to.toLowerCase() === row.depotId.toLowerCase()) continue;
-        if (!(await this.depots.exists(to))) continue;
+        if (!(await exists(to))) continue;
         if (await this.subscriptions.moveDepot(row.id, row.depotId, to)) moved += 1;
       }
     }

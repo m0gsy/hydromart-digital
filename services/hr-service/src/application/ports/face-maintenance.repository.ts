@@ -15,8 +15,13 @@ export interface FaceShadowSample {
  * the engine's gallery, and the shadow samples the local threshold is set from.
  */
 export interface FaceMaintenanceRepository {
-  /** Employees holding an active enrolment: the faces the engine's gallery should hold. */
-  activeEnrolledEmployeeIds(): Promise<string[]>;
+  /** Active enrolments, with when each was made: the faces the engine's gallery should hold. */
+  activeEnrolments(): Promise<{ employeeId: string; createdAt: Date }[]>;
+  /**
+   * Employees whose consent was stamped since `since`. Every enrolment stamps it BEFORE the
+   * engine is called, so this names the enrolments that may still be in flight.
+   */
+  consentedSince(since: Date): Promise<string[]>;
   recordShadowSample(sample: FaceShadowSample): Promise<void>;
   /** Delete samples taken before `before`; how many went. */
   purgeShadowSamples(before: Date): Promise<number>;

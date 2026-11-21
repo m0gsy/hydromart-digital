@@ -39,10 +39,13 @@ const alert = alertServerError as jest.Mock;
 
 const NOW = new Date('2026-11-22T21:00:00Z');
 
-function upkeepStore(enrolled: string[]) {
+const LONG_AGO = new Date('2026-11-01T00:00:00Z');
+
+function upkeepStore(enrolled: string[], consentedLately: string[] = [], enrolledAt = LONG_AGO) {
   const purgedBefore: Date[] = [];
   const store: FaceMaintenanceRepository = {
-    activeEnrolledEmployeeIds: async () => enrolled,
+    activeEnrolments: async () => enrolled.map((employeeId) => ({ employeeId, createdAt: enrolledAt })),
+    consentedSince: async () => consentedLately,
     recordShadowSample: async () => undefined,
     purgeShadowSamples: async (before) => {
       purgedBefore.push(before);
@@ -94,10 +97,30 @@ describe('FaceMaintenanceService', () => {
     expect(retired).toEqual(['e-3']); // case is not a difference: NEO answered E-1 for e-1
     expect(removed).toEqual(['gone-1']);
     expect(purgedBefore).toEqual([new Date('2026-10-23T21:00:00Z')]); // kept 30 days
-    // A lost face is told; a leftover deleted is housekeeping, logged only.
+    // A lost face is told, once; a leftover deleted is housekeeping, logged only.
     expect(alert).toHaveBeenCalledTimes(1);
     expect(alert.mock.calls[0][0]).toMatchObject({ status: 404 });
     expect(String(alert.mock.calls[0][0].exception.message)).toContain('e-3');
+  });
+
+  // An enrolment at 04:00 may be between the engine and HR's row: neither side of it is touched.
+  it('leaves alone an enrolment made in the last half hour, whichever side it has reached', async () => {
+    const { verifier, removed } = engine(['e-1', 'new-in-neo']);
+    const { repo, retired } = faces();
+    // new-in-neo: consent stamped, NEO has it, HR's row not written yet.
+    // new-in-hr: consent stamped, HR's row written after the gallery was listed.
+    const { store } = upkeepStore(['e-1', 'new-in-hr'], ['new-in-neo', 'new-in-hr']);
+    await expect(new FaceMaintenanceService(verifier, repo, store).run(NOW)).resolves.toMatchObject({
+      retired: 0,
+      removed: 0,
+      ok: true,
+    });
+    expect(retired).toEqual([]);
+    expect(removed).toEqual([]);
+    // A row made in the window counts as recent even with no consent stamp read.
+    const fresh = upkeepStore(['e-1', 'e-9'], [], new Date(NOW.getTime() - 5 * 60_000));
+    await new FaceMaintenanceService(engine(['e-1']).verifier, repo, fresh.store).run(NOW);
+    expect(retired).toEqual([]);
   });
 
   it('has nothing to reconcile with an engine that keeps no gallery of its own', async () => {
@@ -112,43 +135,59 @@ describe('FaceMaintenanceService', () => {
     expect(retired).toEqual([]);
   });
 
-  it('touches nothing when the gallery cannot be listed', async () => {
+  it('touches nothing when the gallery cannot be listed, and says why', async () => {
     const { verifier, removed } = engine(new Error('NEO down'));
     const { repo, retired } = faces();
-    await expect(
-      new FaceMaintenanceService(verifier, repo, upkeepStore(['e-1']).store).run(NOW),
-    ).resolves.toMatchObject({ retired: 0, removed: 0, ok: false });
+    const out = await new FaceMaintenanceService(verifier, repo, upkeepStore(['e-1']).store).run(NOW);
+    expect(out).toMatchObject({ retired: 0, removed: 0, ok: false });
+    expect(out.reason).toContain('NEO down');
     expect(retired).toEqual([]);
     expect(removed).toEqual([]);
   });
 
-  // A list that disagrees wholesale is NEO failing or the wrong gallery, not people losing faces.
+  // A list that disagrees wholesale is NEO listing short or the wrong gallery: nothing is touched,
+  // and the round fails so the scheduler tells ops — one message, not two.
   it.each([
-    ['HR lists nobody enrolled', ['e-1', 'e-2'], []],
-    ['half of HR is missing from the gallery', ids(4, 'e'), ids(12, 'e')],
-    ['half of the gallery is unknown to HR', [...ids(10, 'e'), ...ids(12, 'x')], ids(10, 'e')],
-  ])('stops and tells ops when %s', async (_why, held, enrolled) => {
+    ['the gallery is empty while HR has enrolments', [], ['e-1']],
+    ['more than ten enrolments are missing', ids(2, 'e'), ids(13, 'e')],
+    ['more than twenty faces are unknown to HR', [...ids(2, 'e'), ...ids(21, 'x')], ids(2, 'e')],
+  ])('stops when %s', async (_why, held, enrolled) => {
     const { verifier, removed } = engine(held);
     const { repo, retired } = faces();
-    await expect(
-      new FaceMaintenanceService(verifier, repo, upkeepStore(enrolled).store).run(NOW),
-    ).resolves.toMatchObject({ retired: 0, removed: 0, ok: false });
+    const out = await new FaceMaintenanceService(verifier, repo, upkeepStore(enrolled).store).run(NOW);
+    expect(out).toMatchObject({ retired: 0, removed: 0, ok: false });
+    expect(out.reason).toContain('NEO_FR_GALLERY_ID');
     expect(retired).toEqual([]);
     expect(removed).toEqual([]);
-    expect(alert).toHaveBeenCalledTimes(1);
-    expect(alert.mock.calls[0][0]).toMatchObject({ status: 503 });
+    expect(alert).not.toHaveBeenCalled();
   });
 
-  it('a leftover the engine refuses to delete is counted out and the round says so', async () => {
-    const { verifier } = engine(['e-1', 'x-1', 'x-2'], {
+  it('an empty gallery with nobody enrolled is simply nothing to do', async () => {
+    const { verifier } = engine([]);
+    const { repo } = faces();
+    await expect(
+      new FaceMaintenanceService(verifier, repo, upkeepStore([]).store).run(NOW),
+    ).resolves.toEqual({ retired: 0, removed: 0, purgedSamples: 3, ok: true });
+  });
+
+  it('a partial round stays ok; only a round that did nothing it set out to do fails', async () => {
+    const refuseX1 = engine(['e-1', 'x-1', 'x-2'], {
       remove: async ({ userId }) => {
         if (userId === 'x-1') throw new Error('NEO 500');
       },
     });
-    const { repo } = faces();
     await expect(
-      new FaceMaintenanceService(verifier, repo, upkeepStore(['e-1']).store).run(NOW),
-    ).resolves.toEqual({ retired: 0, removed: 1, purgedSamples: 3, ok: false });
+      new FaceMaintenanceService(refuseX1.verifier, faces().repo, upkeepStore(['e-1']).store).run(NOW),
+    ).resolves.toEqual({ retired: 0, removed: 1, purgedSamples: 3, ok: true });
+
+    const refuseAll = engine(['e-1', 'x-1'], {
+      remove: async () => {
+        throw new Error('NEO 500');
+      },
+    });
+    await expect(
+      new FaceMaintenanceService(refuseAll.verifier, faces().repo, upkeepStore(['e-1']).store).run(NOW),
+    ).resolves.toEqual({ retired: 0, removed: 0, purgedSamples: 3, ok: false });
   });
 
   it('runs for the scheduler through its controller', async () => {
@@ -207,6 +246,16 @@ describe('NeoFaceProvider.listEnrolled (GET list-faces with a JSON body)', () =>
     expect(seen[0]?.method).toBe('GET');
     expect(seen[0]?.token).toBe('tok');
     expect(JSON.parse(seen[0]?.body ?? '{}')).toMatchObject({ facegallery_id: 'g1' });
+  });
+
+  // Unheard, a reply cut mid-body is an uncaught exception that takes hr-service down.
+  it('a reply cut mid-body is NEO down, not a crash', async () => {
+    answer = (_req, _body, res) => {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.write('{"risetai":{"status":"200","faces":[');
+      setImmediate(() => res.socket?.destroy());
+    };
+    await expect(neo().listEnrolled()).rejects.toBeInstanceOf(FaceEngineUnavailableError);
   });
 
   it('an empty gallery is an empty list', async () => {
@@ -289,20 +338,29 @@ describe('ShadowFaceVerifier keeps each comparison (2026-11-21)', () => {
 
 describe('FaceMaintenancePrismaRepository', () => {
   const faceEmbedding = { findMany: jest.fn() };
+  const employee = { findMany: jest.fn() };
   const faceShadowSample = { create: jest.fn(), deleteMany: jest.fn() };
   const repo = new FaceMaintenancePrismaRepository({
     faceEmbedding,
+    employee,
     faceShadowSample,
   } as unknown as PrismaService);
 
-  it('reads one row per enrolled employee', async () => {
-    faceEmbedding.findMany.mockResolvedValue([{ employeeId: 'e-1' }]);
-    await expect(repo.activeEnrolledEmployeeIds()).resolves.toEqual(['e-1']);
+  it('reads the active enrolments with their dates, and who consented lately', async () => {
+    const at = new Date('2026-11-20T01:00:00Z');
+    faceEmbedding.findMany.mockResolvedValue([{ employeeId: 'e-1', createdAt: at }]);
+    await expect(repo.activeEnrolments()).resolves.toEqual([{ employeeId: 'e-1', createdAt: at }]);
     expect(faceEmbedding.findMany).toHaveBeenCalledWith({
       where: { active: true },
-      select: { employeeId: true },
-      distinct: ['employeeId'],
+      select: { employeeId: true, createdAt: true },
       take: 50_000,
+    });
+    employee.findMany.mockResolvedValue([{ id: 'e-2' }]);
+    await expect(repo.consentedSince(at)).resolves.toEqual(['e-2']);
+    expect(employee.findMany).toHaveBeenCalledWith({
+      where: { faceConsentAt: { gte: at } },
+      select: { id: true },
+      take: 10_000,
     });
   });
 

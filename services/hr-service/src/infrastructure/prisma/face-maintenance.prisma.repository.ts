@@ -10,15 +10,22 @@ import { PrismaService } from './prisma.service';
 export class FaceMaintenancePrismaRepository implements FaceMaintenanceRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async activeEnrolledEmployeeIds(): Promise<string[]> {
-    const rows = await this.prisma.faceEmbedding.findMany({
+  activeEnrolments(): Promise<{ employeeId: string; createdAt: Date }[]> {
+    return this.prisma.faceEmbedding.findMany({
       where: { active: true },
-      select: { employeeId: true },
-      distinct: ['employeeId'],
-      // ponytail: one row per enrolled employee; page it past ~50k staff.
+      select: { employeeId: true, createdAt: true },
+      // ponytail: one active row per enrolled employee; page it past ~50k staff.
       take: 50_000,
     });
-    return rows.map((r) => r.employeeId);
+  }
+
+  async consentedSince(since: Date): Promise<string[]> {
+    const rows = await this.prisma.employee.findMany({
+      where: { faceConsentAt: { gte: since } },
+      select: { id: true },
+      take: 10_000,
+    });
+    return rows.map((r) => r.id);
   }
 
   async recordShadowSample(sample: FaceShadowSample): Promise<void> {
