@@ -278,6 +278,17 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     return scrubbed.count;
   }
 
+  async routingPins(
+    ids: readonly string[],
+  ): Promise<{ id: string; latitude: number | null; longitude: number | null }[]> {
+    if (ids.length === 0) return [];
+    return this.prisma.subscription.findMany({
+      where: { id: { in: [...ids] } },
+      select: { id: true, latitude: true, longitude: true },
+      take: ids.length,
+    });
+  }
+
   async listActivePins(): Promise<{ lat: number; lng: number }[]> {
     const rows = await this.prisma.subscription.findMany({
       where: { status: 'ACTIVE', latitude: { not: null }, longitude: { not: null } },

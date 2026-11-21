@@ -82,6 +82,27 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     return row ? this.toRecord(row) : null;
   }
 
+  async listLinkedOpen(): Promise<Subscription[]> {
+    const rows = await this.prisma.subscription.findMany({
+      where: {
+        orderSubscriptionId: { not: null },
+        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAUSED] },
+      },
+      orderBy: { createdAt: 'asc' },
+      // ponytail: every depot-made plan in one read; page it if the network passes ~10k of them.
+      take: 10_000,
+    });
+    return rows.map((r) => this.toRecord(r));
+  }
+
+  async moveDepot(id: string, fromDepotId: string, toDepotId: string): Promise<boolean> {
+    const { count } = await this.prisma.subscription.updateMany({
+      where: { id, depotId: fromDepotId },
+      data: { depotId: toDepotId },
+    });
+    return count > 0;
+  }
+
   async update(id: string, data: UpdateSubscriptionData): Promise<Subscription> {
     const row = await this.prisma.subscription.update({ where: { id }, data });
     return this.toRecord(row);

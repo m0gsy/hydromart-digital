@@ -482,8 +482,10 @@ export class AttendanceService {
     const { ok, distanceM } = withinGeofence(this.config.geofence(depotId), punch.lat, punch.lng);
     if (!ok) {
       throw new ForbiddenException(
+        // Approximate location ("Perkiraan") reads a kilometre off with GPS on (2026-11-21).
         `Di luar area absen depot (${distanceM} m dari titik). Absen harus di lokasi. ` +
-          'Nyalakan lokasi akurat (GPS), tunggu sebentar, lalu coba lagi.',
+          'Kalau sudah di sana, lokasi HP belum akurat: di izin lokasi aplikasi pilih "Tepat" (bukan "Perkiraan"), ' +
+          'nyalakan GPS, tunggu sebentar, lalu coba lagi.',
       );
     }
   }

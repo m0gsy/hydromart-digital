@@ -1214,6 +1214,12 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
       .map((r) => ({ lat: r.latitude as number, lng: r.longitude as number }));
   }
 
+  async routingPins(ids: readonly string[]) {
+    return this.rows
+      .filter((r) => ids.includes(r.id))
+      .map((r) => ({ id: r.id, latitude: r.latitude, longitude: r.longitude }));
+  }
+
   async networkSummary(): Promise<SubscriptionNetworkSummary> {
     const active = this.rows.filter((r) => r.status === 'ACTIVE');
     const agg = new Map<string, SubscriptionNetworkSummary['plans'][number]>();

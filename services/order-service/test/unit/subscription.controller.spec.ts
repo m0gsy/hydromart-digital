@@ -18,6 +18,7 @@ function makeService(): Mocked {
     erasePerson: jest.fn().mockResolvedValue({ erased: 21 }),
     pauseById: jest.fn().mockResolvedValue({ id: 's1', status: 'PAUSED' }),
     resumeById: jest.fn().mockResolvedValue({ id: 's1', status: 'ACTIVE' }),
+    servingDepots: jest.fn().mockResolvedValue([{ id: 's1', depotId: 'd1' }]),
   } as unknown as Mocked;
 }
 
@@ -193,6 +194,14 @@ describe('SubscriptionController', () => {
    *
    * No address in the body, deliberately: the engine reads the customer's own.
    */
+  // Owner decision 2026-11-21: depot-service files its console rows under this answer.
+  it('servingDepots: answers depot-service where each plan delivers from now', async () => {
+    await expect(controller.servingDepots({ ids: ['s1'] })).resolves.toEqual({
+      items: [{ id: 's1', depotId: 'd1' }],
+    });
+    expect(service.servingDepots).toHaveBeenCalledWith(['s1']);
+  });
+
   it('createInternal: builds a plan for a named customer, with no address in the body', async () => {
     await controller.createInternal({
       customerId: 'cust-9',

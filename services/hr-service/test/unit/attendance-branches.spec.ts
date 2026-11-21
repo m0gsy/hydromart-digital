@@ -127,6 +127,8 @@ describe('AttendanceService geofence + list', () => {
   it('rejects a punch outside the depot geofence', async () => {
     const { svc } = make({ lat: 0, lng: 0, radiusM: 100 }); // punch is thousands of km away
     await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(ForbiddenException);
+    // "Perkiraan" location reads a kilometre off with GPS on (2026-11-21): said, not guessed.
+    await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(/pilih "Tepat" \(bukan "Perkiraan"\)/);
   });
 
   it('allows a punch when the geofence is disabled (no centre)', async () => {

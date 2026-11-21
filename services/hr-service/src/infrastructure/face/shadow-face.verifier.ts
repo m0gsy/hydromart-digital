@@ -13,6 +13,7 @@ import {
   LocalNoFaceError,
 } from '../../application/ports/local-face-engine.port';
 import { cosineSimilarity } from '../../domain/face-math';
+import type { FaceShadowSample } from '../../application/ports/face-maintenance.repository';
 
 /**
  * Face plan §4.5, shadow (`FACE_FALLBACK=shadow`, NEO driver only): NEO decides, exactly as
@@ -28,13 +29,20 @@ import { cosineSimilarity } from '../../domain/face-math';
 export class ShadowFaceVerifier implements FaceVerifier {
   private busy = false;
   readonly remove?: (identity: FaceIdentity) => Promise<void>;
+  readonly listEnrolled?: () => Promise<string[]>;
 
   constructor(
     private readonly neo: FaceVerifier,
     private readonly local: LocalFaceEngine,
     private readonly logger: Pick<Logger, 'log' | 'warn'> = new Logger('FaceShadow'),
+    /**
+     * Owner decision 2026-11-21: each comparison is kept (30 days), not only logged — container
+     * logs died with every deploy, and the threshold waits for two weeks of them.
+     */
+    private readonly record?: (sample: FaceShadowSample) => Promise<void>,
   ) {
     if (neo.remove) this.remove = (identity) => neo.remove!(identity);
+    if (neo.listEnrolled) this.listEnrolled = () => neo.listEnrolled!();
   }
 
   enroll(images: Buffer[], identity?: FaceIdentity): Promise<FaceEmbeddingResult> {
@@ -70,19 +78,45 @@ export class ShadowFaceVerifier implements FaceVerifier {
       const templates = enrolled.filter((v) => v.length === LOCAL_TEMPLATE_DIM);
       if (templates.length === 0) {
         this.logger.log(`face shadow user=${who} ${said} local=no-template`);
+        await this.keep(identity, neo, null, 'no-template');
         return;
       }
       const { vector } = await this.local.embed(image);
       const score = Math.max(...templates.map((t) => cosineSimilarity(vector, t)));
       this.logger.log(`face shadow user=${who} ${said} local=${score.toFixed(3)}`);
+      await this.keep(identity, neo, score, 'scored');
     } catch (err) {
+      const outcome =
+        err instanceof LocalNoFaceError ? 'no-face' : err instanceof LocalBadImageError ? 'bad-image' : 'failed';
       const why =
-        err instanceof LocalNoFaceError
+        outcome === 'no-face'
           ? 'no-face'
-          : err instanceof LocalBadImageError
-            ? `bad-image (${err.message})`
+          : outcome === 'bad-image'
+            ? `bad-image (${(err as Error).message})`
             : `failed (${String(err)})`;
       this.logger.warn(`face shadow user=${who} ${said} local=${why}`);
+      await this.keep(identity, neo, null, outcome);
+    }
+  }
+
+  /** The comparison, kept. Never throws: a shadow that cannot be written changes nothing. */
+  private async keep(
+    identity: FaceIdentity | undefined,
+    neo: FaceVerifyResult,
+    localScore: number | null,
+    outcome: FaceShadowSample['outcome'],
+  ): Promise<void> {
+    if (!this.record || !identity?.userId) return;
+    try {
+      await this.record({
+        employeeId: identity.userId,
+        neoScore: neo.score,
+        neoMatched: neo.matched,
+        localScore,
+        outcome,
+      });
+    } catch (err) {
+      this.logger.warn(`face shadow sample not kept for ${identity.userId}: ${String(err)}`);
     }
   }
 }

@@ -280,6 +280,58 @@ describe('an outbound call that hangs is aborted and still settles', () => {
  * its engine subscription is exactly the thing D10 removes — a plan the console shows and
  * nothing runs — so a failure has to reach the operator while they are still on the screen.
  */
+// Owner decision 2026-11-21: where each depot-made plan delivers from now.
+describe('OrderSubscriptionHttpAdapter.servingDepots', () => {
+  const cfg = (over: Partial<Record<string, unknown>> = {}) =>
+    makeConfig({ orderServiceUrl: 'http://order:3004', ...over });
+  const setFetch = (impl: unknown) => ((globalThis as { fetch: unknown }).fetch = impl);
+
+  it('posts the engine ids with the internal key and maps the answer', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(
+      jsonRes(200, {
+        items: [
+          { id: 'e1', depotId: 'd1' },
+          { id: 'e2', depotId: null },
+          { id: 7, depotId: 'junk' },
+        ],
+      }),
+    );
+    setFetch(fetchMock);
+    const out = await new OrderSubscriptionHttpAdapter(cfg()).servingDepots(['e1', 'e2']);
+    expect([...out.entries()]).toEqual([
+      ['e1', 'd1'],
+      ['e2', null],
+    ]);
+    const [url, init] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit & { headers: Record<string, string> },
+    ];
+    expect(url).toBe('http://order:3004/api/v1/subscriptions/internal/serving-depots');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(init.body as string)).toEqual({ ids: ['e1', 'e2'] });
+  });
+
+  it('throws when it is not wired or the engine does not answer', async () => {
+    await expect(
+      new OrderSubscriptionHttpAdapter(cfg({ orderServiceUrl: '' })).servingDepots(['e1']),
+    ).rejects.toThrow('belum dikonfigurasi');
+    setFetch(jest.fn().mockResolvedValue(jsonRes(503, { message: 'down' })));
+    await expect(new OrderSubscriptionHttpAdapter(cfg()).servingDepots(['e1'])).rejects.toThrow('down');
+    setFetch(
+      jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new Error('html');
+        },
+      }),
+    );
+    await expect(new OrderSubscriptionHttpAdapter(cfg()).servingDepots(['e1'])).rejects.toThrow(
+      'order-service responded 200',
+    );
+  });
+});
+
 // Owner decision 2026-11-21: no change of owners while the depot's revenue is still owed.
 describe('OrderLedgerHttpAdapter', () => {
   const cfg = (over: Partial<Record<string, unknown>> = {}) =>

@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import * as http from 'node:http';
+import * as https from 'node:https';
 
 import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { alertServerError } from '@hydromart/platform';
@@ -115,6 +117,36 @@ export class NeoFaceProvider implements FaceVerifier {
       throw new FaceReplaceFailedError(err);
     }
     return { vector: [], quality: 1 };
+  }
+
+  /**
+   * Every user_id the shared gallery holds (owner decision 2026-11-21: the daily upkeep checks it
+   * against HR's enrolments). `list-faces` is a GET carrying a JSON body, which fetch refuses to
+   * send, so it goes over node's own client. Not breaker-counted: one call a day, by a sweep.
+   */
+  async listEnrolled(): Promise<string[]> {
+    const { token, endpoint } = this.config.neoFr;
+    if (!token) throw this.unavailable('NEO_FR_TOKEN belum diset');
+    let reply: { status: number; body: string };
+    try {
+      reply = await getWithJsonBody(
+        `${endpoint}/risetai/face-api/facegallery/list-faces`,
+        { Accesstoken: token },
+        { facegallery_id: this.gallery, trx_id: randomUUID() },
+      );
+    } catch (err) {
+      throw this.engineDown(`list-faces: tidak bisa menghubungi NEO: ${String(err)}`);
+    }
+    const parsed = parseJson(reply.body) as {
+      risetai?: NeoPayload & { faces?: { user_id?: unknown }[] };
+    } | null;
+    if (!parsed?.risetai) {
+      throw this.engineDown(`list-faces: jawaban NEO tidak terbaca (HTTP ${reply.status})`);
+    }
+    this.ensureOk('list-faces', parsed.risetai);
+    return (parsed.risetai.faces ?? [])
+      .map((f) => f.user_id)
+      .filter((id): id is string => typeof id === 'string' && id !== '');
   }
 
   /** Delete one employee's face from the shared gallery. Gone-already counts as deleted. */
@@ -426,6 +458,48 @@ function isMissingUser(payload: NeoPayload): boolean {
   return /(not\s+found|not\s+exist|does\s+not\s+exist|no\s+such)/i.test(
     payload.status_message ?? '',
   );
+}
+
+/** JSON, or null for a body that is not (an HTML error page, a truncated reply). */
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+/** A GET with a JSON body (NEO's list routes), over node's own client; 20 s like a slow NEO. */
+function getWithJsonBody(
+  url: string,
+  headers: Record<string, string>,
+  body: Record<string, unknown>,
+): Promise<{ status: number; body: string }> {
+  const target = new URL(url);
+  const data = JSON.stringify(body);
+  const client = target.protocol === 'http:' ? http : https;
+  return new Promise((resolve, reject) => {
+    const req = client.request(
+      target,
+      {
+        method: 'GET',
+        headers: { ...headers, 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
+        timeout: 20_000,
+      },
+      (res) => {
+        let text = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk: string) => (text += chunk));
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: text }));
+        // A reply cut mid-body: unheard, the stream's error would be an uncaught exception.
+        res.on('error', reject);
+        res.on('aborted', () => reject(new Error('NEO reply aborted')));
+      },
+    );
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+    req.end(data);
+  });
 }
 
 /** NEO wants a bare base64 JPEG/PNG — strip any data-URL prefix. */

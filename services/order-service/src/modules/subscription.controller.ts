@@ -38,6 +38,7 @@ import {
   InternalSubscriptionResponseDto,
   PdpAnonymiseDto,
   PdpSubscriptionExportResponseDto,
+  ServingDepotsDto,
   SubscriptionReroutePreviewDto,
 } from './dto/order.dto';
 import {
@@ -248,6 +249,25 @@ export class SubscriptionController {
       );
     }
     return created;
+  }
+
+  /**
+   * Owner decision 2026-11-21: a depot-made plan is listed under the depot that delivers it.
+   * The sweep routes every plan by its pin on every run, so a depot closed, reopened, moved or
+   * redrawn — or a customer moving the plan — changes that depot; depot-service asks here and
+   * moves its console rows to match.
+   */
+  @ApiOkResponse({ description: 'The depot each plan named delivers from now (null: none).' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/serving-depots')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Which depot each subscription delivers from now (internal)' })
+  async servingDepots(
+    @Body() dto: ServingDepotsDto,
+  ): Promise<{ items: { id: string; depotId: string | null }[] }> {
+    return { items: await this.subscriptions.servingDepots(dto.ids) };
   }
 
   /** DEP-23: the depot console paused a plan; the engine must stop placing its deliveries. */

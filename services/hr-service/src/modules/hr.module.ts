@@ -13,6 +13,13 @@ import { SUPERVISION_PORT } from '../application/ports/supervision.port';
 import { SupervisionHttpAdapter } from '../infrastructure/http/supervision.http.adapter';
 import { EmployeeService } from '../application/services/employee.service';
 import { FACE_EMBEDDING_REPOSITORY } from '../application/ports/face-embedding.repository';
+import {
+  FACE_MAINTENANCE_REPOSITORY,
+  FaceMaintenanceRepository,
+} from '../application/ports/face-maintenance.repository';
+import { FaceMaintenanceService } from '../application/services/face-maintenance.service';
+import { FaceMaintenancePrismaRepository } from '../infrastructure/prisma/face-maintenance.prisma.repository';
+import { FaceMaintenanceController } from './face-maintenance.controller';
 import { ATTENDANCE_REPOSITORY } from '../application/ports/attendance.repository';
 import { FACE_VERIFIER } from '../application/ports/face-verifier.port';
 import { FaceService } from '../application/services/face.service';
@@ -146,12 +153,18 @@ const providers: Provider[] = [
   { provide: EMPLOYEE_REPOSITORY, useClass: EmployeePrismaRepository },
   EmployeeService,
   { provide: FACE_EMBEDDING_REPOSITORY, useClass: FaceEmbeddingPrismaRepository },
+  { provide: FACE_MAINTENANCE_REPOSITORY, useClass: FaceMaintenancePrismaRepository },
+  FaceMaintenanceService,
   { provide: ATTENDANCE_REPOSITORY, useClass: AttendancePrismaRepository },
   // Face engine bound by FACE_VERIFIER_DRIVER: neo (prod, BiznetGio NEO cloud gallery),
   // onnx (in-process, needs vendored model), or stub (dev/test, deterministic).
   {
     provide: FACE_VERIFIER,
-    useFactory: (config: HrConfigService, local: LocalFaceEngine) => {
+    useFactory: (
+      config: HrConfigService,
+      local: LocalFaceEngine,
+      upkeep: FaceMaintenanceRepository,
+    ) => {
       const engine = (() => {
         switch (config.faceVerifierDriver) {
           case 'stub':
@@ -166,10 +179,10 @@ const providers: Provider[] = [
       // only — the comparison is between NEO's verdict and ours, and the local drivers' 512-d
       // rows hold no local template to compare with.
       return config.faceFallback === 'shadow' && config.faceServiceUrl && config.faceVerifierDriver === 'neo'
-        ? new ShadowFaceVerifier(engine, local)
+        ? new ShadowFaceVerifier(engine, local, undefined, (sample) => upkeep.recordShadowSample(sample))
         : engine;
     },
-    inject: [HrConfigService, LOCAL_FACE_ENGINE],
+    inject: [HrConfigService, LOCAL_FACE_ENGINE, FACE_MAINTENANCE_REPOSITORY],
   },
   // Photo storage: S3 in prod (HR_STORAGE_DRIVER=s3), no-op otherwise. Injected @Optional
   // into Face/Attendance services — an absent binding just skips persisting photoUrls.
@@ -239,6 +252,7 @@ const providers: Provider[] = [
     SettingsController,
     EmployeesController,
     FaceController,
+    FaceMaintenanceController,
     SelfFaceController,
     AttendanceController,
     OwnerAttendanceController,
