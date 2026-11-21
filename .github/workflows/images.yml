@@ -144,6 +144,11 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.sha }}
             ${{ steps.meta.outputs.image }}:latest
+          # HD-1: the label compose puts on every image it builds itself. scripts/docker-gc.sh
+          # prunes only images carrying it once a second project shares the box, so without it
+          # every pulled release would stay on the disk forever.
+          labels: |
+            com.docker.compose.project=hydromart
           # Layer cache lives in the Actions cache, not on the production disk. This is the
           # cache the VPS never had — every build there was cold (CI-1, PR 9).
           #
