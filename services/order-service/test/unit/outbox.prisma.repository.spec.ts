@@ -87,4 +87,34 @@ describe('OutboxPrismaRepository', () => {
     model.groupBy.mockResolvedValue([{ status: 'PENDING', _count: { _all: 3 } }]);
     await expect(repo.countByStatus()).resolves.toEqual({ PENDING: 3, DONE: 0, DEAD: 0, CANCELLED: 0 });
   });
+
+  // Owner decision 2026-11-21: head office may not change who owns a depot while any of its
+  // franchise revenue is still owed — a retried credit could pay the new owner.
+  describe('countPendingRevenue', () => {
+    const order = { count: jest.fn() };
+    const withOrders = new OutboxPrismaRepository({
+      outboxMessage: model,
+      order,
+    } as unknown as PrismaService);
+
+    it('counts the owed credits and voids that belong to the depot', async () => {
+      model.findMany.mockResolvedValueOnce([{ orderId: 'o1' }, { orderId: 'o2' }]);
+      order.count.mockResolvedValueOnce(1);
+      await expect(withOrders.countPendingRevenue('dep-1')).resolves.toBe(1);
+      expect(model.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { status: 'PENDING', topic: { in: ['FRANCHISE_REVENUE', 'FRANCHISE_REVENUE_VOID'] } },
+          take: 1000,
+        }),
+      );
+      expect(order.count).toHaveBeenCalledWith({ where: { id: { in: ['o1', 'o2'] }, depotId: 'dep-1' } });
+    });
+
+    it('nothing owed anywhere is no second read', async () => {
+      order.count.mockClear();
+      model.findMany.mockResolvedValueOnce([]);
+      await expect(withOrders.countPendingRevenue('dep-1')).resolves.toBe(0);
+      expect(order.count).not.toHaveBeenCalled();
+    });
+  });
 });

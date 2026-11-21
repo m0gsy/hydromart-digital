@@ -19,6 +19,7 @@ import {
   DepotNotFoundError,
   DuplicateDepotCodeError,
   FranchiseOwnerRequiredError,
+  OwnershipChangeRevenuePendingError,
   InvalidDepotScheduleError,
 } from '../../domain/errors';
 import { Page, buildPage } from '../pagination';
@@ -29,6 +30,7 @@ import {
   UpdateDepotData,
 } from '../ports/depot.repository';
 import { DepotDeactivationProbe } from '../ports/depot-deactivation.probe';
+import { OrderLedgerPort } from '../ports/order-ledger.port';
 import { DEPOT_TOKENS } from '../tokens';
 
 export interface BrowseDepotsInput {
@@ -90,6 +92,11 @@ export class DepotService {
     @Optional()
     @Inject(DEPOT_TOKENS.DeactivationProbe)
     private readonly probe?: DepotDeactivationProbe,
+    // Owner decision 2026-11-21: no change of owners while revenue is still owed. Optional for
+    // the same reason as the probe; the module always wires it.
+    @Optional()
+    @Inject(DEPOT_TOKENS.OrderLedger)
+    private readonly ledger?: OrderLedgerPort,
   ) {}
 
   async browse(input: BrowseDepotsInput, activeOnly: boolean): Promise<Page<DepotRecord>> {
@@ -190,6 +197,13 @@ export class DepotService {
     const effective = nextOwners ?? currentOwners(current);
     if (ownershipType === OwnershipType.WARALABA && effective.length === 0) {
       throw new FranchiseOwnerRequiredError();
+    }
+    // Revenue still owed is credited by the owners as of its completion, which before any owner
+    // generation means the CURRENT ones: an HKP sale retried after the flip would pay the new
+    // owner. So the change waits until order-service has booked what it owes this depot.
+    if (this.ledger && (nextOwners !== undefined || ownershipType !== current.ownershipType)) {
+      const pending = await this.ledger.pendingRevenue(id);
+      if (pending > 0) throw new OwnershipChangeRevenuePendingError(pending);
     }
     if (patch.code) {
       const owner = await this.depots.findByCode(patch.code);

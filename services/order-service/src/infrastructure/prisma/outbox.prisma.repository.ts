@@ -112,6 +112,21 @@ export class OutboxPrismaRepository implements OutboxRepository {
     return count;
   }
 
+  async countPendingRevenue(depotId: string): Promise<number> {
+    // Two reads: the outbox row holds no depot. Few rows are ever PENDING at once (the sweep
+    // drains them every ten minutes), so the order ids stay a short list.
+    const rows = await this.prisma.outboxMessage.findMany({
+      where: { status: 'PENDING', topic: { in: ['FRANCHISE_REVENUE', 'FRANCHISE_REVENUE_VOID'] } },
+      select: { orderId: true },
+      // ponytail: a backlog past 1000 owed credits is an outage the ops view already shows.
+      take: 1000,
+    });
+    if (rows.length === 0) return 0;
+    return this.prisma.order.count({
+      where: { id: { in: rows.map((r) => r.orderId) }, depotId },
+    });
+  }
+
   async countByStatus(): Promise<Record<OutboxStatus, number>> {
     const grouped = await this.prisma.outboxMessage.groupBy({
       by: ['status'],

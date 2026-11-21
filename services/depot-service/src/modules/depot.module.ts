@@ -43,6 +43,7 @@ import { DailyClosePrismaRepository } from '../infrastructure/prisma/daily-close
 import { MonthlyClosePrismaRepository } from '../infrastructure/prisma/monthly-close.prisma.repository';
 import { CourierCodHttpAdapter } from '../infrastructure/http/courier-cod.http.adapter';
 import { OrderSubscriptionHttpAdapter } from '../infrastructure/http/order-subscription.http.adapter';
+import { OrderLedgerHttpAdapter } from '../infrastructure/http/order-ledger.http.adapter';
 import { DisputeService } from '../application/services/dispute.service';
 import { DisputeRefundHttpAdapter } from '../infrastructure/http/dispute-refund.http.adapter';
 import { MaintenanceService } from '../application/services/maintenance.service';
@@ -215,6 +216,7 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.WholesaleTierRepository, useClass: WholesaleTierPrismaRepository },
   { provide: DEPOT_TOKENS.SubscriptionRepository, useClass: SubscriptionPrismaRepository },
   { provide: DEPOT_TOKENS.OrderSubscriptionPort, useClass: OrderSubscriptionHttpAdapter },
+  { provide: DEPOT_TOKENS.OrderLedger, useClass: OrderLedgerHttpAdapter },
   { provide: DEPOT_TOKENS.HuddleRepository, useClass: HuddlePrismaRepository },
   { provide: DEPOT_TOKENS.HandoverRepository, useClass: HandoverPrismaRepository },
   {

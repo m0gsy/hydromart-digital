@@ -7,6 +7,7 @@ import {
   DuplicateDepotCodeError,
   FranchiseOwnerRequiredError,
   InvalidOwnerSharesError,
+  OwnershipChangeRevenuePendingError,
 } from '../../src/domain/errors';
 import { CreateDepotData } from '../../src/application/ports/depot.repository';
 import { InMemoryDepotRepository } from '../support/fakes';
@@ -436,6 +437,30 @@ describe('DepotService multi-owner', () => {
     const hkp = await service.update(d.id, { ownershipType: OwnershipType.HKP }, d.updatedAt.toISOString());
     expect(hkp.owners).toEqual([]);
     expect(hkp.ownerId).toBeNull();
+  });
+
+  // Owner decision 2026-11-21: a retried credit could pay the new owner for a sale made before.
+  it('waits for the revenue still owed before who owns the depot changes', async () => {
+    const owed = { pendingRevenue: jest.fn().mockResolvedValue(2) };
+    const guarded = new DepotService(repo, undefined, owed);
+    const d = await guarded.create(base({ code: 'WLB-L', ownershipType: OwnershipType.WARALABA, owners: split(60, 40) }));
+    const seen = d.updatedAt.toISOString();
+    await expect(guarded.setOwners(d.id, OwnershipType.WARALABA, split(50, 50), seen)).rejects.toBeInstanceOf(
+      OwnershipChangeRevenuePendingError,
+    );
+    await expect(guarded.update(d.id, { ownershipType: OwnershipType.HKP }, seen)).rejects.toBeInstanceOf(
+      OwnershipChangeRevenuePendingError,
+    );
+    expect(owed.pendingRevenue).toHaveBeenCalledWith(d.id);
+    // Not asked for an edit that leaves ownership alone, nor for an owners save of nothing.
+    owed.pendingRevenue.mockClear();
+    const renamed = await guarded.update(d.id, { name: 'Renamed' }, seen);
+    await guarded.setOwners(d.id, OwnershipType.WARALABA, split(60, 40), renamed.updatedAt.toISOString());
+    expect(owed.pendingRevenue).not.toHaveBeenCalled();
+    // Once it is booked, the change goes through.
+    owed.pendingRevenue.mockResolvedValue(0);
+    const moved = await guarded.setOwners(d.id, OwnershipType.WARALABA, split(50, 50), renamed.updatedAt.toISOString());
+    expect(moved.after?.owners?.map((o) => o.sharePct)).toEqual([50, 50]);
   });
 
   it('writes nothing for an owners save that changes nothing', async () => {

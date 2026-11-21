@@ -391,6 +391,23 @@ export class OrderController {
     return this.outboxService.processDue();
   }
 
+  /**
+   * Franchise revenue still owed for one depot's orders. depot-service asks before head office
+   * changes who owns the depot (owner decision 2026-11-21): a credit retried after the change
+   * could be paid to the new owner for a sale made before it.
+   */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('outbox/internal/pending-revenue')
+  @ApiOperation({ summary: 'Franchise revenue still owed for one depot (internal)' })
+  @ApiOkResponse({ description: 'How many franchise credits or voids are still PENDING.' })
+  async outboxPendingRevenue(
+    @Query('depotId', ParseUUIDPipe) depotId: string,
+  ): Promise<{ pending: number }> {
+    return { pending: await this.outboxService.pendingRevenue(depotId) };
+  }
+
   /** What the sweep still owes, so a queue that stops draining is visible. */
   @Roles(Role.SUPER_ADMIN)
   @Get('outbox/pending')

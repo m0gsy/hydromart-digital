@@ -37,6 +37,8 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   let operatorToken: string;
   let customerToken: string;
   let ownerToken: string;
+  // Owner decision 2026-11-21: what order-service says this depot is still owed.
+  let ledgerPending = 0;
   // Mint a staff token optionally bound to a depot — depot operators/managers are locked to
   // their assignedDepotId by the platform DepotScopeGuard, so `:depotId`/`?depotId` calls need
   // a token carrying the depot they act on.
@@ -84,6 +86,8 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       // in flight in a fresh in-memory depot.
       .overrideProvider(DEPOT_TOKENS.DeactivationProbe)
       .useValue({ blockers: async () => [] })
+      .overrideProvider(DEPOT_TOKENS.OrderLedger)
+      .useValue({ pendingRevenue: async () => ledgerPending })
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -501,6 +505,19 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       .set(auth(mgrAt))
       .send({ ownershipType: 'HKP', seenUpdatedAt: set.body.updatedAt })
       .expect(403);
+
+    // While revenue is still owed, head office waits (owner decision 2026-11-21).
+    ledgerPending = 1;
+    try {
+      await request(server())
+        .put(`/api/v1/depots/${id}/owners`)
+        .set(auth(headOfficeToken))
+        .send({ ownershipType: 'HKP', owners: [], seenUpdatedAt: set.body.updatedAt })
+        .expect(409)
+        .expect((r) => expect(r.body.message).toContain('belum dibukukan'));
+    } finally {
+      ledgerPending = 0;
+    }
   });
 
   /*

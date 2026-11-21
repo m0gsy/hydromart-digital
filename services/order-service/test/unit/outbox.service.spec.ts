@@ -16,6 +16,19 @@ describe('OutboxService edges', () => {
     service = new OutboxService(repo, orders);
   });
 
+  // Owner decision 2026-11-21: depot-service asks this before head office changes owners.
+  it('counts only franchise revenue still owed, and only for the depot asked about', async () => {
+    repo.enqueue([
+      { topic: 'FRANCHISE_REVENUE', orderId: 'o1' },
+      { topic: 'FRANCHISE_REVENUE_VOID', orderId: 'o2' },
+      { topic: 'INVENTORY_CONSUME', orderId: 'o1' },
+      { topic: 'FRANCHISE_REVENUE', orderId: 'o3' },
+    ]);
+    repo.depotOfOrder.set('o1', 'dep-1').set('o2', 'dep-1').set('o3', 'dep-2');
+    await expect(service.pendingRevenue('dep-1')).resolves.toBe(2);
+    await expect(service.pendingRevenue('dep-9')).resolves.toBe(0);
+  });
+
   it('retries a topic no running version knows how to handle', async () => {
     repo.enqueue([{ topic: 'INVENTORY_CONSUME', orderId: 'ord-1' }]);
 
