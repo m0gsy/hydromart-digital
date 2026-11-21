@@ -37,6 +37,8 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   let operatorToken: string;
   let customerToken: string;
   let ownerToken: string;
+  // Owner decision 2026-11-21: what order-service says this depot is still owed.
+  let ledgerPending = 0;
   // Mint a staff token optionally bound to a depot — depot operators/managers are locked to
   // their assignedDepotId by the platform DepotScopeGuard, so `:depotId`/`?depotId` calls need
   // a token carrying the depot they act on.
@@ -84,6 +86,8 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       // in flight in a fresh in-memory depot.
       .overrideProvider(DEPOT_TOKENS.DeactivationProbe)
       .useValue({ blockers: async () => [] })
+      .overrideProvider(DEPOT_TOKENS.OrderLedger)
+      .useValue({ pendingRevenue: async () => ledgerPending })
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -328,7 +332,7 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       await request(server())
         .post('/api/v1/depots')
         .set(auth(headOfficeToken))
-        .send({ ...depotBody, code: 'OWN-A', ownerId: OWNER_SUB })
+        .send({ ...depotBody, ownershipType: 'WARALABA', code: 'OWN-A', ownerId: OWNER_SUB })
         .expect(201)
     ).body;
     expect(a.ownerId).toBe(OWNER_SUB);
@@ -336,13 +340,13 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
       await request(server())
         .post('/api/v1/depots')
         .set(auth(headOfficeToken))
-        .send({ ...depotBody, code: 'OWN-B', ownerId: OWNER_SUB })
+        .send({ ...depotBody, ownershipType: 'WARALABA', code: 'OWN-B', ownerId: OWNER_SUB })
         .expect(201)
     ).body;
     await request(server())
       .post('/api/v1/depots')
       .set(auth(headOfficeToken))
-      .send({ ...depotBody, code: 'OWN-C', ownerId: OTHER_OWNER })
+      .send({ ...depotBody, ownershipType: 'WARALABA', code: 'OWN-C', ownerId: OTHER_OWNER })
       .expect(201);
     // deactivate one of the owner's depots — listMine still returns it
     await request(server())
@@ -456,6 +460,64 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
         expect(r.body.deliveryFee).toBe(7000);
         expect(r.body.paymentBankAccountNumber).not.toBe('123');
       });
+  });
+
+  /*
+   * 2026-11-21: who owns a depot is head office's, and the only route that changed it was the
+   * manager's PATCH — so head office could not change an owner at all.
+   */
+  it('lets head office, and not the manager, set who owns a depot', async () => {
+    const created = await request(server())
+      .post('/api/v1/depots')
+      .set(auth(headOfficeToken))
+      .send({ ...depotBody, code: 'OWNERS-01', name: 'Depot Owners' })
+      .expect(201);
+    const id = created.body.id;
+    const mgrAt = signStaff(Role.MANAGER, id);
+    const owners = [
+      { ownerId: OWNER_SUB, sharePct: 60, isPrimary: true },
+      { ownerId: '88888888-8888-4888-8888-888888888888', sharePct: 40, isPrimary: false },
+    ];
+    const body = { ownershipType: 'WARALABA', owners, seenUpdatedAt: created.body.updatedAt };
+
+    // The manager edits the depot, not who owns it — on either route.
+    await request(server()).put(`/api/v1/depots/${id}/owners`).set(auth(mgrAt)).send(body).expect(403);
+    await request(server()).patch(`/api/v1/depots/${id}`).set(auth(mgrAt)).send(body).expect(403);
+
+    const set = await request(server())
+      .put(`/api/v1/depots/${id}/owners`)
+      .set(auth(headOfficeToken))
+      .send(body)
+      .expect(200);
+    expect(set.body.ownershipType).toBe('WARALABA');
+    expect(set.body.ownerId).toBe(OWNER_SUB);
+    expect(set.body.owners).toHaveLength(2);
+
+    // The same copy again: the first save moved the depot on.
+    await request(server())
+      .put(`/api/v1/depots/${id}/owners`)
+      .set(auth(headOfficeToken))
+      .send(body)
+      .expect(409);
+    // Nor may the manager turn the franchise depot HKP, which would credit nobody.
+    await request(server())
+      .patch(`/api/v1/depots/${id}`)
+      .set(auth(mgrAt))
+      .send({ ownershipType: 'HKP', seenUpdatedAt: set.body.updatedAt })
+      .expect(403);
+
+    // While revenue is still owed, head office waits (owner decision 2026-11-21).
+    ledgerPending = 1;
+    try {
+      await request(server())
+        .put(`/api/v1/depots/${id}/owners`)
+        .set(auth(headOfficeToken))
+        .send({ ownershipType: 'HKP', owners: [], seenUpdatedAt: set.body.updatedAt })
+        .expect(409)
+        .expect((r) => expect(r.body.message).toContain('belum dibukukan'));
+    } finally {
+      ledgerPending = 0;
+    }
   });
 
   /*

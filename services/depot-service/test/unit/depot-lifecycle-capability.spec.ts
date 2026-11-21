@@ -21,6 +21,8 @@ describe('depot lifecycle is its own capability', () => {
     // 2026-11-20: reopening was a PATCH only a manager or super admin could send, so head
     // office could close a depot and never open it again.
     expect(capabilityOf('reactivate')).toBe('depotLifecycle');
+    // 2026-11-21: and who owns it — the PATCH below is the manager's.
+    expect(capabilityOf('setOwners')).toBe('depotLifecycle');
   });
 
   it('leaves editing and the QRIS upload with the depot manager', () => {

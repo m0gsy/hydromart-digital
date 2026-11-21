@@ -87,4 +87,30 @@ describe('OutboxPrismaRepository', () => {
     model.groupBy.mockResolvedValue([{ status: 'PENDING', _count: { _all: 3 } }]);
     await expect(repo.countByStatus()).resolves.toEqual({ PENDING: 3, DONE: 0, DEAD: 0, CANCELLED: 0 });
   });
+
+  // Owner decision 2026-11-21: head office may not change who owns a depot while any of its
+  // franchise revenue is still owed — a retried credit could pay the new owner.
+  describe('countPendingRevenue', () => {
+    const queryRaw = jest.fn();
+    const withSql = new OutboxPrismaRepository({
+      outboxMessage: model,
+      $queryRaw: queryRaw,
+    } as unknown as PrismaService);
+
+    it('counts the owed credits and voids of that depot in one joined query, with no cap', async () => {
+      queryRaw.mockResolvedValueOnce([{ n: BigInt(3) }]);
+      await expect(withSql.countPendingRevenue('dep-1')).resolves.toBe(3);
+      const sql = queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+      const text = sql.strings.join('?');
+      expect(text).toContain('JOIN "orders"');
+      expect(text).toContain("'FRANCHISE_REVENUE', 'FRANCHISE_REVENUE_VOID'");
+      expect(text).not.toMatch(/LIMIT/i);
+      expect(sql.values).toEqual(['dep-1']);
+    });
+
+    it('an empty answer is nothing owed', async () => {
+      queryRaw.mockResolvedValueOnce([]);
+      await expect(withSql.countPendingRevenue('dep-1')).resolves.toBe(0);
+    });
+  });
 });

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, MapPin, Package, Receipt, Users, Wallet } from '@phosphor-icons/react';
 
 import { DepotForm } from '@/components/hq/depot-form';
+import { DepotOwnersForm } from '@/components/hq/depot-owners-form';
 import { DepotSuspendDialog } from '@/components/hq/depot-suspend-dialog';
 import {
   RerouteWarning,
@@ -54,6 +55,8 @@ export default function HqDepotDetailPage() {
   const { t } = useT();
   const id = useQueryParam('id');
   const [editing, setEditing] = useState(false);
+  // Who owns the depot is head office's (PUT …/owners), apart from the manager's edit above.
+  const [editingOwners, setEditingOwners] = useState(false);
   const [busy, setBusy] = useState(false);
   // Owner decision 2026-11-21 (and 2026-10-15): editing a depot is its manager's — the PATCH
   // behind this form is depotAdmin. Head office (HEAD_OFFICE, DIREKTUR) was shown an Edit
@@ -199,8 +202,29 @@ export default function HqDepotDetailPage() {
           </div>
           <div className="flex gap-2">
             {canEdit && (
-              <Button variant="secondary" onClick={() => setEditing((v) => !v)} disabled={busy}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  // One form at a time: both carry the version they read, so a save in one
+                  // would leave the other refused as stale.
+                  setEditingOwners(false);
+                  setEditing((v) => !v);
+                }}
+                disabled={busy}
+              >
                 {t('hq.depotDetail.edit')}
+              </Button>
+            )}
+            {canLifecycle && (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setEditing(false);
+                  setEditingOwners((v) => !v);
+                }}
+                disabled={busy}
+              >
+                {t('hq.depotDetail.owners')}
               </Button>
             )}
             {canLifecycle &&
@@ -232,6 +256,17 @@ export default function HqDepotDetailPage() {
             depot.reload();
           }}
           onCancel={() => setEditing(false)}
+        />
+      )}
+      {editingOwners && (
+        <DepotOwnersForm
+          key={d.id}
+          depot={d}
+          onDone={() => {
+            setEditingOwners(false);
+            depot.reload();
+          }}
+          onCancel={() => setEditingOwners(false)}
         />
       )}
 

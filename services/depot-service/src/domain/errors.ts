@@ -90,6 +90,21 @@ export class DuplicateDepotCodeError extends DomainError {
  * revenue is never booked for anyone and HQ commission is never taken. Company-owned (HKP)
  * depots have no owner by design and are unaffected.
  */
+/**
+ * Owner decision 2026-11-21: who owns a depot does not change while franchise revenue for its
+ * orders is still owed — a retried credit could pay the new owner for a sale made before.
+ */
+export class OwnershipChangeRevenuePendingError extends DomainError {
+  readonly code = 'DEPOT_OWNERSHIP_REVENUE_PENDING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(pending: number) {
+    super(
+      `Masih ada ${pending} pendapatan depot ini yang belum dibukukan. ` +
+        'Ubah kepemilikan lagi setelah selesai dibukukan, biasanya beberapa menit.',
+    );
+  }
+}
+
 export class FranchiseOwnerRequiredError extends DomainError {
   readonly code = 'FRANCHISE_OWNER_REQUIRED';
   readonly status = HTTP_STATUS.BAD_REQUEST;

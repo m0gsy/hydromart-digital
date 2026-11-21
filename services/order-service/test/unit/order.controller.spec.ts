@@ -80,7 +80,7 @@ function makeService(): Mocked {
 describe('OrderController', () => {
   let service: Mocked;
   let controller: OrderController;
-  let outbox: { processDue: jest.Mock; pending: jest.Mock };
+  let outbox: { processDue: jest.Mock; pending: jest.Mock; pendingRevenue: jest.Mock };
   let subscriptions: { list: jest.Mock };
 
   beforeEach(() => {
@@ -89,6 +89,7 @@ describe('OrderController', () => {
     outbox = {
       processDue: jest.fn().mockResolvedValue({ claimed: 2, delivered: 2, failed: 0, dead: 0 }),
       pending: jest.fn().mockResolvedValue({ PENDING: 1, DONE: 9, DEAD: 0 }),
+      pendingRevenue: jest.fn().mockResolvedValue(2),
     };
     controller = new OrderController(
       service as unknown as OrderService,
@@ -858,6 +859,11 @@ describe('OrderController', () => {
   it('outbox: runs the sweep and reports what is still owed', async () => {
     await expect(controller.processOutbox()).resolves.toMatchObject({ delivered: 2 });
     await expect(controller.outboxPending()).resolves.toMatchObject({ PENDING: 1 });
+  });
+
+  it('outbox: answers depot-service how much franchise revenue one depot is still owed', async () => {
+    await expect(controller.outboxPendingRevenue('dep-1')).resolves.toEqual({ pending: 2 });
+    expect(outbox.pendingRevenue).toHaveBeenCalledWith('dep-1');
   });
 
   /*

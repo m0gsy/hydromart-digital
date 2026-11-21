@@ -236,6 +236,7 @@ export const dashboard = {
     code: 'Kode',
     name: 'Nama',
     ownership: 'Kepemilikan',
+    ownershipLocked: 'Diubah oleh kantor pusat',
     city: 'Kota',
     province: 'Provinsi',
     address: 'Alamat',

@@ -7,6 +7,7 @@ import { UntrackedSaleAlertHttpAdapter } from '../../src/infrastructure/http/unt
 import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
 import { OrderSubscriptionHttpAdapter } from '../../src/infrastructure/http/order-subscription.http.adapter';
 import { HqComplaintHttpAdapter } from '../../src/infrastructure/http/hq-complaint.http.adapter';
+import { OrderLedgerHttpAdapter } from '../../src/infrastructure/http/order-ledger.http.adapter';
 
 // Exercises the REAL HTTP adapter code (skip branches, URL/header/body building, res.ok
 // branch, fail-open catch) against a mocked global.fetch — the unit the e2e's Fake* stand-in
@@ -328,6 +329,36 @@ describe('OrderSubscriptionHttpAdapter.servingDepots', () => {
     await expect(new OrderSubscriptionHttpAdapter(cfg()).servingDepots(['e1'])).rejects.toThrow(
       'order-service responded 200',
     );
+  });
+});
+
+// Owner decision 2026-11-21: no change of owners while the depot's revenue is still owed.
+describe('OrderLedgerHttpAdapter', () => {
+  const cfg = (over: Partial<Record<string, unknown>> = {}) =>
+    makeConfig({ orderServiceUrl: 'http://order:3004', ...over });
+  const set = (impl: unknown) => ((globalThis as { fetch: unknown }).fetch = impl);
+
+  it('asks order-service for one depot with the internal key', async () => {
+    const fetchMock = jest.fn().mockResolvedValue(jsonRes(200, { pending: 2 }));
+    set(fetchMock);
+    await expect(new OrderLedgerHttpAdapter(cfg()).pendingRevenue('dep 1')).resolves.toBe(2);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit & { headers: Record<string, string> }];
+    expect(url).toBe('http://order:3004/api/v1/orders/outbox/internal/pending-revenue?depotId=dep%201');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+  });
+
+  it('fails closed: unwired, unreachable, refused or unreadable is never "nothing owed"', async () => {
+    await expect(new OrderLedgerHttpAdapter(cfg({ orderServiceUrl: '' })).pendingRevenue('d')).rejects.toThrow(
+      'Belum bisa memastikan',
+    );
+    set(jest.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+    await expect(new OrderLedgerHttpAdapter(cfg()).pendingRevenue('d')).rejects.toThrow('Belum bisa memastikan');
+    set(jest.fn().mockResolvedValue(jsonRes(500, { pending: 0 })));
+    await expect(new OrderLedgerHttpAdapter(cfg()).pendingRevenue('d')).rejects.toThrow('Belum bisa memastikan');
+    set(jest.fn().mockResolvedValue(jsonRes(200, { nope: true })));
+    await expect(new OrderLedgerHttpAdapter(cfg()).pendingRevenue('d')).rejects.toThrow('Belum bisa memastikan');
+    set(jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => { throw new Error('html'); } }));
+    await expect(new OrderLedgerHttpAdapter(cfg()).pendingRevenue('d')).rejects.toThrow('Belum bisa memastikan');
   });
 });
 

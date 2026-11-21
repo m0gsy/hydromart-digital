@@ -6,6 +6,7 @@ import {
   OutboxStatus,
   OutboxTopic,
 } from '../../application/ports/outbox.repository';
+import { Prisma } from '../../../prisma/generated/client';
 import { PrismaService } from './prisma.service';
 
 interface OutboxRow {
@@ -110,6 +111,21 @@ export class OutboxPrismaRepository implements OutboxRepository {
       data: { status: 'CANCELLED', lastError: reason.slice(0, 500) },
     });
     return count;
+  }
+
+  async countPendingRevenue(depotId: string): Promise<number> {
+    // One joined count: the outbox row holds no depot. Capping the network-wide rows first and
+    // filtering after would answer 0 for a depot whose rows fell past the cap — a guard that
+    // fails open exactly during the backlog it exists for.
+    const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>(Prisma.sql`
+      SELECT COUNT(*) AS n
+      FROM "outbox_messages" m
+      JOIN "orders" o ON o."id" = m."orderId"
+      WHERE m."status" = 'PENDING'
+        AND m."topic" IN ('FRANCHISE_REVENUE', 'FRANCHISE_REVENUE_VOID')
+        AND o."depotId" = ${depotId}::uuid
+    `);
+    return Number(row?.n ?? 0);
   }
 
   async countByStatus(): Promise<Record<OutboxStatus, number>> {

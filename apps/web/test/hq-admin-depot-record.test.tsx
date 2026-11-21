@@ -15,11 +15,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * fails here for exactly the reason it failed in production.
  */
 
-const { get, patch, post } = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn(), post: vi.fn() }));
-vi.mock('@/lib/api', () => ({
-  api: { get, getCached: get, patch, post },
-  ApiError: class ApiError extends Error {},
+const { get, patch, post, put, toast } = vi.hoisted(() => ({
+  get: vi.fn(),
+  patch: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+  toast: vi.fn(),
 }));
+vi.mock('@/lib/api', () => ({
+  api: { get, getCached: get, patch, post, put },
+  ApiError: class ApiError extends Error {
+    code?: string;
+  },
+}));
+vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: () => 'dep-1' }));
 // Editing a depot is depotAdmin (its manager, or super admin); head office does not get the
 // button (owner decision 2026-11-21). The edit tests below run as super admin.
@@ -32,6 +41,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/hq/depots/detail',
 }));
 
+import { ApiError } from '@/lib/api';
 import { LocaleProvider } from '@/lib/locale-context';
 import HqDepotDetailPage from '@/app/hq/depots/detail/page';
 import HqOnboardingPage from '@/app/hq/onboarding/page';
@@ -118,6 +128,7 @@ beforeEach(() => {
   post.mockReset();
   get.mockReset();
   patch.mockReset();
+  put.mockReset();
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -127,7 +138,7 @@ describe('hq/depots/detail reads the admin record', () => {
     const user = userEvent.setup();
     renderPage(<HqDepotDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Ubah|Edit/i }));
+    await user.click(await screen.findByRole('button', { name: /^(Ubah|Edit)$/i }));
 
     // Read off the public projection these are blank, and `toDepotPayload` sends
     // `paymentBankAccountNumber: null` — one save empties the depot's payment details.
@@ -259,5 +270,99 @@ describe('who is offered the edit form (owner decision 2026-11-21)', () => {
     expect(await screen.findByText('Depot Menteng')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^(Ubah|Edit)$/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /Tangguhkan|Suspend/i })).toBeNull();
+  });
+});
+
+describe('head office sets who owns a depot (2026-11-21)', () => {
+  const SEEN = '2026-11-21T01:00:00.000Z';
+  afterEach(() => {
+    auth.role = 'SUPER_ADMIN';
+  });
+
+  it('saves through its own route, never the manager PATCH, with the version it read', async () => {
+    auth.role = 'HEAD_OFFICE';
+    serveDepot({ ...ADMIN_ROW, updatedAt: SEEN } as typeof ADMIN_ROW);
+    put.mockResolvedValue({});
+    const user = userEvent.setup();
+    renderPage(<HqDepotDetailPage />);
+
+    await user.click(await screen.findByRole('button', { name: /Ubah pemilik|Change owners/i }));
+    // Turned company-owned, the depot credits nobody: no owners go with it.
+    await user.click(screen.getByText(/Milik pusat \(HKP\)|Central/));
+    await user.click(screen.getByRole('button', { name: /Simpan perubahan|Save changes/i }));
+
+    await vi.waitFor(() =>
+      expect(put).toHaveBeenCalledWith(
+        '/depots/api/v1/depots/dep-1/owners',
+        { ownershipType: 'HKP', owners: [], seenUpdatedAt: SEEN },
+        true,
+      ),
+    );
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it('sends the franchise owner it shows, at 100%', async () => {
+    auth.role = 'DIREKTUR';
+    serveDepot({ ...ADMIN_ROW, updatedAt: SEEN } as typeof ADMIN_ROW);
+    put.mockResolvedValue({});
+    const user = userEvent.setup();
+    renderPage(<HqDepotDetailPage />);
+
+    await user.click(await screen.findByRole('button', { name: /Ubah pemilik|Change owners/i }));
+    await user.click(screen.getByRole('button', { name: /Simpan perubahan|Save changes/i }));
+
+    await vi.waitFor(() =>
+      expect(put).toHaveBeenCalledWith(
+        '/depots/api/v1/depots/dep-1/owners',
+        {
+          ownershipType: 'WARALABA',
+          owners: [{ ownerId: 'own-1', sharePct: 100, isPrimary: true }],
+          seenUpdatedAt: SEEN,
+        },
+        true,
+      ),
+    );
+  });
+
+  it('closes and re-reads the depot when somebody changed it first', async () => {
+    auth.role = 'HEAD_OFFICE';
+    serveDepot({ ...ADMIN_ROW, updatedAt: SEEN } as typeof ADMIN_ROW);
+    put.mockRejectedValue(Object.assign(new ApiError(409, 'stale'), { code: 'STALE_WRITE' }));
+    const user = userEvent.setup();
+    renderPage(<HqDepotDetailPage />);
+
+    await user.click(await screen.findByRole('button', { name: /Ubah pemilik|Change owners/i }));
+    const reads = get.mock.calls.filter(([path]) => String(path).includes('/depots/manage/')).length;
+    await user.click(screen.getByRole('button', { name: /Simpan perubahan|Save changes/i }));
+
+    // Kept open, every retry would send the same stale version and be refused again.
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith(expect.stringMatching(/Orang lain|Someone else/), 'error'));
+    await vi.waitFor(() =>
+      expect(
+        get.mock.calls.filter(([path]) => String(path).includes('/depots/manage/')).length,
+      ).toBeGreaterThan(reads),
+    );
+    expect(await screen.findByText('Depot Menteng')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Simpan perubahan|Save changes/i })).toBeNull();
+  });
+
+  it('opens one form at a time, so a save in one cannot leave the other stale', async () => {
+    serveDepot();
+    const user = userEvent.setup();
+    renderPage(<HqDepotDetailPage />);
+
+    await user.click(await screen.findByRole('button', { name: /^(Ubah|Edit)$/i }));
+    expect(document.querySelector('#d-acct')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Ubah pemilik|Change owners/i }));
+    expect(document.querySelector('#d-acct')).toBeNull();
+    expect(screen.getByText(/Pemilik Depot Menteng|Owners of Depot Menteng/)).toBeTruthy();
+  });
+
+  it('is not offered to a role that may not change owners', async () => {
+    auth.role = 'FINANCE';
+    serveDepot();
+    renderPage(<HqDepotDetailPage />);
+    expect(await screen.findByText('Depot Menteng')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Ubah pemilik|Change owners/i })).toBeNull();
   });
 });

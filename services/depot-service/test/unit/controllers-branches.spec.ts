@@ -1104,6 +1104,7 @@ describe('DepotController', () => {
     setQrisImage: jest.fn(),
     deactivate: jest.fn(),
     reactivate: jest.fn(),
+    setOwners: jest.fn(),
   };
   const storage = { put: jest.fn() };
   const c = new DepotController(svc as never, storage as never);
@@ -1644,6 +1645,34 @@ describe('DepotController', () => {
       expect(wire).not.toContain('1234567890');
       expect(wire).not.toContain('Bogor');
       expect(wire).not.toContain('q.png');
+    });
+
+    it('names who was made the payee and who stopped being one, and skips a save of nothing', async () => {
+      const was = {
+        code: 'JKT-01',
+        ownershipType: 'WARALABA',
+        owners: [{ ownerId: 'a', sharePct: 100, isPrimary: true, effectiveFrom: 'x' }],
+      };
+      const now = { ...was, owners: [{ ownerId: 'b', sharePct: 100, isPrimary: true }] };
+      svc.setOwners
+        .mockResolvedValueOnce({ before: was, after: now })
+        .mockResolvedValueOnce({ before: now, after: null });
+      const dto = { ownershipType: 'WARALABA', owners: now.owners, seenUpdatedAt: 's' };
+      await expect(c.setOwners(ID, dto as never, user)).resolves.toBe(now);
+      expect(svc.setOwners).toHaveBeenCalledWith(ID, 'WARALABA', now.owners, 's');
+      // The same owners again: the depot as it stands, and no second line.
+      await expect(c.setOwners(ID, dto as never, user)).resolves.toBe(now);
+      expect(sent()).toEqual([
+        expect.objectContaining({
+          action: 'depot.owners.update',
+          target: 'JKT-01',
+          metadata: {
+            depotId: ID,
+            from: { ownershipType: 'WARALABA', owners: [{ ownerId: 'a', sharePct: 100, isPrimary: true }] },
+            to: { ownershipType: 'WARALABA', owners: now.owners },
+          },
+        }),
+      ]);
     });
 
     it('does not audit a refused change', async () => {

@@ -268,6 +268,34 @@ export class UpdateDepotDto extends PartialType(CreateDepotDto) {
   // its manager may send.
 }
 
+/**
+ * `PUT /depots/:depotId/owners`: who owns a depot and how its revenue is split, set by head
+ * office (depotLifecycle). The PATCH that edits a depot is its manager's (depotAdmin), so head
+ * office, who may change owners, could not reach the one route that changed them.
+ */
+export class UpdateDepotOwnersDto {
+  @ApiProperty({ enum: OwnershipType })
+  @IsEnum(OwnershipType)
+  ownershipType!: OwnershipType;
+
+  @ApiProperty({
+    type: [DepotOwnerShareDto],
+    description: 'All owners and their shares (sum 100, one primary). Empty for HKP.',
+  })
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => DepotOwnerShareDto)
+  owners!: DepotOwnerShareDto[];
+
+  @ApiProperty({
+    format: 'date-time',
+    description: 'The `updatedAt` this change started from; refused (409) if the depot moved since.',
+  })
+  @IsISO8601()
+  seenUpdatedAt!: string;
+}
+
 /* ---------- Public projection ---------- */
 
 /**

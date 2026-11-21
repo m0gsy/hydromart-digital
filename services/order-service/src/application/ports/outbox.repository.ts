@@ -103,4 +103,11 @@ export interface OutboxRepository {
   cancelForOrder(orderId: string, reason: string): Promise<number>;
   /** Everything still owed, for the ops view of a sweep that is not keeping up. */
   countByStatus(): Promise<Record<OutboxStatus, number>>;
+  /**
+   * Franchise revenue still owed (credit or void, PENDING) for orders of one depot. Head office
+   * may not change who owns a depot while any is (owner decision 2026-11-21): it is credited by
+   * the owners as of the order's completion, and a moment before any owner generation falls
+   * back to the CURRENT owners, so an HKP sale retried after the flip would pay the new owner.
+   */
+  countPendingRevenue(depotId: string): Promise<number>;
 }

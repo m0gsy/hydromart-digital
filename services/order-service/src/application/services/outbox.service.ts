@@ -164,6 +164,11 @@ export class OutboxService {
     return this.outbox.countByStatus();
   }
 
+  /** Franchise revenue still owed for one depot's orders (see the repository). */
+  pendingRevenue(depotId: string): Promise<number> {
+    return this.outbox.countPendingRevenue(depotId);
+  }
+
   private async deliver(message: OutboxMessageRecord, authorization: string): Promise<void> {
     const handler = this.handlers.get(message.topic);
     if (!handler) {
