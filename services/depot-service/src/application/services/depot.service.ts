@@ -174,9 +174,10 @@ export class DepotService {
     const nextOwners = this.ownersAfter(current, patch);
     // Who is paid, and how much, is not a depot setting: editing a depot is open to its manager,
     // changing its owners is head office's (the same people who may create or deactivate one).
-    if (nextOwners !== undefined && !canLifecycle) {
+    // So is the ownership type: a franchise depot turned HKP credits nobody, owners or not.
+    if ((nextOwners !== undefined || ownershipType !== current.ownershipType) && !canLifecycle) {
       throw new ForbiddenException(
-        'Hanya kantor pusat yang boleh mengubah pemilik dan pembagian hasil depot.',
+        'Hanya kantor pusat yang boleh mengubah kepemilikan, pemilik, dan pembagian hasil depot.',
       );
     }
     const effective = nextOwners ?? currentOwners(current);

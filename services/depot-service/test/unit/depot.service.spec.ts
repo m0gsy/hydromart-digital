@@ -410,6 +410,26 @@ describe('DepotService multi-owner', () => {
     expect(ok.owners).toEqual(split(60, 40));
   });
 
+  it('keeps the ownership type with head office as well', async () => {
+    const d = await franchise({ owners: split(60, 40) });
+    const seen = d.updatedAt.toISOString();
+    // Turned HKP, a franchise depot credits nobody, its owners still listed or not.
+    await expect(
+      service.update(d.id, { ownershipType: OwnershipType.HKP }, seen, false),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    // An edit form resends the type it read: unchanged is no change.
+    const ok = await service.update(
+      d.id,
+      { ownershipType: OwnershipType.WARALABA, name: 'Renamed' },
+      seen,
+      false,
+    );
+    expect(ok.name).toBe('Renamed');
+    const moved = await service.update(d.id, { ownershipType: OwnershipType.HKP, owners: [] }, ok.updatedAt.toISOString());
+    expect(moved.ownershipType).toBe(OwnershipType.HKP);
+    expect(moved.owners).toEqual([]);
+  });
+
   it('falls back to the current set for a moment before any generation was recorded', async () => {
     const d = await franchise({ owners: split(60, 40) });
     expect(await service.ownersAsOf(d.id, new Date(0))).toEqual(split(60, 40));

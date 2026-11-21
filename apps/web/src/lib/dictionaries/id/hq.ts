@@ -450,6 +450,8 @@ export const hq = {
   depotDetail: {
     back: 'Semua depot',
     edit: 'Edit',
+    owners: 'Ubah pemilik',
+    ownersTitle: 'Pemilik {name}',
     suspend: 'Tangguhkan',
     reactivate: 'Aktifkan',
     kpi: { revenue: 'Pendapatan 30h', orders: 'Pesanan', sla: 'SLA tepat waktu', rating: 'Rating' },

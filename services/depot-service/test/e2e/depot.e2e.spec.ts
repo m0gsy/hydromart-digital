@@ -459,6 +459,51 @@ describe('Depot & Inventory HTTP flows (e2e)', () => {
   });
 
   /*
+   * 2026-11-21: who owns a depot is head office's, and the only route that changed it was the
+   * manager's PATCH — so head office could not change an owner at all.
+   */
+  it('lets head office, and not the manager, set who owns a depot', async () => {
+    const created = await request(server())
+      .post('/api/v1/depots')
+      .set(auth(headOfficeToken))
+      .send({ ...depotBody, code: 'OWNERS-01', name: 'Depot Owners' })
+      .expect(201);
+    const id = created.body.id;
+    const mgrAt = signStaff(Role.MANAGER, id);
+    const owners = [
+      { ownerId: OWNER_SUB, sharePct: 60, isPrimary: true },
+      { ownerId: '88888888-8888-4888-8888-888888888888', sharePct: 40, isPrimary: false },
+    ];
+    const body = { ownershipType: 'WARALABA', owners, seenUpdatedAt: created.body.updatedAt };
+
+    // The manager edits the depot, not who owns it — on either route.
+    await request(server()).put(`/api/v1/depots/${id}/owners`).set(auth(mgrAt)).send(body).expect(403);
+    await request(server()).patch(`/api/v1/depots/${id}`).set(auth(mgrAt)).send(body).expect(403);
+
+    const set = await request(server())
+      .put(`/api/v1/depots/${id}/owners`)
+      .set(auth(headOfficeToken))
+      .send(body)
+      .expect(200);
+    expect(set.body.ownershipType).toBe('WARALABA');
+    expect(set.body.ownerId).toBe(OWNER_SUB);
+    expect(set.body.owners).toHaveLength(2);
+
+    // The same copy again: the first save moved the depot on.
+    await request(server())
+      .put(`/api/v1/depots/${id}/owners`)
+      .set(auth(headOfficeToken))
+      .send(body)
+      .expect(409);
+    // Nor may the manager turn the franchise depot HKP, which would credit nobody.
+    await request(server())
+      .patch(`/api/v1/depots/${id}`)
+      .set(auth(mgrAt))
+      .send({ ownershipType: 'HKP', seenUpdatedAt: set.body.updatedAt })
+      .expect(403);
+  });
+
+  /*
    * AUTHZ-B1 — the by-id depot routes, from another depot's manager.
    *
    * `DepotScopeGuard` only ever reads a parameter called `depotId`/`depotIds`. These four

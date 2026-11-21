@@ -15,6 +15,7 @@ import {
   Patch,
   PayloadTooLargeException,
   Post,
+  Put,
   Query,
   ServiceUnavailableException,
   UploadedFile,
@@ -62,6 +63,7 @@ import {
   NearbyDepotView,
   PublicDepotView,
   UpdateDepotDto,
+  UpdateDepotOwnersDto,
   publicDepotWithArea,
 } from './dto/depot.dto';
 import {
@@ -492,6 +494,29 @@ export class DepotController {
     await this.audit('depot.update', user, updated.code, {
       depotId: id,
       changed: Object.keys(patch).sort(),
+    });
+    return updated;
+  }
+
+  // 2026-11-21: who owns a depot is head office's (depotLifecycle), and the only route that
+  // changed it was the PATCH above, which is the manager's (depotAdmin) — so HEAD_OFFICE and
+  // DIREKTUR could not change an owner at all, and a manager was refused by the service.
+  @ApiOkResponse({ type: DepotResponseDto })
+  @ApiBearerAuth()
+  @Can('depotLifecycle')
+  @Put(':depotId/owners')
+  @ApiOperation({ summary: 'Set a depot ownership type, owners and shares (head office)' })
+  async setOwners(
+    @Param('depotId', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateDepotOwnersDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DepotRecord> {
+    const { seenUpdatedAt, ownershipType, owners } = dto;
+    const updated = await this.depots.update(id, { ownershipType, owners }, seenUpdatedAt, true);
+    await this.audit('depot.owners.update', user, updated.code, {
+      depotId: id,
+      ownershipType,
+      owners: owners.length,
     });
     return updated;
   }

@@ -15,9 +15,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * fails here for exactly the reason it failed in production.
  */
 
-const { get, patch, post } = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn(), post: vi.fn() }));
+const { get, patch, post, put } = vi.hoisted(() => ({
+  get: vi.fn(),
+  patch: vi.fn(),
+  post: vi.fn(),
+  put: vi.fn(),
+}));
 vi.mock('@/lib/api', () => ({
-  api: { get, getCached: get, patch, post },
+  api: { get, getCached: get, patch, post, put },
   ApiError: class ApiError extends Error {},
 }));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: () => 'dep-1' }));
@@ -118,6 +123,7 @@ beforeEach(() => {
   post.mockReset();
   get.mockReset();
   patch.mockReset();
+  put.mockReset();
 });
 afterEach(() => vi.clearAllMocks());
 
@@ -127,7 +133,7 @@ describe('hq/depots/detail reads the admin record', () => {
     const user = userEvent.setup();
     renderPage(<HqDepotDetailPage />);
 
-    await user.click(await screen.findByRole('button', { name: /Ubah|Edit/i }));
+    await user.click(await screen.findByRole('button', { name: /^(Ubah|Edit)$/i }));
 
     // Read off the public projection these are blank, and `toDepotPayload` sends
     // `paymentBankAccountNumber: null` — one save empties the depot's payment details.
@@ -259,5 +265,65 @@ describe('who is offered the edit form (owner decision 2026-11-21)', () => {
     expect(await screen.findByText('Depot Menteng')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /^(Ubah|Edit)$/i })).toBeNull();
     expect(screen.queryByRole('button', { name: /Tangguhkan|Suspend/i })).toBeNull();
+  });
+});
+
+describe('head office sets who owns a depot (2026-11-21)', () => {
+  const SEEN = '2026-11-21T01:00:00.000Z';
+  afterEach(() => {
+    auth.role = 'SUPER_ADMIN';
+  });
+
+  it('saves through its own route, never the manager PATCH, with the version it read', async () => {
+    auth.role = 'HEAD_OFFICE';
+    serveDepot({ ...ADMIN_ROW, updatedAt: SEEN } as typeof ADMIN_ROW);
+    put.mockResolvedValue({});
+    const user = userEvent.setup();
+    renderPage(<HqDepotDetailPage />);
+
+    await user.click(await screen.findByRole('button', { name: /Ubah pemilik|Change owners/i }));
+    // Turned company-owned, the depot credits nobody: no owners go with it.
+    await user.click(screen.getByText(/Milik pusat \(HKP\)|Central/));
+    await user.click(screen.getByRole('button', { name: /Simpan perubahan|Save changes/i }));
+
+    await vi.waitFor(() =>
+      expect(put).toHaveBeenCalledWith(
+        '/depots/api/v1/depots/dep-1/owners',
+        { ownershipType: 'HKP', owners: [], seenUpdatedAt: SEEN },
+        true,
+      ),
+    );
+    expect(patch).not.toHaveBeenCalled();
+  });
+
+  it('sends the franchise owner it shows, at 100%', async () => {
+    auth.role = 'DIREKTUR';
+    serveDepot({ ...ADMIN_ROW, updatedAt: SEEN } as typeof ADMIN_ROW);
+    put.mockResolvedValue({});
+    const user = userEvent.setup();
+    renderPage(<HqDepotDetailPage />);
+
+    await user.click(await screen.findByRole('button', { name: /Ubah pemilik|Change owners/i }));
+    await user.click(screen.getByRole('button', { name: /Simpan perubahan|Save changes/i }));
+
+    await vi.waitFor(() =>
+      expect(put).toHaveBeenCalledWith(
+        '/depots/api/v1/depots/dep-1/owners',
+        {
+          ownershipType: 'WARALABA',
+          owners: [{ ownerId: 'own-1', sharePct: 100, isPrimary: true }],
+          seenUpdatedAt: SEEN,
+        },
+        true,
+      ),
+    );
+  });
+
+  it('is not offered to a role that may not change owners', async () => {
+    auth.role = 'FINANCE';
+    serveDepot();
+    renderPage(<HqDepotDetailPage />);
+    expect(await screen.findByText('Depot Menteng')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Ubah pemilik|Change owners/i })).toBeNull();
   });
 });
