@@ -1,6 +1,9 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 import { INestApplication } from '@nestjs/common';
+// Deep import, like main.ts: the barrel would pull the JWT guard and @nestjs/jwt. This module
+// needs only @nestjs/common, which the gateway already has.
+import { verifiedExternalCaller } from '@hydromart/platform/dist/nest/external-access';
 import type { Express, NextFunction, Request, RequestHandler, Response } from 'express';
 import helmet from 'helmet';
 import { createProxyMiddleware } from 'http-proxy-middleware';
@@ -58,13 +61,23 @@ const INTERNAL_KEY_HEADER = 'x-internal-key';
  * The `sub` is a user id, not a credential, so it is used as-is; the old hash existed to
  * keep a usable token out of the limiter's key set and there is no longer a token in it.
  */
-export function rateLimitKey(req: Request, secret = '', secure = false): string {
+export function rateLimitKey(
+  req: Request,
+  secret = '',
+  secure = false,
+  authServiceUrl?: string,
+): string {
   // GW-4: the session cookie is prefixed wherever TLS allows it, so read the name in use.
   const credential = req.headers.authorization ?? readCookie(req, atCookieName(secure));
   if (credential && secret) {
     const sub = verifiedSubject(credential, secret);
     if (sub) return `u:${sub}`;
   }
+  // HD-2: an AI-web or machine token, verified against the keys auth-service publishes, is
+  // one ACCOUNT: every such request arrives from the AI web's single address, and keying them
+  // on it would make every AI user and every workflow share one budget.
+  const external = verifiedExternalCaller(credential, authServiceUrl);
+  if (external) return `a:${external.sub}`;
   return `i:${req.ip ?? 'unknown'}`;
 }
 
@@ -329,7 +342,8 @@ export function configureGateway(app: INestApplication, config: GatewayConfigSer
     tokenBucket({
       capacity: config.rateLimit.burstLimit,
       refillPerSecond: config.rateLimit.limit / config.rateLimit.ttlSeconds,
-      keyGenerator: (req) => rateLimitKey(req, config.accessTokenSecret, secureCookies),
+      keyGenerator: (req) =>
+        rateLimitKey(req, config.accessTokenSecret, secureCookies, config.upstreams().auth),
       skip: (req) => req.path === '/health' || req.path === '/mobile-config',
     }),
   );

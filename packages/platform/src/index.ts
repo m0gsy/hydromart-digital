@@ -53,8 +53,35 @@ export {
 } from './domain/import-runner';
 export { AuthenticatedUser, RequestContext } from './http/authenticated-user';
 export { getRequestContext, isTrustedProxyPeer } from './http/request-context';
-export { clientIpTracker, isInternalCall, perClientThrottle } from './http/per-client-throttle';
-export { TOKEN_ALGORITHM, TOKEN_AUDIENCE, TOKEN_ISSUER } from './nest/token-claims';
+export {
+  clientIpTracker,
+  clientTracker,
+  isInternalCall,
+  perClientThrottle,
+} from './http/per-client-throttle';
+export {
+  AI_TOKEN_AUDIENCE,
+  EXTERNAL_JWKS_PATH,
+  EXTERNAL_TOKEN_ALGORITHM,
+  MACHINE_TOKEN_AUDIENCE,
+  TOKEN_ALGORITHM,
+  TOKEN_AUDIENCE,
+  TOKEN_ISSUER,
+} from './nest/token-claims';
+export {
+  EXTERNAL_ACCESS_KEY,
+  ExternalAccess,
+  ExternalKeyStore,
+  MACHINE_ROLE,
+  externalKeyStore,
+  resetExternalKeyStores,
+  tokenAlgorithm,
+  verifiedExternalCaller,
+  verifyExternalToken,
+  type ExternalCaller,
+  type ExternalClaims,
+  type ExternalKeyStoreOptions,
+} from './nest/external-access';
 export {
   Public,
   Roles,

@@ -1,6 +1,11 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, generateKeyPairSync, sign as signEs256 } from 'node:crypto';
 
 import type { Request } from 'express';
+
+import {
+  externalKeyStore,
+  resetExternalKeyStores,
+} from '@hydromart/platform/dist/nest/external-access';
 
 import { rateLimitKey } from '../../src/gateway.setup';
 
@@ -129,5 +134,50 @@ describe('rateLimitKey · the anonymous fallback', () => {
     // A key of `i:undefined` would silently collapse every such caller into ONE shared
     // counter — the per-deployment bucket B-2 exists to prevent.
     expect(keyOf({})).toBe('i:unknown');
+  });
+});
+
+/*
+ * HD-2. An AI-web or machine token is ES256, signed by auth-service and verified against the
+ * keys it publishes. Every such request arrives from the AI web's one address, so an address
+ * bucket would make every AI user and every workflow share a single budget: a verified one is
+ * keyed on its account instead, and anything unverifiable still falls back to the address.
+ */
+describe('rateLimitKey for an ES256 token (HD-2)', () => {
+  const AUTH = 'http://auth.test';
+  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  const jwk = { ...publicKey.export({ format: 'jwk' }), kid: 'k1', use: 'sig' };
+  const es256 = (sub: string): string => {
+    const data = `${b64({ alg: 'ES256', kid: 'k1' })}.${b64({
+      iss: 'hydromart-auth',
+      aud: 'hydromart-machine',
+      sub,
+      exp: Math.floor(Date.now() / 1000) + 600,
+    })}`;
+    const sig = signEs256('sha256', Buffer.from(data), { key: privateKey, dsaEncoding: 'ieee-p1363' });
+    return `${data}.${sig.toString('base64url')}`;
+  };
+  const req = (authorization: string) =>
+    ({ headers: { authorization }, ip: '203.0.113.9' }) as unknown as Request;
+
+  beforeAll(async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({ ok: true, json: async () => ({ keys: [jwk] }) } as unknown as Response);
+    await externalKeyStore(AUTH)!.refresh();
+  });
+  afterAll(() => {
+    resetExternalKeyStores();
+    jest.restoreAllMocks();
+  });
+
+  it('keys a verified machine token on its account', () => {
+    expect(rateLimitKey(req(`Bearer ${es256('n8n')}`), SECRET, false, AUTH)).toBe('a:n8n');
+  });
+
+  it('keeps the address when the token does not verify, or nothing can verify it', () => {
+    const forged = `${es256('n8n').split('.').slice(0, 2).join('.')}.${'A'.repeat(86)}`;
+    expect(rateLimitKey(req(`Bearer ${forged}`), SECRET, false, AUTH)).toBe('i:203.0.113.9');
+    expect(rateLimitKey(req(`Bearer ${es256('n8n')}`), SECRET)).toBe('i:203.0.113.9');
   });
 });

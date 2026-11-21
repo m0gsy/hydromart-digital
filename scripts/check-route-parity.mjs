@@ -117,6 +117,15 @@ function declaredRoutes(service) {
           apiKeyGuard:
             /@UseGuards\([^)]*ApiKeyGuard/.test(body) ||
             /@UseGuards\([^)]*ApiKeyGuard/.test(classHead),
+          /*
+           * HD-2: open to AI-web or machine tokens. Its caller is the AI web, another
+           * repository, through contracts/ai-v1/, so looking for one here can only fail.
+           * Read from this route's own decorators (after the previous method's closing
+           * brace) or the class head, so a neighbour's decorator does not count.
+           */
+          externalAccess:
+            /@ExternalAccess\(/.test(preceding.slice(preceding.lastIndexOf('}') + 1)) ||
+            /@ExternalAccess\(/.test(classHead),
         });
       }
     }
@@ -230,6 +239,7 @@ function classify(route, clientByService, callerPaths) {
   // repo by definition. Counted in its own class rather than folded into `internal`, so the
   // number stays honest — this surface IS reachable by somebody, just not by us.
   if (route.apiKeyGuard) return 'partner';
+  if (route.externalAccess) return 'external';
   if (route.path.some((s) => INTERNAL_SEGMENTS.has(s))) return 'internal';
 
   const fromUi = clientByService[route.service] ?? [];
@@ -253,7 +263,7 @@ for (const path of clientPaths()) {
 }
 const callerPaths = nonWebCallers().map((p) => splitPath(p).slice(2)); // drop api/v1
 
-const counts = { ui: 0, internal: 0, partner: 0, caller: 0, orphan: 0 };
+const counts = { ui: 0, internal: 0, partner: 0, external: 0, caller: 0, orphan: 0 };
 const orphans = [];
 for (const service of services) {
   for (const route of declaredRoutes(service)) {
@@ -268,10 +278,10 @@ for (const service of services) {
 }
 orphans.sort();
 
-const total = counts.ui + counts.internal + counts.caller + counts.orphan;
+const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
 const summary =
   `${total} routes — ${counts.ui} reachable from a screen, ${counts.internal} internal, ` +
-    `${counts.partner} partner API, ` +
+    `${counts.partner} partner API, ${counts.external} for the AI web, ` +
   `${counts.caller} called by something else, ${counts.orphan} orphaned`;
 
 if (process.argv.includes('--list')) {

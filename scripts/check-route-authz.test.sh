@@ -212,6 +212,82 @@ export class ThingController {
 }
 TS
 
+# --- HD-2: routes an AI-web or machine token may reach -----------------------
+expect 0 'an @ExternalAccess read with @Can passes' <<'TS'
+@Controller({ path: 'things', version: '1' })
+export class ThingController {
+  @ExternalAccess('ai', 'machine')
+  @Can('thingRead')
+  @Get('list')
+  list(): Promise<void> {
+    return this.things.list();
+  }
+}
+TS
+
+expect 1 'an @ExternalAccess route held only by @Roles fails' <<'TS'
+@Controller({ path: 'things', version: '1' })
+export class ThingController {
+  @ExternalAccess('machine')
+  @Roles(Role.HQ_ADMIN)
+  @Get('list')
+  list(): Promise<void> {
+    return this.things.list();
+  }
+}
+TS
+
+expect 1 'an @ExternalAccess route held only by @SelfScoped fails' <<'TS'
+@Controller({ path: 'things', version: '1' })
+export class ThingController {
+  @ExternalAccess('ai')
+  @SelfScoped()
+  @Get('mine')
+  mine(@CurrentUser() user: AuthenticatedUser): Promise<void> {
+    return this.things.mine(user.sub);
+  }
+}
+TS
+
+expect 1 'an @ExternalAccess write without the audit interceptor fails' <<'TS'
+@Controller({ path: 'things', version: '1' })
+export class ThingController {
+  @ExternalAccess('machine')
+  @Can('thingWrite')
+  @Post('draft')
+  draft(): Promise<void> {
+    return this.things.draft();
+  }
+}
+TS
+
+expect 0 'an @ExternalAccess write under the audit interceptor passes' <<'TS'
+import { AuditMutationsInterceptor } from '@hydromart/platform';
+@Controller({ path: 'things', version: '1' })
+@UseInterceptors(AuditMutationsInterceptor)
+@ExternalAccess('machine')
+export class ThingController {
+  @Can('thingWrite')
+  @Post('draft')
+  draft(): Promise<void> {
+    return this.things.draft();
+  }
+}
+TS
+
+expect 1 'importing the interceptor without using it does not count' <<'TS'
+import { AuditMutationsInterceptor } from '@hydromart/platform';
+@Controller({ path: 'things', version: '1' })
+export class ThingController {
+  @ExternalAccess('machine')
+  @Can('thingWrite')
+  @Post('draft')
+  draft(): Promise<void> {
+    return this.things.draft();
+  }
+}
+TS
+
 # --- fails: no routes at all is not a pass ----------------------------------
 # A checker that goes green on an empty tree proves nothing, and is how a broken extractor
 # stays broken. Everything else here would still pass if the regex stopped matching.
@@ -225,7 +301,7 @@ fi
 
 echo
 if [ "$fails" -eq 0 ]; then
-  echo "PASS — the route-authz gate accepts the six legitimate shapes and refuses the six bad ones."
+  echo "PASS — the route-authz gate accepts the eight legitimate shapes and refuses the ten bad ones."
   exit 0
 fi
 echo "FAIL — $fails assertion(s) above."

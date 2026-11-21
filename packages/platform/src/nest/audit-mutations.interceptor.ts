@@ -6,8 +6,9 @@ import {
   Logger,
   NestInterceptor,
   Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
-import { Observable, tap } from 'rxjs';
+import { Observable, catchError, defer, from, switchMap, tap, throwError } from 'rxjs';
 
 import { AuditEvent } from './audit-trail';
 
@@ -139,7 +140,16 @@ export class AuditMutationsInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest();
     const method = String(req?.method ?? 'GET').toUpperCase();
-    if (!this.sink || method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+      return next.handle();
+    }
+    // HD-2: a change made by the AI web or a machine account is the one case that fails
+    // CLOSED. Plan Eksekusi section 4: every such change is recorded with the account type,
+    // the workflow and the AI proposal it came from, and if it cannot be recorded it is
+    // refused. So the entry is written BEFORE the handler runs, and a sink that is missing
+    // or failing stops the change.
+    const via: string | undefined = req?.user?.via;
+    if (!this.sink && !via) {
       return next.handle();
     }
 
@@ -159,6 +169,13 @@ export class AuditMutationsInterceptor implements NestInterceptor {
       ...body,
       ...(typeof scope === 'string' && scope ? { depotId: scope } : {}),
       ...(req.params && Object.keys(req.params).length ? { params: req.params } : {}),
+      ...(via
+        ? {
+            via,
+            workflow: headerValue(req, 'x-workflow'),
+            proposalId: headerValue(req, 'x-ai-proposal'),
+          }
+        : {}),
     };
 
     const write = (success: boolean, extra?: Record<string, unknown>): void => {
@@ -177,13 +194,42 @@ export class AuditMutationsInterceptor implements NestInterceptor {
       });
     };
 
-    return next.handle().pipe(
-      tap({
-        next: () => write(true),
-        // A refused change is a decision too — a failed attempt to grant oneself a
-        // capability is exactly what this trail exists to show.
-        error: (err: unknown) => write(false, { error: (err as Error)?.message?.slice(0, 200) }),
+    // Deferred, so the handler is not even asked for until the decision to run it is made.
+    const handled = defer(() =>
+      next.handle().pipe(
+        tap({
+          next: () => write(true),
+          // A refused change is a decision too — a failed attempt to grant oneself a
+          // capability is exactly what this trail exists to show.
+          error: (err: unknown) => write(false, { error: (err as Error)?.message?.slice(0, 200) }),
+        }),
+      ),
+    );
+    if (!via) {
+      return handled;
+    }
+    if (!this.sink) {
+      return throwError(() => new ServiceUnavailableException(AUDIT_REFUSED));
+    }
+    return from(
+      this.sink.record({ action: `${action}.requested`, actorId, target, success: true, metadata }),
+    ).pipe(
+      // Placed before switchMap, so it sees only the record: a handler's own error passes.
+      catchError((err: unknown) => {
+        this.logger.error(
+          `audit entry failed, change refused: ${action}: ${(err as Error).message}`,
+        );
+        return throwError(() => new ServiceUnavailableException(AUDIT_REFUSED));
       }),
+      switchMap(() => handled),
     );
   }
+}
+
+const AUDIT_REFUSED = 'The audit trail is unavailable, so this change was not made.';
+
+/** A caller-supplied label for the trail: one string, trimmed, bounded. */
+function headerValue(req: { headers?: Record<string, unknown> }, name: string): string | null {
+  const value = req.headers?.[name];
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, 120) : null;
 }

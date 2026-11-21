@@ -60,6 +60,16 @@ Worth knowing before reporting, and worth keeping true:
   ([`packages/platform/src/nest/error-alerter.ts`](packages/platform/src/nest/error-alerter.ts)).
 - **Authorization.** One capability map (`@hydromart/access`) backs both the NestJS
   guards and the web console, so the two cannot drift. Depot scoping fails closed.
+- **Callers outside the platform (HD-2).** The AI web and machine accounts (n8n) use
+  ES256 tokens that only auth-service can sign; they never hold `JWT_ACCESS_SECRET` or
+  `INTERNAL_SERVICE_KEY`. Such a token reaches only routes marked `@ExternalAccess`
+  (403 elsewhere). A machine account may use exactly the capabilities its token lists.
+  Services verify against the keys auth-service publishes and re-read them every 30
+  seconds: publishing an empty set switches every AI and machine token off, and a set
+  that cannot be re-read is trusted for 60 seconds, then not at all. Their requests are
+  rate-limited per account, and a change they make is written to the audit trail before
+  it runs, or refused. See
+  [`packages/platform/src/nest/external-access.ts`](packages/platform/src/nest/external-access.ts).
 - **Personal data.** Consent and retention are enforced by a purge engine, not by
   intent; export and erasure paths exist for UU PDP.
 
