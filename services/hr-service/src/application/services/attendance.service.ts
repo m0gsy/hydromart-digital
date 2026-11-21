@@ -943,12 +943,16 @@ export class AttendanceService {
       if (err instanceof FaceNotEnrolledError) {
         // The engine holds no face for them (2026-11-21), which nothing they did caused. The punch
         // is kept, held PENDING for HR like one the engine could not be asked about — refused, a
-        // punch queued offline would be dropped for good. HR's stale enrolment is retired, so the
-        // app's "enrolled?" read asks them to enrol again before the next one.
-        await this.faces
-          .deactivateForEmployee(employee.id)
-          .catch((e: unknown) => this.logger.warn(`Stale enrolment of ${employee.id} not retired: ${String(e)}`));
-        this.logger.warn(`Face engine holds no face for employee ${employee.id}: punch held PENDING, enrolment retired`);
+        // punch queued offline would be dropped for good. A LIVE punch also retires HR's stale
+        // enrolment, so the app's "enrolled?" read asks them to enrol again before the next one.
+        // A replay from the offline queue does not: the rest of that queue would then meet
+        // "belum di-enroll", a refusal the queue drops for good.
+        if (!punch.capturedAt) {
+          await this.faces
+            .deactivateForEmployee(employee.id)
+            .catch((e: unknown) => this.logger.warn(`Stale enrolment of ${employee.id} not retired: ${String(e)}`));
+        }
+        this.logger.warn(`Face engine holds no face for employee ${employee.id}: punch held PENDING for HR`);
         return null;
       }
       if (!(err instanceof FaceEngineUnavailableError)) throw err;

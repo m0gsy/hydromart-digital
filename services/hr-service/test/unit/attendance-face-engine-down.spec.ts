@@ -268,6 +268,18 @@ describe('what is not the engine being down still decides', () => {
     expect(retired).toEqual(['e1']);
   });
 
+  // A punch replayed from the offline queue must not retire it: the queue's next punch would
+  // meet "belum di-enroll", which the queue treats as a refusal and drops for good.
+  it('a punch replayed from the offline queue is held PENDING but does not retire the enrolment', async () => {
+    const { svc, verify, created, retired } = make();
+    verify.mockRejectedValue(new FaceNotEnrolledError());
+    const capturedAt = new Date(AT.getTime() - 5 * 60_000);
+    const row = await svc.checkIn(user, { ...punch, capturedAt }, AT);
+    expect(row.status).toBe('PENDING');
+    expect(created).toHaveLength(1);
+    expect(retired).toEqual([]);
+  });
+
   it('keeps the punch even when the stale enrolment cannot be retired', async () => {
     const { svc, verify, created, retireBroken, retired } = make();
     retireBroken();

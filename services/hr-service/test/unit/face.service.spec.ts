@@ -5,7 +5,7 @@ import { FaceEmbedding } from '../../prisma/generated/client';
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { FaceService } from '../../src/application/services/face.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
-import { FaceVerifier } from '../../src/application/ports/face-verifier.port';
+import { FaceReplaceFailedError, FaceVerifier } from '../../src/application/ports/face-verifier.port';
 import {
   FaceEmbeddingRepository,
   OwnedVector,
@@ -112,6 +112,54 @@ describe('FaceService.enroll', () => {
   it('rejects an empty frame list', async () => {
     const { svc } = make([1, 0, 0]);
     await expect(svc.enroll(user, 'e1', [], null)).rejects.toThrow(BadRequestException);
+  });
+
+  // 2026-11-21: a re-enrolment that deleted the old face and failed to take the new one left an
+  // enrolment HR still called active, so every punch after it met "UserID Not Found".
+  it('retires the enrolment when the engine dropped the old face and did not take the new one', async () => {
+    const repo = new FakeFaceRepo();
+    const refusal = new BadRequestException('Wajah tidak terdeteksi');
+    const failing: FaceVerifier = {
+      enroll: async () => {
+        throw new FaceReplaceFailedError(refusal);
+      },
+      verify: async () => ({ score: 1, matched: true }),
+    };
+    const employees = fakeEmployees(new Date());
+    const svc = new FaceService(failing, repo, employees.service, config);
+    // The employee reads the refusal itself, as before; HR no longer holds a face that is gone.
+    await expect(svc.enroll(user, 'e1', [Buffer.from('a')], null)).rejects.toBe(refusal);
+    expect(repo.deactivated).toEqual(['e1']);
+    expect(repo.created).toHaveLength(0);
+  });
+
+  it('still answers with the refusal when the enrolment cannot be retired', async () => {
+    const repo = new FakeFaceRepo();
+    repo.deactivateForEmployee = async () => {
+      throw new Error('db down');
+    };
+    const refusal = new BadRequestException('Wajah tidak terdeteksi');
+    const failing: FaceVerifier = {
+      enroll: async () => {
+        throw new FaceReplaceFailedError(refusal);
+      },
+      verify: async () => ({ score: 1, matched: true }),
+    };
+    const svc = new FaceService(failing, repo, fakeEmployees(new Date()).service, config);
+    await expect(svc.enroll(user, 'e1', [Buffer.from('a')], null)).rejects.toBe(refusal);
+  });
+
+  it('leaves the enrolment alone when an enrolment fails before anything was deleted', async () => {
+    const repo = new FakeFaceRepo();
+    const failing: FaceVerifier = {
+      enroll: async () => {
+        throw new BadRequestException('Wajah tidak terdeteksi');
+      },
+      verify: async () => ({ score: 1, matched: true }),
+    };
+    const svc = new FaceService(failing, repo, fakeEmployees(new Date()).service, config);
+    await expect(svc.enroll(user, 'e1', [Buffer.from('a')], null)).rejects.toThrow('Wajah tidak terdeteksi');
+    expect(repo.deactivated).toEqual([]);
   });
 });
 

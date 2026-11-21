@@ -23,6 +23,17 @@ export class FaceNotEnrolledError extends BadRequestException {
   }
 }
 
+/**
+ * A re-enrolment dropped the employee's old face from the engine to take the new one, and the
+ * new one did not take: the engine now holds no face for them. Enrolment retires HR's copy, so
+ * no punch is matched against a face that is gone, and rethrows `refusal` as it was.
+ */
+export class FaceReplaceFailedError extends Error {
+  constructor(readonly refusal: unknown) {
+    super('face replace failed: the old face is gone and the new one did not take');
+  }
+}
+
 export interface FaceEmbeddingResult {
   /** L2-normalized 512-d ArcFace embedding (mean of the enrolled frames). */
   vector: number[];
