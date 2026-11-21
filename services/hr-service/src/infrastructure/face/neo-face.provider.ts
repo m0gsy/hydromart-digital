@@ -8,6 +8,7 @@ import {
   FaceEmbeddingResult,
   FaceEngineUnavailableError,
   FaceIdentity,
+  FaceNotEnrolledError,
   FaceVerifier,
   FaceVerifyResult,
 } from '../../application/ports/face-verifier.port';
@@ -128,6 +129,8 @@ export class NeoFaceProvider implements FaceVerifier {
       user_id: id.userId,
       image: toBase64(image),
     });
+    // Its gallery has no such user: an answer about the enrolment, not the engine (2026-11-21).
+    if (isUnknownUser(res)) throw new FaceNotEnrolledError();
     if (res.verified === undefined) this.ensureOk('verify-face', res);
     const result: FaceVerifyResult = {
       score: normalizeSimilarity(res.similarity),
@@ -272,9 +275,12 @@ export class NeoFaceProvider implements FaceVerifier {
     }
     // No `risetai` envelope at all (an HTML maintenance page, a body that is not JSON) is not an
     // answer either: counting it as one would end a real outage and refuse the punch with a 503.
-    const parsed = (await res.json().catch(() => null)) as NeoResponse | null;
+    const parsed = (await res.json().catch(() => undefined)) as NeoResponse | null | undefined;
     if (!parsed?.risetai) {
-      throw this.down(`${label}: jawaban NEO tidak terbaca (HTTP ${res.status})`, breaker);
+      // What it did say, cut short: 2026-11-20 it answered HTTP 400 to create-facegallery and
+      // enroll-face, and with nothing of the body in the alert there was no telling why.
+      const said = parsed === undefined ? 'bukan JSON' : JSON.stringify(parsed).slice(0, 120);
+      throw this.down(`${label}: jawaban NEO tidak terbaca (HTTP ${res.status}, ${said})`, breaker);
     }
     const payload = parsed.risetai;
     // NEO refusing the ACCOUNT arrives as HTTP 200 with an in-band 401/403 — the spent quota
@@ -366,6 +372,11 @@ function isDuplicateUser(payload: NeoPayload): boolean {
     !String(payload.status ?? '').startsWith('2') &&
     /already\s+exist/i.test(payload.status_message ?? '')
   );
+}
+
+/** NEO's answer when its gallery holds no such `user_id` ("Database Error - UserID Not Found"). */
+function isUnknownUser(payload: NeoPayload): boolean {
+  return /user\s*id\s+not\s+found/i.test(payload.status_message ?? '');
 }
 
 /** NEO's answer to deleting a `user_id` that is not in the gallery — which is the goal reached. */

@@ -36,6 +36,7 @@ import { hrStorageKey } from '../storage-key';
 import {
   FACE_VERIFIER,
   FaceEngineUnavailableError,
+  FaceNotEnrolledError,
   FaceVerifier,
   FaceVerifyResult,
 } from '../ports/face-verifier.port';
@@ -939,6 +940,17 @@ export class AttendanceService {
         { userId: employee.id, userName: employee.fullName },
       );
     } catch (err) {
+      if (err instanceof FaceNotEnrolledError) {
+        // The engine holds no face for them (2026-11-21), which nothing they did caused. The punch
+        // is kept, held PENDING for HR like one the engine could not be asked about — refused, a
+        // punch queued offline would be dropped for good. HR's stale enrolment is retired, so the
+        // app's "enrolled?" read asks them to enrol again before the next one.
+        await this.faces
+          .deactivateForEmployee(employee.id)
+          .catch((e: unknown) => this.logger.warn(`Stale enrolment of ${employee.id} not retired: ${String(e)}`));
+        this.logger.warn(`Face engine holds no face for employee ${employee.id}: punch held PENDING, enrolment retired`);
+        return null;
+      }
       if (!(err instanceof FaceEngineUnavailableError)) throw err;
       // Every held punch is logged; telling ops (once per outage) is the provider's job, as the
       // one place that knows when the engine went down and when it came back.
