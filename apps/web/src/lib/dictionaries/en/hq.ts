@@ -447,6 +447,8 @@ export const hq = {
   depotDetail: {
     back: 'All depots',
     edit: 'Edit',
+    owners: 'Change owners',
+    ownersTitle: 'Owners of {name}',
     suspend: 'Suspend',
     reactivate: 'Reactivate',
     kpi: { revenue: 'Revenue 30d', orders: 'Orders', sla: 'On-time SLA', rating: 'Rating' },

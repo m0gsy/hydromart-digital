@@ -7,6 +7,7 @@ import {
   DuplicateDepotCodeError,
   FranchiseOwnerRequiredError,
   InvalidOwnerSharesError,
+  OwnershipChangeRevenuePendingError,
 } from '../../src/domain/errors';
 import { CreateDepotData } from '../../src/application/ports/depot.repository';
 import { InMemoryDepotRepository } from '../support/fakes';
@@ -140,7 +141,8 @@ describe('DepotService', () => {
   });
 
   it('persists ownerId on create and update', async () => {
-    const d = await service.create(base({ ownerId: OWNER }));
+    // An owner means a franchise depot: HKP is company-owned and names nobody.
+    const d = await service.create(base({ ownershipType: OwnershipType.WARALABA, ownerId: OWNER }));
     expect(d.ownerId).toBe(OWNER);
 
     const next = '22222222-2222-4222-8222-222222222222';
@@ -241,10 +243,11 @@ describe('DepotService', () => {
   it("listMine returns only the owner's depots (active and inactive), excluding others", async () => {
     const owner = '11111111-1111-4111-8111-111111111111';
     const other = '22222222-2222-4222-8222-222222222222';
-    const active = await service.create(base({ code: 'MINE-A', ownerId: owner }));
-    const inactive = await service.create(base({ code: 'MINE-B', ownerId: owner }));
+    const franchise = { ownershipType: OwnershipType.WARALABA };
+    const active = await service.create(base({ ...franchise, code: 'MINE-A', ownerId: owner }));
+    const inactive = await service.create(base({ ...franchise, code: 'MINE-B', ownerId: owner }));
     await service.deactivate(inactive.id);
-    await service.create(base({ code: 'OTHER-1', ownerId: other }));
+    await service.create(base({ ...franchise, code: 'OTHER-1', ownerId: other }));
     await service.create(base({ code: 'NOOWNER' }));
 
     const mine = await service.listMine(owner);
@@ -408,6 +411,87 @@ describe('DepotService multi-owner', () => {
     const ok = await service.update(d.id, { ownerId: A, name: 'Renamed' }, seen, false);
     expect(ok.name).toBe('Renamed');
     expect(ok.owners).toEqual(split(60, 40));
+  });
+
+  it('keeps the ownership type with head office as well', async () => {
+    const d = await franchise({ owners: split(60, 40) });
+    const seen = d.updatedAt.toISOString();
+    // Turned HKP, a franchise depot credits nobody, its owners still listed or not.
+    await expect(
+      service.update(d.id, { ownershipType: OwnershipType.HKP }, seen, false),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    // An edit form resends the type it read: unchanged is no change.
+    const ok = await service.update(
+      d.id,
+      { ownershipType: OwnershipType.WARALABA, name: 'Renamed' },
+      seen,
+      false,
+    );
+    expect(ok.name).toBe('Renamed');
+    const moved = await service.update(d.id, { ownershipType: OwnershipType.HKP, owners: [] }, ok.updatedAt.toISOString());
+    expect(moved.ownershipType).toBe(OwnershipType.HKP);
+    expect(moved.owners).toEqual([]);
+  });
+
+  // order-service credits whatever owners a depot still has, whatever its type.
+  it('ends the owners of a depot turned HKP, even when the change names none', async () => {
+    const d = await franchise({ owners: split(60, 40) });
+    const hkp = await service.update(d.id, { ownershipType: OwnershipType.HKP }, d.updatedAt.toISOString());
+    expect(hkp.owners).toEqual([]);
+    expect(hkp.ownerId).toBeNull();
+  });
+
+  // order-service credits any owners a depot has, whatever its type.
+  it('names no owner for a company (HKP) depot, at creation or after', async () => {
+    await expect(
+      service.create(base({ code: 'HKP-O', ownershipType: OwnershipType.HKP, ownerId: A })),
+    ).rejects.toBeInstanceOf(InvalidOwnerSharesError);
+    const hkp = await service.create(base({ code: 'HKP-1', ownershipType: OwnershipType.HKP }));
+    await expect(
+      service.setOwners(hkp.id, OwnershipType.HKP, split(60, 40), hkp.updatedAt.toISOString()),
+    ).rejects.toBeInstanceOf(InvalidOwnerSharesError);
+    await expect(
+      service.update(hkp.id, { owners: split(60, 40) }, hkp.updatedAt.toISOString()),
+    ).rejects.toBeInstanceOf(InvalidOwnerSharesError);
+  });
+
+  // Owner decision 2026-11-21: a retried credit could pay the new owner for a sale made before.
+  it('waits for the revenue still owed before who owns the depot changes', async () => {
+    const owed = { pendingRevenue: jest.fn().mockResolvedValue(2) };
+    const guarded = new DepotService(repo, undefined, owed);
+    const d = await guarded.create(base({ code: 'WLB-L', ownershipType: OwnershipType.WARALABA, owners: split(60, 40) }));
+    const seen = d.updatedAt.toISOString();
+    await expect(guarded.setOwners(d.id, OwnershipType.WARALABA, split(50, 50), seen)).rejects.toBeInstanceOf(
+      OwnershipChangeRevenuePendingError,
+    );
+    await expect(guarded.update(d.id, { ownershipType: OwnershipType.HKP }, seen)).rejects.toBeInstanceOf(
+      OwnershipChangeRevenuePendingError,
+    );
+    expect(owed.pendingRevenue).toHaveBeenCalledWith(d.id);
+    // Not asked for an edit that leaves ownership alone, nor for an owners save of nothing.
+    owed.pendingRevenue.mockClear();
+    const renamed = await guarded.update(d.id, { name: 'Renamed' }, seen);
+    await guarded.setOwners(d.id, OwnershipType.WARALABA, split(60, 40), renamed.updatedAt.toISOString());
+    expect(owed.pendingRevenue).not.toHaveBeenCalled();
+    // Once it is booked, the change goes through.
+    owed.pendingRevenue.mockResolvedValue(0);
+    const moved = await guarded.setOwners(d.id, OwnershipType.WARALABA, split(50, 50), renamed.updatedAt.toISOString());
+    expect(moved.after?.owners?.map((o) => o.sharePct)).toEqual([50, 50]);
+  });
+
+  it('writes nothing for an owners save that changes nothing', async () => {
+    const d = await franchise({ owners: split(60, 40) });
+    const seen = d.updatedAt.toISOString();
+    const same = await service.setOwners(d.id, OwnershipType.WARALABA, split(60, 40), seen);
+    expect(same.after).toBeNull();
+    expect(repo.history).toHaveLength(0);
+    // Still the version check first: a stale copy is refused, changed or not.
+    const moved = await service.setOwners(d.id, OwnershipType.WARALABA, split(50, 50), seen);
+    expect(moved.after?.owners?.map((o) => o.sharePct)).toEqual([50, 50]);
+    expect(moved.before.owners).toEqual(split(60, 40));
+    await expect(
+      service.setOwners(d.id, OwnershipType.WARALABA, split(50, 50), seen),
+    ).rejects.toThrow();
   });
 
   it('falls back to the current set for a moment before any generation was recorded', async () => {

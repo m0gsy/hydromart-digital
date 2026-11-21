@@ -1978,6 +1978,18 @@ export class InMemoryOutboxRepository implements OutboxRepository {
     for (const r of this.rows) counts[r.status] += 1;
     return counts;
   }
+
+  /** The depot each order belongs to, for `countPendingRevenue`; tests fill what they need. */
+  depotOfOrder = new Map<string, string>();
+
+  async countPendingRevenue(depotId: string): Promise<number> {
+    return this.rows.filter(
+      (r) =>
+        r.status === 'PENDING' &&
+        (r.topic === 'FRANCHISE_REVENUE' || r.topic === 'FRANCHISE_REVENUE_VOID') &&
+        this.depotOfOrder.get(r.orderId) === depotId,
+    ).length;
+  }
 }
 
 /**

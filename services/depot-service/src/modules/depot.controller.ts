@@ -15,6 +15,7 @@ import {
   Patch,
   PayloadTooLargeException,
   Post,
+  Put,
   Query,
   ServiceUnavailableException,
   UploadedFile,
@@ -62,6 +63,7 @@ import {
   NearbyDepotView,
   PublicDepotView,
   UpdateDepotDto,
+  UpdateDepotOwnersDto,
   publicDepotWithArea,
 } from './dto/depot.dto';
 import {
@@ -76,6 +78,15 @@ import {
   PagedDepotResponseDto,
   PagedPublicDepotResponseDto,
 } from './dto/responses.generated.dto';
+
+/** A depot's owners as the audit trail records them. */
+function shares(depot: DepotRecord): DepotOwnerShare[] {
+  return (depot.owners ?? []).map(({ ownerId, sharePct, isPrimary }) => ({
+    ownerId,
+    sharePct,
+    isPrimary,
+  }));
+}
 
 /** Is this account one of the depot's current owners (falls back to the mirrored primary)? */
 function isOwnerOf(depot: DepotRecord, accountId: string): boolean {
@@ -494,6 +505,32 @@ export class DepotController {
       changed: Object.keys(patch).sort(),
     });
     return updated;
+  }
+
+  // 2026-11-21: who owns a depot is head office's (depotLifecycle), and the only route that
+  // changed it was the PATCH above, which is the manager's (depotAdmin) — so HEAD_OFFICE and
+  // DIREKTUR could not change an owner at all, and a manager was refused by the service.
+  @ApiOkResponse({ type: DepotResponseDto })
+  @ApiBearerAuth()
+  @Can('depotLifecycle')
+  @Put(':depotId/owners')
+  @ApiOperation({ summary: 'Set a depot ownership type, owners and shares (head office)' })
+  async setOwners(
+    @Param('depotId', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateDepotOwnersDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<DepotRecord> {
+    const { seenUpdatedAt, ownershipType, owners } = dto;
+    const { before, after } = await this.depots.setOwners(id, ownershipType, owners, seenUpdatedAt);
+    if (!after) return before;
+    // Who was made the payee, and who stopped being one: unlike the bank fields, owner ids and
+    // shares are not secrets, and the trail is the one place a later dispute can read them.
+    await this.audit('depot.owners.update', user, after.code, {
+      depotId: id,
+      from: { ownershipType: before.ownershipType, owners: shares(before) },
+      to: { ownershipType: after.ownershipType, owners: shares(after) },
+    });
+    return after;
   }
 
   // AUTHZ-B1 — see `update` above. Writing another depot's QRIS is writing where its

@@ -234,6 +234,7 @@ export const dashboard = {
     code: 'Code',
     name: 'Name',
     ownership: 'Ownership',
+    ownershipLocked: 'Changed by head office',
     city: 'City',
     province: 'Province',
     address: 'Address',

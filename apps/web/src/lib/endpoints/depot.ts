@@ -49,6 +49,8 @@ export const depot = {
     detail: (id: string) => `/depots/api/v1/depots/${id}`,
     // POST: reopen a deactivated depot (depotLifecycle, head office — like closing it).
     reactivate: (id: string) => `/depots/api/v1/depots/${id}/reactivate`,
+    // PUT: ownership type + owners + shares (depotLifecycle, head office); the PATCH is the manager's.
+    owners: (id: string) => `/depots/api/v1/depots/${id}/owners`,
     // Full record incl. payment + ownership. Staff/owner only.
     manageDetail: (id: string) => `/depots/api/v1/depots/manage/${id}`,
     // Where to send money for ONE depot. Any signed-in user; never anonymous.
