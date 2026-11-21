@@ -13,7 +13,7 @@ import { HrConfigService } from '../../config/hr-config.service';
 import { bestMatch } from '../../domain/face-math';
 import { storeFrame } from '../../infrastructure/storage/upload-frame';
 import { hrStorageKey } from '../storage-key';
-import { FACE_VERIFIER, FaceVerifier } from '../ports/face-verifier.port';
+import { FACE_VERIFIER, FaceReplaceFailedError, FaceVerifier } from '../ports/face-verifier.port';
 import {
   FACE_EMBEDDING_REPOSITORY,
   FaceEmbeddingRepository,
@@ -160,10 +160,22 @@ export class FaceService {
       throw new BadRequestException('Minimal satu frame wajah diperlukan');
     }
 
-    const { vector, quality } = await this.verifier.enroll(images, {
-      userId: employee.id,
-      userName: employee.fullName,
-    });
+    let enrolled: { vector: number[]; quality: number };
+    try {
+      enrolled = await this.verifier.enroll(images, {
+        userId: employee.id,
+        userName: employee.fullName,
+      });
+    } catch (err) {
+      if (!(err instanceof FaceReplaceFailedError)) throw err;
+      // The engine dropped the old face and did not take the new one. The enrolment HR holds
+      // would now fail every punch with a face that is gone: retired, so the app asks again.
+      await this.repo
+        .deactivateForEmployee(employee.id)
+        .catch((e: unknown) => this.logger.warn(`Enrolment of ${employee.id} not retired: ${String(e)}`));
+      throw err.refusal;
+    }
+    const { vector, quality } = enrolled;
 
     // Local-embedding drivers (onnx/stub) dedup here; remote galleries (neo) return an empty
     // vector and dedup server-side, so skip the cosine check.

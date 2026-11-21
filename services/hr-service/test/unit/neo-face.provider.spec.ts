@@ -2,7 +2,11 @@ import { BadRequestException, ServiceUnavailableException } from '@nestjs/common
 import { alertServerError } from '@hydromart/platform';
 
 import { HrConfigService } from '../../src/config/hr-config.service';
-import { FaceEngineUnavailableError } from '../../src/application/ports/face-verifier.port';
+import {
+  FaceEngineUnavailableError,
+  FaceNotEnrolledError,
+  FaceReplaceFailedError,
+} from '../../src/application/ports/face-verifier.port';
 import { NeoFaceProvider } from '../../src/infrastructure/face/neo-face.provider';
 
 jest.mock('@hydromart/platform', () => ({
@@ -104,9 +108,14 @@ describe('NeoFaceProvider', () => {
         : { body: { status: '200' } },
     );
 
-    await expect(
-      new NeoFaceProvider(makeConfig()).enroll([Buffer.from('img')], identity),
-    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    const failed = new NeoFaceProvider(makeConfig())
+      .enroll([Buffer.from('img')], identity)
+      .catch((e: unknown) => e);
+    // The old face is already deleted: said as such, with the refusal itself inside, so HR
+    // retires its enrolment instead of keeping one NEO no longer holds (2026-11-21).
+    const err = (await failed) as FaceReplaceFailedError;
+    expect(err).toBeInstanceOf(FaceReplaceFailedError);
+    expect(err.refusal).toBeInstanceOf(ServiceUnavailableException);
     expect(calls.filter((c) => c.url.endsWith('enroll-face'))).toHaveLength(2);
     expect(calls.filter((c) => c.url.endsWith('delete-face'))).toHaveLength(1);
   });
@@ -677,11 +686,78 @@ describe('NeoFaceProvider: a body that is not an answer (review round 6)', () =>
     ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
   });
 
+  // 2026-11-20 23:33: HTTP 400 to create-facegallery and enroll-face, and the alert said only that.
+  it('says what the unreadable answer was: the JSON it sent, or that it was not JSON', async () => {
+    global.fetch = (async () =>
+      ({ ok: false, status: 400, json: async () => ({ message: 'Bad Request' }) }) as unknown as Response) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toThrow('jawaban NEO tidak terbaca (HTTP 400, {"message":"Bad Request"})');
+    global.fetch = (async () =>
+      ({ ok: true, status: 200, json: async () => { throw new SyntaxError('Unexpected token <'); } }) as unknown as Response) as unknown as typeof fetch;
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toThrow('(HTTP 200, bukan JSON)');
+  });
+
   it('the gateway refusing the token (HTTP 401) is an account refusal: down at once, one alert', async () => {
     mockFetch(() => ({ ok: false, status: 401, body: {} }));
     await expect(
       new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
     ).rejects.toBeInstanceOf(FaceEngineUnavailableError);
     expect(alert).toHaveBeenCalledTimes(1);
+  });
+});
+
+/*
+ * 2026-11-21 08:05: 32 check-ins answered 503 "verify-face: Database Error - UserID Not Found",
+ * and hr-service paged at 42.5% 5xx. NEO had dropped faces it verified the day before; the
+ * employees read an engine error, and the ones who re-enrolled could punch again at once.
+ */
+describe('NeoFaceProvider: a face its gallery does not hold', () => {
+  const alert = alertServerError as jest.Mock;
+  beforeEach(() => alert.mockClear());
+
+  it('is the enrolment being gone, not NEO down: every punch is asked, ops told once an hour', async () => {
+    const calls = mockFetch(() => ({
+      body: { status: '416', status_message: 'Database Error - UserID Not Found' },
+    }));
+    const neo = new NeoFaceProvider(makeConfig());
+    for (let i = 0; i < 4; i += 1) {
+      const refused = neo.verify(Buffer.from('p'), [], identity);
+      await expect(refused).rejects.toBeInstanceOf(FaceNotEnrolledError);
+      await expect(refused).rejects.toBeInstanceOf(BadRequestException);
+    }
+    // No fail-fast minute: each punch reached NEO.
+    expect(calls).toHaveLength(4);
+    // One notice, not four: many at once is NEO losing its gallery, one is someone to re-enrol.
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(alert.mock.calls[0][0]).toMatchObject({ status: 404 });
+    expect(String(alert.mock.calls[0][0].exception.message)).toContain('employee e1');
+
+    // An hour on, the next one is told again, with the count since.
+    const later = Date.now() + 61 * 60_000;
+    const now = jest.spyOn(Date, 'now').mockReturnValue(later);
+    try {
+      await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceNotEnrolledError);
+    } finally {
+      now.mockRestore();
+    }
+    expect(alert).toHaveBeenCalledTimes(2);
+    expect(String(alert.mock.calls[1][0].exception.message)).toContain('for 4 punch(es)');
+  });
+
+  it('knows the answer by its status too, whatever the wording', async () => {
+    mockFetch(() => ({ body: { status: '416', status_message: 'User_ID does not exist' } }));
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.toBeInstanceOf(FaceNotEnrolledError);
+  });
+
+  it('a missing gallery is still a misconfiguration that pages (503)', async () => {
+    mockFetch(() => ({ body: { status: '415', status_message: 'Facegallery Not Found' } }));
+    await expect(
+      new NeoFaceProvider(makeConfig()).verify(Buffer.from('p'), [], identity),
+    ).rejects.not.toBeInstanceOf(FaceNotEnrolledError);
   });
 });

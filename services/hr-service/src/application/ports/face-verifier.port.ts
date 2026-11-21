@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 
 export const FACE_VERIFIER = Symbol('FACE_VERIFIER');
 
@@ -8,6 +8,31 @@ export const FACE_VERIFIER = Symbol('FACE_VERIFIER');
  * Attendance holds such a punch PENDING for HR instead of refusing it (owner, 2026-11-18).
  */
 export class FaceEngineUnavailableError extends ServiceUnavailableException {}
+
+/**
+ * The engine answered, and holds no face for this employee, though HR has an active enrolment
+ * for them. Seen 2026-11-21: NEO answered "UserID Not Found" for people it had verified the day
+ * before, and every one of their punches was a 503 that paged ops while the employee read an
+ * engine error. Not an outage, not the frame, nothing the employee did: the enrolment itself is
+ * gone. Attendance keeps the punch for HR and retires HR's copy, so the app asks for a new one.
+ * Anywhere it is not caught it is a 400 that says so.
+ */
+export class FaceNotEnrolledError extends BadRequestException {
+  constructor() {
+    super('Wajah Anda tidak ditemukan di sistem absen. Daftar ulang wajah, lalu absen lagi.');
+  }
+}
+
+/**
+ * A re-enrolment dropped the employee's old face from the engine to take the new one, and the
+ * new one did not take: the engine now holds no face for them. Enrolment retires HR's copy, so
+ * no punch is matched against a face that is gone, and rethrows `refusal` as it was.
+ */
+export class FaceReplaceFailedError extends Error {
+  constructor(readonly refusal: unknown) {
+    super('face replace failed: the old face is gone and the new one did not take');
+  }
+}
 
 export interface FaceEmbeddingResult {
   /** L2-normalized 512-d ArcFace embedding (mean of the enrolled frames). */

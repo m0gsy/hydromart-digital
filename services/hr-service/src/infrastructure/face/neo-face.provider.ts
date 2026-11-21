@@ -8,6 +8,8 @@ import {
   FaceEmbeddingResult,
   FaceEngineUnavailableError,
   FaceIdentity,
+  FaceNotEnrolledError,
+  FaceReplaceFailedError,
   FaceVerifier,
   FaceVerifyResult,
 } from '../../application/ports/face-verifier.port';
@@ -27,6 +29,11 @@ const NEO_RETRY_MS = 60_000;
  * is account-wide and no frame can cause it, so that counts at once.
  */
 const NEO_DOWN_AFTER = 3;
+/**
+ * How often ops hear that NEO holds no face for someone it should. Each one is an employee who
+ * has to enrol again and a punch HR has to rule on; many at once means NEO lost its gallery.
+ */
+const UNKNOWN_NOTICE_MS = 60 * 60_000;
 
 interface NeoPayload {
   status?: string | number;
@@ -71,6 +78,9 @@ export class NeoFaceProvider implements FaceVerifier {
   private downUntil = 0;
   /** Gallery calls in a row that got no answer (see NEO_DOWN_AFTER). */
   private unanswered = 0;
+  /** When ops were last told NEO holds no face for someone, and how many since. */
+  private unknownNoticeAt = 0;
+  private unknownSince = 0;
 
   constructor(private readonly config: HrConfigService) {}
 
@@ -97,7 +107,13 @@ export class NeoFaceProvider implements FaceVerifier {
     // who already had a face failed, for good. Replacing means deleting first. Once: if the
     // retry fails too, that is the answer, not another round.
     await this.remove(id);
-    await this.call('POST', 'enroll-face', body);
+    try {
+      await this.call('POST', 'enroll-face', body);
+    } catch (err) {
+      // The old face is gone and the new one did not take: NEO holds none for them now, and an
+      // enrolment HR kept would fail every punch with "UserID Not Found" (2026-11-21).
+      throw new FaceReplaceFailedError(err);
+    }
     return { vector: [], quality: 1 };
   }
 
@@ -128,6 +144,8 @@ export class NeoFaceProvider implements FaceVerifier {
       user_id: id.userId,
       image: toBase64(image),
     });
+    // Its gallery has no such user: an answer about the enrolment, not the engine (2026-11-21).
+    if (isUnknownUser(res)) throw this.unknownUser(id.userId);
     if (res.verified === undefined) this.ensureOk('verify-face', res);
     const result: FaceVerifyResult = {
       score: normalizeSimilarity(res.similarity),
@@ -272,9 +290,12 @@ export class NeoFaceProvider implements FaceVerifier {
     }
     // No `risetai` envelope at all (an HTML maintenance page, a body that is not JSON) is not an
     // answer either: counting it as one would end a real outage and refuse the punch with a 503.
-    const parsed = (await res.json().catch(() => null)) as NeoResponse | null;
+    const parsed = (await res.json().catch(() => undefined)) as NeoResponse | null | undefined;
     if (!parsed?.risetai) {
-      throw this.down(`${label}: jawaban NEO tidak terbaca (HTTP ${res.status})`, breaker);
+      // What it did say, cut short: 2026-11-20 it answered HTTP 400 to create-facegallery and
+      // enroll-face, and with nothing of the body in the alert there was no telling why.
+      const said = parsed === undefined ? 'bukan JSON' : JSON.stringify(parsed).slice(0, 120);
+      throw this.down(`${label}: jawaban NEO tidak terbaca (HTTP ${res.status}, ${said})`, breaker);
     }
     const payload = parsed.risetai;
     // NEO refusing the ACCOUNT arrives as HTTP 200 with an in-band 401/403 — the spent quota
@@ -305,6 +326,30 @@ export class NeoFaceProvider implements FaceVerifier {
     // else is a plain 503 that pages: a request of ours it refused, or an in-band "500" that may
     // be one frame it choked on — letting that count as down would let one image hold everyone.
     throw this.unavailable(`${path}: ${message}`);
+  }
+
+  /**
+   * NEO answered that it holds no face for this employee. Not an outage, so no fail-fast minute;
+   * but ops hear of it, at most once an hour with the count since: each is an employee who must
+   * enrol again, and many at once is NEO having lost its gallery.
+   */
+  private unknownUser(userId: string): FaceNotEnrolledError {
+    this.unknownSince += 1;
+    if (Date.now() - this.unknownNoticeAt >= UNKNOWN_NOTICE_MS) {
+      alertServerError({
+        method: 'POST',
+        path: '/api/v1/attendance (face engine NEO: wajah hilang)',
+        status: 404,
+        exception: new Error(
+          `NEO holds no face for ${this.unknownSince} punch(es) since the last notice (latest: employee ${userId}). ` +
+            'Held PENDING for HR; a live punch retires the enrolment so the employee enrols again. ' +
+            'Many at once means NEO lost its gallery.',
+        ),
+      });
+      this.unknownNoticeAt = Date.now();
+      this.unknownSince = 0;
+    }
+    return new FaceNotEnrolledError();
   }
 
   private unavailable(reason: string): ServiceUnavailableException {
@@ -365,6 +410,14 @@ function isDuplicateUser(payload: NeoPayload): boolean {
   return (
     !String(payload.status ?? '').startsWith('2') &&
     /already\s+exist/i.test(payload.status_message ?? '')
+  );
+}
+
+/** NEO's answer when its gallery holds no such `user_id` ("Database Error - UserID Not Found"). */
+function isUnknownUser(payload: NeoPayload): boolean {
+  return (
+    Number(payload.status) === 416 ||
+    /user\s*_?id\s+(not\s+found|does\s+not\s+exist)/i.test(payload.status_message ?? '')
   );
 }
 

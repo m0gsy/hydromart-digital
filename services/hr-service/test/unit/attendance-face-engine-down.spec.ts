@@ -11,6 +11,7 @@ import { AttendanceService, FacePunch } from '../../src/application/services/att
 import { AttendanceRepository } from '../../src/application/ports/attendance.repository';
 import {
   FaceEngineUnavailableError,
+  FaceNotEnrolledError,
   FaceVerifier,
   FaceVerifyResult,
 } from '../../src/application/ports/face-verifier.port';
@@ -73,8 +74,14 @@ function make() {
     enroll: async () => ({ vector: [], quality: 1 }),
     verify: (...args: unknown[]) => verify(...args),
   };
+  const retired: string[] = [];
+  let retireFails = false;
   const faces = {
     listActiveByEmployee: async () => [{ vector: [] } as unknown as FaceEmbedding],
+    deactivateForEmployee: async (employeeId: string) => {
+      if (retireFails) throw new Error('db down');
+      retired.push(employeeId);
+    },
   } as unknown as FaceEmbeddingRepository;
   const employees = {
     findByAuthSubjectId: async () =>
@@ -128,7 +135,10 @@ function make() {
   const bucketDown = () => {
     removeFails = true;
   };
-  return { svc, verify, created, checkOuts, statuses, reasons, removed, day, storageFails, hrRuled, hrCorrected, bucketDown, deviceClockNoted };
+  const retireBroken = () => {
+    retireFails = true;
+  };
+  return { svc, verify, created, checkOuts, statuses, reasons, removed, retired, retireBroken, day, storageFails, hrRuled, hrCorrected, bucketDown, deviceClockNoted };
 }
 
 const alert = alertServerError as jest.Mock;
@@ -231,6 +241,52 @@ describe('what is not the engine being down still decides', () => {
     verify.mockRejectedValue(new ServiceUnavailableException('NEO_FR_TOKEN belum diset'));
     await expect(svc.checkIn(user, punch, AT)).rejects.toThrow(ServiceUnavailableException);
     expect(created).toHaveLength(0);
+  });
+
+  // 2026-11-21: NEO had dropped faces it verified the day before; each punch was a paging 503.
+  it('a face the engine no longer holds is kept PENDING for HR, and the stale enrolment retired', async () => {
+    const { svc, verify, created, retired } = make();
+    verify.mockRejectedValue(new FaceNotEnrolledError());
+
+    const row = await svc.checkIn(user, punch, AT);
+
+    expect(row.status).toBe('PENDING');
+    expect(created[0]).toMatchObject({ status: 'PENDING', checkInScore: null, checkInPhotoUrl: 'hr/attendance/submitted.jpg' });
+    // So the app's "enrolled?" read asks for a new enrolment before the next punch.
+    expect(retired).toEqual(['e1']);
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it('the same at check-out: the whole day goes in front of HR', async () => {
+    const { svc, verify, checkOuts, statuses, day, retired } = make();
+    day({});
+    verify.mockRejectedValue(new FaceNotEnrolledError());
+    const row = await svc.checkOut(user, punch, new Date('2026-11-21T10:00:00Z'));
+    expect(checkOuts[0]).toMatchObject({ checkOutScore: null });
+    expect(statuses).toEqual([['a1', 'PENDING']]);
+    expect(row.status).toBe('PENDING');
+    expect(retired).toEqual(['e1']);
+  });
+
+  // A punch replayed from the offline queue must not retire it: the queue's next punch would
+  // meet "belum di-enroll", which the queue treats as a refusal and drops for good.
+  it('a punch replayed from the offline queue is held PENDING but does not retire the enrolment', async () => {
+    const { svc, verify, created, retired } = make();
+    verify.mockRejectedValue(new FaceNotEnrolledError());
+    const capturedAt = new Date(AT.getTime() - 5 * 60_000);
+    const row = await svc.checkIn(user, { ...punch, capturedAt }, AT);
+    expect(row.status).toBe('PENDING');
+    expect(created).toHaveLength(1);
+    expect(retired).toEqual([]);
+  });
+
+  it('keeps the punch even when the stale enrolment cannot be retired', async () => {
+    const { svc, verify, created, retireBroken, retired } = make();
+    retireBroken();
+    verify.mockRejectedValue(new FaceNotEnrolledError());
+    await expect(svc.checkIn(user, punch, AT)).resolves.toMatchObject({ status: 'PENDING' });
+    expect(created).toHaveLength(1);
+    expect(retired).toEqual([]);
   });
 
   it('a face it could not find is the employee retaking the photo (400), nothing recorded', async () => {
