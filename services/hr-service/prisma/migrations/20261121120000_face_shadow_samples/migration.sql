@@ -14,4 +14,4 @@ CREATE TABLE IF NOT EXISTS "face_shadow_samples" (
   CONSTRAINT "face_shadow_samples_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX IF NOT EXISTS "face_shadow_samples_createdAt_idx" ON "face_shadow_samples" ("createdAt");
+-- No index: about 200 rows a day, kept 30 days; the daily purge scans a few thousand rows.

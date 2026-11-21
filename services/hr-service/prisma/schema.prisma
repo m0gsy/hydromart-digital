@@ -378,7 +378,7 @@ model FaceShadowSample {
   outcome    String
   createdAt  DateTime @default(now())
 
-  @@index([createdAt])
+  // No index: ~200 rows a day for 30 days; a locking CREATE INDEX would need create-indexes.sh.
   @@map("face_shadow_samples")
 }
 
