@@ -41,6 +41,18 @@ export class RolesGuard implements CanActivate {
     }
 
     const { capability, roles, selfScoped } = this.required(context);
+    // HD-2: a machine account holds no role. It may use exactly the capabilities its token
+    // lists, and only through @Can; a @Roles list or a self-scoped route means nothing for it.
+    // Checked first so no other branch can admit it.
+    const caller = context.switchToHttp().getRequest<Request>().user as
+      | AuthenticatedUser
+      | undefined;
+    if (caller?.via === 'machine') {
+      if (!capability || !(caller.scopes ?? []).includes(capability)) {
+        throw new ForbiddenException('You do not have permission to perform this action.');
+      }
+      return true;
+    }
     if (!capability && (!roles || roles.length === 0)) {
       if (selfScoped) {
         return true;

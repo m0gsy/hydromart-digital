@@ -1,6 +1,7 @@
 import type { ExecutionContext } from '@nestjs/common';
 import type { Request } from 'express';
 
+import { verifiedExternalCaller } from '../nest/external-access';
 import { INTERNAL_KEY_HEADER, safeEqualSecret } from '../nest/internal-auth.guard';
 import { getRequestContext } from './request-context';
 
@@ -18,6 +19,21 @@ import { getRequestContext } from './request-context';
  */
 export function clientIpTracker(req: Record<string, unknown>): string {
   return getRequestContext(req as unknown as Request).ipAddress ?? 'unknown';
+}
+
+/**
+ * HD-2: the tracker a service actually uses. An AI-web or machine token whose signature this
+ * process can verify is counted per ACCOUNT: every one of those requests arrives from the AI
+ * web's single address, so an address bucket would make every AI user and every workflow
+ * share one limit. Anything unverifiable keeps the address bucket, the safe direction.
+ */
+export function clientTracker(
+  req: Record<string, unknown>,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const { authorization } = (req as unknown as Request).headers;
+  const caller = verifiedExternalCaller(authorization, env.AUTH_SERVICE_URL);
+  return caller ? `a:${caller.sub}` : clientIpTracker(req);
 }
 
 /**
@@ -54,7 +70,7 @@ export function perClientThrottle<T>(throttlers: T[]): {
 } {
   return {
     throttlers,
-    getTracker: clientIpTracker,
+    getTracker: (req) => clientTracker(req),
     skipIf: (context) => isInternalCall(context),
   };
 }

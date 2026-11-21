@@ -15,3 +15,15 @@
 export const TOKEN_ISSUER = 'hydromart-auth';
 export const TOKEN_AUDIENCE = 'hydromart-api';
 export const TOKEN_ALGORITHM = 'HS256';
+
+/**
+ * HD-2 — tokens for callers outside this platform: a person acting through the AI web, and a
+ * machine account (n8n). auth-service signs them with an ES256 key whose private half never
+ * leaves it, so no other service can mint one, and the AI web never holds JWT_ACCESS_SECRET.
+ * Accepted only on routes marked `@ExternalAccess(...)`.
+ */
+export const EXTERNAL_TOKEN_ALGORITHM = 'ES256';
+export const AI_TOKEN_AUDIENCE = 'hydromart-ai';
+export const MACHINE_TOKEN_AUDIENCE = 'hydromart-machine';
+/** Where auth-service publishes the public keys (a JWKS). An empty set is the kill switch. */
+export const EXTERNAL_JWKS_PATH = '/api/v1/auth/jwks';

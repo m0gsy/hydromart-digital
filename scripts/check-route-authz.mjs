@@ -69,6 +69,11 @@ const SELF_SCOPED_MARKER = /@SelfScoped\(\)/;
  */
 const DELIBERATE = /route-authz:/;
 
+/* HD-2: the routes an ES256 (AI web / machine account) token may reach. */
+const EXTERNAL = /@ExternalAccess\(/;
+const CAN = /@Can\(/;
+const AUDITED = /AuditMutationsInterceptor/;
+
 function controllers(dir, out = []) {
   for (const entry of readdirSync(dir)) {
     const path = join(dir, entry);
@@ -114,6 +119,8 @@ const findings = [];
 let total = 0;
 let selfScoped = 0;
 let deliberate = 0;
+let external = 0;
+const externalFindings = [];
 
 for (const service of readdirSync('services')) {
   let files;
@@ -163,6 +170,27 @@ for (const service of readdirSync('services')) {
       const rawBlock = raw.slice(start, end);
       const owner = classes.filter((c) => c.at < m.index).pop();
 
+      /*
+       * HD-2: a route an AI-web or machine token may reach. Two rules, both checked before
+       * any of the passes below can `continue` past them:
+       *   - it must carry @Can: RolesGuard lets a machine account through ONLY by matching a
+       *     capability against its token's scopes, so @Roles or @SelfScoped there would
+       *     admit nothing (machine) or the wrong thing;
+       *   - if it writes, the audit interceptor must wrap it: that is where a change by the
+       *     AI or n8n is recorded before it runs and refused when it cannot be recorded.
+       */
+      const ownerBlock = owner ? classDecorators(owner) : '';
+      if (EXTERNAL.test(block) || EXTERNAL.test(ownerBlock)) {
+        external += 1;
+        const at = `${file}:${src.slice(0, m.index).split('\n').length}  ${m[1].toUpperCase()} '${m[2] ?? ''}'`;
+        if (!CAN.test(block) && !CAN.test(ownerBlock)) {
+          externalFindings.push(`${at}: @ExternalAccess without @Can(<capability>)`);
+        }
+        if (m[1] !== 'Get' && !AUDITED.test(block) && !AUDITED.test(ownerBlock)) {
+          externalFindings.push(`${at}: writes for an external caller without AuditMutationsInterceptor`);
+        }
+      }
+
       if (AUTHORISED.test(block)) continue;
       if (owner && AUTHORISED.test(classDecorators(owner))) continue;
 
@@ -206,6 +234,18 @@ if (total === 0) {
   process.exit(1);
 }
 
+if (externalFindings.length > 0) {
+  console.error(`${externalFindings.length} problem(s) on routes open to AI-web or machine tokens:\n`);
+  for (const f of externalFindings) console.error(`  - ${f}`);
+  console.error(
+    '\nAn @ExternalAccess route needs @Can(<capability>): a machine account passes RolesGuard\n' +
+      'only when that capability is in its token scopes. A route that writes also needs\n' +
+      '@UseInterceptors(AuditMutationsInterceptor): it records the change before it runs and\n' +
+      'refuses it when the record cannot be made (Plan Eksekusi section 4, audit trail).',
+  );
+  if (findings.length === 0) process.exit(1);
+}
+
 if (findings.length > 0) {
   console.error(`${findings.length} route(s) do not say who may call them:\n`);
   for (const f of findings) console.error(`  - ${f}`);
@@ -225,5 +265,6 @@ console.log(
   `Route authorisation check OK — ${total} route(s): ` +
     `${total - selfScoped - deliberate} carry an authorisation decorator, ` +
     `${selfScoped} are self-scoped by @SelfScoped()+@CurrentUser(), ` +
-    `${deliberate} take no subject, @SelfScoped()+a written reason.`,
+    `${deliberate} take no subject, @SelfScoped()+a written reason; ` +
+    `${external} open to AI-web or machine tokens, each with @Can.`,
 );

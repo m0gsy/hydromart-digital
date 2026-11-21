@@ -21,6 +21,14 @@ export interface AuthenticatedUser {
    * Resolved in the guard so everything downstream stays a synchronous pure function.
    */
   depotIds?: readonly string[];
+  /**
+   * HD-2: set only for an ES256 token. `ai` is a person acting through the AI web (their own
+   * role and capabilities apply); `machine` is a machine account, which holds no role of its
+   * own and may use exactly the capabilities listed in `scopes`. Absent for every other caller.
+   */
+  via?: 'ai' | 'machine';
+  /** The closed capability list of a machine account. Never set for anyone else. */
+  scopes?: readonly string[];
 }
 
 /** Caller metadata for audit logs and records. */

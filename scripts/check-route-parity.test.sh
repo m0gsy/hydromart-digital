@@ -69,6 +69,29 @@ run_check
 case "$OUT" in *a-capability-with-no-way-in*) ok "  ...and names the route" ;; *) bad "  expected the route in the message: $OUT" ;; esac
 cp "$WORK/victim.orig" "$VICTIM"
 
+# HD-2: the same route opened to the AI web is not an orphan. Its caller is the AI web, in
+# another repository, so nothing here can ever call it.
+python - "$VICTIM" <<'PY'
+import io, sys
+p = sys.argv[1]
+s = io.open(p, encoding='utf-8').read()
+marker = "export class RewardController {"
+i = s.index(marker) + len(marker)
+route = """
+
+  @ExternalAccess('ai')
+  @Get('a-capability-for-the-ai-web')
+  async forTheAiWeb(): Promise<{ ok: true }> {
+    return { ok: true };
+  }
+"""
+io.open(p, 'w', encoding='utf-8', newline='\n').write(s[:i] + route + s[i:])
+PY
+run_check
+[ "$RC" = 0 ] && ok "a route opened to the AI web is not an orphan" || bad "an @ExternalAccess route must not be an orphan (rc=$RC): $OUT"
+case "$OUT" in *"1 for the AI web"*) ok "  ...and is counted as the AI web's" ;; *) bad "  expected it counted for the AI web: $OUT" ;; esac
+cp "$WORK/victim.orig" "$VICTIM"
+
 # 2. A recorded orphan that stopped being one, with the baseline left behind. A ratchet that
 #    is never re-recorded stops being a ratchet — it becomes a list of excuses.
 python - "$BASELINE" <<'PY'
