@@ -170,6 +170,10 @@ function formFromDepot(d: DepotAdmin): DepotForm {
 /** Create (depot=null) or edit form. Hours/holidays are omitted — see page ceiling note. */
 function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; onDone: () => void; onCancel: () => void }) {
   const { t } = useT();
+  const { customer } = useAuth();
+  // Owner decision 2026-11-21: who owns a depot is head office's (PUT …/owners). A manager edits
+  // the rest of it; the ownership they cannot change is shown, not offered.
+  const ownershipLocked = depot !== null && !canManageDepotLifecycle(customer?.role);
   const [form, setForm] = useState<DepotForm>(depot ? formFromDepot(depot) : EMPTY_DEPOT_FORM);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -223,13 +227,23 @@ function DepotEditor({ depot, onDone, onCancel }: { depot: DepotAdmin | null; on
         <Field label={t('dashboard.depots.name')} htmlFor="d-name">
           <Input id="d-name" value={form.name} onChange={set('name')} placeholder={t('hrFix.depots.nameHint')} />
         </Field>
-        <Field label={t('dashboard.depots.ownership')} htmlFor="d-own">
-          <select id="d-own" value={form.ownershipType} onChange={set('ownershipType')} className={inputClass}>
+        <Field
+          label={t('dashboard.depots.ownership')}
+          htmlFor="d-own"
+          hint={ownershipLocked ? t('dashboard.depots.ownershipLocked') : undefined}
+        >
+          <select
+            id="d-own"
+            value={form.ownershipType}
+            onChange={set('ownershipType')}
+            className={inputClass}
+            disabled={ownershipLocked}
+          >
             <option value="HKP">HKP</option>
             <option value="WARALABA">WARALABA</option>
           </select>
         </Field>
-        {form.ownershipType === 'WARALABA' && (
+        {form.ownershipType === 'WARALABA' && !ownershipLocked && (
           <OwnersEditor
             value={form.owners}
             onChange={(owners) => setForm((f) => ({ ...f, owners }))}
