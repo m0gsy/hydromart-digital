@@ -70,6 +70,11 @@ Worth knowing before reporting, and worth keeping true:
   rate-limited per account, and a change they make is written to the audit trail before
   it runs, or refused. See
   [`packages/platform/src/nest/external-access.ts`](packages/platform/src/nest/external-access.ts).
+  auth-service signs them (HD-3) with `AI_TOKEN_SIGNING_KEY`; leaving it blank is the
+  kill switch. A person gets one only through a 60-second, single-use PKCE handoff from
+  their own staff session; a machine account only with its secret, which expires within
+  90 days. Tokens last 15 minutes and are never refreshed. See
+  [`services/auth-service/src/application/services/external-access.service.ts`](services/auth-service/src/application/services/external-access.service.ts).
 - **Personal data.** Consent and retention are enforced by a purge engine, not by
   intent; export and erasure paths exist for UU PDP.
 

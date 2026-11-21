@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { MachineAccount, parseMachineAccounts } from './external-access';
+
 export type OtpDeliveryChannel = 'console' | 'sms' | 'zenziva';
 
 export interface OtpPolicy {
@@ -108,6 +110,29 @@ export class AuthConfigService {
       refreshTtlSeconds: this.num('JWT_REFRESH_TTL'),
     };
   }
+
+  /**
+   * HD-3: the ES256 key that signs AI-web and machine tokens, and the one it replaced. A
+   * blank signing key is the kill switch (see config/external-access.ts); the previous key
+   * is only published, never used to sign, so tokens it signed stay valid for their last
+   * fifteen minutes of a rotation.
+   */
+  get externalTokenKeys(): { signing: string; previous: string } {
+    return {
+      signing: this.config.get<string>('AI_TOKEN_SIGNING_KEY', '').trim(),
+      previous: this.config.get<string>('AI_TOKEN_SIGNING_KEY_PREVIOUS', '').trim(),
+    };
+  }
+
+  /** HD-3: the machine accounts (n8n). Validated at boot, so this cannot throw here. */
+  get machineAccounts(): MachineAccount[] {
+    const raw = this.config.get<string>('MACHINE_ACCOUNTS', '');
+    // Parsed once per value, not on every unauthenticated machine/token request.
+    if (this.machineCache?.raw !== raw) this.machineCache = { raw, accounts: parseMachineAccounts(raw) };
+    return this.machineCache.accounts;
+  }
+
+  private machineCache: { raw: string; accounts: MachineAccount[] } | null = null;
 
   get zenziva(): { baseUrl: string; userkey: string; passkey: string } {
     return {

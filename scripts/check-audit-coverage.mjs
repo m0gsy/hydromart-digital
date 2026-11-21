@@ -78,6 +78,10 @@ const EXEMPT = new Map([
   ['auth-service:account.controller.ts:logout', 'writes auth.logout itself'],
   ['auth-service:account.controller.ts:logoutAll', 'writes auth.logout_all itself'],
   ['auth-service:audit.controller.ts:ingest', "the trail's own ingest — it would record itself"],
+  // HD-3: token issuance for the AI web and machine accounts, recorded with IP and user-agent.
+  ['auth-service:external-access.controller.ts:handoffCode', 'writes auth.handoff.code_issued itself'],
+  ['auth-service:external-access.controller.ts:handoffToken', 'writes auth.handoff.exchanged / failed'],
+  ['auth-service:external-access.controller.ts:machineToken', 'writes auth.machine.token_issued / failed'],
 
   /*
    * A customer acting on their own account is not a privileged decision, and this trail is

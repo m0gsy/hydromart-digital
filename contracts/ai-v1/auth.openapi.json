@@ -1,0 +1,194 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hydromart-digital auth for the AI web and machine accounts",
+    "version": "1.0.0",
+    "description": "HD-3. How the AI web (a person) and n8n (a machine account) get ES256 tokens, and where the keys to verify them are. Tokens: iss hydromart-auth, aud hydromart-ai (carries the person's role) or hydromart-machine (carries scopes, a closed capability list), exp 15 minutes, kid in the header. An empty key set means AI and machine access is switched off. Sign-in: the AI web sends the person to the hydromart-digital web with a PKCE S256 challenge and a state; that page, under the person's own session, asks auth-service (POST auth/handoff/code) for a 60-second one-time code and returns it to the AI web callback; the AI web server then calls handoff/token below. The hydromart-digital page is not built yet (it comes with AI-3)."
+  },
+  "servers": [
+    {
+      "url": "https://api.hydromart-digital.com"
+    }
+  ],
+  "paths": {
+    "/auth/api/v1/auth/jwks": {
+      "get": {
+        "summary": "Public keys (P-256, by kid). Empty = switched off.",
+        "responses": {
+          "200": {
+            "description": "A JWK set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Jwks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/api/v1/auth/handoff/token": {
+      "post": {
+        "summary": "Called by the AI web's server: trade the code and the PKCE verifier for a 15-minute token. The code is spent on first use, right verifier or wrong.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code",
+                  "codeVerifier"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{43}$"
+                  },
+                  "codeVerifier": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9._~-]{43,128}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "An AI-web token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unknown, used or expired code, or the wrong verifier: start again"
+          },
+          "503": {
+            "description": "Switched off"
+          }
+        }
+      }
+    },
+    "/auth/api/v1/auth/machine/token": {
+      "post": {
+        "summary": "Called by n8n: trade a machine account id and secret for a 15-minute token carrying its scopes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "accountId",
+                  "secret"
+                ],
+                "properties": {
+                  "accountId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "secret": {
+                    "type": "string",
+                    "minLength": 32,
+                    "maxLength": 256
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A machine token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unknown account, wrong secret, or a secret past its day"
+          },
+          "503": {
+            "description": "Switched off"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Token": {
+        "type": "object",
+        "required": [
+          "tokenType",
+          "accessToken",
+          "expiresIn"
+        ],
+        "properties": {
+          "tokenType": {
+            "const": "Bearer"
+          },
+          "accessToken": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "const": 900
+          }
+        }
+      },
+      "Jwks": {
+        "type": "object",
+        "required": [
+          "keys"
+        ],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "kty",
+                "crv",
+                "x",
+                "y",
+                "kid"
+              ],
+              "properties": {
+                "kty": {
+                  "const": "EC"
+                },
+                "crv": {
+                  "const": "P-256"
+                },
+                "x": {
+                  "type": "string"
+                },
+                "y": {
+                  "type": "string"
+                },
+                "kid": {
+                  "type": "string"
+                },
+                "use": {
+                  "const": "sig"
+                },
+                "alg": {
+                  "const": "ES256"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

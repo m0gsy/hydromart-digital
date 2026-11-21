@@ -208,6 +208,9 @@ function nonWebCallers() {
       .map((s) => join('services', s, 'src')),
     'scripts',
     '.uat',
+    // HD-3: the contract the AI web and n8n code against. Their callers live in another
+    // repository; the contract is this repo's record of them.
+    'contracts',
   ].filter((d) => existsSync(d));
 
   for (const root of roots) {

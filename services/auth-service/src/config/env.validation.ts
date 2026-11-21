@@ -1,6 +1,14 @@
 import { internalServiceKey, optionalSecret, requiredSecret } from '@hydromart/platform';
 import * as Joi from 'joi';
 
+import { parseMachineAccounts, parseSigningKey } from './external-access';
+
+/** Joi custom rule: blank, or a key parseSigningKey accepts (it throws, Joi reports it). */
+function signingKey(value: string): string {
+  if (value.trim()) parseSigningKey(value.trim());
+  return value;
+}
+
 /**
  * The only way to run the log-printing OTP channel under NODE_ENV=production. Exists for
  * the E2E stack, which is production-parity by design and scrapes codes from the auth log.
@@ -87,6 +95,21 @@ export const envValidationSchema = Joi.object({
     .when('REVIEWER_PHONE', {
       is: Joi.string().min(1).required(),
       then: Joi.string().isoDate().required(),
+    }),
+
+  /*
+   * HD-3: ES256 tokens for the AI web and machine accounts. Blank signing key = the
+   * feature is off (an empty JWKS, the kill switch). A value that does not parse fails the
+   * boot rather than looking configured while every token is refused.
+   */
+  AI_TOKEN_SIGNING_KEY: Joi.string().allow('').default('').custom(signingKey),
+  AI_TOKEN_SIGNING_KEY_PREVIOUS: Joi.string().allow('').default('').custom(signingKey),
+  MACHINE_ACCOUNTS: Joi.string()
+    .allow('')
+    .default('')
+    .custom((value: string) => {
+      parseMachineAccounts(value);
+      return value;
     }),
 
   // Registration welcome via crm-service (internal service auth). Both blank = disabled.
