@@ -265,7 +265,6 @@ export default function FranchiseApplicationPage() {
                 inputMode="numeric"
                 value={form.projectedMonthlyRevenue}
                 onChange={set('projectedMonthlyRevenue')}
-                placeholder="45000000"
               />
             </Field>
           </div>
