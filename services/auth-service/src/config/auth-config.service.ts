@@ -126,8 +126,13 @@ export class AuthConfigService {
 
   /** HD-3: the machine accounts (n8n). Validated at boot, so this cannot throw here. */
   get machineAccounts(): MachineAccount[] {
-    return parseMachineAccounts(this.config.get<string>('MACHINE_ACCOUNTS', ''));
+    const raw = this.config.get<string>('MACHINE_ACCOUNTS', '');
+    // Parsed once per value, not on every unauthenticated machine/token request.
+    if (this.machineCache?.raw !== raw) this.machineCache = { raw, accounts: parseMachineAccounts(raw) };
+    return this.machineCache.accounts;
   }
+
+  private machineCache: { raw: string; accounts: MachineAccount[] } | null = null;
 
   get zenziva(): { baseUrl: string; userkey: string; passkey: string } {
     return {

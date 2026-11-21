@@ -13,7 +13,14 @@ import { getRequestContext } from '../../common/http/request-context';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user';
 import { PublicJwk } from '../../config/external-access';
 import { ExternalTokenSigner } from '../../infrastructure/security/external-token-signer';
-import { HandoffCodeDto, HandoffTokenDto, MachineTokenDto } from './dto/external-access.dto';
+import {
+  ExternalTokenResponseDto,
+  HandoffCodeDto,
+  HandoffCodeResponseDto,
+  HandoffTokenDto,
+  JwksResponseDto,
+  MachineTokenDto,
+} from './dto/external-access.dto';
 
 /**
  * HD-3: where the AI web and machine accounts get their ES256 tokens, and where every
@@ -33,6 +40,7 @@ export class ExternalAccessController {
   @Get('jwks')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Public keys that verify AI-web and machine tokens (JWKS)' })
+  @ApiOkResponse({ type: JwksResponseDto })
   jwks(): { keys: PublicJwk[] } {
     return this.signer.jwks();
   }
@@ -42,7 +50,7 @@ export class ExternalAccessController {
   @Post('handoff/code')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Issue a 60-second handoff code for the AI web (PKCE S256)' })
-  @ApiOkResponse({ description: '{ code, expiresIn }' })
+  @ApiOkResponse({ type: HandoffCodeResponseDto })
   handoffCode(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: HandoffCodeDto,
@@ -56,6 +64,7 @@ export class ExternalAccessController {
   @Post('handoff/token')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Exchange a handoff code + PKCE verifier for an AI-web token' })
+  @ApiOkResponse({ type: ExternalTokenResponseDto })
   handoffToken(@Body() dto: HandoffTokenDto, @Req() req: Request): Promise<ExternalTokenResult> {
     return this.external.exchangeHandoffCode(dto.code, dto.codeVerifier, getRequestContext(req));
   }
@@ -65,6 +74,7 @@ export class ExternalAccessController {
   @Post('machine/token')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Issue a machine-account token carrying its closed scopes' })
+  @ApiOkResponse({ type: ExternalTokenResponseDto })
   machineToken(@Body() dto: MachineTokenDto, @Req() req: Request): Promise<ExternalTokenResult> {
     return this.external.issueMachineToken(dto.accountId, dto.secret, getRequestContext(req));
   }

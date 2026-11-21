@@ -38,3 +38,29 @@ export class MachineTokenDto {
   @Length(32, 256)
   secret!: string;
 }
+
+export class PublicJwkDto {
+  @ApiProperty({ enum: ['EC'] }) kty!: 'EC';
+  @ApiProperty({ enum: ['P-256'] }) crv!: 'P-256';
+  @ApiProperty() x!: string;
+  @ApiProperty() y!: string;
+  @ApiProperty({ description: 'RFC 7638 thumbprint of the key.' }) kid!: string;
+  @ApiProperty({ enum: ['sig'] }) use!: 'sig';
+  @ApiProperty({ enum: ['ES256'] }) alg!: 'ES256';
+}
+
+export class JwksResponseDto {
+  @ApiProperty({ type: [PublicJwkDto], description: 'Empty when AI and machine access is off.' })
+  keys!: PublicJwkDto[];
+}
+
+export class HandoffCodeResponseDto {
+  @ApiProperty({ description: 'One-time code, valid for expiresIn seconds.' }) code!: string;
+  @ApiProperty({ example: 60 }) expiresIn!: number;
+}
+
+export class ExternalTokenResponseDto {
+  @ApiProperty({ enum: ['Bearer'] }) tokenType!: 'Bearer';
+  @ApiProperty({ description: 'ES256 JWT.' }) accessToken!: string;
+  @ApiProperty({ example: 900 }) expiresIn!: number;
+}

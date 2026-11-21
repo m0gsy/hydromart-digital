@@ -25,6 +25,8 @@ export const HANDOFF_CODE_TTL_SECONDS = 60;
 /** AI-web and machine tokens live 15 minutes; there is no refresh token, only a new handoff. */
 export const EXTERNAL_TOKEN_TTL_SECONDS = 900;
 const MAX_PENDING_CODES = 1_000;
+/** One person cannot fill the queue for everybody else: their oldest code makes room. */
+const MAX_CODES_PER_PERSON = 3;
 
 export interface ExternalTokenResult {
   tokenType: 'Bearer';
@@ -85,9 +87,13 @@ export class ExternalAccessService {
     if (caller.role === Role.CUSTOMER) throw new HandoffNotForCustomersError();
 
     const now = this.clock.now().getTime();
+    const mine: string[] = [];
     for (const [key, entry] of this.pending) {
       if (entry.expiresAt <= now) this.pending.delete(key);
+      else if (entry.customerId === caller.sub) mine.push(key);
     }
+    // Map order is insertion order, so the first of mine is the oldest.
+    if (mine.length >= MAX_CODES_PER_PERSON) this.pending.delete(mine[0]!);
     if (this.pending.size >= MAX_PENDING_CODES) throw new HandoffBusyError();
 
     const code = randomBytes(32).toString('base64url');
@@ -120,23 +126,31 @@ export class ExternalAccessService {
     const now = this.clock.now();
 
     const challenge = sha256(codeVerifier).toString('base64url');
-    if (!entry || entry.expiresAt <= now.getTime() || !sameText(challenge, entry.codeChallenge)) {
-      await this.audit.record({
-        customerId: entry?.customerId ?? null,
+    const failed = (reason: string, customerId: string | null) =>
+      this.audit.record({
+        customerId,
         action: AuditAction.HANDOFF_FAILED,
         success: false,
         ...context,
-        metadata: { reason: !entry ? 'unknown' : entry.expiresAt <= now.getTime() ? 'expired' : 'verifier' },
+        metadata: { reason },
       });
+    if (!entry || entry.expiresAt <= now.getTime() || !sameText(challenge, entry.codeChallenge)) {
+      const reason = !entry ? 'unknown' : entry.expiresAt <= now.getTime() ? 'expired' : 'verifier';
+      await failed(reason, entry?.customerId ?? null);
       throw new InvalidHandoffCodeError();
     }
 
     // Read again, not carried in the code: a suspension or role change in those 60 seconds
     // is what the token says.
     const customer = await this.customers.findById(entry.customerId);
-    if (!customer) throw new InvalidHandoffCodeError();
-    customer.ensureCanAuthenticate();
-    if (customer.role === Role.CUSTOMER) throw new HandoffNotForCustomersError();
+    try {
+      if (!customer) throw new InvalidHandoffCodeError();
+      customer.ensureCanAuthenticate();
+      if (customer.role === Role.CUSTOMER) throw new HandoffNotForCustomersError();
+    } catch (error) {
+      await failed('account', entry.customerId);
+      throw error;
+    }
 
     const accessToken = this.signer.sign(
       {

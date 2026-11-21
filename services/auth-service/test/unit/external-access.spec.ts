@@ -240,7 +240,7 @@ describe('ExternalAccessService handoff', () => {
   });
 
   it('reads the account again at exchange: gone, suspended or now a customer', async () => {
-    const { service, customers, staff, caller } = setup();
+    const { service, customers, staff, caller, auditLog } = setup();
     const issue = () => service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx);
 
     let { code } = await issue();
@@ -258,6 +258,21 @@ describe('ExternalAccessService handoff', () => {
     await expect(service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject({
       code: 'AUTH_HANDOFF_INVALID',
     });
+    expect(
+      auditLog.entries.filter((e) => e.action === 'auth.handoff.failed').map((e) => e.metadata?.reason),
+    ).toEqual(['account', 'account', 'account']);
+  });
+
+  it('one person holds at most three live codes; a fourth retires their oldest', async () => {
+    const { service, caller } = setup();
+    const codes: string[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      codes.push((await service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx)).code);
+    }
+    await expect(service.exchangeHandoffCode(codes[0]!, VERIFIER, ctx)).rejects.toMatchObject({
+      code: 'AUTH_HANDOFF_INVALID',
+    });
+    await expect(service.exchangeHandoffCode(codes[3]!, VERIFIER, ctx)).resolves.toBeDefined();
   });
 
   it('refuses customers, a full queue, and everything when switched off', async () => {
@@ -266,7 +281,9 @@ describe('ExternalAccessService handoff', () => {
       service.issueHandoffCode({ sub: 'c1', role: Role.CUSTOMER }, challengeOf(VERIFIER), ctx),
     ).rejects.toMatchObject({ code: 'AUTH_HANDOFF_STAFF_ONLY' });
 
-    for (let i = 0; i < 1000; i += 1) await service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx);
+    for (let i = 0; i < 1000; i += 1) {
+      await service.issueHandoffCode({ ...caller, sub: `staff-${i}` }, challengeOf(VERIFIER), ctx);
+    }
     await expect(service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx)).rejects.toMatchObject({
       code: 'AUTH_HANDOFF_BUSY',
     });
