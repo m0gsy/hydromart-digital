@@ -1,0 +1,39 @@
+// Writes NASKAH_VO.md from src/script.ts and refuses a scene whose voice-over cannot be read
+// calmly in the time the scene is on screen.   node naskah.ts
+import { writeFileSync } from 'node:fs';
+import { FPS, KEPALA, STAFF, type Scene } from './src/script.ts';
+
+// ponytail: words/second is a rough proxy for spoken length; time a real read if a scene feels rushed.
+const MAX_WPS = 2.4;
+
+const ts = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+function section(name: string, file: string, scenes: Scene[]) {
+  let t = 0;
+  const rows = scenes.map((s, i) => {
+    const words = s.vo.split(/\s+/).length;
+    if (words / s.sec > MAX_WPS) {
+      throw new Error(`${name} "${s.id}": ${words} kata dalam ${s.sec} detik terlalu cepat (> ${MAX_WPS}/detik)`);
+    }
+    const head = `### ${i + 1}. ${s.step ? `${s.step} — ` : ''}${s.title}  \`${ts(t)}–${ts(t + s.sec)}\``;
+    t += s.sec;
+    return `${head}\n\n**Teks layar:** ${s.caption}\n\n> ${s.vo}\n`;
+  });
+  return `## ${name}\n\nBerkas: \`out/${file}\` · durasi ${ts(t)} · ${t * FPS} frame @ ${FPS} fps\n\n${rows.join('\n')}`;
+}
+
+const md = `# Naskah voice-over — Tutorial Hydromart Ops
+
+Dibuat otomatis dari \`src/script.ts\` (\`npm run naskah\`). Jangan diedit langsung: ubah \`script.ts\`,
+lalu jalankan ulang agar naskah dan video tetap sinkron.
+
+**Cara rekam:** satu berkas audio per adegan, mulai tepat di awal rentang waktunya. Bacaan
+dirancang ±${MAX_WPS} kata/detik, jadi tiap adegan menyisakan jeda di akhir. Taruh berkasnya di
+\`public/vo/<video>-<nomor>.mp3\` (misal \`public/vo/staff-01.mp3\`), lalu render ulang; adegan
+tanpa berkas tetap diputar tanpa suara.
+
+${section('Video 1 — Staff Depot', 'tutorial-staff-depot.mp4', STAFF)}
+${section('Video 2 — Kepala Depot', 'tutorial-kepala-depot.mp4', KEPALA)}`;
+
+writeFileSync(new URL('./NASKAH_VO.md', import.meta.url), md);
+console.log('NASKAH_VO.md ditulis');

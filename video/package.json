@@ -1,13 +1,16 @@
 {
   "name": "hydromart-ops-tutorial-video",
   "private": true,
+  "type": "module",
   "description": "Video tutorial Hydromart Ops (Staff Depot & Kepala Depot), dibuat dengan Remotion.",
   "scripts": {
     "studio": "remotion studio",
     "render:staff": "remotion render StaffDepot out/tutorial-staff-depot.mp4",
     "render:kepala": "remotion render KepalaDepot out/tutorial-kepala-depot.mp4",
     "render": "npm run render:staff && npm run render:kepala",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "naskah": "node naskah.ts",
+    "stills": "node stills.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.7",

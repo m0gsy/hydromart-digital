@@ -236,7 +236,7 @@ export const Stage: React.FC<{ step: string; title: string; caption: string; chi
 
 // ── tap indicator ─────────────────────────────────────────────────────────────
 /** A finger tap at (x, y) in app px, at frame `at`. Place it inside the phone screen. */
-export const Tap: React.FC<{ x: number; y: number; at: number }> = ({ x, y, at }) => {
+export const Tap: React.FC<{ x?: number | string; y?: number | string; at: number }> = ({ x = '50%', y = '50%', at }) => {
   const frame = useCurrentFrame();
   if (frame < at - 10 || frame > at + 22) return null;
   const approach = ease(frame, at - 10, 10);
@@ -275,8 +275,6 @@ export const Tap: React.FC<{ x: number; y: number; at: number }> = ({ x, y, at }
   );
 };
 
-/** 1 while `frame` is inside [at, at+6): a pressed button dims slightly. */
-export const pressed = (frame: number, at: number) => (frame >= at && frame < at + 6 ? 0.96 : 1);
 
 // ── replica UI pieces ─────────────────────────────────────────────────────────
 export const Card: React.FC<{ children: React.ReactNode; style?: React.CSSProperties }> = ({ children, style }) => (
@@ -297,9 +295,8 @@ export const Card: React.FC<{ children: React.ReactNode; style?: React.CSSProper
 export const Btn: React.FC<{
   children: React.ReactNode;
   variant?: 'primary' | 'outline' | 'ghost' | 'danger';
-  scale?: number;
   style?: React.CSSProperties;
-}> = ({ children, variant = 'primary', scale = 1, style }) => {
+}> = ({ children, variant = 'primary', style }) => {
   const v = {
     primary: { background: C.brand600, color: 'white', border: `1px solid ${C.brand600}` },
     outline: { background: C.surface, color: C.brand700, border: `1px solid ${C.border}` },
@@ -314,12 +311,12 @@ export const Btn: React.FC<{
         padding: '12px 14px',
         fontSize: 15,
         fontWeight: 700,
+        whiteSpace: 'nowrap',
         textAlign: 'center',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        transform: `scale(${scale})`,
         ...style,
       }}
     >
@@ -493,4 +490,187 @@ export const Drop: React.FC<{ size: number }> = ({ size }) => (
     <path d="M32 6C32 6 12 28 12 41a20 20 0 0 0 40 0C52 28 32 6 32 6Z" fill="white" />
     <path d="M22 42a10 10 0 0 0 8 10" stroke={C.brand600} strokeWidth="5" strokeLinecap="round" fill="none" />
   </svg>
+);
+
+// ── screen-level helpers ──────────────────────────────────────────────────────
+/** Shows `children[i]` from frame `at[i]`, each new screen sliding in from the right. */
+export const Screens: React.FC<{ at: number[]; children: React.ReactNode[] }> = ({ at, children }) => {
+  const frame = useCurrentFrame();
+  let i = 0;
+  at.forEach((a, k) => frame >= a && (i = k));
+  const p = i === 0 ? 1 : ease(frame, at[i], 12);
+  return (
+    <>
+      {i > 0 && p < 1 && (
+        <div style={{ position: 'absolute', inset: 0, transform: `translateX(${-p * 30}%)`, opacity: 1 - p }}>
+          {children[i - 1]}
+        </div>
+      )}
+      <div style={{ position: 'absolute', inset: 0, transform: `translateX(${(1 - p) * 100}%)`, background: C.muted }}>
+        {children[i]}
+      </div>
+    </>
+  );
+};
+
+/** The part of `text` typed so far: one character every `cps`-th of a second from `from`. */
+export const typed = (frame: number, text: string, from: number, perChar = 2) =>
+  text.slice(0, Math.max(0, Math.floor((frame - from) / perChar)));
+
+/** Vertical scroll: content moves up by `by` px between frames `from` and `from+dur`. */
+export const Scroll: React.FC<{ from: number; by: number; dur?: number; children: React.ReactNode }> = ({
+  from,
+  by,
+  dur = 30,
+  children,
+}) => {
+  const y = ease(useCurrentFrame(), from, dur) * by;
+  return <div style={{ transform: `translateY(${-y}px)` }}>{children}</div>;
+};
+
+/** Page heading + optional sub line, as the app's screens open. */
+export const PageHead: React.FC<{ title: string; sub?: string; right?: React.ReactNode }> = ({ title, sub, right }) => (
+  <div style={{ padding: '18px 20px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <div>
+      <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.15 }}>{title}</div>
+      {sub && <div style={{ fontSize: 13.5, color: C.textMuted, marginTop: 4, lineHeight: 1.35 }}>{sub}</div>}
+    </div>
+    {right}
+  </div>
+);
+
+/** A labelled input showing `value`; a caret blinks while `focus`. */
+export const Field: React.FC<{ label: string; value: string; placeholder?: string; prefix?: string; focus?: boolean; big?: boolean }> = ({
+  label,
+  value,
+  placeholder,
+  prefix,
+  focus,
+  big,
+}) => {
+  const frame = useCurrentFrame();
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{label}</div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: C.surface,
+          border: `1.5px solid ${focus ? C.brand600 : C.border}`,
+          borderRadius: 12,
+          padding: big ? '12px 14px' : '10px 12px',
+          fontSize: big ? 20 : 15,
+          fontWeight: big ? 800 : 500,
+          minHeight: 20,
+        }}
+      >
+        {prefix && <span style={{ color: C.textMuted, fontWeight: 600 }}>{prefix}</span>}
+        <span style={{ color: value ? C.text : C.textMuted }}>{value || placeholder}</span>
+        {focus && Math.floor(frame / 15) % 2 === 0 && (
+          <span style={{ width: 2, height: big ? 22 : 18, background: C.brand600, marginLeft: -6 }} />
+        )}
+      </div>
+    </div>
+  );
+};
+
+/** Wrap a control: a finger taps its centre (and the control dips) at each frame in `at`. */
+export const Tapped: React.FC<{ at: number | number[]; children: React.ReactNode; style?: React.CSSProperties }> = ({
+  at,
+  children,
+  style,
+}) => {
+  const frame = useCurrentFrame();
+  const taps = [at].flat();
+  const down = taps.some((a) => frame >= a && frame < a + 6);
+  return (
+    <div style={{ position: 'relative', transform: down ? 'scale(0.96)' : undefined, ...style }}>
+      {children}
+      {taps.map((a) => (
+        <Tap key={a} at={a} />
+      ))}
+    </div>
+  );
+};
+
+/**
+ * Tutorial pointer (not app UI): an amber outline around the wrapped element from `at` to `until`,
+ * with an optional label above or below it.
+ */
+export const Spot: React.FC<{
+  at: number;
+  until?: number;
+  text?: string;
+  place?: 'above' | 'below';
+  align?: 'left' | 'center' | 'right';
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}> = ({ at, until = 1e9, text, place = 'below', align = 'center', children, style }) => {
+  const frame = useCurrentFrame();
+  const p = ease(frame, at, 10) * (1 - ease(frame, until, 8));
+  return (
+    <div style={{ position: 'relative', zIndex: p > 0 ? 45 : undefined, ...style }}>
+      {children}
+      {p > 0 && (
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              inset: -5,
+              borderRadius: 18,
+              border: `3px solid ${C.amber}`,
+              boxShadow: `0 0 0 ${4 + Math.sin(frame / 5) * 2}px rgba(208,148,21,0.25)`,
+              opacity: p,
+              transform: `scale(${0.94 + p * 0.06})`,
+              pointerEvents: 'none',
+            }}
+          />
+          {text && (
+            <div
+              style={{
+                position: 'absolute',
+                [place === 'below' ? 'top' : 'bottom']: 'calc(100% + 14px)',
+                ...(align === 'center'
+                  ? { left: '50%', transform: `translateX(-50%) translateY(${(1 - p) * 8}px)` }
+                  : { [align]: 0, transform: `translateY(${(1 - p) * 8}px)` }),
+                width: 'max-content',
+                maxWidth: 330,
+                opacity: p,
+                background: C.amber,
+                color: '#1f1400',
+                fontWeight: 800,
+                fontSize: 13.5,
+                lineHeight: 1.35,
+                padding: '8px 12px',
+                borderRadius: 12,
+                boxShadow: '0 8px 20px rgba(0,0,0,0.18)',
+                textAlign: 'center',
+              }}
+            >
+              {text}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+/** A row with a label on the left and a value on the right. */
+export const Row: React.FC<{ k: React.ReactNode; v: React.ReactNode; strong?: boolean }> = ({ k, v, strong }) => (
+  <div
+    style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '8px 0',
+      fontSize: strong ? 16 : 14,
+      fontWeight: strong ? 800 : 500,
+    }}
+  >
+    <span style={{ color: strong ? C.text : C.textMuted }}>{k}</span>
+    <span>{v}</span>
+  </div>
 );
