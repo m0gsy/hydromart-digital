@@ -172,6 +172,32 @@ not open surfaces tied to a literal built-in role: the courier app (`@Roles(STAF
 and manager consoles, attendance and payroll rules. HR and the staff import keep their closed role lists,
 so an employee file cannot mint a custom role. Every change is written to the audit trail with before/after.
 
+## 4c. Legal entities (HD-5)
+
+Three kinds of data owner share this network: the franchisor (Indowater), the operator of the
+company-owned HKP depots (Kelola), and each franchise partner. Head office records them on
+`/hq/legal-entities` (`legalEntityAdmin`); nothing is seeded.
+
+| Data | Owner | Stored in |
+|---|---|---|
+| Legal entities (name unique ignoring case, kind, on/off, never deleted) | depot-service | `legal_entities` |
+| Which entity a depot belongs to, by date | depot-service | `depot_legal_entities` |
+| Which entity employs a person, by date | hr-service | `employee_legal_entities` (bare entity id, checked against depot-service on every write) |
+| Role x legal entity matrix | depot-service | `legal_entity_ai_grants` |
+
+A history is a list of change points: on day D the entity is the latest point on or before D, and a
+second write on the same day corrects that point. Every dated write and every take-back names what
+the screen showed for that point (`seen`, `?legalEntityId=`); a point changed since is refused with
+409 STALE_WRITE, a write the day already holds is a no-op, and each (depot or employee, day) is
+written under an advisory lock taken in sorted order.
+
+The matrix limits ONLY the AI web and the AI read API (owner decision 2026-11-22): nothing in
+hydromart-digital reads it, so its permissions and depot scopes are as in 4b. A row means that role
+may read the entity there; a new entity is readable by nobody but SUPER_ADMIN until granted. It only
+narrows: the AI read API applies the caller's own depot scope or ownership first and the matrix on
+top, so a grant never widens a scoped role past its own depots. Saving it is `legalEntityAiAccess`,
+SUPER_ADMIN by default and in `CUSTOM_FORBIDDEN`, like `legalEntityAdmin`.
+
 ## 5. MVP roadmap
 
 | Milestone | Scope                                           | Status |

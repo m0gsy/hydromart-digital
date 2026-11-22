@@ -26,6 +26,7 @@ import { PriceOverrideService } from '../application/services/price-override.ser
 import { IncidentService } from '../application/services/incident.service';
 import { ApprovalService } from '../application/services/approval.service';
 import { SupplierService } from '../application/services/supplier.service';
+import { LegalEntityService } from '../application/services/legal-entity.service';
 import { PurchaseOrderService } from '../application/services/purchase-order.service';
 import { RosterService } from '../application/services/roster.service';
 import { DepotTargetService } from '../application/services/depot-target.service';
@@ -72,6 +73,7 @@ import { PriceOverrideProposalPrismaRepository } from '../infrastructure/prisma/
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
 import { ApprovalPrismaRepository } from '../infrastructure/prisma/approval.prisma.repository';
 import { SupplierPrismaRepository } from '../infrastructure/prisma/supplier.prisma.repository';
+import { LegalEntityPrismaRepository } from '../infrastructure/prisma/legal-entity.prisma.repository';
 import { PurchaseOrderPrismaRepository } from '../infrastructure/prisma/purchase-order.prisma.repository';
 import { RosterPrismaRepository } from '../infrastructure/prisma/roster.prisma.repository';
 import { DepotTargetPrismaRepository } from '../infrastructure/prisma/depot-target.prisma.repository';
@@ -111,6 +113,7 @@ import { DepotPriceOverrideController, PriceOverrideController } from './price-o
 import { IncidentController } from './incident.controller';
 import { ApprovalController } from './approval.controller';
 import { SupplierController } from './supplier.controller';
+import { LegalEntityController } from './legal-entity.controller';
 import { PurchaseOrderController } from './purchase-order.controller';
 import { RosterController } from './roster.controller';
 import { DepotTargetController } from './depot-target.controller';
@@ -153,6 +156,7 @@ const providers: Provider[] = [
   IncidentService,
   ApprovalService,
   SupplierService,
+  LegalEntityService,
   PurchaseOrderService,
   RosterService,
   DepotTargetService,
@@ -203,6 +207,7 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },
   { provide: DEPOT_TOKENS.ApprovalRepository, useClass: ApprovalPrismaRepository },
   { provide: DEPOT_TOKENS.SupplierRepository, useClass: SupplierPrismaRepository },
+  { provide: DEPOT_TOKENS.LegalEntityRepository, useClass: LegalEntityPrismaRepository },
   { provide: DEPOT_TOKENS.PurchaseOrderRepository, useClass: PurchaseOrderPrismaRepository },
   { provide: DEPOT_TOKENS.RosterRepository, useClass: RosterPrismaRepository },
   { provide: DEPOT_TOKENS.DepotTargetRepository, useClass: DepotTargetPrismaRepository },
@@ -262,6 +267,7 @@ const providers: Provider[] = [
     IncidentController,
     ApprovalController,
     SupplierController,
+    LegalEntityController,
     PurchaseOrderController,
     RosterController,
     DepotTargetController,

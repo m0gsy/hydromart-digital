@@ -239,6 +239,8 @@ export const dashC = {
       staffDirectory: 'Staff directory (view)',
       orderManageRead: 'Read orders (no changes)',
       depotLifecycle: 'Open and deactivate depots',
+      legalEntityAdmin: 'Manage the legal entities of depots and employees',
+      legalEntityAiAccess: 'AI-web access matrix per legal entity',
       driverRosterRead: 'View courier names (finance)',
       staffDirectoryFinance: 'View franchise owners (finance)',
       depotDirectory: 'Depot records (view)',

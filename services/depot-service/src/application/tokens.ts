@@ -29,6 +29,8 @@ export const DEPOT_TOKENS = {
   IncidentRepository: Symbol('IncidentRepository'),
   ApprovalRepository: Symbol('ApprovalRepository'),
   SupplierRepository: Symbol('SupplierRepository'),
+  /** HD-5: legal entities, their dated depots and the AI-web matrix. */
+  LegalEntityRepository: Symbol('LegalEntityRepository'),
   PurchaseOrderRepository: Symbol('PurchaseOrderRepository'),
   RosterRepository: Symbol('RosterRepository'),
   DepotTargetRepository: Symbol('DepotTargetRepository'),

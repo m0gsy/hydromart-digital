@@ -421,21 +421,31 @@ function sharedGet<T>(path: string, auth: boolean, ttlMs: number): Promise<T> {
 
   const p = request<T>(path, { auth })
     .then((value) => {
-      // Failures are never cached: an error must be reproducible on the next attempt.
-      if (ttlMs > 0) cached.set(key, { at: Date.now(), value });
+      // Failures are never cached: an error must be reproducible on the next attempt. Nor is a
+      // read an `invalidate` dropped while it was out: it may hold what a write just replaced.
+      if (ttlMs > 0 && inflight.get(key) === p) cached.set(key, { at: Date.now(), value });
       return value;
     })
     .finally(() => {
-      inflight.delete(key);
+      // Only its own entry: after an `invalidate` a newer read may hold this key.
+      if (inflight.get(key) === p) inflight.delete(key);
     });
 
   inflight.set(key, p);
   return p;
 }
 
-/** Drop every cached read. Called after any mutation — see `api.post`/`put`/`patch`/`del`. */
+/**
+ * Drop every cached read. Called after any mutation — see `api.post`/`put`/`patch`/`del`.
+ *
+ * The reads still in flight go too. One that left before the write may be answered before the
+ * write lands, and a reload asked for after the write would otherwise join it and show the
+ * screen as it was: a toggle tapped twice read back as tapped once. It runs again when the write
+ * settles, for the reads that left while it was out.
+ */
 function invalidate(): void {
   cached.clear();
+  inflight.clear();
 }
 
 /**
@@ -565,9 +575,9 @@ function del<T>(path: string, body: unknown, auth?: boolean): Promise<T>;
 function del<T>(path: string, bodyOrAuth?: unknown, auth = false): Promise<T> {
   invalidate();
   if (typeof bodyOrAuth === 'boolean' || bodyOrAuth === undefined) {
-    return request<T>(path, { method: 'DELETE', auth: bodyOrAuth ?? false });
+    return request<T>(path, { method: 'DELETE', auth: bodyOrAuth ?? false }).finally(invalidate);
   }
-  return request<T>(path, { method: 'DELETE', body: bodyOrAuth, auth });
+  return request<T>(path, { method: 'DELETE', body: bodyOrAuth, auth }).finally(invalidate);
 }
 
 function mutate<T>(method: string) {
@@ -580,7 +590,7 @@ function mutate<T>(method: string) {
     headers?: Record<string, string>,
   ): Promise<T> => {
     invalidate();
-    return request<T>(path, { method, body, auth, headers });
+    return request<T>(path, { method, body, auth, headers }).finally(invalidate);
   };
 }
 

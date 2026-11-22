@@ -8,6 +8,17 @@
 // `endpoints` is still one object, assembled in ./index.ts.
 
 export const depot = {
+  // HD-5 — /hq/legal-entities (depot-service). Read and write are legalEntityAdmin; the AI-web
+  // matrix (aiGrants) is legalEntityAiAccess, the superuser by default.
+  legalEntities: {
+    // GET = the directory (entities + matrix rows), POST = add one.
+    entities: '/depots/api/v1/legal-entities',
+    update: (id: string) => `/depots/api/v1/legal-entities/${id}`,
+    aiGrants: '/depots/api/v1/legal-entities/ai-grants',
+    depots: '/depots/api/v1/legal-entities/depots',
+    // Take back one point; names the entity the screen showed on it (409 when corrected since).
+    depotPoint: (id: string, legalEntityId: string) => `/depots/api/v1/legal-entities/depots/${id}?legalEntityId=${legalEntityId}`,
+  },
   depots: {
     // Public browse (active only), paginated → { items, ... }.
     browse: (q: { page?: number; limit?: number } = {}) => {
