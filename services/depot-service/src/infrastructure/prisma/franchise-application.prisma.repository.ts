@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
-import { Checklist, FranchiseAppStage } from '../../domain/franchise-application';
+import {
+  Checklist,
+  FranchiseAppStage,
+  franchiseApplicationSubmitted,
+} from '../../domain/franchise-application';
 import {
   CreateFranchiseApplicationData,
   FranchiseApplicationRecord,
@@ -45,9 +49,21 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
     };
   }
 
+  /**
+   * HD-7: the application and the event announcing it commit together. Written apart, a crash
+   * between the two left either an application nobody was told about or an event about an
+   * application that does not exist. The event is only recorded here; EventRelayService sends it.
+   */
   async create(data: CreateFranchiseApplicationData): Promise<FranchiseApplicationRecord> {
-    const row = await this.prisma.franchiseApplication.create({
-      data: { ...data, checklist: data.checklist as unknown as Prisma.InputJsonValue },
+    const row = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.franchiseApplication.create({
+        data: { ...data, checklist: data.checklist as unknown as Prisma.InputJsonValue },
+      });
+      const event = franchiseApplicationSubmitted(created);
+      await tx.webhookEventOutbox.create({
+        data: { ...event, payload: event.payload as Prisma.InputJsonValue },
+      });
+      return created;
     });
     return this.toRecord(row as unknown as ApplicationRow);
   }

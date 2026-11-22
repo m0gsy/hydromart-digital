@@ -826,7 +826,13 @@ describe('FranchiseApplicationPrismaRepository', () => {
     updateMany: jest.fn(),
     deleteMany: jest.fn(),
   };
-  const prisma = { franchiseApplication: model } as unknown as PrismaService;
+  // HD-7: create() writes the application and its outbox row in one interactive transaction.
+  const outbox = { create: jest.fn() };
+  const tx = { franchiseApplication: model, webhookEventOutbox: outbox };
+  const prisma = {
+    franchiseApplication: model,
+    $transaction: jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+  } as unknown as PrismaService;
   const repo = new FranchiseApplicationPrismaRepository(prisma);
   const row = {
     id: 'fa-1',
@@ -859,6 +865,27 @@ describe('FranchiseApplicationPrismaRepository', () => {
     expect(out.projectedMonthlyRevenue).toBe(30000000);
     expect(out.checklist).toEqual({ legal: true });
     expect(out.stage).toBe('LEAD');
+  });
+
+  // HD-7: one transaction, so neither can exist without the other. No personal data in it.
+  it('records the application_submitted event in the same transaction as the application', async () => {
+    model.create.mockResolvedValue(row);
+    await repo.create({ applicantName: 'Budi', checklist: {} } as never);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(outbox.create).toHaveBeenCalledWith({
+      data: {
+        event: 'franchise.application_submitted',
+        eventId: 'franchise.application_submitted:fa-1',
+        payload: { applicationId: 'fa-1', city: 'Bandung', province: 'Jabar' },
+        occurredAt: row.submittedAt,
+      },
+    });
+  });
+
+  it('saves no application when its event cannot be recorded', async () => {
+    model.create.mockResolvedValue(row);
+    outbox.create.mockRejectedValueOnce(new Error('outbox insert failed'));
+    await expect(repo.create({ checklist: {} } as never)).rejects.toThrow('outbox insert failed');
   });
 
   it('coerces a null checklist to empty object', async () => {

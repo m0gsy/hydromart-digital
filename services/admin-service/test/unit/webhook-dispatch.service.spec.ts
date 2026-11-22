@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import {
   MAX_ATTEMPTS,
+  WEBHOOK_EVENTS,
   nextAttemptDelayMs,
   signPayload,
   successRatePct,
@@ -138,7 +142,7 @@ describe('WebhookDispatchService', () => {
     const service = new WebhookDispatchService(deliveries, endpoints, publicLookup, send);
 
     await expect(
-      service.publish({ event: 'delivery.delivered', payload: { a: 1 } }, NOW),
+      service.publish({ event: 'delivery.delivered', payload: { a: 1 }, eventId: 'delivery.delivered:d1' }, NOW),
     ).resolves.toEqual({ queued: 2 });
     expect(calls.queued.map((q) => q.endpointId)).toEqual(['ep-1', 'ep-2']);
   });
@@ -229,12 +233,42 @@ describe('WebhookDispatchService', () => {
     expect(calls.delivered.map((d) => d.id)).toEqual(['d-1']);
   });
 
-  it('sends unsigned rather than signing with a placeholder when no secret is set', async () => {
+  /*
+   * HD-7: the timestamp is when THIS send starts. Stamped with the sweep's start instead, the
+   * last of twenty slow sends went out up to 270 s old, near the 300 s a receiver allows.
+   */
+  it('stamps each send with the moment it starts, not the moment the sweep began', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200 });
-    const { deliveries, endpoints } = makeRepos([due({ secret: null })]);
-    await new WebhookDispatchService(deliveries, endpoints, publicLookup, send).process(NOW);
+    const { deliveries, endpoints, calls } = makeRepos([due({ id: 'd-1' }), due({ id: 'd-2' })]);
+    const real = Date.now();
+    const clock = jest.spyOn(Date, 'now');
+    // sweep start, first send at +0, second send at +120 s
+    clock.mockReturnValueOnce(real).mockReturnValueOnce(real).mockReturnValue(real + 120_000);
 
-    expect(fetchMock.mock.calls[0][1].headers['X-Hydromart-Signature']).toBeUndefined();
+    await new WebhookDispatchService(deliveries, endpoints, publicLookup, send).process(NOW);
+    clock.mockRestore();
+
+    const stamps = fetchMock.mock.calls.map(([, init]) => Number(init.headers['X-Hydromart-Timestamp']));
+    expect(stamps).toEqual([NOW.getTime() / 1000, NOW.getTime() / 1000 + 120]);
+    // Signed with the stamp it carries, so a receiver checking the window accepts it.
+    const [, second] = fetchMock.mock.calls[1];
+    expect(
+      verifySignature('partner-secret', second.headers['X-Hydromart-Timestamp'], second.body, second.headers['X-Hydromart-Signature']),
+    ).toBe(true);
+    expect(calls.delivered.map((d) => d.id)).toEqual(['d-1', 'd-2']);
+  });
+
+  it('schedules a retry from the moment the failed send started', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200 }).mockResolvedValue({ ok: false, status: 503 });
+    const { deliveries, endpoints, calls } = makeRepos([due({ id: 'd-1' }), due({ id: 'd-2' })]);
+    const real = Date.now();
+    const clock = jest.spyOn(Date, 'now');
+    clock.mockReturnValueOnce(real).mockReturnValueOnce(real).mockReturnValue(real + 60_000);
+
+    await new WebhookDispatchService(deliveries, endpoints, publicLookup, send).process(NOW);
+    clock.mockRestore();
+
+    expect(calls.retried[0]!.nextAttemptAt.getTime()).toBe(NOW.getTime() + 60_000 + nextAttemptDelayMs(1));
   });
 
   it('schedules a retry with backoff when the endpoint rejects it', async () => {
@@ -284,7 +318,7 @@ describe('WebhookDispatchService', () => {
     };
     const earlier = new Date('2026-08-04T09:00:00.000Z');
     await new WebhookDispatchService(deliveries, endpoints, publicLookup, send).publish(
-      { event: 'delivery.delivered', payload: {}, occurredAt: earlier },
+      { event: 'delivery.delivered', payload: {}, occurredAt: earlier, eventId: 'delivery.delivered:d3' },
       NOW,
     );
     expect(queued[0]).toMatchObject({ occurredAt: earlier });
@@ -294,7 +328,7 @@ describe('WebhookDispatchService', () => {
     const { deliveries, endpoints, calls } = makeRepos([], []);
     await expect(
       new WebhookDispatchService(deliveries, endpoints, publicLookup, send).publish(
-        { event: 'nobody.cares', payload: {} },
+        { event: 'nobody.cares', payload: {}, eventId: 'nobody.cares:1' },
         NOW,
       ),
     ).resolves.toEqual({ queued: 0 });
@@ -340,7 +374,7 @@ describe('WebhookDispatchService', () => {
     const { deliveries, endpoints, calls } = makeRepos([due()]);
     const service = new WebhookDispatchService(deliveries, endpoints, publicLookup, send);
 
-    await service.publish({ event: 'delivery.delivered', payload: {} });
+    await service.publish({ event: 'delivery.delivered', payload: {}, eventId: 'delivery.delivered:d4' });
     await service.process();
     await service.replay('d-1');
     expect(calls.queued).toHaveLength(1);
@@ -369,5 +403,56 @@ describe('WebhookDispatchService', () => {
 
     await expect(service.replay('d-1', undefined, NOW)).resolves.toMatchObject({ id: 'd-1' });
     await expect(service.replay('nope', undefined, NOW)).rejects.toThrow('Delivery not found');
+  });
+});
+
+/*
+ * HD-7: the AI web, in another repository, codes against contracts/ai-v1/events.openapi.json.
+ * These hold the dispatcher to it, so the two cannot drift apart in silence.
+ */
+describe('the AI-web event contract (HD-7)', () => {
+  const contract = JSON.parse(
+    readFileSync(join(__dirname, '../../../../contracts/ai-v1/events.openapi.json'), 'utf8'),
+  );
+
+  it('signs the contract test vector exactly as a receiver will check it', () => {
+    const v = contract['x-hydromart-signature-test-vector'];
+    expect(signPayload(v.secret, v.timestamp, v.body)).toBe(v.signature);
+    expect(verifySignature(v.secret, v.timestamp, v.body, v.signature)).toBe(true);
+  });
+
+  it('describes only events a service may publish', () => {
+    for (const name of Object.keys(contract.webhooks)) expect(WEBHOOK_EVENTS).toContain(name);
+  });
+
+  it('sends the envelope and the headers the contract describes', async () => {
+    const sent: { url: string; init: { headers: Record<string, string>; body: string } }[] = [];
+    const send = async (url: string, init: unknown) => {
+      sent.push({ url, init: init as (typeof sent)[number]['init'] });
+      return { ok: true, status: 200 } as Response;
+    };
+    const applicationId = '3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807';
+    const { deliveries, endpoints } = makeRepos([
+      due({
+        id: '7d0c8a52-5f5e-4c51-9a4e-2b9e0f6f3a11',
+        event: 'franchise.application_submitted',
+        eventId: `franchise.application_submitted:${applicationId}`,
+        payload: { city: 'Bekasi', province: 'Jawa Barat', applicationId },
+      }),
+    ]);
+    await new WebhookDispatchService(deliveries, endpoints, publicLookup, send).process(NOW);
+
+    const op = contract.webhooks['franchise.application_submitted'].post;
+    const { headers, body } = sent[0].init;
+    for (const param of op.parameters) {
+      expect(headers[param.name]).toMatch(new RegExp(param.schema.pattern ?? '.'));
+    }
+    expect(headers['X-Hydromart-Event']).toBe('franchise.application_submitted');
+    const envelope = contract.components.schemas.FranchiseApplicationSubmitted;
+    const parsed = JSON.parse(body);
+    expect(Object.keys(parsed).sort()).toEqual([...envelope.required].sort());
+    expect(parsed.eventId).toMatch(new RegExp(envelope.properties.eventId.pattern));
+    expect(parsed.id).toBe(headers['X-Hydromart-Delivery']);
+    expect(verifySignature('partner-secret', headers['X-Hydromart-Timestamp'], body, headers['X-Hydromart-Signature'])).toBe(true);
   });
 });

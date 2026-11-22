@@ -1210,3 +1210,26 @@ model LegalEntityAiGrant {
   @@id([legalEntityId, roleKey])
   @@map("legal_entity_ai_grants")
 }
+
+/// HD-7: events owed to admin-service's webhook fan-out, the same shape as delivery-service's
+/// AAS-11 outbox. Written in the SAME transaction as the row the event reports (a franchise
+/// application), so a crash cannot keep one without the other; sent once inline, re-sent by the
+/// scheduler sweep until admin-service takes it. Unique on the idempotency key admin-service and
+/// the receiver dedupe on. Payloads carry no personal data.
+model WebhookEventOutbox {
+  id            String   @id @default(uuid()) @db.Uuid
+  event         String
+  eventId       String   @unique
+  payload       Json
+  occurredAt    DateTime
+  /// PENDING | DONE | DEAD (a plain string: no enum migration to add a state later).
+  status        String   @default("PENDING")
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now())
+  lastError     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@map("webhook_event_outbox")
+}

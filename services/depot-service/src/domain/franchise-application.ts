@@ -41,3 +41,30 @@ export function emptyChecklist(): Checklist {
 export function isTerminalStage(stage: FranchiseAppStage): boolean {
   return stage === FranchiseAppStage.APPROVED || stage === FranchiseAppStage.REJECTED;
 }
+
+/** HD-7: the event a new application raises (contracts/ai-v1/events.openapi.json). */
+export const FRANCHISE_APPLICATION_SUBMITTED = 'franchise.application_submitted';
+
+/** The idempotency key admin-service and the receiver dedupe this application's event on. */
+export function franchiseApplicationSubmittedEventId(applicationId: string): string {
+  return `${FRANCHISE_APPLICATION_SUBMITTED}:${applicationId}`;
+}
+
+/**
+ * The outbox row for a submitted application. No personal data: name, phone, GPS pin and the
+ * amounts stay here, behind HQ's own screen; moving contact data into the AI web CRM is Tahap 2,
+ * after the /waralaba consent is stored (HD-8).
+ */
+export function franchiseApplicationSubmitted(app: {
+  id: string;
+  city: string;
+  province: string;
+  submittedAt: Date;
+}): { event: string; eventId: string; payload: Record<string, unknown>; occurredAt: Date } {
+  return {
+    event: FRANCHISE_APPLICATION_SUBMITTED,
+    eventId: franchiseApplicationSubmittedEventId(app.id),
+    payload: { applicationId: app.id, city: app.city, province: app.province },
+    occurredAt: app.submittedAt,
+  };
+}

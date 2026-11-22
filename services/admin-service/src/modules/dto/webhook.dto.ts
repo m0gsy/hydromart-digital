@@ -5,14 +5,21 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsBoolean,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
 
 import { WebhookRecord } from '../../application/ports/webhook.repository';
+import { WEBHOOK_EVENTS, WEBHOOK_SECRET_PATTERN } from '../../domain/webhook-delivery';
+
+/** HD-7: an event nobody publishes is refused at registration, not silently never sent. */
+const EVENT_NAMES = { message: `each event must be one of: ${WEBHOOK_EVENTS.join(', ')}`, each: true };
+const SECRET_SHAPE = { message: 'secret must be 32 to 200 printable characters without spaces' };
 
 /* ---------- Requests ---------- */
 
@@ -22,11 +29,11 @@ export class CreateWebhookDto {
   @MaxLength(500)
   url!: string;
 
-  @ApiProperty({ type: [String], example: ['order.created', 'payment.settled'] })
+  @ApiProperty({ type: [String], enum: WEBHOOK_EVENTS, example: ['franchise.application_submitted'] })
   @IsArray()
   @ArrayNotEmpty()
   @IsString({ each: true })
-  @MaxLength(120, { each: true })
+  @IsIn(WEBHOOK_EVENTS, EVENT_NAMES)
   events!: string[];
 
   @ApiPropertyOptional({ default: true })
@@ -34,10 +41,12 @@ export class CreateWebhookDto {
   @IsBoolean()
   active?: boolean;
 
-  @ApiPropertyOptional({ description: 'Signing secret (opaque; stored as-is).' })
+  @ApiPropertyOptional({
+    description: 'Signing secret, 32 to 200 printable characters. Omit it and one is generated.',
+  })
   @IsOptional()
   @IsString()
-  @MaxLength(200)
+  @Matches(WEBHOOK_SECRET_PATTERN, SECRET_SHAPE)
   secret?: string;
 
   /*
@@ -58,12 +67,12 @@ export class UpdateWebhookDto {
   @MaxLength(500)
   url?: string;
 
-  @ApiPropertyOptional({ type: [String] })
+  @ApiPropertyOptional({ type: [String], enum: WEBHOOK_EVENTS })
   @IsOptional()
   @IsArray()
   @ArrayNotEmpty()
   @IsString({ each: true })
-  @MaxLength(120, { each: true })
+  @IsIn(WEBHOOK_EVENTS, EVENT_NAMES)
   events?: string[];
 
   @ApiPropertyOptional()
@@ -71,10 +80,14 @@ export class UpdateWebhookDto {
   @IsBoolean()
   active?: boolean;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  /*
+   * HD-7: replace the secret, never remove it. Not `@IsOptional()`: that would let `null`
+   * through to a NOT NULL column (a 500), and `""` used to turn signing off for good.
+   */
+  @ApiPropertyOptional({ description: 'A replacement signing secret, 32 to 200 printable characters.' })
+  @ValidateIf((_, value) => value !== undefined)
   @IsString()
-  @MaxLength(200)
+  @Matches(WEBHOOK_SECRET_PATTERN, SECRET_SHAPE)
   secret?: string;
 
   /** Reassign (or, with null, clear) the owning partner key — see CreateWebhookDto. */
@@ -143,6 +156,6 @@ export class CreatedWebhookDto extends WebhookDto {
   secret!: string;
 
   static fromSecret(record: WebhookRecord): CreatedWebhookDto {
-    return { ...WebhookDto.from(record), secret: record.secret ?? '' };
+    return { ...WebhookDto.from(record), secret: record.secret };
   }
 }

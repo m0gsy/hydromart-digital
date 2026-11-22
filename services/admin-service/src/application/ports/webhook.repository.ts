@@ -5,7 +5,8 @@ export interface WebhookRecord {
   apiKeyId: string | null;
   events: string[];
   active: boolean;
-  secret: string | null;
+  /** HD-7: never empty; the database refuses a row without one (32+ characters). */
+  secret: string;
   lastDeliveryStatus: string | null;
   deliveryRatePct: number | null;
   createdAt: Date;
@@ -15,7 +16,8 @@ export interface CreateWebhookData {
   url: string;
   events: string[];
   active?: boolean;
-  secret?: string | null;
+  /** Always set: WebhookService generates one when the caller supplies none (HD-7). */
+  secret: string;
   /** Which partner key may read and replay this endpoint's deliveries (AUTHZ-3). */
   apiKeyId?: string | null;
 }
@@ -25,7 +27,8 @@ export interface UpdateWebhookData {
   url?: string;
   events?: string[];
   active?: boolean;
-  secret?: string | null;
+  /** A replacement secret; there is no way to remove one (HD-7). */
+  secret?: string;
   apiKeyId?: string | null;
   /** Written by the dispatcher only — never exposed on the PATCH DTO. */
   lastDeliveryStatus?: string | null;
@@ -64,7 +67,7 @@ export interface WebhookDeliveryRecord {
 /** A due delivery with the endpoint it is owed to, so the sender needs no second read. */
 export interface DueDelivery extends WebhookDeliveryRecord {
   url: string;
-  secret: string | null;
+  secret: string;
   /**
    * The lease this sweep holds on the row (its `nextAttemptAt` while claimed). Handed back to
    * the `mark*` calls: a sweep whose lease lapsed and was re-claimed by another must not

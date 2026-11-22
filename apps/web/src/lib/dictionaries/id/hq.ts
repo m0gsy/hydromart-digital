@@ -1770,7 +1770,7 @@ export const hq = {
     createTitle: 'Tambah webhook',
     url: 'URL endpoint',
     events: 'Event',
-    eventsHint: 'Pisahkan dengan koma, mis. order.created, payment.settled',
+    eventsHint: 'Pisahkan dengan koma. Event yang ada: delivery.delivered, franchise.application_submitted',
     delivery: 'Terkirim',
     deliveryNone: 'Belum ada pengiriman',
     logTitle: 'Riwayat pengiriman',

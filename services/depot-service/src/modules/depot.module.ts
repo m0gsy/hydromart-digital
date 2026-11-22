@@ -22,6 +22,7 @@ import { GallonIssueService } from '../application/services/gallon-issue.service
 import { GallonNetworkService } from '../application/services/gallon-network.service';
 import { GallonReminderService } from '../application/services/gallon-reminder.service';
 import { FranchiseApplicationService } from '../application/services/franchise-application.service';
+import { EventRelayService } from '../application/services/event-relay.service';
 import { PriceOverrideService } from '../application/services/price-override.service';
 import { IncidentService } from '../application/services/incident.service';
 import { ApprovalService } from '../application/services/approval.service';
@@ -69,6 +70,8 @@ import { CustomerContactHttpAdapter } from '../infrastructure/http/customer-cont
 import { CustomerNotificationHttpAdapter } from '../infrastructure/http/customer-notification.http.adapter';
 import { AccountRolesHttpAdapter } from '../infrastructure/http/account-roles.http.adapter';
 import { FranchiseApplicationPrismaRepository } from '../infrastructure/prisma/franchise-application.prisma.repository';
+import { EventOutboxPrismaRepository } from '../infrastructure/prisma/event-outbox.prisma.repository';
+import { EventPublisherHttpAdapter } from '../infrastructure/http/event-publisher.http.adapter';
 import { PriceOverrideProposalPrismaRepository } from '../infrastructure/prisma/price-override-proposal.prisma.repository';
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
 import { ApprovalPrismaRepository } from '../infrastructure/prisma/approval.prisma.repository';
@@ -109,6 +112,7 @@ import { DriverGallonReturnController } from './driver-gallon-return.controller'
 import { GallonIssueController } from './gallon-issue.controller';
 import { GallonNetworkController } from './gallon-network.controller';
 import { FranchiseApplicationController } from './franchise-application.controller';
+import { EventOutboxController } from './event-outbox.controller';
 import { DepotPriceOverrideController, PriceOverrideController } from './price-override.controller';
 import { IncidentController } from './incident.controller';
 import { ApprovalController } from './approval.controller';
@@ -152,6 +156,10 @@ const providers: Provider[] = [
   GallonNetworkService,
   GallonReminderService,
   FranchiseApplicationService,
+  // HD-7: webhook events (the first: a franchise application was submitted).
+  EventRelayService,
+  { provide: DEPOT_TOKENS.EventOutbox, useClass: EventOutboxPrismaRepository },
+  { provide: DEPOT_TOKENS.EventTransport, useClass: EventPublisherHttpAdapter },
   PriceOverrideService,
   IncidentService,
   ApprovalService,
@@ -262,6 +270,7 @@ const providers: Provider[] = [
     GallonIssueController,
     GallonNetworkController,
     FranchiseApplicationController,
+    EventOutboxController,
     DepotPriceOverrideController,
     PriceOverrideController,
     IncidentController,

@@ -1755,7 +1755,7 @@ export const hq = {
     createTitle: 'Add webhook',
     url: 'Endpoint URL',
     events: 'Events',
-    eventsHint: 'Comma-separated, e.g. order.created, payment.settled',
+    eventsHint: 'Comma-separated. Events that exist: delivery.delivered, franchise.application_submitted',
     delivery: 'Delivered',
     deliveryNone: 'No deliveries yet',
     logTitle: 'Delivery log',

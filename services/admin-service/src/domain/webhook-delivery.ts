@@ -5,6 +5,22 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * endpoint from being hammered. Pure functions — the service does the I/O.
  */
 
+/**
+ * HD-7: every event a service publishes, and so every event an endpoint can subscribe to.
+ *
+ * The registration form takes event names as free text. An endpoint subscribed to a name no
+ * service publishes — a typo, or `order.created`, which never existed — was accepted and then
+ * received nothing, forever, with nothing anywhere saying why. contracts/ai-v1/events.openapi.json
+ * describes the bodies.
+ */
+export const WEBHOOK_EVENTS = ['delivery.delivered', 'franchise.application_submitted'] as const;
+
+/**
+ * HD-7: a signing secret is required, and has to be long enough to be one: 32 to 200
+ * printable ASCII characters, no spaces. A generated one is 64 hex characters.
+ */
+export const WEBHOOK_SECRET_PATTERN = /^[!-~]{32,200}$/;
+
 /** Attempts before a delivery is abandoned as DEAD. */
 export const MAX_ATTEMPTS = 6;
 
@@ -26,7 +42,11 @@ export function signPayload(secret: string, timestamp: string, body: string): st
   return `sha256=${createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')}`;
 }
 
-/** Constant-time compare, for a receiver implemented against this same helper. */
+/**
+ * Constant-time compare, for a receiver implemented against this same helper. It checks the
+ * signature only: a receiver also refuses a timestamp more than 300 s from its own clock
+ * (contracts/ai-v1/events.openapi.json), or one captured request is good forever.
+ */
 export function verifySignature(
   secret: string,
   timestamp: string,

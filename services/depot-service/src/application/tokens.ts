@@ -49,4 +49,7 @@ export const DEPOT_TOKENS = {
   HandoverRepository: Symbol('HandoverRepository'),
   OperationalReportRepository: Symbol('OperationalReportRepository'),
   Storage: Symbol('Storage'),
+  /** HD-7: webhook events owed to admin-service, and the transport that hands them over. */
+  EventOutbox: Symbol('EventOutbox'),
+  EventTransport: Symbol('EventTransport'),
 } as const;

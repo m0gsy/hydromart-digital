@@ -146,7 +146,9 @@ model WebhookEndpoint {
   apiKeyId           String?
   events             String[]
   active             Boolean  @default(true)
-  secret             String?
+  /// HD-7: required, 32+ characters (a CHECK constraint Prisma cannot declare). Every
+  /// delivery is signed with it; there is no unsigned endpoint.
+  secret             String
   /// Outcome of the most recent delivery attempt (null until one occurs).
   lastDeliveryStatus String?
   /// Rolling success rate 0..100 (null until real deliveries are recorded).

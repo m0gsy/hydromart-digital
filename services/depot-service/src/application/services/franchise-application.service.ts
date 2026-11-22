@@ -14,6 +14,7 @@ import {
   ChecklistItem,
   ChecklistItemStatus,
   FranchiseAppStage,
+  franchiseApplicationSubmittedEventId,
   isTerminalStage,
 } from '../../domain/franchise-application';
 import { buildPage, Page } from '../pagination';
@@ -26,6 +27,7 @@ import {
 } from '../ports/franchise-application.repository';
 import { DepotConfigService } from '../../config/depot-config.service';
 import { DEPOT_TOKENS } from '../tokens';
+import { EventRelayService } from './event-relay.service';
 
 /** Onboard-form prefill returned on approval (WARALABA depot from the proposed fields). */
 export interface ProposedDepot {
@@ -59,6 +61,7 @@ export class FranchiseApplicationService {
     private readonly applications: FranchiseApplicationRepository,
     @Inject(DEPOT_TOKENS.DepotRepository)
     private readonly depots: DepotRepository,
+    private readonly relay: EventRelayService,
     @Optional() private readonly config?: DepotConfigService,
   ) {}
 
@@ -73,7 +76,11 @@ export class FranchiseApplicationService {
     if (await this.depots.findByCode(data.proposedCode)) {
       throw new DuplicateDepotCodeError();
     }
-    return this.applications.create(data);
+    // HD-7: the application and its "franchise.application_submitted" event were saved
+    // together; send the event now. flush never throws, and the sweep sends what it could not.
+    const created = await this.applications.create(data);
+    await this.relay.flush(franchiseApplicationSubmittedEventId(created.id));
+    return created;
   }
 
   async list(filter: ListApplicationsFilter): Promise<Page<FranchiseApplicationRecord>> {

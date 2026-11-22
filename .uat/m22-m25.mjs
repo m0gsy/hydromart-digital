@@ -133,7 +133,7 @@ export async function run(ctx) {
   });
 
   await check('UAT-M23-02', async () => {
-    const c = await api('POST', `${ADM}/webhooks`, { token: ctx.admin, body: { url: 'https://example.com/hook', events: ['order.created'], active: true } });
+    const c = await api('POST', `${ADM}/webhooks`, { token: ctx.admin, body: { url: 'https://example.com/hook', events: ['delivery.delivered'], active: true } });
     if (c.status >= 400) return fail(`register HTTP ${c.status} ${JSON.stringify(c.body)}`);
     ctx.webhook = c.body;
     const off = await api('PATCH', `${ADM}/webhooks/${c.body.id}`, { token: ctx.admin, body: { active: false } });
@@ -141,8 +141,8 @@ export async function run(ctx) {
   });
 
   await check('UAT-M23-17', async () => {
-    const noScheme = await api('POST', `${ADM}/webhooks`, { token: ctx.admin, body: { url: 'example.com', events: ['order.created'] } });
-    const internal = await api('POST', `${ADM}/webhooks`, { token: ctx.admin, body: { url: 'http://localhost:8080/x', events: ['order.created'] } });
+    const noScheme = await api('POST', `${ADM}/webhooks`, { token: ctx.admin, body: { url: 'example.com', events: ['delivery.delivered'] } });
+    const internal = await api('POST', `${ADM}/webhooks`, { token: ctx.admin, body: { url: 'http://localhost:8080/x', events: ['delivery.delivered'] } });
     if (noScheme.status === 400 && internal.status >= 400) return pass(`schemeless URL => ${noScheme.status}; internal URL => ${internal.status}`);
     if (noScheme.status === 400) return fail(`schemeless URL rejected (400) but an internal http://localhost URL was accepted (HTTP ${internal.status}) — SSRF exposure, kebijakan perlu dikonfirmasi`);
     return fail(`schemeless URL => ${noScheme.status}; internal URL => ${internal.status}`);

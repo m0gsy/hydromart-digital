@@ -308,3 +308,8 @@ echo "All indexes present."
 # 2026-11-22, HD-5) and employee_legal_entities_employeeId_effectiveFrom_key (hr-service, same day)
 # are built by their own migrations, not here: they index tables those migrations create, so they
 # are empty and the build is instant.
+
+# webhook_event_outbox_eventId_key and webhook_event_outbox_status_nextAttemptAt_idx (depot-service,
+# 2026-11-22, HD-7) are built by their own migration, not here: same names as delivery-service's,
+# in depot-service's own database, on a table that migration creates, so it is empty and the build
+# is instant. admin-service's 20261122220000_webhook_secret_required builds no index.

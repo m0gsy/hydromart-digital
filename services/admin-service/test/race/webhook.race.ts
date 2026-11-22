@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { WebhookDeliveryPrismaRepository } from '../../src/infrastructure/prisma/webhook-delivery.prisma.repository';
 import { describeRace, freshPrisma, race } from './db';
@@ -18,7 +20,12 @@ describeRace('webhook deliveries on real Postgres', () => {
 
   const endpoint = () =>
     prisma.webhookEndpoint.create({
-      data: { url: `https://partner.example.com/${randomUUID()}`, events: ['x'], active: true },
+      data: {
+        url: `https://partner.example.com/${randomUUID()}`,
+        events: ['x'],
+        active: true,
+        secret: 'a'.repeat(64),
+      },
     });
   const delivery = (endpointId: string) =>
     prisma.webhookDelivery.create({
@@ -56,5 +63,67 @@ describeRace('webhook deliveries on real Postgres', () => {
     const row = (await prisma.webhookDelivery.findUnique({ where: { id: d.id } }))!;
     expect(row.status).toBe('DELIVERED');
     expect(row.lastError).toBeNull();
+  });
+
+  /*
+   * HD-7: "secret wajib" held by the column itself, so no code path (an old release mid-deploy,
+   * a raw write, a future endpoint) can leave a delivery unsigned.
+   */
+  it('refuses an endpoint with no secret or a short one', async () => {
+    const id = randomUUID();
+    await expect(
+      prisma.$executeRawUnsafe(
+        `INSERT INTO "webhook_endpoints" ("id", "url", "events") VALUES ('${id}', 'https://x.example.com', '{x}')`,
+      ),
+    ).rejects.toThrow(/23502/); // not_null_violation
+    await expect(
+      prisma.webhookEndpoint.create({
+        data: { url: 'https://x.example.com', events: ['x'], secret: 'a'.repeat(31) },
+      }),
+    ).rejects.toThrow(/webhook_endpoints_secret_length/);
+    await expect(
+      prisma.webhookEndpoint.update({ where: { id: (await endpoint()).id }, data: { secret: '' } }),
+    ).rejects.toThrow(/webhook_endpoints_secret_length/);
+  });
+
+  // The migration and its rollback, run for real: the rollback lets the old rows back in, the
+  // migration fixes exactly those rows, and running it a second time changes nothing.
+  it('the migration gives an endpoint without a usable secret a random one, and runs twice', async () => {
+    const dir = join(__dirname, '../../prisma/migrations/20261122220000_webhook_secret_required');
+    const statements = (file: string): string[] =>
+      readFileSync(join(dir, file), 'utf8')
+        .split('\n')
+        .filter((line) => !line.trim().startsWith('--'))
+        .join('\n')
+        .split(';')
+        .map((s) => s.trim())
+        .filter((s) => s && !/^(BEGIN|COMMIT)$/i.test(s));
+    const run = async (file: string) => {
+      for (const sql of statements(file)) await prisma.$executeRawUnsafe(sql);
+    };
+
+    const kept = await endpoint();
+    await run('rollback.sql');
+    const [none, short] = [randomUUID(), randomUUID()];
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "webhook_endpoints" ("id", "url", "events", "secret") VALUES
+         ('${none}', 'https://a.example.com', '{x}', NULL),
+         ('${short}', 'https://b.example.com', '{x}', 'kunci-pendek')`,
+    );
+
+    await run('migration.sql');
+    const secretOf = async (id: string) =>
+      (await prisma.webhookEndpoint.findUniqueOrThrow({ where: { id } })).secret;
+    expect(await secretOf(none)).toMatch(/^[0-9a-f]{64}$/);
+    expect(await secretOf(short)).toMatch(/^[0-9a-f]{64}$/);
+    expect(await secretOf(none)).not.toBe(await secretOf(short));
+    expect(await secretOf(kept.id)).toBe(kept.secret);
+
+    const before = await secretOf(none);
+    await run('migration.sql');
+    expect(await secretOf(none)).toBe(before);
+    await expect(
+      prisma.webhookEndpoint.create({ data: { url: 'https://c.example.com', events: ['x'], secret: 'x' } }),
+    ).rejects.toThrow(/webhook_endpoints_secret_length/);
   });
 });

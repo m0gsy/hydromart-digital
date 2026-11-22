@@ -233,7 +233,7 @@ function CreateWebhookSheet({
             id="wh-events"
             value={events}
             onChange={(e) => setEvents(e.target.value)}
-            placeholder="order.created, payment.settled"
+            placeholder="franchise.application_submitted"
           />
         </Field>
         {error && (

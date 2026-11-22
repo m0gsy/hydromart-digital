@@ -46,8 +46,13 @@ export class WebhookService {
    *
    * 32 bytes of `randomBytes`, hex — the same shape the API keys in this service use, and
    * long enough that the HMAC is the weakest part rather than the key.
+   *
+   * HD-7: an endpoint without a secret can no longer exist at all. The DTO refuses a
+   * supplied one shorter than 32 characters, and the column is NOT NULL with a length check.
    */
-  async create(data: CreateWebhookData): Promise<WebhookRecord> {
+  async create(
+    data: Omit<CreateWebhookData, 'secret'> & { secret?: string | null },
+  ): Promise<WebhookRecord> {
     // ADM-1: refuse a destination inside our own network while somebody is still watching
     // the form. The dispatcher checks again on every send, because a hostname can change
     // its mind later — but a partner typing `http://order:3004` deserves an error now.

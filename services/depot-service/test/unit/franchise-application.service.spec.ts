@@ -12,6 +12,7 @@ import {
   FranchiseApplicationNotFoundError,
 } from '../../src/domain/errors';
 import { DepotRepository } from '../../src/application/ports/depot.repository';
+import { EventRelayService } from '../../src/application/services/event-relay.service';
 import {
   CreateFranchiseApplicationData,
   FranchiseApplicationRecord,
@@ -89,6 +90,13 @@ const APP = (
   ...over,
 });
 
+/** HD-7: create() hands the new application's event to the relay; this records what it was given. */
+function relay(): EventRelayService & { flush: jest.Mock } {
+  return { flush: jest.fn().mockResolvedValue(undefined) } as unknown as EventRelayService & {
+    flush: jest.Mock;
+  };
+}
+
 /** Only findByCode matters here — create() checks the proposed code against live depots. */
 function depotsWithCodes(...codes: string[]): DepotRepository {
   return {
@@ -103,7 +111,16 @@ describe('FranchiseApplicationService', () => {
 
   beforeEach(() => {
     repo = new InMemoryApplicationRepository();
-    service = new FranchiseApplicationService(repo, depotsWithCodes());
+    service = new FranchiseApplicationService(repo, depotsWithCodes(), relay());
+  });
+
+  // HD-7: the event that tells HQ and Sales a calon mitra applied, keyed so it is never twice.
+  it("hands the new application's event to the relay, by its idempotency key", async () => {
+    const events = relay();
+    const svc = new FranchiseApplicationService(repo, depotsWithCodes(), events);
+    const created = await svc.create(APP());
+    expect(events.flush).toHaveBeenCalledTimes(1);
+    expect(events.flush).toHaveBeenCalledWith(`franchise.application_submitted:${created.id}`);
   });
 
   // A decision with no reason attached is one nobody can defend later. The reason rides in the
@@ -173,7 +190,7 @@ describe('FranchiseApplicationService', () => {
     });
     afterEach(() => fetchMock.mockRestore());
     const audited = () =>
-      new FranchiseApplicationService(repo, depotsWithCodes(), {
+      new FranchiseApplicationService(repo, depotsWithCodes(), relay(), {
         authServiceUrl: 'http://auth:3001',
         internalServiceKey: 'k'.repeat(16),
       } as never);
@@ -213,11 +230,14 @@ describe('FranchiseApplicationService', () => {
   });
 
   it('refuses a code a live depot already wears, before a human reviews the application', async () => {
-    const taken = new FranchiseApplicationService(repo, depotsWithCodes('DPK-01'));
+    const events = relay();
+    const taken = new FranchiseApplicationService(repo, depotsWithCodes('DPK-01'), events);
     await expect(taken.create(APP({ proposedCode: 'DPK-01' }))).rejects.toBeInstanceOf(
       DuplicateDepotCodeError,
     );
     expect(repo.rows).toHaveLength(0);
+    // A refused application raises no event.
+    expect(events.flush).not.toHaveBeenCalled();
     // A free code still goes through on the same service.
     await expect(taken.create(APP({ proposedCode: 'DPK-02' }))).resolves.toMatchObject({
       proposedCode: 'DPK-02',
@@ -305,7 +325,7 @@ describe('FranchiseApplicationService.purgeRejectedOlderThan', () => {
 
   it('deletes rejected applications older than the cutoff and keeps everything else', async () => {
     const repo = new InMemoryApplicationRepository();
-    const service = new FranchiseApplicationService(repo, depotsWithCodes());
+    const service = new FranchiseApplicationService(repo, depotsWithCodes(), relay());
 
     const rejected = await service.create(APP({ proposedCode: 'AAA-01' }));
     const approved = await service.create(APP({ proposedCode: 'BBB-01' }));
@@ -319,7 +339,7 @@ describe('FranchiseApplicationService.purgeRejectedOlderThan', () => {
 
   it('leaves a rejection that is still inside its window alone', async () => {
     const repo = new InMemoryApplicationRepository();
-    const service = new FranchiseApplicationService(repo, depotsWithCodes());
+    const service = new FranchiseApplicationService(repo, depotsWithCodes(), relay());
     const rejected = await service.create(APP({ proposedCode: 'AAA-02' }));
     await service.reject(rejected.id);
 

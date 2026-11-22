@@ -212,6 +212,7 @@ describe('depot-scoped guards and by-id getters', () => {
         updateIfOpen,
       } as never,
       { findByCode: async () => null } as never,
+      { flush: async () => undefined } as never,
     );
     await apps.patch('fa-1', { stage: FranchiseAppStage.SURVEY });
     // Pinned to the row it merged from, so a concurrent edit cannot be silently overwritten.
