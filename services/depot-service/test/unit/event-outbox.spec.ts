@@ -53,12 +53,12 @@ describe('EventOutboxPrismaRepository (HD-7)', () => {
     });
   });
 
-  it('counts the events still owed that happened at or before the cutoff', async () => {
+  it('counts the events owed since the cutoff or earlier, by when they were written', async () => {
     const { repo, webhookEventOutbox } = makeRepo();
     (webhookEventOutbox as unknown as { count: jest.Mock }).count = jest.fn().mockResolvedValue(2);
     await expect(repo.countStuck(NOW)).resolves.toBe(2);
     expect((webhookEventOutbox as unknown as { count: jest.Mock }).count).toHaveBeenCalledWith({
-      where: { status: 'PENDING', occurredAt: { lte: NOW } },
+      where: { status: 'PENDING', createdAt: { lte: NOW } },
     });
   });
 
@@ -227,6 +227,8 @@ describe('franchise.application_submitted (HD-7)', () => {
     expect(Object.keys(vector.data).sort()).toEqual(Object.keys(event.payload).sort());
     expect(vector.event).toBe(event.event);
     expect(vector.eventId).toBe(franchiseApplicationSubmittedEventId(vector.data.applicationId));
+    // The producer's retry rhythm as a receiver is told it (the relay spec pins the same steps).
+    expect(contract.info.description).toContain('1, 2, 4, 8, 16 and 32 minutes');
     expect(data.properties.applicationId).toMatchObject({ type: 'string', format: 'uuid' });
   });
 });

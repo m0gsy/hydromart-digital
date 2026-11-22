@@ -136,7 +136,8 @@ describe('the one-time signing secret stays on screen until it is dismissed (HD-
     // Only the secret: no form to register a second endpoint over it, focus on the way out.
     expect(screen.queryByLabelText('URL endpoint')).toBeNull();
     expect(screen.getByRole('status').textContent).toContain(SECRET);
-    expect(document.activeElement?.textContent).toBe('Sudah saya salin');
+    // A stray second press lands on Salin, not on the button that discards the secret.
+    expect(document.activeElement?.textContent).toBe('Salin');
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
     await userEvent.click(screen.getByRole('button', { name: 'Salin' }));

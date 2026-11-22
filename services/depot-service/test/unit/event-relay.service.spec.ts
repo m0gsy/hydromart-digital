@@ -43,6 +43,7 @@ class FakeOutbox implements EventOutboxRepository {
   async findByEventId(eventId: string): Promise<EventOutboxRecord | null> {
     return this.rows.find((r) => r.eventId === eventId) ?? null;
   }
+  /** occurredAt stands in for createdAt here: the fake writes both at the same moment. */
   async countStuck(cutoff: Date): Promise<number> {
     return this.rows.filter((r) => r.status === 'PENDING' && r.occurredAt <= cutoff).length;
   }
@@ -143,6 +144,21 @@ describe('EventRelayService (HD-7 outbox)', () => {
     expect(outbox.rows[0].status).toBe('DONE');
   });
 
+  it('waits 1, 2, 4, 8, 16, 32 minutes, then an hour, between failed tries', async () => {
+    const { outbox, svc } = make(async () => {
+      throw new Error('down');
+    });
+    outbox.record('k1');
+    const waits: number[] = [];
+    let at = NOW;
+    for (let i = 0; i < 8; i += 1) {
+      await svc.processDue(at);
+      waits.push((outbox.rows[0].nextAttemptAt.getTime() - at.getTime()) / 60_000);
+      at = outbox.rows[0].nextAttemptAt;
+    }
+    expect(waits).toEqual([1, 2, 4, 8, 16, 32, 60, 60]);
+  });
+
   it('backs off 1m, 2m, 4m from the attempt that failed', async () => {
     const { outbox, svc } = make(async () => {
       throw new Error('down');
@@ -176,8 +192,8 @@ describe('EventRelayService (HD-7 outbox)', () => {
     expect(outbox.rows[0].nextAttemptAt.getTime()).toBe(NOW.getTime() + 3_600_000);
   });
 
-  // Between two hourly tries a round has nothing due; it must not read as healthy meanwhile.
-  it('reports not ok while an event has been owed for an hour, and ok once it goes through', async () => {
+  // Reported on every round, so /hq/health shows it beside the job; the verdict stays J7.
+  it('reports how many events have been owed for an hour, without pinning the round red', async () => {
     let down = true;
     const { outbox, svc } = make(async () => {
       if (down) throw new Error('admin-service responded 503');
@@ -186,14 +202,16 @@ describe('EventRelayService (HD-7 outbox)', () => {
       occurredAt: new Date(NOW.getTime() - 3_600_000),
       nextAttemptAt: new Date(NOW.getTime() + 30 * 60_000),
     });
-    // Nothing due this round, but the event is an hour old.
-    await expect(svc.processDue(NOW)).resolves.toMatchObject({ claimed: 0, stuck: 1, ok: false });
+    // Nothing due this round: stuck is reported, ok stays the J7 verdict.
+    await expect(svc.processDue(NOW)).resolves.toMatchObject({ claimed: 0, stuck: 1, ok: true });
+    // Its hourly try fails: that round is the page.
+    outbox.rows[0].nextAttemptAt = NOW;
+    await expect(svc.processDue(NOW)).resolves.toMatchObject({ failed: 1, stuck: 1, ok: false });
     // Younger than an hour it is not stuck yet.
     outbox.rows[0].occurredAt = new Date(NOW.getTime() - 3_600_000 + 1);
-    await expect(svc.processDue(NOW)).resolves.toMatchObject({ stuck: 0, ok: true });
+    await expect(svc.processDue(NOW)).resolves.toMatchObject({ stuck: 0 });
 
     down = false;
-    outbox.rows[0].occurredAt = new Date(NOW.getTime() - 2 * 3_600_000);
     outbox.rows[0].nextAttemptAt = NOW;
     await expect(svc.processDue(NOW)).resolves.toMatchObject({ delivered: 1, stuck: 0, ok: true });
   });

@@ -174,7 +174,9 @@ export class WebhookDeliveryPrismaRepository implements WebhookDeliveryRepositor
     // HD-7: an endpoint that is switched off is sent nothing (claimDue), so a replay would sit
     // PENDING for as long as it stays off while the button said it worked.
     if (!existing.endpoint.active) {
-      throw new ConflictException('Endpoint ini sedang dimatikan; nyalakan dulu sebelum mengirim ulang.');
+      throw new ConflictException(
+        'Endpoint ini sedang dimatikan; pengiriman ulang baru bisa setelah endpoint dinyalakan lagi.',
+      );
     }
     // AAS-15: a delivery still queued will be retried anyway; resetting its attempts here would keep it
     // retrying forever. Only a finished one (delivered, or dead) can be replayed.

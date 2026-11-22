@@ -123,6 +123,17 @@ describe('FranchiseApplicationService', () => {
     expect(events.flush).toHaveBeenCalledWith(`franchise.application_submitted:${created.id}`);
   });
 
+  // flush never rejects by contract; if it ever did, the applicant must still get their receipt
+  // and the process must not see an unhandled rejection (fatal in this service).
+  it('still answers the applicant if handing the event over were to reject', async () => {
+    const events = relay();
+    events.flush.mockRejectedValue(new Error('unexpected'));
+    const svc = new FranchiseApplicationService(repo, depotsWithCodes(), events);
+    await expect(svc.create(APP())).resolves.toMatchObject({ proposedCode: 'DPK-01' });
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(events.flush).toHaveBeenCalledTimes(1);
+  });
+
   // A decision with no reason attached is one nobody can defend later. The reason rides in the
   // shared audit trail (no column), next to who decided and when.
   it('persists the decision reason on the row, trimmed, or null when none was given', async () => {

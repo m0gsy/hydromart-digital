@@ -50,6 +50,9 @@ function useOverlay(open: boolean, onClose: () => void) {
   }, [open, onClose]);
 }
 
+/** What a locked sheet does on Escape: nothing. */
+const NO_CLOSE = () => undefined;
+
 /**
  * A modal surface: slides up from the bottom on mobile (rounded top, full width),
  * centers as a card on desktop. Title is the accessible label.
@@ -60,18 +63,26 @@ export function Sheet({
   title,
   children,
   footer,
+  dismissible = true,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
   /**
+   * False while the sheet holds something that must not be lost to a stray close (a one-time
+   * secret, a request in flight): no close button, no backdrop close, Escape and the drag do
+   * nothing. The content then owns the only way out.
+   */
+  dismissible?: boolean;
+  /**
    * Pinned below the scroll area rather than at the end of it. A sheet that carries a form
    * needs its Simpan button reachable without scrolling to the bottom of the form first.
    */
   footer?: React.ReactNode;
 }) {
-  useOverlay(open, onClose);
+  const close = dismissible ? onClose : NO_CLOSE;
+  useOverlay(open, close);
   const { t } = useT();
   const [dragY, setDragY] = useState(0);
   useEffect(() => {
@@ -92,7 +103,8 @@ export function Sheet({
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       if (ev.clientY - startY > 120) onClose();
-      else setDragY(0);
+      // Released past the threshold on a sheet that stayed open: back in place, not half off screen.
+      setDragY(0);
     };
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
@@ -106,13 +118,21 @@ export function Sheet({
         aria-modal="true"
         aria-label={title}
       >
-        <button
-          type="button"
-          aria-label={t('common.close')}
-          onClick={onClose}
-          className="absolute inset-0 bg-[color:var(--text)]/40"
-          style={{ animation: 'fadeUp 0.15s var(--ease-out) both' }}
-        />
+        {dismissible ? (
+          <button
+            type="button"
+            aria-label={t('common.close')}
+            onClick={onClose}
+            className="absolute inset-0 bg-[color:var(--text)]/40"
+            style={{ animation: 'fadeUp 0.15s var(--ease-out) both' }}
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 bg-[color:var(--text)]/40"
+            style={{ animation: 'fadeUp 0.15s var(--ease-out) both' }}
+          />
+        )}
         <div
           className="surface relative flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-3xl shadow-lift sm:w-full sm:max-w-lg sm:rounded-3xl"
           style={{
@@ -125,7 +145,7 @@ export function Sheet({
             part of the panel that listens for the drag. Hidden from `sm:` up, where the
             sheet is a centered dialog and there is nothing to drag it towards. */}
           <div
-            onPointerDown={onHandleDown}
+            onPointerDown={dismissible ? onHandleDown : undefined}
             className="flex touch-none justify-center pt-2.5 pb-1 sm:hidden"
             aria-hidden="true"
           >
@@ -133,14 +153,16 @@ export function Sheet({
           </div>
           <div className="flex items-center justify-between border-b border-app px-5 py-4">
             <h2 className="text-lg font-extrabold tracking-tight">{title}</h2>
-            <button
-              type="button"
-              aria-label={t('common.close')}
-              onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-[color:var(--surface-soft)]"
-            >
-              <X size={18} weight="bold" />
-            </button>
+            {dismissible && (
+              <button
+                type="button"
+                aria-label={t('common.close')}
+                onClick={onClose}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-[color:var(--surface-soft)]"
+              >
+                <X size={18} weight="bold" />
+              </button>
+            )}
           </div>
           <div className="overflow-y-auto p-5">{children}</div>
           {footer && (

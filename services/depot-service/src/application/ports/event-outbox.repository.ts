@@ -22,7 +22,7 @@ export interface EventOutboxRecord {
 export interface EventOutboxRepository {
   /** The row that owns this key, whatever its state; null when none was ever recorded. */
   findByEventId(eventId: string): Promise<EventOutboxRecord | null>;
-  /** How many events are still owed that happened at or before `cutoff`. */
+  /** How many events have been owed since `cutoff` or earlier (counted from when they were written). */
   countStuck(cutoff: Date): Promise<number>;
   /** PENDING rows whose backoff has elapsed, oldest first. */
   findDue(now: Date, limit: number): Promise<EventOutboxRecord[]>;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Plugs, Trash } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
@@ -165,6 +165,7 @@ function CreateWebhookSheet({
 }) {
   const { t } = useT();
   const { toast } = useToast();
+  const ids = useId();
   const [url, setUrl] = useState('');
   const [events, setEvents] = useState('');
   const [busy, setBusy] = useState(false);
@@ -241,12 +242,13 @@ function CreateWebhookSheet({
   }
 
   return (
-    // While the secret is on screen, or a create is in flight, only the explicit button closes
-    // the sheet: Escape, the Android back button, a backdrop tap or a swipe would otherwise
-    // count as "copied", or let the create land in a closed sheet.
+    // While the secret is on screen, or a create is in flight, the sheet is locked: no close
+    // control, Escape and the swipe do nothing, so a stray close cannot count as "copied" or let
+    // the create land in a closed sheet. The buttons below are the only way out.
     <Sheet
       open={open}
-      onClose={secret || busy ? () => undefined : onClose}
+      onClose={onClose}
+      dismissible={!secret && !busy}
       title={t('hq.webhooks.createTitle')}
     >
       {secret ? (
@@ -254,58 +256,67 @@ function CreateWebhookSheet({
         // was copied.
         <div className="flex flex-col gap-4">
           <div role="status" className="rounded-xl border border-app bg-amber-50 p-3.5">
-            <p className="text-sm font-bold text-[color:var(--warning)]">{t('hq.webhooks.secretTitle')}</p>
-            <p className="mt-1 text-xs text-[color:var(--warning)]">{t('hq.webhooks.secretBody')}</p>
+            <p id={`${ids}-title`} className="text-sm font-bold text-[color:var(--warning)]">
+              {t('hq.webhooks.secretTitle')}
+            </p>
+            <p id={`${ids}-body`} className="mt-1 text-xs text-[color:var(--warning)]">
+              {t('hq.webhooks.secretBody')}
+            </p>
             <code className="mt-2 block break-all rounded-lg bg-white px-2.5 py-2 font-mono text-xs">
               {secret}
             </code>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={copy}>
-              {t('hq.webhooks.copy')}
-            </Button>
-            {/* Focus lands here: the submit button it replaced was focused and is gone. */}
-            <Button onClick={dismiss} autoFocus>
+            <Button variant="secondary" onClick={dismiss}>
               {t('hq.webhooks.secretDone')}
+            </Button>
+            {/*
+              Salin sits where "+ Endpoint" was and takes the focus: a second tap or a held Enter
+              meant for the submit then only copies, instead of throwing the secret away. The
+              focus announcement reads the panel, since a live region that mounts already full
+              is often not announced.
+            */}
+            <Button onClick={copy} autoFocus aria-describedby={`${ids}-title ${ids}-body`}>
+              {t('hq.webhooks.copy')}
             </Button>
           </div>
         </div>
       ) : (
-      <div className="flex flex-col gap-4">
-        <Field label={t('hq.webhooks.url')} htmlFor="wh-url">
-          <Input
-            id="wh-url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://partner.example.com/hooks"
-          />
-        </Field>
-        <Field
-          label={t('hq.webhooks.events')}
-          htmlFor="wh-events"
-          hint={t('hq.webhooks.eventsHint')}
-        >
-          <Input
-            id="wh-events"
-            value={events}
-            onChange={(e) => setEvents(e.target.value)}
-            placeholder="franchise.application_submitted"
-          />
-        </Field>
-        {error && (
-          <p className="text-sm text-[color:var(--danger)]" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={dismiss} disabled={busy}>
-            {t('hq.common.cancel')}
-          </Button>
-          <Button onClick={submit} disabled={!valid} loading={busy}>
-            {t('hq.webhooks.add')}
-          </Button>
+        <div className="flex flex-col gap-4">
+          <Field label={t('hq.webhooks.url')} htmlFor="wh-url">
+            <Input
+              id="wh-url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://partner.example.com/hooks"
+            />
+          </Field>
+          <Field
+            label={t('hq.webhooks.events')}
+            htmlFor="wh-events"
+            hint={t('hq.webhooks.eventsHint')}
+          >
+            <Input
+              id="wh-events"
+              value={events}
+              onChange={(e) => setEvents(e.target.value)}
+              placeholder="franchise.application_submitted"
+            />
+          </Field>
+          {error && (
+            <p className="text-sm text-[color:var(--danger)]" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={dismiss} disabled={busy}>
+              {t('hq.common.cancel')}
+            </Button>
+            <Button onClick={submit} disabled={!valid} loading={busy}>
+              {t('hq.webhooks.add')}
+            </Button>
+          </div>
         </div>
-      </div>
       )}
     </Sheet>
   );

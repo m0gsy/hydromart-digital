@@ -45,7 +45,8 @@ export class EventOutboxPrismaRepository implements EventOutboxRepository {
 
   countStuck(cutoff: Date): Promise<number> {
     return this.prisma.webhookEventOutbox.count({
-      where: { status: 'PENDING', occurredAt: { lte: cutoff } },
+      // When it became owed, not when it happened: an event recorded late is not stuck at birth.
+      where: { status: 'PENDING', createdAt: { lte: cutoff } },
     });
   }
 
