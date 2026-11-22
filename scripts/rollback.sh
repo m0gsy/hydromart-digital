@@ -96,8 +96,8 @@ main() {
   # restart, or crond keeps calling sweeps the rolled-back code no longer has (a FAILED page
   # every tick until the next deploy).
   if grep -q '^scripts/scheduler/' <<<"$CHANGED"; then
-    log "scheduler scripts differ — restarting it so crond re-reads the crontab"
-    $COMPOSE restart scheduler || log "!! scheduler restart failed — its cron jobs may not match the code"
+    log "scheduler scripts differ: restarting it so crond re-reads the crontab"
+    $COMPOSE restart scheduler || log "!! scheduler restart failed: its cron jobs may not match the code"
   fi
 
   # Same gate as the deploy: gateway alone answering 200 is what let 19 stopped

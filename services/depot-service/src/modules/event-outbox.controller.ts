@@ -8,12 +8,14 @@ import {
   EventRelaySweepResult,
 } from '../application/services/event-relay.service';
 
-/** What one sweep did. `ok` is false when there was work and none of it got through. */
+/** What one sweep did. `ok` is false when there was work and none got through, or one is stuck. */
 export class EventOutboxSweepDto implements EventRelaySweepResult {
   @ApiProperty() claimed!: number;
   @ApiProperty() delivered!: number;
   @ApiProperty() failed!: number;
   @ApiProperty({ description: 'DONE rows past the 7-day window, deleted.' }) pruned!: number;
+  @ApiProperty({ description: 'Events still owed an hour or more after they happened.' })
+  stuck!: number;
   @ApiProperty() ok!: boolean;
 }
 

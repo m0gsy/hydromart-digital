@@ -1222,7 +1222,8 @@ model WebhookEventOutbox {
   eventId       String   @unique
   payload       Json
   occurredAt    DateTime
-  /// PENDING | DONE | DEAD (a plain string: no enum migration to add a state later).
+  /// PENDING | DONE (a plain string: no enum migration to add a state later). Never given up,
+  /// so no DEAD state here, unlike delivery-service's outbox.
   status        String   @default("PENDING")
   attempts      Int      @default(0)
   nextAttemptAt DateTime @default(now())

@@ -43,6 +43,9 @@ class FakeOutbox implements EventOutboxRepository {
   async findByEventId(eventId: string): Promise<EventOutboxRecord | null> {
     return this.rows.find((r) => r.eventId === eventId) ?? null;
   }
+  async countStuck(cutoff: Date): Promise<number> {
+    return this.rows.filter((r) => r.status === 'PENDING' && r.occurredAt <= cutoff).length;
+  }
   async findDue(now: Date, limit: number): Promise<EventOutboxRecord[]> {
     return this.rows.filter((r) => r.status === 'PENDING' && r.nextAttemptAt <= now).slice(0, limit);
   }
@@ -134,6 +137,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
       delivered: 1,
       failed: 0,
       pruned: 0,
+      stuck: 0,
       ok: true,
     });
     expect(outbox.rows[0].status).toBe('DONE');
@@ -170,6 +174,28 @@ describe('EventRelayService (HD-7 outbox)', () => {
     outbox.rows[0].nextAttemptAt = NOW;
     await svc.processDue(NOW);
     expect(outbox.rows[0].nextAttemptAt.getTime()).toBe(NOW.getTime() + 3_600_000);
+  });
+
+  // Between two hourly tries a round has nothing due; it must not read as healthy meanwhile.
+  it('reports not ok while an event has been owed for an hour, and ok once it goes through', async () => {
+    let down = true;
+    const { outbox, svc } = make(async () => {
+      if (down) throw new Error('admin-service responded 503');
+    });
+    outbox.record('k1', {
+      occurredAt: new Date(NOW.getTime() - 3_600_000),
+      nextAttemptAt: new Date(NOW.getTime() + 30 * 60_000),
+    });
+    // Nothing due this round, but the event is an hour old.
+    await expect(svc.processDue(NOW)).resolves.toMatchObject({ claimed: 0, stuck: 1, ok: false });
+    // Younger than an hour it is not stuck yet.
+    outbox.rows[0].occurredAt = new Date(NOW.getTime() - 3_600_000 + 1);
+    await expect(svc.processDue(NOW)).resolves.toMatchObject({ stuck: 0, ok: true });
+
+    down = false;
+    outbox.rows[0].occurredAt = new Date(NOW.getTime() - 2 * 3_600_000);
+    outbox.rows[0].nextAttemptAt = NOW;
+    await expect(svc.processDue(NOW)).resolves.toMatchObject({ delivered: 1, stuck: 0, ok: true });
   });
 
   it('tells ops once, on the sixth failed try, and keeps going', async () => {

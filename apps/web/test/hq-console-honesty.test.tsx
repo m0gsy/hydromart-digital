@@ -133,11 +133,68 @@ describe('the one-time signing secret stays on screen until it is dismissed (HD-
       events: ['franchise.application_submitted'],
     });
     expect(listReads()).toBe(before);
+    // Only the secret: no form to register a second endpoint over it, focus on the way out.
+    expect(screen.queryByLabelText('URL endpoint')).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain(SECRET);
+    expect(document.activeElement?.textContent).toBe('Sudah saya salin');
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    await userEvent.click(screen.getByRole('button', { name: 'Salin' }));
+    expect(writeText).toHaveBeenCalledWith(SECRET);
+    expect(toast).toHaveBeenCalledWith('Secret disalin', 'success');
+    toast.mockClear();
 
     await userEvent.click(screen.getByRole('button', { name: 'Sudah saya salin' }));
     await waitFor(() => expect(listReads()).toBe(before + 1));
     expect(screen.queryByText(SECRET)).toBeNull();
     expect(toast).toHaveBeenCalledWith('Endpoint webhook ditambahkan', 'success');
+  });
+
+  // The normal workflow: open the AI web's env in another window, come back to copy the secret.
+  it('keeps the secret through a refresh after the tab was away, and through Escape', async () => {
+    post.mockResolvedValue({ id: 'w-9', secret: SECRET });
+    render(<HqWebhooksPage />, { wrapper: LocaleProvider });
+    await userEvent.click(await screen.findByRole('button', { name: /Endpoint/ }));
+    await userEvent.type(screen.getByLabelText('URL endpoint'), 'https://ai.example.com/api/ingress/hd');
+    await userEvent.type(screen.getByLabelText('Event'), 'franchise.application_submitted');
+    await userEvent.click(screen.getAllByRole('button', { name: /Endpoint/ }).at(-1)!);
+    expect(await screen.findByText(SECRET)).toBeTruthy();
+
+    const before = listReads();
+    const realNow = Date.now.bind(Date);
+    const visibility = (state: 'hidden' | 'visible') => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
+    visibility('hidden');
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => realNow() + 61_000);
+    try {
+      visibility('visible');
+      // useAsync refetches after a minute away; the page must stay mounted while it does.
+      await waitFor(() => expect(listReads()).toBe(before + 1));
+    } finally {
+      clock.mockRestore();
+      delete (document as unknown as { visibilityState?: string }).visibilityState;
+    }
+    expect(screen.getByText(SECRET)).toBeTruthy();
+
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByText(SECRET)).toBeTruthy();
+  });
+
+  it('cannot be closed while the create is still in flight', async () => {
+    let answer: (v: unknown) => void = () => undefined;
+    post.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    render(<HqWebhooksPage />, { wrapper: LocaleProvider });
+    await userEvent.click(await screen.findByRole('button', { name: /Endpoint/ }));
+    await userEvent.type(screen.getByLabelText('URL endpoint'), 'https://ai.example.com/api/ingress/hd');
+    await userEvent.type(screen.getByLabelText('Event'), 'franchise.application_submitted');
+    await userEvent.click(screen.getAllByRole('button', { name: /Endpoint/ }).at(-1)!);
+    await userEvent.keyboard('{Escape}');
+    // Still open: the create lands in a sheet somebody is looking at.
+    expect(screen.getByLabelText('URL endpoint')).toBeTruthy();
+    answer({ id: 'w-9', secret: SECRET });
+    expect(await screen.findByText(SECRET)).toBeTruthy();
   });
 
   it('closes without a refresh when nothing was registered', async () => {
@@ -152,7 +209,11 @@ describe('the one-time signing secret stays on screen until it is dismissed (HD-
 
   it('filters the delivery log by event, so an older franchise delivery can be found', async () => {
     render(<HqWebhooksPage />, { wrapper: LocaleProvider });
-    await userEvent.click(await screen.findByRole('button', { name: 'Lamaran waralaba' }));
+    const filter = await screen.findByRole('group', { name: 'Saring riwayat menurut event' });
+    expect(filter).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Lamaran waralaba' }));
+    expect(screen.getByRole('button', { name: 'Lamaran waralaba' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'Semua' }).getAttribute('aria-pressed')).toBe('false');
     await waitFor(() =>
       expect(
         get.mock.calls.some(([u]) => String(u).includes('event=franchise.application_submitted')),

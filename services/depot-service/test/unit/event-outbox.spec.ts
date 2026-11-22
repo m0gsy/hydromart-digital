@@ -53,6 +53,15 @@ describe('EventOutboxPrismaRepository (HD-7)', () => {
     });
   });
 
+  it('counts the events still owed that happened at or before the cutoff', async () => {
+    const { repo, webhookEventOutbox } = makeRepo();
+    (webhookEventOutbox as unknown as { count: jest.Mock }).count = jest.fn().mockResolvedValue(2);
+    await expect(repo.countStuck(NOW)).resolves.toBe(2);
+    expect((webhookEventOutbox as unknown as { count: jest.Mock }).count).toHaveBeenCalledWith({
+      where: { status: 'PENDING', occurredAt: { lte: NOW } },
+    });
+  });
+
   it('findByEventId reads by the unique key, null when absent', async () => {
     const { repo, webhookEventOutbox } = makeRepo();
     webhookEventOutbox.findUnique.mockResolvedValueOnce(row()).mockResolvedValueOnce(null);
@@ -95,7 +104,7 @@ describe('EventOutboxPrismaRepository (HD-7)', () => {
 
 describe('EventOutboxController (HD-7)', () => {
   it('runs the relay sweep', async () => {
-    const result = { claimed: 1, delivered: 1, failed: 0, pruned: 0, ok: true };
+    const result = { claimed: 1, delivered: 1, failed: 0, pruned: 0, stuck: 0, ok: true };
     const relay = { processDue: jest.fn().mockResolvedValue(result) } as unknown as EventRelayService;
     await expect(new EventOutboxController(relay).process()).resolves.toBe(result);
   });

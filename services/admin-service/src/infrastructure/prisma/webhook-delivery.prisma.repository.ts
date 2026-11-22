@@ -166,10 +166,16 @@ export class WebhookDeliveryPrismaRepository implements WebhookDeliveryRepositor
   async replay(id: string, at: Date, apiKeyId?: string): Promise<WebhookDeliveryRecord | null> {
     // The ownership filter is part of the LOOKUP, not a check after it: another partner's
     // delivery comes back as "not found", which is also all a partner should learn.
+    const include = { endpoint: { select: { active: true } } } as const;
     const existing = apiKeyId
-      ? await this.prisma.webhookDelivery.findFirst({ where: { id, endpoint: { apiKeyId } } })
-      : await this.prisma.webhookDelivery.findUnique({ where: { id } });
+      ? await this.prisma.webhookDelivery.findFirst({ where: { id, endpoint: { apiKeyId } }, include })
+      : await this.prisma.webhookDelivery.findUnique({ where: { id }, include });
     if (!existing) return null;
+    // HD-7: an endpoint that is switched off is sent nothing (claimDue), so a replay would sit
+    // PENDING for as long as it stays off while the button said it worked.
+    if (!existing.endpoint.active) {
+      throw new ConflictException('Endpoint ini sedang dimatikan; nyalakan dulu sebelum mengirim ulang.');
+    }
     // AAS-15: a delivery still queued will be retried anyway; resetting its attempts here would keep it
     // retrying forever. Only a finished one (delivered, or dead) can be replayed.
     if (existing.status === 'PENDING') {

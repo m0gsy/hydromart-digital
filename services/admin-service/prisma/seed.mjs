@@ -62,8 +62,9 @@ async function main() {
       id: '00000000-0000-4000-a000-0000000000b1',
       url: 'https://partner.example.com/hooks',
       // HD-7: only events some service publishes, and a secret is required (32+ characters).
+      // Switched off: an active sample for a real event would queue real deliveries to it.
       events: ['delivery.delivered'],
-      active: true,
+      active: false,
       secret: 'seed-example-signing-secret-not-a-real-key-01',
     },
   });

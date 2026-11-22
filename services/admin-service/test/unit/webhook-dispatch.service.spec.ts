@@ -435,12 +435,25 @@ describe('the AI-web event contract (HD-7)', () => {
     );
     expect(rules.maxAttempts).toBe(MAX_ATTEMPTS);
     expect(rules.timeoutSeconds).toBe(SEND_TIMEOUT_MS / 1000);
+    // The prose a person reads states the same numbers.
+    const prose = contract.info.description as string;
+    const minutes = rules.retryMinutes as number[];
+    expect(prose).toContain(`${minutes.slice(0, -1).join(', ')} and ${minutes.at(-1)} minutes`);
+    expect(prose).toContain(`${rules.timeoutSeconds} seconds`);
+    expect(prose).toContain(`${rules.toleranceSeconds} seconds`);
+    expect(prose).toContain(`the ${rules.maxAttempts}th failed attempt`);
   });
 
   // The depot-to-admin hop: the example the depot spec holds its request to must pass this DTO.
   it('accepts the internal publish example the producer is held to', () => {
     const example = contract['x-hydromart-internal-publish-example'].body;
-    expect(validateSync(plainToInstance(PublishEventDto, example))).toEqual([]);
+    // The options the real pipe uses (GlobalValidationPipe): an unknown field is refused too.
+    expect(
+      validateSync(plainToInstance(PublishEventDto, example), {
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    ).toEqual([]);
     expect(Object.keys(example).sort()).toEqual(['event', 'eventId', 'occurredAt', 'payload']);
   });
 

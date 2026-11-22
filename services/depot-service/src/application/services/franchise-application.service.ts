@@ -80,7 +80,8 @@ export class FranchiseApplicationService {
     // together; send the event now, without making the applicant wait for admin-service (up to
     // its 5 s timeout). flush never rejects, and the sweep sends whatever it could not.
     const created = await this.applications.create(data);
-    void this.relay.flush(franchiseApplicationSubmittedEventId(created.id));
+    // The catch is belt and braces: an unhandled rejection is fatal to this process.
+    void this.relay.flush(franchiseApplicationSubmittedEventId(created.id)).catch(() => undefined);
     return created;
   }
 

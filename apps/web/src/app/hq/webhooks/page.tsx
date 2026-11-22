@@ -37,8 +37,11 @@ export default function HqWebhooksPage() {
   const [deleteTarget, setDeleteTarget] = useState<WebhookEndpoint | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (query.loading) return <Skeleton className="h-96 w-full" />;
-  if (query.error)
+  // HD-7: only the FIRST load swaps the page for a skeleton or an error. A refresh (a toggle, a
+  // delete, coming back to the tab after a minute) keeps the page mounted, so an open create
+  // sheet, and the one-time secret on it, survives it.
+  if (query.loading && !query.data) return <Skeleton className="h-96 w-full" />;
+  if (query.error && !query.data)
     return <ErrorState message={t('hq.webhooks.loadError')} onRetry={query.reload} />;
 
   const hooks = query.data ?? [];
@@ -82,6 +85,9 @@ export default function HqWebhooksPage() {
       <Card className="p-4">
         <p className="text-sm text-muted">{t('hq.webhooks.howItWorks')}</p>
       </Card>
+
+      {/* A refresh that failed keeps the list it had; it says so instead of replacing the page. */}
+      {query.error && <ErrorState message={t('hq.webhooks.loadError')} onRetry={query.reload} />}
 
       {hooks.length === 0 ? (
         <Card className="p-8">
@@ -158,6 +164,7 @@ function CreateWebhookSheet({
   onCreated: () => void;
 }) {
   const { t } = useT();
+  const { toast } = useToast();
   const [url, setUrl] = useState('');
   const [events, setEvents] = useState('');
   const [busy, setBusy] = useState(false);
@@ -179,6 +186,9 @@ function CreateWebhookSheet({
    * secret nobody ever saw, so its receiver could verify nothing.
    */
   function dismiss() {
+    // Closing under a create still in flight would let it land in a closed sheet: an endpoint
+    // nobody was told about, whose secret nobody saw.
+    if (busy) return;
     if (secret) {
       setSecret(null);
       onCreated();
@@ -220,18 +230,48 @@ function CreateWebhookSheet({
     }
   }
 
+  async function copy() {
+    if (!secret) return;
+    try {
+      await navigator.clipboard.writeText(secret);
+      toast(t('hq.webhooks.copied'), 'success');
+    } catch {
+      toast(t('hq.webhooks.copyError'), 'error');
+    }
+  }
+
   return (
-    <Sheet open={open} onClose={dismiss} title={t('hq.webhooks.createTitle')}>
-      <div className="flex flex-col gap-4">
-        {secret && (
-          <div className="rounded-xl border border-app bg-amber-50 p-3.5">
+    // While the secret is on screen, or a create is in flight, only the explicit button closes
+    // the sheet: Escape, the Android back button, a backdrop tap or a swipe would otherwise
+    // count as "copied", or let the create land in a closed sheet.
+    <Sheet
+      open={open}
+      onClose={secret || busy ? () => undefined : onClose}
+      title={t('hq.webhooks.createTitle')}
+    >
+      {secret ? (
+        // Only the secret: a second registration from this sheet would replace it before it
+        // was copied.
+        <div className="flex flex-col gap-4">
+          <div role="status" className="rounded-xl border border-app bg-amber-50 p-3.5">
             <p className="text-sm font-bold text-[color:var(--warning)]">{t('hq.webhooks.secretTitle')}</p>
             <p className="mt-1 text-xs text-[color:var(--warning)]">{t('hq.webhooks.secretBody')}</p>
             <code className="mt-2 block break-all rounded-lg bg-white px-2.5 py-2 font-mono text-xs">
               {secret}
             </code>
           </div>
-        )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={copy}>
+              {t('hq.webhooks.copy')}
+            </Button>
+            {/* Focus lands here: the submit button it replaced was focused and is gone. */}
+            <Button onClick={dismiss} autoFocus>
+              {t('hq.webhooks.secretDone')}
+            </Button>
+          </div>
+        </div>
+      ) : (
+      <div className="flex flex-col gap-4">
         <Field label={t('hq.webhooks.url')} htmlFor="wh-url">
           <Input
             id="wh-url"
@@ -259,13 +299,14 @@ function CreateWebhookSheet({
         )}
         <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={dismiss} disabled={busy}>
-            {secret ? t('hq.webhooks.secretDone') : t('hq.common.cancel')}
+            {t('hq.common.cancel')}
           </Button>
           <Button onClick={submit} disabled={!valid} loading={busy}>
             {t('hq.webhooks.add')}
           </Button>
         </div>
       </div>
+      )}
     </Sheet>
   );
 }
@@ -322,6 +363,7 @@ function DeliveryLog() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-extrabold">{t('hq.webhooks.logTitle')}</p>
         <Segmented<LogFilter>
+          label={t('hq.webhooks.logFilterLabel')}
           value={event}
           onChange={setEvent}
           options={[

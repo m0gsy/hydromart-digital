@@ -192,6 +192,7 @@ describe('WebhookDeliveryPrismaRepository', () => {
     await expect(repo.replay('d-1', NOW, 'key-1')).resolves.toBeNull();
     expect(webhookDelivery.findFirst).toHaveBeenCalledWith({
       where: { id: 'd-1', endpoint: { apiKeyId: 'key-1' } },
+      include: { endpoint: { select: { active: true } } },
     });
     expect(webhookDelivery.update).not.toHaveBeenCalled();
   });
@@ -201,14 +202,14 @@ describe('WebhookDeliveryPrismaRepository', () => {
   // retried anyway: refuse the reset, and the cycle ends when it succeeds or dies.
   it('AAS-15 · refuses to replay a delivery that is still queued, and writes nothing', async () => {
     const { repo, webhookDelivery } = makeRepo();
-    webhookDelivery.findUnique.mockResolvedValue({ id: 'd-1', status: 'PENDING' });
+    webhookDelivery.findUnique.mockResolvedValue({ id: 'd-1', status: 'PENDING', endpoint: { active: true } });
     await expect(repo.replay('d-1', NOW)).rejects.toThrow(/sudah antre|still queued|PENDING/i);
     expect(webhookDelivery.update).not.toHaveBeenCalled();
   });
 
   it('replays by resetting the attempt count, so a DEAD row gets a real second chance', async () => {
     const { repo, webhookDelivery } = makeRepo();
-    webhookDelivery.findUnique.mockResolvedValue({ id: 'd-1', status: 'DEAD' });
+    webhookDelivery.findUnique.mockResolvedValue({ id: 'd-1', status: 'DEAD', endpoint: { active: true } });
     webhookDelivery.update.mockResolvedValue({ id: 'd-1', status: 'PENDING' });
 
     await repo.replay('d-1', NOW);
@@ -216,6 +217,14 @@ describe('WebhookDeliveryPrismaRepository', () => {
       where: { id: 'd-1' },
       data: { status: 'PENDING', attempts: 0, nextAttemptAt: NOW, lastError: null },
     });
+  });
+
+  // HD-7: nothing is sent to a switched-off endpoint, so its replay could only ever sit queued.
+  it('refuses to replay to an endpoint that is switched off, and writes nothing', async () => {
+    const { repo, webhookDelivery } = makeRepo();
+    webhookDelivery.findUnique.mockResolvedValue({ id: 'd-1', status: 'DEAD', endpoint: { active: false } });
+    await expect(repo.replay('d-1', NOW)).rejects.toThrow(/dimatikan/);
+    expect(webhookDelivery.update).not.toHaveBeenCalled();
   });
 
   it('returns null for an unknown replay id', async () => {

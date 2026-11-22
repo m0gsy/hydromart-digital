@@ -43,6 +43,12 @@ export class EventOutboxPrismaRepository implements EventOutboxRepository {
     return row ? toRecord(row) : null;
   }
 
+  countStuck(cutoff: Date): Promise<number> {
+    return this.prisma.webhookEventOutbox.count({
+      where: { status: 'PENDING', occurredAt: { lte: cutoff } },
+    });
+  }
+
   async findDue(now: Date, limit: number): Promise<EventOutboxRecord[]> {
     const rows = await this.prisma.webhookEventOutbox.findMany({
       where: { status: 'PENDING', nextAttemptAt: { lte: now } },
