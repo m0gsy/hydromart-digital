@@ -65,6 +65,14 @@ grep -qF "grep -q '^infra/caddy/' <<<\"\$CHANGED\"" scripts/deploy.sh &&
 grep -qF 'git diff --quiet "$PREV_SHA" "$NEW_SHA" -- infra/caddy/' scripts/deploy.sh &&
   bad "deploy.sh still judges the Caddy reload on the tree's HEAD (PREV_SHA)" ||
   ok "the Caddy reload is not judged on the tree's HEAD"
+# HD-7: the scheduler restart follows the same rule, or a crontab line (a new sweep) can be
+# left unread by crond after a deploy that died past its reset.
+grep -qF "grep -q '^scripts/scheduler/' <<<\"\$CHANGED\"" scripts/deploy.sh &&
+  ok "deploy.sh restarts the scheduler when the release changes scripts/scheduler/ (built base)" ||
+  bad "deploy.sh must restart the scheduler when scripts/scheduler/ changes, judged on CHANGED"
+grep -qF 'git diff --quiet "$PREV_SHA" "$NEW_SHA" -- scripts/scheduler/' scripts/deploy.sh &&
+  bad "deploy.sh still judges the scheduler restart on the tree's HEAD (PREV_SHA)" ||
+  ok "the scheduler restart is not judged on the tree's HEAD"
 awk '/caddy reload --config/{found=1} END{exit !found}' scripts/deploy.sh &&
   grep -qF 'for _ in 1 2 3; do' scripts/deploy.sh &&
   ok "deploy.sh retries the Caddy reload (a recreated Caddy needs a moment)" ||
