@@ -13,6 +13,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -37,9 +38,15 @@ export class CreateLegalEntityDto {
   kind!: LegalEntityKind;
 }
 
+/**
+ * Absent = unchanged; an explicit null is refused. `@IsOptional` would let null through every rule
+ * below, into a required column (a 500) or past the freshness check as a toggle.
+ */
+const present = ValidateIf((_: object, value: unknown) => value !== undefined);
+
 export class UpdateLegalEntityDto {
   @ApiPropertyOptional({ example: 'PT Contoh Air Nusantara' })
-  @IsOptional()
+  @present
   @Transform(trimmed)
   @IsString()
   @MinLength(2)
@@ -47,12 +54,12 @@ export class UpdateLegalEntityDto {
   name?: string;
 
   @ApiPropertyOptional({ enum: LEGAL_ENTITY_KINDS })
-  @IsOptional()
+  @present
   @IsIn(LEGAL_ENTITY_KINDS)
   kind?: LegalEntityKind;
 
   @ApiPropertyOptional({ description: 'Off = not offered for new depots and employees.' })
-  @IsOptional()
+  @present
   @IsBoolean()
   active?: boolean;
 
@@ -91,6 +98,17 @@ export class SetAiGrantsDto {
   changes!: AiGrantChangeDto[];
 }
 
+/** What the screen showed for one row on the day being written. */
+export class SeenPointDto {
+  @ApiProperty({ format: 'uuid', description: 'A depot of this request.' })
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty({ format: 'uuid', description: 'The legal entity the screen showed for it on that day.' })
+  @IsUUID()
+  legalEntityId!: string;
+}
+
 export class AssignDepotsDto {
   @ApiProperty({ type: [String], format: 'uuid' })
   @IsArray()
@@ -107,6 +125,19 @@ export class AssignDepotsDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   @IsISO8601({ strict: true })
   effectiveFrom!: string;
+
+  @ApiProperty({
+    type: [SeenPointDto],
+    description:
+      'Every depot that already had a point on that day in the copy the screen read, with its entity. ' +
+      'A depot not listed was shown with none. 409 STALE_WRITE when the stored day differs, so a ' +
+      'correction never erases a write the screen did not show.',
+  })
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => SeenPointDto)
+  seen!: SeenPointDto[];
 }
 
 // ---- Responses ----

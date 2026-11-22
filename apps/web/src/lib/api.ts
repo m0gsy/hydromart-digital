@@ -426,16 +426,24 @@ function sharedGet<T>(path: string, auth: boolean, ttlMs: number): Promise<T> {
       return value;
     })
     .finally(() => {
-      inflight.delete(key);
+      // Only its own entry: after an `invalidate` a newer read may hold this key.
+      if (inflight.get(key) === p) inflight.delete(key);
     });
 
   inflight.set(key, p);
   return p;
 }
 
-/** Drop every cached read. Called after any mutation — see `api.post`/`put`/`patch`/`del`. */
+/**
+ * Drop every cached read. Called after any mutation — see `api.post`/`put`/`patch`/`del`.
+ *
+ * The reads still in flight go too. One that left before the write may be answered before the
+ * write lands, and a reload asked for after the write would otherwise join it and show the
+ * screen as it was: a toggle tapped twice read back as tapped once.
+ */
 function invalidate(): void {
   cached.clear();
+  inflight.clear();
 }
 
 /**

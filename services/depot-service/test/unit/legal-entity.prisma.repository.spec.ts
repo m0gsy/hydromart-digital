@@ -1,4 +1,6 @@
 import { LegalEntityPrismaRepository } from '../../src/infrastructure/prisma/legal-entity.prisma.repository';
+import { StaleWriteError } from '@hydromart/platform';
+
 import { DuplicateLegalEntityNameError } from '../../src/domain/errors';
 
 const NOW = new Date('2026-11-22T03:00:00.000Z');
@@ -25,13 +27,15 @@ function setup() {
   const tx = {
     depotLegalEntity: { findMany: jest.fn().mockResolvedValue([]) },
     $queryRaw: jest.fn().mockResolvedValue([]),
+    $executeRaw: jest.fn().mockResolvedValue(1),
   };
   const prisma = {
     legalEntity: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       create: jest.fn(),
-      update: jest.fn(),
+      updateMany: jest.fn(),
     },
     legalEntityAiGrant: {
       createMany: jest.fn().mockReturnValue('createMany'),
@@ -83,23 +87,45 @@ describe('LegalEntityPrismaRepository', () => {
     prisma.legalEntity.create.mockRejectedValueOnce(boom);
     await expect(repo.create({ name: 'X', kind: 'OPERATOR', createdBy: null })).rejects.toBe(boom);
 
-    prisma.legalEntity.update.mockResolvedValueOnce(ROW).mockRejectedValueOnce(uniqueViolation).mockRejectedValueOnce(boom);
-    expect(await repo.update('e1', { active: true, updatedBy: null })).toEqual(ROW);
-    await expect(repo.update('e1', { name: 'X', updatedBy: null })).rejects.toBeInstanceOf(DuplicateLegalEntityNameError);
-    await expect(repo.update('e1', { name: 'X', updatedBy: null })).rejects.toBe(boom);
+    prisma.legalEntity.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockRejectedValueOnce(uniqueViolation)
+      .mockRejectedValueOnce(boom);
+    prisma.legalEntity.findUniqueOrThrow.mockResolvedValueOnce(ROW);
+    expect(await repo.update('e1', { active: true, updatedBy: null }, NOW)).toEqual(ROW);
+    expect(prisma.legalEntity.updateMany).toHaveBeenCalledWith({
+      where: { id: 'e1', updatedAt: NOW },
+      data: { active: true, updatedBy: null },
+    });
+    await expect(repo.update('e1', { name: 'X', updatedBy: null }, NOW)).rejects.toBeInstanceOf(
+      DuplicateLegalEntityNameError,
+    );
+    await expect(repo.update('e1', { name: 'X', updatedBy: null }, NOW)).rejects.toBe(boom);
+  });
+
+  it('refuses a rename whose version moved after the check (compare-and-set)', async () => {
+    const { prisma, repo } = setup();
+    prisma.legalEntity.updateMany.mockResolvedValueOnce({ count: 0 });
+    await expect(repo.update('e1', { name: 'X', updatedBy: null }, NOW)).rejects.toBeInstanceOf(StaleWriteError);
+    expect(prisma.legalEntity.findUniqueOrThrow).not.toHaveBeenCalled();
   });
 
   it('writes grants and revokes in one transaction, and nothing when there are neither', async () => {
     const { prisma, repo } = setup();
     await repo.setAiGrants(
       [
-        { legalEntityId: 'e1', roleKey: 'FINANCE', granted: true },
+        { legalEntityId: 'e2', roleKey: 'HEAD_OFFICE', granted: true },
         { legalEntityId: 'e1', roleKey: 'HR', granted: false },
+        { legalEntityId: 'e1', roleKey: 'FINANCE', granted: true },
       ],
       'u1',
     );
+    // In one order for every writer (entity, then role), whatever order the request had.
     expect(prisma.legalEntityAiGrant.createMany).toHaveBeenCalledWith({
-      data: [{ legalEntityId: 'e1', roleKey: 'FINANCE', grantedBy: 'u1' }],
+      data: [
+        { legalEntityId: 'e1', roleKey: 'FINANCE', grantedBy: 'u1' },
+        { legalEntityId: 'e2', roleKey: 'HEAD_OFFICE', grantedBy: 'u1' },
+      ],
       skipDuplicates: true,
     });
     expect(prisma.legalEntityAiGrant.deleteMany).toHaveBeenCalledWith({
@@ -132,23 +158,43 @@ describe('LegalEntityPrismaRepository', () => {
     ]);
   });
 
-  it('upserts the points in one statement and names what a corrected day held', async () => {
+  it('locks each depot-day in order, checks what the screen saw, then upserts in one statement', async () => {
     const { repo, tx } = setup();
     tx.depotLegalEntity.findMany.mockResolvedValue([{ depotId: 'd1', legalEntityId: 'old' }]);
     tx.$queryRaw.mockResolvedValue([{ depotId: 'd1' }, { depotId: 'd2' }]);
     const written = await repo.assignDepots({
-      depotIds: ['d1', 'd2'],
+      depotIds: ['d2', 'd1'],
       legalEntityId: 'e1',
       effectiveFrom: new Date('2026-12-01T00:00:00.000Z'),
       recordedBy: null,
+      seen: new Map([['d1', 'old']]),
     });
     expect(written).toEqual([
       { depotId: 'd1', replaced: 'old' },
       { depotId: 'd2', replaced: null },
     ]);
+    const lock = tx.$executeRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
+    expect(lock.strings.join('?')).toContain('pg_advisory_xact_lock');
+    expect(lock.values).toEqual(['depot-legal-entity:d1:2026-12-01', 'depot-legal-entity:d2:2026-12-01']);
     const sql = tx.$queryRaw.mock.calls[0][0] as { strings: string[]; values: unknown[] };
     expect(sql.strings.join('?')).toContain('ON CONFLICT ("depotId", "effectiveFrom") DO UPDATE');
-    expect(sql.values).toEqual(expect.arrayContaining(['e1', '2026-12-01', null, 'd1', 'd2']));
+    expect(sql.values).toEqual(['e1', '2026-12-01', null, 'd1', 'd2']);
+  });
+
+  it('refuses when a day holds something the screen did not show, and writes nothing', async () => {
+    const { repo, tx } = setup();
+    tx.depotLegalEntity.findMany.mockResolvedValue([{ depotId: 'd1', legalEntityId: 'theirs' }]);
+    const base = {
+      depotIds: ['d1'],
+      legalEntityId: 'e1',
+      effectiveFrom: new Date('2026-12-01T00:00:00.000Z'),
+      recordedBy: null,
+    };
+    await expect(repo.assignDepots({ ...base, seen: new Map() })).rejects.toBeInstanceOf(StaleWriteError);
+    await expect(repo.assignDepots({ ...base, seen: new Map([['d1', 'mine']]) })).rejects.toBeInstanceOf(
+      StaleWriteError,
+    );
+    expect(tx.$queryRaw).not.toHaveBeenCalled();
   });
 
   it('deletes one point, null when it is gone, and rethrows anything else', async () => {

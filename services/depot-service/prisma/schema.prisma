@@ -1194,8 +1194,10 @@ model DepotLegalEntity {
 
 /// HD-5: the role x legal entity matrix. A row = that role may read this entity's data in the
 /// AI web and the AI read API (HD-6); no row = it may not, so a new entity is readable by
-/// nobody but SUPER_ADMIN until somebody grants it. Owner decision 2026-11-22: nothing in
-/// hydromart-digital reads this table; its own permissions and depot scopes do not change.
+/// nobody but SUPER_ADMIN until somebody grants it. Owner decision 2026-11-22: it only LIMITS.
+/// A grant never widens anybody's reach: HD-6 applies the caller's own depot scope or
+/// ownership first and this matrix on top, so a franchise owner granted "PT Mitra A" still
+/// sees only their own depots. Nothing in hydromart-digital reads this table.
 model LegalEntityAiGrant {
   legalEntityId String      @db.Uuid
   /// A built-in role or a custom role key (C_...). Never SUPER_ADMIN, which reads everything.

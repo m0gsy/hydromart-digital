@@ -120,6 +120,18 @@ describe('Legal entities (e2e)', () => {
     expect(dup.body.code).toBe('LEGAL_ENTITY_NAME_TAKEN');
   });
 
+  it('refuses an explicit null on a patch instead of failing inside', async () => {
+    const list = await request(server()).get('/api/v1/legal-entities').set(as(Role.HEAD_OFFICE)).expect(200);
+    const { id, updatedAt } = list.body.entities[0] as { id: string; updatedAt: string };
+    for (const body of [{ name: null }, { kind: null }, { active: null }]) {
+      await request(server())
+        .patch(`/api/v1/legal-entities/${id}`)
+        .set(as(Role.HEAD_OFFICE))
+        .send({ ...body, seenUpdatedAt: updatedAt })
+        .expect(400);
+    }
+  });
+
   it('keeps the AI-web matrix with the superuser', async () => {
     const list = await request(server()).get('/api/v1/legal-entities').set(as(Role.HEAD_OFFICE)).expect(200);
     const id = list.body.entities[0].id as string;
@@ -164,11 +176,16 @@ describe('Legal entities (e2e)', () => {
     const legalEntityId = list.body.entities[0].id as string;
     const post = (body: object) =>
       request(server()).post('/api/v1/legal-entities/depots').set(as(Role.HEAD_OFFICE)).send(body);
-    await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-02-30' }).expect(400);
-    await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-2-3' }).expect(400);
-    await post({ depotIds: [], legalEntityId, effectiveFrom: '2026-12-01' }).expect(400);
-    const ok = await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-12-01' }).expect(201);
+    await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-02-30', seen: [] }).expect(400);
+    await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-2-3', seen: [] }).expect(400);
+    await post({ depotIds: [], legalEntityId, effectiveFrom: '2026-12-01', seen: [] }).expect(400);
+    // Saying nothing about what the screen saw is not "it saw nothing".
+    await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-12-01' }).expect(400);
+    const ok = await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-12-01', seen: [] }).expect(201);
     expect(ok.body).toEqual([{ depotId: depot.id, replaced: null }]);
+    // A second screen that read the depot before that write: the day is not what it saw.
+    const stale = await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-12-01', seen: [] }).expect(409);
+    expect(stale.body.code).toBe('STALE_WRITE');
 
     const histories = await request(server())
       .get('/api/v1/legal-entities/depots')

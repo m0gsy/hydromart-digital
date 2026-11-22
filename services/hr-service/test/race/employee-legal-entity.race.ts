@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { StaleWriteError } from '@hydromart/platform';
+
 import { parseCalendarDay } from '../../src/domain/legal-entity';
 import { EmployeeLegalEntityPrismaRepository } from '../../src/infrastructure/prisma/employee-legal-entity.prisma.repository';
 import { describeRace, freshPrisma, race } from './db';
@@ -17,8 +19,8 @@ describeRace('employee legal entities on real Postgres (HD-5)', () => {
   });
   afterAll(async () => drop?.());
 
-  it('twenty people dating one employee on one day: no error, one row, one of their entities', async () => {
-    const emp = await prisma.employee.create({
+  it('twenty screens dating two employees on one day, in both orders: one lands, nineteen 409, no deadlock', async () => {
+    const person = () => prisma.employee.create({
       data: {
         employeeCode: `E-${randomUUID().slice(0, 8)}`,
         fullName: 'Budi',
@@ -30,16 +32,27 @@ describeRace('employee legal entities on real Postgres (HD-5)', () => {
         monthlyRate: 5_000_000,
       },
     });
+    const emp = await person();
+    const other = await person();
     const entities = [randomUUID(), randomUUID(), randomUUID()];
     const day = parseCalendarDay('2026-12-01')!;
     const results = await race(
       Array.from({ length: 20 }, (_, i) => () =>
-        repo.assign({ employeeIds: [emp.id], legalEntityId: entities[i % 3], effectiveFrom: day, recordedBy: null }),
+        repo.assign({
+          employeeIds: i % 2 ? [emp.id, other.id] : [other.id, emp.id],
+          legalEntityId: entities[i % 3],
+          effectiveFrom: day,
+          recordedBy: null,
+          seen: new Map(),
+        }),
       ),
     );
-    expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
-    const rows = await prisma.employeeLegalEntity.findMany({ where: { employeeId: emp.id } });
-    expect(rows).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const refused = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(refused.every((r) => r.reason instanceof StaleWriteError)).toBe(true);
+    const rows = await prisma.employeeLegalEntity.findMany({ where: { employeeId: { in: [emp.id, other.id] } } });
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map((r) => r.legalEntityId)).size).toBe(1);
     expect(entities).toContain(rows[0].legalEntityId);
     const [history] = (await repo.histories()).filter((h) => h.employeeId === emp.id);
     expect(history.points[0].effectiveFrom).toBe('2026-12-01');

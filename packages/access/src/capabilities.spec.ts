@@ -138,6 +138,8 @@ describe('CAPABILITIES', () => {
     expect(CAPABILITIES.legalEntityAiAccess).toEqual(['SUPER_ADMIN']);
     expect(can('legalEntityAiAccess', 'HEAD_OFFICE')).toBe(false);
     expect(CUSTOM_FORBIDDEN).toContain('legalEntityAiAccess');
+    // A network power with no depot fence: never a custom role's, never granted per depot.
+    expect(CUSTOM_FORBIDDEN).toContain('legalEntityAdmin');
   });
 
   it('lets FINANCE read names and orders without gaining any write beside them', () => {

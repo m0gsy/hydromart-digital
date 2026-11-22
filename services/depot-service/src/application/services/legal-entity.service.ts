@@ -73,7 +73,9 @@ export function aiGrantableRoles(): AiGrantableRole[] {
 /**
  * HD-5: legal entities, the dated record of which one each depot belongs to, and the role x
  * legal entity matrix. The matrix limits ONLY the AI web and the AI read API (owner decision
- * 2026-11-22); nothing here changes what anybody may do in hydromart-digital.
+ * 2026-11-22); nothing here changes what anybody may do in hydromart-digital. It only narrows:
+ * HD-6 applies a caller's own depot scope or ownership first and the matrix on top, so a grant
+ * to a scoped role (a depot head, a franchise owner) never reaches beyond that role's own depots.
  */
 @Injectable()
 export class LegalEntityService {
@@ -117,7 +119,7 @@ export class LegalEntityService {
       if (next[key] !== before[key]) changed[key] = { from: before[key], to: next[key] };
     }
     if (Object.keys(changed).length === 0) return { before, after: null, changed };
-    const after = await this.entities.update(id, { ...next, updatedBy: actorId });
+    const after = await this.entities.update(id, { ...next, updatedBy: actorId }, before.updatedAt);
     return { before, after, changed };
   }
 
@@ -145,7 +147,13 @@ export class LegalEntityService {
 
   /** From `effectiveFrom`, these depots belong to this entity. Only an active entity takes new depots. */
   async assignDepots(
-    input: { depotIds: string[]; legalEntityId: string; effectiveFrom: Date },
+    input: {
+      depotIds: string[];
+      legalEntityId: string;
+      effectiveFrom: Date;
+      /** The entity the screen showed on that day, for each depot that had a point there. */
+      seen: ReadonlyArray<{ id: string; legalEntityId: string }>;
+    },
     actorId: string | null,
   ): Promise<AssignedDepot[]> {
     const entity = await this.get(input.legalEntityId);
@@ -158,6 +166,7 @@ export class LegalEntityService {
       legalEntityId: entity.id,
       effectiveFrom: input.effectiveFrom,
       recordedBy: actorId,
+      seen: new Map(input.seen.map((s) => [s.id, s.legalEntityId])),
     });
   }
 

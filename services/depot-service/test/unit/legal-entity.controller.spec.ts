@@ -1,4 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { LegalEntityService } from '../../src/application/services/legal-entity.service';
@@ -6,6 +8,11 @@ import { DepotConfigService } from '../../src/config/depot-config.service';
 import { LegalEntityNotFoundError } from '../../src/domain/errors';
 import { OwnershipType } from '../../src/domain/inventory';
 import { LegalEntityController } from '../../src/modules/legal-entity.controller';
+import {
+  AssignDepotsDto,
+  CreateLegalEntityDto,
+  UpdateLegalEntityDto,
+} from '../../src/modules/dto/legal-entity.dto';
 import { InMemoryDepotRepository } from '../support/fakes';
 import { InMemoryLegalEntityRepository } from '../support/legal-entity-fakes';
 
@@ -99,9 +106,11 @@ describe('LegalEntityController', () => {
   it('dates depots, trails only a write that happened, and refuses a day that is not one', async () => {
     const e = await create();
     fetchMock.mockClear();
-    const body = { depotIds: [depotId], legalEntityId: e.id, effectiveFrom: '2026-12-01' };
+    const body = { depotIds: [depotId], legalEntityId: e.id, effectiveFrom: '2026-12-01', seen: [] };
     expect(await controller.assignDepots(body, user)).toEqual([{ depotId, replaced: null }]);
-    expect(await controller.assignDepots(body, user)).toEqual([]);
+    expect(
+      await controller.assignDepots({ ...body, seen: [{ id: depotId, legalEntityId: e.id }] }, user),
+    ).toEqual([]);
     expect(trail()).toEqual([
       expect.objectContaining({
         action: 'legal_entity.depots.assign',
@@ -117,7 +126,10 @@ describe('LegalEntityController', () => {
 
   it('takes back a point and trails what it was', async () => {
     const e = await create();
-    await controller.assignDepots({ depotIds: [depotId], legalEntityId: e.id, effectiveFrom: '2026-12-01' }, user);
+    await controller.assignDepots(
+      { depotIds: [depotId], legalEntityId: e.id, effectiveFrom: '2026-12-01', seen: [] },
+      user,
+    );
     const [{ points }] = await controller.depotHistories();
     fetchMock.mockClear();
     await controller.removeDepotPoint(points[0].id, user);
@@ -138,5 +150,31 @@ describe('LegalEntityController', () => {
       active: true,
     });
     await expect(controller.internalSummary(UNKNOWN)).rejects.toBeInstanceOf(LegalEntityNotFoundError);
+  });
+});
+
+describe('legal entity DTOs', () => {
+  const check = async <T extends object>(cls: new () => T, body: object) =>
+    validate(plainToInstance(cls, body) as object);
+
+  it('trims a name but passes a non-string on to be refused, not crashed on', async () => {
+    expect(plainToInstance(CreateLegalEntityDto, { name: '  PT A  ', kind: 'OPERATOR' }).name).toBe('PT A');
+    expect(await check(CreateLegalEntityDto, { name: 123, kind: 'OPERATOR' })).not.toHaveLength(0);
+    expect(await check(CreateLegalEntityDto, { name: '   ', kind: 'OPERATOR' })).not.toHaveLength(0);
+  });
+
+  it('refuses an explicit null on a patch, and lets an absent field through', async () => {
+    expect(await check(UpdateLegalEntityDto, { active: false })).toHaveLength(0);
+    for (const body of [{ name: null }, { kind: null }, { active: null }]) {
+      expect(await check(UpdateLegalEntityDto, body)).not.toHaveLength(0);
+    }
+  });
+
+  it('wants what the screen saw for the day, and a real calendar day', async () => {
+    const base = { depotIds: [UNKNOWN], legalEntityId: UNKNOWN, effectiveFrom: '2026-12-01' };
+    expect(await check(AssignDepotsDto, { ...base, seen: [] })).toHaveLength(0);
+    expect(await check(AssignDepotsDto, base)).not.toHaveLength(0);
+    expect(await check(AssignDepotsDto, { ...base, seen: [{ id: 'x', legalEntityId: UNKNOWN }] })).not.toHaveLength(0);
+    expect(await check(AssignDepotsDto, { ...base, effectiveFrom: '2026-02-30', seen: [] })).not.toHaveLength(0);
   });
 });

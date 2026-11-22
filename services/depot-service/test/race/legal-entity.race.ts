@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { StaleWriteError } from '@hydromart/platform';
+
 import { DuplicateLegalEntityNameError } from '../../src/domain/errors';
 import { parseCalendarDay } from '../../src/domain/legal-entity';
 import { LegalEntityPrismaRepository } from '../../src/infrastructure/prisma/legal-entity.prisma.repository';
@@ -46,28 +48,35 @@ describeRace('legal entities on real Postgres (HD-5)', () => {
     expect(await prisma.legalEntity.count()).toBe(1);
   });
 
-  it('twenty people dating one depot on one day: no error, one row, one of their entities', async () => {
+  it('twenty screens dating two depots on one day, in both orders: one lands, nineteen 409, no deadlock', async () => {
     const d = await depot();
+    const e = await depot();
     const entities = await Promise.all(
       Array.from({ length: 4 }, (_, i) =>
         repo.create({ name: `PT Mitra ${i} ${randomUUID().slice(0, 4)}`, kind: 'FRANCHISEE', createdBy: null }),
       ),
     );
     const day = parseCalendarDay('2026-12-01')!;
+    // Every screen read both days empty; the order of the ids alternates, which is what would
+    // deadlock two writers that locked in the order they were given.
     const results = await race(
       Array.from({ length: 20 }, (_, i) => () =>
         repo.assignDepots({
-          depotIds: [d.id],
+          depotIds: i % 2 ? [d.id, e.id] : [e.id, d.id],
           legalEntityId: entities[i % 4].id,
           effectiveFrom: day,
           recordedBy: null,
+          seen: new Map(),
         }),
       ),
     );
-    expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
-    const rows = await prisma.depotLegalEntity.findMany({ where: { depotId: d.id } });
-    expect(rows).toHaveLength(1);
-    expect(entities.map((e) => e.id)).toContain(rows[0].legalEntityId);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const refused = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+    expect(refused.every((r) => r.reason instanceof StaleWriteError)).toBe(true);
+    const rows = await prisma.depotLegalEntity.findMany({ where: { depotId: { in: [d.id, e.id] } } });
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map((r) => r.legalEntityId)).size).toBe(1);
+    expect(entities.map((x) => x.id)).toContain(rows[0].legalEntityId);
     // The calendar day survives the round trip whatever the session time zone.
     const [history] = (await repo.depotHistories()).filter((h) => h.depotId === d.id);
     expect(history.points[0].effectiveFrom).toBe('2026-12-01');

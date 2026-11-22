@@ -80,7 +80,7 @@ export class LegalEntityController {
     @Body() dto: CreateLegalEntityDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<LegalEntity> {
-    const created = await this.entities.create(dto, user.sub ?? null);
+    const created = await this.entities.create(dto, user.sub);
     await this.audit('legal_entity.create', user, created.name, {
       legalEntityId: created.id,
       kind: created.kind,
@@ -100,7 +100,7 @@ export class LegalEntityController {
   ): Promise<LegalEntity> {
     // `seenUpdatedAt` is the version the form read, not a column: it stops here.
     const { seenUpdatedAt, ...patch } = dto;
-    const { before, after, changed } = await this.entities.update(id, patch, seenUpdatedAt, user.sub ?? null);
+    const { before, after, changed } = await this.entities.update(id, patch, seenUpdatedAt, user.sub);
     if (!after) return before;
     await this.audit('legal_entity.update', user, after.name, { legalEntityId: id, changed });
     return after;
@@ -115,7 +115,7 @@ export class LegalEntityController {
     @Body() dto: SetAiGrantsDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<LegalEntityDirectory> {
-    const applied = await this.entities.setAiGrants(dto.changes, user.sub ?? null);
+    const applied = await this.entities.setAiGrants(dto.changes, user.sub);
     await this.audit('legal_entity.ai_grants.update', user, `${applied.length} cell(s)`, {
       changes: applied.map((c) => ({ legalEntityId: c.legalEntityId, roleKey: c.roleKey, granted: c.granted })),
     });
@@ -143,8 +143,8 @@ export class LegalEntityController {
     const effectiveFrom = parseCalendarDay(dto.effectiveFrom);
     if (!effectiveFrom) throw new BadRequestException('effectiveFrom must be a calendar day (YYYY-MM-DD)');
     const written = await this.entities.assignDepots(
-      { depotIds: dto.depotIds, legalEntityId: dto.legalEntityId, effectiveFrom },
-      user.sub ?? null,
+      { depotIds: dto.depotIds, legalEntityId: dto.legalEntityId, effectiveFrom, seen: dto.seen },
+      user.sub,
     );
     if (written.length > 0) {
       await this.audit('legal_entity.depots.assign', user, dto.legalEntityId, {
@@ -199,7 +199,7 @@ export class LegalEntityController {
   ): Promise<void> {
     await recordAuditEvent(
       { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey },
-      { action, actorId: user.sub ?? null, target, metadata },
+      { action, actorId: user.sub, target, metadata },
       this.logger,
     );
   }

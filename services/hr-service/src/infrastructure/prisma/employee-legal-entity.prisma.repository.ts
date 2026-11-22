@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { StaleWriteError } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
 import {
@@ -67,22 +68,32 @@ export class EmployeeLegalEntityPrismaRepository implements EmployeeLegalEntityR
 
   async assign(data: AssignEmployeesData): Promise<AssignedEmployee[]> {
     const day = formatCalendarDay(data.effectiveFrom);
+    // Sorted: overlapping saves take their locks, and write their rows, in one order.
+    const employeeIds = [...data.employeeIds].sort();
     return this.prisma.$transaction(async (tx) => {
-      // Read for the audit trail only (which entity a corrected day held before).
-      const before = await tx.employeeLegalEntity.findMany({
-        where: { employeeId: { in: data.employeeIds }, effectiveFrom: data.effectiveFrom },
+      // One lock per (employee, day), held to commit: the check below and the write after it are
+      // one step for that day, even where no row exists yet.
+      const keys = employeeIds.map((id) => Prisma.sql`(${`employee-legal-entity:${id}:${day}`})`);
+      await tx.$executeRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(k, 0)) FROM (VALUES ${Prisma.join(keys)}) AS v(k)`,
+      );
+      const current = await tx.employeeLegalEntity.findMany({
+        where: { employeeId: { in: employeeIds }, effectiveFrom: data.effectiveFrom },
         select: { employeeId: true, legalEntityId: true },
-        take: data.employeeIds.length,
+        take: employeeIds.length,
       });
-      const had = new Map(before.map((b) => [b.employeeId, b.legalEntityId]));
-      // One statement, so two people dating the same employee and day at once end with one row
-      // instead of a unique-index 500. A day that already holds this entity is left alone.
+      const had = new Map(current.map((c) => [c.employeeId, c.legalEntityId]));
+      // A day that changed since the screen read it is somebody else's write, not ours to erase.
+      if (employeeIds.some((id) => (had.get(id) ?? null) !== (data.seen.get(id) ?? null))) {
+        throw new StaleWriteError();
+      }
+      // A day that already holds this entity is left alone.
       const written = await tx.$queryRaw<{ employeeId: string }[]>(Prisma.sql`
         INSERT INTO "employee_legal_entities"
           ("id", "employeeId", "legalEntityId", "effectiveFrom", "recordedBy", "recordedAt")
         SELECT gen_random_uuid(), e."employeeId", ${data.legalEntityId}::uuid, ${day}::date,
                ${data.recordedBy}::uuid, CURRENT_TIMESTAMP
-        FROM (VALUES ${Prisma.join(data.employeeIds.map((id) => Prisma.sql`(${id}::uuid)`))}) AS e("employeeId")
+        FROM (VALUES ${Prisma.join(employeeIds.map((id) => Prisma.sql`(${id}::uuid)`))}) AS e("employeeId")
         ON CONFLICT ("employeeId", "effectiveFrom") DO UPDATE
           SET "legalEntityId" = EXCLUDED."legalEntityId",
               "recordedBy" = EXCLUDED."recordedBy",

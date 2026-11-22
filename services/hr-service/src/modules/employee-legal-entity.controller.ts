@@ -46,14 +46,17 @@ export class EmployeeLegalEntityController {
     @Body() dto: AssignEmployeeLegalEntityDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<AssignedEmployee[]> {
-    return this.legalEntities.assign(dto, user.sub ?? null);
+    return this.legalEntities.assign(dto, user.sub);
   }
 
   @ApiOkResponse({ description: 'No content.' })
   @Delete(':id')
   @HttpCode(204)
   @ApiOperation({ summary: 'Take back one dated legal-entity point of an employee' })
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    await this.legalEntities.remove(id);
+  async remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    await this.legalEntities.remove(id, user.sub);
   }
 }

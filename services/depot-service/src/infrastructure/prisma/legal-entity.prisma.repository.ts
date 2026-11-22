@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { StaleWriteError } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
 import {
@@ -89,18 +90,31 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
     }
   }
 
-  async update(id: string, data: UpdateLegalEntityData): Promise<LegalEntity> {
+  async update(id: string, data: UpdateLegalEntityData, expectedUpdatedAt: Date): Promise<LegalEntity> {
+    let count: number;
     try {
-      return this.toEntity(await this.prisma.legalEntity.update({ where: { id }, data }));
+      // Compare-and-set: two saves that both passed the service's freshness check on the same
+      // version cannot both land; the second finds the version moved and is refused.
+      ({ count } = await this.prisma.legalEntity.updateMany({
+        where: { id, updatedAt: expectedUpdatedAt },
+        data,
+      }));
     } catch (error) {
       if (isCode(error, 'P2002')) throw new DuplicateLegalEntityNameError();
       throw error;
     }
+    if (count === 0) throw new StaleWriteError();
+    return this.toEntity(await this.prisma.legalEntity.findUniqueOrThrow({ where: { id } }));
   }
 
   async setAiGrants(changes: AiGrantChange[], grantedBy: string | null): Promise<void> {
-    const grants = changes.filter((c) => c.granted);
-    const revokes = changes.filter((c) => !c.granted);
+    // One order for every writer (entity, then role), so two overlapping saves lock the same
+    // rows in the same order and cannot deadlock each other.
+    const sorted = [...changes].sort(
+      (a, b) => a.legalEntityId.localeCompare(b.legalEntityId) || a.roleKey.localeCompare(b.roleKey),
+    );
+    const grants = sorted.filter((c) => c.granted);
+    const revokes = sorted.filter((c) => !c.granted);
     // Insert-or-ignore and delete-what-matches: both are absolute, so two editors saving
     // different cells of the matrix at once cannot undo each other.
     const writes: Prisma.PrismaPromise<unknown>[] = [];
@@ -148,24 +162,33 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
 
   async assignDepots(data: AssignDepotsData): Promise<AssignedDepot[]> {
     const day = formatCalendarDay(data.effectiveFrom);
+    // Sorted: overlapping saves take their locks, and write their rows, in one order.
+    const depotIds = [...data.depotIds].sort();
     return this.prisma.$transaction(async (tx) => {
-      // Read for the audit line only (which entity a corrected day held before); the write
-      // below decides on its own and does not trust this read.
-      const before = await tx.depotLegalEntity.findMany({
-        where: { depotId: { in: data.depotIds }, effectiveFrom: data.effectiveFrom },
+      // One lock per (depot, day), held to commit. The check below and the write after it are
+      // then one step for that day: nobody can change it in between, even where no row exists.
+      const keys = depotIds.map((id) => Prisma.sql`(${`depot-legal-entity:${id}:${day}`})`);
+      await tx.$executeRaw(
+        Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(k, 0)) FROM (VALUES ${Prisma.join(keys)}) AS v(k)`,
+      );
+      const current = await tx.depotLegalEntity.findMany({
+        where: { depotId: { in: depotIds }, effectiveFrom: data.effectiveFrom },
         select: { depotId: true, legalEntityId: true },
-        take: data.depotIds.length,
+        take: depotIds.length,
       });
-      const had = new Map(before.map((b) => [b.depotId, b.legalEntityId]));
-      // One statement, so two people setting the same depot and day at once end with one row
-      // instead of a unique-index 500. The WHERE skips a day that already holds this entity:
-      // nothing is rewritten, and the depot is left out of the result (and of the audit line).
+      const had = new Map(current.map((c) => [c.depotId, c.legalEntityId]));
+      // A day that changed since the screen read it is somebody else's write, not ours to erase.
+      if (depotIds.some((id) => (had.get(id) ?? null) !== (data.seen.get(id) ?? null))) {
+        throw new StaleWriteError();
+      }
+      // The WHERE skips a day that already holds this entity: nothing is rewritten, and the depot
+      // is left out of the result (and of the audit line).
       const written = await tx.$queryRaw<{ depotId: string }[]>(Prisma.sql`
         INSERT INTO "depot_legal_entities"
           ("id", "depotId", "legalEntityId", "effectiveFrom", "recordedBy", "recordedAt")
         SELECT gen_random_uuid(), d."depotId", ${data.legalEntityId}::uuid, ${day}::date,
                ${data.recordedBy}::uuid, CURRENT_TIMESTAMP
-        FROM (VALUES ${Prisma.join(data.depotIds.map((id) => Prisma.sql`(${id}::uuid)`))}) AS d("depotId")
+        FROM (VALUES ${Prisma.join(depotIds.map((id) => Prisma.sql`(${id}::uuid)`))}) AS d("depotId")
         ON CONFLICT ("depotId", "effectiveFrom") DO UPDATE
           SET "legalEntityId" = EXCLUDED."legalEntityId",
               "recordedBy" = EXCLUDED."recordedBy",

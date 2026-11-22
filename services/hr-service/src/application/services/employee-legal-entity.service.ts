@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { AuditService } from './audit.service';
 import {
   AssignedEmployee,
   EMPLOYEE_LEGAL_ENTITY_REPOSITORY,
@@ -31,6 +32,7 @@ export class EmployeeLegalEntityService {
   constructor(
     @Inject(EMPLOYEE_LEGAL_ENTITY_REPOSITORY) private readonly points: EmployeeLegalEntityRepository,
     @Inject(LEGAL_ENTITY_DIRECTORY_PORT) private readonly entities: LegalEntityDirectoryPort,
+    private readonly audit: AuditService,
   ) {}
 
   histories(): Promise<EmployeeLegalEntityHistory[]> {
@@ -43,7 +45,13 @@ export class EmployeeLegalEntityService {
    * than dated to a company nobody checked.
    */
   async assign(
-    input: { employeeIds: string[]; legalEntityId: string; effectiveFrom: string },
+    input: {
+      employeeIds: string[];
+      legalEntityId: string;
+      effectiveFrom: string;
+      /** The entity the screen showed on that day, for each employee that had a point there. */
+      seen: ReadonlyArray<{ id: string; legalEntityId: string }>;
+    },
     actorId: string | null,
   ): Promise<AssignedEmployee[]> {
     const day = parseCalendarDay(input.effectiveFrom);
@@ -57,18 +65,50 @@ export class EmployeeLegalEntityService {
     if ((await this.points.existingEmployeeIds(employeeIds)).length !== employeeIds.length) {
       throw new NotFoundException('Karyawan tidak ditemukan');
     }
-    return this.points.assign({
+    const written = await this.points.assign({
       employeeIds,
       legalEntityId: entity.id,
       effectiveFrom: day,
       recordedBy: actorId,
+      seen: new Map(input.seen.map((s) => [s.id, s.legalEntityId])),
     });
+    // The request interceptor keeps the body, not what a corrected day held before: said here.
+    if (written.length > 0) {
+      await this.audit.record({
+        actorId,
+        action: 'employee_legal_entity.assign',
+        entity: 'employee-legal-entities',
+        entityId: entity.id,
+        before: {
+          replaced: written
+            .filter((w) => w.replaced)
+            .map((w) => ({ employeeId: w.employeeId, legalEntityId: w.replaced })),
+        },
+        after: {
+          legalEntityId: entity.id,
+          effectiveFrom: input.effectiveFrom,
+          employeeIds: written.map((w) => w.employeeId),
+        },
+        ip: null,
+      });
+    }
+    return written;
   }
 
   /** Take back one dated point (entered by mistake); the period before it then runs on. */
-  async remove(id: string): Promise<EmployeeLegalEntityPoint> {
+  async remove(id: string, actorId: string | null): Promise<EmployeeLegalEntityPoint> {
     const removed = await this.points.remove(id);
     if (!removed) throw new NotFoundException('Riwayat badan hukum karyawan ini tidak ditemukan');
+    // The row is gone after this: what it held is only in the trail.
+    await this.audit.record({
+      actorId,
+      action: 'employee_legal_entity.remove',
+      entity: 'employee-legal-entities',
+      entityId: removed.employeeId,
+      before: removed,
+      after: null,
+      ip: null,
+    });
     return removed;
   }
 }

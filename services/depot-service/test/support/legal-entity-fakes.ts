@@ -7,6 +7,8 @@ import {
   UpdateLegalEntityData,
 } from '../../src/application/ports/legal-entity.repository';
 import { DepotRecord } from '../../src/application/ports/depot.repository';
+import { StaleWriteError } from '@hydromart/platform';
+
 import { DuplicateLegalEntityNameError } from '../../src/domain/errors';
 import {
   DepotLegalEntityHistory,
@@ -76,8 +78,9 @@ export class InMemoryLegalEntityRepository implements LegalEntityRepository {
     return { ...row };
   }
 
-  async update(id: string, data: UpdateLegalEntityData): Promise<LegalEntity> {
+  async update(id: string, data: UpdateLegalEntityData, expectedUpdatedAt: Date): Promise<LegalEntity> {
     const row = this.entities.find((e) => e.id === id)!;
+    if (row.updatedAt.getTime() !== expectedUpdatedAt.getTime()) throw new StaleWriteError();
     if (data.name !== undefined && this.clash(data.name, id)) throw new DuplicateLegalEntityNameError();
     Object.assign(row, data, { updatedAt: new Date(row.updatedAt.getTime() + 1000) });
     return { ...row };
@@ -109,6 +112,10 @@ export class InMemoryLegalEntityRepository implements LegalEntityRepository {
 
   async assignDepots(data: AssignDepotsData): Promise<AssignedDepot[]> {
     const day = formatCalendarDay(data.effectiveFrom);
+    const at = (depotId: string) => this.points.find((p) => p.depotId === depotId && p.effectiveFrom === day);
+    if (data.depotIds.some((id) => (at(id)?.legalEntityId ?? null) !== (data.seen.get(id) ?? null))) {
+      throw new StaleWriteError();
+    }
     const written: AssignedDepot[] = [];
     for (const depotId of data.depotIds) {
       const existing = this.points.find((p) => p.depotId === depotId && p.effectiveFrom === day);

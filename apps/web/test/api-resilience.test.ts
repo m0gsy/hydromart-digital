@@ -147,6 +147,29 @@ describe('request sharing (F-1/F-2)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
+  it('a read asked for after a mutation does not join one that left before it', async () => {
+    const held: Array<(r: Response) => void> = [];
+    const pending = () => new Promise<Response>((resolve) => held.push(resolve));
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(pending)
+      .mockResolvedValueOnce(json(200, {}))
+      .mockImplementationOnce(pending);
+    vi.stubGlobal('fetch', fetchMock);
+    const before = api.get('/thing');
+    await api.post('/thing', { v: 2 });
+    const after = api.get('/thing');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    held[0]!(json(200, { v: 1 }));
+    await expect(before).resolves.toEqual({ v: 1 });
+    // The old read settling must not drop the newer one's entry: this joins it.
+    const joined = api.get('/thing');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    held[1]!(json(200, { v: 2 }));
+    await expect(after).resolves.toEqual({ v: 2 });
+    await expect(joined).resolves.toEqual({ v: 2 });
+  });
+
   it('an authenticated read is not served from an anonymous one', async () => {
     const fetchMock = vi.fn(async () => json(200, { v: 1 }));
     vi.stubGlobal('fetch', fetchMock);

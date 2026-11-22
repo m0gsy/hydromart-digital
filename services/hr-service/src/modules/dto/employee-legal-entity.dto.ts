@@ -1,5 +1,25 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsISO8601, IsUUID, Matches } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsISO8601,
+  IsUUID,
+  Matches,
+  ValidateNested,
+} from 'class-validator';
+
+/** What the screen showed for one employee on the day being written. */
+export class SeenEmployeePointDto {
+  @ApiProperty({ format: 'uuid', description: 'An employee of this request.' })
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty({ format: 'uuid', description: 'The legal entity the screen showed for them on that day.' })
+  @IsUUID()
+  legalEntityId!: string;
+}
 
 export class AssignEmployeeLegalEntityDto {
   @ApiProperty({ type: [String], format: 'uuid' })
@@ -17,6 +37,18 @@ export class AssignEmployeeLegalEntityDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   @IsISO8601({ strict: true })
   effectiveFrom!: string;
+
+  @ApiProperty({
+    type: [SeenEmployeePointDto],
+    description:
+      'Every employee that already had a point on that day in the copy the screen read, with its ' +
+      'entity. One not listed was shown with none. 409 STALE_WRITE when the stored day differs.',
+  })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @ValidateNested({ each: true })
+  @Type(() => SeenEmployeePointDto)
+  seen!: SeenEmployeePointDto[];
 }
 
 // ---- Responses ----

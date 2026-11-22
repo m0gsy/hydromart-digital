@@ -154,6 +154,21 @@ describe('LegalEntityService', () => {
       });
     });
 
+    it('refuses the second of two saves that both checked the same version', async () => {
+      const e = await kelola();
+      const stamp = e.updatedAt.toISOString();
+      // The first lands between the second's freshness check and its write.
+      const real = repo.findById.bind(repo);
+      jest.spyOn(repo, 'findById').mockImplementationOnce(async (id) => {
+        const seen = await real(id);
+        await repo.update(id, { name: 'PT Lain', updatedBy: null }, e.updatedAt);
+        return seen;
+      });
+      await expect(service.update(e.id, { name: 'PT Kelola Baru' }, stamp, ACTOR)).rejects.toBeInstanceOf(
+        StaleWriteError,
+      );
+    });
+
     it('switches off with a bare toggle, no version needed', async () => {
       const e = await kelola();
       const res = await service.update(e.id, { active: false }, undefined, ACTOR);
@@ -230,11 +245,17 @@ describe('LegalEntityService', () => {
     it('dates a depot to an entity, corrects the same day, and leaves an unchanged day alone', async () => {
       const e = await kelola();
       const other = await service.create({ name: 'PT Indo', kind: 'FRANCHISOR' }, ACTOR);
-      const input = { depotIds: [depotId, depotId], legalEntityId: e.id, effectiveFrom: day('2026-01-01') };
+      const input = {
+        depotIds: [depotId, depotId],
+        legalEntityId: e.id,
+        effectiveFrom: day('2026-01-01'),
+        seen: [] as { id: string; legalEntityId: string }[],
+      };
       expect(await service.assignDepots(input, ACTOR)).toEqual([{ depotId, replaced: null }]);
-      expect(await service.assignDepots(input, ACTOR)).toEqual([]);
+      const seenKelola = [{ id: depotId, legalEntityId: e.id }];
+      expect(await service.assignDepots({ ...input, seen: seenKelola }, ACTOR)).toEqual([]);
       expect(
-        await service.assignDepots({ ...input, legalEntityId: other.id }, ACTOR),
+        await service.assignDepots({ ...input, legalEntityId: other.id, seen: seenKelola }, ACTOR),
       ).toEqual([{ depotId, replaced: e.id }]);
       const [history] = await service.depotHistories();
       expect(history.points).toEqual([
@@ -242,25 +263,42 @@ describe('LegalEntityService', () => {
       ]);
     });
 
+    it('refuses to correct a day the screen did not see as it is now', async () => {
+      const e = await kelola();
+      const other = await service.create({ name: 'PT Indo', kind: 'FRANCHISOR' }, ACTOR);
+      const from = day('2026-01-01');
+      // Somebody else dated the depot to PT Kelola Air on that day after this screen was read.
+      await service.assignDepots({ depotIds: [depotId], legalEntityId: e.id, effectiveFrom: from, seen: [] }, ACTOR);
+      await expect(
+        service.assignDepots({ depotIds: [depotId], legalEntityId: other.id, effectiveFrom: from, seen: [] }, ACTOR),
+      ).rejects.toBeInstanceOf(StaleWriteError);
+      await expect(
+        service.assignDepots(
+          { depotIds: [depotId], legalEntityId: e.id, effectiveFrom: from, seen: [{ id: depotId, legalEntityId: other.id }] },
+          ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(StaleWriteError);
+    });
+
     it('refuses an unknown entity, a switched-off one, and an unknown depot', async () => {
       const e = await kelola();
       const from = day('2026-01-01');
       await expect(
-        service.assignDepots({ depotIds: [depotId], legalEntityId: UNKNOWN, effectiveFrom: from }, ACTOR),
+        service.assignDepots({ depotIds: [depotId], legalEntityId: UNKNOWN, effectiveFrom: from, seen: [] }, ACTOR),
       ).rejects.toBeInstanceOf(LegalEntityNotFoundError);
       await expect(
-        service.assignDepots({ depotIds: [UNKNOWN], legalEntityId: e.id, effectiveFrom: from }, ACTOR),
+        service.assignDepots({ depotIds: [UNKNOWN], legalEntityId: e.id, effectiveFrom: from, seen: [] }, ACTOR),
       ).rejects.toBeInstanceOf(DepotNotFoundError);
       await service.update(e.id, { active: false }, undefined, ACTOR);
       await expect(
-        service.assignDepots({ depotIds: [depotId], legalEntityId: e.id, effectiveFrom: from }, ACTOR),
+        service.assignDepots({ depotIds: [depotId], legalEntityId: e.id, effectiveFrom: from, seen: [] }, ACTOR),
       ).rejects.toBeInstanceOf(LegalEntityInactiveError);
     });
 
     it('takes back one point, and is 404 for one that is gone', async () => {
       const e = await kelola();
       await service.assignDepots(
-        { depotIds: [depotId], legalEntityId: e.id, effectiveFrom: day('2026-01-01') },
+        { depotIds: [depotId], legalEntityId: e.id, effectiveFrom: day('2026-01-01'), seen: [] },
         ACTOR,
       );
       const [{ points }] = await service.depotHistories();
