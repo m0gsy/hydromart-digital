@@ -1,5 +1,5 @@
 /*
- * A DEAD event is somebody's problem, so the alert is observed, not stubbed away: the relay
+ * A stuck event is somebody's problem, so the alert is observed, not stubbed away: the relay
  * swallows every failure on purpose, and the property that matters is that ops is TOLD.
  */
 jest.mock('@hydromart/platform', () => ({
@@ -50,13 +50,12 @@ class FakeOutbox implements EventOutboxRepository {
     const r = this.rows.find((x) => x.id === id && x.status === 'PENDING');
     if (r) r.status = 'DONE';
   }
-  async markFailed(id: string, error: string, next: Date | null): Promise<void> {
+  async markFailed(id: string, error: string, next: Date): Promise<void> {
     const r = this.rows.find((x) => x.id === id && x.status === 'PENDING');
     if (!r) return;
     r.attempts += 1;
     r.lastError = error;
-    if (next) r.nextAttemptAt = next;
-    else r.status = 'DEAD';
+    r.nextAttemptAt = next;
   }
   async pruneDone(before: Date, limit: number): Promise<number> {
     this.pruned.push({ before, limit });
@@ -104,9 +103,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
     const { outbox, transport, svc } = make();
     await svc.flush('never-recorded');
     outbox.record('done', { status: 'DONE' });
-    outbox.record('dead', { status: 'DEAD' });
     await svc.flush('done');
-    await svc.flush('dead');
     expect(transport.publish).not.toHaveBeenCalled();
   });
 
@@ -136,7 +133,6 @@ describe('EventRelayService (HD-7 outbox)', () => {
       claimed: 1,
       delivered: 1,
       failed: 0,
-      dead: 0,
       pruned: 0,
       ok: true,
     });
@@ -159,17 +155,48 @@ describe('EventRelayService (HD-7 outbox)', () => {
     expect(outbox.rows[0].nextAttemptAt.getTime()).toBe(third.getTime() + 240_000);
   });
 
-  it('gives up after six attempts: DEAD, counted, alerted, and ok=false when nothing got through', async () => {
+  // A calon mitra's application must not vanish because admin-service was down for an hour.
+  it('never gives an event up: past six tries it is retried an hour apart', async () => {
+    const { outbox, svc } = make(async () => {
+      throw new Error('admin-service responded 401');
+    });
+    outbox.record('k1', { attempts: 9, occurredAt: new Date(NOW.getTime() - 30 * 86_400_000) });
+    const res = await svc.processDue(NOW);
+    expect(res).toMatchObject({ claimed: 1, delivered: 0, failed: 1, ok: false });
+    expect(outbox.rows[0]).toMatchObject({ status: 'PENDING', attempts: 10 });
+    expect(outbox.rows[0].nextAttemptAt.getTime()).toBe(NOW.getTime() + 3_600_000);
+    // A thousand tries later the wait is still an hour, not Infinity.
+    outbox.rows[0].attempts = 1000;
+    outbox.rows[0].nextAttemptAt = NOW;
+    await svc.processDue(NOW);
+    expect(outbox.rows[0].nextAttemptAt.getTime()).toBe(NOW.getTime() + 3_600_000);
+  });
+
+  it('tells ops once, on the sixth failed try, and keeps going', async () => {
     const { outbox, svc } = make(async () => {
       throw new Error('admin-service responded 400');
     });
-    outbox.record('k1', { attempts: 5 });
-    const res = await svc.processDue(new Date(Date.now() + 120 * 60_000));
-    expect(res).toMatchObject({ claimed: 1, delivered: 0, failed: 1, dead: 1, ok: false });
-    expect(outbox.rows[0].status).toBe('DEAD');
+    outbox.record('k1', { attempts: 4 });
+    await svc.processDue(NOW); // fifth try
+    expect(alert).not.toHaveBeenCalled();
+    outbox.rows[0].nextAttemptAt = NOW;
+    await svc.processDue(NOW); // sixth try
+    expect(alert).toHaveBeenCalledTimes(1);
     expect(alert).toHaveBeenCalledWith(
-      expect.objectContaining({ path: 'depot-webhook-outbox#dead', status: 500 }),
+      expect.objectContaining({ path: 'depot-webhook-outbox#stuck', status: 500 }),
     );
+    expect(String(alert.mock.calls[0][0].exception.message)).toMatch(/still retrying hourly/);
+    outbox.rows[0].nextAttemptAt = NOW;
+    await svc.processDue(NOW); // seventh: no second alert, still owed
+    expect(alert).toHaveBeenCalledTimes(1);
+    expect(outbox.rows[0]).toMatchObject({ status: 'PENDING', attempts: 7 });
+  });
+
+  // flush is the only thing between an applicant and a 500 after their row is saved.
+  it('flush survives a rejection that is not even an Error', async () => {
+    const { outbox, svc } = make();
+    outbox.findByEventId = () => Promise.reject(null);
+    await expect(svc.flush('k1')).resolves.toBeUndefined();
   });
 
   it('a round that sends one and loses one stays ok (J7 rule)', async () => {
@@ -202,6 +229,8 @@ describe('EventRelayService (HD-7 outbox)', () => {
     outbox.pruneDone = async () => {
       throw new Error('lock timeout');
     };
+    await expect(svc.processDue(new Date())).resolves.toMatchObject({ pruned: 0, ok: true });
+    outbox.pruneDone = () => Promise.reject(undefined);
     await expect(svc.processDue(new Date())).resolves.toMatchObject({ pruned: 0, ok: true });
   });
 

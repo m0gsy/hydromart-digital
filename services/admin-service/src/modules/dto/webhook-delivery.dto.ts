@@ -17,7 +17,7 @@ import { WebhookDeliveryRecord } from '../../application/ports/webhook.repositor
 import { WEBHOOK_EVENTS } from '../../domain/webhook-delivery';
 
 export class PublishEventDto {
-  /** `domain.thing_happened` — the same string an endpoint subscribes to (HD-7: a closed list). */
+  /** `domain.thing_happened`, the same string an endpoint subscribes to (HD-7: a closed list). */
   @ApiProperty({ enum: WEBHOOK_EVENTS, example: 'delivery.delivered' })
   @IsString()
   @IsIn(WEBHOOK_EVENTS, { message: `event must be one of: ${WEBHOOK_EVENTS.join(', ')}` })

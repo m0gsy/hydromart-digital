@@ -65,6 +65,20 @@ describeRace('webhook deliveries on real Postgres', () => {
     expect(row.lastError).toBeNull();
   });
 
+  // HD-7: switching an endpoint off stops its sends; what it had queued waits for it.
+  it('claims nothing for an endpoint HQ switched off, and the queued delivery waits', async () => {
+    const ep = await endpoint();
+    const d = await delivery(ep.id);
+    await prisma.webhookEndpoint.update({ where: { id: ep.id }, data: { active: false } });
+    const off = await repo.claimDue(new Date(), 50, 300_000);
+    expect(off.map((x) => x.id)).not.toContain(d.id);
+    expect((await prisma.webhookDelivery.findUniqueOrThrow({ where: { id: d.id } })).status).toBe('PENDING');
+
+    await prisma.webhookEndpoint.update({ where: { id: ep.id }, data: { active: true } });
+    const on = await repo.claimDue(new Date(), 50, 300_000);
+    expect(on.map((x) => x.id)).toContain(d.id);
+  });
+
   /*
    * HD-7: "secret wajib" held by the column itself, so no code path (an old release mid-deploy,
    * a raw write, a future endpoint) can leave a delivery unsigned.

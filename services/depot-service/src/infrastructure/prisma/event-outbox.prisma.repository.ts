@@ -59,15 +59,10 @@ export class EventOutboxPrismaRepository implements EventOutboxRepository {
     });
   }
 
-  async markFailed(id: string, error: string, nextAttemptAt: Date | null): Promise<void> {
+  async markFailed(id: string, error: string, nextAttemptAt: Date): Promise<void> {
     await this.prisma.webhookEventOutbox.updateMany({
       where: { id, status: 'PENDING' },
-      data: {
-        status: nextAttemptAt ? 'PENDING' : 'DEAD',
-        attempts: { increment: 1 },
-        lastError: error.slice(0, 500),
-        ...(nextAttemptAt ? { nextAttemptAt } : {}),
-      },
+      data: { attempts: { increment: 1 }, lastError: error.slice(0, 500), nextAttemptAt },
     });
   }
 

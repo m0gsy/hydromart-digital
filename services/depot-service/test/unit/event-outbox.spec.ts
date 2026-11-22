@@ -88,24 +88,14 @@ describe('EventOutboxPrismaRepository (HD-7)', () => {
     await repo.markFailed('o1', 'x'.repeat(600), NOW);
     expect(webhookEventOutbox.updateMany).toHaveBeenLastCalledWith({
       where: { id: 'o1', status: 'PENDING' },
-      data: {
-        status: 'PENDING',
-        attempts: { increment: 1 },
-        lastError: 'x'.repeat(500),
-        nextAttemptAt: NOW,
-      },
-    });
-    await repo.markFailed('o1', 'gone', null);
-    expect(webhookEventOutbox.updateMany).toHaveBeenLastCalledWith({
-      where: { id: 'o1', status: 'PENDING' },
-      data: { status: 'DEAD', attempts: { increment: 1 }, lastError: 'gone' },
+      data: { attempts: { increment: 1 }, lastError: 'x'.repeat(500), nextAttemptAt: NOW },
     });
   });
 });
 
 describe('EventOutboxController (HD-7)', () => {
   it('runs the relay sweep', async () => {
-    const result = { claimed: 1, delivered: 1, failed: 0, dead: 0, pruned: 0, ok: true };
+    const result = { claimed: 1, delivered: 1, failed: 0, pruned: 0, ok: true };
     const relay = { processDue: jest.fn().mockResolvedValue(result) } as unknown as EventRelayService;
     await expect(new EventOutboxController(relay).process()).resolves.toBe(result);
   });
@@ -138,6 +128,21 @@ describe('EventPublisherHttpAdapter (HD-7)', () => {
       eventId: 'k1',
     });
     expect(init.signal).toBeDefined();
+  });
+
+  // The other half is admin-service's spec, which validates the same example against its DTO.
+  it('sends admin-service exactly the internal publish example of the contract', async () => {
+    const contract = JSON.parse(
+      readFileSync(join(__dirname, '../../../../contracts/ai-v1/events.openapi.json'), 'utf8'),
+    );
+    const example = contract['x-hydromart-internal-publish-example'].body;
+    await new EventPublisherHttpAdapter(config()).publish(
+      example.event,
+      example.payload,
+      new Date(example.occurredAt),
+      example.eventId,
+    );
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual(example);
   });
 
   it('throws when admin-service refuses it, so the outbox keeps it', async () => {
@@ -203,8 +208,16 @@ describe('franchise.application_submitted (HD-7)', () => {
     expect(Object.keys(event.payload).sort()).toEqual([...data.required].sort());
     expect(Object.keys(data.properties).sort()).toEqual([...data.required].sort());
     for (const key of ['city', 'province'] as const) {
-      expect(data.properties[key]).toMatchObject({ type: 'string', minLength: 1, maxLength: 100 });
+      expect(data.properties[key]).toMatchObject({ type: 'string', minLength: 1 });
+      // The form counts characters its own way: a receiver must not reject on length.
+      expect(data.properties[key].maxLength).toBeUndefined();
     }
+
+    // The signed sample a receiver tests against carries exactly the data depot sends.
+    const vector = JSON.parse(contract['x-hydromart-signature-test-vector'].body);
+    expect(Object.keys(vector.data).sort()).toEqual(Object.keys(event.payload).sort());
+    expect(vector.event).toBe(event.event);
+    expect(vector.eventId).toBe(franchiseApplicationSubmittedEventId(vector.data.applicationId));
     expect(data.properties.applicationId).toMatchObject({ type: 'string', format: 'uuid' });
   });
 });

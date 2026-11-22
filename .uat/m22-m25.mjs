@@ -133,11 +133,15 @@ export async function run(ctx) {
   });
 
   await check('UAT-M23-02', async () => {
-    const c = await api('POST', `${ADM}/webhooks`, { token: ctx.admin, body: { url: 'https://example.com/hook', events: ['delivery.delivered'], active: true } });
+    // Registered switched OFF, then deleted: an active endpoint for a real event would queue real
+    // deliveries (recipient names) to a third-party host for as long as it existed.
+    const c = await api('POST', `${ADM}/webhooks`, { token: ctx.admin, body: { url: 'https://example.com/hook', events: ['delivery.delivered'], active: false } });
     if (c.status >= 400) return fail(`register HTTP ${c.status} ${JSON.stringify(c.body)}`);
     ctx.webhook = c.body;
     const off = await api('PATCH', `${ADM}/webhooks/${c.body.id}`, { token: ctx.admin, body: { active: false } });
-    return off.status < 400 ? pass(`registered HTTP ${c.status} (secret issued=${Boolean(c.body?.secret)}); disabled HTTP ${off.status}`) : fail(`disable HTTP ${off.status} ${JSON.stringify(off.body)}`);
+    const gone = await api('DELETE', `${ADM}/webhooks/${c.body.id}`, { token: ctx.admin });
+    if (gone.status >= 400) return fail(`cleanup DELETE HTTP ${gone.status} ${JSON.stringify(gone.body)}`);
+    return off.status < 400 ? pass(`registered HTTP ${c.status} (secret issued=${Boolean(c.body?.secret)}); disabled HTTP ${off.status}; removed HTTP ${gone.status}`) : fail(`disable HTTP ${off.status} ${JSON.stringify(off.body)}`);
   });
 
   await check('UAT-M23-17', async () => {

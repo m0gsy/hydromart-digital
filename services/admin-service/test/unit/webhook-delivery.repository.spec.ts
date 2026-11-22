@@ -74,6 +74,12 @@ describe('WebhookDeliveryPrismaRepository', () => {
 
     const claimed = await repo.claimDue(NOW, 10, 60_000);
 
+    // HD-7: an endpoint HQ switched off is not claimed for, so nothing more is sent to it.
+    expect(webhookDelivery.findMany.mock.calls[0][0].where).toEqual({
+      status: 'PENDING',
+      nextAttemptAt: { lte: NOW },
+      endpoint: { active: true },
+    });
     expect(webhookDelivery.updateMany).toHaveBeenCalledWith({
       where: { id: { in: ['d-1'] }, status: 'PENDING', nextAttemptAt: { lte: NOW } },
       data: { nextAttemptAt: new Date(NOW.getTime() + 60_000) },

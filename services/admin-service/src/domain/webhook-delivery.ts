@@ -9,7 +9,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * HD-7: every event a service publishes, and so every event an endpoint can subscribe to.
  *
  * The registration form takes event names as free text. An endpoint subscribed to a name no
- * service publishes — a typo, or `order.created`, which never existed — was accepted and then
+ * service publishes (a typo, or `order.created`, which never existed) was accepted and then
  * received nothing, forever, with nothing anywhere saying why. contracts/ai-v1/events.openapi.json
  * describes the bodies.
  */

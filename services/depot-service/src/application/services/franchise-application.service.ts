@@ -77,9 +77,10 @@ export class FranchiseApplicationService {
       throw new DuplicateDepotCodeError();
     }
     // HD-7: the application and its "franchise.application_submitted" event were saved
-    // together; send the event now. flush never throws, and the sweep sends what it could not.
+    // together; send the event now, without making the applicant wait for admin-service (up to
+    // its 5 s timeout). flush never rejects, and the sweep sends whatever it could not.
     const created = await this.applications.create(data);
-    await this.relay.flush(franchiseApplicationSubmittedEventId(created.id));
+    void this.relay.flush(franchiseApplicationSubmittedEventId(created.id));
     return created;
   }
 

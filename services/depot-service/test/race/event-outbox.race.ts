@@ -100,7 +100,7 @@ describeRace('franchise application events on real Postgres (HD-7)', () => {
     expect(rows.map((r) => r.status)).toEqual(Array(10).fill('DONE'));
   });
 
-  it('two overlapping sweeps leave every due event DONE, none lost and none DEAD', async () => {
+  it('two overlapping sweeps leave every due event DONE, none lost and none counted as failed', async () => {
     await prisma.webhookEventOutbox.updateMany({ data: { status: 'DONE' } });
     const ids = await Promise.all(Array.from({ length: 12 }, submit));
     const sender = transport();

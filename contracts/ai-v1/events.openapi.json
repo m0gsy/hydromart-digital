@@ -3,19 +3,19 @@
   "info": {
     "title": "hydromart-digital events for the AI web",
     "version": "1.0.0",
-    "description": "HD-7. Events hydromart-digital sends out, as signed HTTPS POSTs from admin-service. The AI web is the only receiver of these (its ingress route, then n8n); n8n has no public route (Plan Eksekusi section 4).\n\nRegistering: a SUPER_ADMIN adds the receiver URL and the event names at /hq/webhooks. The URL must be public HTTPS (a private or internal address is refused, at registration and again before every send). The signing secret is shown once, at registration; keep it in the receiver env. A secret is 32 to 200 printable characters; every endpoint has one, and every delivery is signed.\n\nVerifying a delivery, in this order: (1) read the raw body bytes and verify those, never a re-serialised copy; (2) refuse when X-Hydromart-Timestamp is missing or more than 300 seconds from your own clock; (3) compute sha256= plus the lowercase hex HMAC-SHA256 of \"<timestamp>.<raw body>\" with the secret, and compare it with X-Hydromart-Signature in constant time; refuse a mismatch; (4) parse the JSON and dedupe on eventId: one event can arrive more than once (a retry after a slow answer, a replay from HQ), and a repeat is answered 2xx without doing the work again; (5) answer 2xx within 10 seconds and do slow work afterwards.\n\nRetries: any answer other than 2xx, a redirect (never followed), a timeout over 10 seconds or a connection error is retried after 1, 5, 25, 125 and 625 minutes. After the 6th failed attempt the delivery is DEAD; HQ can send it again from /hq/webhooks. The producer keeps its own outbox, so an admin-service outage delays an event, it does not lose one.\n\nCompatibility: receivers ignore fields they do not know. A field may be added within version 1; removing or renaming one is a new contract version.\n\nThe same signing applies to every event admin-service sends (delivery.delivered goes to partner integrations and is not part of this contract)."
+    "description": "HD-7. Events hydromart-digital sends out, as signed HTTPS POSTs from admin-service. The AI web is the only receiver of these (its ingress route, then n8n); n8n has no public route (Plan Eksekusi section 4).\n\nRegistering: a SUPER_ADMIN adds the receiver URL and the event names at /hq/webhooks. The URL must be public HTTPS (a private or internal address is refused, at registration and again before every send). The signing secret is shown once, when the endpoint is registered; keep it in the receiver env. A secret is 32 to 200 printable ASCII characters with no spaces (a generated one is 64 hex characters). Every endpoint has one, and every delivery is signed.\n\nWho receives an event: only an endpoint that is active and subscribed at the moment admin-service takes the event gets a delivery for it. Nothing is queued for an endpoint registered later, or switched off at that moment, so there is no backfill: applications from before the AI web endpoint existed reach the AI web CRM through the Tahap 2 data move. Switching an endpoint off stops its sends; what it already had queued waits, and goes out when it is switched back on.\n\nVerifying a delivery, in this order: (1) read the raw body bytes and verify those, never a re-serialised copy (key order inside data is not stable); (2) refuse when X-Hydromart-Timestamp is missing or more than 300 seconds from your own clock; (3) compute sha256= plus the lowercase hex HMAC-SHA256 of \"<timestamp>.<raw body>\" with the secret, and compare it with X-Hydromart-Signature in constant time; refuse a mismatch; (4) only the timestamp and the body are signed, so after verifying take event, id and eventId from the body, never from the X-Hydromart-Event or X-Hydromart-Delivery headers; (5) dedupe on eventId; (6) answer 2xx within 10 seconds and do slow work afterwards.\n\nNever processing an event twice: one event can arrive more than once (a retry after a slow answer, a replay from HQ weeks later). Keep processed eventIds for good, not for a window. Record the eventId in the same transaction that durably queues the work, and only then answer 2xx: a crash between the two would otherwise lose the event, and its replay would then be deduped away. A repeat is answered 2xx without doing the work again. Answer 2xx as well for a verified event you do not know or cannot use: anything else is retried with the identical body.\n\nRetries: a failure is any answer other than 2xx, a redirect (never followed), no complete answer within 10 seconds (the whole response, body included), or a connection error. A failed delivery is tried again no earlier than 1, 5, 25, 125 and 625 minutes later (the sweep runs every 5 minutes and sends at most 20 a round); the 6th failed attempt makes it DEAD, about 13 hours after the first, and HQ can send it again from /hq/webhooks. Before that hop, the producer keeps its own outbox and keeps trying admin-service, an hour apart at most, until admin-service takes the event: an outage delays an event, it does not lose it.\n\nRotating the secret: first make the receiver accept both the current and the next secret; then a SUPER_ADMIN replaces it with a PATCH of the endpoint through the API (the console has no rotate action yet); then the receiver drops the old secret once nothing signed with it can still arrive (13 hours of retries, plus any replay you expect). A retry is signed with the secret current at the moment it is sent. Never rotate by deleting and re-registering the endpoint: deleting drops its queued deliveries, and events published in between reach nobody.\n\nCompatibility: receivers ignore fields they do not know. A field may be added within version 1; removing or renaming one is a new contract version. The x-hydromart-delivery block repeats the numbers above for code to read.\n\nThe same signing applies to every event admin-service sends. delivery.delivered is for delivery partners, carries the recipient name, and is not part of this contract: the AI web endpoint must not subscribe to it."
   },
   "webhooks": {
     "franchise.application_submitted": {
       "post": {
         "summary": "A calon mitra submitted a franchise application on /waralaba",
-        "description": "Sent once per application, for applications submitted after this event was introduced (no backfill). The first workflow it feeds is AI-5: notify HQ and Sales.\n\nIt carries no personal data. Name, phone number, GPS location and amounts stay in hydromart-digital, on the application detail page /hq/applications/detail?id=<applicationId> (HEAD_OFFICE, DIREKTUR and SUPER_ADMIN). Moving the contact data into the AI web CRM is Tahap 2, after the /waralaba consent is stored (HD-8).",
+        "description": "Raised once per application submitted from this release on, and delivered to each endpoint that is active and subscribed when admin-service takes it (see info.description). The first workflow it feeds is AI-5: notify HQ and Sales.\n\nIt carries no personal data. Name, phone number, GPS location and amounts stay in hydromart-digital, on the application detail page /hq/applications/detail?id=<applicationId> (HEAD_OFFICE, DIREKTUR and SUPER_ADMIN). Moving the contact data into the AI web CRM is Tahap 2, after the /waralaba consent is stored (HD-8).",
         "parameters": [
           {
             "name": "X-Hydromart-Event",
             "in": "header",
             "required": true,
-            "description": "The event name, the same as the body field event.",
+            "description": "The event name. NOT signed: a copy of the body field event, for routing and logs only. After verifying, read the body.",
             "schema": {
               "type": "string",
               "const": "franchise.application_submitted"
@@ -26,7 +26,7 @@
             "name": "X-Hydromart-Delivery",
             "in": "header",
             "required": true,
-            "description": "The delivery id, the same as the body field id.",
+            "description": "The delivery id. NOT signed: a copy of the body field id. After verifying, read the body.",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -140,21 +140,45 @@
           "city": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 100,
-            "description": "City of the proposed depot, as the applicant typed it. Show it as text, never as markup."
+            "description": "City of the proposed depot, as the applicant typed it (the form allows 100 characters as it counts them; do not reject on length). Show it as text, never as markup."
           },
           "province": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 100,
-            "description": "Province of the proposed depot, as the applicant typed it."
+            "description": "Province of the proposed depot, as the applicant typed it (same rule as city)."
           }
         }
       }
     }
   },
+  "x-hydromart-delivery": {
+    "description": "The delivery rules of info.description as numbers. admin-service tests assert them against the code.",
+    "retryMinutes": [
+      1,
+      5,
+      25,
+      125,
+      625
+    ],
+    "maxAttempts": 6,
+    "timeoutSeconds": 10,
+    "toleranceSeconds": 300
+  },
+  "x-hydromart-internal-publish-example": {
+    "description": "Internal, not for receivers: the body depot-service POSTs to admin-service (POST webhooks/events, internal key) for this event. depot-service tests assert their request has this shape; admin-service tests validate it against the ingest DTO, so the two halves cannot drift apart.",
+    "body": {
+      "event": "franchise.application_submitted",
+      "payload": {
+        "applicationId": "3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807",
+        "city": "Bekasi",
+        "province": "Jawa Barat"
+      },
+      "occurredAt": "2026-11-23T02:15:00.000Z",
+      "eventId": "franchise.application_submitted:3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807"
+    }
+  },
   "x-hydromart-signature-test-vector": {
-    "description": "A receiver implementation must produce exactly this signature from these inputs. admin-service and depot-service tests read this block, so it cannot drift from the code.",
+    "description": "A receiver implementation must produce exactly this signature from these inputs. admin-service tests check the signature; depot-service tests check that the body carries the data depot-service sends.",
     "secret": "contract-test-vector-secret-not-a-real-key-0001",
     "timestamp": "1795400100",
     "body": "{\"id\":\"7d0c8a52-5f5e-4c51-9a4e-2b9e0f6f3a11\",\"event\":\"franchise.application_submitted\",\"occurredAt\":\"2026-11-23T02:15:00.000Z\",\"eventId\":\"franchise.application_submitted:3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807\",\"data\":{\"city\":\"Bekasi\",\"province\":\"Jawa Barat\",\"applicationId\":\"3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807\"}}",

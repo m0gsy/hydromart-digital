@@ -51,7 +51,9 @@ export class WebhookDeliveryPrismaRepository implements WebhookDeliveryRepositor
    */
   async claimDue(now: Date, limit: number, leaseMs: number): Promise<DueDelivery[]> {
     const due = await this.prisma.webhookDelivery.findMany({
-      where: { status: 'PENDING', nextAttemptAt: { lte: now } },
+      // HD-7: an endpoint HQ switched off is sent nothing more. What it already had queued
+      // waits (PENDING) and goes out when it is switched back on; it used to keep retrying.
+      where: { status: 'PENDING', nextAttemptAt: { lte: now }, endpoint: { active: true } },
       orderBy: { nextAttemptAt: 'asc' },
       take: limit,
       select: { id: true },

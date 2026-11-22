@@ -256,6 +256,9 @@ services:
       # production and wrong here, where the integration suite creates one and expects it to
       # work. The prod compose grew this line in the same change; this one has to match.
       ORDER_SERVICE_URL: http://order:3004
+      # HD-7: a submitted franchise application raises an event through admin-service. Without
+      # this the depot outbox keeps every event owed and the path is never exercised here.
+      ADMIN_SERVICE_URL: http://admin:3017
       GALLON_DEPOSIT_IDR: 20000
       STORAGE_PUBLIC_BASE_URL: http://storage.test/qris
     healthcheck:

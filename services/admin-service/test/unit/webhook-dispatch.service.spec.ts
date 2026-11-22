@@ -9,7 +9,14 @@ import {
   successRatePct,
   verifySignature,
 } from '../../src/domain/webhook-delivery';
-import { WebhookDispatchService } from '../../src/application/services/webhook-dispatch.service';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+
+import {
+  SEND_TIMEOUT_MS,
+  WebhookDispatchService,
+} from '../../src/application/services/webhook-dispatch.service';
+import { PublishEventDto } from '../../src/modules/dto/webhook-delivery.dto';
 import {
   DueDelivery,
   UpdateWebhookData,
@@ -421,6 +428,22 @@ describe('the AI-web event contract (HD-7)', () => {
     expect(verifySignature(v.secret, v.timestamp, v.body, v.signature)).toBe(true);
   });
 
+  it('states the retry schedule, the attempt cap and the timeout the dispatcher uses', () => {
+    const rules = contract['x-hydromart-delivery'];
+    expect(rules.retryMinutes).toEqual(
+      Array.from({ length: MAX_ATTEMPTS - 1 }, (_, i) => nextAttemptDelayMs(i + 1) / 60_000),
+    );
+    expect(rules.maxAttempts).toBe(MAX_ATTEMPTS);
+    expect(rules.timeoutSeconds).toBe(SEND_TIMEOUT_MS / 1000);
+  });
+
+  // The depot-to-admin hop: the example the depot spec holds its request to must pass this DTO.
+  it('accepts the internal publish example the producer is held to', () => {
+    const example = contract['x-hydromart-internal-publish-example'].body;
+    expect(validateSync(plainToInstance(PublishEventDto, example))).toEqual([]);
+    expect(Object.keys(example).sort()).toEqual(['event', 'eventId', 'occurredAt', 'payload']);
+  });
+
   it('describes only events a service may publish', () => {
     for (const name of Object.keys(contract.webhooks)) expect(WEBHOOK_EVENTS).toContain(name);
   });
@@ -448,11 +471,14 @@ describe('the AI-web event contract (HD-7)', () => {
       expect(headers[param.name]).toMatch(new RegExp(param.schema.pattern ?? '.'));
     }
     expect(headers['X-Hydromart-Event']).toBe('franchise.application_submitted');
+    expect(headers['Content-Type']).toBe('application/json');
     const envelope = contract.components.schemas.FranchiseApplicationSubmitted;
     const parsed = JSON.parse(body);
     expect(Object.keys(parsed).sort()).toEqual([...envelope.required].sort());
     expect(parsed.eventId).toMatch(new RegExp(envelope.properties.eventId.pattern));
     expect(parsed.id).toBe(headers['X-Hydromart-Delivery']);
+    expect(parsed.event).toBe(headers['X-Hydromart-Event']);
+    expect(new Date(parsed.occurredAt).toISOString()).toBe(parsed.occurredAt);
     expect(verifySignature('partner-secret', headers['X-Hydromart-Timestamp'], body, headers['X-Hydromart-Signature'])).toBe(true);
   });
 });

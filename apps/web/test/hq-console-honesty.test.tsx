@@ -107,6 +107,64 @@ describe('the switchboard says which switches move something (flow 5d)', () => {
   });
 });
 
+/*
+ * HD-7. The signing secret is readable once, at registration, and the sheet used to refresh the
+ * list the moment it arrived: the page turned into its skeleton, the sheet unmounted, and the
+ * secret went with it. Every endpoint registered here had a secret nobody ever saw.
+ */
+describe('the one-time signing secret stays on screen until it is dismissed (HD-7)', () => {
+  const SECRET = 'f'.repeat(64);
+  const listReads = () => get.mock.calls.filter(([u]) => !String(u).includes('deliveries')).length;
+
+  it('shows the secret after registering, and refreshes the list only when it is dismissed', async () => {
+    post.mockResolvedValue({ id: 'w-9', secret: SECRET });
+    render(<HqWebhooksPage />, { wrapper: LocaleProvider });
+
+    await userEvent.click(await screen.findByRole('button', { name: /Endpoint/ }));
+    await userEvent.type(screen.getByLabelText('URL endpoint'), 'https://ai.example.com/api/ingress/hd');
+    await userEvent.type(screen.getByLabelText('Event'), 'franchise.application_submitted');
+    const before = listReads();
+    // The sheet's own submit button shares the header button's label; it is rendered last.
+    await userEvent.click(screen.getAllByRole('button', { name: /Endpoint/ }).at(-1)!);
+
+    expect(await screen.findByText(SECRET)).toBeTruthy();
+    expect(post.mock.calls[0]![1]).toEqual({
+      url: 'https://ai.example.com/api/ingress/hd',
+      events: ['franchise.application_submitted'],
+    });
+    expect(listReads()).toBe(before);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Sudah saya salin' }));
+    await waitFor(() => expect(listReads()).toBe(before + 1));
+    expect(screen.queryByText(SECRET)).toBeNull();
+    expect(toast).toHaveBeenCalledWith('Endpoint webhook ditambahkan', 'success');
+  });
+
+  it('closes without a refresh when nothing was registered', async () => {
+    render(<HqWebhooksPage />, { wrapper: LocaleProvider });
+    await userEvent.click(await screen.findByRole('button', { name: /Endpoint/ }));
+    const before = listReads();
+    await userEvent.click(screen.getByRole('button', { name: 'Batal' }));
+    await waitFor(() => expect(screen.queryByLabelText('URL endpoint')).toBeNull());
+    expect(listReads()).toBe(before);
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('filters the delivery log by event, so an older franchise delivery can be found', async () => {
+    render(<HqWebhooksPage />, { wrapper: LocaleProvider });
+    await userEvent.click(await screen.findByRole('button', { name: 'Lamaran waralaba' }));
+    await waitFor(() =>
+      expect(
+        get.mock.calls.some(([u]) => String(u).includes('event=franchise.application_submitted')),
+      ).toBe(true),
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Semua' }));
+    const last = String(get.mock.calls.at(-1)![0]);
+    expect(last).toContain('deliveries?limit=50');
+    expect(last).not.toContain('event=');
+  });
+});
+
 describe('the webhook delivery log has a door (CA-2-43)', () => {
   const DELIVERY = {
     id: '11111111-1111-4111-8111-111111111111',

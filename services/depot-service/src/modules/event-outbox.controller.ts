@@ -13,7 +13,6 @@ export class EventOutboxSweepDto implements EventRelaySweepResult {
   @ApiProperty() claimed!: number;
   @ApiProperty() delivered!: number;
   @ApiProperty() failed!: number;
-  @ApiProperty({ description: 'Rows that ran out of retries on this pass.' }) dead!: number;
   @ApiProperty({ description: 'DONE rows past the 7-day window, deleted.' }) pruned!: number;
   @ApiProperty() ok!: boolean;
 }

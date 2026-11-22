@@ -24,7 +24,8 @@ import { ADMIN_TOKENS } from '../tokens';
 /** How many deliveries one sweep sends, and how long a claim is held. */
 const BATCH = 20;
 const LEASE_MS = 5 * 60_000;
-const SEND_TIMEOUT_MS = 10_000;
+/** The whole exchange, body included (contracts/ai-v1/events.openapi.json states it). */
+export const SEND_TIMEOUT_MS = 10_000;
 /**
  * A delivery is not STARTED once this much of the lease is gone: 20 sequential sends at the
  * 10s timeout is 200s, inside the 300s lease, and this is the backstop for a slow DNS lookup

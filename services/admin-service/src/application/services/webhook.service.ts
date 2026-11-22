@@ -33,9 +33,9 @@ export class WebhookService {
   /**
    * CA-2-37: an endpoint registered without a secret is an endpoint nobody can trust.
    *
-   * The dispatcher signs only when there IS one — deliberately, and its note says an
+   * The dispatcher used to sign only when there WAS one, deliberately, and its note said an
    * endpoint registered without a secret "asked for that". That premise was false: the HQ
-   * console sends `{ url, events }` and has no field for a secret at all, so it could not
+   * console sends `{ url, events }` and had no field for a secret at all, so it could not
    * ask for anything. Every webhook ever registered from the console went out unsigned,
    * forever, and the receiver had no way to tell our POST from anyone else's — a URL is
    * not a credential, and anyone who learns it can forge deliveries.
