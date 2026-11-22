@@ -1,6 +1,6 @@
 import React from 'react';
-import { Audio, Composition, getStaticFiles, Series, staticFile } from 'remotion';
-import { FPS, frames, KEPALA, type Scene, STAFF } from './script';
+import { Audio, Composition, getStaticFiles, Sequence, Series, staticFile } from 'remotion';
+import { FPS, frames, KEPALA, type Scene, STAFF, VO_DELAY } from './script';
 import { Stage, TitleCard } from './ui';
 import { STAFF_SCREENS, STAFF_TITLE } from './StaffDepot';
 import { KEPALA_SCREENS, KEPALA_TITLE } from './KepalaDepot';
@@ -9,12 +9,12 @@ interface TutorialProps {
   scenes: Scene[];
   screens: Record<string, React.FC>;
   titles: { kicker: string; bullets: string[]; outroBullets: string[] };
-  /** Prefix of the optional voice-over files: public/vo/<vo>-01.mp3 … */
+  /** Prefix of the voice-over files: public/vo/<vo>-01.mp3 … (made by `npm run vo`). */
   vo: string;
 }
 
 const Tutorial: React.FC<TutorialProps> = ({ scenes, screens, titles, vo }) => {
-  // A recorded line is used when its file exists; scenes without one stay silent.
+  // A voice-over line is used when its file exists; scenes without one stay silent.
   const files = new Set(getStaticFiles().map((f) => f.name));
   return (
     <Series>
@@ -35,7 +35,11 @@ const Tutorial: React.FC<TutorialProps> = ({ scenes, screens, titles, vo }) => {
                 <Screen />
               </Stage>
             )}
-            {files.has(audio) && <Audio src={staticFile(audio)} />}
+            {files.has(audio) && (
+              <Sequence from={VO_DELAY} layout="none">
+                <Audio src={staticFile(audio)} />
+              </Sequence>
+            )}
           </Series.Sequence>
         );
       })}

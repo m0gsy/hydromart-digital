@@ -27,10 +27,10 @@ const md = `# Naskah voice-over — Tutorial Hydromart Ops
 Dibuat otomatis dari \`src/script.ts\` (\`npm run naskah\`). Jangan diedit langsung: ubah \`script.ts\`,
 lalu jalankan ulang agar naskah dan video tetap sinkron.
 
-**Cara rekam:** satu berkas audio per adegan, mulai tepat di awal rentang waktunya. Bacaan
-dirancang ±${MAX_WPS} kata/detik, jadi tiap adegan menyisakan jeda di akhir. Taruh berkasnya di
-\`public/vo/<video>-<nomor>.mp3\` (misal \`public/vo/staff-01.mp3\`), lalu render ulang; adegan
-tanpa berkas tetap diputar tanpa suara.
+**Suara:** berkas \`public/vo/<video>-<nomor>.mp3\` dibuat dari naskah ini dengan ElevenLabs
+(\`npm run vo\`, lihat README). Untuk memakai rekaman sendiri, rekam satu berkas per adegan dengan
+nama yang sama, lalu render ulang. Bacaan dirancang ±${MAX_WPS} kata/detik, dan suara dimulai
+0,4 detik setelah adegannya mulai.
 
 ${section('Video 1 — Staff Depot', 'tutorial-staff-depot.mp4', STAFF)}
 ${section('Video 2 — Kepala Depot', 'tutorial-kepala-depot.mp4', KEPALA)}`;

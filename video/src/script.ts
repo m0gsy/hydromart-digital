@@ -26,7 +26,7 @@ export const STAFF: Scene[] = [
     title: 'Staff Depot',
     caption: 'Panduan Hydromart Ops dari absen pagi sampai setor uang sore.',
     vo: 'Halo, tim Hydromart! Di video ini kita belajar memakai Hydromart Ops untuk Staff Depot, dari absen pagi sampai setor uang sore.',
-    sec: 9,
+    sec: 10,
   },
   {
     id: 'login',
@@ -42,7 +42,7 @@ export const STAFF: Scene[] = [
     title: 'Daftarkan wajah',
     caption: 'Cukup sekali: ambil 1–3 foto, centang persetujuan, lalu Simpan.',
     vo: 'Sebelum absen pertama kali, daftarkan wajah Anda. Buka Daftar atau Perbarui Wajah, ambil satu sampai tiga foto yang jelas, centang persetujuan, lalu ketuk Simpan.',
-    sec: 12,
+    sec: 13,
   },
   {
     id: 'checkin',
@@ -50,7 +50,7 @@ export const STAFF: Scene[] = [
     title: 'Absen masuk',
     caption: 'Absen Sekarang → Check-in → Ambil Foto. GPS aktif, di area depot.',
     vo: 'Setiap pagi, buka Absen Sekarang, pilih Check-in, lalu ketuk Ambil Foto. Gerakkan kepala sedikit atau berkedip saat difoto. Pastikan GPS menyala dengan mode lokasi Tepat, karena absen hanya bisa di area depot.',
-    sec: 15,
+    sec: 16,
   },
   {
     id: 'shift',
@@ -74,7 +74,7 @@ export const STAFF: Scene[] = [
     title: 'Antar pesanan',
     caption: 'Ketuk Mulai antar, ikuti peta & patokan alamat pelanggan.',
     vo: 'Ketuk Mulai antar saat berangkat, lalu ikuti peta dan patokan ke alamat pelanggan. Untuk pesanan bayar di tempat, tombol Sampai tujuan baru aktif setelah uang diterima.',
-    sec: 12,
+    sec: 13,
   },
   {
     id: 'returns',
@@ -90,7 +90,7 @@ export const STAFF: Scene[] = [
     title: 'Terima uang COD',
     caption: 'Isi uang diterima, cek kembalian, lalu Konfirmasi pembayaran.',
     vo: 'Ketuk Terima uang. Cek total tagihan, isi uang yang diterima dari pelanggan atau ketuk Uang pas, dan aplikasi menghitung kembaliannya. Ketuk Konfirmasi pembayaran, lalu Lanjut ke bukti serah terima.',
-    sec: 14,
+    sec: 15,
   },
   {
     id: 'proof',
@@ -114,7 +114,7 @@ export const STAFF: Scene[] = [
     title: 'Setor uang COD',
     caption: 'Akhiri shift · check-out, lalu Setor ke kasir sesuai jumlah seharusnya.',
     vo: 'Selesai bertugas, ketuk Akhiri shift, check-out. Di Setoran tunai, cocokkan uang dengan angka Seharusnya disetor, isi jumlahnya, lalu ketuk Setor ke kasir. Kepala depot akan memverifikasi.',
-    sec: 14,
+    sec: 15,
   },
   {
     id: 'checkout',
@@ -149,7 +149,7 @@ export const KEPALA: Scene[] = [
     title: 'Kepala Depot',
     caption: 'Menjalankan depot dari HP: pantau, tugaskan, jual, dan tutup buku.',
     vo: 'Halo, Kepala Depot! Video ini memandu Anda memakai Hydromart Ops untuk menjalankan depot: memantau, menugaskan kurir, berjualan, dan menutup buku.',
-    sec: 10,
+    sec: 12,
   },
   {
     id: 'login',
@@ -253,8 +253,11 @@ export const KEPALA: Scene[] = [
     title: 'Rutinitas harian',
     caption: 'Pagi buka, siang layani, sore tutup.',
     vo: 'Ringkasnya: pagi absen, catat meteran, dan buka shift kasir. Siang tugaskan pesanan dan layani pembeli. Sore tutup shift, verifikasi setoran, catat meteran, dan tutup buku. Selamat bekerja!',
-    sec: 14,
+    sec: 16,
   },
 ];
 
 export const frames = (scenes: Scene[]) => scenes.reduce((n, s) => n + s.sec * FPS, 0);
+
+/** Frames into a scene before its voice-over starts, so it never talks over the cut. */
+export const VO_DELAY = 12;

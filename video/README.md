@@ -36,11 +36,26 @@ untuk mengecek tata letak tanpa render penuh.
 - **Layar:** `src/StaffDepot.tsx`, `src/KepalaDepot.tsx`, dan layar bersama (masuk, absen wajah)
   di `src/shared.tsx`. Waktu animasi ditulis dalam frame relatif terhadap awal adegan (30 = 1 detik).
 
-## Menambahkan suara
+## Suara (voice-over)
 
-Rekam satu berkas per adegan sesuai `NASKAH_VO.md`, simpan sebagai `public/vo/staff-01.mp3`,
-`public/vo/staff-02.mp3`, … dan `public/vo/kepala-01.mp3`, …, lalu render ulang. Adegan yang
-berkasnya belum ada tetap diputar tanpa suara.
+Narasi dibuat dengan text-to-speech ElevenLabs, memakai suara **Arunika** ("National TV Voice Over",
+logat Indonesia standar) dari Voice Library dan model `eleven_multilingual_v2`. Berkasnya ada di
+`public/vo/staff-NN.mp3` dan `public/vo/kepala-NN.mp3`, satu per adegan, dan sudah di-commit
+supaya render tidak butuh API key. Tiap suara mulai 12 frame (0,4 detik) setelah adegannya
+dimulai.
+
+Setelah mengubah `vo` di `src/script.ts`, buat ulang suaranya:
+
+```bash
+XI_API_KEY=<key ElevenLabs> NODE_USE_ENV_PROXY=1 npm run vo
+```
+
+Hanya baris yang teksnya berubah yang dibuat ulang (`public/vo/manifest.json`), jadi kuota tidak
+terpakai dua kali. Perintah ini gagal kalau ada suara yang lebih panjang dari adegannya, dan
+menyebutkan `sec` minimal yang dibutuhkan. Untuk suara lain, isi `VO_VOICE=<voice_id>`.
+`NODE_USE_ENV_PROXY=1` hanya diperlukan di balik proxy HTTPS.
+
+Kalau ingin memakai rekaman sendiri, timpa berkas mp3 dengan nama yang sama, lalu render ulang.
 
 ## Yang sengaja tidak ada di video
 

@@ -10,7 +10,8 @@
     "render": "npm run render:staff && npm run render:kepala",
     "typecheck": "tsc --noEmit",
     "naskah": "node naskah.ts",
-    "stills": "node stills.mjs"
+    "stills": "node stills.mjs",
+    "vo": "node vo.ts"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.7",
