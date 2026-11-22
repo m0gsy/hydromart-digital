@@ -393,6 +393,7 @@ export class PhoneUnchangedError extends DomainError {
 export class ExternalTokensOffError extends DomainError {
   readonly code = 'AUTH_EXTERNAL_TOKENS_OFF';
   readonly status = HTTP.UNAVAILABLE;
+  readonly switchedOff = true;
   constructor() {
     super('AI and machine access is switched off.');
   }
@@ -438,6 +439,7 @@ export class InvalidMachineCredentialsError extends DomainError {
 export class TotpOffError extends DomainError {
   readonly code = 'AUTH_TOTP_OFF';
   readonly status = HTTP.UNAVAILABLE;
+  readonly switchedOff = true;
   constructor() {
     super('Authenticator sign-in is not set up on this server.');
   }

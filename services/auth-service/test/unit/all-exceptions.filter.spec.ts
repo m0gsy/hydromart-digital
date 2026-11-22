@@ -1,10 +1,20 @@
 import { ArgumentsHost, BadRequestException } from '@nestjs/common';
 
+import { alertServerError } from '@hydromart/platform';
+
 import { AllExceptionsFilter } from '../../src/common/filters/all-exceptions.filter';
 import {
+  ExternalTokensOffError,
   PhoneAlreadyRegisteredError,
   PhoneHeldByUnusedCustomerError,
+  TotpOffError,
 } from '../../src/domain/errors/auth.errors';
+
+jest.mock('@hydromart/platform', () => ({
+  ...jest.requireActual('@hydromart/platform'),
+  alertServerError: jest.fn(),
+}));
+const alert = alertServerError as jest.MockedFunction<typeof alertServerError>;
 
 function mockHost(): { host: ArgumentsHost; captured: { status?: number; body?: unknown } } {
   const captured: { status?: number; body?: unknown } = {};
@@ -30,6 +40,8 @@ function mockHost(): { host: ArgumentsHost; captured: { status?: number; body?: 
 
 describe('AllExceptionsFilter', () => {
   const filter = new AllExceptionsFilter();
+
+  beforeEach(() => alert.mockClear());
 
   it('maps a domain error to its status and machine-readable code', () => {
     const { host, captured } = mockHost();
@@ -79,4 +91,22 @@ describe('AllExceptionsFilter', () => {
     expect(captured.body).toMatchObject({ statusCode: 500, code: 'INTERNAL_ERROR' });
     expect(JSON.stringify(captured.body)).not.toContain('boom');
   });
+
+  it('pages on a real 5xx', () => {
+    filter.catch(new Error('boom'), mockHost().host);
+    expect(alert).toHaveBeenCalledTimes(1);
+  });
+
+  // 2026-11-22: probes of the switched-off token routes rang Discord four times overnight.
+  it.each([new ExternalTokensOffError(), new TotpOffError()])(
+    'answers a kill switch with 503 and its code, and pages nobody (%p)',
+    (error) => {
+      const { host, captured } = mockHost();
+      filter.catch(error, host);
+
+      expect(captured.status).toBe(503);
+      expect(captured.body).toMatchObject({ statusCode: 503, code: error.code });
+      expect(alert).not.toHaveBeenCalled();
+    },
+  );
 });

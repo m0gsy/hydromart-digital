@@ -38,7 +38,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const body = this.toErrorBody(exception, request.url);
 
-    if (body.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    const switchedOff = exception instanceof DomainError && exception.switchedOff === true;
+    if (body.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR && !switchedOff) {
       this.logger.error(
         `Unhandled error on ${request.method} ${request.url}: ${String(
           (exception as Error)?.stack ?? exception,
