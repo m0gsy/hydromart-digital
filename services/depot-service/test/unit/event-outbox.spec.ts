@@ -149,7 +149,8 @@ describe('EventPublisherHttpAdapter (HD-7)', () => {
 
   // Unlike delivery-service: an unconfigured fan-out is an event still owed, not one forgotten.
   it('throws without sending when admin-service is not configured', async () => {
-    for (const over of [{ adminServiceUrl: '' }, { internalServiceKey: '' }]) {
+    const blanks: Record<string, string>[] = [{ adminServiceUrl: '' }, { internalServiceKey: '' }];
+    for (const over of blanks) {
       await expect(
         new EventPublisherHttpAdapter(config(over)).publish('franchise.application_submitted', {}, at, 'k1'),
       ).rejects.toThrow(/not configured/);
