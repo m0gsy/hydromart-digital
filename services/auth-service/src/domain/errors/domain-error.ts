@@ -9,6 +9,12 @@ export abstract class DomainError extends Error {
   abstract readonly status: number;
   /** Structured facts the caller needs to act on the error, sent beside the message. */
   readonly details?: Record<string, unknown>;
+  /**
+   * A 5xx that reports a switch the operator left off (a blank key), not a fault: the caller
+   * still gets the status and code, but nobody is paged. Anyone can call a public route, so a
+   * kill switch that pages would let a stranger ring the on-call channel at will.
+   */
+  readonly switchedOff?: boolean;
 
   protected constructor(message: string) {
     super(message);
