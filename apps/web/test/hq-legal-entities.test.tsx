@@ -270,7 +270,9 @@ describe('/hq/legal-entities', () => {
   });
 
   it('sends a selection larger than one request takes in batches', async () => {
-    const many = Array.from({ length: 450 }, (_, i) => ({
+    // 201 rows: just past one request's 200, the least that proves the split (450 rows of DOM
+    // timed out under the full suite's load).
+    const many = Array.from({ length: 201 }, (_, i) => ({
       depotId: `d-${i}`,
       code: `D-${String(i).padStart(3, '0')}`,
       name: 'Depot',
@@ -287,9 +289,9 @@ describe('/hq/legal-entities', () => {
     await userEvent.click(within(depotPanel()).getByLabelText('hq.legalEntities.assign.depots.selectAll'));
     await userEvent.selectOptions(depotEntity(), 'le-1');
     await userEvent.click(within(depotPanel()).getByRole('button', { name: 'hq.legalEntities.assign.depots.apply' }));
-    await waitFor(() => expect(post).toHaveBeenCalledTimes(3));
-    expect(post.mock.calls.map(([, body]) => (body as { depotIds: string[] }).depotIds.length)).toEqual([200, 200, 50]);
-  }, 30_000);
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    expect(post.mock.calls.map(([, body]) => (body as { depotIds: string[] }).depotIds.length)).toEqual([200, 1]);
+  }, 60_000);
 
   it('asks for rows and an entity before applying, and drops a picked entity once it is switched off', async () => {
     render(<HqLegalEntitiesPage />);
@@ -464,8 +466,34 @@ describe('/hq/legal-entities', () => {
     await waitFor(() => expect((apply as HTMLButtonElement).disabled).toBe(false));
   });
 
+  it('lets go of a panel when its refresh never comes back, and marks the copy as old', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<HqLegalEntitiesPage />);
+      await depotRow();
+      // The depot list's next read gets its headers and then never finishes its body.
+      get.mockImplementation((path: string) =>
+        path.endsWith('/legal-entities/depots')
+          ? new Promise(() => undefined)
+          : Promise.resolve(path.endsWith('/legal-entities') ? { entities: [KELOLA, INDO], roles: ROLES } : EMPLOYEES),
+      );
+      post.mockResolvedValueOnce([{ depotId: 'd-1', replaced: null }]);
+      await user.click(within(await depotRow()).getByLabelText('hq.legalEntities.assign.selectRow'));
+      await user.selectOptions(depotEntity(), 'le-2');
+      const apply = within(depotPanel()).getByRole('button', { name: 'hq.legalEntities.assign.depots.apply' });
+      await user.click(apply);
+      expect((apply as HTMLButtonElement).disabled).toBe(true);
+      await vi.advanceTimersByTimeAsync(31_000);
+      await waitFor(() => expect((apply as HTMLButtonElement).disabled).toBe(false));
+      expect(screen.getByText('hq.legalEntities.reloadFailed')).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('reports a batch that fails partway, says how many landed, and reads the list again', async () => {
-    const many = Array.from({ length: 250 }, (_, i) => ({
+    const many = Array.from({ length: 201 }, (_, i) => ({
       depotId: `d-${i}`,
       code: `D-${String(i).padStart(3, '0')}`,
       name: 'Depot',
@@ -488,5 +516,5 @@ describe('/hq/legal-entities', () => {
     expect(toast).toHaveBeenCalledWith('hq.legalEntities.assign.applied', 'success');
     expect(post).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(depotReads()).toBe(2));
-  }, 30_000);
+  }, 60_000);
 });

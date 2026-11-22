@@ -24,6 +24,29 @@ const readDirectory = () => api.get<LegalEntityDirectory>(endpoints.legalEntitie
 const readDepots = () => api.get<DepotLegalEntityHistory[]>(endpoints.legalEntities.depots, true);
 const readEmployees = () => api.get<EmployeeLegalEntityHistory[]>(endpoints.hr.employeeLegalEntities, true);
 
+/**
+ * The longest one read may hold a panel. `api` stops waiting for HEADERS after 15 s but not for the
+ * body, and a panel holds its buttons until its refresh settles: a body that never finishes would
+ * hold them for good. Past this the read counts as failed and the copy on screen as old.
+ */
+const READ_DEADLINE_MS = 30_000;
+
+function withDeadline<T>(read: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('read deadline')), ms);
+    read.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 /** One source the page reads: the last copy it got, and whether the latest read of it failed. */
 interface Part<T> {
   data: T | null;
@@ -47,7 +70,7 @@ function usePart<T>(read: () => Promise<T>) {
     const mine = ++latest.current;
     const run = (async () => {
       try {
-        const data = await read();
+        const data = await withDeadline(read(), READ_DEADLINE_MS);
         if (mine === latest.current) setPart({ data, failed: false });
       } catch {
         if (mine === latest.current) setPart((prev) => ({ data: prev.data, failed: true }));
