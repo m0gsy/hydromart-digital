@@ -244,6 +244,8 @@ export const dashC = {
       staffDirectory: 'Direktori staf (lihat)',
       orderManageRead: 'Baca pesanan (tanpa mengubah)',
       depotLifecycle: 'Buka & nonaktifkan depot',
+      legalEntityAdmin: 'Kelola badan hukum depot & karyawan',
+      legalEntityAiAccess: 'Matriks akses web AI per badan hukum',
       driverRosterRead: 'Lihat nama kurir (keuangan)',
       staffDirectoryFinance: 'Lihat pemilik waralaba (keuangan)',
       depotDirectory: 'Data depot (lihat)',

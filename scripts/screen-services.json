@@ -678,6 +678,11 @@
   "/hq/invoice-template": [
     "auth"
   ],
+  "/hq/legal-entities": [
+    "auth",
+    "depots",
+    "employees"
+  ],
   "/hq/loyalty": [
     "auth"
   ],

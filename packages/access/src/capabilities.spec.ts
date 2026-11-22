@@ -1,5 +1,6 @@
 import {
   CAPABILITIES,
+  CUSTOM_FORBIDDEN,
   STAFF_IMPORT_ROLES,
   canGrantRole,
   can,
@@ -126,6 +127,17 @@ describe('CAPABILITIES', () => {
     for (const w of CAPABILITIES.depotLifecycle) {
       expect(CAPABILITIES.depotDirectory).toContain(w);
     }
+  });
+
+  // HD-5, owner decision 2026-11-22: head office enters the legal entities; only the superuser
+  // decides which role reads which entity in the AI web, and a custom role never can.
+  it('gives the legal entities to head office and the AI-web matrix to the superuser', () => {
+    expect(CAPABILITIES.legalEntityAdmin).toEqual(['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);
+    expect(can('legalEntityAdmin', 'HR')).toBe(false);
+    expect(can('legalEntityAdmin', 'MANAGER')).toBe(false);
+    expect(CAPABILITIES.legalEntityAiAccess).toEqual(['SUPER_ADMIN']);
+    expect(can('legalEntityAiAccess', 'HEAD_OFFICE')).toBe(false);
+    expect(CUSTOM_FORBIDDEN).toContain('legalEntityAiAccess');
   });
 
   it('lets FINANCE read names and orders without gaining any write beside them', () => {

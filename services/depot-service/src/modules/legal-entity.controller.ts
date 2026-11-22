@@ -1,0 +1,206 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Logger,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  AuthenticatedUser,
+  Can,
+  CurrentUser,
+  InternalAuthGuard,
+  Public,
+  recordAuditEvent,
+} from '@hydromart/platform';
+
+import {
+  LegalEntityDirectory,
+  LegalEntityService,
+} from '../application/services/legal-entity.service';
+import { AssignedDepot } from '../application/ports/legal-entity.repository';
+import { DepotConfigService } from '../config/depot-config.service';
+import {
+  DepotLegalEntityHistory,
+  LegalEntity,
+  parseCalendarDay,
+} from '../domain/legal-entity';
+import {
+  AssignDepotsDto,
+  AssignedDepotResponseDto,
+  CreateLegalEntityDto,
+  DepotLegalEntityHistoryResponseDto,
+  LegalEntityDirectoryResponseDto,
+  LegalEntityResponseDto,
+  LegalEntitySummaryResponseDto,
+  SetAiGrantsDto,
+  UpdateLegalEntityDto,
+} from './dto/legal-entity.dto';
+
+/**
+ * HD-5 — /hq/legal-entities. Head office enters the legal entities and dates which one each
+ * depot belongs to (`legalEntityAdmin`); the superuser decides which role reads which entity in
+ * the AI web (`legalEntityAiAccess`). Every write leaves an audit line with what changed.
+ */
+@ApiTags('Legal entities')
+@Controller({ path: 'legal-entities', version: '1' })
+export class LegalEntityController {
+  private readonly logger = new Logger(LegalEntityController.name);
+
+  constructor(
+    private readonly entities: LegalEntityService,
+    private readonly config: DepotConfigService,
+  ) {}
+
+  @ApiOkResponse({ type: LegalEntityDirectoryResponseDto })
+  @ApiBearerAuth()
+  @Can('legalEntityAdmin')
+  @Get()
+  @ApiOperation({ summary: 'Every legal entity with its AI-web readers, and the roles the matrix can name' })
+  directory(): Promise<LegalEntityDirectory> {
+    return this.entities.directory();
+  }
+
+  @ApiOkResponse({ type: LegalEntityResponseDto })
+  @ApiBearerAuth()
+  @Can('legalEntityAdmin')
+  @Post()
+  @ApiOperation({ summary: 'Add a legal entity' })
+  async create(
+    @Body() dto: CreateLegalEntityDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LegalEntity> {
+    const created = await this.entities.create(dto, user.sub ?? null);
+    await this.audit('legal_entity.create', user, created.name, {
+      legalEntityId: created.id,
+      kind: created.kind,
+    });
+    return created;
+  }
+
+  @ApiOkResponse({ type: LegalEntityResponseDto })
+  @ApiBearerAuth()
+  @Can('legalEntityAdmin')
+  @Patch(':id')
+  @ApiOperation({ summary: 'Rename, re-kind or switch off a legal entity' })
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateLegalEntityDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LegalEntity> {
+    // `seenUpdatedAt` is the version the form read, not a column: it stops here.
+    const { seenUpdatedAt, ...patch } = dto;
+    const { before, after, changed } = await this.entities.update(id, patch, seenUpdatedAt, user.sub ?? null);
+    if (!after) return before;
+    await this.audit('legal_entity.update', user, after.name, { legalEntityId: id, changed });
+    return after;
+  }
+
+  @ApiOkResponse({ type: LegalEntityDirectoryResponseDto })
+  @ApiBearerAuth()
+  @Can('legalEntityAiAccess')
+  @Put('ai-grants')
+  @ApiOperation({ summary: 'Set cells of the role x legal entity matrix (AI web and AI read API only)' })
+  async setAiGrants(
+    @Body() dto: SetAiGrantsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LegalEntityDirectory> {
+    const applied = await this.entities.setAiGrants(dto.changes, user.sub ?? null);
+    await this.audit('legal_entity.ai_grants.update', user, `${applied.length} cell(s)`, {
+      changes: applied.map((c) => ({ legalEntityId: c.legalEntityId, roleKey: c.roleKey, granted: c.granted })),
+    });
+    return this.entities.directory();
+  }
+
+  @ApiOkResponse({ type: DepotLegalEntityHistoryResponseDto, isArray: true })
+  @ApiBearerAuth()
+  @Can('legalEntityAdmin')
+  @Get('depots')
+  @ApiOperation({ summary: 'Every depot with its dated legal-entity points, newest first' })
+  depotHistories(): Promise<DepotLegalEntityHistory[]> {
+    return this.entities.depotHistories();
+  }
+
+  @ApiOkResponse({ type: AssignedDepotResponseDto, isArray: true })
+  @ApiBearerAuth()
+  @Can('legalEntityAdmin')
+  @Post('depots')
+  @ApiOperation({ summary: 'From a date, these depots belong to this legal entity (same date = a correction)' })
+  async assignDepots(
+    @Body() dto: AssignDepotsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<AssignedDepot[]> {
+    const effectiveFrom = parseCalendarDay(dto.effectiveFrom);
+    if (!effectiveFrom) throw new BadRequestException('effectiveFrom must be a calendar day (YYYY-MM-DD)');
+    const written = await this.entities.assignDepots(
+      { depotIds: dto.depotIds, legalEntityId: dto.legalEntityId, effectiveFrom },
+      user.sub ?? null,
+    );
+    if (written.length > 0) {
+      await this.audit('legal_entity.depots.assign', user, dto.legalEntityId, {
+        legalEntityId: dto.legalEntityId,
+        effectiveFrom: dto.effectiveFrom,
+        depots: written,
+      });
+    }
+    return written;
+  }
+
+  @ApiOkResponse({ description: 'No content.' })
+  @ApiBearerAuth()
+  @Can('legalEntityAdmin')
+  @Delete('depots/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Take back one dated legal-entity point of a depot' })
+  async removeDepotPoint(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    const removed = await this.entities.removeDepotPoint(id);
+    await this.audit('legal_entity.depots.remove', user, removed.legalEntityId, {
+      depotId: removed.depotId,
+      legalEntityId: removed.legalEntityId,
+      effectiveFrom: removed.effectiveFrom,
+    });
+  }
+
+  /**
+   * Service-to-service: hr-service checks that an employee is being given a legal entity that
+   * exists and is active. 404 = no such entity.
+   */
+  @ApiOkResponse({ type: LegalEntitySummaryResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/:id')
+  @ApiOperation({ summary: 'Internal: name, kind and on/off of one legal entity' })
+  async internalSummary(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<Pick<LegalEntity, 'id' | 'name' | 'kind' | 'active'>> {
+    const { name, kind, active } = await this.entities.get(id);
+    return { id, name, kind, active };
+  }
+
+  /** Fail-open like every depot-service trail: a saved change is not undone because the trail was down. */
+  private async audit(
+    action: string,
+    user: AuthenticatedUser,
+    target: string,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    await recordAuditEvent(
+      { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey },
+      { action, actorId: user.sub ?? null, target, metadata },
+      this.logger,
+    );
+  }
+}

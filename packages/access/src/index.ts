@@ -178,6 +178,21 @@ export const CAPABILITIES = {
    * the directory it lands in (pinned in capabilities.spec.ts).
    */
   depotLifecycle: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  /*
+   * depot-service + hr-service (HD-5) — the legal entities (Indowater, Kelola, each franchise
+   * partner) and which one each depot and employee belongs to, by date. Owner decision
+   * 2026-11-22: head office enters them on /hq/legal-entities, nothing is seeded. The same
+   * roles as `depotLifecycle`, because it is a network decision like opening a depot.
+   */
+  legalEntityAdmin: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  /*
+   * depot-service (HD-5) — the role x legal entity matrix: which roles may read which entity's
+   * data in the AI web and the AI read API (HD-6). Owner decision 2026-11-22: it limits ONLY
+   * those two; nothing in hydromart-digital reads it, so every permission and depot scope here
+   * stays as it is. Superuser by default, like the capability matrix: it decides who sees which
+   * company's data, so a custom role may not hold it (CUSTOM_FORBIDDEN).
+   */
+  legalEntityAiAccess: ['SUPER_ADMIN'],
   // dashboard-service franchise view + payout-service (FRANCHISE_OWNER-only).
   franchise: ['FRANCHISE_OWNER'],
   payout: ['FRANCHISE_OWNER'],
@@ -967,6 +982,8 @@ export interface DepotOverride {
  */
 export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'accessMatrixWrite',
+  // HD-5: who reads which legal entity's data in the AI web — the same kind of power.
+  'legalEntityAiAccess',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

@@ -312,6 +312,8 @@ model Employee {
   announcementReads AnnouncementRead[]
   shiftAssignments  ShiftAssignment[]
   depotMoves        EmployeeDepotMove[]
+  /// HD-5: which legal entity employs this person, by date.
+  legalEntities     EmployeeLegalEntity[]
   depotAssignments  EmployeeDepotAssignment[]
 
   @@index([depotId])
@@ -1085,4 +1087,23 @@ model PayrollDepotShare {
   @@unique([payrollId, depotId])
   @@index([depotId, payrollId])
   @@map("payroll_depot_shares")
+}
+
+/// HD-5: which legal entity employs this person, as dated change points (the same rule as
+/// depot-service's depot_legal_entities): on day D it is the row with the latest
+/// effectiveFrom <= D, and a change on the same date replaces that row. `legalEntityId` is a
+/// bare id, because depot-service owns the legal entities; it is checked there on every write.
+model EmployeeLegalEntity {
+  id            String   @id @default(uuid()) @db.Uuid
+  employeeId    String   @db.Uuid
+  legalEntityId String   @db.Uuid
+  effectiveFrom DateTime @db.Date
+  /// Who wrote this row's current value, and when (a correction rewrites both).
+  recordedBy    String?  @db.Uuid
+  recordedAt    DateTime @default(now())
+
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, effectiveFrom])
+  @@map("employee_legal_entities")
 }

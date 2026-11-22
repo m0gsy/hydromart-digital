@@ -63,6 +63,12 @@ import { BonusRulePrismaRepository } from '../infrastructure/prisma/bonus-rule.p
 import { LoanPrismaRepository } from '../infrastructure/prisma/loan.prisma.repository';
 import { DepotAssignmentPrismaRepository } from '../infrastructure/prisma/depot-assignment.prisma.repository';
 import { DepotDirectoryHttpAdapter } from '../infrastructure/http/depot-directory.http.adapter';
+import { LEGAL_ENTITY_DIRECTORY_PORT } from '../application/ports/legal-entity-directory.port';
+import { LegalEntityDirectoryHttpAdapter } from '../infrastructure/http/legal-entity-directory.http.adapter';
+import { EMPLOYEE_LEGAL_ENTITY_REPOSITORY } from '../application/ports/employee-legal-entity.repository';
+import { EmployeeLegalEntityPrismaRepository } from '../infrastructure/prisma/employee-legal-entity.prisma.repository';
+import { EmployeeLegalEntityService } from '../application/services/employee-legal-entity.service';
+import { EmployeeLegalEntityController } from './employee-legal-entity.controller';
 import { LoanRequestPrismaRepository } from '../infrastructure/prisma/loan-request.prisma.repository';
 import { SALES_PORT } from '../application/ports/sales.port';
 import { OrderSalesHttpAdapter } from '../infrastructure/http/order-sales.http.adapter';
@@ -212,6 +218,10 @@ const providers: Provider[] = [
   { provide: DEPOT_ASSIGNMENT_REPOSITORY, useClass: DepotAssignmentPrismaRepository },
   DepotAssignmentService,
   { provide: DEPOT_DIRECTORY_PORT, useClass: DepotDirectoryHttpAdapter },
+  // HD-5: legal entities live in depot-service; hr dates who works for which one.
+  { provide: LEGAL_ENTITY_DIRECTORY_PORT, useClass: LegalEntityDirectoryHttpAdapter },
+  { provide: EMPLOYEE_LEGAL_ENTITY_REPOSITORY, useClass: EmployeeLegalEntityPrismaRepository },
+  EmployeeLegalEntityService,
   { provide: OWNED_DEPOTS_PORT, useClass: OwnedDepotsHttpAdapter },
   OwnerAttendanceService,
   DepotAssignmentApplier,
@@ -275,6 +285,7 @@ const providers: Provider[] = [
     ShiftController,
     ShiftRotationController,
     DepartmentController,
+    EmployeeLegalEntityController,
     SelfLeaveController,
     LeaveController,
     DocumentController,

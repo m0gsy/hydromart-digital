@@ -303,3 +303,8 @@ echo "All indexes present."
 
 # totp_recovery_codes_customerId_idx (auth-service, 2026-11-22, HD-4) is built by its own migration,
 # not here: it indexes a table that migration creates, so it is empty and the build is instant.
+
+# depot_legal_entities_depotId_effectiveFrom_key and legal_entities_lower_name_key (depot-service,
+# 2026-11-22, HD-5) and employee_legal_entities_employeeId_effectiveFrom_key (hr-service, same day)
+# are built by their own migrations, not here: they index tables those migrations create, so they
+# are empty and the build is instant.

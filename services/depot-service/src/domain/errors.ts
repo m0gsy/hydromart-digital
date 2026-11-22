@@ -588,3 +588,53 @@ export class ReportRangeTooLargeError extends DomainError {
     super(`This range covers more than ${maxRows} rows. Narrow the date range.`);
   }
 }
+
+/* ---------- Legal entities (HD-5) ---------- */
+
+export class LegalEntityNotFoundError extends DomainError {
+  readonly code = 'LEGAL_ENTITY_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Badan hukum tidak ditemukan.');
+  }
+}
+
+/** Two rows for one company would split every report by legal entity in two. */
+export class DuplicateLegalEntityNameError extends DomainError {
+  readonly code = 'LEGAL_ENTITY_NAME_TAKEN';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Sudah ada badan hukum dengan nama ini.');
+  }
+}
+
+/** A switched-off entity keeps its history but takes no new depot or employee. */
+export class LegalEntityInactiveError extends DomainError {
+  readonly code = 'LEGAL_ENTITY_INACTIVE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Badan hukum ini nonaktif. Aktifkan dulu, atau pilih badan hukum lain.');
+  }
+}
+
+/** A dated change point that is not (any more) there. */
+export class DepotLegalEntityPointNotFoundError extends DomainError {
+  readonly code = 'DEPOT_LEGAL_ENTITY_POINT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Riwayat badan hukum depot ini tidak ditemukan.');
+  }
+}
+
+/**
+ * A grant to a role the AI web cannot be signed in with, or does not know: CUSTOMER never gets a
+ * handoff, SUPER_ADMIN already reads every entity, and an unknown key would wait for whoever
+ * later creates a custom role under that name.
+ */
+export class LegalEntityRoleNotGrantableError extends DomainError {
+  readonly code = 'LEGAL_ENTITY_ROLE_NOT_GRANTABLE';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(roleKey: string) {
+    super(`Peran ${roleKey} tidak bisa diberi akses badan hukum di web AI.`);
+  }
+}

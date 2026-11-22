@@ -122,6 +122,8 @@ model Depot {
   shiftHandovers         ShiftHandover[]
   serviceSettings        ServiceSetting[]
   owners                 DepotOwner[]
+  /// HD-5: which legal entity this depot belongs to, by date.
+  legalEntities          DepotLegalEntity[]
 
   @@index([active])
   @@index([ownershipType])
@@ -1135,4 +1137,74 @@ model ServiceSetting {
   // hr-service, which gets them in 20260803160000_service_settings_unique.
   @@index([scope, depotId])
   @@map("service_settings")
+}
+
+/// HD-5: what a legal entity is to the business (Rencana Induk: three kinds of data owner).
+enum LegalEntityKind {
+  /// Holds the brand and sells the franchise (Indowater).
+  FRANCHISOR
+  /// Runs the company-owned HKP depots (Kelola).
+  OPERATOR
+  /// A franchise partner that owns WARALABA depots (mitra waralaba).
+  FRANCHISEE
+}
+
+/// HD-5: a legal entity (a PT, or a person) that owns data in this network. Entered by head
+/// office on /hq/legal-entities, nothing is seeded (owner decision 2026-11-22). Never deleted,
+/// because dated history points at it: one entered by mistake is renamed or switched off.
+model LegalEntity {
+  id        String          @id @default(uuid()) @db.Uuid
+  /// The registered name, e.g. "PT ...". Unique ignoring case and outer spaces (the service
+  /// checks it: a mistyped duplicate would be a second company in every report).
+  name      String
+  kind      LegalEntityKind
+  /// Off = not offered for new assignments. Its history and its grants stay as they are.
+  active    Boolean         @default(true)
+  createdBy String?         @db.Uuid
+  updatedBy String?         @db.Uuid
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  depots    DepotLegalEntity[]
+  aiGrants  LegalEntityAiGrant[]
+
+  // Also a unique index on lower(name), invisible to Prisma (an expression): see the
+  // 20261122120000_legal_entities migration.
+  @@map("legal_entities")
+}
+
+/// HD-5: which legal entity a depot belongs to, as dated change points. On day D a depot
+/// belongs to the row with the latest effectiveFrom <= D, so a period ends where the next one
+/// starts and two periods can never overlap. A change on the same date replaces that row.
+model DepotLegalEntity {
+  id            String      @id @default(uuid()) @db.Uuid
+  depotId       String      @db.Uuid
+  legalEntityId String      @db.Uuid
+  effectiveFrom DateTime    @db.Date
+  /// Who wrote this row's current value, and when (a correction rewrites both).
+  recordedBy    String?     @db.Uuid
+  recordedAt    DateTime    @default(now())
+
+  depot         Depot       @relation(fields: [depotId], references: [id], onDelete: Cascade)
+  legalEntity   LegalEntity @relation(fields: [legalEntityId], references: [id], onDelete: Restrict)
+
+  @@unique([depotId, effectiveFrom])
+  @@map("depot_legal_entities")
+}
+
+/// HD-5: the role x legal entity matrix. A row = that role may read this entity's data in the
+/// AI web and the AI read API (HD-6); no row = it may not, so a new entity is readable by
+/// nobody but SUPER_ADMIN until somebody grants it. Owner decision 2026-11-22: nothing in
+/// hydromart-digital reads this table; its own permissions and depot scopes do not change.
+model LegalEntityAiGrant {
+  legalEntityId String      @db.Uuid
+  /// A built-in role or a custom role key (C_...). Never SUPER_ADMIN, which reads everything.
+  roleKey       String
+  grantedBy     String?     @db.Uuid
+  grantedAt     DateTime    @default(now())
+
+  legalEntity   LegalEntity @relation(fields: [legalEntityId], references: [id], onDelete: Cascade)
+
+  @@id([legalEntityId, roleKey])
+  @@map("legal_entity_ai_grants")
 }
