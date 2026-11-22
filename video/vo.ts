@@ -1,12 +1,12 @@
 // Generates the voice-over files from src/script.ts with ElevenLabs text-to-speech, then checks every
 // line fits its scene.   XI_API_KEY=... node vo.ts
 //
-// One mp3 per scene in public/vo/<staff|kepala>-NN.mp3, the names Root.tsx looks for. A line whose
+// One mp3 per scene in public/vo/<staff|kepala|pelanggan>-NN.mp3, the names Root.tsx looks for. A line whose
 // text is unchanged since the last run is not paid for twice (public/vo/manifest.json).
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { FPS, KEPALA, STAFF, VO_DELAY, type Scene } from './src/script.ts';
+import { FPS, KEPALA, PELANGGAN, STAFF, VO_DELAY, type Scene } from './src/script.ts';
 
 const KEY = process.env.XI_API_KEY;
 if (!KEY) throw new Error('Set XI_API_KEY (ElevenLabs API key).');
@@ -45,6 +45,7 @@ const tooLong: string[] = [];
 for (const [prefix, scenes] of [
   ['staff', STAFF],
   ['kepala', KEPALA],
+  ['pelanggan', PELANGGAN],
 ] as [string, Scene[]][]) {
   for (const [i, s] of scenes.entries()) {
     const name = `${prefix}-${String(i + 1).padStart(2, '0')}.mp3`;

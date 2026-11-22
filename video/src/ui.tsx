@@ -388,9 +388,15 @@ export const Toast: React.FC<{ at: number; children: React.ReactNode; tone?: 'su
   );
 };
 
-/** Bottom sheet that slides up at `at`. */
-export const Sheet: React.FC<{ at: number; children: React.ReactNode; height?: number }> = ({ at, children, height = 420 }) => {
-  const p = ease(useCurrentFrame(), at, 12);
+/** Bottom sheet that slides up at `at` (and back down at `until`). */
+export const Sheet: React.FC<{ at: number; until?: number; children: React.ReactNode; height?: number }> = ({
+  at,
+  until = 1e9,
+  children,
+  height = 420,
+}) => {
+  const frame = useCurrentFrame();
+  const p = ease(frame, at, 12) * (1 - ease(frame, until, 10));
   if (p === 0) return null;
   return (
     <>
@@ -407,6 +413,7 @@ export const Sheet: React.FC<{ at: number; children: React.ReactNode; height?: n
           borderRadius: '24px 24px 0 0',
           padding: 20,
           zIndex: 30,
+          overflow: 'hidden',
         }}
       >
         <div style={{ width: 40, height: 4, borderRadius: 2, background: C.border, margin: '-8px auto 14px' }} />

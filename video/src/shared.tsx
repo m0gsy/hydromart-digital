@@ -7,7 +7,12 @@ import { Btn, C, Card, Chip, ease, Field, PageHead, Spot, Tapped, Toast, typed }
 
 export const PHONE_NUMBER = '812 3456 7890';
 
-export const LoginScreen: React.FC<{ typeFrom: number; tapAt: number }> = ({ typeFrom, tapAt }) => {
+/** /login. `signupTapAt` shows the customer app's sign-up link (the Ops app hides it) and taps it. */
+export const LoginScreen: React.FC<{ typeFrom: number; tapAt: number; signupTapAt?: number }> = ({
+  typeFrom,
+  tapAt,
+  signupTapAt,
+}) => {
   const frame = useCurrentFrame();
   return (
     <div style={{ padding: '40px 22px' }}>
@@ -27,15 +32,29 @@ export const LoginScreen: React.FC<{ typeFrom: number; tapAt: number }> = ({ typ
       <Tapped at={tapAt} style={{ marginTop: 10 }}>
         <Btn style={{ padding: 14 }}>Kirim kode</Btn>
       </Tapped>
+      {signupTapAt !== undefined && (
+        <div style={{ fontSize: 14, color: C.textMuted, marginTop: 18, textAlign: 'center' }}>
+          Belum punya akun?{' '}
+          <Tapped at={signupTapAt} style={{ display: 'inline-block' }}>
+            <span style={{ color: C.brand700, fontWeight: 700 }}>Daftar sekarang</span>
+          </Tapped>
+        </div>
+      )}
     </div>
   );
 };
 
-export const VerifyScreen: React.FC<{ typeFrom: number; tapAt: number; hintAt?: number }> = ({
-  typeFrom,
-  tapAt,
-  hintAt = 1e9,
-}) => {
+/**
+ * /verify. `lead` is "Masuk ke akunmu." for a sign-in, "Selesaikan pendaftaran." for a sign-up;
+ * `resendHintAt` points at the resend line.
+ */
+export const VerifyScreen: React.FC<{
+  typeFrom: number;
+  tapAt: number;
+  hintAt?: number;
+  lead?: string;
+  resendHintAt?: number;
+}> = ({ typeFrom, tapAt, hintAt = 1e9, lead = 'Masuk ke akunmu.', resendHintAt = 1e9 }) => {
   const frame = useCurrentFrame();
   const code = typed(frame, '482913', typeFrom, 5);
   return (
@@ -45,7 +64,7 @@ export const VerifyScreen: React.FC<{ typeFrom: number; tapAt: number; hintAt?: 
       </div>
       <div style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, marginTop: 18 }}>Verifikasi nomormu</div>
       <div style={{ fontSize: 14, color: C.textMuted, marginTop: 8, lineHeight: 1.4 }}>
-        Masuk ke akunmu. Masukkan kode yang kami kirim ke <b style={{ color: C.text }}>+62 {PHONE_NUMBER}</b>
+        {lead} Masukkan kode yang kami kirim ke <b style={{ color: C.text }}>+62 {PHONE_NUMBER}</b>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 28 }}>
         {Array.from({ length: 6 }, (_, i) => (
@@ -74,9 +93,18 @@ export const VerifyScreen: React.FC<{ typeFrom: number; tapAt: number; hintAt?: 
           <Btn style={{ padding: 14 }}>Verifikasi &amp; lanjut</Btn>
         </Tapped>
       </Spot>
-      <div style={{ fontSize: 13, color: C.textMuted, marginTop: 16, textAlign: 'center' }}>
-        Tidak menerima kode? <span style={{ color: C.brand700, fontWeight: 700 }}>Kirim ulang dalam 41d</span>
-      </div>
+      <Spot
+        at={resendHintAt}
+        text="Belum dapat SMS? Tunggu hitungan mundur, lalu Kirim ulang kode"
+        style={{ marginTop: 16 }}
+      >
+        <div style={{ fontSize: 13, color: C.textMuted, textAlign: 'center', padding: '4px 0', background: C.muted }}>
+          Tidak menerima kode?{' '}
+          <span style={{ color: C.brand700, fontWeight: 700 }}>
+            Kirim ulang dalam {Math.max(0, 41 - Math.floor(frame / 30))}d
+          </span>
+        </div>
+      </Spot>
     </div>
   );
 };

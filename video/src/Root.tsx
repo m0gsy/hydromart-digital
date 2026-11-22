@@ -1,9 +1,10 @@
 import React from 'react';
 import { Audio, Composition, getStaticFiles, Sequence, Series, staticFile } from 'remotion';
-import { FPS, frames, KEPALA, type Scene, STAFF, VO_DELAY } from './script';
+import { FPS, frames, KEPALA, PELANGGAN, type Scene, STAFF, VO_DELAY } from './script';
 import { Stage, TitleCard } from './ui';
 import { STAFF_SCREENS, STAFF_TITLE } from './StaffDepot';
 import { KEPALA_SCREENS, KEPALA_TITLE } from './KepalaDepot';
+import { PELANGGAN_SCREENS, PELANGGAN_TITLE } from './Pelanggan';
 
 interface TutorialProps {
   scenes: Scene[];
@@ -52,10 +53,14 @@ const common = { fps: FPS, width: 1080, height: 1920 } as const;
 // Wrappers, not defaultProps: the scene map holds components, which props cannot carry.
 const StaffVideo: React.FC = () => <Tutorial scenes={STAFF} screens={STAFF_SCREENS} titles={STAFF_TITLE} vo="staff" />;
 const KepalaVideo: React.FC = () => <Tutorial scenes={KEPALA} screens={KEPALA_SCREENS} titles={KEPALA_TITLE} vo="kepala" />;
+const PelangganVideo: React.FC = () => (
+  <Tutorial scenes={PELANGGAN} screens={PELANGGAN_SCREENS} titles={PELANGGAN_TITLE} vo="pelanggan" />
+);
 
 export const Root: React.FC = () => (
   <>
     <Composition id="StaffDepot" component={StaffVideo} durationInFrames={frames(STAFF)} {...common} />
     <Composition id="KepalaDepot" component={KepalaVideo} durationInFrames={frames(KEPALA)} {...common} />
+    <Composition id="Pelanggan" component={PelangganVideo} durationInFrames={frames(PELANGGAN)} {...common} />
   </>
 );

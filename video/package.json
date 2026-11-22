@@ -7,11 +7,12 @@
     "studio": "remotion studio",
     "render:staff": "remotion render StaffDepot out/tutorial-staff-depot.mp4",
     "render:kepala": "remotion render KepalaDepot out/tutorial-kepala-depot.mp4",
-    "render": "npm run render:staff && npm run render:kepala",
+    "render": "npm run render:staff && npm run render:kepala && npm run render:pelanggan",
     "typecheck": "tsc --noEmit",
     "naskah": "node naskah.ts",
     "stills": "node stills.mjs",
-    "vo": "node vo.ts"
+    "vo": "node vo.ts",
+    "render:pelanggan": "remotion render Pelanggan out/tutorial-pelanggan.mp4"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.7",

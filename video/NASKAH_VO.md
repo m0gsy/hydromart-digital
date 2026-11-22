@@ -189,3 +189,145 @@ Berkas: `out/tutorial-kepala-depot.mp4` · durasi 2:52 · 5160 frame @ 30 fps
 **Teks layar:** Pagi buka, siang layani, sore tutup.
 
 > Ringkasnya: pagi absen, catat meteran, dan buka shift kasir. Siang tugaskan pesanan dan layani pembeli. Sore tutup shift, verifikasi setoran, catat meteran, dan tutup buku. Selamat bekerja!
+
+## Video 3 — Pelanggan
+
+Berkas: `out/tutorial-pelanggan.mp4` · durasi 5:24 · 9720 frame @ 30 fps
+
+### 1. Pesan Air Galon  `0:00–0:12`
+
+**Teks layar:** Panduan lengkap untuk pelanggan: dari daftar sampai galon tiba di rumah.
+
+> Halo! Video ini memandu Anda memesan air galon lewat aplikasi Hydromart, langkah demi langkah, dari daftar akun sampai galon tiba di depan pintu.
+
+### 2. Langkah 1 — Buka aplikasi  `0:12–0:25`
+
+**Teks layar:** Tiga layar perkenalan muncul sekali. Ketuk Lanjut, lalu Mulai.
+
+> Saat pertama dibuka, aplikasi menampilkan tiga layar perkenalan: atur lokasi antar, pesan galon, dan lacak sampai depan pintu. Ketuk Lanjut, lalu Mulai.
+
+### 3. Langkah 2 — Daftar akun  `0:25–0:42`
+
+**Teks layar:** Isi nomor HP, centang persetujuan, lalu Kirim kode verifikasi.
+
+> Ketuk Daftar sekarang. Isi nomor HP yang aktif. Nama dan email boleh dikosongkan. Kalau punya kode referral dari teman, isi juga untuk bonus poin. Centang persetujuan Kebijakan Privasi, lalu ketuk Kirim kode verifikasi.
+
+### 4. Langkah 3 — Masukkan kode SMS  `0:42–0:56`
+
+**Teks layar:** Isi 6 digit kode dari SMS. Lain kali cukup Masuk dengan nomor yang sama.
+
+> Masukkan enam digit kode yang dikirim lewat SMS. Begitu lengkap, aplikasi langsung memproses. Belum menerima kode? Tunggu hitungan mundur selesai, lalu ketuk Kirim ulang kode.
+
+### 5. Langkah 4 — Kenali Beranda  `0:56–1:10`
+
+**Teks layar:** Empat menu di bawah: Beranda, Belanja, Pesanan, dan Akun.
+
+> Ini Beranda. Di atas ada pencarian, notifikasi, dan keranjang. Di bawah ada empat menu: Beranda, Belanja untuk memilih produk, Pesanan untuk memantau pesanan, dan Akun.
+
+### 6. Langkah 5 — Pilih produk  `1:10–1:25`
+
+**Teks layar:** Belanja → pilih kategori atau cari → ketuk produk.
+
+> Buka menu Belanja. Pilih kategori, misalnya Galon Isi Ulang, atau ketik nama produk di kolom pencarian. Label Member menunjukkan harga khusus anggota. Ketuk produk untuk melihat detailnya.
+
+### 7. Langkah 6 — Masukkan keranjang  `1:25–1:38`
+
+**Teks layar:** Cek depot & ongkir, atur jumlah, lalu Tambah ke keranjang.
+
+> Di halaman produk, cek kotak pengiriman: depot mana yang mengantar, ongkirnya, dan apakah depot sedang buka. Atur jumlah, lalu ketuk Tambah ke keranjang.
+
+### 8. Langkah 7 — Cek keranjang  `1:38–1:50`
+
+**Teks layar:** Periksa jumlah & Estimasi total, lalu ketuk Checkout.
+
+> Buka keranjang lewat ikon di kanan atas. Periksa jumlah tiap produk dan estimasi totalnya. Ongkir dihitung di langkah berikutnya. Lalu ketuk Checkout.
+
+### 9. Langkah 8 — Alamat & titik lokasi  `1:50–2:09`
+
+**Teks layar:** Isi alamat, ketuk Gunakan lokasi saya, dan tulis patokan untuk kurir.
+
+> Di halaman Checkout, ketuk Alamat pengiriman. Isi nama penerima, telepon, dan alamat lengkap. Lalu ketuk Gunakan lokasi saya. Titik ini wajib, karena kurir mengantar ke titik tersebut. Tulis patokan di Catatan untuk kurir, lalu ketuk Selesai.
+
+### 10. Langkah 9 — Pilih waktu antar  `2:09–2:21`
+
+**Teks layar:** Secepatnya, Antar sekarang (jika ada), atau jadwalkan hari & jam.
+
+> Ketuk Waktu pengiriman. Biarkan Secepatnya, pilih Antar sekarang bila tersedia, atau jadwalkan hari dan jam yang Anda mau. Lalu ketuk Selesai.
+
+### 11. Langkah 10 — Pilih cara bayar  `2:21–2:36`
+
+**Teks layar:** Bayar di tempat (COD): bayar tunai ke kurir saat pesanan tiba.
+
+> Ketuk Metode pembayaran. Yang paling umum adalah Bayar di tempat, artinya Anda membayar tunai ke kurir saat pesanan tiba. Transfer bank dan QRIS hanya muncul jika depot Anda menyediakannya.
+
+### 12. Langkah 11 — Voucher & Buat pesanan  `2:36–2:51`
+
+**Teks layar:** Pakai voucher bila ada, cek Total, lalu ketuk Buat pesanan.
+
+> Punya kode voucher? Ketuk Voucher, masukkan kodenya, lalu Terapkan. Periksa ringkasan pesanan: subtotal, potongan, ongkir, dan total. Jika sudah benar, ketuk Buat pesanan.
+
+### 13. Langkah 12 — Pesanan dibuat!  `2:51–3:04`
+
+**Teks layar:** Depot menyiapkan pesanan. Notifikasi masuk setiap ada perubahan.
+
+> Selesai! Pesanan berhasil dibuat dan depot mulai menyiapkannya. Anda akan menerima notifikasi setiap ada perubahan, misalnya saat pesanan dikonfirmasi atau kurir berangkat.
+
+### 14. Langkah 13 — Lacak pesanan  `3:04–3:19`
+
+**Teks layar:** Pesanan → pilih pesanan → lihat status, kurir & estimasi tiba.
+
+> Untuk memantau, buka menu Pesanan dan pilih pesanan Anda. Statusnya bergerak dari Dipesan sampai Tiba. Saat diantar, terlihat nama kurir, perkiraan jam tiba, dan tombol untuk menelepon kurir.
+
+### 15. Langkah 14 — Terima pesanan  `3:19–3:33`
+
+**Teks layar:** Bayar tunai bila COD dan serahkan galon kosong. Status jadi Tiba.
+
+> Saat kurir tiba, bayar tunai sesuai total jika memilih bayar di tempat, dan serahkan galon kosong bila ada. Kurir memotret bukti serah terima, lalu status berubah menjadi Tiba.
+
+### 16. Langkah 15 — Beri nilai  `3:33–3:46`
+
+**Teks layar:** Pilih bintang, tandai yang bagus, lalu Kirim ulasan.
+
+> Setelah pesanan tiba, beri penilaian. Pilih jumlah bintang, tandai apa yang bagus, lalu ketuk Kirim ulasan. Masukan Anda membantu kami melayani lebih baik.
+
+### 17. Tips — Pesan lagi, cepat  `3:46–3:56`
+
+**Teks layar:** Pesanan → Pesan lagi, atau pakai Beli lagi di Beranda.
+
+> Mau pesan yang sama lagi? Buka menu Pesanan lalu ketuk Pesan lagi, atau pilih dari bagian Beli lagi di Beranda.
+
+### 18. Kalau ada perubahan — Batal atau ubah jadwal  `3:56–4:12`
+
+**Teks layar:** Batal hanya sebelum kurir ditugaskan. Setelah itu, hubungi depot.
+
+> Perlu membatalkan? Ketuk Batalkan pesanan dan pilih alasannya. Ini hanya bisa sebelum kurir ditugaskan. Setelah itu, gunakan tombol Hubungi depot. Jadwal antar bisa diubah lewat Jadwalkan ulang.
+
+### 19. Fitur hemat — Langganan galon  `4:12–4:31`
+
+**Teks layar:** Pilih produk, jumlah & frekuensi, lalu Mulai langganan.
+
+> Tidak mau repot pesan ulang? Buka Langganan dari menu Akun. Pilih produk, jumlah, dan frekuensi: mingguan, dua minggu, atau bulanan. Tentukan pengiriman pertama, lalu ketuk Mulai langganan. Langganan bisa dijeda atau dibatalkan kapan saja.
+
+### 20. Fitur hemat — Poin & hadiah  `4:31–4:49`
+
+**Teks layar:** Belanja dapat poin. Tukar poin dengan hadiah, ambil di depot.
+
+> Setiap belanja menambah poin. Buka Rewards untuk melihat level keanggotaan dan poin Anda. Ketuk Tukar pada hadiah, pilih depot pengambilan, lalu tunjukkan kode penukaran ke petugas depot. Poin hangus setelah dua belas bulan tanpa aktivitas.
+
+### 21. Fitur hemat — Ajak teman  `4:49–5:00`
+
+**Teks layar:** Bagikan kode referral. Kamu & teman dapat poin setelah pesanan pertamanya selesai.
+
+> Buka Ajak teman, salin kode referral Anda, lalu bagikan. Setelah pesanan pertama teman Anda selesai, Anda dan teman sama-sama mendapat poin.
+
+### 22. Butuh bantuan? — Bantuan & komplain  `5:00–5:13`
+
+**Teks layar:** Akun → Bantuan: pertanyaan umum, Chat dengan CS, Ajukan komplain.
+
+> Ada kendala? Buka Akun, lalu Bantuan. Di sana ada pertanyaan umum, Chat dengan CS lewat WhatsApp, dan tombol Ajukan komplain untuk melaporkan masalah pesanan.
+
+### 23. Selamat berbelanja!  `5:13–5:24`
+
+**Teks layar:** Pesan sekarang, galon segar diantar sampai depan pintu.
+
+> Itu dia cara memesan air galon di aplikasi Hydromart. Pesan sekarang, dan galon segar diantar sampai depan pintu. Terima kasih!
