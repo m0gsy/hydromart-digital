@@ -118,21 +118,17 @@ export function Sheet({
         aria-modal="true"
         aria-label={title}
       >
-        {dismissible ? (
-          <button
-            type="button"
-            aria-label={t('common.close')}
-            onClick={onClose}
-            className="absolute inset-0 bg-[color:var(--text)]/40"
-            style={{ animation: 'fadeUp 0.15s var(--ease-out) both' }}
-          />
-        ) : (
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 bg-[color:var(--text)]/40"
-            style={{ animation: 'fadeUp 0.15s var(--ease-out) both' }}
-          />
-        )}
+        {/* One element in both states: switching type would remount it and replay the fade. */}
+        <button
+          type="button"
+          aria-label={t('common.close')}
+          onClick={onClose}
+          disabled={!dismissible}
+          aria-hidden={dismissible ? undefined : true}
+          tabIndex={dismissible ? undefined : -1}
+          className="absolute inset-0 bg-[color:var(--text)]/40 disabled:cursor-default"
+          style={{ animation: 'fadeUp 0.15s var(--ease-out) both' }}
+        />
         <div
           className="surface relative flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-3xl shadow-lift sm:w-full sm:max-w-lg sm:rounded-3xl"
           style={{
@@ -146,23 +142,25 @@ export function Sheet({
             sheet is a centered dialog and there is nothing to drag it towards. */}
           <div
             onPointerDown={dismissible ? onHandleDown : undefined}
-            className="flex touch-none justify-center pt-2.5 pb-1 sm:hidden"
+            className={`flex touch-none justify-center pt-2.5 pb-1 sm:hidden ${dismissible ? '' : 'invisible'}`}
             aria-hidden="true"
           >
             <span className="h-1 w-10 rounded-full bg-[color:var(--border)]" />
           </div>
           <div className="flex items-center justify-between border-b border-app px-5 py-4">
             <h2 className="text-lg font-extrabold tracking-tight">{title}</h2>
-            {dismissible && (
-              <button
-                type="button"
-                aria-label={t('common.close')}
-                onClick={onClose}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-[color:var(--surface-soft)]"
-              >
-                <X size={18} weight="bold" />
-              </button>
-            )}
+            {/* Kept in place while locked (invisible) so the header does not shift. */}
+            <button
+              type="button"
+              aria-label={t('common.close')}
+              onClick={onClose}
+              disabled={!dismissible}
+              aria-hidden={dismissible ? undefined : true}
+              tabIndex={dismissible ? undefined : -1}
+              className={`flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors hover:bg-[color:var(--surface-soft)] ${dismissible ? '' : 'invisible'}`}
+            >
+              <X size={18} weight="bold" />
+            </button>
           </div>
           <div className="overflow-y-auto p-5">{children}</div>
           {footer && (

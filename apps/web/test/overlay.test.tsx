@@ -112,6 +112,36 @@ describe('Sheet', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  // HD-7: a locked sheet holds what a stray close would lose (a one-time secret).
+  it('cannot be closed while locked: no live close control, Escape and the drag do nothing', () => {
+    const onClose = vi.fn();
+    render(
+      <Sheet open onClose={onClose} dismissible={false} title="Kunci">
+        body
+      </Sheet>,
+    );
+    expect(screen.queryByRole('button', { name: 'common.close' })).toBeNull();
+    for (const el of document.querySelectorAll('button[aria-label="common.close"]')) {
+      fireEvent.click(el);
+    }
+    fireEvent.keyDown(document, { key: 'Escape' });
+    const grip = document.querySelector('.touch-none') as HTMLElement;
+    stubPointerCapture(grip);
+    drag(grip, 0, 300);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('springs back when a long drag leaves the sheet open', () => {
+    render(
+      <Sheet open onClose={() => {}} title="Tetap">
+        body
+      </Sheet>,
+    );
+    const grip = handle();
+    drag(grip, 0, 300);
+    expect((grip.parentElement as HTMLElement).style.transform).toBe('');
+  });
+
   it('closes on Escape', () => {
     const onClose = vi.fn();
     render(

@@ -13,7 +13,8 @@ export interface EventRelaySweepResult {
   pruned: number;
   /**
    * Events owed for an hour or more. Reported, not a verdict: it is in the round's body, which
-   * /hq/health shows beside the job.
+   * the sweeps API (sweep_runs.detail) and the scheduler log keep; /hq/health prints a detail
+   * only for a failing round.
    */
   stuck: number;
   /**
@@ -23,6 +24,14 @@ export interface EventRelaySweepResult {
    * people to ignore the job.
    */
   ok: boolean;
+}
+
+/**
+ * The wait after the `attempts`-th failed try: 1, 2, 4, 8, 16, 32 minutes, then an hour for as
+ * long as it takes. contracts/ai-v1/events.openapi.json states the same rhythm (a test ties them).
+ */
+export function outboxRetryDelayMs(attempts: number): number {
+  return Math.min(3_600_000, 60_000 * 2 ** Math.min(Math.max(attempts, 1) - 1, 20));
 }
 
 /** The reason behind a rejection, whatever was thrown (a null rejection has no .message). */
@@ -44,7 +53,8 @@ function reasonOf(error: unknown): string {
  * the body. So the relay keeps trying, about an hour apart, and once the cause is fixed the
  * event goes through by itself, with nothing to re-queue by hand on the box. Somebody is told:
  * one alert when a single event has failed six times (about an hour), then sweep.sh pages each
- * hourly try that fails (ok:false), and every round reports how many events are stuck.
+ * round in which nothing due got through (ok:false, the J7 rule), which for a lone stuck event
+ * is its hourly try; every round also reports how many events are stuck.
  *
  * ponytail: unbounded retries; the ceiling is one request an hour per stuck event, a handful
  * a month at today's volume. Add a give-up date if events ever arrive by the thousand.
@@ -52,9 +62,6 @@ function reasonOf(error: unknown): string {
 @Injectable()
 export class EventRelayService {
   private static readonly BATCH = 50;
-  /** 1m, 2m, 4m, 8m, 16m, 32m, then an hour between tries for as long as it takes. */
-  private static readonly BASE_BACKOFF_MS = 60_000;
-  private static readonly MAX_BACKOFF_MS = 3_600_000;
   /** The try that raises the one alert (about an hour after the event). */
   private static readonly ALERT_AT_ATTEMPT = 6;
   /** Owed for this long, an event counts as stuck in the round's report. */
@@ -124,11 +131,11 @@ export class EventRelayService {
     } catch (error) {
       const reason = reasonOf(error);
       const attempts = row.attempts + 1;
-      const delay = Math.min(
-        EventRelayService.MAX_BACKOFF_MS,
-        EventRelayService.BASE_BACKOFF_MS * 2 ** Math.min(attempts - 1, 20),
+      await this.outbox.markFailed(
+        row.id,
+        reason,
+        new Date(now.getTime() + outboxRetryDelayMs(attempts)),
       );
-      await this.outbox.markFailed(row.id, reason, new Date(now.getTime() + delay));
       this.logger.warn(`${row.event} ${row.eventId} not delivered (try ${attempts}): ${reason}`);
       if (attempts === EventRelayService.ALERT_AT_ATTEMPT) {
         alertServerError({

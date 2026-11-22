@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { DepotConfigService } from '../../src/config/depot-config.service';
-import { EventRelayService } from '../../src/application/services/event-relay.service';
+import {
+  EventRelayService,
+  outboxRetryDelayMs,
+} from '../../src/application/services/event-relay.service';
 import {
   FRANCHISE_APPLICATION_SUBMITTED,
   franchiseApplicationSubmitted,
@@ -227,8 +230,12 @@ describe('franchise.application_submitted (HD-7)', () => {
     expect(Object.keys(vector.data).sort()).toEqual(Object.keys(event.payload).sort());
     expect(vector.event).toBe(event.event);
     expect(vector.eventId).toBe(franchiseApplicationSubmittedEventId(vector.data.applicationId));
-    // The producer's retry rhythm as a receiver is told it (the relay spec pins the same steps).
-    expect(contract.info.description).toContain('1, 2, 4, 8, 16 and 32 minutes');
+    // The producer's retry rhythm as a receiver is told it, from the function the relay uses.
+    const steps = [1, 2, 3, 4, 5, 6].map((n) => outboxRetryDelayMs(n) / 60_000);
+    expect(contract.info.description).toContain(
+      `${steps.slice(0, -1).join(', ')} and ${steps.at(-1)} minutes`,
+    );
+    expect(outboxRetryDelayMs(7)).toBe(3_600_000);
     expect(data.properties.applicationId).toMatchObject({ type: 'string', format: 'uuid' });
   });
 });
