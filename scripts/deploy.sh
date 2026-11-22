@@ -901,7 +901,11 @@ converge
 # nothing compose can see: converge leaves the container running, crond keeps the schedule
 # it read at boot, and the new jobs never fire. Silently — which is the same failure mode
 # as the ownership bug the entrypoint comment describes, found the same way, too late.
-if ! git diff --quiet "$PREV_SHA" "$NEW_SHA" -- scripts/scheduler/ 2>/dev/null; then
+#
+# HD-7: judged on CHANGED (the diff from what the containers were BUILT from), the same rule
+# the Caddy reload below follows. Against PREV_SHA, a deploy that died past its reset left
+# HEAD on the new commit, so the next deploy diffed nothing and a new sweep never fired.
+if grep -q '^scripts/scheduler/' <<<"$CHANGED"; then
   log "scheduler scripts changed — restarting it so crond re-reads the crontab"
   $COMPOSE restart scheduler || log "!! scheduler restart failed — new cron jobs are NOT live"
 fi

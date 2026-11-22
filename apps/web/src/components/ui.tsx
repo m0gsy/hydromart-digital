@@ -650,14 +650,19 @@ export function Segmented<T extends string>({
   options,
   onChange,
   className,
+  label,
 }: {
   value: T;
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
   className?: string;
+  /** Names the set for a screen reader ("filter the log by event"); renders it as a group. */
+  label?: string;
 }) {
   return (
     <div
+      role={label ? 'group' : undefined}
+      aria-label={label}
       className={cx(
         'flex gap-1 rounded-full border border-app bg-[color:var(--surface-muted)] p-[3px]',
         className,

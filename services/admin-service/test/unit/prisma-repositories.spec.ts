@@ -1156,7 +1156,7 @@ describe('WebhookPrismaRepository', () => {
 
   it('create passes data straight through', async () => {
     model.create.mockResolvedValue({ id: 'w-1' });
-    const data = { url: 'https://x.com/hook', events: ['order.created'] };
+    const data = { url: 'https://x.com/hook', events: ['order.created'], secret: 'a'.repeat(64) };
     await repo.create(data);
     expect(model.create).toHaveBeenCalledWith({ data });
   });

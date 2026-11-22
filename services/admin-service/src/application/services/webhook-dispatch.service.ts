@@ -24,7 +24,8 @@ import { ADMIN_TOKENS } from '../tokens';
 /** How many deliveries one sweep sends, and how long a claim is held. */
 const BATCH = 20;
 const LEASE_MS = 5 * 60_000;
-const SEND_TIMEOUT_MS = 10_000;
+/** The whole exchange, body included (contracts/ai-v1/events.openapi.json states it). */
+export const SEND_TIMEOUT_MS = 10_000;
 /**
  * A delivery is not STARTED once this much of the lease is gone: 20 sequential sends at the
  * 10s timeout is 200s, inside the 300s lease, and this is the backstop for a slow DNS lookup
@@ -36,8 +37,11 @@ export interface PublishEventInput {
   event: string;
   payload: unknown;
   occurredAt?: Date;
-  /** The producer's idempotency key; a repeat of the same key is not queued again. */
-  eventId?: string;
+  /**
+   * The producer's idempotency key; a repeat of the same key is not queued again. Required
+   * (HD-7): it is also the key a receiver dedupes the event on.
+   */
+  eventId: string;
 }
 
 /**
@@ -73,7 +77,7 @@ export class WebhookDispatchService {
       subscribers.map((s) => ({
         endpointId: s.id,
         event: input.event,
-        eventId: input.eventId ?? null,
+        eventId: input.eventId,
         payload: input.payload,
         occurredAt,
       })),
@@ -105,10 +109,16 @@ export class WebhookDispatchService {
     const sweepStarted = Date.now();
 
     for (const delivery of due) {
+      const elapsed = Date.now() - sweepStarted;
       // Past this point a send could outlive the lease and be sent a second time by the next sweep.
-      if (Date.now() - sweepStarted > START_BY_MS) break;
+      if (elapsed > START_BY_MS) break;
       touched.add(delivery.endpointId);
-      const outcome = await this.attempt(delivery, now);
+      /*
+       * HD-7: stamped when THIS send starts, not when the sweep did. Twenty sends at the 10 s
+       * timeout put the last one up to 270 s behind the sweep's clock, close to the 300 s a
+       * receiver allows before refusing the timestamp as a replay.
+       */
+      const outcome = await this.attempt(delivery, new Date(now.getTime() + elapsed));
       if (outcome === 'sent') sent += 1;
       else if (outcome === 'dead') dead += 1;
       else failed += 1;
@@ -144,18 +154,15 @@ export class WebhookDispatchService {
       data: delivery.payload,
     });
     const timestamp = String(Math.floor(now.getTime() / 1000));
+    // HD-7: always signed. An endpoint without a secret cannot exist any more (NOT NULL and a
+    // length check on the column), so there is no unsigned case left to send.
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Hydromart-Event': delivery.event,
       'X-Hydromart-Delivery': delivery.id,
       'X-Hydromart-Timestamp': timestamp,
+      'X-Hydromart-Signature': signPayload(delivery.secret, timestamp, body),
     };
-    // No secret means the receiver cannot tell our POST from anyone else's. Still sent —
-    // an endpoint registered without one asked for that — but it is not signed with a
-    // placeholder, which would look like authentication and be none.
-    if (delivery.secret) {
-      headers['X-Hydromart-Signature'] = signPayload(delivery.secret, timestamp, body);
-    }
 
     let status: number | null = null;
     let error: string | null = null;

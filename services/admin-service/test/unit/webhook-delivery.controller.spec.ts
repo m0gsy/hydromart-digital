@@ -52,12 +52,14 @@ describe('WebhookInternalController', () => {
         event: 'delivery.delivered',
         payload: { a: 1 },
         occurredAt: NOW.toISOString(),
+        eventId: 'delivery.delivered:d1',
       }),
     ).resolves.toEqual({ queued: 2 });
     expect(service.publish).toHaveBeenCalledWith({
       event: 'delivery.delivered',
       payload: { a: 1 },
       occurredAt: NOW,
+      eventId: 'delivery.delivered:d1',
     });
   });
 
@@ -78,6 +80,7 @@ describe('WebhookInternalController', () => {
     await new WebhookInternalController(service).publish({
       event: 'delivery.delivered',
       payload: {},
+      eventId: 'delivery.delivered:d2',
     });
     expect(service.publish).toHaveBeenCalledWith(
       expect.objectContaining({ occurredAt: undefined }),
@@ -148,19 +151,29 @@ describe('webhook delivery DTOs', () => {
   });
 
   // An event name is what an endpoint subscribes to, so a typo'd or free-form name is a
-  // subscription that silently never matches.
-  it('requires an event name shaped like domain.thing_happened', () => {
-    const bad = ['delivery delivered', 'Delivery.Delivered', 'delivered', ''];
+  // subscription that silently never matches. HD-7: only the events that exist.
+  it('takes only an event some service publishes', () => {
+    const bad = ['delivery delivered', 'Delivery.Delivered', 'delivered', '', 'order.created'];
     for (const event of bad) {
-      const dto = plainToInstance(PublishEventDto, { event, payload: {} });
+      const dto = plainToInstance(PublishEventDto, { event, payload: {}, eventId: 'k' });
       expect(validateSync(dto).map((e) => e.property)).toContain('event');
     }
-    const ok = plainToInstance(PublishEventDto, { event: 'delivery.delivered', payload: {} });
-    expect(validateSync(ok)).toHaveLength(0);
+    for (const event of ['delivery.delivered', 'franchise.application_submitted']) {
+      const ok = plainToInstance(PublishEventDto, { event, payload: {}, eventId: `${event}:1` });
+      expect(validateSync(ok)).toHaveLength(0);
+    }
+  });
+
+  // HD-7: the key a receiver dedupes on. An event without one cannot be told from its retry.
+  it('requires the producer eventId', () => {
+    for (const eventId of [undefined, '', 'x'.repeat(201)]) {
+      const dto = plainToInstance(PublishEventDto, { event: 'delivery.delivered', payload: {}, eventId });
+      expect(validateSync(dto).map((e) => e.property)).toContain('eventId');
+    }
   });
 
   it('requires a payload, even an empty one, rather than silently sending nothing', () => {
-    const dto = plainToInstance(PublishEventDto, { event: 'delivery.delivered' });
+    const dto = plainToInstance(PublishEventDto, { event: 'delivery.delivered', eventId: 'k' });
     expect(validateSync(dto).map((e) => e.property)).toContain('payload');
   });
 

@@ -744,7 +744,7 @@ describe('WebhooksController', () => {
     apiKeyId: null,
     events: ['order.created'],
     active: true,
-    secret: null,
+    secret: 'a'.repeat(64),
     lastDeliveryStatus: null,
     deliveryRatePct: null,
     createdAt: now,

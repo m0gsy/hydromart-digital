@@ -91,6 +91,14 @@ main() {
 
   log "converging the full stack"
   converge
+  # HD-7: crond reads the crontab only at container start, and deploy.sh restarts the scheduler
+  # when a release changes scripts/scheduler/. Going back to an older crontab needs the same
+  # restart, or crond keeps calling sweeps the rolled-back code no longer has (a FAILED page
+  # every tick until the next deploy).
+  if grep -q '^scripts/scheduler/' <<<"$CHANGED"; then
+    log "scheduler scripts differ: restarting it so crond re-reads the crontab"
+    $COMPOSE restart scheduler || log "!! scheduler restart failed: its cron jobs may not match the code"
+  fi
 
   # Same gate as the deploy: gateway alone answering 200 is what let 19 stopped
   # containers pass for a healthy stack.

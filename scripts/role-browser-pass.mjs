@@ -293,7 +293,7 @@ const KEY_RE = new RegExp(
 /**
  * A few screens print dictionary-shaped text on purpose: `/hq/content` IS the dictionary
  * editor, the audit logs render server event codes (`auth.login.succeeded`), and
- * `/hq/webhooks` lists the webhook events a subscription can carry (`order.created`).
+ * `/hq/webhooks` lists the webhook events a subscription can carry (`franchise.application_submitted`).
  * Skipping them by route beats weakening the pattern for every other screen.
  */
 const KEY_EXEMPT = /^\/(hq\/content|hq\/audit|dashboard\/audit|hq\/webhooks)$/;

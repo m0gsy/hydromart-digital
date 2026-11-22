@@ -1,4 +1,8 @@
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
+
 import { WebhookNotFoundError } from '../../src/domain/errors';
+import { CreateWebhookDto, UpdateWebhookDto } from '../../src/modules/dto/webhook.dto';
 import { WebhookService } from '../../src/application/services/webhook.service';
 import { InMemoryWebhookRepository } from '../support/fakes';
 
@@ -98,12 +102,13 @@ describe('WebhookService signing secret (CA-2-37)', () => {
   it('honours a secret the caller supplies, and ignores a blank one', async () => {
     const service = new WebhookService(new InMemoryWebhookRepository(), publicLookup);
 
+    const kept = 'kunci-lama-mitra-yang-sudah-dipakai-2026';
     const supplied = await service.create({
       url: 'https://partner.example.com/hooks',
       events: ['order.created'],
-      secret: 'kunci-lama-mitra',
+      secret: kept,
     });
-    expect(supplied.secret).toBe('kunci-lama-mitra');
+    expect(supplied.secret).toBe(kept);
 
     const blank = await service.create({
       url: 'https://other.example.com/hooks',
@@ -111,5 +116,43 @@ describe('WebhookService signing secret (CA-2-37)', () => {
       secret: '   ',
     });
     expect(blank.secret).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
+/*
+ * HD-7: the request shapes are where "secret wajib" and the closed event list are enforced
+ * for a person; the column's NOT NULL + length check is the backstop under them.
+ */
+describe('webhook request DTOs (HD-7)', () => {
+  const errors = (cls: typeof CreateWebhookDto | typeof UpdateWebhookDto, body: object) =>
+    validateSync(plainToInstance(cls, body)).map((e) => e.property);
+  const url = 'https://ai.example.com/api/ingress/hd';
+
+  it('takes only events some service publishes', () => {
+    expect(errors(CreateWebhookDto, { url, events: ['franchise.application_submitted'] })).toEqual([]);
+    expect(errors(CreateWebhookDto, { url, events: ['delivery.delivered'] })).toEqual([]);
+    // order.created was the form's own example and nothing ever published it.
+    for (const events of [['order.created'], ['franchise.application_submited'], ['delivery.delivered', 'x.y']]) {
+      expect(errors(CreateWebhookDto, { url, events })).toContain('events');
+      expect(errors(UpdateWebhookDto, { events })).toContain('events');
+    }
+  });
+
+  it('refuses a supplied secret too short or too odd to be one', () => {
+    for (const secret of ['', '   ', 'short', 'a'.repeat(31), `${'a'.repeat(31)} b`, 'a'.repeat(201)]) {
+      expect(errors(CreateWebhookDto, { url, events: ['delivery.delivered'], secret })).toContain('secret');
+      expect(errors(UpdateWebhookDto, { secret })).toContain('secret');
+    }
+    const good = 'Zx9!'.repeat(8);
+    expect(errors(CreateWebhookDto, { url, events: ['delivery.delivered'], secret: good })).toEqual([]);
+    expect(errors(UpdateWebhookDto, { secret: good })).toEqual([]);
+  });
+
+  it('lets a registration leave the secret out (one is generated), never a PATCH remove it', () => {
+    expect(errors(CreateWebhookDto, { url, events: ['delivery.delivered'] })).toEqual([]);
+    expect(errors(CreateWebhookDto, { url, events: ['delivery.delivered'], secret: null })).toEqual([]);
+    expect(errors(UpdateWebhookDto, { active: false })).toEqual([]);
+    // null used to reach the column (now a 500); "" used to switch signing off for good.
+    expect(errors(UpdateWebhookDto, { secret: null })).toContain('secret');
   });
 });

@@ -505,6 +505,15 @@ else
   bad "rollback.sh never calls persist_image_tag — .env keeps naming the release that was just rolled back, so 'docker compose up -d --force-recreate <svc>' from the runbook re-deploys the broken images"
 fi
 
+# HD-7: crond reads the crontab only at start. A release that added a sweep and was then rolled
+# back left crond calling that sweep on code that no longer has it, paging every tick.
+if grep -qF "grep -q '^scripts/scheduler/' <<<\"\$CHANGED\"" scripts/rollback.sh &&
+  grep -q 'restart scheduler' scripts/rollback.sh; then
+  ok "rollback restarts the scheduler when the crontab it returns to differs"
+else
+  bad "rollback.sh must restart the scheduler when scripts/scheduler/ differs from the release it leaves"
+fi
+
 # THE NUMBER MUST NOT BE A 2AM SURPRISE. What a rollback costs depends entirely on which
 # mode is live, and nothing anywhere said which mode that was or what it implied.
 if grep -q 'rollback cost probe' scripts/deploy.sh; then

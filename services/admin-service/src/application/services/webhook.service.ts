@@ -33,9 +33,9 @@ export class WebhookService {
   /**
    * CA-2-37: an endpoint registered without a secret is an endpoint nobody can trust.
    *
-   * The dispatcher signs only when there IS one — deliberately, and its note says an
+   * The dispatcher used to sign only when there WAS one, deliberately, and its note said an
    * endpoint registered without a secret "asked for that". That premise was false: the HQ
-   * console sends `{ url, events }` and has no field for a secret at all, so it could not
+   * console sends `{ url, events }` and had no field for a secret at all, so it could not
    * ask for anything. Every webhook ever registered from the console went out unsigned,
    * forever, and the receiver had no way to tell our POST from anyone else's — a URL is
    * not a credential, and anyone who learns it can forge deliveries.
@@ -46,8 +46,13 @@ export class WebhookService {
    *
    * 32 bytes of `randomBytes`, hex — the same shape the API keys in this service use, and
    * long enough that the HMAC is the weakest part rather than the key.
+   *
+   * HD-7: an endpoint without a secret can no longer exist at all. The DTO refuses a
+   * supplied one shorter than 32 characters, and the column is NOT NULL with a length check.
    */
-  async create(data: CreateWebhookData): Promise<WebhookRecord> {
+  async create(
+    data: Omit<CreateWebhookData, 'secret'> & { secret?: string | null },
+  ): Promise<WebhookRecord> {
     // ADM-1: refuse a destination inside our own network while somebody is still watching
     // the form. The dispatcher checks again on every send, because a hostname can change
     // its mind later — but a partner typing `http://order:3004` deserves an error now.

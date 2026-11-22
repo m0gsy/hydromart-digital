@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Plugs, Trash } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
@@ -13,6 +13,7 @@ import {
   Field,
   IconButton,
   Input,
+  Segmented,
   Skeleton,
   Toggle,
 } from '@/components/ui';
@@ -36,8 +37,11 @@ export default function HqWebhooksPage() {
   const [deleteTarget, setDeleteTarget] = useState<WebhookEndpoint | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (query.loading) return <Skeleton className="h-96 w-full" />;
-  if (query.error)
+  // HD-7: only the FIRST load swaps the page for a skeleton or an error. A refresh (a toggle, a
+  // delete, coming back to the tab after a minute) keeps the page mounted, so an open create
+  // sheet, and the one-time secret on it, survives it.
+  if (query.loading && !query.data) return <Skeleton className="h-96 w-full" />;
+  if (query.error && !query.data)
     return <ErrorState message={t('hq.webhooks.loadError')} onRetry={query.reload} />;
 
   const hooks = query.data ?? [];
@@ -81,6 +85,9 @@ export default function HqWebhooksPage() {
       <Card className="p-4">
         <p className="text-sm text-muted">{t('hq.webhooks.howItWorks')}</p>
       </Card>
+
+      {/* A refresh that failed keeps the list it had; it says so instead of replacing the page. */}
+      {query.error && <ErrorState message={t('hq.webhooks.loadError')} onRetry={query.reload} />}
 
       {hooks.length === 0 ? (
         <Card className="p-8">
@@ -157,6 +164,8 @@ function CreateWebhookSheet({
   onCreated: () => void;
 }) {
   const { t } = useT();
+  const { toast } = useToast();
+  const ids = useId();
   const [url, setUrl] = useState('');
   const [events, setEvents] = useState('');
   const [busy, setBusy] = useState(false);
@@ -171,6 +180,24 @@ function CreateWebhookSheet({
   // Shown once after a successful create; the sheet stays open until it is dismissed.
   const [secret, setSecret] = useState<string | null>(null);
 
+  /*
+   * HD-7: the list is refreshed only when the sheet is DISMISSED. Refreshing on create closed
+   * the sheet and swapped the page for its skeleton, which unmounted this component and took
+   * the secret with it before anybody could copy it: every endpoint registered here had a
+   * secret nobody ever saw, so its receiver could verify nothing.
+   */
+  function dismiss() {
+    // Closing under a create still in flight would let it land in a closed sheet: an endpoint
+    // nobody was told about, whose secret nobody saw.
+    if (busy) return;
+    if (secret) {
+      setSecret(null);
+      onCreated();
+    } else {
+      onClose();
+    }
+  }
+
   async function submit() {
     if (!valid) return;
     setBusy(true);
@@ -179,10 +206,11 @@ function CreateWebhookSheet({
       /*
        * CA-2-37: the signing secret comes back HERE and nowhere else.
        *
-       * Every webhook registered from this sheet used to go out unsigned, forever — the
-       * server signs only when the endpoint has a secret, and this call never sent or
+       * Every webhook registered from this sheet used to go out unsigned, forever: the
+       * server signed only when the endpoint had a secret, and this call never sent or
        * received one. The receiver had no way to tell our POST from anyone else's, and a
-       * URL is not a credential: anyone who learns it can forge deliveries.
+       * URL is not a credential: anyone who learns it can forge deliveries. Since HD-7 every
+       * endpoint has one and every delivery is signed.
        *
        * The server generates one now. It is readable exactly once, so it is shown rather
        * than the sheet closing on it — closing would leave the partner with an endpoint
@@ -196,7 +224,6 @@ function CreateWebhookSheet({
       setUrl('');
       setEvents('');
       setSecret(created.secret);
-      onCreated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hq.webhooks.saveError'));
     } finally {
@@ -204,52 +231,93 @@ function CreateWebhookSheet({
     }
   }
 
+  async function copy() {
+    if (!secret) return;
+    try {
+      await navigator.clipboard.writeText(secret);
+      toast(t('hq.webhooks.copied'), 'success');
+    } catch {
+      toast(t('hq.webhooks.copyError'), 'error');
+    }
+  }
+
   return (
-    <Sheet open={open} onClose={onClose} title={t('hq.webhooks.createTitle')}>
-      <div className="flex flex-col gap-4">
-        {secret && (
-          <div className="rounded-xl border border-app bg-amber-50 p-3.5">
-            <p className="text-sm font-bold text-[color:var(--warning)]">{t('hq.webhooks.secretTitle')}</p>
-            <p className="mt-1 text-xs text-[color:var(--warning)]">{t('hq.webhooks.secretBody')}</p>
+    // While the secret is on screen, or a create is in flight, the sheet is locked: no close
+    // control, Escape and the swipe do nothing, so a stray close cannot count as "copied" or let
+    // the create land in a closed sheet. The buttons below are the only way out.
+    <Sheet
+      open={open}
+      onClose={onClose}
+      dismissible={!secret && !busy}
+      title={t('hq.webhooks.createTitle')}
+    >
+      {secret ? (
+        // Only the secret: a second registration from this sheet would replace it before it
+        // was copied.
+        <div className="flex flex-col gap-4">
+          <div role="status" className="rounded-xl border border-app bg-amber-50 p-3.5">
+            <p id={`${ids}-title`} className="text-sm font-bold text-[color:var(--warning)]">
+              {t('hq.webhooks.secretTitle')}
+            </p>
+            <p id={`${ids}-body`} className="mt-1 text-xs text-[color:var(--warning)]">
+              {t('hq.webhooks.secretBody')}
+            </p>
             <code className="mt-2 block break-all rounded-lg bg-white px-2.5 py-2 font-mono text-xs">
               {secret}
             </code>
           </div>
-        )}
-        <Field label={t('hq.webhooks.url')} htmlFor="wh-url">
-          <Input
-            id="wh-url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://partner.example.com/hooks"
-          />
-        </Field>
-        <Field
-          label={t('hq.webhooks.events')}
-          htmlFor="wh-events"
-          hint={t('hq.webhooks.eventsHint')}
-        >
-          <Input
-            id="wh-events"
-            value={events}
-            onChange={(e) => setEvents(e.target.value)}
-            placeholder="order.created, payment.settled"
-          />
-        </Field>
-        {error && (
-          <p className="text-sm text-[color:var(--danger)]" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose} disabled={busy}>
-            {t('hq.common.cancel')}
-          </Button>
-          <Button onClick={submit} disabled={!valid} loading={busy}>
-            {t('hq.webhooks.add')}
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={dismiss}>
+              {t('hq.webhooks.secretDone')}
+            </Button>
+            {/*
+              Salin sits where "+ Endpoint" was and takes the focus: a second tap or a held Enter
+              meant for the submit then only copies, instead of throwing the secret away. The
+              focus announcement reads the panel, since a live region that mounts already full
+              is often not announced.
+            */}
+            <Button onClick={copy} autoFocus aria-describedby={`${ids}-title ${ids}-body`}>
+              {t('hq.webhooks.copy')}
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <Field label={t('hq.webhooks.url')} htmlFor="wh-url">
+            <Input
+              id="wh-url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://partner.example.com/hooks"
+            />
+          </Field>
+          <Field
+            label={t('hq.webhooks.events')}
+            htmlFor="wh-events"
+            hint={t('hq.webhooks.eventsHint')}
+          >
+            <Input
+              id="wh-events"
+              value={events}
+              onChange={(e) => setEvents(e.target.value)}
+              placeholder="franchise.application_submitted"
+            />
+          </Field>
+          {error && (
+            <p className="text-sm text-[color:var(--danger)]" role="alert">
+              {error}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={dismiss} disabled={busy}>
+              {t('hq.common.cancel')}
+            </Button>
+            <Button onClick={submit} disabled={!valid} loading={busy}>
+              {t('hq.webhooks.add')}
+            </Button>
+          </div>
+        </div>
+      )}
     </Sheet>
   );
 }
@@ -273,11 +341,16 @@ const STATUS_TONE = {
   DEAD: 'danger',
 } as const;
 
+/** HD-7: the log is the newest 50; by event, an older franchise delivery can still be found. */
+type LogFilter = '' | 'franchise.application_submitted' | 'delivery.delivered';
+
 function DeliveryLog() {
   const { t } = useT();
   const { toast } = useToast();
-  const query = useAsync<WebhookDelivery[]>(() =>
-    api.get(endpoints.admin.webhooks.deliveries({ limit: 50 }), true),
+  const [event, setEvent] = useState<LogFilter>('');
+  const query = useAsync<WebhookDelivery[]>(
+    () => api.get(endpoints.admin.webhooks.deliveries({ limit: 50, event: event || undefined }), true),
+    [event],
   );
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -298,7 +371,19 @@ function DeliveryLog() {
 
   return (
     <Card className="flex flex-col gap-3 p-5">
-      <p className="text-sm font-extrabold">{t('hq.webhooks.logTitle')}</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-extrabold">{t('hq.webhooks.logTitle')}</p>
+        <Segmented<LogFilter>
+          label={t('hq.webhooks.logFilterLabel')}
+          value={event}
+          onChange={setEvent}
+          options={[
+            { value: '', label: t('hq.webhooks.logFilterAll') },
+            { value: 'franchise.application_submitted', label: t('hq.webhooks.logFilterFranchise') },
+            { value: 'delivery.delivered', label: t('hq.webhooks.logFilterDelivery') },
+          ]}
+        />
+      </div>
       {query.loading && <Skeleton className="h-24 w-full" />}
       {query.error && <ErrorState message={t('hq.webhooks.logError')} onRetry={query.reload} />}
       {!query.loading && !query.error && rows.length === 0 && (

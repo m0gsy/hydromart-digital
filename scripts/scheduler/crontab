@@ -87,7 +87,7 @@
 # a dead endpoint is not hammered by this cadence.
 */5 * * * * sh /scripts/sweep.sh webhooks/deliveries/process admin:3017
 # AAS-11: delivery-service's own half. A partner event admin-service refused (it was down) stays
-# in delivery-service's outbox; this re-sends it. Every 10 minutes: retries back off 1m..32m and
+# in delivery-service's outbox; this re-sends it. Every 10 minutes: retries wait 1m, 2m, 4m, 8m, 16m (the 6th failure is DEAD) and
 # admin dedupes on the event key, so an overlap costs one wasted call, never a duplicate.
 */10 * * * * sh /scripts/sweep.sh webhook-outbox/internal/process delivery:3006
 # PPA-09: an approved courier expense claim whose ledger credit never landed (the process died between
@@ -161,6 +161,14 @@
 # console rows to match. Every 15 minutes: the new depot should see a plan before it delivers it,
 # and a round is one depot-service read plus one order-service call per 500 plans.
 */15 * * * * sh /scripts/sweep.sh subscriptions/internal/rehome depot:3007
+
+# HD-7: depot-service's own webhook outbox (the first event: a calon mitra submitted a franchise
+# application). Each event is sent once the moment it is saved; this re-sends any admin-service did
+# not take. Every 10 minutes like delivery-service's webhook-outbox job, under its own name: the
+# lock and the /hq/health row are keyed on the path. Retries wait 1m, 2m, 4m ... then an hour, and
+# never give up (an alert at the 6th failure, sweep.sh pages a failing round); admin dedupes on
+# the event key, so an overlap costs one wasted call, never a duplicate.
+*/10 * * * * sh /scripts/sweep.sh event-outbox/internal/process depot:3007
 
 # Face upkeep (owner decision 2026-11-21): HR's enrolments checked against NEO's gallery — a face
 # NEO lost is retired so the app asks for a new one before the morning check-ins (32 refused punches

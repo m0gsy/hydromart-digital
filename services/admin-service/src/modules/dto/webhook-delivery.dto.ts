@@ -2,26 +2,25 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsDefined,
+  IsIn,
   IsISO8601,
   IsInt,
+  IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
 
 import { WebhookDeliveryRecord } from '../../application/ports/webhook.repository';
+import { WEBHOOK_EVENTS } from '../../domain/webhook-delivery';
 
 export class PublishEventDto {
-  /** `domain.thing_happened` — the same string an endpoint subscribes to. */
-  @ApiProperty({ example: 'delivery.delivered' })
+  /** `domain.thing_happened`, the same string an endpoint subscribes to (HD-7: a closed list). */
+  @ApiProperty({ enum: WEBHOOK_EVENTS, example: 'delivery.delivered' })
   @IsString()
-  @MaxLength(120)
-  @Matches(/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/, {
-    message: 'event must look like "domain.thing_happened"',
-  })
+  @IsIn(WEBHOOK_EVENTS, { message: `event must be one of: ${WEBHOOK_EVENTS.join(', ')}` })
   event!: string;
 
   @ApiProperty({ description: 'Event body delivered to the partner under `data`.' })
@@ -33,14 +32,18 @@ export class PublishEventDto {
   @IsISO8601()
   occurredAt?: string;
 
-  @ApiPropertyOptional({
+  /*
+   * HD-7: required. It is what a receiver dedupes on, and what makes a producer's retry the
+   * same event here (unique per endpoint). Every producer already sends one.
+   */
+  @ApiProperty({
     description: 'Producer idempotency key: publishing the same key again queues nothing new.',
     example: 'delivery.delivered:6f1c',
   })
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(200)
-  eventId?: string;
+  eventId!: string;
 }
 
 export class ListDeliveriesDto {
