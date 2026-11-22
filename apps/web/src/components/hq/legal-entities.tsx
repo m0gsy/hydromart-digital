@@ -558,7 +558,7 @@ export function AssignPanel({
                               <span className="min-w-0 flex-1 truncate">{entityName(p.legalEntityId)}</span>
                               <Button
                                 variant="ghost"
-                                disabled={removing !== null}
+                                disabled={removing !== null || busy}
                                 aria-label={t('hq.legalEntities.assign.removeOne', {
                                   name: entityName(p.legalEntityId),
                                   date: dayLabel(p.effectiveFrom),
@@ -632,7 +632,7 @@ export function AssignPanel({
                 onChange={(ev) => setFrom(ev.target.value)}
               />
             </Field>
-            <Button aria-label={label('apply')} onClick={apply} loading={busy}>
+            <Button aria-label={label('apply')} onClick={apply} loading={busy} disabled={removing !== null}>
               {t('hq.legalEntities.assign.apply')}
               {selected.size > 0 ? ` (${selected.size})` : ''}
             </Button>

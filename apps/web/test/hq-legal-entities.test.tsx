@@ -400,7 +400,7 @@ describe('/hq/legal-entities', () => {
     await userEvent.click((await screen.findAllByRole('switch'))[1]!);
     expect(await screen.findByText('hq.legalEntities.reloadFailed')).toBeTruthy();
     expect(screen.getByText('JKT-01 · Depot Cikini')).toBeTruthy();
-    expect(screen.getByText('PT Kelola Air')).toBeTruthy();
+    expect(screen.getAllByText('PT Kelola Air').length).toBeGreaterThan(0);
     serve();
     await userEvent.click(screen.getByRole('button', { name: 'hq.legalEntities.reload' }));
     await waitFor(() => expect(screen.queryByText('hq.legalEntities.reloadFailed')).toBeNull());
@@ -410,10 +410,10 @@ describe('/hq/legal-entities', () => {
     render(<HqLegalEntitiesPage />);
     await depotRow();
     // A refresh of the directory goes out (a toggle) and is held; the matrix is saved meanwhile.
-    let release: (v: unknown) => void = () => undefined;
+    const releases: Array<(v: unknown) => void> = [];
     get.mockImplementation((path: string) =>
       path.endsWith('/legal-entities')
-        ? new Promise((resolve) => (release = resolve))
+        ? new Promise((resolve) => releases.push(resolve))
         : Promise.resolve(path.endsWith('/legal-entities/depots') ? DEPOTS : EMPLOYEES),
     );
     await userEvent.click((await screen.findAllByRole('switch'))[1]!);
@@ -423,9 +423,45 @@ describe('/hq/legal-entities', () => {
     await userEvent.click(screen.getByRole('button', { name: 'hq.legalEntities.matrix.save' }));
     await waitFor(() => expect((screen.getAllByLabelText('hq.legalEntities.matrix.cell')[5] as HTMLInputElement).checked).toBe(true));
     // The older read arrives after the save, with the grants as they were before it: ignored.
-    release({ entities: [KELOLA, INDO], roles: ROLES });
+    releases[0]!({ entities: [KELOLA, INDO], roles: ROLES });
     await new Promise((r) => setTimeout(r, 20));
     expect((screen.getAllByLabelText('hq.legalEntities.matrix.cell')[5] as HTMLInputElement).checked).toBe(true);
+    // ...and one more read follows the save, for anything committed while it was on its way back.
+    await waitFor(() => expect(releases.length).toBe(2));
+    releases[1]!({ entities: [KELOLA, { ...INDO, aiReadRoles: ['FINANCE', 'HEAD_OFFICE'] }], roles: ROLES });
+    await waitFor(() =>
+      expect((screen.getAllByLabelText('hq.legalEntities.matrix.cell')[3] as HTMLInputElement).checked).toBe(true),
+    );
+  });
+
+  it('holds a panel until the newest copy is on screen, even when its own refresh was superseded', async () => {
+    render(<HqLegalEntitiesPage />);
+    await depotRow();
+    // A failed directory refresh puts the reload button on screen.
+    serve({ failDir: true });
+    await userEvent.click((await screen.findAllByRole('switch'))[1]!);
+    const reloadButton = await screen.findByRole('button', { name: 'hq.legalEntities.reload' });
+    const held: Array<(v: unknown) => void> = [];
+    get.mockImplementation((path: string) =>
+      path.endsWith('/legal-entities/depots')
+        ? new Promise((resolve) => held.push(resolve))
+        : Promise.resolve(path.endsWith('/legal-entities') ? { entities: [KELOLA, INDO], roles: ROLES } : EMPLOYEES),
+    );
+    post.mockResolvedValueOnce([{ depotId: 'd-1', replaced: null }]);
+    await userEvent.click(within(await depotRow()).getByLabelText('hq.legalEntities.assign.selectRow'));
+    await userEvent.selectOptions(depotEntity(), 'le-2');
+    const apply = within(depotPanel()).getByRole('button', { name: 'hq.legalEntities.assign.depots.apply' });
+    await userEvent.click(apply);
+    await waitFor(() => expect(held.length).toBe(1));
+    // A second refresh of the depots supersedes the apply's own.
+    await userEvent.click(reloadButton);
+    await waitFor(() => expect(held.length).toBe(2));
+    held[0]!(DEPOTS);
+    await new Promise((r) => setTimeout(r, 20));
+    // The apply's refresh is back, but it is not the copy that will be on screen: still held.
+    expect((apply as HTMLButtonElement).disabled).toBe(true);
+    held[1]!(DEPOTS);
+    await waitFor(() => expect((apply as HTMLButtonElement).disabled).toBe(false));
   });
 
   it('reports a batch that fails partway, says how many landed, and reads the list again', async () => {

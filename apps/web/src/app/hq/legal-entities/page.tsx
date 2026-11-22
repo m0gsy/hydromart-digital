@@ -40,14 +40,25 @@ interface Part<T> {
 function usePart<T>(read: () => Promise<T>) {
   const [part, setPart] = useState<Part<T>>({ data: null, failed: false });
   const latest = useRef(0);
+  // The last refresh started. One that a newer refresh superseded must not resolve before the copy
+  // that will actually be on screen: its caller (a panel holding its buttons) waits for that one.
+  const newest = useRef<Promise<void>>(Promise.resolve());
   const refresh = useCallback(async () => {
     const mine = ++latest.current;
-    try {
-      const data = await read();
-      if (mine === latest.current) setPart({ data, failed: false });
-    } catch {
-      if (mine === latest.current) setPart((prev) => ({ data: prev.data, failed: true }));
-    }
+    const run = (async () => {
+      try {
+        const data = await read();
+        if (mine === latest.current) setPart({ data, failed: false });
+      } catch {
+        if (mine === latest.current) setPart((prev) => ({ data: prev.data, failed: true }));
+      }
+    })();
+    newest.current = run;
+    let waited: Promise<void>;
+    do {
+      waited = newest.current;
+      await waited;
+    } while (waited !== newest.current);
   }, [read]);
   const replace = useCallback((data: T) => {
     latest.current += 1;
@@ -178,7 +189,12 @@ export default function HqLegalEntitiesPage() {
           <AiMatrixPanel
             directory={directory.part.data}
             canEdit={can('legalEntityAiAccess', customer?.role)}
-            onSaved={directory.replace}
+            onSaved={(next) => {
+              // The save's answer at once, retiring any read still out from before it; then one more
+              // read, for a change somebody committed while the save was on its way back.
+              directory.replace(next);
+              void directory.refresh();
+            }}
           />
         </>
       )}

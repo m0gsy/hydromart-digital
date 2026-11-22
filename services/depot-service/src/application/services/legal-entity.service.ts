@@ -195,7 +195,7 @@ export class LegalEntityService {
   }
 
   async get(id: string): Promise<LegalEntity> {
-    const found = await this.entities.findById(id);
+    const found = await this.entities.findById(lowerId(id));
     if (!found) throw new LegalEntityNotFoundError();
     return found;
   }
