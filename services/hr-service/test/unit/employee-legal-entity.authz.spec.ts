@@ -76,7 +76,10 @@ describe('/employee-legal-entities over HTTP', () => {
     for (const role of [Role.HR, Role.MANAGER, Role.FINANCE, Role.KEPALA_DEPOT]) {
       await request(server()).get('/api/v1/employee-legal-entities').set(as(role)).expect(403);
       await request(server()).post('/api/v1/employee-legal-entities').set(as(role)).send(body).expect(403);
-      await request(server()).delete(`/api/v1/employee-legal-entities/${ID}`).set(as(role)).expect(403);
+      await request(server())
+        .delete(`/api/v1/employee-legal-entities/${ID}?legalEntityId=${ID}`)
+        .set(as(role))
+        .expect(403);
     }
     expect(service.assign).not.toHaveBeenCalled();
     expect(service.remove).not.toHaveBeenCalled();
@@ -88,8 +91,12 @@ describe('/employee-legal-entities over HTTP', () => {
     const withoutSeen = { employeeIds: body.employeeIds, legalEntityId: body.legalEntityId, effectiveFrom: body.effectiveFrom };
     await request(server()).post('/api/v1/employee-legal-entities').set(as(Role.HEAD_OFFICE)).send(withoutSeen).expect(400);
     await request(server()).post('/api/v1/employee-legal-entities').set(as(Role.HEAD_OFFICE)).send(body).expect(201);
-    await request(server()).delete(`/api/v1/employee-legal-entities/${ID}`).set(as(Role.DIREKTUR)).expect(204);
+    await request(server()).delete(`/api/v1/employee-legal-entities/${ID}`).set(as(Role.DIREKTUR)).expect(400);
+    await request(server())
+      .delete(`/api/v1/employee-legal-entities/${ID}?legalEntityId=${ID}`)
+      .set(as(Role.DIREKTUR))
+      .expect(204);
     expect(service.assign).toHaveBeenCalledWith(expect.objectContaining({ seen: [] }), ID);
-    expect(service.remove).toHaveBeenCalledWith(ID, ID);
+    expect(service.remove).toHaveBeenCalledWith(ID, ID, ID);
   });
 });

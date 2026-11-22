@@ -47,9 +47,12 @@ describeRace('employee legal entities on real Postgres (HD-5)', () => {
         }),
       ),
     );
-    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    // Exactly one wrote; the rest asked for what it wrote (a no-op) or are told the day changed.
+    const kept = results.filter((r): r is PromiseFulfilledResult<unknown[]> => r.status === 'fulfilled');
+    expect(kept.filter((r) => r.value.length > 0)).toHaveLength(1);
     const refused = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
     expect(refused.every((r) => r.reason instanceof StaleWriteError)).toBe(true);
+    expect(refused.length).toBeGreaterThan(0);
     const rows = await prisma.employeeLegalEntity.findMany({ where: { employeeId: { in: [emp.id, other.id] } } });
     expect(rows).toHaveLength(2);
     expect(new Set(rows.map((r) => r.legalEntityId)).size).toBe(1);

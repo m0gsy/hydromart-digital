@@ -44,7 +44,7 @@ export const hr = {
     employees: (q: HrEmployeeQuery = {}) => `/employees/api/v1/employees${hrQuery(q)}`,
     // HD-5 — which legal entity employs each person, by date (legalEntityAdmin, /hq/legal-entities).
     employeeLegalEntities: '/employees/api/v1/employee-legal-entities',
-    employeeLegalEntityPoint: (id: string) => `/employees/api/v1/employee-legal-entities/${id}`,
+    employeeLegalEntityPoint: (id: string, legalEntityId: string) => `/employees/api/v1/employee-legal-entities/${id}?legalEntityId=${legalEntityId}`,
     employee: (id: string) => `/employees/api/v1/employees/${id}`,
     employeeHistory: (id: string) => `/employees/api/v1/employees/${id}/history`,
     createEmployee: '/employees/api/v1/employees',

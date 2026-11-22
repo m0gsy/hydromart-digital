@@ -90,13 +90,13 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
     }
   }
 
-  async update(id: string, data: UpdateLegalEntityData, expectedUpdatedAt: Date): Promise<LegalEntity> {
+  async update(id: string, data: UpdateLegalEntityData, expectedUpdatedAt: Date | null): Promise<LegalEntity> {
     let count: number;
     try {
       // Compare-and-set: two saves that both passed the service's freshness check on the same
       // version cannot both land; the second finds the version moved and is refused.
       ({ count } = await this.prisma.legalEntity.updateMany({
-        where: { id, updatedAt: expectedUpdatedAt },
+        where: { id, ...(expectedUpdatedAt ? { updatedAt: expectedUpdatedAt } : {}) },
         data,
       }));
     } catch (error) {
@@ -178,9 +178,13 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
       });
       const had = new Map(current.map((c) => [c.depotId, c.legalEntityId]));
       // A day that changed since the screen read it is somebody else's write, not ours to erase.
-      if (depotIds.some((id) => (had.get(id) ?? null) !== (data.seen.get(id) ?? null))) {
-        throw new StaleWriteError();
-      }
+      // A day that already holds the target is no conflict (a retry, or two people agreeing): the
+      // write below leaves it alone.
+      const stale = (id: string): boolean => {
+        const stored = had.get(id) ?? null;
+        return stored !== (data.seen.get(id) ?? null) && stored !== data.legalEntityId;
+      };
+      if (depotIds.some(stale)) throw new StaleWriteError();
       // The WHERE skips a day that already holds this entity: nothing is rewritten, and the depot
       // is left out of the result (and of the audit line).
       const written = await tx.$queryRaw<{ depotId: string }[]>(Prisma.sql`
@@ -200,13 +204,20 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
     });
   }
 
-  async removeDepotPoint(id: string): Promise<DepotLegalEntityPoint | null> {
+  async removeDepotPoint(id: string, seenLegalEntityId: string): Promise<DepotLegalEntityPoint | null> {
     try {
-      return this.toPoint(await this.prisma.depotLegalEntity.delete({ where: { id } }));
+      // Deleted only while it still holds what the screen showed: one statement, no window.
+      return this.toPoint(
+        await this.prisma.depotLegalEntity.delete({ where: { id, legalEntityId: seenLegalEntityId } }),
+      );
     } catch (error) {
-      // Gone already (a second click, or somebody else): the caller answers 404.
-      if (isCode(error, 'P2025')) return null;
-      throw error;
+      if (!isCode(error, 'P2025')) throw error;
+      // Not deleted: gone already (a second click, or somebody else) is a 404; still there means
+      // it was corrected to another entity since the screen was read.
+      if (await this.prisma.depotLegalEntity.findUnique({ where: { id }, select: { id: true } })) {
+        throw new StaleWriteError();
+      }
+      return null;
     }
   }
 

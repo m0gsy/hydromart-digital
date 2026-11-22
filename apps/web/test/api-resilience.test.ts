@@ -170,6 +170,40 @@ describe('request sharing (F-1/F-2)', () => {
     await expect(joined).resolves.toEqual({ v: 2 });
   });
 
+  it('a read that left while a write was out is not joined once the write settles', async () => {
+    const held: Array<(r: Response) => void> = [];
+    const pending = () => new Promise<Response>((resolve) => held.push(resolve));
+    const fetchMock = vi.fn().mockImplementationOnce(pending).mockImplementationOnce(pending).mockImplementation(pending);
+    vi.stubGlobal('fetch', fetchMock);
+    const write = api.post('/thing', { v: 2 });
+    const during = api.get('/thing');
+    held[0]!(json(200, {}));
+    await write;
+    const after = api.get('/thing');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    held[1]!(json(200, { v: 1 }));
+    held[2]!(json(200, { v: 2 }));
+    await expect(during).resolves.toEqual({ v: 1 });
+    await expect(after).resolves.toEqual({ v: 2 });
+  });
+
+  it('a cached read that was out when a write landed is not kept', async () => {
+    const held: Array<(r: Response) => void> = [];
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => held.push(resolve)))
+      .mockResolvedValueOnce(json(200, {}))
+      .mockResolvedValueOnce(json(200, { v: 2 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const before = api.getCached('/ref');
+    await api.post('/ref', { v: 2 });
+    held[0]!(json(200, { v: 1 }));
+    await expect(before).resolves.toEqual({ v: 1 });
+    // Not served from memory: the copy it would have kept predates the write.
+    await expect(api.getCached('/ref')).resolves.toEqual({ v: 2 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('an authenticated read is not served from an anonymous one', async () => {
     const fetchMock = vi.fn(async () => json(200, { v: 1 }));
     vi.stubGlobal('fetch', fetchMock);

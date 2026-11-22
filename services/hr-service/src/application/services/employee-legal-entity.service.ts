@@ -22,6 +22,9 @@ import {
   parseCalendarDay,
 } from '../../domain/legal-entity';
 
+/** A UUID as Postgres prints it. The DTOs accept either case; text comparisons must not care. */
+const lowerId = (id: string): string => id.toLowerCase();
+
 /**
  * HD-5: which legal entity employs each person, by date. Head office enters it on
  * /hq/legal-entities. Nothing in hr-service reads it yet: payroll, attendance and the jabatan
@@ -56,12 +59,13 @@ export class EmployeeLegalEntityService {
   ): Promise<AssignedEmployee[]> {
     const day = parseCalendarDay(input.effectiveFrom);
     if (!day) throw new BadRequestException('effectiveFrom harus tanggal kalender (YYYY-MM-DD)');
-    const entity = await this.entities.find(input.legalEntityId);
+    const entity = await this.entities.find(lowerId(input.legalEntityId));
     if (!entity) throw new NotFoundException('Badan hukum tidak ditemukan');
     if (!entity.active) {
       throw new ConflictException('Badan hukum ini nonaktif. Aktifkan dulu, atau pilih badan hukum lain.');
     }
-    const employeeIds = [...new Set(input.employeeIds)];
+    // UUIDs are compared as text below (locks, what the screen saw): one spelling, the database's.
+    const employeeIds = [...new Set(input.employeeIds.map(lowerId))];
     if ((await this.points.existingEmployeeIds(employeeIds)).length !== employeeIds.length) {
       throw new NotFoundException('Karyawan tidak ditemukan');
     }
@@ -70,7 +74,7 @@ export class EmployeeLegalEntityService {
       legalEntityId: entity.id,
       effectiveFrom: day,
       recordedBy: actorId,
-      seen: new Map(input.seen.map((s) => [s.id, s.legalEntityId])),
+      seen: new Map(input.seen.map((s) => [lowerId(s.id), lowerId(s.legalEntityId)])),
     });
     // The request interceptor keeps the body, not what a corrected day held before: said here.
     if (written.length > 0) {
@@ -95,16 +99,20 @@ export class EmployeeLegalEntityService {
     return written;
   }
 
-  /** Take back one dated point (entered by mistake); the period before it then runs on. */
-  async remove(id: string, actorId: string | null): Promise<EmployeeLegalEntityPoint> {
-    const removed = await this.points.remove(id);
+  /**
+   * Take back one dated point (entered by mistake); the period before it then runs on. The caller
+   * names the entity its screen showed on that point: a point corrected since is not deleted blind.
+   */
+  async remove(id: string, seenLegalEntityId: string, actorId: string | null): Promise<EmployeeLegalEntityPoint> {
+    const removed = await this.points.remove(id, lowerId(seenLegalEntityId));
     if (!removed) throw new NotFoundException('Riwayat badan hukum karyawan ini tidak ditemukan');
     // The row is gone after this: what it held is only in the trail.
     await this.audit.record({
       actorId,
       action: 'employee_legal_entity.remove',
       entity: 'employee-legal-entities',
-      entityId: removed.employeeId,
+      // Keyed like the assign rows: by the legal entity, the employee is in `before`.
+      entityId: removed.legalEntityId,
       before: removed,
       after: null,
       ip: null,

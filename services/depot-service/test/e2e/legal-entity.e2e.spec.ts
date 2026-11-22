@@ -183,8 +183,21 @@ describe('Legal entities (e2e)', () => {
     await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-12-01' }).expect(400);
     const ok = await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-12-01', seen: [] }).expect(201);
     expect(ok.body).toEqual([{ depotId: depot.id, replaced: null }]);
-    // A second screen that read the depot before that write: the day is not what it saw.
-    const stale = await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-12-01', seen: [] }).expect(409);
+    // A retry of the same write is no conflict: nothing changes, nothing is refused.
+    const again = await post({ depotIds: [depot.id], legalEntityId, effectiveFrom: '2026-12-01', seen: [] }).expect(201);
+    expect(again.body).toEqual([]);
+    // A second screen that read the depot before that write, sending another entity: refused.
+    const other = await request(server())
+      .post('/api/v1/legal-entities')
+      .set(as(Role.HEAD_OFFICE))
+      .send({ name: 'PT Mitra Lain', kind: 'FRANCHISEE' })
+      .expect(201);
+    const stale = await post({
+      depotIds: [depot.id],
+      legalEntityId: other.body.id,
+      effectiveFrom: '2026-12-01',
+      seen: [],
+    }).expect(409);
     expect(stale.body.code).toBe('STALE_WRITE');
 
     const histories = await request(server())
@@ -193,9 +206,17 @@ describe('Legal entities (e2e)', () => {
       .expect(200);
     const pointId = histories.body[0].points[0].id as string;
     expect(histories.body[0].points[0]).toMatchObject({ legalEntityId, effectiveFrom: '2026-12-01' });
-    await request(server()).delete(`/api/v1/legal-entities/depots/${pointId}`).set(as(Role.MANAGER)).expect(403);
-    await request(server()).delete(`/api/v1/legal-entities/depots/${pointId}`).set(as(Role.HEAD_OFFICE)).expect(204);
-    await request(server()).delete(`/api/v1/legal-entities/depots/${pointId}`).set(as(Role.HEAD_OFFICE)).expect(404);
+    const del = (q: string) =>
+      request(server()).delete(`/api/v1/legal-entities/depots/${pointId}${q}`).set(as(Role.HEAD_OFFICE));
+    await request(server())
+      .delete(`/api/v1/legal-entities/depots/${pointId}?legalEntityId=${legalEntityId}`)
+      .set(as(Role.MANAGER))
+      .expect(403);
+    // Taking back names the entity the screen showed on the point.
+    await del('').expect(400);
+    await del(`?legalEntityId=${other.body.id}`).expect(409);
+    await del(`?legalEntityId=${legalEntityId}`).expect(204);
+    await del(`?legalEntityId=${legalEntityId}`).expect(404);
   });
 
   it('opens the internal summary to the internal key only', async () => {

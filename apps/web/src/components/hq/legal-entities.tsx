@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 
 import { useConfirm } from '@/components/confirm';
 import { useToast } from '@/components/toast';
@@ -38,7 +38,8 @@ export function EntitiesPanel({
   onChanged,
 }: {
   entities: LegalEntity[];
-  onChanged: () => void;
+  /** Reads the entities again; resolves once the new copy is on screen. */
+  onChanged: () => Promise<void>;
 }) {
   const { t } = useT();
   const { toast } = useToast();
@@ -62,7 +63,7 @@ export function EntitiesPanel({
       await api.post(endpoints.legalEntities.entities, { name: name.trim(), kind }, true);
       toast(t('hq.legalEntities.entities.added', { name: name.trim() }), 'success');
       setName('');
-      onChanged();
+      await onChanged();
     } catch (err) {
       setError(messageOf(err, t('hq.common.actionFailed')));
     } finally {
@@ -89,9 +90,10 @@ export function EntitiesPanel({
     } catch (err) {
       toast(messageOf(err, t('hq.common.actionFailed')), 'error');
     } finally {
+      // Saved or refused, the list is read again (a refusal shows why), and the switch stays held
+      // until the new copy is on screen, so a second tap acts on what is really stored.
+      await onChanged();
       setToggling(null);
-      // Saved or refused, the list is read again: a refusal (somebody else changed it) shows why.
-      onChanged();
     }
   }
 
@@ -112,7 +114,7 @@ export function EntitiesPanel({
                     entity={e}
                     onDone={() => {
                       setEditing(null);
-                      onChanged();
+                      void onChanged();
                     }}
                     onCancel={() => setEditing(null)}
                   />
@@ -320,8 +322,10 @@ export function AssignPanel({
   /** The most ids the server accepts in one request (depots 200, employees 500). */
   batchSize: number;
   assignUrl: string;
-  pointUrl: (id: string) => string;
-  onChanged: () => void;
+  /** Take back one point, naming the entity this screen shows on it. */
+  pointUrl: (id: string, legalEntityId: string) => string;
+  /** Reads this list again; resolves once the new copy is on screen. */
+  onChanged: () => Promise<void>;
 }) {
   const { t } = useT();
   const { toast } = useToast();
@@ -428,8 +432,10 @@ export function AssignPanel({
       );
       if (written) toast(t('hq.legalEntities.assign.applied', { n: written }), 'success');
     } finally {
+      // Held until the new copy is on screen: a second apply right after this one must be built
+      // on what this one wrote, or it would be refused as somebody else's change.
+      await onChanged();
       setBusy(false);
-      onChanged();
     }
   }
 
@@ -446,14 +452,19 @@ export function AssignPanel({
     if (!ok) return;
     setRemoving(point.id);
     try {
-      await api.del(pointUrl(point.id), true);
+      await api.del(pointUrl(point.id, point.legalEntityId), true);
       toast(t('hq.legalEntities.assign.removed'), 'success');
     } catch (err) {
-      toast(messageOf(err, t('hq.common.actionFailed')), 'error');
+      toast(
+        err instanceof ApiError && err.code === 'STALE_WRITE'
+          ? t('hq.common.staleWrite')
+          : messageOf(err, t('hq.common.actionFailed')),
+        'error',
+      );
     } finally {
+      // Taken back, already gone or corrected since: the list is read again, so no ghost row stays.
+      await onChanged();
       setRemoving(null);
-      // Taken back or already gone: either way the list is read again, so no ghost row stays.
-      onChanged();
     }
   }
 
@@ -670,6 +681,17 @@ export function AiMatrixPanel({
   const [edits, setEdits] = useState<Map<string, boolean>>(new Map());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // A new copy may already hold an edit (somebody else made the same change), or no longer have
+  // its row or column. Such an edit is dropped, not hidden: kept, it would come back as a change
+  // the next time the copy moved away from it, and be saved without anybody choosing to.
+  useEffect(() => {
+    const cells = new Set(entities.flatMap((e) => roles.map((r) => cellKey(e.id, r.key))));
+    setEdits((prev) => {
+      const next = new Map([...prev].filter(([key, want]) => cells.has(key) && want !== baseline.has(key)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [baseline, entities, roles]);
 
   const isOn = (key: string): boolean => edits.get(key) ?? baseline.has(key);
 

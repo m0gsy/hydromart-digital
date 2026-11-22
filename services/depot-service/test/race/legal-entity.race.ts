@@ -70,9 +70,13 @@ describeRace('legal entities on real Postgres (HD-5)', () => {
         }),
       ),
     );
-    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    // Exactly one wrote. The rest either asked for what it wrote (a no-op) or are told the day
+    // changed under them (409): none failed any other way, none wrote a second time.
+    const kept = results.filter((r): r is PromiseFulfilledResult<unknown[]> => r.status === 'fulfilled');
+    expect(kept.filter((r) => r.value.length > 0)).toHaveLength(1);
     const refused = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
     expect(refused.every((r) => r.reason instanceof StaleWriteError)).toBe(true);
+    expect(refused.length).toBeGreaterThan(0);
     const rows = await prisma.depotLegalEntity.findMany({ where: { depotId: { in: [d.id, e.id] } } });
     expect(rows).toHaveLength(2);
     expect(new Set(rows.map((r) => r.legalEntityId)).size).toBe(1);
@@ -80,6 +84,17 @@ describeRace('legal entities on real Postgres (HD-5)', () => {
     // The calendar day survives the round trip whatever the session time zone.
     const [history] = (await repo.depotHistories()).filter((h) => h.depotId === d.id);
     expect(history.points[0].effectiveFrom).toBe('2026-12-01');
+  });
+
+  it('two renames carrying the same version: the second is refused (updatedAt moves on updateMany)', async () => {
+    const e = await repo.create({ name: `PT Cas ${randomUUID().slice(0, 4)}`, kind: 'OPERATOR', createdBy: null });
+    await new Promise((r) => setTimeout(r, 5));
+    const first = await repo.update(e.id, { name: `${e.name} A`, updatedBy: null }, e.updatedAt);
+    expect(first.updatedAt.getTime()).toBeGreaterThan(e.updatedAt.getTime());
+    await expect(repo.update(e.id, { name: `${e.name} B`, updatedBy: null }, e.updatedAt)).rejects.toBeInstanceOf(
+      StaleWriteError,
+    );
+    expect((await repo.findById(e.id))?.name).toBe(`${e.name} A`);
   });
 
   it('two editors saving different matrix cells at once keep both', async () => {

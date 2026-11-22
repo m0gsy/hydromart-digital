@@ -33,6 +33,9 @@ export interface EmployeeLegalEntityRepository {
    * the employees whose row was written.
    */
   assign(data: AssignEmployeesData): Promise<AssignedEmployee[]>;
-  /** Deletes one change point and returns it, or null when there is none with that id. */
-  remove(id: string): Promise<EmployeeLegalEntityPoint | null>;
+  /**
+   * Deletes one change point if it still holds `seenLegalEntityId` and returns it; null when there
+   * is none with that id; StaleWriteError when it exists but was corrected to another entity.
+   */
+  remove(id: string, seenLegalEntityId: string): Promise<EmployeeLegalEntityPoint | null>;
 }

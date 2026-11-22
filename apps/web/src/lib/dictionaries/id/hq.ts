@@ -514,6 +514,7 @@ export const hq = {
     loadErrorDepots: 'Daftar depot dan riwayat badan hukumnya gagal dimuat.',
     loadErrorEmployees: 'Daftar karyawan dan riwayat badan hukumnya gagal dimuat.',
     reloadFailed: 'Data terbaru gagal dimuat. Yang tampil masih data sebelumnya.',
+    reload: 'Muat ulang',
     kinds: {
       FRANCHISOR: 'Pemberi waralaba',
       OPERATOR: 'Pengelola depot HKP',

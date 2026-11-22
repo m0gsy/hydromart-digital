@@ -78,9 +78,9 @@ export class InMemoryLegalEntityRepository implements LegalEntityRepository {
     return { ...row };
   }
 
-  async update(id: string, data: UpdateLegalEntityData, expectedUpdatedAt: Date): Promise<LegalEntity> {
+  async update(id: string, data: UpdateLegalEntityData, expectedUpdatedAt: Date | null): Promise<LegalEntity> {
     const row = this.entities.find((e) => e.id === id)!;
-    if (row.updatedAt.getTime() !== expectedUpdatedAt.getTime()) throw new StaleWriteError();
+    if (expectedUpdatedAt && row.updatedAt.getTime() !== expectedUpdatedAt.getTime()) throw new StaleWriteError();
     if (data.name !== undefined && this.clash(data.name, id)) throw new DuplicateLegalEntityNameError();
     Object.assign(row, data, { updatedAt: new Date(row.updatedAt.getTime() + 1000) });
     return { ...row };
@@ -113,9 +113,11 @@ export class InMemoryLegalEntityRepository implements LegalEntityRepository {
   async assignDepots(data: AssignDepotsData): Promise<AssignedDepot[]> {
     const day = formatCalendarDay(data.effectiveFrom);
     const at = (depotId: string) => this.points.find((p) => p.depotId === depotId && p.effectiveFrom === day);
-    if (data.depotIds.some((id) => (at(id)?.legalEntityId ?? null) !== (data.seen.get(id) ?? null))) {
-      throw new StaleWriteError();
-    }
+    const stale = (id: string) => {
+      const stored = at(id)?.legalEntityId ?? null;
+      return stored !== (data.seen.get(id) ?? null) && stored !== data.legalEntityId;
+    };
+    if (data.depotIds.some(stale)) throw new StaleWriteError();
     const written: AssignedDepot[] = [];
     for (const depotId of data.depotIds) {
       const existing = this.points.find((p) => p.depotId === depotId && p.effectiveFrom === day);
@@ -138,9 +140,10 @@ export class InMemoryLegalEntityRepository implements LegalEntityRepository {
     return written;
   }
 
-  async removeDepotPoint(id: string): Promise<DepotLegalEntityPoint | null> {
+  async removeDepotPoint(id: string, seenLegalEntityId: string): Promise<DepotLegalEntityPoint | null> {
     const found = this.points.find((p) => p.id === id);
     if (!found) return null;
+    if (found.legalEntityId !== seenLegalEntityId) throw new StaleWriteError();
     this.points = this.points.filter((p) => p.id !== id);
     return found;
   }

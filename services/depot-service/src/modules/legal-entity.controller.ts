@@ -12,6 +12,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -43,6 +44,7 @@ import {
   LegalEntityDirectoryResponseDto,
   LegalEntityResponseDto,
   LegalEntitySummaryResponseDto,
+  RemovePointQueryDto,
   SetAiGrantsDto,
   UpdateLegalEntityDto,
 } from './dto/legal-entity.dto';
@@ -164,9 +166,10 @@ export class LegalEntityController {
   @ApiOperation({ summary: 'Take back one dated legal-entity point of a depot' })
   async removeDepotPoint(
     @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: RemovePointQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    const removed = await this.entities.removeDepotPoint(id);
+    const removed = await this.entities.removeDepotPoint(id, query.legalEntityId);
     await this.audit('legal_entity.depots.remove', user, removed.legalEntityId, {
       depotId: removed.depotId,
       legalEntityId: removed.legalEntityId,

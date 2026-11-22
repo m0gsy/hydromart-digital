@@ -84,9 +84,12 @@ export class EmployeeLegalEntityPrismaRepository implements EmployeeLegalEntityR
       });
       const had = new Map(current.map((c) => [c.employeeId, c.legalEntityId]));
       // A day that changed since the screen read it is somebody else's write, not ours to erase.
-      if (employeeIds.some((id) => (had.get(id) ?? null) !== (data.seen.get(id) ?? null))) {
-        throw new StaleWriteError();
-      }
+      // A day that already holds the target is no conflict (a retry, or two people agreeing).
+      const stale = (id: string): boolean => {
+        const stored = had.get(id) ?? null;
+        return stored !== (data.seen.get(id) ?? null) && stored !== data.legalEntityId;
+      };
+      if (employeeIds.some(stale)) throw new StaleWriteError();
       // A day that already holds this entity is left alone.
       const written = await tx.$queryRaw<{ employeeId: string }[]>(Prisma.sql`
         INSERT INTO "employee_legal_entities"
@@ -105,13 +108,19 @@ export class EmployeeLegalEntityPrismaRepository implements EmployeeLegalEntityR
     });
   }
 
-  async remove(id: string): Promise<EmployeeLegalEntityPoint | null> {
+  async remove(id: string, seenLegalEntityId: string): Promise<EmployeeLegalEntityPoint | null> {
     try {
-      return this.toPoint(await this.prisma.employeeLegalEntity.delete({ where: { id } }));
+      // Deleted only while it still holds what the screen showed: one statement, no window.
+      return this.toPoint(
+        await this.prisma.employeeLegalEntity.delete({ where: { id, legalEntityId: seenLegalEntityId } }),
+      );
     } catch (error) {
-      // Gone already (a second click, or somebody else): the caller answers 404.
-      if ((error as { code?: string })?.code === 'P2025') return null;
-      throw error;
+      if ((error as { code?: string })?.code !== 'P2025') throw error;
+      // Not deleted: gone already is a 404; still there means it was corrected since.
+      if (await this.prisma.employeeLegalEntity.findUnique({ where: { id }, select: { id: true } })) {
+        throw new StaleWriteError();
+      }
+      return null;
     }
   }
 

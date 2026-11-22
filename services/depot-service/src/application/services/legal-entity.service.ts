@@ -51,6 +51,9 @@ export interface LegalEntityChange {
   changed: Partial<Record<keyof LegalEntityPatch, { from: unknown; to: unknown }>>;
 }
 
+/** A UUID as Postgres prints it. The DTOs accept either case; text comparisons must not care. */
+const lowerId = (id: string): string => id.toLowerCase();
+
 /**
  * The roles the AI web can be entered with. CUSTOMER never gets a handoff code, and SUPER_ADMIN
  * reads every entity whatever the matrix says, so neither is a row. Custom roles come from the
@@ -119,7 +122,13 @@ export class LegalEntityService {
       if (next[key] !== before[key]) changed[key] = { from: before[key], to: next[key] };
     }
     if (Object.keys(changed).length === 0) return { before, after: null, changed };
-    const after = await this.entities.update(id, { ...next, updatedBy: actorId }, before.updatedAt);
+    // A bare toggle is a decision, not a copy of the record: no version to compare. A real edit
+    // is compare-and-set on the version checked above.
+    const after = await this.entities.update(
+      id,
+      { ...next, updatedBy: actorId },
+      isDecisionOnlyPatch(patch) ? null : before.updatedAt,
+    );
     return { before, after, changed };
   }
 
@@ -129,7 +138,11 @@ export class LegalEntityService {
    * since-archived custom role is cleared). One answer per cell: the last change wins.
    */
   async setAiGrants(changes: AiGrantChange[], actorId: string | null): Promise<AiGrantChange[]> {
-    const byCell = new Map(changes.map((c) => [`${c.legalEntityId}|${c.roleKey}`, c]));
+    const byCell = new Map(
+      changes
+        .map((c) => ({ ...c, legalEntityId: lowerId(c.legalEntityId) }))
+        .map((c) => [`${c.legalEntityId}|${c.roleKey}`, c]),
+    );
     const cells = [...byCell.values()];
     const grantable = new Set(aiGrantableRoles().map((r) => r.key));
     for (const c of cells) {
@@ -158,7 +171,8 @@ export class LegalEntityService {
   ): Promise<AssignedDepot[]> {
     const entity = await this.get(input.legalEntityId);
     if (!entity.active) throw new LegalEntityInactiveError();
-    const depotIds = [...new Set(input.depotIds)];
+    // UUIDs are compared as text below (locks, what the screen saw): one spelling, the database's.
+    const depotIds = [...new Set(input.depotIds.map(lowerId))];
     const found = await this.depots.findManyByIds(depotIds, false);
     if (found.length !== depotIds.length) throw new DepotNotFoundError();
     return this.entities.assignDepots({
@@ -166,13 +180,16 @@ export class LegalEntityService {
       legalEntityId: entity.id,
       effectiveFrom: input.effectiveFrom,
       recordedBy: actorId,
-      seen: new Map(input.seen.map((s) => [s.id, s.legalEntityId])),
+      seen: new Map(input.seen.map((s) => [lowerId(s.id), lowerId(s.legalEntityId)])),
     });
   }
 
-  /** Take back one dated point (entered by mistake); the period before it then runs on. */
-  async removeDepotPoint(id: string): Promise<DepotLegalEntityPoint> {
-    const removed = await this.entities.removeDepotPoint(id);
+  /**
+   * Take back one dated point (entered by mistake); the period before it then runs on. The caller
+   * names the entity its screen showed on that point: a point corrected since is not deleted blind.
+   */
+  async removeDepotPoint(id: string, seenLegalEntityId: string): Promise<DepotLegalEntityPoint> {
+    const removed = await this.entities.removeDepotPoint(id, lowerId(seenLegalEntityId));
     if (!removed) throw new DepotLegalEntityPointNotFoundError();
     return removed;
   }

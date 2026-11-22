@@ -51,6 +51,13 @@ export class AssignEmployeeLegalEntityDto {
   seen!: SeenEmployeePointDto[];
 }
 
+/** Taking back a point names the entity the screen showed on it. */
+export class RemoveEmployeePointQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'The legal entity the screen showed on this point.' })
+  @IsUUID()
+  legalEntityId!: string;
+}
+
 // ---- Responses ----
 
 export class EmployeeLegalEntityPointResponseDto {

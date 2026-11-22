@@ -140,6 +140,13 @@ export class AssignDepotsDto {
   seen!: SeenPointDto[];
 }
 
+/** Taking back a point names the entity the screen showed on it. */
+export class RemovePointQueryDto {
+  @ApiProperty({ format: 'uuid', description: 'The legal entity the screen showed on this point.' })
+  @IsUUID()
+  legalEntityId!: string;
+}
+
 // ---- Responses ----
 
 export class LegalEntityResponseDto {

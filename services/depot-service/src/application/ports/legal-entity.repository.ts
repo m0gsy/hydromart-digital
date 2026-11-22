@@ -57,8 +57,9 @@ export interface LegalEntityRepository {
   /**
    * Same refusal as `create` for a rename onto another entity's name. Compare-and-set on
    * `expectedUpdatedAt` (the version the caller checked): StaleWriteError when it moved since.
+   * Null = no version to compare (a bare on/off decision).
    */
-  update(id: string, data: UpdateLegalEntityData, expectedUpdatedAt: Date): Promise<LegalEntity>;
+  update(id: string, data: UpdateLegalEntityData, expectedUpdatedAt: Date | null): Promise<LegalEntity>;
   /** Every change in one transaction; granting what is granted and revoking what is not are no-ops. */
   setAiGrants(changes: AiGrantChange[], grantedBy: string | null): Promise<void>;
   /** Every depot, by code, with its change points newest first. */
@@ -70,6 +71,9 @@ export interface LegalEntityRepository {
    * the depots whose row was written: a depot already holding this entity that day is left alone.
    */
   assignDepots(data: AssignDepotsData): Promise<AssignedDepot[]>;
-  /** Deletes one change point and returns it, or null when there is none with that id. */
-  removeDepotPoint(id: string): Promise<DepotLegalEntityPoint | null>;
+  /**
+   * Deletes one change point if it still holds `seenLegalEntityId` and returns it; null when there
+   * is none with that id; StaleWriteError when it exists but was corrected to another entity.
+   */
+  removeDepotPoint(id: string, seenLegalEntityId: string): Promise<DepotLegalEntityPoint | null>;
 }

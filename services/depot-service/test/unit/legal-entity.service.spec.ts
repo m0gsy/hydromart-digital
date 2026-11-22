@@ -169,6 +169,18 @@ describe('LegalEntityService', () => {
       );
     });
 
+    it('lets a bare toggle land even when the record moved under it', async () => {
+      const e = await kelola();
+      const real = repo.findById.bind(repo);
+      jest.spyOn(repo, 'findById').mockImplementationOnce(async (id) => {
+        const seen = await real(id);
+        await repo.update(id, { name: 'PT Lain', updatedBy: null }, e.updatedAt);
+        return seen;
+      });
+      const res = await service.update(e.id, { active: false }, undefined, ACTOR);
+      expect(res.after).toMatchObject({ active: false, name: 'PT Lain' });
+    });
+
     it('switches off with a bare toggle, no version needed', async () => {
       const e = await kelola();
       const res = await service.update(e.id, { active: false }, undefined, ACTOR);
@@ -199,6 +211,18 @@ describe('LegalEntityService', () => {
   });
 
   describe('setAiGrants', () => {
+    it('reads one cell in either case of its entity id', async () => {
+      const e = await kelola();
+      const applied = await service.setAiGrants(
+        [
+          { legalEntityId: e.id.toUpperCase(), roleKey: 'FINANCE', granted: true },
+          { legalEntityId: e.id, roleKey: 'FINANCE', granted: false },
+        ],
+        ACTOR,
+      );
+      expect(applied).toEqual([{ legalEntityId: e.id, roleKey: 'FINANCE', granted: false }]);
+    });
+
     it('grants and revokes, the last word on a cell winning', async () => {
       const e = await kelola();
       const applied = await service.setAiGrants(
@@ -272,12 +296,38 @@ describe('LegalEntityService', () => {
       await expect(
         service.assignDepots({ depotIds: [depotId], legalEntityId: other.id, effectiveFrom: from, seen: [] }, ACTOR),
       ).rejects.toBeInstanceOf(StaleWriteError);
-      await expect(
-        service.assignDepots(
+      // A day that already holds the target is no conflict, whatever the screen saw: a no-op.
+      expect(
+        await service.assignDepots(
           { depotIds: [depotId], legalEntityId: e.id, effectiveFrom: from, seen: [{ id: depotId, legalEntityId: other.id }] },
           ACTOR,
         ),
-      ).rejects.toBeInstanceOf(StaleWriteError);
+      ).toEqual([]);
+    });
+
+    it('takes ids in either case, as one spelling', async () => {
+      const e = await kelola();
+      const from = day('2026-01-01');
+      const upper = depotId.toUpperCase();
+      expect(
+        await service.assignDepots(
+          { depotIds: [upper, depotId], legalEntityId: e.id.toUpperCase(), effectiveFrom: from, seen: [] },
+          ACTOR,
+        ),
+      ).toEqual([{ depotId, replaced: null }]);
+      const other = await service.create({ name: 'PT Indo', kind: 'FRANCHISOR' }, ACTOR);
+      // The screen saw PT Kelola Air on that day, written in capitals: still the same depot and entity.
+      expect(
+        await service.assignDepots(
+          {
+            depotIds: [upper],
+            legalEntityId: other.id,
+            effectiveFrom: from,
+            seen: [{ id: upper, legalEntityId: e.id.toUpperCase() }],
+          },
+          ACTOR,
+        ),
+      ).toEqual([{ depotId, replaced: e.id }]);
     });
 
     it('refuses an unknown entity, a switched-off one, and an unknown depot', async () => {
@@ -302,8 +352,14 @@ describe('LegalEntityService', () => {
         ACTOR,
       );
       const [{ points }] = await service.depotHistories();
-      expect(await service.removeDepotPoint(points[0].id)).toMatchObject({ depotId, legalEntityId: e.id });
-      await expect(service.removeDepotPoint(points[0].id)).rejects.toBeInstanceOf(
+      const other = await service.create({ name: 'PT Indo', kind: 'FRANCHISOR' }, ACTOR);
+      // A screen that showed another entity on that point does not delete it blind.
+      await expect(service.removeDepotPoint(points[0].id, other.id)).rejects.toBeInstanceOf(StaleWriteError);
+      expect(await service.removeDepotPoint(points[0].id, e.id.toUpperCase())).toMatchObject({
+        depotId,
+        legalEntityId: e.id,
+      });
+      await expect(service.removeDepotPoint(points[0].id, e.id)).rejects.toBeInstanceOf(
         DepotLegalEntityPointNotFoundError,
       );
     });

@@ -510,6 +510,7 @@ export const hq = {
     loadErrorDepots: 'The depots and their legal-entity history could not be loaded.',
     loadErrorEmployees: 'The employees and their legal-entity history could not be loaded.',
     reloadFailed: 'The latest data could not be loaded. What you see is the previous copy.',
+    reload: 'Reload',
     kinds: {
       FRANCHISOR: 'Franchisor',
       OPERATOR: 'HKP depot operator',

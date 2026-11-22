@@ -132,7 +132,7 @@ describe('LegalEntityController', () => {
     );
     const [{ points }] = await controller.depotHistories();
     fetchMock.mockClear();
-    await controller.removeDepotPoint(points[0].id, user);
+    await controller.removeDepotPoint(points[0].id, { legalEntityId: e.id }, user);
     expect(trail()).toEqual([
       expect.objectContaining({
         action: 'legal_entity.depots.remove',

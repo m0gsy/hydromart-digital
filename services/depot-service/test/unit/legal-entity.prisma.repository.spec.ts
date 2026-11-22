@@ -42,7 +42,7 @@ function setup() {
       deleteMany: jest.fn().mockReturnValue('deleteMany'),
     },
     depot: { findMany: jest.fn() },
-    depotLegalEntity: { delete: jest.fn() },
+    depotLegalEntity: { delete: jest.fn(), findUnique: jest.fn() },
     $transaction: jest.fn((arg: unknown) =>
       typeof arg === 'function' ? (arg as (t: typeof tx) => unknown)(tx) : Promise.resolve(arg),
     ),
@@ -101,6 +101,17 @@ describe('LegalEntityPrismaRepository', () => {
       DuplicateLegalEntityNameError,
     );
     await expect(repo.update('e1', { name: 'X', updatedBy: null }, NOW)).rejects.toBe(boom);
+  });
+
+  it('writes a bare toggle with no version to compare', async () => {
+    const { prisma, repo } = setup();
+    prisma.legalEntity.updateMany.mockResolvedValueOnce({ count: 1 });
+    prisma.legalEntity.findUniqueOrThrow.mockResolvedValueOnce(ROW);
+    await repo.update('e1', { active: false, updatedBy: null }, null);
+    expect(prisma.legalEntity.updateMany).toHaveBeenCalledWith({
+      where: { id: 'e1' },
+      data: { active: false, updatedBy: null },
+    });
   });
 
   it('refuses a rename whose version moved after the check (compare-and-set)', async () => {
@@ -181,6 +192,20 @@ describe('LegalEntityPrismaRepository', () => {
     expect(sql.values).toEqual(['e1', '2026-12-01', null, 'd1', 'd2']);
   });
 
+  it('lets a day that already holds the target through, whatever the screen saw', async () => {
+    const { repo, tx } = setup();
+    tx.depotLegalEntity.findMany.mockResolvedValue([{ depotId: 'd1', legalEntityId: 'e1' }]);
+    tx.$queryRaw.mockResolvedValue([]);
+    const written = await repo.assignDepots({
+      depotIds: ['d1'],
+      legalEntityId: 'e1',
+      effectiveFrom: new Date('2026-12-01T00:00:00.000Z'),
+      recordedBy: null,
+      seen: new Map(),
+    });
+    expect(written).toEqual([]);
+  });
+
   it('refuses when a day holds something the screen did not show, and writes nothing', async () => {
     const { repo, tx } = setup();
     tx.depotLegalEntity.findMany.mockResolvedValue([{ depotId: 'd1', legalEntityId: 'theirs' }]);
@@ -202,9 +227,14 @@ describe('LegalEntityPrismaRepository', () => {
     prisma.depotLegalEntity.delete
       .mockResolvedValueOnce(POINT)
       .mockRejectedValueOnce(missing)
+      .mockRejectedValueOnce(missing)
       .mockRejectedValueOnce(new Error('db down'));
-    expect(await repo.removeDepotPoint('p1')).toEqual({ ...POINT, effectiveFrom: '2026-12-01' });
-    expect(await repo.removeDepotPoint('p1')).toBeNull();
-    await expect(repo.removeDepotPoint('p1')).rejects.toThrow('db down');
+    prisma.depotLegalEntity.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'p1' });
+    expect(await repo.removeDepotPoint('p1', 'e1')).toEqual({ ...POINT, effectiveFrom: '2026-12-01' });
+    expect(prisma.depotLegalEntity.delete).toHaveBeenCalledWith({ where: { id: 'p1', legalEntityId: 'e1' } });
+    // Not deleted and gone: 404. Not deleted but still there: corrected since, refused.
+    expect(await repo.removeDepotPoint('p1', 'e1')).toBeNull();
+    await expect(repo.removeDepotPoint('p1', 'e1')).rejects.toBeInstanceOf(StaleWriteError);
+    await expect(repo.removeDepotPoint('p1', 'e1')).rejects.toThrow('db down');
   });
 });

@@ -53,9 +53,11 @@ class FakePoints implements EmployeeLegalEntityRepository {
   async assign(data: AssignEmployeesData): Promise<AssignedEmployee[]> {
     const day = formatCalendarDay(data.effectiveFrom);
     const at = (id: string) => this.points.find((p) => p.employeeId === id && p.effectiveFrom === day);
-    if (data.employeeIds.some((id) => (at(id)?.legalEntityId ?? null) !== (data.seen.get(id) ?? null))) {
-      throw new StaleWriteError();
-    }
+    const stale = (id: string) => {
+      const stored = at(id)?.legalEntityId ?? null;
+      return stored !== (data.seen.get(id) ?? null) && stored !== data.legalEntityId;
+    };
+    if (data.employeeIds.some(stale)) throw new StaleWriteError();
     const out: AssignedEmployee[] = [];
     for (const employeeId of data.employeeIds) {
       const row = at(employeeId);
@@ -74,8 +76,9 @@ class FakePoints implements EmployeeLegalEntityRepository {
     }
     return out;
   }
-  async remove(id: string): Promise<EmployeeLegalEntityPoint | null> {
+  async remove(id: string, seenLegalEntityId: string): Promise<EmployeeLegalEntityPoint | null> {
     const found = this.points.find((p) => p.id === id) ?? null;
+    if (found && found.legalEntityId !== seenLegalEntityId) throw new StaleWriteError();
     this.points = this.points.filter((p) => p.id !== id);
     return found;
   }
@@ -138,10 +141,29 @@ describe('EmployeeLegalEntityService + controller', () => {
     });
   });
 
-  it('refuses to correct a day the screen did not see as it is now', async () => {
+  it('refuses to correct a day the screen did not see as it is now; a retry is no conflict', async () => {
     const body = { employeeIds: [E1], legalEntityId: LE, effectiveFrom: '2026-12-01', seen: [] };
     await controller.assign(body, user);
-    await expect(controller.assign(body, user)).rejects.toBeInstanceOf(StaleWriteError);
+    expect(await controller.assign(body, user)).toEqual([]);
+    directory.known.set(OTHER, { id: OTHER, name: 'PT Indo', kind: 'FRANCHISOR', active: true });
+    await expect(controller.assign({ ...body, legalEntityId: OTHER }, user)).rejects.toBeInstanceOf(StaleWriteError);
+  });
+
+  it('takes ids in either case, as one spelling', async () => {
+    const body = {
+      employeeIds: [E1.toUpperCase(), E1],
+      legalEntityId: LE.toUpperCase(),
+      effectiveFrom: '2026-12-01',
+      seen: [],
+    };
+    expect(await controller.assign(body, user)).toEqual([{ employeeId: E1, replaced: null }]);
+    directory.known.set(OTHER, { id: OTHER, name: 'PT Indo', kind: 'FRANCHISOR', active: true });
+    expect(
+      await controller.assign(
+        { ...body, legalEntityId: OTHER, seen: [{ id: E1.toUpperCase(), legalEntityId: LE.toUpperCase() }] },
+        user,
+      ),
+    ).toEqual([{ employeeId: E1, replaced: LE }]);
   });
 
   it('refuses a day that is not one, an unknown or switched-off entity, and an unknown employee', async () => {
@@ -163,16 +185,18 @@ describe('EmployeeLegalEntityService + controller', () => {
   it('takes back one point and trails what it held, and is 404 for one that is gone', async () => {
     await controller.assign({ employeeIds: [E1], legalEntityId: LE, effectiveFrom: '2026-12-01', seen: [] }, user);
     trail = [];
-    await expect(controller.remove('p0', user)).resolves.toBeUndefined();
+    // A screen that showed another entity on that point does not delete it blind.
+    await expect(controller.remove('p0', { legalEntityId: OTHER }, user)).rejects.toBeInstanceOf(StaleWriteError);
+    await expect(controller.remove('p0', { legalEntityId: LE.toUpperCase() }, user)).resolves.toBeUndefined();
     expect(trail).toEqual([
       expect.objectContaining({
         action: 'employee_legal_entity.remove',
-        entityId: E1,
+        entityId: LE,
         before: expect.objectContaining({ employeeId: E1, legalEntityId: LE, effectiveFrom: '2026-12-01' }),
         after: null,
       }),
     ]);
-    await expect(controller.remove('p0', user)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(controller.remove('p0', { legalEntityId: LE }, user)).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
@@ -227,7 +251,7 @@ describe('EmployeeLegalEntityPrismaRepository', () => {
     };
     const prisma = {
       employee: { findMany: jest.fn() },
-      employeeLegalEntity: { delete: jest.fn() },
+      employeeLegalEntity: { delete: jest.fn(), findUnique: jest.fn() },
       $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
     };
     return { prisma, tx, repo: new EmployeeLegalEntityPrismaRepository(prisma as never) };
@@ -283,6 +307,20 @@ describe('EmployeeLegalEntityPrismaRepository', () => {
     expect(sql.values).toEqual([LE, '2026-12-01', ACTOR, E1, E2]);
   });
 
+  it('lets a day that already holds the target through, whatever the screen saw', async () => {
+    const { repo, tx } = setup([{ employeeId: E1, legalEntityId: LE }]);
+    tx.$queryRaw.mockResolvedValue([]);
+    expect(
+      await repo.assign({
+        employeeIds: [E1],
+        legalEntityId: LE,
+        effectiveFrom: new Date('2026-12-01T00:00:00.000Z'),
+        recordedBy: ACTOR,
+        seen: new Map(),
+      }),
+    ).toEqual([]);
+  });
+
   it('refuses when a day holds something the screen did not show, and writes nothing', async () => {
     const { repo, tx } = setup([{ employeeId: E1, legalEntityId: 'theirs' }]);
     const base = {
@@ -298,12 +336,17 @@ describe('EmployeeLegalEntityPrismaRepository', () => {
 
   it('deletes one point, null when it is gone, and rethrows anything else', async () => {
     const { prisma, repo } = setup();
+    const missing = Object.assign(new Error('missing'), { code: 'P2025' });
     prisma.employeeLegalEntity.delete
       .mockResolvedValueOnce(POINT)
-      .mockRejectedValueOnce(Object.assign(new Error('missing'), { code: 'P2025' }))
+      .mockRejectedValueOnce(missing)
+      .mockRejectedValueOnce(missing)
       .mockRejectedValueOnce(new Error('db down'));
-    expect(await repo.remove('p1')).toEqual({ ...POINT, effectiveFrom: '2026-12-01' });
-    expect(await repo.remove('p1')).toBeNull();
-    await expect(repo.remove('p1')).rejects.toThrow('db down');
+    prisma.employeeLegalEntity.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'p1' });
+    expect(await repo.remove('p1', LE)).toEqual({ ...POINT, effectiveFrom: '2026-12-01' });
+    expect(prisma.employeeLegalEntity.delete).toHaveBeenCalledWith({ where: { id: 'p1', legalEntityId: LE } });
+    expect(await repo.remove('p1', LE)).toBeNull();
+    await expect(repo.remove('p1', LE)).rejects.toBeInstanceOf(StaleWriteError);
+    await expect(repo.remove('p1', LE)).rejects.toThrow('db down');
   });
 });

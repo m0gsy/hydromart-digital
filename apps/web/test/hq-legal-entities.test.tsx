@@ -103,6 +103,7 @@ function serve(next: Served = {}) {
   });
 }
 const directoryReads = () => get.mock.calls.filter(([p]) => String(p).endsWith('/legal-entities')).length;
+const depotReads = () => get.mock.calls.filter(([p]) => String(p).endsWith('/legal-entities/depots')).length;
 
 describe('pointOn / nextPoint', () => {
   const points = DEPOTS[0]!.points;
@@ -230,7 +231,9 @@ describe('/hq/legal-entities', () => {
       true,
     );
     expect(await within(depotPanel()).findByText('hq.common.staleWrite')).toBeTruthy();
-    await waitFor(() => expect(directoryReads()).toBe(2));
+    await waitFor(() => expect(depotReads()).toBe(2));
+    // Only that list: the directory and the employees are not read again for a depot write.
+    expect(directoryReads()).toBe(1);
   });
 
   it('dates employees through hr-service', async () => {
@@ -317,9 +320,9 @@ describe('/hq/legal-entities', () => {
     ).toBe('true');
     await userEvent.click(within(row).getAllByRole('button', { name: 'hq.legalEntities.assign.removeOne' })[1]!);
     expect(confirm).toHaveBeenCalled();
-    expect(del).toHaveBeenCalledWith('/depots/api/v1/legal-entities/depots/p-1', true);
+    expect(del).toHaveBeenCalledWith('/depots/api/v1/legal-entities/depots/p-1?legalEntityId=le-1', true);
     expect(toast).toHaveBeenCalledWith('gone', 'error');
-    await waitFor(() => expect(directoryReads()).toBe(2));
+    await waitFor(() => expect(depotReads()).toBe(2));
   });
 
   it('lets the superuser save only the cells that changed, and keeps them across a reload', async () => {
@@ -358,6 +361,13 @@ describe('/hq/legal-entities', () => {
     await userEvent.click(screen.getByRole('button', { name: 'hq.legalEntities.entities.add' }));
     await waitFor(() => expect(directoryReads()).toBe(2));
     await waitFor(() => expect(screen.queryByText('hq.legalEntities.matrix.dirty')).toBeNull());
+    // Somebody revokes it again later; the old tick must not come back as a change to save.
+    serve({ entities: [KELOLA, INDO] });
+    await userEvent.type(screen.getByLabelText('hq.legalEntities.entities.name', { selector: '#le-new-name' }), 'PT Dua');
+    await userEvent.click(screen.getByRole('button', { name: 'hq.legalEntities.entities.add' }));
+    await waitFor(() => expect(directoryReads()).toBe(3));
+    expect(screen.queryByText('hq.legalEntities.matrix.dirty')).toBeNull();
+    expect((screen.getAllByLabelText('hq.legalEntities.matrix.cell')[5] as HTMLInputElement).checked).toBe(false);
   });
 
   it('shows head office the matrix read-only', async () => {
@@ -382,14 +392,65 @@ describe('/hq/legal-entities', () => {
     expect(await screen.findByText('hq.legalEntities.loadError')).toBeTruthy();
   });
 
-  it('keeps the copy on screen when a refresh fails, and says so', async () => {
+  it('keeps the copy on screen when a refresh fails, says so until a reload works', async () => {
     render(<HqLegalEntitiesPage />);
     await depotRow();
     expect(await screen.findByText('Budi')).toBeTruthy();
-    serve({ failDir: true, failEmployees: true });
+    serve({ failDir: true });
     await userEvent.click((await screen.findAllByRole('switch'))[1]!);
-    await waitFor(() => expect(toast).toHaveBeenCalledWith('hq.legalEntities.reloadFailed', 'error'));
+    expect(await screen.findByText('hq.legalEntities.reloadFailed')).toBeTruthy();
     expect(screen.getByText('JKT-01 · Depot Cikini')).toBeTruthy();
-    expect(screen.getByText('Budi')).toBeTruthy();
+    expect(screen.getByText('PT Kelola Air')).toBeTruthy();
+    serve();
+    await userEvent.click(screen.getByRole('button', { name: 'hq.legalEntities.reload' }));
+    await waitFor(() => expect(screen.queryByText('hq.legalEntities.reloadFailed')).toBeNull());
   });
+
+  it('lets only the newest refresh land, and a matrix save retire one still out', async () => {
+    render(<HqLegalEntitiesPage />);
+    await depotRow();
+    // A refresh of the directory goes out (a toggle) and is held; the matrix is saved meanwhile.
+    let release: (v: unknown) => void = () => undefined;
+    get.mockImplementation((path: string) =>
+      path.endsWith('/legal-entities')
+        ? new Promise((resolve) => (release = resolve))
+        : Promise.resolve(path.endsWith('/legal-entities/depots') ? DEPOTS : EMPLOYEES),
+    );
+    await userEvent.click((await screen.findAllByRole('switch'))[1]!);
+    put.mockResolvedValueOnce({ entities: [KELOLA, { ...INDO, aiReadRoles: ['FINANCE'] }], roles: ROLES });
+    const cells = screen.getAllByLabelText('hq.legalEntities.matrix.cell') as HTMLInputElement[];
+    await userEvent.click(cells[5]!);
+    await userEvent.click(screen.getByRole('button', { name: 'hq.legalEntities.matrix.save' }));
+    await waitFor(() => expect((screen.getAllByLabelText('hq.legalEntities.matrix.cell')[5] as HTMLInputElement).checked).toBe(true));
+    // The older read arrives after the save, with the grants as they were before it: ignored.
+    release({ entities: [KELOLA, INDO], roles: ROLES });
+    await new Promise((r) => setTimeout(r, 20));
+    expect((screen.getAllByLabelText('hq.legalEntities.matrix.cell')[5] as HTMLInputElement).checked).toBe(true);
+  });
+
+  it('reports a batch that fails partway, says how many landed, and reads the list again', async () => {
+    const many = Array.from({ length: 250 }, (_, i) => ({
+      depotId: `d-${i}`,
+      code: `D-${String(i).padStart(3, '0')}`,
+      name: 'Depot',
+      ownershipType: 'HKP',
+      active: true,
+      points: [],
+    }));
+    serve({ depots: many });
+    post
+      .mockImplementationOnce((_url: string, body: { depotIds: string[] }) =>
+        Promise.resolve(body.depotIds.map((depotId) => ({ depotId, replaced: null }))),
+      )
+      .mockRejectedValueOnce(new ApiError(503, 'depot-service is down', 'UNAVAILABLE'));
+    render(<HqLegalEntitiesPage />);
+    await screen.findByText('D-000 · Depot');
+    await userEvent.click(within(depotPanel()).getByLabelText('hq.legalEntities.assign.depots.selectAll'));
+    await userEvent.selectOptions(depotEntity(), 'le-1');
+    await userEvent.click(within(depotPanel()).getByRole('button', { name: 'hq.legalEntities.assign.depots.apply' }));
+    expect(await within(depotPanel()).findByText('depot-service is down')).toBeTruthy();
+    expect(toast).toHaveBeenCalledWith('hq.legalEntities.assign.applied', 'success');
+    expect(post).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(depotReads()).toBe(2));
+  }, 30_000);
 });

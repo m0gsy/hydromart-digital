@@ -16,7 +16,8 @@ export const depot = {
     update: (id: string) => `/depots/api/v1/legal-entities/${id}`,
     aiGrants: '/depots/api/v1/legal-entities/ai-grants',
     depots: '/depots/api/v1/legal-entities/depots',
-    depotPoint: (id: string) => `/depots/api/v1/legal-entities/depots/${id}`,
+    // Take back one point; names the entity the screen showed on it (409 when corrected since).
+    depotPoint: (id: string, legalEntityId: string) => `/depots/api/v1/legal-entities/depots/${id}?legalEntityId=${legalEntityId}`,
   },
   depots: {
     // Public browse (active only), paginated → { items, ... }.

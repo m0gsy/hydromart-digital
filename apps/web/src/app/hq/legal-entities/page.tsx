@@ -4,8 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Scales } from '@phosphor-icons/react';
 
 import { AiMatrixPanel, AssignPanel, EntitiesPanel, type AssignRow } from '@/components/hq/legal-entities';
-import { useToast } from '@/components/toast';
-import { ErrorState, Skeleton } from '@/components/ui';
+import { Button, ErrorState, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
@@ -17,73 +16,76 @@ import type {
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 
-/** One source the page reads: the last copy it got, and whether the latest read of it failed. */
-type Part<T> = { data: T | null; failed: boolean };
-const pending = <T,>(): Part<T> => ({ data: null, failed: false });
-
 /** The server's per-request ceilings (AssignDepotsDto, AssignEmployeeLegalEntityDto). */
 const DEPOT_BATCH = 200;
 const EMPLOYEE_BATCH = 500;
 
+const readDirectory = () => api.get<LegalEntityDirectory>(endpoints.legalEntities.entities, true);
+const readDepots = () => api.get<DepotLegalEntityHistory[]>(endpoints.legalEntities.depots, true);
+const readEmployees = () => api.get<EmployeeLegalEntityHistory[]>(endpoints.hr.employeeLegalEntities, true);
+
+/** One source the page reads: the last copy it got, and whether the latest read of it failed. */
+interface Part<T> {
+  data: T | null;
+  failed: boolean;
+}
+
+/**
+ * One read the page keeps fresh on its own. A refresh resolves once its answer is on screen, so a
+ * panel can hold its buttons until then; only the newest refresh may land; nothing lands after the
+ * page is gone; a failed refresh keeps the copy already shown and marks it as old. `replace` puts
+ * in an answer the page already has (a save that returns the new state) and retires any refresh
+ * still out, which would otherwise bring the older state back.
+ */
+function usePart<T>(read: () => Promise<T>) {
+  const [part, setPart] = useState<Part<T>>({ data: null, failed: false });
+  const latest = useRef(0);
+  const refresh = useCallback(async () => {
+    const mine = ++latest.current;
+    try {
+      const data = await read();
+      if (mine === latest.current) setPart({ data, failed: false });
+    } catch {
+      if (mine === latest.current) setPart((prev) => ({ data: prev.data, failed: true }));
+    }
+  }, [read]);
+  const replace = useCallback((data: T) => {
+    latest.current += 1;
+    setPart({ data, failed: false });
+  }, []);
+  useEffect(() => {
+    void refresh();
+    return () => {
+      // Unmounted: whatever is still out lands nowhere.
+      latest.current += 1;
+    };
+  }, [refresh]);
+  return { part, refresh, replace };
+}
+
 /**
  * HD-5 — the legal entities, which one each depot and employee belongs to by date, and the
  * role x legal entity matrix of the AI web. Head office (`legalEntityAdmin`) edits the first
- * three; only `legalEntityAiAccess` saves the matrix. The three reads come from two services
- * and fail separately, so hr-service being down never hides the depots, and a reload that
- * fails keeps the copy already on screen (open forms and unsaved matrix cells included).
+ * three; only `legalEntityAiAccess` saves the matrix. Each list is read and refreshed on its
+ * own, so a slow or failing hr-service never holds back or hides the depots.
  */
 export default function HqLegalEntitiesPage() {
   const { t } = useT();
-  const { toast } = useToast();
   const { customer } = useAuth();
-  const [directory, setDirectory] = useState<Part<LegalEntityDirectory>>(pending);
-  const [depots, setDepots] = useState<Part<DepotLegalEntityHistory[]>>(pending);
-  const [employees, setEmployees] = useState<Part<EmployeeLegalEntityHistory[]>>(pending);
-  // Reloads overlap (two quick saves); only the newest one may write what the screen shows.
-  const latest = useRef(0);
-  // Which parts already have a copy on screen, so a failed refresh can keep it.
-  const onScreen = useRef({ directory: false, depots: false, employees: false });
-  // Read through a ref so `load` keeps one identity: the effect below runs it once, not per render.
-  const sayReloadFailed = useRef(() => {});
-  sayReloadFailed.current = () => toast(t('hq.legalEntities.reloadFailed'), 'error');
+  const directory = usePart(readDirectory);
+  const depots = usePart(readDepots);
+  const employees = usePart(readEmployees);
+  const refreshAll = () => {
+    void directory.refresh();
+    void depots.refresh();
+    void employees.refresh();
+  };
 
-  const load = useCallback(async () => {
-    const mine = ++latest.current;
-    const [dir, dep, emp] = await Promise.allSettled([
-      api.get<LegalEntityDirectory>(endpoints.legalEntities.entities, true),
-      api.get<DepotLegalEntityHistory[]>(endpoints.legalEntities.depots, true),
-      api.get<EmployeeLegalEntityHistory[]>(endpoints.hr.employeeLegalEntities, true),
-    ]);
-    if (mine !== latest.current) return;
-    const seen = onScreen.current;
-    // A refresh that fails over a copy already shown says so once, and leaves the copy.
-    const keptOld =
-      (dir.status === 'rejected' && seen.directory) ||
-      (dep.status === 'rejected' && seen.depots) ||
-      (emp.status === 'rejected' && seen.employees);
-    const settle = <T,>(set: (fn: (p: Part<T>) => Part<T>) => void, r: PromiseSettledResult<T>) =>
-      set((prev) => (r.status === 'fulfilled' ? { data: r.value, failed: false } : { data: prev.data, failed: true }));
-    settle(setDirectory, dir);
-    settle(setDepots, dep);
-    settle(setEmployees, emp);
-    onScreen.current = {
-      directory: seen.directory || dir.status === 'fulfilled',
-      depots: seen.depots || dep.status === 'fulfilled',
-      employees: seen.employees || emp.status === 'fulfilled',
-    };
-    if (keptOld) sayReloadFailed.current();
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const reload = () => void load();
-  const entities = directory.data?.entities ?? [];
-  const depotCode = new Map((depots.data ?? []).map((d) => [d.depotId, d.code]));
+  const entities = directory.part.data?.entities ?? [];
+  const depotCode = new Map((depots.part.data ?? []).map((d) => [d.depotId, d.code]));
   const ownershipLabel = (type: string) =>
     type === 'WARALABA' ? t('hq.depots.ownership.franchise') : t('hq.depots.ownership.central');
-  const depotRows: AssignRow[] = (depots.data ?? []).map((d) => {
+  const depotRows: AssignRow[] = (depots.part.data ?? []).map((d) => {
     const subtitle = ownershipLabel(d.ownershipType);
     return {
       id: d.depotId,
@@ -94,7 +96,7 @@ export default function HqLegalEntitiesPage() {
       points: d.points,
     };
   });
-  const employeeRows: AssignRow[] = (employees.data ?? []).map((e) => {
+  const employeeRows: AssignRow[] = (employees.part.data ?? []).map((e) => {
     const depot = e.depotId ? depotCode.get(e.depotId) : undefined;
     const subtitle = [e.employeeCode, e.position, depot].filter(Boolean).join(' · ');
     return {
@@ -106,6 +108,8 @@ export default function HqLegalEntitiesPage() {
       points: e.points,
     };
   });
+  // A copy on screen whose latest refresh failed: says so for as long as it is true.
+  const showingOld = [directory.part, depots.part, employees.part].some((p) => p.failed && p.data);
 
   return (
     <div className="flex flex-col gap-6">
@@ -118,16 +122,25 @@ export default function HqLegalEntitiesPage() {
         <p className="mt-1 max-w-2xl text-sm font-medium">{t('hq.legalEntities.aiOnly')}</p>
       </div>
 
-      {!directory.data ? (
-        directory.failed ? (
-          <ErrorState message={t('hq.legalEntities.loadError')} onRetry={reload} />
+      {showingOld && (
+        <div className="flex flex-wrap items-center gap-3 text-sm" role="status">
+          <span className="font-medium text-[color:var(--danger)]">{t('hq.legalEntities.reloadFailed')}</span>
+          <Button variant="secondary" onClick={refreshAll}>
+            {t('hq.legalEntities.reload')}
+          </Button>
+        </div>
+      )}
+
+      {!directory.part.data ? (
+        directory.part.failed ? (
+          <ErrorState message={t('hq.legalEntities.loadError')} onRetry={() => void directory.refresh()} />
         ) : (
           <Skeleton className="h-40" testId="le-loading" />
         )
       ) : (
         <>
-          <EntitiesPanel entities={entities} onChanged={reload} />
-          {depots.data ? (
+          <EntitiesPanel entities={entities} onChanged={directory.refresh} />
+          {depots.part.data ? (
             <AssignPanel
               kind="depots"
               rows={depotRows}
@@ -136,12 +149,14 @@ export default function HqLegalEntitiesPage() {
               batchSize={DEPOT_BATCH}
               assignUrl={endpoints.legalEntities.depots}
               pointUrl={endpoints.legalEntities.depotPoint}
-              onChanged={reload}
+              onChanged={depots.refresh}
             />
           ) : (
-            depots.failed && <ErrorState message={t('hq.legalEntities.loadErrorDepots')} onRetry={reload} />
+            depots.part.failed && (
+              <ErrorState message={t('hq.legalEntities.loadErrorDepots')} onRetry={() => void depots.refresh()} />
+            )
           )}
-          {employees.data ? (
+          {employees.part.data ? (
             <AssignPanel
               kind="employees"
               rows={employeeRows}
@@ -150,17 +165,20 @@ export default function HqLegalEntitiesPage() {
               batchSize={EMPLOYEE_BATCH}
               assignUrl={endpoints.hr.employeeLegalEntities}
               pointUrl={endpoints.hr.employeeLegalEntityPoint}
-              onChanged={reload}
+              onChanged={employees.refresh}
             />
           ) : (
-            employees.failed && (
-              <ErrorState message={t('hq.legalEntities.loadErrorEmployees')} onRetry={reload} />
+            employees.part.failed && (
+              <ErrorState
+                message={t('hq.legalEntities.loadErrorEmployees')}
+                onRetry={() => void employees.refresh()}
+              />
             )
           )}
           <AiMatrixPanel
-            directory={directory.data}
+            directory={directory.part.data}
             canEdit={can('legalEntityAiAccess', customer?.role)}
-            onSaved={(next) => setDirectory({ data: next, failed: false })}
+            onSaved={directory.replace}
           />
         </>
       )}

@@ -7,6 +7,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
@@ -19,6 +20,7 @@ import {
   AssignEmployeeLegalEntityDto,
   AssignedEmployeeResponseDto,
   EmployeeLegalEntityHistoryResponseDto,
+  RemoveEmployeePointQueryDto,
 } from './dto/employee-legal-entity.dto';
 
 /**
@@ -55,8 +57,9 @@ export class EmployeeLegalEntityController {
   @ApiOperation({ summary: 'Take back one dated legal-entity point of an employee' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: RemoveEmployeePointQueryDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
-    await this.legalEntities.remove(id, user.sub);
+    await this.legalEntities.remove(id, query.legalEntityId, user.sub);
   }
 }
