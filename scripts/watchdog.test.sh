@@ -225,6 +225,34 @@ ai 'd1 db running healthy False' 'a1 aiweb running healthy False'
 run
 grep -q 'AI web containers healthy again: aiweb' "$SENT" && ok "recovery is said once" || bad "recovery unsaid: $(cat "$SENT")"
 
+# AI-5: n8n is the AI web's third long-running service. Started again when it stopped (after its
+# database), reported when unhealthy and never restarted for it; its one-shot setup never touched.
+rm -f "$SENT" "$WATCHDOG_AIWEB_STATE"
+rm -rf "$ALERT_MEMORY_DIR"
+ai 'n1 n8n exited none False' 'd1 db created none False' 'a1 aiweb running healthy False' \
+  's1 n8n-setup exited none True' 's2 n8n-setup exited none False'
+run
+[ "$(grep '^start' "$DOCKER_LOG" | tr '\n' ' ')" = "start d1 start n1 " ] && ok "an exited n8n is started again, after its database" ||
+  bad "n8n start: $(grep '^start' "$DOCKER_LOG" | tr '\n' ' ')"
+grep -qE '^start s[12]' "$DOCKER_LOG" && bad "n8n's setup job was started" || ok "n8n-setup is never started, one-off or not"
+grep -q 'started stopped AI web containers again: db n8n' "$SENT" && ok "  ...and says so once" ||
+  bad "no message for the n8n restart: $(cat "$SENT" 2>/dev/null)"
+rm -f "$SENT"
+ai 'd1 db running healthy False' 'a1 aiweb running healthy False' 'n1 n8n running unhealthy False'
+run
+run
+grep -q 'AI web container n8n has been unhealthy for 5+ minutes' "$SENT" && ok "an unhealthy n8n is said on the second sighting" ||
+  bad "no unhealthy message for n8n: $(cat "$SENT" 2>/dev/null)"
+grep -q '^start' "$DOCKER_LOG" && bad "an unhealthy n8n was restarted" || ok "  ...and never restarted for it"
+ai 'd1 db running healthy False' 'a1 aiweb running healthy False' 'n1 n8n running starting False'
+run
+[ -e "$ALERT_MEMORY_DIR/aiweb-watch-n8n" ] && ! grep -q 'healthy again' "$SENT" &&
+  ok "n8n still starting: nothing is called healthy again yet" || bad "a starting n8n was called healthy: $(cat "$SENT")"
+ai 'd1 db running healthy False' 'a1 aiweb running healthy False' 'n1 n8n running healthy False'
+run
+grep -q 'AI web containers healthy again: n8n' "$SENT" && [ ! -e "$ALERT_MEMORY_DIR/aiweb-watch-n8n" ] &&
+  ok "n8n healthy again: said once, and forgotten" || bad "n8n recovery: $(cat "$SENT" 2>/dev/null)"
+
 # No AI web on this box: nothing to do and nothing said.
 rm -f "$SENT"
 ai

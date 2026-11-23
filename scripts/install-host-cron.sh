@@ -44,6 +44,8 @@ CRON_TZ_VALUE="${SCHEDULER_TZ:-${PRICING_TZ:-Asia/Jakarta}}"
 # under the repo instead (see the loop), and AIWEB_DRILL_LOG in the block points the freshness
 # check at whichever file the drill writes.
 AIWEB_DRILL_LOG_PATH=/var/log/hydromart-aiweb-drill.log
+# AI-5: n8n's nightly check logs to its own file, with the same fallback.
+AIWEB_N8N_LOG_PATH=/var/log/hydromart-aiweb-n8n.log
 
 block() {
   cat <<EOF
@@ -77,6 +79,11 @@ AIWEB_DRILL_LOG=$AIWEB_DRILL_LOG_PATH
 5 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-aiweb-db.sh >> /var/log/hydromart-backup.log 2>&1
 22 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-offsite.sh --aiweb >> /var/log/hydromart-backup.log 2>&1
 45 4 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-aiweb-db.sh --drill >> $AIWEB_DRILL_LOG_PATH 2>&1
+
+# AI-5 — n8n beside the AI web: what it runs must be what git holds (its drift check), and its
+# machine secret must not near its last day without a deploy to renew it. Alerts once per
+# condition. Daily, before the Monday drill; its own log.
+40 4 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/aiweb-n8n-check.sh >> $AIWEB_N8N_LOG_PATH 2>&1
 
 # A database is not a system. Restored onto a fresh box it will not start, because .env holds
 # the 68 keys that tell it what it is — database URLs, JWT secrets, S3 credentials, the OTP
@@ -179,19 +186,22 @@ esac
 # Log files must exist and be writable by this user before cron first appends to them —
 # a redirect into an unwritable path fails the job silently, which is the failure mode
 # this whole script exists to stop.
-for f in hydromart-backup hydromart-restore-drill hydromart-watchdog hydromart-ops-checks hydromart-objects hydromart-aiweb-drill; do
+for f in hydromart-backup hydromart-restore-drill hydromart-watchdog hydromart-ops-checks hydromart-objects hydromart-aiweb-drill hydromart-aiweb-n8n; do
   if [ ! -w "/var/log/$f.log" ]; then
     sudo -n touch "/var/log/$f.log" 2>/dev/null && sudo -n chown "$(id -u):$(id -g)" "/var/log/$f.log" 2>/dev/null || {
-      # HD-9b's log is newer than the box: without passwordless sudo it does not exist yet, and
-      # that must not keep the whole block from installing. The drill logs under the repo
-      # (.deploy/ is this user's) until root creates it, and the next install moves it back.
-      if [ "$f" = hydromart-aiweb-drill ]; then
-        AIWEB_DRILL_LOG_PATH="$REPO/.deploy/$f.log"
-        mkdir -p "$REPO/.deploy" && touch "$AIWEB_DRILL_LOG_PATH"
-        echo "!! /var/log/$f.log could not be created (no passwordless sudo): the AI web drill logs to $AIWEB_DRILL_LOG_PATH for now." >&2
-        echo "   Run once as root:  touch /var/log/$f.log && chown $(id -un) /var/log/$f.log   then: bash scripts/install-host-cron.sh" >&2
-        continue
-      fi
+      # The AI web's logs (HD-9b's drill, AI-5's n8n check) are newer than the box: without
+      # passwordless sudo they do not exist yet, and that must not keep the whole block from
+      # installing. Such a job logs under the repo (.deploy/ is this user's) until root creates
+      # its file, and the next install moves it back.
+      case "$f" in
+        hydromart-aiweb-drill | hydromart-aiweb-n8n)
+          mkdir -p "$REPO/.deploy" && touch "$REPO/.deploy/$f.log"
+          if [ "$f" = hydromart-aiweb-drill ]; then AIWEB_DRILL_LOG_PATH="$REPO/.deploy/$f.log"; else AIWEB_N8N_LOG_PATH="$REPO/.deploy/$f.log"; fi
+          echo "!! /var/log/$f.log could not be created (no passwordless sudo): that job logs to $REPO/.deploy/$f.log for now." >&2
+          echo "   Run once as root:  touch /var/log/$f.log && chown $(id -un) /var/log/$f.log   then: bash scripts/install-host-cron.sh" >&2
+          continue
+          ;;
+      esac
       echo "!! /var/log/$f.log is not writable and passwordless sudo is unavailable." >&2
       echo "   Run once as root:  touch /var/log/$f.log && chown $(id -un) /var/log/$f.log" >&2
       exit 1

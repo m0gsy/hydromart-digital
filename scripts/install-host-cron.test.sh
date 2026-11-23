@@ -60,6 +60,15 @@ grep -qF 'hydromart-aiweb-drill.log}' scripts/check-backup-freshness.sh &&
   ok "the AI web drill writes the log the freshness check reads" || bad "the AI web drill log and the freshness check disagree"
 printf '%s\n' "$block" | grep -qx 'AIWEB_DRILL_LOG=/var/log/hydromart-aiweb-drill.log' &&
   ok "  ...and the block names that file to the freshness check" || bad "the block does not set AIWEB_DRILL_LOG to the drill's log"
+# AI-5: n8n's nightly check, daily at 04:40 local time, its own log, .env read rather than run.
+n8n_line="$(printf '%s\n' "$block" | grep -F 'scripts/aiweb-n8n-check.sh')"
+case "$n8n_line" in
+  "40 4 * * * cd "*" && . ./scripts/load-env.sh && bash scripts/aiweb-n8n-check.sh >> /var/log/hydromart-aiweb-n8n.log 2>&1")
+    ok "schedules n8n's nightly check at 04:40, into its own log" ;;
+  *) bad "n8n's nightly check is not scheduled as expected: '$n8n_line'" ;;
+esac
+grep -q 'hydromart-aiweb-drill hydromart-aiweb-n8n; do' scripts/install-host-cron.sh &&
+  ok "  ...and its log is created with the others" || bad "the n8n check's log is not in the list of logs install-host-cron.sh creates"
 
 # The AI web drill's log is newer than the box: without passwordless sudo it cannot be created,
 # and that must not keep the block from installing. A fake sudo and a fake crontab stand in.
@@ -94,6 +103,17 @@ grep -qx "AIWEB_DRILL_LOG=$fallback" "$W/tab" 2>/dev/null && ok "  ...and the fr
   bad "AIWEB_DRILL_LOG does not follow the fallback: $(grep AIWEB_DRILL_LOG "$W/tab" 2>/dev/null)"
 grep -qF 'touch /var/log/hydromart-aiweb-drill.log' "$W/err" && ok "  ...and it says what root has to run once" || bad "no root command in: $(cat "$W/err")"
 [ "$had_fallback" = 1 ] || rm -f "$fallback"
+# The same for n8n's check log.
+n8n_fallback="$PWD/.deploy/hydromart-aiweb-n8n.log"
+had_n8n_fallback=0
+[ -e "$n8n_fallback" ] && had_n8n_fallback=1
+PATH="$W/bin:$PATH" FAKE_CRONTAB="$W/tab3" SUDO_FAILS_FOR=hydromart-aiweb-n8n bash scripts/install-host-cron.sh >/dev/null 2>"$W/err"
+rc=$?
+[ "$rc" = 0 ] && grep -qF "aiweb-n8n-check.sh >> $n8n_fallback 2>&1" "$W/tab3" 2>/dev/null && [ -e "$n8n_fallback" ] &&
+  grep -qF 'touch /var/log/hydromart-aiweb-n8n.log' "$W/err" &&
+  ok "n8n's check log that cannot be created: installed anyway, logging under the repo, saying what root runs" ||
+  bad "n8n log fallback (rc=$rc): $(grep -F aiweb-n8n "$W/tab3" 2>/dev/null) $(cat "$W/err")"
+[ "$had_n8n_fallback" = 1 ] || rm -f "$n8n_fallback"
 [ "$had_deploy_dir" = 1 ] || rmdir .deploy 2>/dev/null
 PATH="$W/bin:$PATH" FAKE_CRONTAB="$W/tab2" SUDO_FAILS_FOR=hydromart-backup bash scripts/install-host-cron.sh >/dev/null 2>&1
 rc=$?

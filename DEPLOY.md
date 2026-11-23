@@ -280,37 +280,48 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v
 
 [`infra/aiweb/docker-compose.yml`](infra/aiweb/docker-compose.yml) runs the AI web
 (m0gsy/hydromart-ai) as project `hydromart-ai`: `aiweb` (the app), `db` (its own Postgres, never
-hydromart's) and `migrate` (a one-shot job). Caddy serves it at `https://ai.hydromart-digital.com`
-from [`infra/caddy/sites/aiweb.caddy`](infra/caddy/sites/aiweb.caddy) over the `edge` network.
+hydromart's), `migrate` (a one-shot job), and since AI-5 `n8n` with its one-shot `n8n-setup`
+(see [n8n](#n8n-ai-5) below). Caddy serves it at `https://ai.hydromart-digital.com` from
+[`infra/caddy/sites/aiweb.caddy`](infra/caddy/sites/aiweb.caddy) over the `edge` network, and
+answers 404 for `/api/internal/*` (n8n's alarm route is the app's alone).
 
 - **Every deploy** runs [`scripts/aiweb-secrets.sh`](scripts/aiweb-secrets.sh) before its
   converge and [`scripts/aiweb-deploy.sh`](scripts/aiweb-deploy.sh) after `DEPLOY OK`. The first
   makes, on the box, every key whose line is absent from `.env` (`AIWEB_*` database passwords,
-  `AI_TOKEN_SIGNING_KEY`, `TOTP_ENCRYPTION_KEY`, `AI_WEB_RETURN_URL`), through `env-set.sh`, never
-  printing a value; `.env`'s nightly encrypted backup carries them off the box.
+  n8n's keys, `AI_TOKEN_SIGNING_KEY`, `TOTP_ENCRYPTION_KEY`, `AI_WEB_RETURN_URL`), through
+  `env-set.sh`, never printing a value; `.env`'s nightly encrypted backup carries them off the
+  box. It also keeps n8n's entry in `MACHINE_ACCOUNTS` (below), before the converge, so
+  auth-service is recreated with it under the same deploy's gate.
   `TOTP_ENCRYPTION_KEY` is made only while `hydromart_auth.totp_credentials` is empty (a
   read-only count): over sealed secrets a new key would be data loss, so it writes nothing,
   alerts, and the old key comes back from the `.env` backup. The second pulls any missing image
   by digest (logged in with the Deploy job's own token, logged out at once), starts the
   database, applies [`infra/aiweb/roles.sql`](infra/aiweb/roles.sql) (`ai_owner` owns database
-  `ai` and migrates; `ai_app` exists), migrates as `ai_owner` (15 minutes at most), only then
-  gives `ai_app` its password ([`infra/aiweb/app-role.sql`](infra/aiweb/app-role.sql), row
-  privileges only), starts the app until `/api/health` is healthy, and probes. The probe tries
-  every address of every running hydromart container on every TCP port it exposes, from inside
-  the app's container: only no answer at all (a timeout) or no route counts as isolated, while a
-  connection or a refusal is a breach, and the app's own database must open or the probe counts
-  itself blind. It also checks that only Caddy and `aiweb` sit on `edge`, that nothing publishes
-  a host port and that no host port hydromart publishes opens, that the public URL answers, and
-  that `ai_app` holds exactly `INSERT, SELECT` on its two record tables. Every target is printed
-  with its outcome.
+  `ai` and migrates; `ai_app` exists; `n8n` owns database `n8n`; each role may connect to its own
+  database only), migrates as `ai_owner` (15 minutes at most), removes n8n and runs `n8n-setup`
+  (5 minutes at most), only then gives `ai_app` its password
+  ([`infra/aiweb/app-role.sql`](infra/aiweb/app-role.sql), row privileges only), starts the app
+  and n8n until both are healthy, and probes. The probe tries every address of every running
+  hydromart container on every TCP port it exposes, from inside the app's container and again
+  from inside n8n's: only no answer at all (a timeout) or no route counts as isolated, while a
+  connection or a refusal is a breach, and each one's own database must open or the probe counts
+  itself blind. It also checks that only Caddy and `aiweb` sit on `edge` and only n8n on its
+  `egress` network, that nothing publishes a host port but n8n's editor on `127.0.0.1:5678`, that
+  no host port hydromart publishes opens, that the public URL answers, that the app and n8n both
+  reach hydromart's API and the app reaches n8n, that n8n holds exactly what git holds
+  (hydromart-ai's `drift.mjs`), and that `ai_app` holds exactly `INSERT, SELECT` on its two
+  record tables and `INSERT, SELECT, UPDATE` on `hd_events`. Every target is printed with its
+  outcome.
 - **A failure there never fails hydromart's deploy.** It prints `[aiweb] !!` lines, alerts once
   (again when the reason or the release changes, else weekly) and leaves the AI web as it was:
   a refused pull or a failed migration does not touch the running app, nor the password it
   connects with. deploy.sh stops the step after 30 minutes.
-- **A release is a PR** that changes the two `ghcr.io/m0gsy/hydromart-ai@sha256:` digests in the
-  compose file (hydromart-ai's CI prints both for every commit on its main). To go back, revert
-  that PR; a migration it applied stays applied, so every AI web migration must be
-  expand/contract: the release before it must still run on the new schema.
+- **A release is a PR** that changes the three `ghcr.io/m0gsy/hydromart-ai@sha256:` digests in
+  the compose file: the app, `migrate`, and n8n (one digest on both `n8n` and `n8n-setup`);
+  hydromart-ai's CI prints all three for every commit on its main. To go back, revert that PR; a
+  migration it applied stays applied, so every AI web migration must be expand/contract: the
+  release before it must still run on the new schema. n8n's workflows go back with it: its
+  setup publishes the reverted image's copy of git.
 - **Kill switch for AI tokens:** keep the line and blank it (`AI_TOKEN_SIGNING_KEY=` through
   deploy mode `env-set`, `services` = `auth`). Deleting the line instead makes a new key on the
   next deploy.
@@ -325,43 +336,155 @@ alias dca='docker compose -f infra/aiweb/docker-compose.yml --env-file .env'
 dca ps; dca logs -f aiweb
 bash scripts/aiweb-deploy.sh --probe   # the isolation probe, against what runs now
 bash scripts/aiweb-deploy.sh           # a full run; a missing image needs the Deploy workflow's token
-bash scripts/backup-aiweb-db.sh         # dump database ai now (the 03:05 job)
+bash scripts/backup-aiweb-db.sh         # dump databases ai and n8n now (the 03:05 job)
 bash scripts/backup-aiweb-db.sh --drill # restore the newest AI web dump into a scratch container
+bash scripts/aiweb-n8n-check.sh         # n8n's drift check and its machine secret's day (the 04:40 job)
+dca logs -f n8n                         # n8n's own log (no execution data is kept, by design)
 ```
+
+#### n8n (AI-5)
+
+hydromart's events go to the AI web first (`POST /api/ingress/hd`, signed, recorded in its
+`hd_events` before it answers); the AI web hands each one to n8n on the private network, and n8n
+acts on hydromart only through `https://api.hydromart-digital.com`, with a machine account whose
+token carries one capability (`franchiseApplicationNotify`). n8n is hydromart-ai's image (n8n
+2.48.8 with its configuration locked in, the workflows from git and their setup): the compose file
+gives it only its database, its encryption key and the editor's address. It sits on `private` and
+its own `egress` network (its way to the public API, which nothing else joins), keeps nothing
+outside its database (its `~/.n8n` is in memory), and publishes one port, the editor, on the box's
+loopback only.
+
+- **Every deploy** sets n8n up from git: `n8n-setup` stores the two credentials (the AI web's
+  token, the machine account), unpublishes everything, imports and publishes the image's
+  workflows, and checks the result; n8n then starts. A failed setup leaves n8n off (removed, so
+  the watchdog cannot start it half set up) and the deploy reports the AI web as not deployed;
+  events wait in `hd_events`, retried without end, until a deploy sets n8n up.
+- **Keys**, made by `aiweb-secrets.sh` when their line is absent: `AIWEB_N8N_DB_PASSWORD`,
+  `AIWEB_N8N_ENCRYPTION_KEY` (seals n8n's stored credentials: made once, never delete its line;
+  it travels in the `.env` backup, and the weekly drill proves it still opens the backed-up
+  credentials), `AIWEB_N8N_TOKEN` (the AI web and n8n, both ways), `AIWEB_N8N_MACHINE_ID`.
+- **The machine secret** (`AIWEB_N8N_MACHINE_SECRET`, valid until `AIWEB_N8N_MACHINE_NOT_AFTER`)
+  is rotated by any deploy from 30 days before its day: a new one until today + 89 days, and
+  `MACHINE_ACCOUNTS` rewritten to keep the old entry (n8n holds it until that deploy's setup) and
+  add the new one. Only n8n's entries are touched; another account's are kept as they are.
+  `aiweb-secrets.sh` writes nothing if `MACHINE_ACCOUNTS` does not parse, or if the release being
+  deployed has no capability `franchiseApplicationNotify` (auth-service would refuse to boot, and
+  a rollback does not undo `.env`). The nightly check alerts when fewer than 14 days are left:
+  press Deploy (mode `deploy`).
+- **Nightly** at 04:40 [`scripts/aiweb-n8n-check.sh`](scripts/aiweb-n8n-check.sh) (log
+  `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is
+  published, and the credentials n8n holds, must be what the image's copy of git holds. A drift
+  alerts once. Workflows change only by a PR in hydromart-ai and a release here; whatever is
+  changed in the editor is drift, and the next deploy's setup unpublishes it.
+
+**The editor**, through an ssh tunnel only (n8n's port is on the box's loopback):
+
+```bash
+ssh -L 5678:127.0.0.1:5678 hydromart@<box>
+# then open http://localhost:5678 on your own machine
+```
+
+The first visit creates n8n's owner account. Do it at once, right after n8n first runs: until it
+is done, whoever reaches that page first becomes the owner. Use a long unique password and turn on
+two-factor authentication in the editor (Settings, Personal, per the access procedure); the
+editor is for looking, not for changing workflows.
+
+**Connecting hydromart's events (the owner, once):**
+
+1. In hydromart's console at `/hq/webhooks` (SUPER_ADMIN), register
+   `https://ai.hydromart-digital.com/api/ingress/hd` for `franchise.application_submitted` ONLY
+   (never `delivery.delivered`, which carries a recipient's name). Copy the signing secret it
+   shows once (64 hex characters).
+2. Put `AIWEB_HD_EVENT_SECRET=<that secret>` in the `ENV_SET_BLOCK` repository secret, run Deploy
+   with mode `env-set` and `services` left empty, then Deploy with mode `deploy`. The AI web is
+   recreated with the secret; until then its ingress answers 503 and hydromart keeps retrying.
+
+**Rotating that secret** (`contracts/ai-v1/events.openapi.json`, "Rotating the secret"): make a
+new one (`openssl rand -hex 32`), set `AIWEB_HD_EVENT_SECRET_NEXT=<new>` (env-set, then deploy:
+the AI web now accepts both), replace the endpoint's secret with
+`PATCH https://api.hydromart-digital.com/admin/api/v1/webhooks/<id>` `{"secret":"<new>"}` as a
+SUPER_ADMIN (the console has no rotate action yet), wait 5 minutes, then set
+`AIWEB_HD_EVENT_SECRET=<new>` and `AIWEB_HD_EVENT_SECRET_NEXT=` (env-set, then deploy). Never
+rotate by deleting and registering the endpoint again: that drops its queued deliveries.
+
+**Kill switches**, fastest first:
+
+- n8n off at once, on the box: `dca rm -sf n8n`. A removed container is one the watchdog leaves
+  alone; the next deploy starts it again, unless the next switch is set too.
+- n8n off and cut off from hydromart: keep `AIWEB_N8N_MACHINE_SECRET` and blank it (env-set, then
+  deploy). Its entry leaves `MACHINE_ACCOUNTS` (auth refuses n8n from that deploy's converge), the
+  AI web step removes n8n and never sets it up, the probe and the nightly check say "switched
+  off". Events wait in `hd_events`. Back on: delete that line on the box (or, through the
+  workflow, set it to any word with `AIWEB_N8N_MACHINE_NOT_AFTER=` blank) and deploy: a new
+  secret is made and n8n set up with it.
+- No event into the AI web: switch the endpoint off at `/hq/webhooks` (hydromart keeps what it
+  queued and sends it when switched back on), or blank `AIWEB_HD_EVENT_SECRET` (env-set, then
+  deploy: the ingress answers 503 and hydromart retries).
+- Every AI and machine token: `AI_TOKEN_SIGNING_KEY` kept and blanked (above).
+
+**A stuck event.** Each is a row of `hd_events` in database `ai`; the AI web retries a `PENDING`
+one without end (30 s, 1, 2, 5, 10 minutes, then every 15) and tells on-call at the third
+failure. As the database's superuser:
+
+```bash
+dca exec db psql -U postgres -d ai
+```
+
+```sql
+-- what waits, and why
+SELECT event_id, event, attempts, next_attempt_at, last_error, received_at
+FROM hd_events WHERE state = 'PENDING' ORDER BY received_at;
+-- try one again now (the sweep picks it up within 30 seconds)
+UPDATE hd_events SET next_attempt_at = NULL WHERE event_id = '<eventId>' AND state = 'PENDING';
+-- give one up for good: kept, never sent again, a replay of it deduped
+UPDATE hd_events SET state = 'IGNORED', next_attempt_at = NULL,
+  last_error = left('given up by <who> on <date>: <why>', 300)
+WHERE event_id = '<eventId>' AND state = 'PENDING';
+```
+
+Never delete a row: `hd_events` is the dedupe ledger, and a deleted event would be processed
+again when hydromart replays it.
 
 Looked after between deploys (HD-9b), each apart from hydromart's own jobs so neither can fail or
 hide the other:
 
-- **Backups.** [`scripts/backup-aiweb-db.sh`](scripts/backup-aiweb-db.sh) dumps database `ai` at
+- **Backups.** [`scripts/backup-aiweb-db.sh`](scripts/backup-aiweb-db.sh) dumps databases `ai`
+  and `n8n` (one file: ai's dump, a `\connect n8n` line, n8n's) at
   03:05 next to hydromart's dumps, as `aiweb-<stamp>.sql.gz` (gzip, not encrypted, like
   hydromart's; 14 kept). `backup-offsite.sh --aiweb` copies it off the box at 03:22 under
   `<prefix>-aiweb/` with its own 14, `backup-second-provider.sh` copies it to the second provider
   at 04:00, `--drill` restores it weekly (Monday 04:45, log
-  `/var/log/hydromart-aiweb-drill.log`) into a throwaway container with no network, 512m of
-  memory and half a CPU, and compares it with the live database, and `check-backup-freshness.sh`
+  `/var/log/hydromart-aiweb-drill.log`) into a throwaway container on a throwaway internal
+  network, with 512m of memory and half a CPU, and compares it with the live database; for n8n it
+  then starts the image the live n8n runs on that network alone (1g, half a CPU, no capability),
+  which must open one restored credential with the `AIWEB_N8N_ENCRYPTION_KEY` `.env` holds (the
+  value is never printed). `check-backup-freshness.sh`
   alerts at 05:00 when any of that stopped. No dump is taken while the backup disk is 95% full
   (alerted). A missing AI web is said once a week; it never writes admin-service's backup card,
   which shows hydromart's verdict.
   If `install-host-cron.sh` could not create the drill's log (no passwordless sudo), it says so,
   installs the block anyway, and points the drill and the freshness check at
-  `.deploy/hydromart-aiweb-drill.log` in the repo. Run once as the deploy user (sudo asks for
-  its password), and the reinstall moves both back:
+  `.deploy/hydromart-aiweb-drill.log` in the repo; n8n's nightly check likewise falls back to
+  `.deploy/hydromart-aiweb-n8n.log`. Run once as the deploy user (sudo asks for its password),
+  and the reinstall moves them back:
 
   ```bash
-  sudo touch /var/log/hydromart-aiweb-drill.log && sudo chown "$(id -un)" /var/log/hydromart-aiweb-drill.log
+  sudo touch /var/log/hydromart-aiweb-drill.log /var/log/hydromart-aiweb-n8n.log
+  sudo chown "$(id -un)" /var/log/hydromart-aiweb-drill.log /var/log/hydromart-aiweb-n8n.log
   bash scripts/install-host-cron.sh
   ```
 
 - **Watchdog.** Every 5 minutes, after hydromart's own check, under the stack lock and for at most
-  60 seconds: an `exited` or `created` `db` or `aiweb` is started again with `docker start`
-  (the same container and image deploy left, never a pull or a compose `up`). Running but
-  unhealthy, `restarting` (a crash loop), `paused`, `dead` and `removing` are alerted after two
-  sightings and never started; those and a start that fails are said once per container until
-  both run healthy again. `migrate` is never touched.
-- **docker-gc.** The weekly prune keeps the AI web images the compose file pins, those it pinned
-  in the release before (a revert's rollback), and any a container uses, and removes the rest of
-  that project's images. It leaves them all alone when the compose file pins no digest, and
-  skips them (until next week) while a deploy holds the stack lock.
+  60 seconds: an `exited` or `created` `db`, `aiweb` or `n8n` is started again with `docker start`
+  (the same container and image deploy left, never a pull or a compose `up`), the database
+  first. Running but unhealthy, `restarting` (a crash loop), `paused`, `dead` and `removing` are
+  alerted after two sightings and never started; those and a start that fails are said once per
+  container until all run healthy again. `migrate` and `n8n-setup` are never touched, and a
+  missing container (n8n switched off) is left to deploy.
+- **docker-gc.** The weekly prune keeps the AI web images the compose file pins (n8n's
+  included), those it pinned in the release before (a revert's rollback), and any a container
+  uses, and removes the rest of that project's images. It leaves them all alone when the compose
+  file pins no digest, and skips them (until next week) while a deploy holds the stack lock.
 
 Not covered yet:
 

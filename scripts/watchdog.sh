@@ -60,9 +60,10 @@ health_watch() {
   esac
 }
 
-# HD-9b — the AI web (infra/aiweb/docker-compose.yml), the second project on this box: its two
-# long-running services, `db` and `aiweb`, and never `migrate` (a one-shot job that is SUPPOSED to
-# be exited).
+# HD-9b — the AI web (infra/aiweb/docker-compose.yml), the second project on this box: its
+# long-running services, `db`, `aiweb` and (AI-5) `n8n`, and never `migrate` or `n8n-setup` (one-shot
+# jobs that are SUPPOSED to be exited). n8n switched off (its kill switch) has no container at all,
+# which is left to deploy like any other missing one.
 #
 # Only a container that is `exited` or `created` is STARTED again, with `docker start`, never
 # `compose up`: start reuses the container exactly as deploy left it, image included. `up` would
@@ -74,9 +75,10 @@ health_watch() {
 # hydromart's unhealthy containers are: running but unhealthy, and `restarting` (a crash loop
 # Docker is already retrying, where a start succeeds and changes nothing), `paused`, `dead` and
 # `removing`. Those reports and a start that fails are said once per container (alert_once
-# aiweb-watch-<service>), and forgotten, with one "healthy again", once both run healthy.
+# aiweb-watch-<service>), and forgotten, with one "healthy again", once every one of them runs
+# healthy (db and aiweb at least).
 aiweb_watch() {
-  local project ids id line svc state health oneoff entry stopped='' started='' cur='' seen='' good='' back=''
+  local project ids id line svc state health oneoff entry stopped='' started='' cur='' seen='' good='' back='' all=''
   local state_file="${WATCHDOG_AIWEB_STATE:-.deploy/watchdog-aiweb-unhealthy}" prev_names='' prev_flag=0 out new_names new_flag action
   project="$(sed -n 's/^name:[[:space:]]*//p' infra/aiweb/docker-compose.yml 2>/dev/null | tr -d "\"' \r" || true)"
   [ -n "$project" ] || return 0
@@ -86,7 +88,8 @@ aiweb_watch() {
     line="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{index .Config.Labels "com.docker.compose.oneoff"}}' "$id" 2>/dev/null || true)"
     read -r svc state health oneoff <<<"$line"
     [ "$oneoff" = True ] && continue
-    case "$svc" in db | aiweb) ;; *) continue ;; esac
+    case "$svc" in db | aiweb | n8n) ;; *) continue ;; esac
+    all="$all $svc"
     case "$state:$health" in
       exited:* | created:*) stopped="$stopped $svc:$id" ;;
       running:healthy | running:none) good="$good $svc" ;;
@@ -101,8 +104,8 @@ aiweb_watch() {
         ;;
     esac
   done
-  # The database first, so the app it depends on starts against a running one.
-  for svc in db aiweb; do
+  # The database first, so the app and n8n, which depend on it, start against a running one.
+  for svc in db aiweb n8n; do
     for entry in $stopped; do
       [ "${entry%%:*}" = "$svc" ] || continue
       if docker start "${entry#*:}" >/dev/null 2>&1; then
@@ -133,9 +136,11 @@ aiweb_watch() {
       alert_once "aiweb-watch-${entry%%:*}" "AI web container ${entry%%:*} has been ${entry#*:} for 5+ minutes: the watchdog never restarts it; read its logs first"
     done
   fi
-  # Both running healthy: what was said about either is over.
-  if [ "$(printf '%s\n' $good | sort -u | tr '\n' ' ')" = "aiweb db " ] && [ -z "$cur$stopped" ]; then
-    for svc in db aiweb; do
+  # Every one running healthy, db and aiweb among them: what was said about any of them is over.
+  good="$(printf '%s\n' $good | sort -u | tr '\n' ' ')"
+  if [ "$good" = "$(printf '%s\n' $all | sort -u | tr '\n' ' ')" ] && [ -z "$cur$stopped" ] &&
+    case "$good" in *"aiweb db "*) true ;; *) false ;; esac; then
+    for svc in db aiweb n8n; do
       [ -f "$ALERT_MEMORY_DIR/aiweb-watch-$svc" ] || continue
       back="$back $svc"
       alert_clear "aiweb-watch-$svc"
