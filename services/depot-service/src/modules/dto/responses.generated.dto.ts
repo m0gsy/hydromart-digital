@@ -430,6 +430,16 @@ export class FranchiseApplicationResponseDto {
   stage!: string;
   @ApiProperty({ type: String, nullable: true, description: 'Reason given with the decision.' })
   decisionReason!: string | null;
+  @ApiProperty({ type: String, nullable: true, description: 'HD-8: first campaign code.' })
+  firstSource!: string | null;
+  @ApiProperty({ type: String, nullable: true, description: 'HD-8: latest campaign code.' })
+  lastSource!: string | null;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'HD-8: Kebijakan Privasi version agreed to; null before HD-8.',
+  })
+  privacyConsentVersion!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   submittedAt!: string;
   @ApiProperty({ type: String, format: 'date-time' })

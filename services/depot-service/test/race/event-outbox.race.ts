@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import { EventPublisherPort } from '../../src/application/ports/event-publisher.port';
 import { EventRelayService } from '../../src/application/services/event-relay.service';
-import { emptyChecklist, FranchiseAppStage } from '../../src/domain/franchise-application';
+import {
+  emptyChecklist,
+  FranchiseAppStage,
+  PRIVACY_POLICY_VERSION,
+} from '../../src/domain/franchise-application';
 import { EventOutboxPrismaRepository } from '../../src/infrastructure/prisma/event-outbox.prisma.repository';
 import { FranchiseApplicationPrismaRepository } from '../../src/infrastructure/prisma/franchise-application.prisma.repository';
 import { describeRace, freshPrisma, race } from './db';
@@ -50,6 +54,40 @@ describeRace('franchise application events on real Postgres (HD-7)', () => {
       checklist: emptyChecklist(),
       stage: FranchiseAppStage.PENDING,
     });
+
+  // HD-8 on the real schema: what the public submit stamps is what HQ reads back.
+  it('keeps the campaign codes and the consent version through the real repository', async () => {
+    const created = await applications.create({
+      applicantName: 'Sari Wulandari',
+      applicantPhone: '+6281233334444',
+      proposedCode: `BDG-${randomUUID().slice(0, 6)}`,
+      proposedName: 'Depot Tirta',
+      city: 'Bandung',
+      province: 'Jawa Barat',
+      lat: -6.9,
+      lng: 107.6,
+      investmentAmount: 150_000_000,
+      projectedMonthlyRevenue: 20_000_000,
+      checklist: emptyChecklist(),
+      stage: FranchiseAppStage.PENDING,
+      firstSource: 'pameran-jakarta-2027',
+      lastSource: 'meta-iklan-bdg',
+      privacyConsentVersion: PRIVACY_POLICY_VERSION,
+    });
+    const found = await applications.findById(created.id);
+    expect(found).toMatchObject({
+      firstSource: 'pameran-jakarta-2027',
+      lastSource: 'meta-iklan-bdg',
+      privacyConsentVersion: PRIVACY_POLICY_VERSION,
+    });
+    // An application from before HD-8 has none of the three, and reads back as nulls.
+    const older = await submit();
+    await expect(applications.findById(older.id)).resolves.toMatchObject({
+      firstSource: null,
+      lastSource: null,
+      privacyConsentVersion: null,
+    });
+  });
 
   it('twenty applications at once: twenty events, each keyed by its own application', async () => {
     const results = await race(Array.from({ length: 20 }, () => submit));

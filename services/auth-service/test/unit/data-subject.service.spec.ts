@@ -129,6 +129,8 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
         fullName: 'Budi',
         role: 'CUSTOMER',
         status: 'ACTIVE',
+        firstSource: 'pameran',
+        lastSource: 'meta-iklan',
         createdAt: new Date('2026-01-01T00:00:00.000Z'),
       })),
     };
@@ -647,6 +649,8 @@ describe('DataSubjectService (UU PDP tahap 1)', () => {
     const payload = await service.exportFor(CUSTOMER);
 
     expect(payload.account).toMatchObject({ id: CUSTOMER });
+    // HD-8: the campaign codes are linked to the account, so the export names them.
+    expect(payload.account).toMatchObject({ firstSource: 'pameran', lastSource: 'meta-iklan' });
     expect(row.processedBy).toBe(STAFF);
   });
 

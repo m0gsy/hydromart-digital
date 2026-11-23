@@ -6,6 +6,7 @@ import { CrosshairSimple } from '@phosphor-icons/react';
 import { PrivacyLink } from '@/components/privacy-sheet';
 import { Button, Card, Field, FormError, Input } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { readSources } from '@/lib/attribution';
 import { endpoints } from '@/lib/endpoints';
 import { currentPosition } from '@/lib/geo';
 import { toIndonesianE164 } from '@/lib/format';
@@ -132,6 +133,8 @@ export default function FranchiseApplicationPage() {
         investmentAmount,
         projectedMonthlyRevenue,
         privacyConsent: true,
+        // HD-8: where they came from; nothing when no coded link was followed.
+        ...readSources(),
       });
       setReceipt(sent);
       setForm({ ...EMPTY });

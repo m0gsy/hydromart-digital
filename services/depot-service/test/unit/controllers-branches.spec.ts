@@ -22,6 +22,7 @@ import { DepotTargetController } from '../../src/modules/depot-target.controller
 import { DepotController } from '../../src/modules/depot.controller';
 import { DriverGallonReturnController } from '../../src/modules/driver-gallon-return.controller';
 import { FranchiseApplicationController } from '../../src/modules/franchise-application.controller';
+import { PRIVACY_POLICY_VERSION } from '../../src/domain/franchise-application';
 import { GallonIssueController } from '../../src/modules/gallon-issue.controller';
 import { GallonNetworkController } from '../../src/modules/gallon-network.controller';
 import { GallonReturnController } from '../../src/modules/gallon-return.controller';
@@ -449,6 +450,39 @@ describe('FranchiseApplicationController', () => {
     await c.submit(submission as never);
     expect(svc.create).toHaveBeenCalledWith(
       expect.objectContaining({ proposedCode: 'BDG-02', stage: 'PENDING' }),
+    );
+  });
+
+  // HD-8: which privacy text the box agreed to, and where the applicant came from.
+  it('stamps the privacy version in force and keeps both campaign codes', async () => {
+    svc.create.mockResolvedValue({ id: ID, proposedCode: 'BDG-02', submittedAt: new Date() });
+    await c.submit({
+      ...submission,
+      firstSource: 'pameran-jakarta-2027',
+      lastSource: 'meta-iklan',
+    } as never);
+    expect(svc.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        firstSource: 'pameran-jakarta-2027',
+        lastSource: 'meta-iklan',
+        privacyConsentVersion: PRIVACY_POLICY_VERSION,
+      }),
+    );
+  });
+
+  it('records no source when no coded link was followed, and one code as both', async () => {
+    svc.create.mockResolvedValue({ id: ID, proposedCode: 'BDG-02', submittedAt: new Date() });
+    await c.submit(submission as never);
+    expect(svc.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstSource: null, lastSource: null }),
+    );
+    await c.submit({ ...submission, lastSource: 'qr-depot' } as never);
+    expect(svc.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstSource: 'qr-depot', lastSource: 'qr-depot' }),
+    );
+    await c.submit({ ...submission, firstSource: 'qr-depot' } as never);
+    expect(svc.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstSource: 'qr-depot', lastSource: 'qr-depot' }),
     );
   });
 

@@ -120,6 +120,9 @@ describe('data-subject domain rules', () => {
     expect(anonymisedIdentity('abc')).toEqual({
       phone: 'deleted-abc',
       email: null,
+      // HD-8: the campaign codes go with the identity they were linked to.
+      firstSource: null,
+      lastSource: null,
       fullName: 'Pengguna dihapus',
       avatarUrl: null,
       googleSub: null,
@@ -281,6 +284,8 @@ describe('DataSubjectRequestPrismaRepository', () => {
       where: { id: 'cust-1' },
       data: expect.objectContaining({ status: 'DELETED', email: null, googleSub: null }),
     });
+    // HD-8: "lasts as long as the account", so the campaign codes go with it.
+    expect(customer.update.mock.calls[0]?.[0].data).toMatchObject({ firstSource: null, lastSource: null });
     expect(refreshToken.deleteMany).toHaveBeenCalledWith({ where: { customerId: 'cust-1' } });
   });
 });

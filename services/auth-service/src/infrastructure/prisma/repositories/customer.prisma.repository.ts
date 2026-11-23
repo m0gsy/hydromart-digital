@@ -76,6 +76,8 @@ export class CustomerPrismaRepository implements CustomerRepository {
           assignedDepotId: data.assignedDepotId ?? null,
           vehicleType: data.vehicleType ?? null,
           plateNumber: data.plateNumber ?? null,
+          firstSource: data.firstSource ?? null,
+          lastSource: data.lastSource ?? null,
         },
       });
       return toCustomerEntity(row);

@@ -22,6 +22,9 @@ export interface RegisterCommand {
   email?: string;
   /** Optional marketing opt-in ticked at signup. Absent = never asked, not refused. */
   marketingConsent?: boolean;
+  /** HD-8: campaign codes of the first and the latest coded link; absent when none. */
+  firstSource?: string;
+  lastSource?: string;
   context: RequestContext;
 }
 
@@ -82,6 +85,10 @@ export class RegistrationService {
         email,
         fullName,
         role: Role.CUSTOMER,
+        // HD-8: on the account's first row only, so the first source never moves. Both or
+        // neither: a lone code is the first source and the latest alike.
+        firstSource: command.firstSource ?? command.lastSource ?? null,
+        lastSource: command.lastSource ?? command.firstSource ?? null,
       });
     }
 

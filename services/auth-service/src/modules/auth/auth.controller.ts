@@ -36,6 +36,8 @@ export class AuthController {
       fullName: dto.fullName,
       email: dto.email,
       marketingConsent: dto.marketingConsent,
+      firstSource: dto.firstSource,
+      lastSource: dto.lastSource,
       context: getRequestContext(req),
     });
     return OtpChallengeResponseDto.from(result);
@@ -82,6 +84,8 @@ export class AuthController {
     const result = await this.loginService.requestLogin({
       phone: dto.phone,
       audience: dto.audience,
+      firstSource: dto.firstSource,
+      lastSource: dto.lastSource,
       context: getRequestContext(req),
     });
     return OtpChallengeResponseDto.from(result);

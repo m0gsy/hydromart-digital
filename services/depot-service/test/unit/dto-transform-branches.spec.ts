@@ -279,4 +279,28 @@ describe('SubmitFranchiseApplicationDto', () => {
     const errors = await validate(dto);
     expect(errors.map((e) => e.property)).toContain('privacyConsent');
   });
+
+  // HD-8: the codes the web stores, and nothing a hand-made request could smuggle in.
+  it.each(['pameran-jakarta-2027', 'meta.iklan_bdg', 'a', 'x'.repeat(64)])(
+    'accepts the campaign code %s',
+    async (code) => {
+      const dto = plainToInstance(
+        SubmitFranchiseApplicationDto,
+        form({ firstSource: code, lastSource: code }),
+      );
+      await expect(validate(dto)).resolves.toHaveLength(0);
+    },
+  );
+
+  it.each(['Pameran', '-iklan', 'x'.repeat(65), '', 'a b', 'a/b', '<script>', 7])(
+    'refuses the campaign code %p',
+    async (code) => {
+      const dto = plainToInstance(
+        SubmitFranchiseApplicationDto,
+        form({ firstSource: code, lastSource: code }),
+      );
+      const errors = (await validate(dto)).map((e) => e.property);
+      expect(errors).toEqual(expect.arrayContaining(['firstSource', 'lastSource']));
+    },
+  );
 });

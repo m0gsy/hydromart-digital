@@ -65,6 +65,42 @@ describe('RegistrationService', () => {
     expect(audit.actions()).toContain(AuditAction.REGISTER_REQUESTED);
   });
 
+  // HD-8: where the customer came from, on the account's first row only.
+  it('keeps both campaign codes on the new account, and a lone one as both', async () => {
+    const create = jest.spyOn(customers, 'create');
+    await service.register({
+      phone: '081234567890',
+      firstSource: 'pameran-bandung',
+      lastSource: 'qr-depot-bdg01',
+      context: ctx,
+    });
+    expect(create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstSource: 'pameran-bandung', lastSource: 'qr-depot-bdg01' }),
+    );
+    await service.register({ phone: '081234567891', lastSource: 'meta-iklan', context: ctx });
+    expect(create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstSource: 'meta-iklan', lastSource: 'meta-iklan' }),
+    );
+    await service.register({ phone: '081234567892', firstSource: 'meta-iklan', context: ctx });
+    expect(create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstSource: 'meta-iklan', lastSource: 'meta-iklan' }),
+    );
+    await service.register({ phone: '081234567893', context: ctx });
+    expect(create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstSource: null, lastSource: null }),
+    );
+  });
+
+  it('does not touch the first source when a pending signup tries again', async () => {
+    await service.register({ phone: '081234567890', firstSource: 'pameran', context: ctx });
+    const create = jest.spyOn(customers, 'create');
+    const save = jest.spyOn(customers, 'save');
+    clock.advance(61);
+    await service.register({ phone: '081234567890', firstSource: 'meta-iklan', context: ctx });
+    expect(create).not.toHaveBeenCalled();
+    expect(JSON.stringify(save.mock.calls)).not.toContain('meta-iklan');
+  });
+
   it('re-issues the OTP when the phone is still pending (idempotent)', async () => {
     await service.register({ phone: '081234567890', context: ctx });
     clock.advance(61); // past the resend cooldown

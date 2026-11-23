@@ -9,6 +9,7 @@ import { PrivacyLink } from '@/components/privacy-sheet';
 import { TermsLink } from '@/components/terms-sheet';
 import { Button, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { readSources } from '@/lib/attribution';
 import { resolveDeepLink } from '@/lib/deep-link';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -66,6 +67,8 @@ function RegisterForm() {
         // Only sent when ticked — an unticked box means "never agreed", and sending
         // false would record a refusal the customer never actually expressed.
         marketingConsent: marketing || undefined,
+        // HD-8: where they came from; nothing when no coded link was followed.
+        ...readSources(),
       });
       const onward = new URLSearchParams({ phone: form.phone, purpose: 'REGISTRATION', next });
       if (referral.trim()) onward.set('ref', referral.trim());

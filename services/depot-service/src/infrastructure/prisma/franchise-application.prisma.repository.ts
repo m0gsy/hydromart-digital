@@ -30,6 +30,9 @@ interface ApplicationRow {
   checklist: unknown; // Prisma Json
   stage: string;
   decisionReason: string | null;
+  firstSource: string | null;
+  lastSource: string | null;
+  privacyConsentVersion: string | null;
   submittedAt: Date;
   createdAt: Date;
   updatedAt: Date;

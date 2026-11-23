@@ -21,7 +21,11 @@ import {
   FranchiseApplicationService,
 } from '../application/services/franchise-application.service';
 import { FranchiseApplicationRecord } from '../application/ports/franchise-application.repository';
-import { emptyChecklist, FranchiseAppStage } from '../domain/franchise-application';
+import {
+  emptyChecklist,
+  FranchiseAppStage,
+  PRIVACY_POLICY_VERSION,
+} from '../domain/franchise-application';
 import { Page } from '../application/pagination';
 import {
   DecisionReasonDto,
@@ -102,6 +106,11 @@ export class FranchiseApplicationController {
       projectedMonthlyRevenue: dto.projectedMonthlyRevenue,
       checklist: emptyChecklist(),
       stage: FranchiseAppStage.PENDING,
+      // HD-8: both or neither, so a lone code is the first source and the latest alike.
+      firstSource: dto.firstSource ?? dto.lastSource ?? null,
+      lastSource: dto.lastSource ?? dto.firstSource ?? null,
+      // The box is required above, so every accepted application agreed to the text in force.
+      privacyConsentVersion: PRIVACY_POLICY_VERSION,
     });
     return SubmittedApplicationView.from(created);
   }

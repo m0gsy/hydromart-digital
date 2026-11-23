@@ -6,7 +6,7 @@
 // mengaku pelanggan menyetujui teks yang tidak pernah mereka lihat. Itu persis cacat yang
 // terjadi sampai 29 Agustus 2026 (versi tertulis '1.0', dokumennya belum ada).
 export const privacy = {
-  effective: 'Berlaku sejak 2 September 2026',
+  effective: 'Berlaku sejak 23 November 2026',
   intro:
     'Hydromart menghormati privasimu. Kebijakan ini menjelaskan data pribadi apa yang kami kumpulkan, untuk apa, berapa lama kami simpan, dan hak-hakmu berdasarkan UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi (UU PDP).',
   sections: [
@@ -16,7 +16,7 @@ export const privacy = {
     },
     {
       heading: 'Data yang kami kumpulkan',
-      body: 'Saat kamu mendaftar dan memesan: nama, nomor telepon, email (opsional), dan alamat pengantaran. Saat pesanan diantar, kurir mengambil bukti pengantaran berupa foto penyerahan, tanda tangan penerima, nama penerima, serta titik lokasi (GPS) dan waktu penyerahan.',
+      body: 'Saat kamu mendaftar dan memesan: nama, nomor telepon, email (opsional), dan alamat pengantaran. Saat pesanan diantar, kurir mengambil bukti pengantaran berupa foto penyerahan, tanda tangan penerima, nama penerima, serta titik lokasi (GPS) dan waktu penyerahan. Kalau kamu membuka situs kami lewat tautan atau kode QR yang membawa kode kampanye (misalnya dari pameran, poster depot, atau iklan), kode itu disimpan di perangkatmu lalu ikut tercatat saat kamu mendaftar atau mengajukan kemitraan waralaba. Kode itu hanya berisi nama kampanyenya; ia tidak mencatat halaman apa yang kamu buka.',
     },
     {
       heading: 'Lokasi perangkat',
@@ -24,7 +24,7 @@ export const privacy = {
     },
     {
       heading: 'Tujuan penggunaan',
-      body: 'Data dipakai untuk memproses dan mengantar pesananmu, memverifikasi penyerahan (bukti pengantaran), memberi dukungan pelanggan, mengelola poin & rewards, serta memenuhi kewajiban hukum. Bukti pengantaran menjadi catatan sah bahwa pesanan telah diterima.',
+      body: 'Data dipakai untuk memproses dan mengantar pesananmu, memverifikasi penyerahan (bukti pengantaran), memberi dukungan pelanggan, mengelola poin & rewards, serta memenuhi kewajiban hukum. Bukti pengantaran menjadi catatan sah bahwa pesanan telah diterima. Kode kampanye dipakai untuk mengukur promosi mana yang benar-benar mendatangkan pelanggan dan calon mitra.',
     },
     {
       heading: 'Dasar pemrosesan & persetujuan',
@@ -42,7 +42,7 @@ export const privacy = {
       // berjalan sejak lama; yang hilang adalah kalimatnya. Keputusan pemilik 2026-09-02:
       // foto bukti transfer 12 bulan (sama dengan bukti pengantaran), pengajuan waralaba
       // yang ditolak 24 bulan.
-      body: 'Data akun disimpan selama akunmu aktif. Bukti pengantaran (foto, tanda tangan, nama penerima, lokasi) disimpan maksimal 12 bulan sejak penyerahan, lalu dihapus otomatis. Berkas foto/tanda tangan di penyimpanan objek dihapus melalui aturan siklus-hidup bucket dengan jangka yang sama. Foto bukti transfer yang kamu unggah saat membayar disimpan maksimal 12 bulan sejak pembayaran, lalu berkasnya dihapus dari penyimpanan objek — catatan pembayarannya sendiri tetap disimpan sebagai catatan keuangan, tanpa fotonya. Kalau kamu mengajukan kemitraan waralaba lewat formulir publik, nama, nomor WhatsApp, dan titik lokasi calon depot yang kamu isi kami simpan untuk meninjau pengajuan itu; pengajuan yang ditolak dihapus paling lama 24 bulan sejak keputusannya.',
+      body: 'Data akun disimpan selama akunmu aktif. Bukti pengantaran (foto, tanda tangan, nama penerima, lokasi) disimpan maksimal 12 bulan sejak penyerahan, lalu dihapus otomatis. Berkas foto/tanda tangan di penyimpanan objek dihapus melalui aturan siklus-hidup bucket dengan jangka yang sama. Foto bukti transfer yang kamu unggah saat membayar disimpan maksimal 12 bulan sejak pembayaran, lalu berkasnya dihapus dari penyimpanan objek — catatan pembayarannya sendiri tetap disimpan sebagai catatan keuangan, tanpa fotonya. Kalau kamu mengajukan kemitraan waralaba lewat formulir publik, nama, nomor WhatsApp, dan titik lokasi calon depot yang kamu isi kami simpan untuk meninjau pengajuan itu; pengajuan yang ditolak dihapus paling lama 24 bulan sejak keputusannya. Kode kampanye di perangkatmu tersimpan sampai kamu menghapus data situs atau aplikasi; yang tercatat bersama akun atau pengajuanmu mengikuti umur akun atau pengajuan itu, dan ikut dihapus saat akunmu dihapus.',
     },
     {
       heading: 'Keamanan',

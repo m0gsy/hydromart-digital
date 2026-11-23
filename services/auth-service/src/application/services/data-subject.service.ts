@@ -573,6 +573,9 @@ export class DataSubjectService {
             fullName: account.fullName,
             role: account.role,
             status: account.status,
+            // HD-8: linked to the account, so it is the subject's data like the rest of it.
+            firstSource: account.firstSource,
+            lastSource: account.lastSource,
             createdAt: account.createdAt,
           }
         : {},

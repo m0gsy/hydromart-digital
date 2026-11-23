@@ -8,6 +8,7 @@ import { ArrowRight, Drop } from '@phosphor-icons/react';
 import { BiometricRetry } from '@/components/biometric-retry';
 import { BrandMark, Button, Card, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { readSources } from '@/lib/attribution';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { isCustomerApp, isOpsApp } from '@/lib/platform';
@@ -106,7 +107,11 @@ function LoginForm() {
     try {
       const challenge = await api.post<OtpChallenge>(
         endpoints.auth.login,
-        audience ? { phone, audience } : { phone },
+        // HD-8: an unknown number is signed up here (AUTH-3), so it carries where they came
+        // from, as /register does. The staff door never signs anyone up.
+        audience === 'STAFF'
+          ? { phone, audience }
+          : { phone, ...(audience ? { audience } : {}), ...readSources() },
       );
       // AUTH-3: the server decides. A number with no account is registered rather than
       // refused, and it answers REGISTRATION so /verify shows the signup wording and posts

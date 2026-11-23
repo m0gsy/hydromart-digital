@@ -16,6 +16,11 @@ export interface FranchiseApplicationRecord {
   stage: FranchiseAppStage;
   /** The reason HQ gave when approving/rejecting (trimmed, <= 300 chars), if any. */
   decisionReason: string | null;
+  /** HD-8: campaign codes of the first and the latest coded link; null when none (or older). */
+  firstSource: string | null;
+  lastSource: string | null;
+  /** HD-8: the Kebijakan Privasi version the consent box agreed to; null before HD-8. */
+  privacyConsentVersion: string | null;
   submittedAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -34,6 +39,9 @@ export interface CreateFranchiseApplicationData {
   projectedMonthlyRevenue: number;
   checklist: Checklist;
   stage?: FranchiseAppStage;
+  firstSource?: string | null;
+  lastSource?: string | null;
+  privacyConsentVersion?: string | null;
 }
 
 export interface UpdateFranchiseApplicationData {

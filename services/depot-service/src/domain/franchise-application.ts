@@ -42,6 +42,20 @@ export function isTerminalStage(stage: FranchiseAppStage): boolean {
   return stage === FranchiseAppStage.APPROVED || stage === FranchiseAppStage.REJECTED;
 }
 
+/**
+ * HD-8: the Kebijakan Privasi version an application's consent box agreed to, stamped on every
+ * application. The date the policy page shows as `effective` (apps/web/src/lib/dictionaries/
+ * {id,en}/privacy.ts); apps/web/test/legal-versions.test.ts fails when the two differ, because
+ * a stored version naming a text nobody was shown is worse than none.
+ */
+export const PRIVACY_POLICY_VERSION = '2026-11-23';
+
+/**
+ * HD-8: a campaign code as the web stores it (lib/attribution.ts): lower case, 1 to 64 of
+ * a-z 0-9 . _ - and not starting with a symbol. The same pattern as auth-service's signup.
+ */
+export const SOURCE_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+
 /** HD-7: the event a new application raises (contracts/ai-v1/events.openapi.json). */
 export const FRANCHISE_APPLICATION_SUBMITTED = 'franchise.application_submitted';
 
