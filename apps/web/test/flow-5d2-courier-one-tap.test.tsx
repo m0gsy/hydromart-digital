@@ -105,16 +105,38 @@ describe('one tap: the shift and the attendance from one face photo', () => {
     draw();
     await user.click(await screen.findByRole('button', { name: 'capture' }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/driver'));
+    // The point alone for the shift: delivery-service's DTO refuses a field it does not declare.
     expect(runOrQueue).toHaveBeenNthCalledWith(1, {
       kind: 'shiftCheckIn',
       payload: { depotId: 'depot-1', ...AT },
     });
+    // The HR punch also says how sure the phone was, so hr-service can tell a "Perkiraan" fix.
     expect(runOrQueue).toHaveBeenNthCalledWith(2, {
       kind: 'hrPunch',
-      payload: { mode: 'in', image: 'data:image/jpeg;base64,AAA', ...AT },
+      payload: { mode: 'in', image: 'data:image/jpeg;base64,AAA', ...AT, accuracyM: 5 },
     });
     // The plain shift button is not offered beside it.
     expect(screen.queryByRole('button', { name: C.submit })).toBeNull();
+  });
+
+  it('a fix with no accuracy sends none, rather than a NaN the DTO would refuse', async () => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback) =>
+          ok({ coords: { latitude: AT.lat, longitude: AT.lng, accuracy: Number.NaN } } as GeolocationPosition),
+      },
+    });
+    const user = userEvent.setup();
+    draw();
+    await user.click(await screen.findByRole('button', { name: 'capture' }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/driver'));
+    const punch = runOrQueue.mock.calls.find(([job]) => job.kind === 'hrPunch')?.[0];
+    expect(JSON.parse(JSON.stringify(punch.payload))).toEqual({
+      mode: 'in',
+      image: 'data:image/jpeg;base64,AAA',
+      ...AT,
+    });
   });
 
   it('half done: the shift opened, the face was refused — says so, and a retry punches alone', async () => {

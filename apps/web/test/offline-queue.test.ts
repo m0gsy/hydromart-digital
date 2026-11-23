@@ -92,6 +92,23 @@ describe('offline queue', () => {
     expect(pending()).toHaveLength(0);
   });
 
+  // 2026-11-23: hr-service tells an approximate ("Perkiraan") fix partly by its accuracy, so a
+  // punch that waited on the phone has to arrive with it rather than lose it in IndexedDB.
+  it('keeps a queued punch\'s accuracy all the way to the server', async () => {
+    const { runOrQueue, flush, pending } = await freshQueue();
+    post.mockRejectedValueOnce(new ApiError(0, 'offline'));
+    await runOrQueue({ ...punch, payload: { ...punch.payload, accuracyM: 2000 } });
+    expect(pending()).toHaveLength(1);
+
+    post.mockResolvedValue({ id: 'a1' });
+    await flush();
+
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(post.mock.calls[1]![1]).toMatchObject({ lat: -6.2, lng: 106.8, accuracyM: 2000 });
+    expect(typeof post.mock.calls[1]![1].capturedAt).toBe('string');
+    expect(pending()).toHaveLength(0);
+  });
+
   it('queues the job when the device is offline', async () => {
     const { runOrQueue, pending } = await freshQueue();
     post.mockRejectedValue(new ApiError(0, 'Cannot reach the server.'));

@@ -30,13 +30,20 @@ type Mode = 'in' | 'out';
 function getPosition(messages: {
   noGps: string;
   allowGps: string;
-}): Promise<{ lat: number; lng: number }> {
+}): Promise<{ lat: number; lng: number; accuracyM?: number }> {
   // Through the shared `currentPosition`: it falls back to the coarse provider, which is the
   // only one an employee who granted "Perkiraan" (Android 12+) has. A precise-only request
   // on that phone times out and the employee is told to grant an already-granted permission
   // — a check-in they cannot complete because of a message that is not true.
+  //
+  // The accuracy goes with the punch and nothing is refused here: whether the depot is fenced,
+  // and whether a fix that rough can pass its fence, is the server's call.
   return currentPosition({ precise: true }).then(
-    (pos) => ({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+    ({ coords: { latitude: lat, longitude: lng, accuracy } }) => ({
+      lat,
+      lng,
+      accuracyM: Number.isFinite(accuracy) ? Math.round(accuracy) : undefined,
+    }),
     (err: unknown) => {
       const reason = geoReason(err);
       throw new Error(reason === 'unsupported' ? messages.noGps : messages.allowGps);
@@ -73,7 +80,7 @@ export default function MeCheckInPage() {
     }
     setBusy(true);
     try {
-      const { lat, lng } = await getPosition({
+      const at = await getPosition({
         noGps: t('hrFix.checkIn.noGps'),
         allowGps: t('hrFix.checkIn.allowGps'),
       });
@@ -81,7 +88,7 @@ export default function MeCheckInPage() {
       // counts normally; one that sits here too long is held for HR to approve.
       const sent = await runOrQueue<Attendance>({
         kind: 'hrPunch',
-        payload: { mode, image: dataUrl, lat, lng },
+        payload: { mode, image: dataUrl, ...at },
       });
       if (sent.outcome === 'queued') {
         setResult(null);

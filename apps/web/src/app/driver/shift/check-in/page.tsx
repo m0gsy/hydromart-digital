@@ -98,8 +98,10 @@ function CheckIn() {
         : t('driver.checkIn.error');
 
   /** The shift start both flows make. Depot wifi is not a given at 6am: queued, not lost. */
-  const startShift = async (at: { lat: number; lng: number }) => {
-    const { outcome } = await runOrQueue({ kind: 'shiftCheckIn', payload: { depotId: depotId!, ...at } });
+  const startShift = async ({ lat, lng }: { lat: number; lng: number }) => {
+    // The point only: the accuracy is for the HR punch, and delivery-service refuses a field its
+    // DTO does not declare.
+    const { outcome } = await runOrQueue({ kind: 'shiftCheckIn', payload: { depotId: depotId!, lat, lng } });
     // The Ops binary's equivalent of the customer's first order: the one moment where "let me
     // know when a delivery lands" explains itself. Asking at first launch collects a denial
     // from someone with no reason yet to want one, and Android makes that close to permanent.
@@ -108,8 +110,9 @@ function CheckIn() {
     return outcome;
   };
   const here = async () => {
-    const pos = await currentPosition({ precise: true });
-    return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    const { latitude: lat, longitude: lng, accuracy } = (await currentPosition({ precise: true })).coords;
+    // Sent with the HR punch, as on /hr/me/check-in: the server tells a "Perkiraan" fix by it.
+    return { lat, lng, accuracyM: Number.isFinite(accuracy) ? Math.round(accuracy) : undefined };
   };
 
   const capture = async (image: string, live: boolean) => {
