@@ -120,6 +120,9 @@ describe('data-subject domain rules', () => {
     expect(anonymisedIdentity('abc')).toEqual({
       phone: 'deleted-abc',
       email: null,
+      // HD-8: the campaign codes go with the identity they were linked to.
+      firstSource: null,
+      lastSource: null,
       fullName: 'Pengguna dihapus',
       avatarUrl: null,
       googleSub: null,
