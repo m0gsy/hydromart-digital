@@ -98,8 +98,12 @@ describe('lib/attribution', () => {
   });
 
   it('carries on unattributed when storage is full', () => {
-    // On the instance, not Storage.prototype: test/setup.ts may have put a plain object here.
-    const setItem = vi.spyOn(window.localStorage, 'setItem').mockImplementation(() => {
+    // Where setItem really lives: on a real jsdom Storage it is Storage.prototype (a spy put on
+    // the instance would only become a stored item), on test/setup.ts's stand-in the object.
+    const holder = Object.prototype.hasOwnProperty.call(window.localStorage, 'setItem')
+      ? window.localStorage
+      : (Object.getPrototypeOf(window.localStorage) as Storage);
+    const setItem = vi.spyOn(holder, 'setItem').mockImplementation(() => {
       throw new Error('QuotaExceededError');
     });
     expect(() => captureSource('?src=pameran')).not.toThrow();

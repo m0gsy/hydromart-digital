@@ -193,6 +193,17 @@ async function openTill() {
 const addOneGalon = () =>
   userEvent.click(screen.getAllByRole('button', { name: /Increase quantity/i })[0]!);
 
+/**
+ * The pay button stays disabled until the quote for THIS basket has come back (`quoteFresh`),
+ * and a wait on `quoteBodies` only sees it requested. On a slow runner a click right away
+ * landed on the disabled button and did nothing, so the receipt never came (main, 22 Nov).
+ */
+async function payWhenReady() {
+  const pay = screen.getByTestId('counter-pay');
+  await waitFor(() => expect(pay).toBeEnabled());
+  await userEvent.click(pay);
+}
+
 async function identifyBuyer() {
   await userEvent.type(screen.getByLabelText(/nomor hp/i), '08123456789');
   await userEvent.click(screen.getByRole('button', { name: /cek pelanggan/i }));
@@ -295,7 +306,7 @@ describe("the identified buyer's own vouchers, one tap", () => {
     await waitFor(() => expect(quoteBodies.at(-1)?.customerId).toBe('buyer-1'));
 
     await userEvent.type(screen.getByLabelText(/uang tunai diterima/i), '20000');
-    await userEvent.click(screen.getByRole('button', { name: /simpan & cetak struk/i }));
+    await payWhenReady();
     await waitFor(() => expect(screen.getByText(/WI-001/)).toBeTruthy(), { timeout: 5_000 });
 
     // The buyer's list is gone with the buyer…
@@ -420,7 +431,7 @@ describe('what the till remembers between buyers', () => {
     await waitFor(() => expect(pay2().disabled).toBe(false));
     const before = recentReads;
     await userEvent.type(screen.getByLabelText(/uang tunai diterima/i), '20000');
-    await userEvent.click(screen.getByRole('button', { name: /simpan & cetak struk/i }));
+    await payWhenReady();
     await waitFor(() => expect(screen.getByText(/WI-001/)).toBeTruthy(), { timeout: 5_000 });
     await waitFor(() => expect(recentReads).toBeGreaterThan(before));
   });
