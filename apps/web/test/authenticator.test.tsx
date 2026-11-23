@@ -2,7 +2,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, post, del, auth, toast, confirm } = vi.hoisted(() => ({
+const { get, post, del, auth, toast, confirm, FakeApiError } = vi.hoisted(() => ({
+  FakeApiError: class FakeApiError extends Error {},
   get: vi.fn(),
   post: vi.fn(),
   del: vi.fn(),
@@ -11,7 +12,7 @@ const { get, post, del, auth, toast, confirm } = vi.hoisted(() => ({
   confirm: vi.fn(),
 }));
 
-vi.mock('@/lib/api', () => ({ api: { get, post, del }, ApiError: class ApiError extends Error {} }));
+vi.mock('@/lib/api', () => ({ api: { get, post, del }, ApiError: FakeApiError }));
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: auth.customer, ready: auth.ready }) }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
 vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm }) }));
@@ -23,7 +24,7 @@ vi.mock('next/navigation', () => ({
 
 import { LocaleProvider } from '@/lib/locale-context';
 import AuthenticatorPage, { groupSecret } from '@/app/account/autentikator/page';
-import { ResetTotp } from '@/components/staff/staff-directory';
+import { canResetTotp, ResetTotp } from '@/components/staff/staff-directory';
 
 const status = (over: Record<string, unknown> = {}) => ({
   available: true,
@@ -85,6 +86,49 @@ describe('/account/autentikator (AI-3a)', () => {
     expect(screen.queryByText('aaaa-1111')).toBeNull();
   });
 
+  // Review M1: the cached "not set up" status must not come back while the refetch runs.
+  it('shows the new authenticator as set up at once, without waiting for the refetch', async () => {
+    get.mockResolvedValueOnce(status());
+    post.mockResolvedValueOnce({ secret: 'ABCDEFGHIJKLMNOP', otpauthUri: 'otpauth://totp/x' });
+    post.mockResolvedValueOnce({ recoveryCodes: ['aaaa-1111', 'bbbb-2222', 'cccc-3333'] });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: /pasang autentikator/i }));
+    fireEvent.change(await screen.findByLabelText(/kode dari aplikasi/i), { target: { value: '123456' } });
+    fireEvent.change(screen.getByLabelText(/kode sms/i), { target: { value: '654321' } });
+    fireEvent.click(screen.getByRole('button', { name: /selesaikan pemasangan/i }));
+    expect(await screen.findByText('aaaa-1111')).toBeTruthy();
+    get.mockReturnValue(new Promise(() => {}));
+    fireEvent.click(screen.getByRole('button', { name: /sudah saya simpan/i }));
+    expect(await screen.findByText(/Kode pemulihan tersisa: 3/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /pasang autentikator/i })).toBeNull();
+  });
+
+  // Review M2: five wrong codes lock it, during set-up too; the screen says until when.
+  it('shows the server reason and the lock, and offers to start again', async () => {
+    const until = new Date(Date.now() + 15 * 60_000).toISOString();
+    get.mockResolvedValueOnce(status());
+    post.mockResolvedValueOnce({ secret: 'ABCDEFGHIJKLMNOP', otpauthUri: 'otpauth://totp/x', sms: { expiresInSeconds: 300 } });
+    post.mockRejectedValueOnce(new FakeApiError('Kode autentikator salah.'));
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: /pasang autentikator/i }));
+    expect(await screen.findByText(/berlaku 5 menit/)).toBeTruthy();
+    get.mockResolvedValue(status({ lockedUntil: until }));
+    fireEvent.change(screen.getByLabelText(/kode dari aplikasi/i), { target: { value: '123456' } });
+    fireEvent.change(screen.getByLabelText(/kode sms/i), { target: { value: '654321' } });
+    fireEvent.click(screen.getByRole('button', { name: /selesaikan pemasangan/i }));
+    expect(await screen.findByText('Kode autentikator salah.')).toBeTruthy();
+    expect(screen.getByLabelText(/kode dari aplikasi/i).getAttribute('aria-invalid')).toBe('true');
+    expect(await screen.findByText(/Terkunci sampai/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /mulai ulang/i })).toBeTruthy();
+    expect((screen.getByRole('button', { name: /selesaikan pemasangan/i }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('warns that an optional set-up becomes required for that person', async () => {
+    get.mockResolvedValue(status({ required: false }));
+    open();
+    expect(await screen.findByText(/hanya SUPER_ADMIN yang bisa melepasnya/)).toBeTruthy();
+  });
+
   it('shows a set-up one as set up, and where a lost phone goes', async () => {
     get.mockResolvedValue(status({ enrolled: true, recoveryCodesLeft: 7 }));
     open();
@@ -112,6 +156,15 @@ describe('ResetTotp on the staff directory (AI-3a)', () => {
     expect(del).toHaveBeenCalledWith('/auth/api/v1/auth/totp/s-9', true);
     fireEvent.click(screen.getByRole('button', { name: /reset autentikator/i }));
     await waitFor(() => expect(toast).toHaveBeenLastCalledWith('Rina belum memasang autentikator.', 'info'));
+  });
+
+  it('is offered to SUPER_ADMIN only, never on their own row or a deleted account', () => {
+    const admin = { id: 'a-1', role: 'SUPER_ADMIN' };
+    expect(canResetTotp(admin, { id: 's-9', status: 'ACTIVE' } as never)).toBe(true);
+    expect(canResetTotp(admin, { id: 'a-1', status: 'ACTIVE' } as never)).toBe(false);
+    expect(canResetTotp(admin, { id: 's-9', status: 'DELETED' } as never)).toBe(false);
+    expect(canResetTotp({ id: 'h-1', role: 'HEAD_OFFICE' }, { id: 's-9', status: 'ACTIVE' } as never)).toBe(false);
+    expect(canResetTotp(null, { id: 's-9', status: 'ACTIVE' } as never)).toBe(false);
   });
 
   it('does nothing when the confirmation is declined', async () => {

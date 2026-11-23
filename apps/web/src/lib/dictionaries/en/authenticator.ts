@@ -7,7 +7,8 @@ export const authenticator: typeof base = {
   intro:
     'A 6-digit code from the authenticator app on your phone is the second step when you sign in to the HYDROMART AI web.',
   required: 'Your role must use this step to sign in to the AI web.',
-  optional: 'Your role does not have to use it, but you may set it up.',
+  optional:
+    'Your role does not have to use it. Once set up, the step is required for you at every AI web sign-in, and only a SUPER_ADMIN can remove it.',
   unavailable: 'The authenticator step is not switched on on the server yet. There is nothing to set up.',
   staffOnly: 'The authenticator is for staff accounts only.',
   loadError: 'Could not load the authenticator status.',
@@ -23,6 +24,9 @@ export const authenticator: typeof base = {
   step2: '2. Enter the 6-digit code the app shows, and the SMS code just sent to your account number.',
   appCode: 'Code from the app',
   smsCode: 'SMS code',
+  smsSent: 'The SMS code went to your account number and is valid for {m} minutes.',
+  smsPending: 'The SMS is on its way to your account number. If it does not come, start again.',
+  restart: 'Start again',
   badAppCode: 'The app code is 6 digits.',
   badSmsCode: 'The SMS code is 4 to 8 digits.',
   confirm: 'Finish setting up',

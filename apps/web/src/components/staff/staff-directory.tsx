@@ -245,9 +245,7 @@ export function StaffDirectory({
                 </Badge>
                 {canAdminStaff && <ActiveToggle staff={s} onChanged={reloadAll} />}
                 {/* AI-3a: SUPER_ADMIN only, never on their own row (the service refuses it). */}
-                {can('accessMatrixWrite', customer?.role) &&
-                  s.id !== customer?.id &&
-                  s.status !== 'DELETED' && <ResetTotp staff={s} />}
+                {canResetTotp(customer, s) && <ResetTotp staff={s} />}
                 {can('staffDelete', customer?.role) && (
                   <DeleteStaff staff={s} onDeleted={reloadAll} />
                 )}
@@ -403,6 +401,14 @@ function ActiveToggle({ staff, onChanged }: { staff: Customer; onChanged: () => 
  * second step; SUPER_ADMIN removes it here and they set it up again on /account/autentikator.
  * The service audits the reset and refuses one's own.
  */
+/** SUPER_ADMIN only (accessMatrixWrite), never on one's own row, never on a deleted account. */
+export function canResetTotp(
+  viewer: Pick<Customer, 'id' | 'role'> | null | undefined,
+  staff: Pick<Customer, 'id' | 'status'>,
+): boolean {
+  return Boolean(viewer) && can('accessMatrixWrite', viewer?.role) && staff.id !== viewer?.id && staff.status !== 'DELETED';
+}
+
 export function ResetTotp({ staff }: { staff: Customer }) {
   const { t } = useT();
   const { confirm } = useConfirm();
@@ -411,12 +417,16 @@ export function ResetTotp({ staff }: { staff: Customer }) {
   const name = staff.fullName || staff.phone;
 
   async function reset() {
+    // Busy before the question, so a double click cannot open two and send two.
+    setBusy(true);
     const ok = await confirm({
       title: t('common.confirmTitle'),
       message: t('hq.staff.totpResetConfirm', { name }),
     });
-    if (!ok) return;
-    setBusy(true);
+    if (!ok) {
+      setBusy(false);
+      return;
+    }
     try {
       const res = await api.del<{ removed: boolean }>(endpoints.auth.resetTotp(staff.id), true);
       toast(

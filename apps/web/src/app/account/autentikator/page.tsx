@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from '@phosphor-icons/react';
 
@@ -27,6 +27,7 @@ interface TotpStatus {
 interface Enrolment {
   secret: string;
   otpauthUri: string;
+  sms?: { expiresInSeconds?: number; deliveryPending?: boolean };
 }
 
 /** The secret in groups of four, as authenticator apps print it: easier to type by hand. */
@@ -37,8 +38,9 @@ export function groupSecret(secret: string): string {
 /**
  * AI-3a: a staff member sets up the authenticator app that the AI web's sign-in asks for
  * (HD-4). The server holds the rules: an SMS code to the account number proves the phone, the
- * first app code proves the app holds the secret, and the recovery codes come back once.
- * Resetting a lost one is SUPER_ADMIN's, on the staff directory.
+ * first app code proves the app holds the secret, five wrong codes lock it for 15 minutes, and
+ * the recovery codes come back once. Resetting a lost one is SUPER_ADMIN's, on the staff
+ * directory.
  */
 function Authenticator() {
   const { locale } = useT();
@@ -54,8 +56,25 @@ function Authenticator() {
   const [appCode, setAppCode] = useState('');
   const [smsCode, setSmsCode] = useState('');
   const [codes, setCodes] = useState<string[] | null>(null);
+  // Set the moment the server confirms, so the screen does not fall back to the cached
+  // "not set up" status while the refetch is on its way (and offer a set-up that would fail).
+  const [enrolledNow, setEnrolledNow] = useState<TotpStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const codesHeading = useRef<HTMLHeadingElement>(null);
+
+  const view = status.data?.enrolled ? status.data : (enrolledNow ?? status.data);
+  const lockedUntil =
+    view?.lockedUntil && new Date(view.lockedUntil).getTime() > Date.now() ? view.lockedUntil : null;
+
+  // The codes exist nowhere else: leaving the page while they are on screen asks first.
+  useEffect(() => {
+    if (!codes) return undefined;
+    codesHeading.current?.focus();
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [codes]);
 
   async function start() {
     setBusy(true);
@@ -73,6 +92,7 @@ function Authenticator() {
 
   async function confirm(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     if (!/^\d{6}$/.test(appCode.trim())) return setError(copy.badAppCode);
     if (!/^\d{4,8}$/.test(smsCode.trim())) return setError(copy.badSmsCode);
     setBusy(true);
@@ -85,8 +105,13 @@ function Authenticator() {
       );
       setCodes(done.recoveryCodes);
       setEnrolment(null);
+      if (status.data) {
+        setEnrolledNow({ ...status.data, enrolled: true, recoveryCodesLeft: done.recoveryCodes.length, lockedUntil: null });
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : copy.failed);
+      // A wrong code may have locked it: the status says until when.
+      status.reload();
     } finally {
       setBusy(false);
     }
@@ -106,14 +131,27 @@ function Authenticator() {
     status.reload();
   }
 
+  const errorLine = error ? (
+    <p id="totp-error" className="text-sm text-[color:var(--danger)]" role="alert">
+      {error}
+    </p>
+  ) : null;
+  const lockLine = lockedUntil ? (
+    <p className="text-sm text-[color:var(--danger)]">
+      {copy.locked.replace('{time}', new Date(lockedUntil).toLocaleString(locale === 'en' ? 'en-US' : 'id-ID'))}
+    </p>
+  ) : null;
+
   let body: React.ReactNode;
   if (!staff) {
     body = <p className="text-sm text-muted">{copy.staffOnly}</p>;
   } else if (codes) {
     // Shown once: nothing else on the screen until they say the codes are kept.
     body = (
-      <div role="status" className="flex flex-col gap-3">
-        <p className="text-sm font-bold text-[color:var(--warning)]">{copy.codesTitle}</p>
+      <section aria-labelledby="totp-codes" className="flex flex-col gap-3">
+        <h2 id="totp-codes" ref={codesHeading} tabIndex={-1} className="text-sm font-bold text-[color:var(--warning)]">
+          {copy.codesTitle}
+        </h2>
         <p className="text-xs text-muted">{copy.codesBody}</p>
         <ol className="grid grid-cols-2 gap-1.5 font-mono text-sm">
           {codes.map((c) => (
@@ -130,30 +168,27 @@ function Authenticator() {
             {copy.copy}
           </Button>
         </div>
-      </div>
+      </section>
     );
-  } else if (status.loading && !status.data) {
+  } else if (!view && status.loading) {
     body = <Skeleton className="h-24" />;
-  } else if (status.error || !status.data) {
+  } else if (!view) {
     body = <ErrorState message={copy.loadError} onRetry={status.reload} />;
-  } else if (!status.data.available) {
+  } else if (!view.available) {
     body = <p className="text-sm text-muted">{copy.unavailable}</p>;
-  } else if (status.data.enrolled) {
-    const until = status.data.lockedUntil;
+  } else if (view.enrolled) {
     body = (
       <div className="flex flex-col gap-2 text-sm">
-        <p className="font-semibold">{copy.enrolled.replace('{n}', String(status.data.recoveryCodesLeft))}</p>
-        {until && (
-          <p className="text-[color:var(--danger)]">
-            {copy.locked.replace('{time}', new Date(until).toLocaleString(locale === 'en' ? 'en-US' : 'id-ID'))}
-          </p>
-        )}
+        <p className="font-semibold">{copy.enrolled.replace('{n}', String(view.recoveryCodesLeft))}</p>
+        {lockLine}
         <p className="text-xs text-muted">{copy.resetHint}</p>
       </div>
     );
   } else if (enrolment) {
+    const invalid = Boolean(error);
     body = (
       <form onSubmit={confirm} className="flex flex-col gap-4" noValidate>
+        {lockLine}
         <div className="flex flex-col gap-2 text-sm">
           <p>{copy.step1}</p>
           <a href={enrolment.otpauthUri} className="font-bold text-brand-700 underline underline-offset-2">
@@ -165,6 +200,11 @@ function Authenticator() {
           </code>
         </div>
         <p className="text-sm">{copy.step2}</p>
+        <p className="text-xs text-muted">
+          {enrolment.sms?.deliveryPending
+            ? copy.smsPending
+            : copy.smsSent.replace('{m}', String(Math.max(1, Math.round((enrolment.sms?.expiresInSeconds ?? 300) / 60))))}
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label={copy.appCode} htmlFor="totp-app">
             <Input
@@ -172,20 +212,29 @@ function Authenticator() {
               inputMode="numeric"
               autoComplete="one-time-code"
               value={appCode}
+              aria-invalid={invalid || undefined}
+              aria-describedby={invalid ? 'totp-error' : undefined}
               onChange={(e) => setAppCode(e.target.value)}
             />
           </Field>
           <Field label={copy.smsCode} htmlFor="totp-sms">
-            <Input id="totp-sms" inputMode="numeric" value={smsCode} onChange={(e) => setSmsCode(e.target.value)} />
+            <Input
+              id="totp-sms"
+              inputMode="numeric"
+              value={smsCode}
+              aria-invalid={invalid || undefined}
+              aria-describedby={invalid ? 'totp-error' : undefined}
+              onChange={(e) => setSmsCode(e.target.value)}
+            />
           </Field>
         </div>
-        {error && (
-          <p className="text-sm text-[color:var(--danger)]" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="flex justify-end">
-          <Button type="submit" loading={busy}>
+        {errorLine}
+        <div className="flex flex-wrap justify-end gap-2">
+          {/* A new secret and a new SMS: the way out of an expired SMS code or a lock. */}
+          <Button type="button" variant="secondary" onClick={start} disabled={busy || Boolean(lockedUntil)}>
+            {copy.restart}
+          </Button>
+          <Button type="submit" loading={busy} disabled={Boolean(lockedUntil)}>
             {copy.confirm}
           </Button>
         </div>
@@ -194,14 +243,11 @@ function Authenticator() {
   } else {
     body = (
       <div className="flex flex-col gap-3 text-sm">
-        <p>{status.data.required ? copy.required : copy.optional}</p>
-        {error && (
-          <p className="text-sm text-[color:var(--danger)]" role="alert">
-            {error}
-          </p>
-        )}
+        <p>{view.required ? copy.required : copy.optional}</p>
+        {lockLine}
+        {errorLine}
         <div>
-          <Button onClick={start} loading={busy}>
+          <Button onClick={start} loading={busy} disabled={Boolean(lockedUntil)}>
             {busy ? copy.starting : copy.start}
           </Button>
         </div>

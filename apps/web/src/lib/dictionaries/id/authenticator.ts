@@ -6,7 +6,8 @@ export const authenticator = {
   intro:
     'Kode 6 angka dari aplikasi autentikator di ponselmu menjadi langkah kedua saat masuk ke web HYDROMART AI.',
   required: 'Peranmu wajib memakai langkah ini untuk masuk ke web AI.',
-  optional: 'Peranmu tidak wajib memakainya, tetapi boleh memasangnya.',
+  optional:
+    'Peranmu tidak wajib memakainya. Sekali dipasang, langkah ini wajib untukmu setiap masuk ke web AI, dan hanya SUPER_ADMIN yang bisa melepasnya.',
   unavailable: 'Langkah autentikator belum dinyalakan di server. Belum ada yang perlu dipasang.',
   staffOnly: 'Autentikator hanya untuk akun staf.',
   loadError: 'Status autentikator tidak bisa dimuat.',
@@ -22,6 +23,9 @@ export const authenticator = {
   step2: '2. Masukkan kode 6 angka yang tampil di aplikasi, dan kode SMS yang baru dikirim ke nomor akunmu.',
   appCode: 'Kode dari aplikasi',
   smsCode: 'Kode SMS',
+  smsSent: 'Kode SMS dikirim ke nomor akunmu dan berlaku {m} menit.',
+  smsPending: 'SMS sedang dikirim ke nomor akunmu. Kalau tidak datang, mulai ulang.',
+  restart: 'Mulai ulang',
   badAppCode: 'Kode aplikasi harus 6 angka.',
   badSmsCode: 'Kode SMS harus 4 sampai 8 angka.',
   confirm: 'Selesaikan pemasangan',
