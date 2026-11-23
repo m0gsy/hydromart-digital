@@ -409,6 +409,15 @@ probe() {
   else
     note "probe: could not read ai_app's privileges"
   fi
+  # The grants above are the ones made to ai_app BY NAME. What it can actually do also comes from
+  # PUBLIC and from any role it is a member of, so the rows that must never be rewritten or lost
+  # are asked about as Postgres decides: no UPDATE/DELETE/TRUNCATE on the two records, no
+  # DELETE/TRUNCATE on the dedupe ledger, and no membership in the role that owns them.
+  if effective="$($AIWEB_COMPOSE exec -T db psql -X -tA -U postgres -d ai -c "SELECT string_agg(t || ':' || p, ' ' ORDER BY t, p) FROM (VALUES ('answer_trail','UPDATE'),('answer_trail','DELETE'),('answer_trail','TRUNCATE'),('kill_switch_events','UPDATE'),('kill_switch_events','DELETE'),('kill_switch_events','TRUNCATE'),('hd_events','DELETE'),('hd_events','TRUNCATE')) AS x(t, p) WHERE has_table_privilege('ai_app', 'public.' || t, p) OR pg_has_role('ai_app', (SELECT tableowner FROM pg_tables WHERE schemaname = 'public' AND tablename = t), 'MEMBER')" 2>/dev/null)"; then
+    if [ -n "${effective// /}" ]; then note "privileges: ai_app can, in effect (PUBLIC or a role it belongs to): $effective"; fi
+  else
+    note "probe: could not ask Postgres what ai_app can do in effect"
+  fi
 
   [ -z "$PROBLEMS" ]
 }

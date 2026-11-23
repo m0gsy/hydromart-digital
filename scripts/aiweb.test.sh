@@ -57,6 +57,9 @@ if [ "$1" = compose ]; then
         *"ALTER ROLE ai_app"*) echo "psql-file app-role" >> "$FAKE_LOG"; exit "${FAKE_APPROLE_RC:-0}" ;;
         *) echo "psql-file unknown" >> "$FAKE_LOG"; exit 9 ;;
       esac ;;
+    *" psql "*"has_table_privilege"*)
+      # What ai_app can do in effect, as the probe asks Postgres: nothing by default.
+      printf '%s\n' "${FAKE_EFFECTIVE:-}" ;;
     *" psql "*)
       if [ -n "${FAKE_GRANTS:-}" ]; then printf '%s\n' "$FAKE_GRANTS"; else
         printf '%s\n' answer_trail:INSERT,SELECT hd_events:INSERT,SELECT,UPDATE kill_switch_events:INSERT,SELECT kill_switches:DELETE,INSERT,SELECT,UPDATE
@@ -796,6 +799,8 @@ probe_fails "n8n cut off from hydromart's API" "n8n: cannot fetch https://api.hy
 probe_fails "the app cut off from n8n" 'n8n: the AI web cannot reach http://n8n:5678/healthz' FAKE_N8N_HEALTH_RC=1
 probe_fails "n8n drifted from git" 'drift.mjs exit 1' FAKE_DRIFT_RC=1
 said 'workflow x1 is published in n8n but is not in git' && ok "  ...naming the drift" || bad "the drift line was not shown"
+probe_fails "ai_app can delete hd_events in effect (through PUBLIC or a role)" 'ai_app can, in effect (PUBLIC or a role it belongs to): hd_events:DELETE' \
+  "FAKE_EFFECTIVE=hd_events:DELETE"
 probe_fails "ai_app may delete from hd_events" 'must hold exactly INSERT,SELECT,UPDATE on hd_events' \
   "FAKE_GRANTS=answer_trail:INSERT,SELECT
 hd_events:DELETE,INSERT,SELECT,UPDATE
