@@ -110,6 +110,11 @@ export const envValidationSchema = Joi.object({
    * boot rather than looking configured while every token is refused.
    */
   AI_TOKEN_SIGNING_KEY: Joi.string().allow('').default('').custom(signingKey),
+  /**
+   * AI-3b: the AI web's handoff callback, exactly (https://<ai web>/masuk/callback). A handoff
+   * code is sent there and nowhere else; blank = no handoff page works (503).
+   */
+  AI_WEB_RETURN_URL: Joi.string().allow('').default('').uri({ scheme: ['https', 'http'] }),
   AI_TOKEN_SIGNING_KEY_PREVIOUS: Joi.string().allow('').default('').custom(signingKey),
   MACHINE_ACCOUNTS: Joi.string()
     .allow('')

@@ -125,6 +125,14 @@ export class AuthConfigService {
     };
   }
 
+  /**
+   * AI-3b: the one address a handoff code may be sent to, the AI web's callback. Blank when
+   * the AI web is not connected yet.
+   */
+  get aiWebReturnUrl(): string {
+    return this.config.get<string>('AI_WEB_RETURN_URL', '').trim();
+  }
+
   /** HD-3: the machine accounts (n8n). Validated at boot, so this cannot throw here. */
   get machineAccounts(): MachineAccount[] {
     const raw = this.config.get<string>('MACHINE_ACCOUNTS', '');

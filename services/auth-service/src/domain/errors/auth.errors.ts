@@ -408,6 +408,27 @@ export class HandoffNotForCustomersError extends DomainError {
   }
 }
 
+/** AI-3b: no AI web return address is configured, so no handoff code is issued. */
+export class HandoffReturnUnsetError extends DomainError {
+  readonly code = 'AUTH_HANDOFF_RETURN_UNSET';
+  readonly status = HTTP.UNAVAILABLE;
+  constructor() {
+    super('The AI web is not connected yet.');
+  }
+}
+
+/**
+ * AI-3b: the link asked for the code to go somewhere other than the AI web's callback. Refused,
+ * because whoever holds the code and its verifier gets a token for the person who signed in.
+ */
+export class HandoffReturnRefusedError extends DomainError {
+  readonly code = 'AUTH_HANDOFF_RETURN_REFUSED';
+  readonly status = HTTP.BAD_REQUEST;
+  constructor() {
+    super('This sign-in link does not lead back to the HYDROMART AI web.');
+  }
+}
+
 /** HD-3: unknown, used, expired, or presented with the wrong PKCE verifier. One answer for all. */
 export class InvalidHandoffCodeError extends DomainError {
   readonly code = 'AUTH_HANDOFF_INVALID';

@@ -10,6 +10,8 @@ import {
   ExternalTokensOffError,
   HandoffBusyError,
   HandoffNotForCustomersError,
+  HandoffReturnRefusedError,
+  HandoffReturnUnsetError,
   InvalidHandoffCodeError,
   InvalidMachineCredentialsError,
   TotpRequiredError,
@@ -92,10 +94,17 @@ export class ExternalAccessService {
   async issueHandoffCode(
     caller: { sub: string; role: string },
     codeChallenge: string,
+    returnTo: string,
     context: RequestContext,
-  ): Promise<{ code: string; expiresIn: number }> {
+  ): Promise<{ code: string; expiresIn: number; returnTo: string }> {
     this.assertOn();
     if (caller.role === Role.CUSTOMER) throw new HandoffNotForCustomersError();
+    // AI-3b: the code goes to the configured AI web callback and nowhere else. A link that
+    // names another address is someone trying to collect the code (and with their own
+    // verifier, a token for this person).
+    const allowed = this.config.aiWebReturnUrl;
+    if (!allowed) throw new HandoffReturnUnsetError();
+    if (returnTo !== allowed) throw new HandoffReturnRefusedError();
 
     const now = this.clock.now().getTime();
     const mine: string[] = [];
@@ -119,7 +128,7 @@ export class ExternalAccessService {
       success: true,
       ...context,
     });
-    return { code, expiresIn: HANDOFF_CODE_TTL_SECONDS };
+    return { code, expiresIn: HANDOFF_CODE_TTL_SECONDS, returnTo: allowed };
   }
 
   /** Step 3: the AI web's server trades the code and its PKCE verifier for a token. */
