@@ -15,8 +15,8 @@ import {
   NotificationChannelPref,
 } from '../../application/ports/admin-notification-pref.repository';
 import {
-  DEPOT_EVENT_IDS,
   NOTIFICATION_EVENT_IDS,
+  PUSH_TOGGLE_IDS,
 } from '../../application/services/admin-notification-pref.service';
 
 /* ---------- Requests ---------- */
@@ -49,7 +49,7 @@ export class SaveAdminNotificationPrefsDto {
   events!: NotificationChannelPrefDto[];
 }
 
-/** crm-service's question: of these accounts, who switched push off for this depot toggle? */
+/** crm-service's question: of these accounts, who switched push off for this toggle? */
 export class PushDisabledDto {
   @ApiProperty({ type: [String], format: 'uuid', description: 'Account ids to check (at most 500).' })
   @IsArray()
@@ -57,9 +57,9 @@ export class PushDisabledDto {
   @IsUUID('all', { each: true })
   accountIds!: string[];
 
-  @ApiProperty({ enum: DEPOT_EVENT_IDS })
+  @ApiProperty({ enum: PUSH_TOGGLE_IDS })
   @IsString()
-  @IsIn(DEPOT_EVENT_IDS as unknown as string[])
+  @IsIn(PUSH_TOGGLE_IDS as unknown as string[])
   toggle!: string;
 }
 

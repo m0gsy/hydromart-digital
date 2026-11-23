@@ -1,4 +1,8 @@
-import { AdminNotificationPrefService } from '../../src/application/services/admin-notification-pref.service';
+import {
+  AdminNotificationPrefService,
+  DEPOT_EVENT_IDS,
+  PUSH_TOGGLE_IDS,
+} from '../../src/application/services/admin-notification-pref.service';
 import { InMemoryAdminNotificationPrefRepository } from '../support/fakes';
 
 describe('AdminNotificationPrefService', () => {
@@ -142,10 +146,17 @@ describe('AdminNotificationPrefService', () => {
       expect(await service.pushDisabledFor(['acc-1'], 'lowStock')).toEqual(['acc-1']);
     });
 
-    it('answers nothing for a toggle that is not a depot alert', async () => {
+    it('answers nothing for a toggle with no push behind it', async () => {
       await service.save('acc-1', [{ id: 'criticalSla', ...off }]);
       expect(await service.pushDisabledFor(['acc-1'], 'criticalSla')).toEqual([]);
       expect(await service.pushDisabledFor(['acc-1'], 'nonsense')).toEqual([]);
+    });
+
+    // AI-5: "Lamaran waralaba baru" on /hq/profile is the one HQ switch crm pushes for.
+    it('answers the HQ "new franchise application" switch, which defaults to push on', async () => {
+      await service.save('acc-1', [{ id: 'newFranchiseApp', ...off }]);
+      expect(await service.pushDisabledFor(['acc-1', 'acc-2'], 'newFranchiseApp')).toEqual(['acc-1']);
+      expect(PUSH_TOGGLE_IDS).toEqual([...DEPOT_EVENT_IDS, 'newFranchiseApp']);
     });
 
     it('asks for no accounts without touching the store', async () => {

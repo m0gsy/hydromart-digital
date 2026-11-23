@@ -374,11 +374,13 @@ export const OVERSEER_EVENTS: readonly NotificationEvent[] = [
 ];
 
 /**
- * The staff settings switch ("Pesanan baru", "Stok menipis", ...) that governs each depot alert.
- * The ids are admin-service's DEPOT_EVENT_IDS. An event with no entry has no switch on any
- * screen - a leave decision, a payslip, a courier's own delivery - and is always pushed.
+ * The staff settings switch ("Pesanan baru", "Stok menipis", ...) that governs each alert's push.
+ * The ids are admin-service's DEPOT_EVENT_IDS, plus `newFranchiseApp`, the one /hq/profile
+ * switch with a push behind it ("Lamaran waralaba baru", admin-service PUSH_TOGGLE_IDS). An
+ * event with no entry has no switch on any screen - a leave decision, a payslip, a courier's own
+ * delivery - and is always pushed.
  */
-export type StaffToggle = 'newOrder' | 'lowStock' | 'courierFail' | 'approval' | 'dailySummary';
+export type StaffToggle = 'newOrder' | 'lowStock' | 'courierFail' | 'approval' | 'dailySummary' | 'newFranchiseApp';
 
 export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffToggle>> = {
   [NotificationEvent.DEPOT_ORDER_INCOMING]: 'newOrder',
@@ -397,7 +399,8 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.PRICE_OVERRIDE_PROPOSED]: 'approval',
   [NotificationEvent.EXPENSE_CLAIM_SUBMITTED]: 'approval',
   [NotificationEvent.REFUND_REQUESTED]: 'approval',
-  [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: 'approval',
+  // AI-5: its own switch on /hq/profile, not the depot consoles' "approval".
+  [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: 'newFranchiseApp',
   [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
 };
 

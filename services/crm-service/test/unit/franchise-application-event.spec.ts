@@ -36,10 +36,10 @@ describe('the franchise application event', () => {
     expect(text).toContain(locale === 'id' ? 'Lamaran waralaba' : 'Franchise applications');
   });
 
-  it('is an ops event for application reviewers, on the approvals switch, for nobody personally', () => {
+  it('is an ops event for application reviewers, on its own /hq/profile switch, for nobody personally', () => {
     expect(OPS_EVENTS).toContain(EVENT);
     expect(APPROVER_CAP_FOR_EVENT[EVENT]).toBe('franchiseApplications');
-    expect(STAFF_TOGGLE_FOR_EVENT[EVENT]).toBe('approval');
+    expect(STAFF_TOGGLE_FOR_EVENT[EVENT]).toBe('newFranchiseApp');
     expect(PERSONAL_OPS_EVENTS).not.toContain(EVENT);
     expect(OVERSEER_EVENTS).not.toContain(EVENT);
   });
