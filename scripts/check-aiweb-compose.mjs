@@ -210,8 +210,10 @@ if (front) {
   if (!/import\s+hsts\b/.test(site)) bad(`${siteFile} must \`import hsts\``);
   // AI-5: n8n reports failures to the app's /api/internal/n8n/* over the private network; from
   // the public those routes do not exist, refused before the proxy like hydromart's /metrics.
-  if (!site.replace(/\s+/g, ' ').includes('handle /api/internal/* { respond 404 }')) {
-    bad(`${siteFile} must refuse /api/internal/* to the public (handle /api/internal/* { respond 404 })`);
+  // Both the folder and the bare path: `/api/internal/*` does not match `/api/internal` itself.
+  const flat = site.replace(/\s+/g, ' ');
+  if (!flat.includes('handle /api/internal/* { respond 404 }') || !flat.includes('handle /api/internal { respond 404 }')) {
+    bad(`${siteFile} must refuse /api/internal/* to the public (handle /api/internal/* { respond 404 } and handle /api/internal { respond 404 })`);
   }
 }
 

@@ -205,7 +205,13 @@ if [ "$(grep -c '^MACHINE_ACCOUNTS=' .env || true)" -gt 1 ]; then
   echo "aiweb-secrets: !! MACHINE_ACCOUNTS has more than one line in .env (compose reads the last); leave one; nothing written" >&2
   exit 1
 fi
-has_scope() { sed -n '/^export const CAPABILITIES = {/,/^}/p' | grep -q "^  $SCOPE:"; }
+# The block is read whole before it is searched: with grep -q in a pipe, grep stops at the first
+# match, sed can die of SIGPIPE, and pipefail would then call a present capability absent.
+has_scope() {
+  local block
+  block="$(sed -n '/^export const CAPABILITIES = {/,/^}/p')"
+  grep -q "^  $SCOPE:" <<<"$block"
+}
 capable=0
 if has_scope 2>/dev/null <packages/access/src/index.ts; then capable=1; fi
 # And in the release a failed gate rolls back to (deploy.sh's last good commit): rolled back with

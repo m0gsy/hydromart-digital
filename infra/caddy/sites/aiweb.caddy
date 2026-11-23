@@ -23,6 +23,9 @@ ai.hydromart-digital.com {
 	handle /api/internal/* {
 		respond 404
 	}
+	handle /api/internal {
+		respond 404
+	}
 
 	# AI-5: hydromart's signed events (POST /api/ingress/hd) are a few hundred bytes each; nothing
 	# bigger is read past 64 KB.
