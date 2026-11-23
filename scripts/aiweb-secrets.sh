@@ -59,11 +59,14 @@ if absent AI_TOKEN_SIGNING_KEY; then
   # with the host's Node: a key it would refuse must never reach .env, because auth-service
   # would then refuse to start, and a rollback does not undo .env. The reason a check fails is
   # printed (the parser's error code, never the key).
-  if ! command -v node >/dev/null 2>&1; then
+  # AIWEB_NODE exists for the self-test, which names a node that is not there: taking node off
+  # PATH is not reliable on a runner that has it in several directories. On the box it is node.
+  node_bin="${AIWEB_NODE:-node}"
+  if ! command -v "$node_bin" >/dev/null 2>&1; then
     echo "aiweb-secrets: !! AI_TOKEN_SIGNING_KEY not made: this host has no node to check it the way auth-service reads it; nothing written" >&2
     exit 1
   fi
-  if ! why="$(AIWEB_KEY="$signing" node -e '
+  if ! why="$(AIWEB_KEY="$signing" "$node_bin" -e '
     try {
       const key = require("node:crypto").createPrivateKey({
         key: Buffer.from(process.env.AIWEB_KEY, "base64"), format: "der", type: "pkcs8" });

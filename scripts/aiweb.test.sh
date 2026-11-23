@@ -307,16 +307,10 @@ OUT="$(cd "$BOX" && env "${FAKE_ENV[@]}" PATH="$W/badnode:$BIN:$PATH" bash scrip
 RC=$?
 [ "$RC" != 0 ] && cmp -s "$BOX/.env" "$W/before" && printf '%s' "$OUT" | grep -qF 'ERR_FAKE_PARSER_CAUSE' &&
   ok "a key the parser refuses: its reason is printed, nothing written" || bad "parser refusal hid its cause ($RC): $OUT"
-node_dir="$(dirname "$(command -v node)")"
-if [ -x "$node_dir/bash" ] || [ -x "$node_dir/bash.exe" ]; then
-  echo "  skip no node on PATH: node shares $node_dir with bash here, so it cannot be taken away"
-else
-  no_node_path="$(printf '%s' "$BIN:$PATH" | tr ':' '\n' | grep -vxF "$node_dir" | paste -sd: -)"
-  OUT="$(cd "$BOX" && env "${FAKE_ENV[@]}" PATH="$no_node_path" bash scripts/aiweb-secrets.sh 2>&1)"
-  RC=$?
-  [ "$RC" != 0 ] && cmp -s "$BOX/.env" "$W/before" && printf '%s' "$OUT" | grep -qF 'has no node' &&
-    ok "no node on the host: says so, nothing written" || bad "no node: ($RC) $OUT"
-fi
+OUT="$(cd "$BOX" && env "${FAKE_ENV[@]}" AIWEB_NODE="$W/no-such-node" PATH="$BIN:$PATH" bash scripts/aiweb-secrets.sh 2>&1)"
+RC=$?
+[ "$RC" != 0 ] && cmp -s "$BOX/.env" "$W/before" && printf '%s' "$OUT" | grep -qF 'has no node' &&
+  ok "no node on the host: says so, nothing written" || bad "no node: ($RC) $OUT"
 
 # Nothing written on a failure: a compose file without an https AI_WEB_URL.
 sed -i '/^AI_WEB_RETURN_URL=/d' "$BOX/.env"
@@ -399,12 +393,12 @@ n172="$(grep -c '^172\.18\.' "$W/asked")"
   bad "expected 7 attempts on hydromart's network, got $n172 ($RC)"
 
 # The registry: token on stdin, a throwaway config, gone afterwards, and in no child's environment.
-deploy FAKE_PRESENT= GHCR_TOKEN=tok-SECRET-123 GHCR_USER=bot
+deploy FAKE_PRESENT= GHCR_TOKEN=fake-tok1 GHCR_USER=bot
 [ "$RC" = 0 ] && [ "$(grep -c '^pull --quiet .*@sha256:' "$W/log")" = 3 ] &&
   ok "missing images are pulled by digest" || bad "pull path ($RC): $(grep -E '^(login|pull)' "$W/log" | tr '\n' ' ')"
-[ "$(cat "$W/stdin")" = tok-SECRET-123 ] && ! grep -qF tok-SECRET-123 "$W/log" "$W/out" &&
+[ "$(cat "$W/stdin")" = fake-tok1 ] && ! grep -qF fake-tok1 "$W/log" "$W/out" &&
   ok "the token reaches docker login on stdin, never as an argument or in the log" || bad "the token leaked into an argument or the log"
-if grep -qE '^(GHCR_TOKEN|GHCR_USER)=' "$W/envs" || grep -qF tok-SECRET-123 "$W/envs"; then
+if grep -qE '^(GHCR_TOKEN|GHCR_USER)=' "$W/envs" || grep -qF fake-tok1 "$W/envs"; then
   bad "a child (docker, compose, curl) inherited the registry token in its environment"
 elif [ "$(grep -c '^--- ' "$W/envs")" -gt 10 ]; then
   ok "no child's environment holds the token: $(grep -c '^--- ' "$W/envs") docker and curl calls looked at"
