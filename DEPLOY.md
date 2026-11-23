@@ -325,17 +325,36 @@ alias dca='docker compose -f infra/aiweb/docker-compose.yml --env-file .env'
 dca ps; dca logs -f aiweb
 bash scripts/aiweb-deploy.sh --probe   # the isolation probe, against what runs now
 bash scripts/aiweb-deploy.sh           # a full run; a missing image needs the Deploy workflow's token
+bash scripts/backup-aiweb-db.sh         # dump database ai now (the 03:05 job)
+bash scripts/backup-aiweb-db.sh --drill # restore the newest AI web dump into a scratch container
 ```
+
+Looked after between deploys (HD-9b), each apart from hydromart's own jobs so neither can fail or
+hide the other:
+
+- **Backups.** [`scripts/backup-aiweb-db.sh`](scripts/backup-aiweb-db.sh) dumps database `ai` at
+  03:05 next to hydromart's dumps, as `aiweb-<stamp>.sql.gz` (gzip, not encrypted, like
+  hydromart's; 14 kept). `backup-offsite.sh --aiweb` copies it off the box at 03:22 under
+  `<prefix>-aiweb/` with its own 14, `backup-second-provider.sh` copies it to the second provider
+  at 04:00, `--drill` restores it weekly (Monday 04:45, log
+  `/var/log/hydromart-aiweb-drill.log`) into a throwaway container with no network and compares
+  it with the live database, and `check-backup-freshness.sh` alerts at 05:00 when any of that
+  stopped. A missing AI web is said once a week; it never writes admin-service's backup card,
+  which shows hydromart's verdict.
+- **Watchdog.** Every 5 minutes, under the stack lock: a stopped `db` or `aiweb` is started
+  again with `docker start` (the same container and image deploy left, never a pull or a compose
+  `up`), running-but-unhealthy is alerted after two sightings, and `migrate` is never touched.
+- **docker-gc.** The weekly prune keeps the AI web images the compose file pins, those it pinned
+  in the release before (a revert's rollback), and any a container uses, and removes the rest of
+  that project's images.
 
 Not covered yet:
 
-- **The AI web's database has no backup.** `backup-db.sh` and the restore drill dump hydromart's
-  Postgres only.
 - **What the AI web may reach on the host and the network is not decided.** The probe prints
   whether it reaches the host's ssh (port 22 on the edge gateway) and the cloud metadata address
   (`169.254.169.254:80`), and never fails on either: the owner decides whether to block them.
-- The watchdog converges hydromart only (the AI web relies on `restart: unless-stopped`).
-- docker-gc keeps the AI web's images, so old releases stay on disk until removed by hand.
+- **The AI web's dumps are not encrypted**, exactly like hydromart's (D8 is still open): when D8
+  lands it has to cover `aiweb-*.sql.gz` too.
 
 ### Backups + restore drill (host cron)
 

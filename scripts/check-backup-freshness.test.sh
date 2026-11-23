@@ -35,6 +35,7 @@ DUMPS="$WORK/backups"
 mkdir -p "$DUMPS"
 DRILL_LOG="$WORK/drill.log"
 OBJECTS_LOG="$WORK/objects.log"
+AIWEB_DRILL_LOG="$WORK/aiweb-drill.log"
 
 # The five cases below each assert ONE reason for going red. Now that the script also asks
 # whether a copy exists off-box, they need a destination that works — otherwise every one of
@@ -54,7 +55,7 @@ make_dump() {
 
 run_check() {
   set +e
-  BACKUP_DIR="$DUMPS" DRILL_LOG="$DRILL_LOG" OBJECTS_LOG="${OBJECTS_OVERRIDE-$OBJECTS_LOG}"     BACKUP_OFFSITE_DEST="${OFFSITE_OVERRIDE-$OFFSITE}"     BACKUP_OFFSITE_ALLOW_SAME_FS=1     bash scripts/check-backup-freshness.sh >"$WORK/out" 2>&1
+  BACKUP_DIR="$DUMPS" DRILL_LOG="$DRILL_LOG" OBJECTS_LOG="${OBJECTS_OVERRIDE-$OBJECTS_LOG}"     BACKUP_OFFSITE_DEST="${OFFSITE_OVERRIDE-$OFFSITE}"     BACKUP_OFFSITE_ALLOW_SAME_FS=1     AIWEB_DB_CONTAINER="${AIWEB_OVERRIDE-}" AIWEB_DRILL_LOG="$AIWEB_DRILL_LOG"     bash scripts/check-backup-freshness.sh >"$WORK/out" 2>&1
   RC=$?
   set -e
   OUT="$(cat "$WORK/out")"
@@ -142,5 +143,65 @@ case "$OUT" in
   *"reads back byte-identical"*) ok "  ...by reading the bytes back, not by trusting a log" ;;
   *) bad "  expected the read-back line: $OUT" ;;
 esac
+
+# 9. HD-9b: the AI web's database. Not on this box: nothing is expected, and it is said.
+case "$OUT" in
+  *"AI web's database is not on this box"*) ok "no AI web here: no AI web dump is expected, and the run says so" ;;
+  *) bad "  expected the AI web absence line: $OUT" ;;
+esac
+
+# 10. Here and never backed up: red, and hydromart's green lines still read green beside it.
+AIWEB_OVERRIDE=fake-ai-db
+touch "$AIWEB_DRILL_LOG"
+run_check
+check "the AI web is here with no dump of it: a failure" 1 "$RC"
+case "$OUT" in
+  *"never been backed up"*"ok   the newest dump is offsite"* | *"ok   the newest dump is offsite"*"never been backed up"*)
+    ok "  ...said as the AI web's, with hydromart's own lines still ok" ;;
+  *) bad "  expected the AI web line beside hydromart's ok lines: $OUT" ;;
+esac
+
+# 10b. Its dump stopped three days ago, with the copy offsite and the drill recent: the age alone
+# must make it red.
+make_dump aiweb-20260824-030500.sql.gz
+touch -d '3 days ago' "$DUMPS/aiweb-20260824-030500.sql.gz" 2>/dev/null ||
+  touch -t "$(date -v-3d +%Y%m%d%H%M 2>/dev/null || echo 202608240300)" "$DUMPS/aiweb-20260824-030500.sql.gz"
+run_check
+check "a three-day-old AI web dump is a failure, though it is offsite and drilled" 1 "$RC"
+case "$OUT" in *"backup-aiweb-db.sh has stopped"*) ok "  ...naming the AI web's job" ;; *) bad "  expected the AI web stale line: $OUT" ;; esac
+rm -f "$DUMPS/aiweb-20260824-030500.sql.gz" "$OFFSITE/aiweb-20260824-030500.sql.gz"
+
+# 11. A fresh AI web dump, its offsite twin and a recent AI web drill: green.
+make_dump aiweb-20260827-030500.sql.gz
+touch "$AIWEB_DRILL_LOG"
+run_check
+check "a fresh AI web dump, offsite, with a recent AI web drill passes" 0 "$RC"
+case "$OUT" in
+  *"newest AI web dump is offsite and reads back byte-identical"*) ok "  ...its copy read back, not assumed" ;;
+  *) bad "  expected the AI web read-back line: $OUT" ;;
+esac
+
+# 12. The AI web's drill stopped a month ago: red, named as the AI web's.
+touch -d '30 days ago' "$AIWEB_DRILL_LOG" 2>/dev/null ||
+  touch -t "$(date -v-30d +%Y%m%d%H%M 2>/dev/null || echo 202607280300)" "$AIWEB_DRILL_LOG"
+run_check
+check "a month-old AI web drill is a failure" 1 "$RC"
+case "$OUT" in *"last AI web restore drill"*) ok "  ...named as the AI web's drill" ;; *) bad "  expected the AI web drill line: $OUT" ;; esac
+touch "$AIWEB_DRILL_LOG"
+
+# 13. Its offsite copy is gone: red.
+rm -f "$OFFSITE/aiweb-20260827-030500.sql.gz"
+run_check
+check "an AI web dump with no offsite copy is a failure" 1 "$RC"
+case "$OUT" in *"AI web dump is NOT verifiable"*) ok "  ...said as the AI web's" ;; *) bad "  expected the AI web offsite line: $OUT" ;; esac
+cp "$DUMPS/aiweb-20260827-030500.sql.gz" "$OFFSITE/"
+
+# 14. A green AI web never hides a red hydromart: hydromart's dump stopped, the AI web's did not.
+touch -d '3 days ago' "$DUMPS/hydromart-20260827-030000.sql.gz" 2>/dev/null ||
+  touch -t "$(date -v-3d +%Y%m%d%H%M 2>/dev/null || echo 202608240300)" "$DUMPS/hydromart-20260827-030000.sql.gz"
+run_check
+check "hydromart's dump stopped while the AI web's runs: still a failure" 1 "$RC"
+case "$OUT" in *"has stopped running"*) ok "  ...naming hydromart's dump" ;; *) bad "  expected hydromart's stale line: $OUT" ;; esac
+unset AIWEB_OVERRIDE
 
 exit "$fails"

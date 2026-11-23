@@ -64,6 +64,14 @@ CRON_TZ=$CRON_TZ_VALUE
 # the nightly dump, so it copies the file that job just wrote.
 20 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-offsite.sh >> /var/log/hydromart-backup.log 2>&1
 
+# HD-9b — the AI web's database (ai, in the hydromart-ai project), on hydromart's schedule: a
+# dump just after the cluster's, off the box just after its copy, to the second provider by
+# backup-second-provider.sh at 04:00, a restore drill into a scratch container weekly. Jobs of
+# their own, so a missing or broken AI web never fails or hides hydromart's backup.
+5 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-aiweb-db.sh >> /var/log/hydromart-backup.log 2>&1
+22 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-offsite.sh --aiweb >> /var/log/hydromart-backup.log 2>&1
+45 4 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-aiweb-db.sh --drill >> /var/log/hydromart-aiweb-drill.log 2>&1
+
 # A database is not a system. Restored onto a fresh box it will not start, because .env holds
 # the 68 keys that tell it what it is — database URLs, JWT secrets, S3 credentials, the OTP
 # provider, every Sentry DSN. Measured on production 2026-08-31: 7,925 bytes, and the only
@@ -76,7 +84,7 @@ CRON_TZ=$CRON_TZ_VALUE
 
 # The databases were going offsite every night and the FILES were not — not once. Seven
 # services write to the object bucket, and two of those prefixes are evidence rather than
-# decoration: `pod/` is the proof a delivery happened, `payment-proof/` is the proof money
+# decoration: "pod/" is the proof a delivery happened, "payment-proof/" is the proof money
 # arrived. Restoring every database onto a fresh box would have produced orders pointing at
 # photographs that no longer existed anywhere.
 #
@@ -111,7 +119,7 @@ CRON_TZ=$CRON_TZ_VALUE
 # rows in it. Monday, after the restore drill, on the newest migrations of every service.
 30 6 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/rollback-drill.sh >> /var/log/hydromart-ops-checks.log 2>&1
 
-# N14 — container log caps. `ops/docker-daemon.json` is a file somebody has to copy to the
+# N14 — container log caps. ops/docker-daemon.json is a file somebody has to copy to the
 # host by hand; nothing ever checked that they did, and the default is unbounded.
 45 5 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/check-log-retention.sh >> /var/log/hydromart-ops-checks.log 2>&1
 
@@ -165,7 +173,7 @@ esac
 # Log files must exist and be writable by this user before cron first appends to them —
 # a redirect into an unwritable path fails the job silently, which is the failure mode
 # this whole script exists to stop.
-for f in hydromart-backup hydromart-restore-drill hydromart-watchdog hydromart-ops-checks hydromart-objects; do
+for f in hydromart-backup hydromart-restore-drill hydromart-watchdog hydromart-ops-checks hydromart-objects hydromart-aiweb-drill; do
   if [ ! -w "/var/log/$f.log" ]; then
     sudo -n touch "/var/log/$f.log" 2>/dev/null && sudo -n chown "$(id -u):$(id -g)" "/var/log/$f.log" 2>/dev/null || {
       echo "!! /var/log/$f.log is not writable and passwordless sudo is unavailable." >&2

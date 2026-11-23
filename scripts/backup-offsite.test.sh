@@ -278,6 +278,47 @@ esac
 got="$(alerts_from bash scripts/backup-offsite.sh --help)"
 [ -z "$got" ] && ok "--help pages nobody" || bad "--help paged: $got"
 
+# --- 13. HD-9b: the AI web's dumps (--aiweb) ------------------------------------------------
+# A family of its own in the SAME directory: --aiweb takes the newest aiweb-*.sql.gz, and a run
+# without it takes hydromart's newest even when an AI web dump is newer. Either picking the other's
+# file would leave one database without an offsite copy while the log said OK.
+AISRC="$TMP/ai-backups"
+AIREM="$TMP/ai-remote"
+mkdir -p "$AISRC" "$AIREM"
+HMD="$AISRC/hydromart-20260901-030000.sql.gz"
+AIW="$AISRC/aiweb-20260901-030500.sql.gz"
+printf 'hydromart-fake-dump-payload-0123456789\n' >"$HMD"
+printf 'aiweb-fake-dump-payload-0123456789\n' >"$AIW"
+touch -d '2026-09-01 03:00:00' "$HMD" 2>/dev/null || touch -t 202609010300 "$HMD"
+touch -d '2026-09-01 03:05:00' "$AIW" 2>/dev/null || touch -t 202609010305 "$AIW"
+run env BACKUP_OFFSITE_DEST="$AIREM" BACKUP_DIR="$AISRC" bash scripts/backup-offsite.sh --aiweb
+expect "--aiweb copies the newest AI web dump and verifies it" 0 "aiweb-20260901-030500.sql.gz"
+run env BACKUP_OFFSITE_DEST="$AIREM" BACKUP_DIR="$AISRC" bash scripts/backup-offsite.sh
+expect "without --aiweb, hydromart's newest dump goes although the AI web's is newer" 0 "hydromart-20260901-030000.sql.gz"
+run env BACKUP_OFFSITE_DEST="$AIREM" BACKUP_DIR="$AISRC" bash scripts/backup-offsite.sh --verify --aiweb
+expect "--verify --aiweb (either order) reads the AI web dump back" 0 "already offsite"
+# s3: the AI web's objects go BESIDE db/ (db-aiweb/), so each prefix keeps its own 14.
+run env BACKUP_OFFSITE_DEST=s3://hydromart-backups/db BACKUP_S3_ENDPOINT=http://127.0.0.1:1 \
+  BACKUP_S3_ACCESS_KEY_ID=fake-id BACKUP_S3_SECRET_ACCESS_KEY=fake-secret BACKUP_DIR="$AISRC" \
+  bash scripts/backup-offsite.sh --aiweb
+case "$OUT" in
+  *"s3://hydromart-backups/db-aiweb/aiweb-20260901-030500.sql.gz"*) ok "an AI web dump goes to <prefix>-aiweb/, never under hydromart's db/" ;;
+  *) bad "the AI web object key: $(echo "$OUT" | grep -m1 'offsite:')" ;;
+esac
+run env BACKUP_OFFSITE_DEST=s3://hydromart-backups/db BACKUP_S3_ENDPOINT=http://127.0.0.1:1 \
+  BACKUP_S3_ACCESS_KEY_ID=fake-id BACKUP_S3_SECRET_ACCESS_KEY=fake-secret BACKUP_DIR="$AISRC" \
+  bash scripts/backup-offsite.sh
+case "$OUT" in
+  *"s3://hydromart-backups/db/hydromart-20260901-030000.sql.gz"*) ok "hydromart's dump still goes to db/" ;;
+  *) bad "hydromart's object key: $(echo "$OUT" | grep -m1 'offsite:')" ;;
+esac
+# No AI web dump at all: nothing is missing when the AI web is not on this box; loud when it is.
+rm -f "$AIW"
+run env BACKUP_OFFSITE_DEST="$AIREM" BACKUP_DIR="$AISRC" AIWEB_DB_CONTAINER= bash scripts/backup-offsite.sh --aiweb
+expect "no AI web here: no AI web dump is expected, exit 0" 0 "not on this box"
+run env BACKUP_OFFSITE_DEST="$AIREM" BACKUP_DIR="$AISRC" AIWEB_DB_CONTAINER=some-db bash scripts/backup-offsite.sh --aiweb
+expect "the AI web is here and has no dump: loud, naming its job" 2 "has scripts/backup-aiweb-db.sh ever run"
+
 if [ "$fails" -gt 0 ]; then
   echo "backup-offsite.sh: $fails check(s) failed" >&2
   exit 1

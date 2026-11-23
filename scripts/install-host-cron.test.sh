@@ -49,6 +49,23 @@ for job in backup-db.sh restore-db.sh watchdog.sh; do
   esac
 done
 
+# HD-9b: the AI web's database on hydromart's schedule, as jobs of their own: the nightly dump,
+# its offsite copy, and the weekly drill writing the log check-backup-freshness.sh watches.
+for want in 'bash scripts/backup-aiweb-db.sh >> /var/log/hydromart-backup.log' \
+  'bash scripts/backup-offsite.sh --aiweb >> /var/log/hydromart-backup.log' \
+  'bash scripts/backup-aiweb-db.sh --drill >> /var/log/hydromart-aiweb-drill.log'; do
+  printf '%s\n' "$block" | grep -qF "$want" && ok "schedules: $want" || bad "does not schedule: $want"
+done
+grep -qF 'hydromart-aiweb-drill.log}' scripts/check-backup-freshness.sh &&
+  ok "the AI web drill writes the log the freshness check reads" || bad "the AI web drill log and the freshness check disagree"
+
+# The block is an UNQUOTED heredoc (it expands $REPO), so a backtick in one of its comments is a
+# command: three of them ran `pod/`, `payment-proof/` and `ops/docker-daemon.json` on every
+# install, and printed errors nobody read. --show must be silent on stderr.
+errs="$(bash scripts/install-host-cron.sh --show 2>&1 >/dev/null)"
+[ -z "$errs" ] && ok "printing the block runs nothing (no backtick in its comments)" ||
+  bad "printing the block ran something: $(printf '%s' "$errs" | head -2 | tr '\n' ' ')"
+
 # Sourcing .env would run it; every one of these lines reads it instead (see load-env.sh).
 case "$block" in
   *'. ./scripts/load-env.sh'*) ok "each job reads .env rather than executing it" ;;

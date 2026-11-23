@@ -60,6 +60,73 @@ health_watch() {
   esac
 }
 
+# HD-9b — the AI web (infra/aiweb/docker-compose.yml), the second project on this box: the same
+# two answers for its long-running services, `db` and `aiweb`, and never for `migrate` (a one-shot
+# job that is SUPPOSED to be exited). Under the lock taken above.
+#
+# A stopped one is STARTED again with `docker start`, never `compose up`: start reuses the
+# container exactly as deploy left it, image included. `up` would read the compose file, and
+# after a release PR whose deploy has not run (or failed) that file names images this box does
+# not have: the watchdog would then pull or swap the AI web's release, which only deploy may do.
+# A container that does not exist at all is left to deploy too. Unhealthy is reported, not
+# restarted, with the same two-sighting rule as hydromart's.
+aiweb_watch() {
+  local project ids id line svc state health oneoff stopped='' started='' still='' cur=''
+  local state_file="${WATCHDOG_AIWEB_STATE:-.deploy/watchdog-aiweb-unhealthy}" prev_names='' prev_flag=0 out new_names new_flag action
+  project="$(sed -n 's/^name:[[:space:]]*//p' infra/aiweb/docker-compose.yml 2>/dev/null | tr -d "\"' \r")"
+  [ -n "$project" ] || return 0
+  ids="$(docker ps -aq --filter "label=com.docker.compose.project=$project" 2>/dev/null || true)"
+  [ -n "$ids" ] || return 0
+  for id in $ids; do
+    line="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{index .Config.Labels "com.docker.compose.oneoff"}}' "$id" 2>/dev/null || true)"
+    read -r svc state health oneoff <<<"$line"
+    [ "$oneoff" = True ] && continue
+    case "$svc" in db | aiweb) ;; *) continue ;; esac
+    if [ "$state" != running ]; then
+      stopped="$stopped $svc:$id"
+    elif [ "$health" = unhealthy ]; then
+      cur="$cur $svc"
+    fi
+  done
+  # The database first, so the app it depends on starts against a running one.
+  for svc in db aiweb; do
+    for id in $stopped; do
+      [ "${id%%:*}" = "$svc" ] || continue
+      if docker start "${id#*:}" >/dev/null 2>&1; then started="$started $svc"; else still="$still $svc"; fi
+    done
+  done
+  if [ -n "$started$still" ]; then
+    echo "[watchdog] $(date -Is) AI web: started again:${started:- none}; would not start:${still:- none}"
+    if [ -n "$still" ]; then
+      alert "AI web containers would not start again:${still} (the watchdog only starts what stopped; read docker logs, then deploy)"
+    else
+      alert "watchdog started stopped AI web containers again:${started}"
+    fi
+  fi
+  cur="$(printf '%s\n' $cur | sed '/^$/d' | sort | tr '\n' ' ' | sed 's/ $//')"
+  if [ -f "$state_file" ]; then IFS='|' read -r prev_names prev_flag <"$state_file" || true; fi
+  out="$(watchdog_unhealthy_step "$prev_names" "${prev_flag:-0}" "$cur")"
+  IFS='|' read -r new_names new_flag action <<<"$out"
+  if [ -n "$new_names" ]; then
+    mkdir -p "$(dirname "$state_file")"
+    printf '%s|%s\n' "$new_names" "$new_flag" >"$state_file"
+  else
+    rm -f "$state_file"
+  fi
+  case "$action" in
+    alert)
+      echo "[watchdog] $(date -Is) AI web running but UNHEALTHY: $cur"
+      alert "AI web containers running but UNHEALTHY for 5+ minutes: ${cur} - the watchdog does not restart these; read their logs first"
+      ;;
+    recovered)
+      echo "[watchdog] $(date -Is) AI web healthy again: $prev_names"
+      alert "AI web containers healthy again: ${prev_names}"
+      ;;
+  esac
+}
+# Its own failure must never stop hydromart's half below.
+aiweb_watch || echo "[watchdog] $(date -Is) !! the AI web check itself failed; hydromart's runs on"
+
 DOWN="$(stopped_services)"
 if [ -z "$DOWN" ]; then
   health_watch

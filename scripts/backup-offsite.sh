@@ -26,6 +26,8 @@
 #   bash scripts/backup-offsite.sh                     # newest dump in $BACKUP_DIR
 #   bash scripts/backup-offsite.sh /path/to/dump.gz     # a specific artefact
 #   bash scripts/backup-offsite.sh --verify [file]      # read back + compare, never upload
+#   bash scripts/backup-offsite.sh --aiweb [--verify]   # HD-9b: the AI web's dumps instead
+#                                                       # (aiweb-*.sql.gz, under <prefix>-aiweb/)
 #
 # Run it the way cron does — .env is READ, never executed (scripts/load-env.sh; `. ./.env`
 # is forbidden in this repo because a raw PEM in .env once aborted a deploy mid-migration):
@@ -73,20 +75,31 @@ cd "$(dirname "$0")/.."
 # below tells the operator when that is what bit them.
 
 MODE=copy
-case "${1:-}" in
-  --verify)
-    MODE=verify
-    shift
-    ;;
-  -h | --help)
-    sed -n '2,46p' "$0"
-    exit 0
-    ;;
-  -*)
-    echo "usage: $0 [--verify] [dump-file]" >&2
-    exit 2
-    ;;
-esac
+# HD-9b: which family of dumps. `hydromart` (backup-db.sh's cluster dumps) unless --aiweb asks for
+# the AI web database's (backup-aiweb-db.sh). Each has its own name and its own object prefix, so
+# neither can be taken for the newest dump of the other and each prune keeps BACKUP_KEEP of its own.
+FAMILY=hydromart
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --verify)
+      MODE=verify
+      shift
+      ;;
+    --aiweb)
+      FAMILY=aiweb
+      shift
+      ;;
+    -h | --help)
+      sed -n '2,48p' "$0"
+      exit 0
+      ;;
+    -*)
+      echo "usage: $0 [--aiweb] [--verify] [dump-file]" >&2
+      exit 2
+      ;;
+    *) break ;;
+  esac
+done
 
 # EVERY exit below this line means no copy of this database left the box tonight, so every
 # one of them is worth waking somebody for. That is why the trap is installed HERE and not
@@ -102,6 +115,7 @@ esac
 # $FAIL_WHAT is expanded when the trap FIRES, not when it is installed, so an early exit
 # names the artefact generically and a late one names the key.
 FAIL_WHAT='the newest dump'
+[ "$FAMILY" = aiweb ] && FAIL_WHAT='the newest AI web dump'
 alert_on_failure() {
   # CLEANUP: a half-written temp file to remove on the way out. It rides in THIS trap — a
   # second `trap ... EXIT` replaces the first, which is how a failed copy used to exit silent.
@@ -125,10 +139,18 @@ BACKUP_DIR="${BACKUP_DIR:-$(hydromart_backup_dir)}"
 
 FILE="${1:-}"
 if [ -z "$FILE" ]; then
-  FILE="$(ls -1t "$BACKUP_DIR"/hydromart-*.sql.gz 2>/dev/null | head -1 || true)"
+  FILE="$(ls -1t "$BACKUP_DIR"/"$FAMILY"-*.sql.gz 2>/dev/null | head -1 || true)"
+fi
+if [ -z "$FILE" ] && [ "$FAMILY" = aiweb ] && [ -z "$(aiweb_db_container)" ]; then
+  # No AI web on this box, so no dump of it: nothing is missing. backup-aiweb-db.sh says so once
+  # a week; saying it here every night too would be the alert nobody reads.
+  echo "no AI web dump to copy: the AI web's database is not on this box"
+  exit 0
 fi
 if [ -z "$FILE" ]; then
-  echo "!! no hydromart-*.sql.gz in $BACKUP_DIR — has scripts/backup-db.sh ever run here?" >&2
+  maker=backup-db.sh
+  [ "$FAMILY" = aiweb ] && maker=backup-aiweb-db.sh
+  echo "!! no $FAMILY-*.sql.gz in $BACKUP_DIR — has scripts/$maker ever run here?" >&2
   echo "   Set BACKUP_DIR if the dumps live somewhere else." >&2
   exit 2
 fi
@@ -178,7 +200,11 @@ case "$DEST" in
     # `db/` is the prefix backup-db.sh's inline upload already writes to. Same prefix on
     # purpose: two different keys would mean two copies of every dump, one of them never
     # verified, and double the bucket bill.
-    OBJECT="${PREFIX:-db}/$KEY"
+    # HD-9b: the AI web's dumps go BESIDE db/, never under it: s3-prune keeps BACKUP_KEEP per
+    # prefix, and one shared prefix would halve the history of both.
+    OBJ_PREFIX="${PREFIX:-db}"
+    [ "$FAMILY" = aiweb ] && OBJ_PREFIX="$OBJ_PREFIX-aiweb"
+    OBJECT="$OBJ_PREFIX/$KEY"
     [ -n "$BUCKET" ] || {
       echo "!! BACKUP_OFFSITE_DEST=$DEST names no bucket. Expected s3://bucket[/prefix]." >&2
       exit 2
@@ -389,7 +415,7 @@ case "$verdict" in
 # with a write-and-read-only key, BACKUP2_NO_DELETE=1): a ransomware-proof bucket is pruned by the
 # provider's own lifecycle rule, and a prune attempt there would only fail every night in the log.
 if [ "$SHAPE" = s3 ] && [ "${BACKUP_SKIP_PRUNE:-}" != 1 ]; then
-  S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-https://nos.jkt-1.neo.id}"     S3_REGION="${BACKUP_S3_REGION:-jkt-1}"     S3_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID"     S3_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"     node scripts/s3-prune.mjs --bucket "$BUCKET" --prefix "${PREFIX:-db}/"       --keep "${BACKUP_KEEP:-14}" || echo "!! offsite prune failed — the copy is safe, the bucket will grow" >&2
+  S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-https://nos.jkt-1.neo.id}"     S3_REGION="${BACKUP_S3_REGION:-jkt-1}"     S3_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID"     S3_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"     node scripts/s3-prune.mjs --bucket "$BUCKET" --prefix "$OBJ_PREFIX/"      --keep "${BACKUP_KEEP:-14}" || echo "!! offsite prune failed — the copy is safe, the bucket will grow" >&2
 fi
 
 echo "offsite OK — $TARGET_LABEL verified by read-back: ${LOCAL_SIZE}B, sha256 $LOCAL_SHA" ;;

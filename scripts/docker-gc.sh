@@ -69,11 +69,61 @@ prune_images() {
   fi
 }
 
+# HD-9b — the AI web's own images (labelled com.docker.compose.project=hydromart-ai by its CI),
+# which nothing above ever removes: every release pulls an app and a migration image by digest,
+# and they piled up. Kept: the digests infra/aiweb/docker-compose.yml pins now, the ones the
+# file pinned before them (the previous release, a revert's rollback target, already here), and
+# any image a container uses, running or stopped. Everything else of that project goes, with
+# `docker rmi` and never -f, so the daemon refuses anything in use even if the list above missed
+# it. Weekly only (--old-images): between rebuild batches nothing of the AI web changes.
+#
+# pinned_digests <file>: the sha256 digests a compose file pins, one per line.
+pinned_digests() { grep -oE '@sha256:[0-9a-f]{64}' "$1" 2>/dev/null | cut -c2- | sort -u || true; }
+aiweb_prune() {
+  local file="$INFRA_DIR/aiweb/docker-compose.yml" repo project keep now prev rev used id refs digest kept=0 removed=0
+  [ -f "$file" ] || return 0
+  project="$(sed -n 's/^name:[[:space:]]*//p' "$file" | tr -d "\"' \r")"
+  [ -n "$project" ] || return 0
+  now="$(pinned_digests "$file")"
+  # The previous release: walk the file's history back to the first version whose pins differ.
+  repo="$(cd "$INFRA_DIR/.." && pwd)"
+  prev=''
+  for rev in $(git -C "$repo" log --format=%H -- infra/aiweb/docker-compose.yml 2>/dev/null || true); do
+    prev="$(git -C "$repo" show "$rev:infra/aiweb/docker-compose.yml" 2>/dev/null | grep -oE '@sha256:[0-9a-f]{64}' | cut -c2- | sort -u || true)"
+    [ -n "$prev" ] && [ "$prev" != "$now" ] && break
+    prev=''
+  done
+  [ -n "$prev" ] || echo "docker-gc: no earlier release of the AI web in this checkout's history; keeping only the current one"
+  keep="$(printf '%s\n%s\n' "$now" "$prev" | sed '/^$/d' | sort -u)"
+  # The image ids every container references, running or not.
+  used="$($DOCKER ps -aq 2>/dev/null | xargs -r $DOCKER inspect --format '{{.Image}}' 2>/dev/null || true)"
+  for id in $($DOCKER images -q --no-trunc --filter "label=com.docker.compose.project=$project" 2>/dev/null | sort -u || true); do
+    if grep -qxF "$id" <<<"$used"; then
+      kept=$((kept + 1))
+      continue
+    fi
+    refs="$($DOCKER image inspect --format '{{range .RepoDigests}}{{.}} {{end}}' "$id" 2>/dev/null || true)"
+    digest=''
+    for r in $refs; do
+      if grep -qxF "${r#*@}" <<<"$keep"; then digest="${r#*@}"; fi
+    done
+    if [ -n "$digest" ] || grep -qxF "$id" <<<"$keep"; then
+      kept=$((kept + 1))
+    elif $DOCKER rmi "$id" >/dev/null 2>&1; then
+      removed=$((removed + 1))
+    else
+      kept=$((kept + 1))
+    fi
+  done
+  echo "docker-gc: AI web images ($project): $removed removed, $kept kept (the pinned release, the one before it, and any in use)"
+}
+
 before=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
 
 prune_images                                    # dangling/orphaned images (rebuild leftovers)
 if [ "$OLD_IMAGES" -eq 1 ]; then
   prune_images -a --filter "until=168h"         # unused tagged images older than 7 days
+  aiweb_prune
 fi
 if [ "$IMAGES_ONLY" -eq 0 ]; then
   # Host-wide, and that is right: the build cache carries no project label, and only this

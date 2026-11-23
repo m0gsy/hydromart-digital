@@ -31,7 +31,11 @@ cat > "$WORK/repo/scripts/backup-offsite.sh" <<'SH'
 #!/usr/bin/env bash
 echo "offsite dest=$BACKUP_OFFSITE_DEST endpoint=$BACKUP_S3_ENDPOINT region=$BACKUP_S3_REGION key=$BACKUP_S3_ACCESS_KEY_ID secret=$BACKUP_S3_SECRET_ACCESS_KEY" >> "$CALLS"
 printf '%s' "${BACKUP_SKIP_PRUNE:-}" > "$CALLS.skip"
-[ "${FAIL_DUMP:-}" = 1 ] && exit 1
+echo "args=$*" >> "$CALLS.args"
+case "$*" in
+  *--aiweb*) [ "${FAIL_AI:-}" = 1 ] && exit 1 ;;
+  *) [ "${FAIL_DUMP:-}" = 1 ] && exit 1 ;;
+esac
 exit 0
 SH
 cat > "$WORK/bin/node" <<'SH'
@@ -43,7 +47,8 @@ chmod +x "$WORK/repo/scripts/backup-offsite.sh" "$WORK/bin/node"
 export PATH="$WORK/bin:$PATH" CALLS="$WORK/calls"
 
 reset() {
-  rm -f "$CALLS"
+  rm -f "$CALLS" "$CALLS.args"
+  unset FAIL_AI
   unset BACKUP2_OFFSITE_DEST BACKUP2_S3_ENDPOINT BACKUP2_S3_REGION BACKUP2_S3_ACCESS_KEY_ID BACKUP2_S3_SECRET_ACCESS_KEY FAIL_DUMP
   export BACKUP_S3_ENDPOINT="https://nos.jkt-1.neo.id" BACKUP_S3_ACCESS_KEY_ID=PRIMARYKEY BACKUP_S3_SECRET_ACCESS_KEY=PRIMARYSECRET
 }
@@ -78,7 +83,10 @@ run
 
 reset; configure
 run
-[ "$RC" = 0 ] && [ "$(calls)" = 2 ] && ok "configured: exit 0, the dump and the objects are each copied once" || bad "the happy path should make two calls (rc=$RC, calls=$(calls))"
+[ "$RC" = 0 ] && [ "$(calls)" = 3 ] && ok "configured: exit 0, the dump, the objects and the AI web dump are each copied once" || bad "the happy path should make three calls (rc=$RC, calls=$(calls))"
+# HD-9b: the AI web dump goes too, through the same offsite script with --aiweb, LAST.
+[ "$(sed -n 1p "$CALLS.args")" = "args=" ] && [ "$(sed -n 2p "$CALLS.args")" = "args=--aiweb" ] &&
+  ok "the AI web dump is copied after hydromart's, with --aiweb" || bad "the AI web dump copy: $(tr '\n' ';' < "$CALLS.args")"
 grep -q '^offsite dest=s3://second-bucket/db endpoint=https://acct.r2.cloudflarestorage.com region=auto key=SECONDKEY secret=SECONDSECRET$' "$CALLS" &&
   ok "the dump script is handed the SECOND provider's destination, endpoint, region and keys" || bad "the dump copy got the wrong provider: $(head -1 "$CALLS")"
 grep -q '^objects dest=s3://second-bucket/db endpoint=https://acct.r2.cloudflarestorage.com key=SECONDKEY$' "$CALLS" &&
@@ -97,7 +105,15 @@ grep -q 'BACKUP_SKIP_PRUNE' scripts/backup-offsite.sh && ok "backup-offsite.sh h
 
 reset; configure; export FAIL_DUMP=1
 run
-[ "$RC" = 1 ] && [ "$(calls)" = 2 ] && ok "the dump copy fails: exit 1, but the objects are still attempted" || bad "one failure must not skip the other (rc=$RC, calls=$(calls))"
+[ "$RC" = 1 ] && [ "$(calls)" = 3 ] && ok "the dump copy fails: exit 1, but the objects and the AI web dump are still attempted" || bad "one failure must not skip the other (rc=$RC, calls=$(calls))"
+grep -q 'FAILED: hydromart-dump' "$WORK/out" && ! grep -q 'aiweb-dump' "$WORK/out" &&
+  ok "  ...and the summary names hydromart's dump, not the AI web's" || bad "the failure summary: $(grep FAILED "$WORK/out")"
+
+# HD-9b: the AI web copy failing is named as the AI web's, after hydromart's copies were made.
+reset; configure; export FAIL_AI=1
+run
+[ "$RC" = 1 ] && [ "$(calls)" = 3 ] && grep -q 'FAILED: aiweb-dump' "$WORK/out" && ! grep -q 'FAILED: hydromart' "$WORK/out" &&
+  ok "the AI web copy fails: exit 1, named aiweb-dump, hydromart's copies made before it" || bad "an AI web failure (rc=$RC): $(grep FAILED "$WORK/out")"
 
 # Wiring: the cron block runs it, the freshness check watches it, the template documents it.
 grep -q 'backup-second-provider.sh' scripts/install-host-cron.sh && ok "cron: scheduled" || bad "install-host-cron.sh does not schedule the second provider"

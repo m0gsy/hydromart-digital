@@ -44,8 +44,14 @@ if second_provider_is_primary; then
 fi
 
 rc=0
+failed=''
 echo "== second provider: database dump"
-( second_provider_env; bash scripts/backup-offsite.sh ) || rc=1
+( second_provider_env; bash scripts/backup-offsite.sh ) || { rc=1; failed="$failed hydromart-dump"; }
 echo "== second provider: evidence bucket"
-( second_provider_env; node scripts/backup-objects.mjs ) || rc=1
+( second_provider_env; node scripts/backup-objects.mjs ) || { rc=1; failed="$failed evidence-bucket"; }
+# HD-9b: the AI web's database, last and on its own: whatever happens to it, the two copies above
+# have already been made, and the line below names which part failed.
+echo "== second provider: AI web database dump"
+( second_provider_env; bash scripts/backup-offsite.sh --aiweb ) || { rc=1; failed="$failed aiweb-dump"; }
+[ -z "$failed" ] || echo "!! second provider: FAILED:$failed (the others above went through)" >&2
 exit "$rc"

@@ -43,5 +43,63 @@ tail_trim="$(grep -c 'bash scripts/docker-gc.sh$' scripts/rebuild-stale.sh || tr
 check "rebuild-stale prunes images only between batches" 1 "$between"
 check "rebuild-stale trims the build cache once at the end" 1 "$tail_trim"
 
+# HD-9b — the AI web's images. A checkout whose infra/aiweb/docker-compose.yml went through four
+# versions: release 1, release 2, release 3, then a comment-only change. Kept: release 3 (pinned
+# now), release 2 (the release before, found by walking back past the comment-only commit), the
+# image a container uses (release 1's app) and an image whose ID is not its digest but whose
+# RepoDigest is pinned (the classic image store). Removed: the rest of that project's images.
+d() { printf 'sha256:%064d' "$1"; }
+repo="$tmp/repo"
+mkdir -p "$repo/infra/aiweb"
+pin() { # <app> <migrate> [comment]
+  printf 'name: hydromart-ai\n# %s\nservices:\n  db:\n    image: postgres:16-alpine@%s\n  migrate:\n    image: ghcr.io/m0gsy/hydromart-ai@%s\n  aiweb:\n    image: ghcr.io/m0gsy/hydromart-ai@%s\n' \
+    "${3:-release}" "$(d 9)" "$2" "$1" > "$repo/infra/aiweb/docker-compose.yml"
+  git -C "$repo" -c core.autocrlf=false add -A >/dev/null && git -C "$repo" -c core.autocrlf=false -c user.name=t -c user.email=t@example.invalid commit -qm "$3" >/dev/null
+}
+git -C "$repo" init -q
+pin "$(d 11)" "$(d 12)" one
+pin "$(d 21)" "$(d 22)" two
+pin "$(d 31)" "$(d 32)" three
+pin "$(d 31)" "$(d 32)" "three, comment only"
+cat > "$tmp/ai-docker" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$tmp/ai.log"
+case "\$1 \$2" in
+  "ps -a") case "\$*" in *Label*) printf 'hydromart\nhydromart-ai\n' ;; *) printf 'c1\nc2\n' ;; esac ;;
+  "ps -aq") printf 'c1\nc2\n' ;;
+  "inspect --format") printf '%s\n' "$(d 11)" sha256:not-an-ai-image ;;
+  "images -q") printf '%s\n' "$(d 11)" "$(d 12)" "$(d 21)" "$(d 22)" "$(d 31)" "$(d 32)" "$(d 41)" "$(d 42)" sha256:classic ;;
+  "image inspect")
+    id="\${*: -1}"
+    case "\$id" in sha256:classic) echo "ghcr.io/m0gsy/hydromart-ai@$(d 22) " ;; *) echo "ghcr.io/m0gsy/hydromart-ai@\$id " ;; esac ;;
+esac
+exit 0
+EOF
+chmod +x "$tmp/ai-docker"
+: > "$tmp/ai.log"
+out="$(DOCKER_BIN="$tmp/ai-docker" GC_INFRA_DIR="$repo/infra" bash scripts/docker-gc.sh --old-images 2>&1)"
+removed="$(grep '^rmi ' "$tmp/ai.log" | sed 's/^rmi //' | sort | tr '\n' ' ')"
+check "removes only the AI web images neither pinned, nor the release before, nor in use" \
+  "$(d 12) $(d 41) $(d 42) " "$removed"
+grep -q -- '-f' <<<"$(grep '^rmi ' "$tmp/ai.log")" && check "never forces a removal (rmi -f)" none forced || check "never forces a removal (rmi -f)" none none
+case "$out" in
+  *"3 removed, 6 kept"*) check "says what it removed and kept" yes yes ;;
+  *) check "says what it removed and kept" yes "$out" ;;
+esac
+: > "$tmp/ai.log"
+DOCKER_BIN="$tmp/ai-docker" GC_INFRA_DIR="$repo/infra" bash scripts/docker-gc.sh >/dev/null 2>&1
+check "only the weekly --old-images run touches the AI web's images" 0 "$(grep -cE '^(rmi|images) ' "$tmp/ai.log" || true)"
+# A checkout with no earlier release (one commit): only the current pins and in-use images stay.
+repo1="$tmp/repo1"
+mkdir -p "$repo1/infra/aiweb"
+git -C "$repo1" init -q
+cp "$repo/infra/aiweb/docker-compose.yml" "$repo1/infra/aiweb/"
+git -C "$repo1" -c core.autocrlf=false add -A >/dev/null && git -C "$repo1" -c core.autocrlf=false -c user.name=t -c user.email=t@example.invalid commit -qm only >/dev/null
+: > "$tmp/ai.log"
+out="$(DOCKER_BIN="$tmp/ai-docker" GC_INFRA_DIR="$repo1/infra" bash scripts/docker-gc.sh --old-images 2>&1)"
+removed="$(grep '^rmi ' "$tmp/ai.log" | sed 's/^rmi //' | sort | tr '\n' ' ')"
+check "with no earlier release in history, only the pinned and in-use images stay" \
+  "$(d 12) $(d 21) $(d 22) $(d 41) $(d 42) sha256:classic " "$removed"
+
 rm -rf "$tmp"
 exit "$fails"

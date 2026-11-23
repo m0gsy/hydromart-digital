@@ -184,4 +184,59 @@ else
   fi
 fi
 
+# --- 5. the AI web's database (HD-9b), when the AI web is on this box ---------------------
+# The same three questions about its own dumps (aiweb-*.sql.gz, backup-aiweb-db.sh), its own
+# drill log and its own offsite twins. Every line here says "AI web", so a red one can never be
+# read as hydromart's, and a green one never answers for hydromart's sections above.
+AIWEB_DRILL_LOG="${AIWEB_DRILL_LOG:-/var/log/hydromart-aiweb-drill.log}"
+if [ -z "$(aiweb_db_container)" ]; then
+  echo "..   the AI web's database is not on this box, so no AI web dump is expected"
+else
+  AI_AGE="$(newest_age_hours "$BACKUP_DIR/aiweb-*.sql.gz")"
+  if [ -z "$AI_AGE" ]; then
+    echo "!! the AI web's database is here and $BACKUP_DIR holds no aiweb-*.sql.gz: it has never been backed up." >&2
+    alert "AI web: its database has never been backed up (no aiweb dump in $BACKUP_DIR)"
+    fails=1
+  elif [ "$AI_AGE" -gt "$MAX_AGE_HOURS" ]; then
+    echo "!! the newest AI web dump is ${AI_AGE}h old (limit ${MAX_AGE_HOURS}h): backup-aiweb-db.sh has stopped." >&2
+    alert "AI web: newest dump is ${AI_AGE}h old (limit ${MAX_AGE_HOURS}h)"
+    fails=1
+  else
+    echo "ok   the newest AI web dump is ${AI_AGE}h old (limit ${MAX_AGE_HOURS}h)"
+  fi
+  AI_DRILL_AGE="$(newest_age_hours "$AIWEB_DRILL_LOG" || true)"
+  if [ -z "$AI_DRILL_AGE" ]; then
+    echo "!! $AIWEB_DRILL_LOG does not exist: no AI web restore drill has ever run on this box." >&2
+    alert "AI web: no restore drill has ever run (no $AIWEB_DRILL_LOG)"
+    fails=1
+  elif [ $((AI_DRILL_AGE / 24)) -gt "$DRILL_MAX_AGE_DAYS" ]; then
+    echo "!! the last AI web restore drill was $((AI_DRILL_AGE / 24))d ago (limit ${DRILL_MAX_AGE_DAYS}d)." >&2
+    alert "AI web: last restore drill was $((AI_DRILL_AGE / 24))d ago (limit ${DRILL_MAX_AGE_DAYS}d)"
+    fails=1
+  else
+    echo "ok   the last AI web restore drill was $((AI_DRILL_AGE / 24))d ago (limit ${DRILL_MAX_AGE_DAYS}d)"
+  fi
+  # Offsite: only when a destination is set; its absence is section 3's finding, said once.
+  if [ -n "${BACKUP_OFFSITE_DEST:-}" ]; then
+    if AI_OUT="$(bash scripts/backup-offsite.sh --aiweb --verify 2>&1)"; then
+      echo "ok   the newest AI web dump is offsite and reads back byte-identical"
+    else
+      echo "!! the newest AI web dump is NOT verifiable at $BACKUP_OFFSITE_DEST:" >&2
+      echo "$AI_OUT" | sed 's/^/   /' >&2
+      alert "AI web: newest dump is not verifiable offsite — $(echo "$AI_OUT" | head -1)"
+      fails=1
+    fi
+  fi
+  if [ -n "${BACKUP2_OFFSITE_DEST:-}" ] && [ -z "$(second_provider_missing)" ] && ! second_provider_is_primary; then
+    if AI2_OUT="$( (second_provider_env; bash scripts/backup-offsite.sh --aiweb --verify) 2>&1)"; then
+      echo "ok   the newest AI web dump also reads back byte-identical from the second provider"
+    else
+      echo "!! the newest AI web dump is NOT verifiable at the second provider:" >&2
+      echo "$AI2_OUT" | sed 's/^/   /' >&2
+      alert "AI web: newest dump is not verifiable at the second provider — $(echo "$AI2_OUT" | head -1)"
+      fails=1
+    fi
+  fi
+fi
+
 exit "$fails"
