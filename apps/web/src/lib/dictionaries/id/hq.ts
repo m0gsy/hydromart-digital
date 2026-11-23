@@ -659,6 +659,12 @@ export const hq = {
     delete: 'Hapus',
     deleteConfirm: 'Ketik ulang "{name}" untuk menghapus permanen.',
     deleteFailed: 'Gagal menghapus akun.',
+    totpReset: 'Reset autentikator',
+    totpResetConfirm:
+      'Reset autentikator {name}? Ia tidak bisa masuk ke web AI sampai memasangnya lagi di Akun.',
+    totpResetDone: 'Autentikator {name} direset.',
+    totpResetNone: '{name} belum memasang autentikator.',
+    totpResetFailed: 'Gagal mereset autentikator.',
     noEmployeeRecord: 'Belum ada data karyawan — buatkan',
     form: {
       title: 'Undang / tetapkan peran staf',

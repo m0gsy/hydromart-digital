@@ -124,6 +124,7 @@ export const en: Dictionary = {
     version: 'Hydromart v{v}',
     nav: {
       profile: 'Profile',
+      authenticator: 'AI web authenticator',
       addresses: 'Addresses',
       payments: 'Payments',
       orders: 'Orders',

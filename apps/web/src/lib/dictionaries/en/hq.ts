@@ -654,6 +654,12 @@ export const hq = {
     delete: 'Delete',
     deleteConfirm: 'Type "{name}" again to delete permanently.',
     deleteFailed: 'Could not delete the account.',
+    totpReset: 'Reset authenticator',
+    totpResetConfirm:
+      "Reset {name}'s authenticator? They cannot sign in to the AI web until they set it up again under Account.",
+    totpResetDone: "{name}'s authenticator was reset.",
+    totpResetNone: '{name} has not set up an authenticator.',
+    totpResetFailed: 'Could not reset the authenticator.',
     noEmployeeRecord: 'No HR record yet — create one',
     form: {
       title: 'Invite / assign staff role',

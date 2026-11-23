@@ -23,6 +23,8 @@ vi.mock('@/lib/locale-context', () => ({
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+// The directory's reset-authenticator row control (AI-3a) reports through the toast.
+vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/components/confirm', () => ({
   useConfirm: () => ({ confirm: vi.fn().mockResolvedValue(true), askReason: vi.fn() }),
 }));

@@ -190,11 +190,11 @@ const DRIVER = R(`
 /hr/me/leave /hr/me/payroll /hr/me/payroll/detail
 `);
 
-// The 26 pages of the customer binary. `/resellers` ships only in the ops binary but is
+// The 27 pages of the customer binary. `/resellers` ships only in the ops binary but is
 // the same shop shell, so it rides along here rather than earning its own run.
 const SHOP = R(`
 / /products /products/detail /cart /checkout /orders /orders/detail
-/orders/detail/review /account /account/edit /addresses /favorites /notifications
+/orders/detail/review /account /account/edit /account/autentikator /addresses /favorites /notifications
 /promo /referral /rewards /subscriptions /vouchers /resellers /help /agen /syarat-ketentuan
 /kebijakan-privasi /hapus-akun /waralaba /login /register /verify /track
 `);

@@ -1173,6 +1173,10 @@ export default function AccountPage() {
     { href: '/notifications', label: t('notifications.title'), icon: Bell },
     { href: '/help', label: t('help.title'), icon: Headset },
     ...(showOps ? [{ href: opsHref, label: t('account.ops'), icon: ChartLineUp }] : []),
+    // AI-3a: the second step of the AI web sign-in, set up here.
+    ...(showOps
+      ? [{ href: '/account/autentikator', label: t('account.nav.authenticator'), icon: ShieldCheck }]
+      : []),
   ];
 
   function logout() {

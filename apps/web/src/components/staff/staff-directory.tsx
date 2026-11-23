@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { UserGear } from '@phosphor-icons/react';
 
 import { useConfirm } from '@/components/confirm';
+import { useToast } from '@/components/toast';
 import { Badge, Card, CenterState, ErrorState, Input, ListFooter, Skeleton } from '@/components/ui';
 import { HR_MANAGED_ROLES } from '@hydromart/access';
 
@@ -243,6 +244,8 @@ export function StaffDirectory({
                   {active ? t('hq.staff.status.active') : t('hq.staff.status.inactive')}
                 </Badge>
                 {canAdminStaff && <ActiveToggle staff={s} onChanged={reloadAll} />}
+                {/* AI-3a: SUPER_ADMIN only, never on their own row (the service refuses it). */}
+                {canResetTotp(customer, s) && <ResetTotp staff={s} />}
                 {can('staffDelete', customer?.role) && (
                   <DeleteStaff staff={s} onDeleted={reloadAll} />
                 )}
@@ -393,6 +396,62 @@ function ActiveToggle({ staff, onChanged }: { staff: Customer; onChanged: () => 
  * The confirmation is a re-typed name, not a "are you sure?" dialog. Nobody reads those,
  * and this is the one action in the console with nothing behind it.
  */
+/**
+ * AI-3a: a staff member who lost the phone with their authenticator cannot pass the AI web's
+ * second step; SUPER_ADMIN removes it here and they set it up again on /account/autentikator.
+ * The service audits the reset and refuses one's own.
+ */
+/** SUPER_ADMIN only (accessMatrixWrite), never on one's own row, never on a deleted account. */
+export function canResetTotp(
+  viewer: Pick<Customer, 'id' | 'role'> | null | undefined,
+  staff: Pick<Customer, 'id' | 'status'>,
+): boolean {
+  return Boolean(viewer) && can('accessMatrixWrite', viewer?.role) && staff.id !== viewer?.id && staff.status !== 'DELETED';
+}
+
+export function ResetTotp({ staff }: { staff: Customer }) {
+  const { t } = useT();
+  const { confirm } = useConfirm();
+  const { toast } = useToast();
+  const [busy, setBusy] = useState(false);
+  const name = staff.fullName || staff.phone;
+
+  async function reset() {
+    // Busy before the question, so a double click cannot open two and send two.
+    setBusy(true);
+    const ok = await confirm({
+      title: t('common.confirmTitle'),
+      message: t('hq.staff.totpResetConfirm', { name }),
+    });
+    if (!ok) {
+      setBusy(false);
+      return;
+    }
+    try {
+      const res = await api.del<{ removed: boolean }>(endpoints.auth.resetTotp(staff.id), true);
+      toast(
+        res?.removed ? t('hq.staff.totpResetDone', { name }) : t('hq.staff.totpResetNone', { name }),
+        res?.removed ? 'success' : 'info',
+      );
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : t('hq.staff.totpResetFailed'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={reset}
+      disabled={busy}
+      className="tap-44 rounded-lg border border-app px-2.5 py-1 text-xs font-bold text-muted transition-colors hover:bg-[color:var(--surface-soft)] disabled:opacity-50"
+    >
+      {t('hq.staff.totpReset')}
+    </button>
+  );
+}
+
 function DeleteStaff({ staff, onDeleted }: { staff: Customer; onDeleted: () => void }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
