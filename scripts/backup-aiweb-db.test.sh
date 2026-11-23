@@ -152,7 +152,7 @@ SQL
 live_rows() { docker exec "$LIVE" psql -tAX -U postgres -d ai -c 'SELECT (SELECT count(*) FROM kill_switches) + (SELECT count(*) FROM answer_trail)'; }
 BEFORE="$(live_rows)"
 
-drill_env=(env PATH="$PATH" BACKUP_DIR="$W/drill" AIWEB_DB_CONTAINER="$LIVE" AIWEB_PG_IMAGE="$IMAGE"
+drill_env=(env PATH="$PATH" BACKUP_DIR="$W/drill" AIWEB_DB_CONTAINER="$LIVE" AIWEB_PG_IMAGE=
   AIWEB_DRILL_CONTAINER="$DRILL" ALERT_WEBHOOK_URL= ALERT_MEMORY_DIR="$W/alerted2")
 mkdir -p "$W/drill"
 OUT="$("${drill_env[@]}" bash scripts/backup-aiweb-db.sh 2>&1)"
@@ -168,6 +168,9 @@ drill "$DUMP"
 [ "$RC" = 0 ] && grep -q 'drill OK' <<<"$OUT" && grep -q 'kill_switches has 40 rows' <<<"$OUT" &&
   ok "the dump restores into a scratch container and matches live (tables, migrations, rows, privileges, RLS)" ||
   bad "a good dump did not pass the drill: rc=$RC, $OUT"
+LIVE_IMAGE="$(docker inspect --format '{{.Image}}' "$LIVE")"
+grep -qF "($LIVE_IMAGE)" <<<"$OUT" && ok "  ...into the image the live database runs, by its id (nothing pulled)" ||
+  bad "the drill did not use the live database's image $LIVE_IMAGE: $OUT"
 docker ps -a --format '{{.Names}}' | grep -qx "$DRILL" && bad "the scratch container was left behind" ||
   ok "the scratch container is removed afterwards"
 

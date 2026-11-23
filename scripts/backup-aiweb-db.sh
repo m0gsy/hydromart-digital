@@ -18,8 +18,8 @@
 # neither fail hydromart's backup nor stand in for it. It never writes admin-service's backup
 # card, which shows hydromart's last verdict; a green AI run there would hide a red hydromart one.
 #
-# The drill restores into a throwaway container with no network, from the postgres image the
-# compose file pins, and never touches the live database: it only reads it to compare.
+# The drill restores into a throwaway container with no network, from the image the live database
+# runs, and never touches the live database: it only reads it to compare.
 #
 # Exit: 0 dumped / restore proved · 1 failed (alerted) · 2 the AI web's database is not on this
 # box (said once a week).
@@ -30,11 +30,11 @@ cd "$(dirname "$0")/.."
 # shellcheck source=scripts/lib/backup-dir.sh
 . scripts/lib/backup-dir.sh
 
-AIWEB_FILE=infra/aiweb/docker-compose.yml
 KEEP="${BACKUP_KEEP:-14}"
 SCRATCH="${AIWEB_DRILL_CONTAINER:-hydromart-ai-restore-drill}"
-# The postgres image the compose file pins for `db`: the live server's version, already on the box.
-PG_IMAGE="${AIWEB_PG_IMAGE:-$(sed -n '/^  db:/,/^  [a-z]/s/^ *image: *//p' "$AIWEB_FILE" | head -1)}"
+# The drill restores into the image the live database runs, by its id: the live server's exact
+# version, already on the box, so it is never pulled (only deploy pulls). AIWEB_PG_IMAGE overrides.
+PG_IMAGE="${AIWEB_PG_IMAGE:-}"
 
 # hydromart's directory, so the offsite copy and the freshness check find both families in one
 # place; the same fallback backup-db.sh takes when it cannot write there.
@@ -122,6 +122,8 @@ drill() {
   fi
   gzip -t "$dump_file" 2>/dev/null || die "$dump_file is not valid gzip"
 
+  [ -n "$PG_IMAGE" ] || PG_IMAGE="$(docker inspect --format '{{.Image}}' "$CID" 2>/dev/null || true)"
+  [ -n "$PG_IMAGE" ] || die "could not read which image the live AI web database runs"
   docker rm -fv "$SCRATCH" >/dev/null 2>&1 || true
   # No network: a copy of production data nothing can reach. Its own superuser password.
   docker run -d --name "$SCRATCH" --network none -e POSTGRES_PASSWORD=drill "$PG_IMAGE" >/dev/null ||
