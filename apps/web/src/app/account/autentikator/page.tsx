@@ -14,6 +14,7 @@ import { authenticator as copyID } from '@/lib/dictionaries/id/authenticator';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { isStaff } from '@/lib/roles';
+import { groupSecret } from '@/lib/totp';
 import { useAsync } from '@/lib/use-async';
 
 interface TotpStatus {
@@ -28,11 +29,6 @@ interface Enrolment {
   secret: string;
   otpauthUri: string;
   sms?: { expiresInSeconds?: number; deliveryPending?: boolean };
-}
-
-/** The secret in groups of four, as authenticator apps print it: easier to type by hand. */
-export function groupSecret(secret: string): string {
-  return secret.match(/.{1,4}/g)?.join(' ') ?? secret;
 }
 
 /**

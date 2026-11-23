@@ -23,7 +23,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { LocaleProvider } from '@/lib/locale-context';
-import AuthenticatorPage, { groupSecret } from '@/app/account/autentikator/page';
+import AuthenticatorPage from '@/app/account/autentikator/page';
+import { groupSecret } from '@/lib/totp';
 import { canResetTotp, ResetTotp } from '@/components/staff/staff-directory';
 
 const status = (over: Record<string, unknown> = {}) => ({

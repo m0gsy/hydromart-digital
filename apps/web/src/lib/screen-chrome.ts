@@ -97,6 +97,7 @@ const BACK: Record<string, string> = {
   '/orders/detail': '/orders',
   '/orders/detail/review': '/orders/detail',
   '/account/edit': '/account',
+  '/account/autentikator': '/account',
   '/addresses': '/account',
   '/favorites': '/account',
   '/subscriptions': '/account',
