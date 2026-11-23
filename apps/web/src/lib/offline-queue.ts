@@ -62,6 +62,9 @@ export interface HrPunchPayload {
   image: string;
   lat: number;
   lng: number;
+  /** The fix's accuracy radius in whole metres, when the device gave one. The server uses it to
+   *  tell an approximate ("Perkiraan") fix from a real one. */
+  accuracyM?: number;
 }
 
 export interface ShiftCheckInPayload {

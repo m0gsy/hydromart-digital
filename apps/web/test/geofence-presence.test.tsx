@@ -2,18 +2,23 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { Job } from '@/lib/offline-queue';
 import type { Depot } from '@/lib/types';
 
 /**
  * 2026-11-23, Galaxy and Pekayon: punches refused "1777 m dari titik" because the phones sent
  * Android's approximate fix, snapped to a 2 km grid. The web half of the fix:
  *
+ *  - a punch says how sure the phone was (`accuracyM`) and refuses nothing itself — whether
+ *    the depot is fenced, and whether a fix that rough passes, is the server's call;
  *  - the attendance point has no network default, and the settings screen says which depots
  *    override a key and where the picked depot's own master location is.
  */
 
-const { get, depotState } = vi.hoisted(() => ({
+const { get, runOrQueue, currentPosition, depotState } = vi.hoisted(() => ({
   get: vi.fn(),
+  runOrQueue: vi.fn<(job: Job) => Promise<{ outcome: 'queued' }>>(),
+  currentPosition: vi.fn<() => Promise<{ coords: { latitude: number; longitude: number; accuracy: number } }>>(),
   depotState: { depots: [] as Depot[] },
 }));
 
@@ -36,8 +41,54 @@ vi.mock('@/lib/depot-context', () => ({
 }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: vi.fn() }) }));
+vi.mock('@/lib/offline-queue', () => ({ runOrQueue }));
+vi.mock('@/lib/geo', () => ({ currentPosition, geoReason: () => 'timeout' }));
+vi.mock('@/components/offline-queue-banner', () => ({ OfflineQueueBanner: () => null }));
+vi.mock('@/components/hr/face-capture', () => ({
+  FaceCapture: ({ onCapture }: { onCapture: (image: string, live: boolean) => void }) => (
+    <button type="button" onClick={() => onCapture('data:frame', true)}>
+      capture
+    </button>
+  ),
+}));
 
+import CheckInPage from '@/app/hr/me/check-in/page';
 import HrSettingsPage from '@/app/hr/settings/page';
+
+describe('the punch says how sure the phone was', () => {
+  const fix = (accuracy: number) => ({ coords: { latitude: -6.27027, longitude: 106.96421, accuracy } });
+
+  beforeEach(() => {
+    runOrQueue.mockReset().mockResolvedValue({ outcome: 'queued' });
+    currentPosition.mockReset();
+  });
+
+  it('sends the accuracy in whole metres, and refuses nothing itself however rough it is', async () => {
+    currentPosition.mockResolvedValue(fix(1999.6));
+    render(<CheckInPage />);
+    fireEvent.click(screen.getByText('capture'));
+    await waitFor(() => expect(runOrQueue).toHaveBeenCalledTimes(1));
+    expect(currentPosition).toHaveBeenCalledWith({ precise: true });
+    expect(runOrQueue.mock.calls[0]?.[0]).toEqual({
+      kind: 'hrPunch',
+      payload: { mode: 'in', image: 'data:frame', lat: -6.27027, lng: 106.96421, accuracyM: 2000 },
+    });
+  });
+
+  it('leaves the accuracy off the wire when the phone gave none', async () => {
+    currentPosition.mockResolvedValue(fix(Number.NaN));
+    render(<CheckInPage />);
+    fireEvent.click(screen.getByText('capture'));
+    await waitFor(() => expect(runOrQueue).toHaveBeenCalledTimes(1));
+    // What the JSON body will hold: nothing, rather than `null` or a NaN the DTO would refuse.
+    expect(JSON.parse(JSON.stringify(runOrQueue.mock.calls[0]?.[0].payload))).toEqual({
+      mode: 'in',
+      image: 'data:frame',
+      lat: -6.27027,
+      lng: 106.96421,
+    });
+  });
+});
 
 describe('the attendance point on the settings screen', () => {
   const defs = [
