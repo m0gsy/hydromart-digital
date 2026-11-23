@@ -9,6 +9,9 @@ export interface CreateCustomerData {
   assignedDepotId?: string | null;
   vehicleType?: string | null;
   plateNumber?: string | null;
+  /** HD-8: campaign codes, self-registration only. Written once, never read back here. */
+  firstSource?: string | null;
+  lastSource?: string | null;
 }
 
 /**

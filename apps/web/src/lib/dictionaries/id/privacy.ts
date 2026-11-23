@@ -6,7 +6,7 @@
 // mengaku pelanggan menyetujui teks yang tidak pernah mereka lihat. Itu persis cacat yang
 // terjadi sampai 29 Agustus 2026 (versi tertulis '1.0', dokumennya belum ada).
 export const privacy = {
-  effective: 'Berlaku sejak 2 September 2026',
+  effective: 'Berlaku sejak 23 November 2026',
   intro:
     'Hydromart menghormati privasimu. Kebijakan ini menjelaskan data pribadi apa yang kami kumpulkan, untuk apa, berapa lama kami simpan, dan hak-hakmu berdasarkan UU No. 27 Tahun 2022 tentang Pelindungan Data Pribadi (UU PDP).',
   sections: [
@@ -16,7 +16,7 @@ export const privacy = {
     },
     {
       heading: 'Data yang kami kumpulkan',
-      body: 'Saat kamu mendaftar dan memesan: nama, nomor telepon, email (opsional), dan alamat pengantaran. Saat pesanan diantar, kurir mengambil bukti pengantaran berupa foto penyerahan, tanda tangan penerima, nama penerima, serta titik lokasi (GPS) dan waktu penyerahan.',
+      body: 'Saat kamu mendaftar dan memesan: nama, nomor telepon, email (opsional), dan alamat pengantaran. Saat pesanan diantar, kurir mengambil bukti pengantaran berupa foto penyerahan, tanda tangan penerima, nama penerima, serta titik lokasi (GPS) dan waktu penyerahan. Kalau kamu membuka situs kami lewat tautan atau kode QR yang membawa kode kampanye (misalnya dari pameran, poster depot, atau iklan), kode itu disimpan di perangkatmu lalu ikut tercatat saat kamu mendaftar atau mengajukan kemitraan waralaba. Kode itu hanya menyebut kampanye mana yang membawamu, bukan siapa kamu atau halaman apa yang kamu buka.',
     },
     {
       heading: 'Lokasi perangkat',
@@ -24,7 +24,7 @@ export const privacy = {
     },
     {
       heading: 'Tujuan penggunaan',
-      body: 'Data dipakai untuk memproses dan mengantar pesananmu, memverifikasi penyerahan (bukti pengantaran), memberi dukungan pelanggan, mengelola poin & rewards, serta memenuhi kewajiban hukum. Bukti pengantaran menjadi catatan sah bahwa pesanan telah diterima.',
+      body: 'Data dipakai untuk memproses dan mengantar pesananmu, memverifikasi penyerahan (bukti pengantaran), memberi dukungan pelanggan, mengelola poin & rewards, serta memenuhi kewajiban hukum. Bukti pengantaran menjadi catatan sah bahwa pesanan telah diterima. Kode kampanye dipakai untuk mengukur promosi mana yang benar-benar mendatangkan pelanggan dan calon mitra.',
     },
     {
       heading: 'Dasar pemrosesan & persetujuan',

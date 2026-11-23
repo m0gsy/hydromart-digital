@@ -36,6 +36,8 @@ export class AuthController {
       fullName: dto.fullName,
       email: dto.email,
       marketingConsent: dto.marketingConsent,
+      firstSource: dto.firstSource,
+      lastSource: dto.lastSource,
       context: getRequestContext(req),
     });
     return OtpChallengeResponseDto.from(result);

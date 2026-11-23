@@ -1578,6 +1578,11 @@ export interface FranchiseApplication {
   stage: FranchiseAppStage;
   /** The reason HQ gave when deciding; null when none was given. */
   decisionReason?: string | null;
+  /** HD-8: campaign codes of the first and the latest coded link; null when none (or older). */
+  firstSource?: string | null;
+  lastSource?: string | null;
+  /** HD-8: the Kebijakan Privasi version the consent box agreed to; null before HD-8. */
+  privacyConsentVersion?: string | null;
   submittedAt: string;
   createdAt: string;
   updatedAt: string;

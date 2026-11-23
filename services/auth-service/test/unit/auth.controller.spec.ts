@@ -71,6 +71,16 @@ describe('AuthController', () => {
     expect(res).toEqual(CHALLENGE_RESPONSE);
   });
 
+  it('register() forwards the campaign codes (HD-8)', async () => {
+    await controller.register(
+      { phone: '+628123456789', firstSource: 'pameran', lastSource: 'meta-iklan' },
+      req,
+    );
+    expect(registration.register).toHaveBeenCalledWith(
+      expect.objectContaining({ firstSource: 'pameran', lastSource: 'meta-iklan' }),
+    );
+  });
+
   it('verifyOtp() forwards phone/code/purpose and returns a session', async () => {
     const res = await controller.verifyOtp(
       { phone: '+628123456789', code: '123456', purpose: OtpPurpose.REGISTRATION },

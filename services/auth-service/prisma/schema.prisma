@@ -126,6 +126,12 @@ model Customer {
   plateNumber     String?
   phoneVerifiedAt DateTime?
   lastLoginAt  DateTime?
+  /// HD-8: for a customer who signed up themselves, the campaign codes of the first and the
+  /// latest coded link their browser arrived by (`?src=`, else `?utm_source=`). The first
+  /// never moves; the latest sits beside it. Null for everyone else: staff, counter sales,
+  /// signups that followed no coded link, and every account before HD-8.
+  firstSource  String?        @db.VarChar(64)
+  lastSource   String?        @db.VarChar(64)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 

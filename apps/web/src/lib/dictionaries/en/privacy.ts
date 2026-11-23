@@ -2,7 +2,7 @@ import { privacy as base } from '../id/privacy';
 
 // English — mirrors the shape of id/privacy.ts (the source of truth for keys).
 export const privacy: typeof base = {
-  effective: 'Effective 2 September 2026',
+  effective: 'Effective 23 November 2026',
   intro:
     'Hydromart respects your privacy. This policy explains what personal data we collect, why, how long we keep it, and your rights under Indonesia’s Law No. 27 of 2022 on Personal Data Protection (UU PDP).',
   sections: [
@@ -12,7 +12,7 @@ export const privacy: typeof base = {
     },
     {
       heading: 'Data we collect',
-      body: 'When you register and order: your name, phone number, email (optional), and delivery address. When an order is delivered, the courier captures proof of delivery — a hand-over photo, the recipient’s signature, the recipient’s name, and the GPS location and time of hand-over.',
+      body: 'When you register and order: your name, phone number, email (optional), and delivery address. When an order is delivered, the courier captures proof of delivery — a hand-over photo, the recipient’s signature, the recipient’s name, and the GPS location and time of hand-over. If you open our site through a link or QR code that carries a campaign code (for example from an exhibition, a depot poster or an ad), that code is kept on your device and recorded with your signup or your franchise application. The code only says which campaign brought you, not who you are or which pages you opened.',
     },
     {
       heading: 'Device location',
@@ -20,7 +20,7 @@ export const privacy: typeof base = {
     },
     {
       heading: 'How we use it',
-      body: 'Data is used to process and deliver your orders, verify hand-over (proof of delivery), provide customer support, run points & rewards, and meet legal obligations. Proof of delivery is the lawful record that an order was received.',
+      body: 'Data is used to process and deliver your orders, verify hand-over (proof of delivery), provide customer support, run points & rewards, and meet legal obligations. Proof of delivery is the lawful record that an order was received. Campaign codes are used to measure which promotions actually bring in customers and prospective franchise partners.',
     },
     {
       heading: 'Legal basis & consent',

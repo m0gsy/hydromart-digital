@@ -40,6 +40,7 @@ import {
   SetStaffDepotDto,
 } from '../../src/modules/auth/dto/staff.dto';
 import { SessionInfoDto } from '../../src/modules/auth/dto/responses.dto';
+import { RegisterDto } from '../../src/modules/auth/dto/register.dto';
 import { buildTestConfig } from '../support/fakes';
 
 const baseProps = (overrides: Partial<CustomerProps> = {}): CustomerProps => ({
@@ -59,6 +60,28 @@ const baseProps = (overrides: Partial<CustomerProps> = {}): CustomerProps => ({
   createdAt: new Date('2026-01-01Z'),
   updatedAt: new Date('2026-01-01Z'),
   ...overrides,
+});
+
+// HD-8: the campaign codes the web stores, and nothing a hand-made request could smuggle in.
+describe('RegisterDto campaign codes', () => {
+  const body = (code: unknown) =>
+    plainToInstance(RegisterDto, { phone: '081234567890', firstSource: code, lastSource: code });
+
+  it.each(['qr-depot-bdg01', 'meta.iklan_bdg', 'a', 'x'.repeat(64)])('accepts %s', (code) => {
+    expect(validateSync(body(code))).toHaveLength(0);
+  });
+
+  it.each(['Pameran', '-iklan', 'x'.repeat(65), '', 'a b', 'a/b', '<script>', 7])(
+    'refuses %p',
+    (code) => {
+      const fields = validateSync(body(code)).map((e) => e.property);
+      expect(fields).toEqual(expect.arrayContaining(['firstSource', 'lastSource']));
+    },
+  );
+
+  it('needs neither', () => {
+    expect(validateSync(plainToInstance(RegisterDto, { phone: '081234567890' }))).toHaveLength(0);
+  });
 });
 
 describe('Customer entity branch gaps', () => {

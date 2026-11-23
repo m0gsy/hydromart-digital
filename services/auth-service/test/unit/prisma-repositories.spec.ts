@@ -70,7 +70,24 @@ describe('CustomerPrismaRepository', () => {
         assignedDepotId: null,
         vehicleType: null,
         plateNumber: null,
+        firstSource: null,
+        lastSource: null,
       },
+    });
+  });
+
+  it('writes the campaign codes a self-registration carries (HD-8)', async () => {
+    model.create.mockResolvedValue(customerRow());
+    await repo.create({
+      phone: '+6281234567890',
+      email: null,
+      fullName: null,
+      role: Role.CUSTOMER,
+      firstSource: 'pameran',
+      lastSource: 'meta-iklan',
+    });
+    expect(model.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ firstSource: 'pameran', lastSource: 'meta-iklan' }),
     });
   });
 

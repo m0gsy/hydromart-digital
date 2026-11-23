@@ -63,6 +63,39 @@ describe('/register — the avatar that was a picture of an avatar', () => {
   });
 });
 
+/** HD-8: the signup carries where the customer came from, and nothing when nowhere coded. */
+describe('/register: where the signup came from', () => {
+  afterEach(() => {
+    localStorage.clear();
+    window.history.replaceState({}, '', '/');
+  });
+
+  async function send() {
+    post.mockResolvedValue({ expiresInSeconds: 300 });
+    render(<RegisterPage />, { wrapper: LocaleProvider });
+    await userEvent.type(screen.getByLabelText(/nomor|phone/i), '081234567890');
+    await userEvent.click(screen.getAllByRole('checkbox')[0]!);
+    await userEvent.click(screen.getByRole('button', { name: /kirim kode verifikasi|send/i }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    return post.mock.calls[0]?.[1] as Record<string, unknown>;
+  }
+
+  it('sends the first code this browser kept and the latest, from this very link', async () => {
+    localStorage.setItem('hydromart.source', JSON.stringify({ first: 'pameran-jkt', last: 'pameran-jkt' }));
+    window.history.replaceState({}, '', '/register?src=qr-depot-bdg01');
+    await expect(send()).resolves.toMatchObject({
+      firstSource: 'pameran-jkt',
+      lastSource: 'qr-depot-bdg01',
+    });
+  });
+
+  it('sends no source when no coded link was followed', async () => {
+    const body = await send();
+    expect(body).not.toHaveProperty('firstSource');
+    expect(body).not.toHaveProperty('lastSource');
+  });
+});
+
 /**
  * The two gates on this form. Both were unmeasured, and one of them is the consent record
  * UU PDP tahap 2 writes to the ledger — the tick is evidence, not an inference, so a form

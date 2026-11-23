@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { ArrowLeft, ArrowRight, Gift, User } from '@phosphor-icons/react';
 
 import { PrivacyLink } from '@/components/privacy-sheet';
 import { TermsLink } from '@/components/terms-sheet';
 import { Button, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
+import { captureSource, readSources } from '@/lib/attribution';
 import { resolveDeepLink } from '@/lib/deep-link';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -32,6 +33,8 @@ function RegisterForm() {
    */
   const raw = params.get('next');
   const next = (raw && resolveDeepLink(raw)) || '/products';
+  // HD-8: a link the app opened by navigating (not loading) still counts as where they came from.
+  useEffect(() => captureSource(window.location.search), []);
   // E8: /login hands the number over when it has no account, so the visitor does not
   // retype what they just typed.
   const [form, setForm] = useState({ phone: params.get('phone') ?? '', fullName: '', email: '' });
@@ -66,6 +69,8 @@ function RegisterForm() {
         // Only sent when ticked — an unticked box means "never agreed", and sending
         // false would record a refusal the customer never actually expressed.
         marketingConsent: marketing || undefined,
+        // HD-8: where they came from; nothing when no coded link was followed.
+        ...readSources(),
       });
       const onward = new URLSearchParams({ phone: form.phone, purpose: 'REGISTRATION', next });
       if (referral.trim()) onward.set('ref', referral.trim());

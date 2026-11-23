@@ -25,6 +25,7 @@ import {
   Checklist,
   ChecklistItemStatus,
   FranchiseAppStage,
+  SOURCE_CODE_PATTERN,
 } from '../../domain/franchise-application';
 
 export class ListApplicationsQueryDto {
@@ -173,6 +174,30 @@ export class SubmitFranchiseApplicationDto {
   @IsBoolean()
   @Equals(true, { message: 'privacyConsent wajib true — persetujuan pemrosesan data.' })
   privacyConsent!: boolean;
+
+  /*
+   * HD-8: where the applicant came from, as the web stored it from the links this browser
+   * followed (lib/attribution.ts). Optional: most visitors come by no coded link, and a lead
+   * is never refused over attribution. The web only sends codes of this shape, so a refusal
+   * here means a hand-made request.
+   */
+  @ApiPropertyOptional({
+    example: 'pameran-jakarta-2027',
+    description: 'Campaign code of the first coded link this browser arrived by.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(SOURCE_CODE_PATTERN, { message: 'firstSource bukan kode sumber yang sah.' })
+  firstSource?: string;
+
+  @ApiPropertyOptional({
+    example: 'meta-iklan-bandung',
+    description: 'Campaign code of the latest coded link this browser arrived by.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(SOURCE_CODE_PATTERN, { message: 'lastSource bukan kode sumber yang sah.' })
+  lastSource?: string;
 }
 
 /**

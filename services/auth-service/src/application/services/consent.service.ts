@@ -16,10 +16,11 @@ import { AUTH_TOKENS } from '../tokens';
 /**
  * Version of the Terms + Privacy text a consent row was recorded against.
  *
- * A date rather than a counter, because it is checkable: both documents carry the same
- * `Berlaku sejak` line in apps/web/src/lib/dictionaries/{id,en}/{terms,privacy}.ts, so a
- * support agent can line a stored version up against the document a customer is reading.
- * Bump this AND that `effective` line together whenever the wording changes materially.
+ * A date rather than a counter, because it is checkable: it is the later of the two
+ * documents' `effective` dates (apps/web/src/lib/dictionaries/{id,en}/{terms,privacy}.ts), so
+ * a support agent can line a stored version up against the documents a customer is reading.
+ * apps/web/test/legal-versions.test.ts fails when it is not, so a change to either text that
+ * moves its `effective` line cannot leave this behind.
  *
  * It read '1.0' from 2026-07-29 — the ledger migration, which also backfilled every
  * existing customer at that value — until 2026-08-29, when the Terms of Service were
@@ -32,8 +33,15 @@ import { AUTH_TOKENS } from '../tokens';
  * nothing anybody can be locked out by: `pendingAcceptance` is read-only, so an older
  * acceptance stays granted and the bump only moves those accounts onto the "still to be
  * asked" list.
+ *
+ * 2026-10-14: the Terms moved their `effective` line (#664) and this did not move with them,
+ * so signups from then until HD-8 are recorded against 2026-09-02 while agreeing to the
+ * 14 October Terms. Those rows stay as written; the test above is what stops a repeat.
+ *
+ * 2026-11-23 (HD-8): the privacy policy now says that the campaign code of a link someone
+ * arrived by is kept with their signup or their franchise application.
  */
-export const CONSENT_DOCUMENT_VERSION = '2026-09-02';
+export const CONSENT_DOCUMENT_VERSION = '2026-11-23';
 
 export interface ConsentStateEntry {
   purpose: ConsentPurpose;

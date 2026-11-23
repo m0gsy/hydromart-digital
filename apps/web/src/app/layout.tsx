@@ -8,6 +8,7 @@ import { NativeBridge } from '@/components/native-bridge';
 import { AppAudienceGate } from '@/components/app-audience-gate';
 import { PushForeground } from '@/components/push-foreground';
 import { SentryInit } from '@/components/sentry-init';
+import { SourceCapture } from '@/components/source-capture';
 import { ConfirmProvider } from '@/components/confirm';
 import { ToastProvider } from '@/components/toast';
 import { AuthProvider } from '@/lib/auth-context';
@@ -138,6 +139,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   {/* Error reporting, and nothing at all when NEXT_PUBLIC_SENTRY_DSN is blank
                       — the SDK is not even downloaded in that case. */}
                   <SentryInit />
+                  {/* HD-8: the campaign code of the link this visit opened with, if any. */}
+                  <SourceCapture />
                   {/* Location is shared across route transitions; the cart stays in the shop branch. */}
                   <LocationProvider>
                     <AppShell>{children}</AppShell>

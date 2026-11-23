@@ -354,6 +354,14 @@ model FranchiseApplication {
   stage                   FranchiseAppStage @default(PENDING)
   /// The reason HQ typed when approving/rejecting; null when none was given.
   decisionReason          String?
+  /// HD-8: the campaign codes of the first and the latest coded link the applicant's browser
+  /// arrived by (`?src=`, else `?utm_source=`). The first never moves; the latest sits beside
+  /// it. Null when no coded link was followed, and for every application before HD-8.
+  firstSource             String?           @db.VarChar(64)
+  lastSource              String?           @db.VarChar(64)
+  /// HD-8: the Kebijakan Privasi version in force when the consent box was ticked; the
+  /// moment is `submittedAt`. Null before HD-8: consent was required (CA-3-53), not recorded.
+  privacyConsentVersion   String?
   submittedAt             DateTime          @default(now())
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt

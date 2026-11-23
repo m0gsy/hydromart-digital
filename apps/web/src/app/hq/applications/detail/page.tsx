@@ -192,6 +192,25 @@ export default function HqApplicationDetailPage() {
               <p className="text-xs font-bold uppercase tracking-wide text-muted">{t('hq.applications.detail.projectedRevenue')}</p>
               <p className="mt-1 text-sm tabular-nums">{idr(app.projectedMonthlyRevenue)}</p>
             </div>
+            {/* HD-8: where the calon mitra came from, and which privacy text they agreed to. */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-muted">{t('hq.applications.detail.source')}</p>
+              <p className="mt-1 break-all text-sm">
+                {app.firstSource
+                  ? app.lastSource && app.lastSource !== app.firstSource
+                    ? t('hq.applications.detail.sourceBoth', { first: app.firstSource, last: app.lastSource })
+                    : app.firstSource
+                  : t('hq.applications.detail.sourceNone')}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-muted">{t('hq.applications.detail.consent')}</p>
+              <p className="mt-1 text-sm">
+                {app.privacyConsentVersion
+                  ? t('hq.applications.detail.consentVersion', { v: app.privacyConsentVersion })
+                  : t('hq.applications.detail.consentUnrecorded')}
+              </p>
+            </div>
           </div>
 
           <div>
