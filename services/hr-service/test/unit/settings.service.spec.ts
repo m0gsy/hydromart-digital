@@ -124,3 +124,38 @@ describe('SettingsService (SalaryConfiguration)', () => {
     expect((await svc.schema(depotId)).effective.standardWorkingMinutes).toBe(480);
   });
 });
+
+/*
+ * The attendance point. "-6,2001" (Indonesian decimal comma) and a pasted "-6.25, 106.97"
+ * used to be stored, then read back as no number at all, and a GLOBAL value would fence
+ * every depot around one door. The pattern, the range and the scope rule all refuse at entry.
+ */
+describe('geofence point (per depot, dot-decimal)', () => {
+  const at = (key: string, value: string, scope: 'GLOBAL' | 'DEPOT' = 'DEPOT') =>
+    make().svc.validate({ scope, depotId: scope === 'DEPOT' ? depotId : null, key, value });
+
+  it.each([
+    ['geofenceLat', '-6.2001'],
+    ['geofenceLng', '106.8123'],
+    ['geofenceLat', ''],
+    ['geofenceLng', ''],
+  ])('accepts %s = %p', (key, value) => {
+    expect(at(key, value).coerced).toBe(value);
+  });
+
+  it.each([
+    ['geofenceLat', '-6,2001', 'must match'],
+    ['geofenceLat', '-6.25, 106.97', 'must match'],
+    ['geofenceLng', '106,8123', 'must match'],
+    ['geofenceLat', '-91', 'below min -90'],
+    ['geofenceLng', '180.5', 'above max 180'],
+  ])('refuses %s = %p', (key, value, message) => {
+    expect(() => at(key, value)).toThrow(message);
+  });
+
+  it('has no network default', () => {
+    for (const key of ['geofenceLat', 'geofenceLng']) {
+      expect(() => at(key, '-6.2001', 'GLOBAL')).toThrow(`${key} is a per-depot setting`);
+    }
+  });
+});

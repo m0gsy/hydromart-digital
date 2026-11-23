@@ -106,6 +106,12 @@ async function nativePosition(mode: GeoMode): Promise<GeolocationPosition | null
     if (!granted(asked.value.location) && !granted(asked.value.coarseLocation)) {
       throw new GeoError('denied');
     }
+  } else if (mode === 'precise' && !granted(state.value.location)) {
+    // Coarse only ("Perkiraan"): Android snaps that fix to a 2 km grid, which no presence fence
+    // can use — Galaxy and Pekayon punches landed on that grid and were refused at 1777 m.
+    // Asking for `location` again is what makes Android 12+ offer the "Tepat" upgrade. The answer
+    // is not read: the fix below carries its own accuracy, and the server decides.
+    await tryPlugin('Geolocation', 'requestPermissions', { permissions: ['location'] });
   }
   // Coarse by default: a depot is picked by neighbourhood.
   // `precise` is for a PRESENCE check (shift check-in, attendance, proof of delivery): a

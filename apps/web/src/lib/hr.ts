@@ -813,10 +813,14 @@ export interface SettingDef {
   long?: boolean;
   /** Global-only: no per-depot override; writing it needs SUPER_ADMIN. */
   global?: boolean;
+  /** Per-depot only: there is no network default (the attendance point, geofenceLat/Lng). */
+  depotOnly?: boolean;
 }
 export interface SettingsSchema {
   defs: SettingDef[];
   effective: Record<string, string | number | boolean>;
+  /** The depots that override each key. Sent only with the network-default view (no depotId). */
+  overrides?: Record<string, Array<{ depotId: string; value: string }>>;
 }
 
 // --- labels (Indonesian, matching the ops console tone) ---

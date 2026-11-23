@@ -30,6 +30,7 @@ function setup(owned: string[] = [A, B]) {
   const directory: DepotDirectoryPort = {
     isActive: async () => true,
     names: async () => new Map([[A, 'Depot A']]),
+    location: async () => null,
   };
   const attendance = { photoForDepots: jest.fn(async () => ({ body: Buffer.from('x'), contentType: 'image/jpeg' })) };
   const service = new OwnerAttendanceService(repo, ports, directory, attendance as unknown as AttendanceService);

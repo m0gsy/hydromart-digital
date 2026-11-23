@@ -265,6 +265,8 @@ export class SettingDefResponseDto {
   envDefault!: unknown;
   @ApiProperty({ required: false, type: Boolean })
   global?: boolean;
+  @ApiProperty({ required: false, type: Boolean })
+  depotOnly?: boolean;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */
@@ -984,6 +986,12 @@ export class Schema3ResponseDto {
   defs!: SettingDefResponseDto[];
   @ApiProperty({ type: Object })
   effective!: unknown;
+  @ApiProperty({
+    required: false,
+    type: Object,
+    description: 'Without depotId only: per key, the depots that replaced it ({ depotId, value }[]).',
+  })
+  overrides?: unknown;
 }
 
 /** Mirrors the inline response shape this route already returns (audit D-6). */

@@ -243,3 +243,65 @@ describe('currentPosition({ precise: true })', () => {
     expect(leg(1).maximumAge).toBeLessThanOrEqual(10_000);
   });
 });
+
+/*
+ * 2026-11-23: Galaxy and Pekayon punches were refused at 1777 m. Their phones held only
+ * "Perkiraan", which Android snaps to a 2 km grid. A presence check now asks for the precise
+ * upgrade once per fix; nothing else asks, and the answer is never read.
+ */
+describe('the precise upgrade on a coarse-only phone', () => {
+  const coarseOnly = { location: 'denied', coarseLocation: 'granted' };
+
+  /** A shell whose permission check answers `state`; returns every upgrade request it saw. */
+  function withPermissions(state: Record<string, string>, request: () => Promise<unknown>) {
+    const asked: unknown[] = [];
+    vi.stubGlobal('window', {
+      Capacitor: {
+        Plugins: {
+          Geolocation: {
+            checkPermissions: () => Promise.resolve(state),
+            requestPermissions: (o?: unknown) => {
+              asked.push(o);
+              return request();
+            },
+            getCurrentPosition: () =>
+              Promise.resolve({ coords: { latitude: -6.27, longitude: 106.96, accuracy: 2000 }, timestamp: 1 }),
+          },
+        },
+      },
+    });
+    return asked;
+  }
+
+  it('asks for precise location exactly once, then returns the fix it gets', async () => {
+    const asked = withPermissions(coarseOnly, () => Promise.resolve(coarseOnly));
+    await expect(currentPosition({ precise: true })).resolves.toMatchObject({
+      coords: { latitude: -6.27, accuracy: 2000 },
+    });
+    expect(asked).toEqual([{ permissions: ['location'] }]);
+  });
+
+  it('asks nothing when precise location is already granted', async () => {
+    const asked = withPermissions({ location: 'granted', coarseLocation: 'granted' }, () => Promise.resolve({}));
+    await currentPosition({ precise: true });
+    expect(asked).toEqual([]);
+  });
+
+  it.each([
+    ['coarse', {}],
+    ['pin', { pin: true }],
+  ])('asks nothing in %s mode', async (_mode, options) => {
+    const asked = withPermissions(coarseOnly, () => Promise.resolve({}));
+    await expect(currentPosition(options)).resolves.toMatchObject({ coords: { latitude: -6.27 } });
+    expect(asked).toEqual([]);
+  });
+
+  it('keeps the fix when the upgrade request itself fails', async () => {
+    const { calls } = withGeolocation(position(-1));
+    const asked = withPermissions(coarseOnly, () => Promise.reject(new Error('no activity')));
+    await expect(currentPosition({ precise: true })).resolves.toMatchObject({ coords: { latitude: -6.27 } });
+    expect(asked).toHaveLength(1);
+    // Still the native fix: a failed upgrade is not a reason to fall back to the web API.
+    expect(calls).toHaveLength(0);
+  });
+});

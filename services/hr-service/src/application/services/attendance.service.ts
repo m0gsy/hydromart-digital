@@ -22,7 +22,7 @@ import {
 import { Attendance, AttendanceStatus, Employee, Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { addDays, depotOn } from '../../domain/depot-on';
-import { withinGeofence } from '../../domain/geofence';
+import { Geofence, geofenceEnabled, isApproximateFix, withinGeofence } from '../../domain/geofence';
 import { latenessFor } from '../../domain/lateness';
 import {
   assignmentInForce,
@@ -53,12 +53,15 @@ import {
   DEPOT_ASSIGNMENT_REPOSITORY,
   DepotAssignmentRepository,
 } from '../ports/depot-assignment.repository';
+import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
 
 export interface FacePunch {
   image: Buffer;
   photoUrl: string | null;
   lat: number;
   lng: number;
+  /** The phone's own accuracy for that fix, in metres; absent from older clients. */
+  accuracyM?: number | null;
   /** Device time for a punch queued offline; null for a live punch. */
   capturedAt?: Date | null;
 }
@@ -82,6 +85,9 @@ export class AttendanceService {
     // Only the history import asks it: a month whose slip is closed is not rewritten.
     @Optional() @Inject(PAYROLL_REPOSITORY) private readonly payrolls?: PayrollRepository,
     @Optional() @Inject(NOTIFICATION_PORT) private readonly notifications?: NotificationPort,
+    // Where a depot stands, for a fence HR switched on without placing a point. Absent, only
+    // HR's own point fences.
+    @Optional() @Inject(DEPOT_DIRECTORY_PORT) private readonly directory?: DepotDirectoryPort,
   ) {}
 
   /**
@@ -188,7 +194,11 @@ export class AttendanceService {
     const at = offlineAt ?? now;
     const { workDate, minutesOfDay } = this.localParts(at, this.config.timeZone);
     const workDepotId = await this.workDepotOn(employee, localDayKey(at, this.config.timeZone));
-    const { holdForReview } = this.geofenceOutcome({ depotId: workDepotId }, user, punch);
+    const { holdForReview } = await this.geofenceOutcome(
+      { id: employee.id, depotId: workDepotId },
+      user,
+      punch,
+    );
     const score = await this.assertFace(employee, punch);
 
     // Late is measured against THIS employee's shift for THIS day (C3), falling back to the
@@ -378,8 +388,8 @@ export class AttendanceService {
     this.offlineAt(punch, now, employee.depotId); // refuses a punch past the offline age limit
     // Fenced by the depot the shift was STAMPED with at check-in, not whatever the live row
     // says now: closing a shift that began before the sweep moved someone is that shift's depot.
-    const { holdForReview } = this.geofenceOutcome(
-      { depotId: row.depotId ?? employee.depotId },
+    const { holdForReview } = await this.geofenceOutcome(
+      { id: employee.id, depotId: row.depotId ?? employee.depotId },
       user,
       punch,
     );
@@ -477,17 +487,54 @@ export class AttendanceService {
     return updated;
   }
 
-  /** Reject a punch taken outside the depot's attendance geofence (no-op if unconfigured). */
-  private assertGeofence(depotId: string | null, punch: FacePunch): void {
-    const { ok, distanceM } = withinGeofence(this.config.geofence(depotId), punch.lat, punch.lng);
-    if (!ok) {
-      throw new ForbiddenException(
-        // Approximate location ("Perkiraan") reads a kilometre off with GPS on (2026-11-21).
-        `Di luar area absen depot (${distanceM} m dari titik). Absen harus di lokasi. ` +
-          'Kalau sudah di sana, lokasi HP belum akurat: di izin lokasi aplikasi pilih "Tepat" (bukan "Perkiraan"), ' +
-          'nyalakan GPS, tunggu sebentar, lalu coba lagi.',
-      );
+  /**
+   * The fence a punch at this depot is measured against. On when its radius is above 0; the
+   * centre is HR's point when both halves are set, else the depot's own master coordinates —
+   * one place per depot, the one the courier fence reads. With neither (depot-service cannot
+   * say) the fence is off for this punch: the GPS is recorded, nobody is locked out on a
+   * lookup. A null depot (the network) has no place of its own.
+   */
+  private async fenceFor(depotId: string | null): Promise<Geofence> {
+    const g = this.config.geofence(depotId);
+    if (g.radiusM <= 0 || (g.lat !== null && g.lng !== null) || !depotId) return g;
+    const centre = await this.directory?.location(depotId);
+    if (!centre) {
+      this.logger.warn(`Geofence of depot ${depotId} is on but has no centre: punch not fenced`);
+      return g;
     }
+    return { ...centre, radiusM: g.radiusM };
+  }
+
+  /**
+   * Reject a punch taken outside the depot's attendance geofence (no-op if unconfigured).
+   *
+   * An approximate fix ("Perkiraan", Android's 2 km grid) outside is refused for what it is:
+   * the 2026-11-21 refusals at Galaxy and Pekayon were phones on that grid, 1.8 km "away"
+   * while standing at the depot, and no radius absorbs that. Inside, it still passes.
+   */
+  private async assertGeofence(
+    employeeId: string,
+    depotId: string | null,
+    punch: FacePunch,
+  ): Promise<void> {
+    const fence = await this.fenceFor(depotId);
+    const { ok, distanceM } = withinGeofence(fence, punch.lat, punch.lng);
+    if (ok) return;
+    const approximate = isApproximateFix(punch.lat, punch.lng, punch.accuracyM);
+    // What HR is asked about afterwards; never the coordinates themselves.
+    this.logger.warn(
+      `Punch refused outside the fence: employee ${employeeId}, depot ${depotId ?? '-'}, ` +
+        `${distanceM} m, radius ${fence.radiusM} m, accuracy ${punch.accuracyM ?? '?'} m, approximate ${approximate}`,
+    );
+    throw new ForbiddenException(
+      approximate
+        ? 'Lokasi HP masih "Perkiraan" (bisa meleset sampai ±2 km), jadi tidak bisa dipakai untuk absen. ' +
+            'Buka Setelan HP → Aplikasi → Hydromart → Izin → Lokasi, nyalakan "Gunakan lokasi akurat" (Tepat), ' +
+            'nyalakan GPS, lalu coba lagi.'
+        : `Di luar area absen depot (${distanceM} m dari titik, batas ${fence.radiusM} m). Absen harus di lokasi. ` +
+            'Kalau sudah di sana, lokasi HP belum akurat: di izin lokasi aplikasi pilih "Tepat" (bukan "Perkiraan"), ' +
+            'nyalakan GPS, tunggu sebentar, lalu coba lagi.',
+    );
   }
 
   /**
@@ -498,7 +545,8 @@ export class AttendanceService {
    * An employee ABOVE a depot (Asisten SPV and up carry no `depotId`) has no single place
    * to stand: they punch at whichever depot they are supervising that day. So the punch is
    * measured against every depot in their resolved scope — the set DepotScopeGuard already
-   * put on the request, so this costs no lookup — and inside ANY of them is on-site.
+   * put on the request, so finding it costs no lookup (a fence centred on a depot's master
+   * location costs one, cached) — and inside ANY of them is on-site.
    *
    * Outside all of them is NOT a refusal. Refusing would strand a supervisor who is
    * genuinely at a site whose geofence nobody configured; letting it through silently
@@ -507,36 +555,29 @@ export class AttendanceService {
    *
    * Returns `holdForReview`. Never throws for the no-home-depot case.
    */
-  private geofenceOutcome(
-    employee: Pick<Employee, 'depotId'>,
+  private async geofenceOutcome(
+    employee: Pick<Employee, 'id' | 'depotId'>,
     user: AuthenticatedUser,
     punch: FacePunch,
-  ): { holdForReview: boolean } {
+  ): Promise<{ holdForReview: boolean }> {
     if (employee.depotId) {
-      this.assertGeofence(employee.depotId, punch);
+      await this.assertGeofence(employee.id, employee.depotId, punch);
       return { holdForReview: false };
     }
 
     const scope = user.depotIds ?? [];
     // Nothing to measure against: no supervised depots, or none of them has a fence
     // configured. Keep the standing rule for an unconfigured fence — record the GPS,
-    // don't block, don't bother HR.
-    const fenced = scope.filter((id) => this.isFenced(id));
-    if (fenced.length === 0) {
-      this.assertGeofence(null, punch);
+    // don't block, don't bother HR. Each depot's fence at once; the location cache makes
+    // the repeat cheap.
+    const fences = (await Promise.all(scope.map((id) => this.fenceFor(id)))).filter(geofenceEnabled);
+    if (fences.length === 0) {
+      await this.assertGeofence(employee.id, null, punch);
       return { holdForReview: false };
     }
 
-    const onSite = fenced.some(
-      (id) => withinGeofence(this.config.geofence(id), punch.lat, punch.lng).ok,
-    );
+    const onSite = fences.some((g) => withinGeofence(g, punch.lat, punch.lng).ok);
     return { holdForReview: !onSite };
-  }
-
-  /** True when this depot actually has an attendance geofence configured. */
-  private isFenced(depotId: string): boolean {
-    const g = this.config.geofence(depotId);
-    return g.lat !== null && g.lng !== null && g.radiusM > 0;
   }
 
   /** Depot-scoped attendance log for the HR dashboard / manager (their own depot only). */

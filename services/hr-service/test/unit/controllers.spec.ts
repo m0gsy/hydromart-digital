@@ -197,7 +197,11 @@ describe('AttendanceController', () => {
     const punch = att.checkIn.mock.calls[0][1];
     expect(att.checkIn.mock.calls[0][0]).toBe(user);
     expect(Buffer.isBuffer(punch.image)).toBe(true);
-    expect(punch).toMatchObject({ photoUrl: null, lat: 1, lng: 2 });
+    expect(punch).toMatchObject({ photoUrl: null, lat: 1, lng: 2, accuracyM: null });
+  });
+  it('check-in forwards the phone accuracy when the client sends it', () => {
+    c.checkIn({ image: b64, lat: 1, lng: 2, accuracyM: 2000 } as never, user);
+    expect(att.checkIn.mock.calls.at(-1)?.[1]).toMatchObject({ accuracyM: 2000 });
   });
   it('check-out passes through optional fields', () => {
     const dto = { image: dataUrl, photoUrl: 'p', live: true, lat: 3, lng: 4 } as never; // `live` is accepted and ignored (B-7)

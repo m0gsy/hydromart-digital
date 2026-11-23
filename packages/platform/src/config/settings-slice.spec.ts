@@ -23,6 +23,16 @@ const DEFS: SettingDef[] = [
     envDefault: '09.00-11.00',
     pattern: '^\\d{2}\\.\\d{2}-\\d{2}\\.\\d{2}$',
   },
+  // Where ONE depot stands: a number kept as text ('' = not set), never a network default.
+  {
+    key: 'pointLat',
+    label: 'Titik',
+    type: 'string',
+    envDefault: '',
+    min: -90,
+    max: 90,
+    depotOnly: true,
+  },
 ];
 const BY_KEY: Record<string, SettingDef> = Object.assign(
   Object.create(null),
@@ -80,7 +90,28 @@ describe('SettingsSliceService', () => {
       netWide: 1,
       goldDiscountPct: 5,
       slots: '09.00-11.00',
+      pointLat: '',
     });
+  });
+
+  // An edit at GLOBAL does not reach a depot with its own row; the GLOBAL view says which.
+  it('lists the depots that replaced a value in the GLOBAL view only', async () => {
+    const { repo, service } = build();
+    repo.rows = [
+      { scope: 'GLOBAL', depotId: null, key: 'radiusKm', value: '9' },
+      { scope: 'DEPOT', depotId: 'd1', key: 'radiusKm', value: '12' },
+      { scope: 'DEPOT', depotId: 'd2', key: 'radiusKm', value: '3' },
+      { scope: 'DEPOT', depotId: 'd1', key: 'pointLat', value: '-6.2' },
+      { scope: 'DEPOT', depotId: 'd1', key: 'retired', value: 'x' },
+    ];
+    expect((await service.schema(null)).overrides).toEqual({
+      radiusKm: [
+        { depotId: 'd1', value: '12' },
+        { depotId: 'd2', value: '3' },
+      ],
+      pointLat: [{ depotId: 'd1', value: '-6.2' }],
+    });
+    expect(await service.schema('d1')).not.toHaveProperty('overrides');
   });
 
   it('prefers a depot override over the global row', async () => {
@@ -231,6 +262,29 @@ describe('SettingsSliceService', () => {
     const { repo, service } = build();
     await service.put(put({ key: 'slots', value: '13.00-15.00' }));
     expect(repo.upserts[0].value).toBe('13.00-15.00');
+  });
+
+  // A network default for where ONE depot stands puts every other depot in the wrong place.
+  it('refuses a GLOBAL value for a per-depot setting, and takes it per depot', async () => {
+    const { repo, service } = build();
+    await expect(service.put(put({ key: 'pointLat', value: '-6.2' }))).rejects.toThrow(
+      'pointLat is a per-depot setting; no network default',
+    );
+    await service.put(put({ scope: 'DEPOT', depotId: 'd1', key: 'pointLat', value: '-6.2' }));
+    expect(repo.upserts).toEqual([expect.objectContaining({ key: 'pointLat', value: '-6.2' })]);
+  });
+
+  // A string def with a range is a number kept as text: '' is "not set", the rest must be one.
+  it.each([
+    ['', null],
+    ['-6.2001', null],
+    ['abc', 'must be a number'],
+    ['-90.5', 'below min -90'],
+    ['90.5', 'above max 90'],
+  ])('range-checks the text %p of a ranged string setting', (value, refusal) => {
+    const v = () => build().service.validate({ scope: 'DEPOT', depotId: 'd1', key: 'pointLat', value });
+    if (refusal) expect(v).toThrow(refusal);
+    else expect(v().coerced).toBe(value);
   });
 
   it('refuses a DEPOT reset with no depot, and passes GLOBAL through as null', async () => {

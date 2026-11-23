@@ -9,20 +9,33 @@ import { useToast } from '@/components/toast';
 import { Button, Card, ErrorState, Input, SectionHeader, Skeleton } from '@/components/ui';
 import { useAuth } from '@/lib/auth-context';
 import { api, ApiError } from '@/lib/api';
+import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
 import type { SettingsSchema } from '@/lib/hr';
 import { isSuperAdmin } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
+
+/**
+ * The two halves of the attendance point. Named here, unlike `long` and `global`, because the
+ * line under them is about these keys alone: where the fence centre comes from when they are
+ * empty — the depot's own master location, as for the courier fence.
+ */
+const POINT_KEYS = ['geofenceLat', 'geofenceLng'];
 
 export default function HrSettingsPage() {
   const { t } = useT();
   const { customer } = useAuth();
   const { toast } = useToast();
   const { confirm } = useConfirm();
+  // The picker's own list (same context, no second fetch): names for the override line, and
+  // the picked depot's master location.
+  const { depots } = useDepot();
   const superAdmin = isSuperAdmin(customer?.role);
   const [scope, setScope] = useState<'GLOBAL' | 'DEPOT'>('GLOBAL');
   const [depotId, setDepotId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const picked = scope === 'DEPOT' ? depots.find((d) => d.id === depotId) : undefined;
+  const depotName = (id: string) => depots.find((d) => d.id === id)?.name ?? id.slice(0, 8);
 
   const effDepot = scope === 'DEPOT' && depotId ? depotId : undefined;
   const { data, error, loading, reload } = useAsync<SettingsSchema>(
@@ -125,7 +138,13 @@ export default function HrSettingsPage() {
         <Card className="divide-y divide-[color:var(--border)]">
           {data.defs.map((d) => {
             // Global-only keys: no per-depot override, and only SUPER_ADMIN may write the global one.
-            const locked = !!d.global && (scope === 'DEPOT' || !superAdmin);
+            // Depot-only keys (the attendance point): there is no network default to write. One
+            // point for the whole network would put every other depot's staff kilometres off it.
+            const locked =
+              (!!d.global && (scope === 'DEPOT' || !superAdmin)) || (!!d.depotOnly && scope === 'GLOBAL');
+            // Only the network view carries them, and `data` outlives a scope switch while the next
+            // read is in flight — so asked of the scope, not of the data alone.
+            const overrides = scope === 'GLOBAL' ? data.overrides?.[d.key] : undefined;
             return (
             <div key={d.key} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div className="min-w-0">
@@ -142,6 +161,25 @@ export default function HrSettingsPage() {
                   {String(data.effective[d.key] ?? '') || t('hrFix.settings.notFilled')}
                 </p>
                 {d.global && <p className="text-xs text-muted">{t('hrFix.settings.globalOnlyKey')}</p>}
+                {d.depotOnly && scope === 'GLOBAL' && (
+                  <p className="text-xs text-muted">{t('hrFix.settings.depotOnlyKey')}</p>
+                )}
+                {/* A network default says nothing about the depots that replaced it; this does.
+                    An empty row is a real override too (an empty point = the depot's own location). */}
+                {!!overrides?.length && (
+                  <p className="text-xs text-muted">
+                    {t('hrFix.settings.overriddenBy', {
+                      list: overrides
+                        .map((o) => `${depotName(o.depotId)} ${o.value ? `(${o.value})` : t('hrFix.settings.notFilled')}`)
+                        .join(', '),
+                    })}
+                  </p>
+                )}
+                {POINT_KEYS.includes(d.key) && picked?.lat != null && picked.lng != null && (
+                  <p className="text-xs text-muted">
+                    {t('hrFix.settings.masterLocation', { lat: picked.lat, lng: picked.lng })}
+                  </p>
+                )}
               </div>
               <div className="flex items-start gap-2">
                 {/* CONTROLLED, and keyed to the scope: an uncontrolled box kept the previous

@@ -236,13 +236,16 @@ export class DepotController {
   @Public()
   @UseGuards(InternalAuthGuard)
   @Get('internal/:id/active')
-  @ApiOperation({ summary: 'Whether one depot is open, and its name (internal service auth)' })
+  @ApiOperation({
+    summary: 'Whether one depot is open, its name and location (internal service auth)',
+  })
   async internalActive(
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ active: boolean; name: string }> {
+  ): Promise<{ active: boolean; name: string; lat: number; lng: number }> {
     const depot = await this.depots.get(id, false);
-    // The name rides along so a payslip can print where the pay was split to.
-    return { active: depot.active, name: depot.name };
+    // The name rides along so a payslip can print where the pay was split to; the location so
+    // the attendance fence is centred on the depot's own coordinates when HR set no point.
+    return { active: depot.active, name: depot.name, lat: depot.lat, lng: depot.lng };
   }
 
   /**

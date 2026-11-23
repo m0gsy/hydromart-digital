@@ -76,6 +76,11 @@ export class SettingsCache {
     return resolveRaw(key, depotId, this.rows);
   }
 
+  /** The per-depot rows of the last snapshot: which depot replaced which network value. */
+  depotRows(): readonly SettingRow[] {
+    return this.rows.filter((r) => r.scope === 'DEPOT');
+  }
+
   effective(
     key: string,
     type: SettingType,

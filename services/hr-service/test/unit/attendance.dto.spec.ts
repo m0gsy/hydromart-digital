@@ -65,6 +65,16 @@ describe('offline punch DTOs', () => {
     expect(failedProps(FacePunchDto, punch)).toEqual([]);
   });
 
+  // The phone's own accuracy: optional (older clients send none), metres, never negative.
+  it('accepts an accuracy in metres and refuses one that is not', () => {
+    expect(failedProps(FacePunchDto, { ...punch, accuracyM: 2000 })).toEqual([]);
+    expect(failedProps(FacePunchDto, { ...punch, accuracyM: -1 })).toContain('accuracyM');
+    expect(
+      failedProps(FacePunchDto, { ...punch, accuracyM: '15' as unknown as number }),
+    ).toContain('accuracyM');
+    expect(failedProps(FacePunchDto, { ...punch, accuracyM: 2 ** 31 })).toContain('accuracyM');
+  });
+
   it('rejects PENDING on manual entry and adjustment', () => {
     expect(
       failedProps(ManualAttendanceDto, {

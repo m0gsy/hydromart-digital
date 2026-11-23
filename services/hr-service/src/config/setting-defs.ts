@@ -16,6 +16,8 @@ export interface SettingDef {
   pattern?: string;
   /** Global-only tunable: no per-depot override is offered (server rejects DEPOT scope). */
   global?: boolean;
+  /** Per-depot only: no network default is offered (server rejects GLOBAL scope). */
+  depotOnly?: boolean;
   /**
    * CA-1-41: this value is a document, not a figure — a regulation table measured in
    * kilobytes. Stated on the DEF rather than guessed from the key or sniffed from the unit
@@ -361,19 +363,31 @@ export const SETTING_DEFS: SettingDef[] = [
     envDefault: '',
     pattern: '^$|^\\d+:\\d+(,\\d+:\\d+)*$',
   },
+  // The attendance point of ONE depot, so per depot only: a network default would fence every
+  // other depot around somebody else's door. Empty = the depot's own master coordinates
+  // (depot-service), the same point the courier fence uses. Dot-decimal only: "-6,2001" and a
+  // pasted "-6.25, 106.97" used to be stored and then read as no point at all.
   {
     key: 'geofenceLat',
     label: 'Titik absen — lintang',
     type: 'string',
-    unit: 'desimal (mis. -6.2001)',
+    unit: 'desimal pakai titik (mis. -6.2001); kosong = lokasi depot',
     envDefault: '',
+    min: -90,
+    max: 90,
+    pattern: '^$|^-?\\d{1,3}(\\.\\d+)?$',
+    depotOnly: true,
   },
   {
     key: 'geofenceLng',
     label: 'Titik absen — bujur',
     type: 'string',
-    unit: 'desimal (mis. 106.8123)',
+    unit: 'desimal pakai titik (mis. 106.8123); kosong = lokasi depot',
     envDefault: '',
+    min: -180,
+    max: 180,
+    pattern: '^$|^-?\\d{1,3}(\\.\\d+)?$',
+    depotOnly: true,
   },
   // Face thresholds (x100: 62 = 0.62). Global-only and SUPER_ADMIN-only to write: they decide
   // who may punch in and who is flagged as a duplicate, network-wide. ENV is the initial default.
