@@ -653,6 +653,10 @@ if ! stack_lock 900; then
   exit 1
 fi
 
+# .env and its backups were readable by every account on the box (664). Owner-only from here on,
+# on every deploy, so a copy someone makes by hand is closed again too (lib/deploy-common.sh).
+lock_env_files
+
 PREV_SHA="$(git rev-parse HEAD)"
 log "current HEAD $PREV_SHA"
 

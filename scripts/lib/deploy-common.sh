@@ -522,3 +522,21 @@ watchdog_unhealthy_step() {
     echo "$cur|0|none"
   fi
 }
+
+# The box's .env and the copies kept beside it hold every production secret: env-set.sh's
+# .env.bak-<stamp> backups, hand-made ones (.env.bak2, .env.bak.reviewer, .env.bak-preaudit),
+# and a crashed write's .env.tmp*. Owner-only. Everything that reads them runs as the owner
+# (deploy.sh, the cron jobs in this user's crontab, docker compose), and root's crontab is empty;
+# measured 2026-11-23 they were all 664, readable by every account on the box. env-set.sh copies
+# with `cp -p`, so a backup made after this keeps 600. The templates (.env.example,
+# .env.production.example) hold no secret and are left alone; a symlink is never followed.
+# A file that cannot be changed is reported, never fatal: a deploy must not stop over a mode.
+lock_env_files() {
+  local f
+  for f in .env .env.bak* .env.tmp*; do
+    if [ -f "$f" ] && [ ! -L "$f" ]; then
+      chmod 600 "$f" 2>/dev/null || echo "!! could not make $f owner-only (chmod 600)" >&2
+    fi
+  done
+  return 0
+}
