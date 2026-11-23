@@ -61,6 +61,37 @@ describe('LoginService', () => {
     expect(await customers.findByPhone('+6281234567890')).not.toBeNull();
   });
 
+  // HD-8: this door signs people up too, so it keeps where they came from, like /register.
+  it('keeps the campaign codes on a number it signs up, and a lone one as both', async () => {
+    const create = jest.spyOn(customers, 'create');
+    await service.requestLogin({
+      phone: '081234567890',
+      firstSource: 'pameran',
+      lastSource: 'meta-iklan',
+      context: ctx,
+    });
+    expect(create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstSource: 'pameran', lastSource: 'meta-iklan' }),
+    );
+    await service.requestLogin({ phone: '081234567891', lastSource: 'qr-depot', context: ctx });
+    expect(create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstSource: 'qr-depot', lastSource: 'qr-depot' }),
+    );
+    await service.requestLogin({ phone: '081234567892', context: ctx });
+    expect(create).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstSource: null, lastSource: null }),
+    );
+  });
+
+  it('creates nothing, and so records no code, for a number that already has an account', async () => {
+    const customer = makeCustomer();
+    customers.seed(customer);
+    const create = jest.spyOn(customers, 'create');
+    await service.requestLogin({ phone: customer.phone, firstSource: 'pameran', context: ctx });
+    expect(create).not.toHaveBeenCalled();
+    expect((await customers.findByPhone(customer.phone))?.firstSource).toBeNull();
+  });
+
   it('answers a half-finished signup the same way, so the two are indistinguishable', async () => {
     const pending = makeCustomer({ status: CustomerStatus.PENDING_VERIFICATION });
     customers.seed(pending);

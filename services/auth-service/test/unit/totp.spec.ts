@@ -153,7 +153,15 @@ function setup(env: Record<string, string> = { TOTP_ENCRYPTION_KEY: KEY }) {
   const auditLog = new InMemoryAuditLogRepository();
   const clock = new FakeClock(NOW);
   const sms = new FakeOtpDelivery();
-  const otp = new OtpService(new InMemoryOtpTokenRepository(), sms, new FakeCrypto(), clock, config);
+  // The store's createdAt must come from the same clock as the service's now: from the real
+  // clock, a fixed NOW became a date bomb the day it was written for.
+  const otp = new OtpService(
+    new InMemoryOtpTokenRepository(() => clock.now()),
+    sms,
+    new FakeCrypto(),
+    clock,
+    config,
+  );
   const service = new TotpService(repo, customers, clock, new AuditService(auditLog), config, otp);
   const person = (role: Role): Customer => {
     const customer = makeCustomer({ role });

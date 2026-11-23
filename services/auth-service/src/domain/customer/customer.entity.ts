@@ -16,6 +16,9 @@ export interface CustomerProps {
   plateNumber: string | null;
   phoneVerifiedAt: Date | null;
   lastLoginAt: Date | null;
+  /** HD-8: campaign codes a self-registration carried; read for the data export only. */
+  firstSource?: string | null;
+  lastSource?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -71,6 +74,12 @@ export class Customer {
   }
   get lastLoginAt(): Date | null {
     return this.props.lastLoginAt;
+  }
+  get firstSource(): string | null {
+    return this.props.firstSource ?? null;
+  }
+  get lastSource(): string | null {
+    return this.props.lastSource ?? null;
   }
   get createdAt(): Date {
     return this.props.createdAt;

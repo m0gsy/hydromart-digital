@@ -41,6 +41,7 @@ import {
 } from '../../src/modules/auth/dto/staff.dto';
 import { SessionInfoDto } from '../../src/modules/auth/dto/responses.dto';
 import { RegisterDto } from '../../src/modules/auth/dto/register.dto';
+import { LoginDto } from '../../src/modules/auth/dto/login.dto';
 import { buildTestConfig } from '../support/fakes';
 
 const baseProps = (overrides: Partial<CustomerProps> = {}): CustomerProps => ({
@@ -81,6 +82,16 @@ describe('RegisterDto campaign codes', () => {
 
   it('needs neither', () => {
     expect(validateSync(plainToInstance(RegisterDto, { phone: '081234567890' }))).toHaveLength(0);
+  });
+
+  // /login signs an unknown number up too (AUTH-3), so it checks the same shape.
+  it('holds LoginDto to the same shape', () => {
+    const login = (code: unknown) =>
+      plainToInstance(LoginDto, { phone: '081234567890', firstSource: code, lastSource: code });
+    expect(validateSync(login('qr-depot-bdg01'))).toHaveLength(0);
+    expect(validateSync(plainToInstance(LoginDto, { phone: '081234567890' }))).toHaveLength(0);
+    const fields = validateSync(login('Pameran')).map((e) => e.property);
+    expect(fields).toEqual(expect.arrayContaining(['firstSource', 'lastSource']));
   });
 });
 

@@ -49,9 +49,8 @@ afterEach(() => {
  * browser followed, and the latest), beside the consent the server now records.
  */
 describe('/waralaba: the source of an application', () => {
-  it('sends the first code this browser kept and the latest, from this very link', async () => {
-    localStorage.setItem('hydromart.source', JSON.stringify({ first: 'pameran-jkt', last: 'pameran-jkt' }));
-    window.history.replaceState({}, '', '/waralaba?src=meta-iklan-bdg');
+  it('sends the first code this browser kept and the latest', async () => {
+    localStorage.setItem('hydromart.source', JSON.stringify({ first: 'pameran-jkt', last: 'meta-iklan-bdg' }));
     render(<FranchiseApplicationPage />, { wrapper: LocaleProvider });
     fillAndSend();
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));

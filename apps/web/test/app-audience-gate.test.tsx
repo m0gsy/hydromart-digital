@@ -101,6 +101,33 @@ describe('the shared /login door', () => {
     expect(await sendNumber('phone')).toEqual({ phone: '081234567890' });
   });
 
+  // HD-8: an unknown number is signed up through this door, so it carries the campaign codes.
+  describe('with campaign codes kept in this browser', () => {
+    beforeEach(() => {
+      localStorage.setItem('hydromart.source', JSON.stringify({ first: 'pameran', last: 'qr-depot' }));
+    });
+    afterEach(() => {
+      localStorage.removeItem('hydromart.source');
+    });
+
+    it('sends them from the customer app and the web', async () => {
+      inCustomerApp();
+      render(<LoginPage />, { wrapper: LocaleProvider });
+      expect(await sendNumber('phone')).toEqual({
+        phone: '081234567890',
+        audience: 'CUSTOMER',
+        firstSource: 'pameran',
+        lastSource: 'qr-depot',
+      });
+    });
+
+    it('keeps them out of the staff door, which never signs anyone up', async () => {
+      inOpsApp();
+      render(<LoginPage />, { wrapper: LocaleProvider });
+      expect(await sendNumber('phone')).toEqual({ phone: '081234567890', audience: 'STAFF' });
+    });
+  });
+
   it('says why a session was sent back to it from the wrong app', async () => {
     inOpsApp();
     search = 'reason=not-staff';

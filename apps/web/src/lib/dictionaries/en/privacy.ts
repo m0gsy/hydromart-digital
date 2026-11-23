@@ -12,7 +12,7 @@ export const privacy: typeof base = {
     },
     {
       heading: 'Data we collect',
-      body: 'When you register and order: your name, phone number, email (optional), and delivery address. When an order is delivered, the courier captures proof of delivery — a hand-over photo, the recipient’s signature, the recipient’s name, and the GPS location and time of hand-over. If you open our site through a link or QR code that carries a campaign code (for example from an exhibition, a depot poster or an ad), that code is kept on your device and recorded with your signup or your franchise application. The code only says which campaign brought you, not who you are or which pages you opened.',
+      body: 'When you register and order: your name, phone number, email (optional), and delivery address. When an order is delivered, the courier captures proof of delivery — a hand-over photo, the recipient’s signature, the recipient’s name, and the GPS location and time of hand-over. If you open our site through a link or QR code that carries a campaign code (for example from an exhibition, a depot poster or an ad), that code is kept on your device and recorded with your signup or your franchise application. The code holds only the campaign’s name; it does not record which pages you opened.',
     },
     {
       heading: 'Device location',
@@ -32,7 +32,7 @@ export const privacy: typeof base = {
     },
     {
       heading: 'Storage & retention',
-      body: 'Account data is kept while your account is active. Proof-of-delivery data (photo, signature, recipient name, location) is kept for at most 12 months after hand-over, then deleted automatically. Photo/signature files in object storage are removed by a bucket lifecycle rule on the same schedule. A payment-proof photo you upload when paying is kept for at most 12 months after the payment, after which the file is deleted from object storage — the payment record itself is retained as a financial record, without the photo. If you apply for a franchise partnership through the public form, the name, WhatsApp number, and proposed-site location you enter are kept so we can review that application; rejected applications are deleted at most 24 months after the decision.',
+      body: 'Account data is kept while your account is active. Proof-of-delivery data (photo, signature, recipient name, location) is kept for at most 12 months after hand-over, then deleted automatically. Photo/signature files in object storage are removed by a bucket lifecycle rule on the same schedule. A payment-proof photo you upload when paying is kept for at most 12 months after the payment, after which the file is deleted from object storage — the payment record itself is retained as a financial record, without the photo. If you apply for a franchise partnership through the public form, the name, WhatsApp number, and proposed-site location you enter are kept so we can review that application; rejected applications are deleted at most 24 months after the decision. A campaign code on your device stays until you clear the site’s or the app’s data; one recorded with your account or application lasts as long as that account or application, and is removed when your account is deleted.',
     },
     {
       heading: 'Security',

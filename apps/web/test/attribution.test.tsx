@@ -2,6 +2,9 @@
 import { render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const nav = vi.hoisted(() => ({ query: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(nav.query) }));
+
 import { SourceCapture } from '@/components/source-capture';
 import { captureSource, readSources } from '@/lib/attribution';
 
@@ -13,13 +16,26 @@ afterEach(() => {
 
 describe('SourceCapture (in the root layout)', () => {
   it('notes the code of the link a visit opened with, on any page, and draws nothing', () => {
-    window.history.replaceState({}, '', '/products?src=poster-depot-dpk01');
+    nav.query = 'src=poster-depot-dpk01';
     const { container } = render(<SourceCapture />);
     expect(container.innerHTML).toBe('');
     expect(readSources()).toEqual({
       firstSource: 'poster-depot-dpk01',
       lastSource: 'poster-depot-dpk01',
     });
+  });
+
+  // The shell never remounts: an in-app link or a deep link arrives as a navigation, onto the
+  // same screen too, so what counts is the query changing, not the path.
+  it('notes a coded link again whenever the query changes, the first one staying first', () => {
+    nav.query = 'src=pameran-jkt';
+    const view = render(<SourceCapture />);
+    nav.query = 'src=banner-beranda&x=1';
+    view.rerender(<SourceCapture />);
+    expect(readSources()).toEqual({ firstSource: 'pameran-jkt', lastSource: 'banner-beranda' });
+    nav.query = '';
+    view.rerender(<SourceCapture />);
+    expect(readSources().lastSource).toBe('banner-beranda');
   });
 });
 
@@ -62,6 +78,12 @@ describe('lib/attribution', () => {
   it('accepts the longest code there is, and lower-cases what a link shouts', () => {
     captureSource(`?src=${'X'.repeat(64)}`);
     expect(readSources().firstSource).toBe('x'.repeat(64));
+  });
+
+  it('starts the first source over when the stored one is not a code', () => {
+    localStorage.setItem('hydromart.source', JSON.stringify({ first: 'NOT A CODE', last: 'x' }));
+    captureSource('?src=pameran');
+    expect(readSources()).toEqual({ firstSource: 'pameran', lastSource: 'pameran' });
   });
 
   it('reads nothing from a store somebody edited by hand', () => {

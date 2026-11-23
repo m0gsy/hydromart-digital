@@ -18,6 +18,9 @@ export interface LoginRequestCommand {
    * never registered. 'CUSTOMER' (the customer app): a staff login is refused, sent to Ops.
    */
   audience?: 'STAFF' | 'CUSTOMER';
+  /** HD-8: campaign codes, kept only when this request signs a new number up. */
+  firstSource?: string;
+  lastSource?: string;
   context: RequestContext;
 }
 
@@ -74,8 +77,18 @@ export class LoginService {
     if (command.audience === 'CUSTOMER' && existing && existing.role !== Role.CUSTOMER) {
       throw new StaffAccountError();
     }
+    // HD-8: a new number signs up here as on /register, with the same campaign codes, both or
+    // neither. A number that already has an account keeps the codes it signed up with.
     const customer =
-      existing ?? (await this.customers.create({ phone, email: null, fullName: null, role: Role.CUSTOMER }));
+      existing ??
+      (await this.customers.create({
+        phone,
+        email: null,
+        fullName: null,
+        role: Role.CUSTOMER,
+        firstSource: command.firstSource ?? command.lastSource ?? null,
+        lastSource: command.lastSource ?? command.firstSource ?? null,
+      }));
 
     const registering = customer.status === CustomerStatus.PENDING_VERIFICATION;
     if (!registering) customer.ensureCanAuthenticate();

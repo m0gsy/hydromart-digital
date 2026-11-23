@@ -117,6 +117,13 @@ describe('AuthController', () => {
     expect(res).toEqual(CHALLENGE_RESPONSE);
   });
 
+  it('login() forwards the campaign codes (HD-8)', async () => {
+    await controller.login({ phone: '+628123456789', firstSource: 'pameran', lastSource: 'qr' }, req);
+    expect(login.requestLogin).toHaveBeenCalledWith(
+      expect.objectContaining({ firstSource: 'pameran', lastSource: 'qr' }),
+    );
+  });
+
   it('login() passes a staff door through to the service', async () => {
     await controller.login({ phone: '+628123456789', audience: 'STAFF' }, req);
     expect(login.requestLogin).toHaveBeenCalledWith({

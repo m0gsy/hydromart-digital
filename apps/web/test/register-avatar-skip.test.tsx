@@ -80,9 +80,8 @@ describe('/register: where the signup came from', () => {
     return post.mock.calls[0]?.[1] as Record<string, unknown>;
   }
 
-  it('sends the first code this browser kept and the latest, from this very link', async () => {
-    localStorage.setItem('hydromart.source', JSON.stringify({ first: 'pameran-jkt', last: 'pameran-jkt' }));
-    window.history.replaceState({}, '', '/register?src=qr-depot-bdg01');
+  it('sends the first code this browser kept and the latest', async () => {
+    localStorage.setItem('hydromart.source', JSON.stringify({ first: 'pameran-jkt', last: 'qr-depot-bdg01' }));
     await expect(send()).resolves.toMatchObject({
       firstSource: 'pameran-jkt',
       lastSource: 'qr-depot-bdg01',

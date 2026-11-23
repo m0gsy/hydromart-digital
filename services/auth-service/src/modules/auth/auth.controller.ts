@@ -84,6 +84,8 @@ export class AuthController {
     const result = await this.loginService.requestLogin({
       phone: dto.phone,
       audience: dto.audience,
+      firstSource: dto.firstSource,
+      lastSource: dto.lastSource,
       context: getRequestContext(req),
     });
     return OtpChallengeResponseDto.from(result);

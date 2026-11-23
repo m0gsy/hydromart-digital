@@ -45,6 +45,8 @@ export function toCustomerEntity(row: PrismaCustomer): Customer {
     plateNumber: row.plateNumber,
     phoneVerifiedAt: row.phoneVerifiedAt,
     lastLoginAt: row.lastLoginAt,
+    firstSource: row.firstSource,
+    lastSource: row.lastSource,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });

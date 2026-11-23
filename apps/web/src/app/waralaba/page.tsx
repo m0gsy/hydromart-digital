@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { CrosshairSimple } from '@phosphor-icons/react';
 
 import { PrivacyLink } from '@/components/privacy-sheet';
 import { Button, Card, Field, FormError, Input } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
-import { captureSource, readSources } from '@/lib/attribution';
+import { readSources } from '@/lib/attribution';
 import { endpoints } from '@/lib/endpoints';
 import { currentPosition } from '@/lib/geo';
 import { toIndonesianE164 } from '@/lib/format';
@@ -54,8 +54,6 @@ export default function FranchiseApplicationPage() {
    */
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
-  // HD-8: a link the app opened by navigating (not loading) still counts as where they came from.
-  useEffect(() => captureSource(window.location.search), []);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);

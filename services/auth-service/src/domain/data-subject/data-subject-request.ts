@@ -52,6 +52,9 @@ export interface AnonymisedIdentity {
   fullName: string;
   avatarUrl: null;
   googleSub: null;
+  /** HD-8: the campaign codes go with the identity they were linked to. */
+  firstSource: null;
+  lastSource: null;
 }
 
 /** Tombstone that keeps the UNIQUE constraint satisfiable without carrying a number. */
@@ -62,6 +65,8 @@ export function anonymisedIdentity(customerId: string): AnonymisedIdentity {
     fullName: 'Pengguna dihapus',
     avatarUrl: null,
     googleSub: null,
+    firstSource: null,
+    lastSource: null,
   };
 }
 

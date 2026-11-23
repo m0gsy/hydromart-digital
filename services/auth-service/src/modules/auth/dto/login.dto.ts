@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+
+import { SOURCE_CODE_PATTERN } from './register.dto';
 
 export class LoginDto {
   @ApiProperty({ description: 'Registered phone number.', example: '081234567890' })
@@ -16,4 +18,26 @@ export class LoginDto {
   @IsOptional()
   @IsIn(['STAFF', 'CUSTOMER'])
   audience?: 'STAFF' | 'CUSTOMER';
+
+  /*
+   * HD-8: a number with no account is signed up here too (AUTH-3), so this door carries the
+   * same campaign codes as /register. Ignored for a number that already has an account.
+   */
+  @ApiPropertyOptional({
+    example: 'qr-depot-bdg01',
+    description: 'Campaign code of the first coded link; kept only when this signs a new number up.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(SOURCE_CODE_PATTERN, { message: 'firstSource bukan kode sumber yang sah.' })
+  firstSource?: string;
+
+  @ApiPropertyOptional({
+    example: 'meta-iklan-bandung',
+    description: 'Campaign code of the latest coded link; kept only when this signs a new number up.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(SOURCE_CODE_PATTERN, { message: 'lastSource bukan kode sumber yang sah.' })
+  lastSource?: string;
 }
