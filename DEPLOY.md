@@ -276,6 +276,67 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v
 > Tip: alias the long invocation once —
 > `alias dcp='docker compose -f docker-compose.yml -f docker-compose.prod.yml'`.
 
+### The AI web (HD-9) — a second compose project on this box
+
+[`infra/aiweb/docker-compose.yml`](infra/aiweb/docker-compose.yml) runs the AI web
+(m0gsy/hydromart-ai) as project `hydromart-ai`: `aiweb` (the app), `db` (its own Postgres, never
+hydromart's) and `migrate` (a one-shot job). Caddy serves it at `https://ai.hydromart-digital.com`
+from [`infra/caddy/sites/aiweb.caddy`](infra/caddy/sites/aiweb.caddy) over the `edge` network.
+
+- **Every deploy** runs [`scripts/aiweb-secrets.sh`](scripts/aiweb-secrets.sh) before its
+  converge and [`scripts/aiweb-deploy.sh`](scripts/aiweb-deploy.sh) after `DEPLOY OK`. The first
+  makes, on the box, every key whose line is absent from `.env` (`AIWEB_*` database passwords,
+  `AI_TOKEN_SIGNING_KEY`, `TOTP_ENCRYPTION_KEY`, `AI_WEB_RETURN_URL`), through `env-set.sh`, never
+  printing a value; `.env`'s nightly encrypted backup carries them off the box.
+  `TOTP_ENCRYPTION_KEY` is made only while `hydromart_auth.totp_credentials` is empty (a
+  read-only count): over sealed secrets a new key would be data loss, so it writes nothing,
+  alerts, and the old key comes back from the `.env` backup. The second pulls any missing image
+  by digest (logged in with the Deploy job's own token, logged out at once), starts the
+  database, applies [`infra/aiweb/roles.sql`](infra/aiweb/roles.sql) (`ai_owner` owns database
+  `ai` and migrates; `ai_app` exists), migrates as `ai_owner` (15 minutes at most), only then
+  gives `ai_app` its password ([`infra/aiweb/app-role.sql`](infra/aiweb/app-role.sql), row
+  privileges only), starts the app until `/api/health` is healthy, and probes. The probe tries
+  every address of every running hydromart container on every TCP port it exposes, from inside
+  the app's container: only no answer at all (a timeout) or no route counts as isolated, while a
+  connection or a refusal is a breach, and the app's own database must open or the probe counts
+  itself blind. It also checks that only Caddy and `aiweb` sit on `edge`, that nothing publishes
+  a host port and that no host port hydromart publishes opens, that the public URL answers, and
+  that `ai_app` holds exactly `INSERT, SELECT` on its two record tables. Every target is printed
+  with its outcome.
+- **A failure there never fails hydromart's deploy.** It prints `[aiweb] !!` lines, alerts once
+  (again when the reason or the release changes, else weekly) and leaves the AI web as it was:
+  a refused pull or a failed migration does not touch the running app, nor the password it
+  connects with. deploy.sh stops the step after 30 minutes.
+- **A release is a PR** that changes the two `ghcr.io/m0gsy/hydromart-ai@sha256:` digests in the
+  compose file (hydromart-ai's CI prints both for every commit on its main). To go back, revert
+  that PR; a migration it applied stays applied, so every AI web migration must be
+  expand/contract: the release before it must still run on the new schema.
+- **Kill switch for AI tokens:** keep the line and blank it (`AI_TOKEN_SIGNING_KEY=` through
+  deploy mode `env-set`, `services` = `auth`). Deleting the line instead makes a new key on the
+  next deploy.
+- **Its first appearance takes two deploys:** deploy.sh changes run one release late (its own
+  header says why), so the deploy that merges HD-9 only reloads Caddy (the certificate). Press
+  Deploy (mode `deploy`) once after it to bring the AI web up.
+
+By hand, on the box:
+
+```bash
+alias dca='docker compose -f infra/aiweb/docker-compose.yml --env-file .env'
+dca ps; dca logs -f aiweb
+bash scripts/aiweb-deploy.sh --probe   # the isolation probe, against what runs now
+bash scripts/aiweb-deploy.sh           # a full run; a missing image needs the Deploy workflow's token
+```
+
+Not covered yet:
+
+- **The AI web's database has no backup.** `backup-db.sh` and the restore drill dump hydromart's
+  Postgres only.
+- **What the AI web may reach on the host and the network is not decided.** The probe prints
+  whether it reaches the host's ssh (port 22 on the edge gateway) and the cloud metadata address
+  (`169.254.169.254:80`), and never fails on either: the owner decides whether to block them.
+- The watchdog converges hydromart only (the AI web relies on `restart: unless-stopped`).
+- docker-gc keeps the AI web's images, so old releases stay on disk until removed by hand.
+
 ### Backups + restore drill (host cron)
 
 [`scripts/backup-db.sh`](scripts/backup-db.sh) dumps the whole Postgres cluster

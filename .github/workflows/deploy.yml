@@ -145,6 +145,11 @@ jobs:
     permissions:
       contents: read
       actions: read
+      # HD-9: pull the AI web's private images (ghcr.io/m0gsy/hydromart-ai). That package gives
+      # this repository's Actions read access, so this job's own token can pull it. The token is
+      # handed to the box for this run only (GHCR_TOKEN below) and expires with the job: no
+      # long-lived registry credential is kept on the server.
+      packages: read
     # A hung job holds the queue for GitHub's default SIX HOURS otherwise; a CI run
     # stalled two of them on a two-minute download and nothing said so.
     # Must stay ABOVE `command_timeout` (120m) further down, or this cap silently overrides
@@ -399,7 +404,7 @@ jobs:
           # DEPLOY_SHA rides the same way (M26): the commit whose CI went green, handed to
           # deploy.sh so it stops choosing its own target. Empty on manual dispatch, which
           # keeps "deploy whatever the tip is" as a deliberate button.
-          envs: ENV_SET_BLOCK,DEPLOY_SHA,RESET_CONFIRM,ALERT_WEBHOOK_URL_2
+          envs: ENV_SET_BLOCK,DEPLOY_SHA,RESET_CONFIRM,ALERT_WEBHOOK_URL_2,GHCR_TOKEN,GHCR_USER
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"
@@ -465,3 +470,8 @@ jobs:
           RESET_CONFIRM: ${{ github.event.inputs.confirm }}
           ALERT_WEBHOOK_URL_2: ${{ secrets.ALERT_WEBHOOK_URL_2 }}
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+          # HD-9: only the two paths that run scripts/deploy.sh get it; deploy.sh hands it to
+          # scripts/aiweb-deploy.sh alone, which logs in on the box with it (on stdin, in a
+          # throwaway docker config), pulls the pinned digests and logs out.
+          GHCR_TOKEN: ${{ (github.event_name == 'workflow_run' || inputs.mode == 'deploy' || inputs.mode == 'deploy-all') && github.token || '' }}
+          GHCR_USER: ${{ github.actor }}

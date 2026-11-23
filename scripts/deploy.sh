@@ -33,6 +33,13 @@ STATE_DIR=".deploy"; mkdir -p "$STATE_DIR"
 LAST_GOOD="$STATE_DIR/last-good-sha"
 BRANCH="${DEPLOY_BRANCH:-main}"
 
+# HD-9: the Deploy workflow's own GITHUB_TOKEN (packages: read), for pulling the AI web's private
+# images. Out of the environment at once, so scripts/aiweb-deploy.sh is the only child of this
+# deploy that is ever handed it. It dies with the workflow job: nothing long-lived on the box.
+AIWEB_GHCR_TOKEN="${GHCR_TOKEN:-}"
+AIWEB_GHCR_USER="${GHCR_USER:-}"
+unset GHCR_TOKEN GHCR_USER
+
 log() { echo "[deploy] $*"; }
 
 # ---------------------------------------------------------------- standing probes
@@ -890,6 +897,18 @@ if [ "$IMAGE_N" -gt 0 ]; then
     > "$STATE_DIR/image-cost" || log "!! could not record the image-step cost"
 fi
 
+# HD-9: the keys the AI web and auth-service's side of its sign-in need, made on this box for
+# every one whose line is absent from .env (a present line, blank included, is a decision and
+# is left alone: blank AI_TOKEN_SIGNING_KEY is the AI-token kill switch). HERE, before the
+# converge, so auth-service is recreated with a new key under this deploy's own health gate. A
+# failure writes nothing and costs the AI web only, which then says what is missing.
+if bash scripts/aiweb-secrets.sh; then
+  alert_clear aiweb-secrets
+else
+  log "!! could not make the AI web's missing keys; the AI web step after the gate names them"
+  alert_once aiweb-secrets "aiweb-secrets.sh failed on deploy: the AI web's missing keys were not made"
+fi
+
 # rebuild-stale only `up -d`s the services it rebuilt, so anything outside that set
 # (Caddy, and any container an earlier batch or anything else left down) stays stopped.
 # One idempotent converge brings the whole project to its declared state — and is what
@@ -1116,6 +1135,22 @@ if health_ok; then
   echo "$PREV_SHA" > "$STATE_DIR/prev-sha"   # one step back, for manual rollback
   echo "$NEW_SHA" > "$LAST_GOOD"
   log "DEPLOY OK → $NEW_SHA (previous good: $PREV_SHA)"
+  # HD-9: the AI web, the second compose project (infra/aiweb/). After the gate, on purpose:
+  # hydromart is already live and recorded as good, nothing below can roll it back, and the AI
+  # web never runs a release hydromart then rolls back from under it. Its own script pulls,
+  # migrates, starts and probes it, alerts on its own failure, and touches nothing of
+  # hydromart's; `||` keeps that failure from ever becoming this deploy's, and `timeout` keeps
+  # a hung step from holding the deploy queue: 30 minutes, then TERM (the script still alerts
+  # and logs out of the registry), then KILL a minute later, which only this line can report.
+  AIWEB_RC=0
+  GHCR_TOKEN="$AIWEB_GHCR_TOKEN" GHCR_USER="$AIWEB_GHCR_USER" \
+    timeout --kill-after=60 1800 bash scripts/aiweb-deploy.sh || AIWEB_RC=$?
+  if [ "$AIWEB_RC" != 0 ]; then
+    log "!! the AI web was NOT deployed or is not isolated (exit $AIWEB_RC; 124 = stopped after 30 minutes): its [aiweb] lines say why; hydromart is unaffected"
+  fi
+  if [ "$AIWEB_RC" = 137 ]; then
+    alert_once aiweb "AI web step killed after 31 minutes on deploy $NEW_SHA, past its own alert: read the [aiweb] lines in the deploy log"
+  fi
   # C1 — prove the scheduler's clock instead of assuming it. Compose sets TZ on that
   # container, but alpine had no zone files to read it with, so it ran UTC and every cron
   # time landed seven hours late while looking perfectly healthy. Asking the container what
