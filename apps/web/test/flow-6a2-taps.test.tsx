@@ -56,6 +56,17 @@ describe('a feed row links only where its reader may go', () => {
     // Without a reader, as before.
     expect(feedHref('/hr/me/leave?id=l-1', undefined)).toBe('/hr/me/leave?id=l-1');
   });
+
+  // AI-5: crm's destination for a new franchise application.
+  it('opens a new franchise application for the roles that review it, and only for them', () => {
+    const application = '/hq/applications/detail?id=app-1';
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR']) {
+      expect(feedHref(application, role, true)).toBe(application);
+      expect(pushTarget(application, role)).toBe(application);
+    }
+    expect(feedHref(application, 'MANAGER', true)).toBeNull();
+    expect(pushTarget(application, 'MANAGER')).not.toBe(application);
+  });
 });
 
 function Selected() {

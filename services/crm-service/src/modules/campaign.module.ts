@@ -2,7 +2,7 @@ import { Module, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard, DepotScopeGuard } from '@hydromart/platform';
+import { AUDIT_MUTATION_SINK, JwtAuthGuard, RolesGuard, DepotScopeGuard } from '@hydromart/platform';
 
 import { CrmConfigService } from '../config/crm-config.service';
 import { CRM_TOKENS } from '../application/tokens';
@@ -29,9 +29,11 @@ import { ApproverDirectoryHttpAdapter } from '../infrastructure/http/approver-di
 import { DepotOverseersHttpAdapter } from '../infrastructure/http/depot-overseers.http.adapter';
 import { NotificationPreferenceHttpAdapter } from '../infrastructure/http/notification-preference.http.adapter';
 import { ActivitySegmentHttpAdapter } from '../infrastructure/http/activity-segment.http.adapter';
+import { CrmAuditSink } from '../infrastructure/http/audit.sink';
 import { CampaignController } from './campaign.controller';
 import { SavedSegmentController } from './saved-segment.controller';
 import { NotificationController } from './notification.controller';
+import { NotificationExternalController } from './notification-external.controller';
 import { BroadcastController } from './broadcast.controller';
 import { PushController } from './push.controller';
 
@@ -63,6 +65,8 @@ const providers: Provider[] = [
   WebPushSenderAdapter,
   FcmSenderAdapter,
   { provide: CRM_TOKENS.PushSender, useClass: CompositePushSender },
+  // AI-5: the trail AuditMutationsInterceptor writes to, on the routes that attach it.
+  { provide: AUDIT_MUTATION_SINK, useClass: CrmAuditSink },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -70,7 +74,14 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [CampaignController, SavedSegmentController, NotificationController, BroadcastController, PushController],
+  controllers: [
+    CampaignController,
+    SavedSegmentController,
+    NotificationController,
+    NotificationExternalController,
+    BroadcastController,
+    PushController,
+  ],
   providers,
   exports: [PrismaService, CrmConfigService],
 })

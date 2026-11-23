@@ -38,6 +38,7 @@ export const notifications = {
     PRICE_OVERRIDE_PROPOSED: 'Usulan perubahan harga',
     EXPENSE_CLAIM_SUBMITTED: 'Klaim biaya menunggu persetujuan',
     REFUND_REQUESTED: 'Refund menunggu persetujuan',
+    FRANCHISE_APPLICATION_SUBMITTED: 'Lamaran waralaba baru',
     PAYMENT_FAILED: 'Pembayaran belum berhasil',
     PAYMENT_REMINDER: 'Selesaikan pembayaran',
     REFUND_PROCESSED: 'Refund diproses',

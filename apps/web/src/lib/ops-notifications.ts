@@ -53,6 +53,8 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   // A courier's claim is a courier matter; a refund is about an order.
   EXPENSE_CLAIM_SUBMITTED: 'courier',
   REFUND_REQUESTED: 'orders',
+  // AI-5: a prospective franchise partner is a sales lead, and "Sales" is who it is for.
+  FRANCHISE_APPLICATION_SUBMITTED: 'sales',
   COURIER_DELIVERY_ASSIGNED: 'courier',
   DELIVERY_SLA_BREACHED: 'courier',
   STOCK_LOW: 'stock',

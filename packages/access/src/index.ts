@@ -509,7 +509,17 @@ export const CAPABILITIES = {
   // depot-service — HQ decides a depot's proposed price change.
   priceOverrideDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // depot-service — review/approve/reject a franchise application + its documents.
+  // crm-service (AI-5): also who is told a new one arrived (feed row and push).
   franchiseApplications: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  /*
+   * crm-service (AI-5) — raise the "new franchise application" notification
+   * (POST notifications/external/franchise-application-submitted). Held by the n8n machine
+   * account through its token's `scopes`, the only way that route admits a caller; no human
+   * role needs it, and SUPER_ADMIN holds every capability anyway. Who is TOLD is
+   * `franchiseApplications` above. In CUSTOM_FORBIDDEN: it writes into head office's feed and
+   * wakes their phones, network-wide, so no custom role or per-depot grant may hold it.
+   */
+  franchiseApplicationNotify: ['SUPER_ADMIN'],
   // promo-service — RETIRED: the voucher-request flow was removed, nothing enforces this any more.
   // Kept only so a stored matrix row naming it still validates.
   voucherRequestDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
@@ -989,6 +999,9 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   // reach every depot: refused for every role, like the rest of this list.
   'legalEntityAiAccess',
   'legalEntityAdmin',
+  // AI-5: the n8n machine account's, never a person's. A network-wide write into head office's
+  // feed with no depot fence, so a per-depot GRANT of it would reach every depot.
+  'franchiseApplicationNotify',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

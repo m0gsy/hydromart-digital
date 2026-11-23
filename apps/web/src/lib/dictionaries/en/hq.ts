@@ -316,6 +316,7 @@ export const hq = {
       kasbonApprove: 'Approve cash advance (the depot’s assistant SPV)',
       priceOverrideDecide: 'Decide a depot price proposal',
       franchiseApplications: 'Decide franchise applications',
+      franchiseApplicationNotify: 'Raise the new franchise application notification (n8n machine account)',
       voucherRequestDecide: 'Decide voucher requests',
       fraudReview: 'Review fraud flags',
       refundIssue: 'Raise a refund',

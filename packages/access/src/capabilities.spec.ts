@@ -142,6 +142,17 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('legalEntityAdmin');
   });
 
+  // AI-5: n8n raises "new franchise application" with its machine token's scopes; the people
+  // told are the ones who review applications, and nobody else gets to raise it.
+  it('leaves raising the franchise-application notification to the machine account', () => {
+    expect(CAPABILITIES.franchiseApplicationNotify).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING', 'MANAGER']) {
+      expect(can('franchiseApplicationNotify', role)).toBe(false);
+    }
+    expect(CUSTOM_FORBIDDEN).toContain('franchiseApplicationNotify');
+    expect(CAPABILITIES.franchiseApplications).toEqual(['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);
