@@ -17,7 +17,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
+import { INT4_MAX, IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 /** Max base64 length for one captured frame (~1.4 MB decoded). */
 export const MAX_FRAME = 2_000_000;
@@ -78,6 +78,12 @@ export class FacePunchDto {
   /** GPS captured at punch time (FR + GPS + timestamp). Required for check-in/out. */
   @IsNumber() @Min(-90) @Max(90) lat!: number;
   @IsNumber() @Min(-180) @Max(180) lng!: number;
+  /**
+   * The phone's accuracy for that fix, in metres. Optional: older clients and punches queued
+   * before it was sent carry none. A loose one (Android "Perkiraan") outside the fence is
+   * refused as approximate rather than as a distance (2026-11-23).
+   */
+  @IsOptional() @IsNumber() @Min(0) @Max(INT4_MAX) accuracyM?: number;
 
   /**
    * Device time this punch was taken, for a punch queued offline. Absent = live punch, which

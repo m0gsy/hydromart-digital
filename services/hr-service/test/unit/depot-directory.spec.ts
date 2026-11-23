@@ -1,4 +1,4 @@
-import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 
 import { DepotAssignmentApplier } from '../../src/application/services/depot-assignment-applier.service';
 import { DepotAssignmentService } from '../../src/application/services/depot-assignment.service';
@@ -38,6 +38,57 @@ describe('DepotDirectoryHttpAdapter', () => {
     await expect(a.isActive(P)).rejects.toThrow(/tidak terjangkau/);
     jest.spyOn(global, 'fetch').mockRejectedValueOnce('plain');
     await expect(a.isActive(P)).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  // The attendance fence's centre when HR placed no point: best effort, and asked once per TTL.
+  describe('location', () => {
+    const body = (b: Record<string, unknown>) => new Response(JSON.stringify(b));
+
+    it('reads the master coordinates and keeps them for ten minutes', async () => {
+      let now = Date.parse('2026-11-23T03:00:00.000Z');
+      jest.spyOn(Date, 'now').mockImplementation(() => now);
+      const fetchMock = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(body({ active: true, lat: -6.2615, lng: 106.9371 }))
+        .mockResolvedValueOnce(body({ active: true, lat: -6.3, lng: 106.9 }));
+      const a = new DepotDirectoryHttpAdapter(cfg());
+      await expect(a.location(P)).resolves.toEqual({ lat: -6.2615, lng: 106.9371 });
+      now += 9 * 60_000;
+      await expect(a.location(P)).resolves.toEqual({ lat: -6.2615, lng: 106.9371 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      now += 60_000;
+      await expect(a.location(P)).resolves.toEqual({ lat: -6.3, lng: 106.9 });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    // A depot-service from before it sent coordinates is an answer too: nothing to centre on.
+    it('is null, and stays cached, when the answer carries no usable coordinates', async () => {
+      const fetchMock = jest
+        .spyOn(global, 'fetch')
+        .mockResolvedValueOnce(body({ active: true, lat: 'x', lng: 106.9 }))
+        .mockResolvedValueOnce(body({ active: true }));
+      const a = new DepotDirectoryHttpAdapter(cfg());
+      await expect(a.location(P)).resolves.toBeNull();
+      await expect(a.location(P)).resolves.toBeNull();
+      await expect(a.location(G)).resolves.toBeNull();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('never throws: a failed lookup is null and logged, and asked again next time', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+      const fetchMock = jest
+        .spyOn(global, 'fetch')
+        .mockRejectedValueOnce(new Error('ECONNREFUSED'))
+        .mockResolvedValueOnce(new Response('', { status: 404 }))
+        .mockResolvedValueOnce(body({ lat: -6.2, lng: 106.8 }));
+      const a = new DepotDirectoryHttpAdapter(cfg());
+      await expect(a.location(P)).resolves.toBeNull();
+      await expect(a.location(P)).resolves.toBeNull();
+      await expect(a.location(P)).resolves.toEqual({ lat: -6.2, lng: 106.8 });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(new RegExp(`${P}.*tidak terjangkau`)));
+      await expect(new DepotDirectoryHttpAdapter(cfg('', 'k')).location(P)).resolves.toBeNull();
+    });
   });
 
   it('refuses to guess when it is not configured', async () => {

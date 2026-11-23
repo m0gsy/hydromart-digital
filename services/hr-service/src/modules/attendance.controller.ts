@@ -208,6 +208,7 @@ export class AttendanceController {
       photoUrl: dto.photoUrl ?? null,
       lat: dto.lat,
       lng: dto.lng,
+      accuracyM: dto.accuracyM ?? null,
       capturedAt: dto.capturedAt ? new Date(dto.capturedAt) : null,
     };
   }

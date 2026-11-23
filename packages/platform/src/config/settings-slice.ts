@@ -21,7 +21,15 @@ export interface SettingDef {
   pattern?: string;
   /** true = GLOBAL scope only; a per-depot override is refused. */
   global?: boolean;
+  /**
+   * true = DEPOT scope only; a GLOBAL value is refused. For a value that describes one depot
+   * (where it stands), so a network default would put every other depot in the wrong place.
+   */
+  depotOnly?: boolean;
 }
+
+/** Per key, the depots that replaced the network value (the GLOBAL view of `schema`). */
+export type SettingOverrides = Record<string, Array<{ depotId: string; value: string }>>;
 
 export interface SettingsSliceRepository extends SettingsSource {
   upsert(row: SettingRow & { updatedBy: string }): Promise<void>;
@@ -92,16 +100,30 @@ export abstract class SettingsSliceService {
     protected readonly defByKey: Record<string, SettingDef>,
   ) {}
 
-  async schema(
-    depotId: string | null,
-  ): Promise<{ defs: SettingDef[]; effective: Record<string, number | string> }> {
+  async schema(depotId: string | null): Promise<{
+    defs: SettingDef[];
+    effective: Record<string, number | string>;
+    /** GLOBAL view only (no depotId): where a depot replaced the value shown. */
+    overrides?: SettingOverrides;
+  }> {
     // Q-7: a read, so the cache's own TTL decides whether this costs a query.
     await this.cache.ensureFresh();
     const effective: Record<string, number | string> = {};
     for (const def of this.defs) {
       effective[def.key] = this.cache.effective(def.key, def.type, def.envDefault, depotId);
     }
-    return { defs: this.defs, effective };
+    if (depotId !== null) return { defs: this.defs, effective };
+    // The network value is not what a depot with its own row runs on, and an edit here does
+    // not reach it: the GLOBAL view says which depots those are.
+    const rows = this.cache.depotRows();
+    const overrides: SettingOverrides = {};
+    for (const def of this.defs) {
+      const own = rows.filter((r) => r.key === def.key);
+      if (own.length > 0) {
+        overrides[def.key] = own.map((r) => ({ depotId: r.depotId as string, value: r.value }));
+      }
+    }
+    return { defs: this.defs, effective, overrides };
   }
 
   /**
@@ -123,13 +145,24 @@ export abstract class SettingsSliceService {
     if (def.global && input.scope === 'DEPOT') {
       throw new BadRequestException(`${input.key} is a global-only setting; no per-depot override`);
     }
+    if (def.depotOnly && input.scope === 'GLOBAL') {
+      throw new BadRequestException(`${input.key} is a per-depot setting; no network default`);
+    }
     assertStorable(def, input.value);
     const coerced = coerce(input.value, def.type);
     if (def.type === 'string' && def.pattern && !new RegExp(def.pattern).test(String(coerced))) {
       throw new BadRequestException(`${input.key} must match ${def.pattern}`);
     }
-    if (def.type !== 'string') {
-      const n = coerced as number;
+    // A `string` def with a range is a number kept as text, where '' means "not set" (a
+    // coordinate): anything else in it must be a number in that range.
+    const ranged =
+      def.type !== 'string' ||
+      (input.value.trim() !== '' && (def.min != null || def.max != null));
+    if (ranged) {
+      const n = Number(coerced);
+      if (!Number.isFinite(n)) {
+        throw new BadRequestException(`${input.key} must be a number — got "${input.value}"`);
+      }
       if (def.min != null && n < def.min) {
         throw new BadRequestException(`${input.key} below min ${def.min}`);
       }

@@ -234,7 +234,11 @@ export class HrConfigService {
   performanceSalesTarget(depotId: string | null = null): number {
     return this.tunableNum('perfSalesTargetMonthly', 0, depotId);
   }
-  /** Attendance geofence for a depot: centre (lat/lng, '' = unset) + radius (0 = disabled). */
+  /**
+   * Attendance geofence settings for a depot: HR's point (lat/lng, '' = unset) + radius
+   * (0 = disabled). Settings only: an unset point means the depot's master location, which
+   * AttendanceService looks up (it is not a setting).
+   */
   geofence(depotId: string | null = null): {
     lat: number | null;
     lng: number | null;

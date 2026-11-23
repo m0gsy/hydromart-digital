@@ -17,4 +17,10 @@ export interface DepotDirectoryPort {
    * depot could not be named, so an unknown id is simply absent from the map.
    */
   names(depotIds: readonly string[]): Promise<Map<string, string>>;
+  /**
+   * The depot's own master coordinates: the attendance fence's centre when HR set no point.
+   * Best effort: null when the depot is unknown or depot-service cannot answer, never a
+   * throw. A punch must not fail because the fence could not be located; it goes unfenced.
+   */
+  location(depotId: string): Promise<{ lat: number; lng: number } | null>;
 }

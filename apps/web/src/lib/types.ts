@@ -1512,6 +1512,12 @@ export interface Depot {
   acceptsTransfer?: boolean;
   acceptsQris?: boolean;
   city: string;
+  /**
+   * The depot's master location. `PublicDepotView` (browse, `/depots/scope`) always sends it;
+   * optional because not every place that fills this shape has it.
+   */
+  lat?: number;
+  lng?: number;
   /** Per-galon delivery fee. Checkout previews the ongkir from the depot the customer picks. */
   deliveryFee: number;
   minOrderAmount: number | null;

@@ -18,6 +18,19 @@ describe('GET depots/internal/:id/active', () => {
     expect(get).toHaveBeenCalledWith(DEPOT, false);
   });
 
+  // hr-service centres an attendance fence on these when HR placed no point of its own.
+  it('names the depot and says where it stands', async () => {
+    const c = controller(
+      jest.fn().mockResolvedValue({ active: true, name: 'Galaxy', lat: -6.2615, lng: 106.9371, code: 'GLX' }),
+    );
+    await expect(c.internalActive(DEPOT)).resolves.toEqual({
+      active: true,
+      name: 'Galaxy',
+      lat: -6.2615,
+      lng: 106.9371,
+    });
+  });
+
   it('lets a depot that does not exist be a 404', async () => {
     const c = controller(jest.fn().mockRejectedValue(new NotFoundException('Depot tidak ditemukan')));
     await expect(c.internalActive(DEPOT)).rejects.toBeInstanceOf(NotFoundException);

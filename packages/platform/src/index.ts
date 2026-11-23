@@ -176,6 +176,7 @@ export {
 export {
   SettingsSliceService,
   type SettingDef,
+  type SettingOverrides,
   type SettingsSliceRepository,
   type PutSettingInput,
 } from './config/settings-slice';
