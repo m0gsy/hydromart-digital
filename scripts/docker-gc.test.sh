@@ -104,6 +104,42 @@ removed="$(grep '^rmi ' "$tmp/ai.log" | sed 's/^rmi //' | sort | tr '\n' ' ')"
 check "with no earlier release in history, only the pinned and in-use images stay" \
   "$(d 12) $(d 21) $(d 22) $(d 41) $(d 42) sha256:classic " "$removed"
 
+# AI-5 — n8n's image is pinned in the same file (n8n and n8n-setup), and kept like the app's: the
+# digest pinned now and the one before. Three versions: no n8n yet, n8n 51, then only n8n moved
+# to 61. Kept: app 31, migrate 32, n8n 61 (now) and n8n 51 (the release before); removed: n8n 71,
+# pinned nowhere.
+repo3="$tmp/repo3"
+mkdir -p "$repo3/infra/aiweb"
+git -C "$repo3" init -q
+pin3() { # <n8n digest or empty> <comment>
+  {
+    printf 'name: hydromart-ai\n# %s\nservices:\n  db:\n    image: postgres:16-alpine@%s\n' "$2" "$(d 9)"
+    printf '  migrate:\n    image: ghcr.io/m0gsy/hydromart-ai@%s\n  aiweb:\n    image: ghcr.io/m0gsy/hydromart-ai@%s\n' "$(d 32)" "$(d 31)"
+    [ -z "$1" ] || printf '  n8n:\n    image: ghcr.io/m0gsy/hydromart-ai@%s\n  n8n-setup:\n    image: ghcr.io/m0gsy/hydromart-ai@%s\n' "$1" "$1"
+  } > "$repo3/infra/aiweb/docker-compose.yml"
+  git -C "$repo3" -c core.autocrlf=false add -A >/dev/null && git -C "$repo3" -c core.autocrlf=false -c user.name=t -c user.email=t@example.invalid commit -qm "$2" >/dev/null
+}
+pin3 '' 'before n8n'
+pin3 "$(d 51)" 'n8n arrives'
+pin3 "$(d 61)" 'n8n moves alone'
+cat > "$tmp/ai-docker3" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$tmp/ai3.log"
+case "\$1 \$2" in
+  "ps -a") case "\$*" in *Label*) printf 'hydromart\nhydromart-ai\n' ;; *) printf 'c1\n' ;; esac ;;
+  "ps -aq") printf 'c1\n' ;;
+  "inspect --format") printf '%s\n' sha256:not-an-ai-image ;;
+  "images -q") printf '%s\n' "$(d 31)" "$(d 32)" "$(d 51)" "$(d 61)" "$(d 71)" ;;
+  "image inspect") echo "ghcr.io/m0gsy/hydromart-ai@\${*: -1} " ;;
+esac
+exit 0
+EOF
+chmod +x "$tmp/ai-docker3"
+: > "$tmp/ai3.log"
+DOCKER_BIN="$tmp/ai-docker3" GC_INFRA_DIR="$repo3/infra" bash scripts/docker-gc.sh --old-images >/dev/null 2>&1
+removed="$(grep '^rmi ' "$tmp/ai3.log" | sed 's/^rmi //' | sort | tr '\n' ' ')"
+check "n8n's image: the pinned one and the one before stay, like the app's; one pinned nowhere goes" "$(d 71) " "$removed"
+
 # A compose file that pins no digest (tags only, or no image line at all) has nothing to keep by:
 # an empty keep list must never widen the prune to every AI web image no container uses.
 for shape in tags none; do

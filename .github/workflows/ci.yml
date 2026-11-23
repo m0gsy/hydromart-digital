@@ -357,6 +357,9 @@ jobs:
       # pinned by digest, nothing of hydromart's .env but AIWEB_* keys), every compose variable
       # it reads is in the env template, and its deploy can neither fail hydromart's deploy nor
       # call a breach a pass: proved against a fake docker, the key maker against a scratch .env.
+      # AI-5 adds n8n with exact exceptions (alone on its own egress network, its editor alone on
+      # 127.0.0.1, the app alone given ALERT_WEBHOOK_URL), its machine account in MACHINE_ACCOUNTS,
+      # and its nightly check, all held in the same self-test.
       - name: AI web compose policy (HD-9)
         run: node scripts/check-aiweb-compose.mjs
 

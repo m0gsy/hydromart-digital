@@ -15,5 +15,23 @@
 # server action, and Next refuses one whose Origin and Host differ.
 ai.hydromart-digital.com {
 	import hsts
+
+	# AI-5: n8n reports a failed workflow to /api/internal/n8n/failure over the private network,
+	# with the token the two share. From the public the app's internal routes do not exist: 404
+	# here, never forwarded, like hydromart's /metrics (../Caddyfile). check-aiweb-compose.mjs
+	# holds this block in place.
+	handle /api/internal/* {
+		respond 404
+	}
+	handle /api/internal {
+		respond 404
+	}
+
+	# AI-5: hydromart's signed events (POST /api/ingress/hd) are a few hundred bytes each; nothing
+	# bigger is read past 64 KB.
+	request_body /api/ingress/* {
+		max_size 64KB
+	}
+
 	reverse_proxy aiweb:3000
 }

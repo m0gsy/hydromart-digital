@@ -70,8 +70,9 @@ prune_images() {
 }
 
 # HD-9b — the AI web's own images (labelled com.docker.compose.project=hydromart-ai by its CI),
-# which nothing above ever removes: every release pulls an app and a migration image by digest,
-# and they piled up. Kept: the digests infra/aiweb/docker-compose.yml pins now, the ones the
+# which nothing above ever removes: every release pulls an app, a migration and (AI-5) an n8n image
+# by digest, and they piled up. Kept: the digests infra/aiweb/docker-compose.yml pins now (n8n's
+# with the app's: every digest in the file counts, whichever service names it), the ones the
 # file pinned before them (the previous release, a revert's rollback target, already here), and
 # any image a container uses, running or stopped. Everything else of that project goes, with
 # `docker rmi` and never -f, so the daemon refuses anything in use even if the list above missed

@@ -13,6 +13,11 @@
 #   4. deploy.sh runs the key maker before its converge and the AI web after DEPLOY OK, where
 #      it cannot fail the deploy and is stopped after 30 minutes, and deploy.yml hands over a
 #      token that can read packages.
+#   5. AI-5, n8n, through all of the above: its compose exceptions are exact; its keys and its
+#      machine account in MACHINE_ACCOUNTS are made, rotated, switched off and repaired without
+#      touching another account or writing what auth-service would refuse; its setup runs before
+#      ai_app's password and a failure leaves it off; the probe runs from inside it too; and the
+#      nightly check (scripts/aiweb-n8n-check.sh) alerts on drift and on a secret near its day.
 #
 #   bash scripts/aiweb.test.sh
 #
@@ -33,7 +38,8 @@ REAL_SLEEP="$(command -v sleep)"
 
 # ------------------------------------------------------------ the fake box, used by 2 and 3
 # docker: logs every call to $FAKE_LOG and its environment to $FAKE_ENVS, answers from FAKE_*.
-# The AI web: app1, db1. Hydromart: pg1, gw1, web1, caddy1 (on edge too), sched1 (no port).
+# The AI web: app1, db1, n8n1 (AI-5; none with FAKE_NO_N8N). Hydromart: pg1, gw1, web1, caddy1 (on
+# edge too), sched1 (no port).
 BIN="$W/bin"
 mkdir -p "$BIN"
 cat > "$BIN/docker" <<'EOF'
@@ -51,16 +57,24 @@ if [ "$1" = compose ]; then
         *"ALTER ROLE ai_app"*) echo "psql-file app-role" >> "$FAKE_LOG"; exit "${FAKE_APPROLE_RC:-0}" ;;
         *) echo "psql-file unknown" >> "$FAKE_LOG"; exit 9 ;;
       esac ;;
+    *" psql "*"has_table_privilege"*)
+      # What ai_app can do in effect, as the probe asks Postgres: nothing by default.
+      printf '%s\n' "${FAKE_EFFECTIVE:-}" ;;
     *" psql "*)
       if [ -n "${FAKE_GRANTS:-}" ]; then printf '%s\n' "$FAKE_GRANTS"; else
-        printf '%s\n' answer_trail:INSERT,SELECT kill_switch_events:INSERT,SELECT kill_switches:DELETE,INSERT,SELECT,UPDATE
+        printf '%s\n' answer_trail:INSERT,SELECT hd_events:INSERT,SELECT,UPDATE kill_switch_events:INSERT,SELECT kill_switches:DELETE,INSERT,SELECT,UPDATE
       fi ;;
     *" run "*" migrate "*)
       [ -z "${FAKE_MIGRATE_HANG:-}" ] || exec "$REAL_SLEEP" 30
       exit "${FAKE_MIGRATE_RC:-0}" ;;
+    *" run "*" n8n-setup "*)
+      echo "[n8n-setup] the fake setup ran" >&2
+      [ -z "${FAKE_SETUP_HANG:-}" ] || exec "$REAL_SLEEP" 30
+      exit "${FAKE_SETUP_RC:-0}" ;;
     *" up "*" db ") exit "${FAKE_DB_RC:-0}" ;;
     *" up "*) exit "${FAKE_APP_RC:-0}" ;;
     *" ps -q aiweb "*) echo app1 ;;
+    *" ps -q n8n "*) [ -n "${FAKE_NO_N8N:-}" ] || echo n8n1 ;;
     *" logs "*) echo "the app's last line" ;;
   esac
   exit 0
@@ -76,12 +90,14 @@ case "$1" in
   network)
     case "$args" in
       *IPAM*) echo "172.19.0.1 " ;;
+      *hydromart-ai_egress*) echo "n8n1 ${FAKE_EGRESS_EXTRA:-}" ;;
       *Containers*) echo "caddy1 app1 ${FAKE_EDGE_EXTRA:-}" ;;
     esac ;;
   ps)
     case "$args" in
       *project=hydromart-ai*service=migrate*) [ -z "${FAKE_MIGRATE_HANG:-}" ] || echo mig1 ;;
-      *project=hydromart-ai*) printf '%s\n' app1 db1 ;;
+      *project=hydromart-ai*service=n8n-setup*) [ -z "${FAKE_SETUP_HANG:-}" ] || echo setup1 ;;
+      *project=hydromart-ai*) printf '%s\n' app1 db1 $([ -n "${FAKE_NO_N8N:-}" ] || echo n8n1) ;;
       *service=caddy*) echo caddy1 ;;
       *Ports*)
         printf '%s\n' '127.0.0.1:5432->5432/tcp' '127.0.0.1:8080->8080/tcp' \
@@ -95,6 +111,7 @@ case "$1" in
         case "$target" in
           app1) echo "aiweb|edge hydromart-ai_private ${FAKE_EXTRA_NET:-}|${FAKE_BIND:-}" ;;
           db1) echo "db|hydromart-ai_private |" ;;
+          n8n1) echo "n8n|hydromart-ai_private hydromart-ai_egress ${FAKE_N8N_EXTRA_NET:-}|${FAKE_N8N_BIND-127.0.0.1:5678->5678/tcp }" ;;
         esac ;;
       *ExposedPorts*)
         case "$target" in
@@ -104,9 +121,12 @@ case "$1" in
           caddy1) echo "/hydromart-caddy-1|edge=172.19.0.2 hydromart_default=172.18.0.30 |80/tcp 443/tcp 443/udp 2019/tcp " ;;
           sched1) echo "/hydromart-scheduler-1|hydromart_default=172.18.0.3 |" ;;
         esac ;;
-      *compose.project*) case "$target" in caddy1) echo hydromart/caddy ;; app1) echo hydromart-ai/aiweb ;; gw1) echo hydromart/gateway ;; esac ;;
+      *compose.project*) case "$target" in caddy1) echo hydromart/caddy ;; app1) echo hydromart-ai/aiweb ;; gw1) echo hydromart/gateway ;; n8n1) echo hydromart-ai/n8n ;; esac ;;
     esac ;;
   exec)
+    # Which container is asked: app1 or n8n1 (`exec -i <id> ...` or `exec <id> ...`).
+    c="$2"
+    [ "$c" = -i ] && c="$3"
     case "$args" in
       *" totp_credentials "*)
         if [ -n "${FAKE_TOTP_FAIL:-}" ]; then echo 'psql: error: connection to server failed' >&2; exit 2; fi
@@ -114,7 +134,9 @@ case "$1" in
       *" node - "*)
         cat >/dev/null
         shift 5
-        printf '%s\n' "$@" > "$FAKE_ASKED"
+        asked="$FAKE_ASKED"
+        [ "$c" = app1 ] || asked="$FAKE_ASKED.$c"
+        printf '%s\n' "$@" > "$asked"
         for t in "$@"; do
           # The box as it is: own database open, names unknown, Caddy's front open, the host's
           # loopback ports refused, every other address dropped. FAKE_OUTCOMES overrides.
@@ -127,9 +149,19 @@ case "$1" in
           esac
           [ -n "${FAKE_DB_CLOSED:-}" ] && [ "$t" = db:5432 ] && o=timeout
           for pair in ${FAKE_OUTCOMES:-}; do [ "${pair%%=*}" = "$t" ] && o="${pair#*=}"; done
+          if [ "$c" = n8n1 ]; then
+            for pair in ${FAKE_N8N_OUTCOMES:-}; do [ "${pair%%=*}" = "$t" ] && o="${pair#*=}"; done
+          fi
           echo "$o $t CODE-${FAKE_CODE:-x}"
         done ;;
-      *" node -e "*) [ -z "${FAKE_JWKS_FAIL:-}" ] || exit 1; echo '{"keys":[{"kid":"k1"}]}' ;;
+      *" node -e "*)
+        [ -z "${FAKE_JWKS_FAIL:-}" ] || [ "$c" != app1 ] || exit 1
+        [ -z "${FAKE_N8N_JWKS_FAIL:-}" ] || [ "$c" != n8n1 ] || exit 1
+        echo '{"keys":[{"kid":"k1"}]}' ;;
+      *"drift.mjs"*)
+        if [ -n "${FAKE_DRIFT_RC:-}" ]; then echo '[n8n-drift] workflow x1 is published in n8n but is not in git' >&2; exit "$FAKE_DRIFT_RC"; fi
+        echo '[n8n-drift] none: 2 workflow(s) and 2 credential(s) as git holds them' ;;
+      *" wget "*"n8n:5678"*) exit "${FAKE_N8N_HEALTH_RC:-0}" ;;
       *" wget "*) exit "${FAKE_FRONT_RC:-0}" ;;
     esac ;;
 esac
@@ -207,28 +239,86 @@ refuses project 'doc.name = "hydromart"' 'project of its own' "hydromart's own p
 refuses edgename 'doc.networks.edge = { external: true, name: "hydromart_default" }' 'networks.edge must be' "edge pointed at another network"
 refuses origin 'doc.services.aiweb.environment.AI_WEB_URL = "https://ai.example.com"' 'serves ai.hydromart-digital.com' "an AI_WEB_URL the Caddy site does not serve"
 
+# AI-5: n8n's exceptions are exact, and nothing else gets them.
+refuses alertdb 'doc.services.db.environment.HOOK = "${ALERT_WEBHOOK_URL:-}"' 'services.db.environment.HOOK reads ALERT_WEBHOOK_URL' \
+  "ALERT_WEBHOOK_URL handed to anything but the app"
+refuses alert2 'doc.services.aiweb.environment.ALERT_WEBHOOK_URL = "${ALERT_WEBHOOK_URL_2:-}"' 'ALERT_WEBHOOK_URL_2' \
+  "another hydromart key that only starts like the allowed one"
+refuses hardening 'doc.services.n8n.environment.N8N_SSRF_PROTECTION_ENABLED = "false"' 'sets N8N_SSRF_PROTECTION_ENABLED' \
+  "an n8n setting in the compose file, over the image's"
+refuses n8nsuper 'doc.services.n8n.environment.DB_POSTGRESDB_USER = "postgres"' 'DB_POSTGRESDB_USER must be n8n' \
+  "n8n connecting as the superuser"
+refuses n8ndb 'doc.services.n8n.environment.DB_POSTGRESDB_DATABASE = "ai"' 'DB_POSTGRESDB_DATABASE must be n8n' "n8n in the app's database"
+refuses setupkey 'doc.services["n8n-setup"].environment.N8N_PUBLIC_API_DISABLED = "false"' 'n8n-setup.environment sets N8N_PUBLIC_API_DISABLED' \
+  "an n8n setting handed to the setup job"
+refuses setupsecret 'doc.services["n8n-setup"].environment.N8N_SETUP_MACHINE_SECRET = "${AIWEB_N8N_TOKEN:-}"' \
+  'N8N_SETUP_MACHINE_SECRET must be ${AIWEB_N8N_MACHINE_SECRET}' "the machine secret read from another key"
+refuses n8nport 'doc.services.n8n.ports = ["5678:5678"]' 'may publish one port' "n8n's editor published past loopback"
+refuses n8nports 'doc.services.n8n.ports.push("127.0.0.1:5679:5679")' 'may publish one port' "a second n8n port"
+refuses n8nedge 'doc.services.n8n.networks.push("edge")' 'must join private and egress, and nothing else' "n8n beside Caddy on edge"
+refuses webegress 'doc.services.aiweb.networks.push("egress")' 'only n8n may join egress' "the app on n8n's way out"
+refuses egressinternal 'doc.networks.egress = { internal: true }' 'networks.egress must not be internal' "an egress n8n cannot leave by"
+refuses egresshydromart 'doc.networks.egress = { external: true, name: "hydromart_default" }' 'networks.egress must be this project' \
+  "egress pointed at hydromart's network"
+refuses notmpfs 'delete doc.services.n8n.tmpfs' 'must mount /home/node/.n8n as a tmpfs' "n8n writing its key to disk"
+refuses opentmpfs 'doc.services.n8n.tmpfs = doc.services.n8n.tmpfs.map((t) => t.replace("mode=0700", "mode=0777"))' 'must mount /home/node/.n8n as a tmpfs' \
+  "n8n's key file open to every user"
+refuses setuptmpfs 'delete doc.services["n8n-setup"].tmpfs' 'services.n8n-setup must mount /home/node/.n8n' "the setup job writing the key to disk"
+refuses n8nvolume 'doc.services.n8n.volumes = ["pgdata:/home/node/.n8n"]' 'nothing of n8n is kept outside its database' "n8n state in a volume"
+refuses setupegress 'doc.services["n8n-setup"].networks.push("egress")' 'n8n-setup must join private, and nothing else' "the setup job with a way out"
+refuses setupimage 'doc.services["n8n-setup"].image = doc.services.aiweb.image' 'must run the image n8n runs' "a setup from another release"
+refuses setupprofile 'delete doc.services["n8n-setup"].profiles' 'own profile' "the setup job started by every up"
+refuses non8n 'delete doc.services.n8n' 'no n8n service' "n8n taken out (its rules would hold nothing)"
+refuses n8ntag 'doc.services.n8n.image = "ghcr.io/m0gsy/hydromart-ai:latest-n8n"' 'pinned by digest' "n8n by tag"
+# Any valid digest passes, whatever the release: the placeholder pinned until hydromart-ai #8 is not
+# special, and neither is the one that replaces it.
+mutant anydigest 'const d = "ghcr.io/m0gsy/hydromart-ai@sha256:" + "ab12".repeat(16); doc.services.n8n.image = d; doc.services["n8n-setup"].image = d' &&
+  node scripts/check-aiweb-compose.mjs "$W/anydigest.yml" >/dev/null 2>&1 &&
+  ok "any 64-hex digest for n8n passes (n8n and its setup on the same one)" || bad "a valid n8n digest was refused"
+
 sed 's/import hsts//' infra/caddy/sites/aiweb.caddy > "$W/nohsts.caddy"
 node scripts/check-aiweb-compose.mjs infra/aiweb/docker-compose.yml "$W/nohsts.caddy" >/dev/null 2>&1 &&
   bad "accepts a site with no HSTS" || ok "refuses a site with no HSTS"
 sed 's/aiweb:3000/gateway:8080/' infra/caddy/sites/aiweb.caddy > "$W/elsewhere.caddy"
 node scripts/check-aiweb-compose.mjs infra/aiweb/docker-compose.yml "$W/elsewhere.caddy" >/dev/null 2>&1 &&
   bad "accepts a site that proxies somewhere else" || ok "refuses a site that proxies somewhere else"
+# AI-5: n8n's alarm route is the app's alone; the public site must 404 it before the proxy.
+sed '/handle \/api\/internal/,/^\t}/d' infra/caddy/sites/aiweb.caddy > "$W/nointernal.caddy"
+if grep -q 'handle /api/internal' "$W/nointernal.caddy" || ! grep -q 'reverse_proxy aiweb:3000' "$W/nointernal.caddy"; then
+  bad "could not build the site without its /api/internal/* block"
+elif out="$(node scripts/check-aiweb-compose.mjs infra/aiweb/docker-compose.yml "$W/nointernal.caddy" 2>&1)"; then
+  bad "accepts a site that forwards /api/internal/* to the app"
+else
+  grep -qF 'must refuse /api/internal/*' <<<"$out" && ok "refuses a site that forwards /api/internal/* to the app" ||
+    bad "refused the site without its internal block, but not for that: $out"
+fi
+grep -qE '^\s*request_body /api/ingress/\* \{' infra/caddy/sites/aiweb.caddy && grep -qE '^\s*max_size 64KB$' infra/caddy/sites/aiweb.caddy &&
+  ok "the site caps request bodies on /api/ingress/* at 64 KB" || bad "the ingress body cap is gone from the site"
 
 # --------------------------------------------------------------------- 2. the key maker
 echo "key maker (aiweb-secrets.sh):"
 BOX="$W/box"
-mkdir -p "$BOX/scripts" "$BOX/infra/aiweb"
+mkdir -p "$BOX/scripts" "$BOX/infra/aiweb" "$BOX/packages/access/src"
 cp scripts/aiweb-secrets.sh scripts/env-set.sh "$BOX/scripts/"
 cp infra/aiweb/docker-compose.yml "$BOX/infra/aiweb/"
+# A release that has n8n's capability (hydromart-digital #1042), in the shape packages/access
+# declares CAPABILITIES; the real file is checked below for the same shape.
+CAPS="export const CAPABILITIES = {
+  dashboard: ['HEAD_OFFICE'],
+  franchiseApplicationNotify: ['SUPER_ADMIN'],
+} as const satisfies Record<string, readonly Role[]>;"
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
 secrets() { # <env assignments...>: one key-maker run on the scratch box; exit code in $RC
   reset_fakes
   OUT="$(cd "$BOX" && env "${FAKE_ENV[@]}" "$@" bash scripts/aiweb-secrets.sh 2>&1)"
   RC=$?
 }
 val() { sed -n "s/^$1=//p" "$BOX/.env" | tail -1; }
+# Another machine account, which every run must leave exactly as it was.
+OTHER='{"id":"99999999-8888-4777-8666-555555555555","name":"other-bot","secretSha256":"'"$(printf '%064d' 7)"'","scopes":["dashboard"],"notAfter":"'"$(date -u -d '+40 days' +%FT00:00:00Z)"'","note":"kept"}'
 
 # A present line stays as it is, blank included: blank AI_TOKEN_SIGNING_KEY is the kill switch.
-printf 'POSTGRES_PASSWORD=keep-me\nAI_TOKEN_SIGNING_KEY=\nAIWEB_DB_APP_PASSWORD=already-here\n' > "$BOX/.env"
+printf 'POSTGRES_PASSWORD=keep-me\nAI_TOKEN_SIGNING_KEY=\nAIWEB_DB_APP_PASSWORD=already-here\nMACHINE_ACCOUNTS=%s\n' "'[$OTHER]'" > "$BOX/.env"
 secrets ENV_SET_BLOCK='HIJACK=1'
 [ "$RC" = 0 ] && ok "fills the absent keys (exit 0)" || bad "exited $RC: $OUT"
 for k in AIWEB_POSTGRES_PASSWORD AIWEB_DB_OWNER_PASSWORD; do
@@ -249,8 +339,48 @@ grep -qx 'AI_TOKEN_SIGNING_KEY=' "$BOX/.env" && [ "$(grep -c '^AI_TOKEN_SIGNING_
   ok "present values are left exactly as they were" || bad "a present value was changed"
 grep -q '^HIJACK=' "$BOX/.env" && bad "applied an inherited ENV_SET_BLOCK instead of its own block" ||
   ok "an inherited ENV_SET_BLOCK is not applied"
+# AI-5: n8n's keys, made the same way, and its machine account written for auth-service.
+for k in AIWEB_N8N_DB_PASSWORD AIWEB_N8N_ENCRYPTION_KEY AIWEB_N8N_TOKEN AIWEB_N8N_MACHINE_SECRET; do
+  [[ "$(val "$k")" =~ ^[0-9a-f]{64}$ ]] && ok "$k: 64 hex characters" || bad "$k is not 64 hex characters"
+done
+[[ "$(val AIWEB_N8N_MACHINE_ID)" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] &&
+  ok "AIWEB_N8N_MACHINE_ID: a lowercase UUID, as auth-service wants" || bad "AIWEB_N8N_MACHINE_ID is '$(val AIWEB_N8N_MACHINE_ID)'"
+[ "$(val AIWEB_N8N_MACHINE_NOT_AFTER)" = "$(date -u -d '+89 days' +%F)" ] &&
+  ok "the machine secret runs until today + 89 days (UTC)" || bad "AIWEB_N8N_MACHINE_NOT_AFTER is '$(val AIWEB_N8N_MACHINE_NOT_AFTER)'"
+# What auth-service checks at boot (external-access.ts parseMachineAccounts), on what was written.
+accounts_ok() { # <expected n8n entries> : MACHINE_ACCOUNTS, single-quoted, parses as auth-service does
+  MA="$(val MACHINE_ACCOUNTS)" ID="$(val AIWEB_N8N_MACHINE_ID)" SECRET="$(val AIWEB_N8N_MACHINE_SECRET)" \
+    NA="$(val AIWEB_N8N_MACHINE_NOT_AFTER)" OTHER="$OTHER" WANT="$1" node -e '
+    const e = process.env;
+    const q = String.fromCharCode(39);
+    if (!e.MA.startsWith(q) || !e.MA.endsWith(q)) throw new Error("not single-quoted");
+    const list = JSON.parse(e.MA.slice(1, -1));
+    const now = Date.now();
+    const pairs = new Set();
+    for (const a of list) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(a.id)) throw new Error("id " + a.id);
+      if (!/^[a-z0-9-]{1,40}$/.test(a.name) || !/^[0-9a-f]{64}$/.test(a.secretSha256)) throw new Error("name or hash");
+      if (!Array.isArray(a.scopes) || a.scopes.length === 0) throw new Error("scopes");
+      if (Date.parse(a.notAfter) - now > 90 * 86400000) throw new Error("more than 90 days ahead");
+      pairs.add(a.id + ":" + a.secretSha256);
+    }
+    if (pairs.size !== list.length) throw new Error("a pair repeats");
+    const other = list.filter((a) => a.id !== e.ID);
+    if (JSON.stringify(other) !== JSON.stringify([JSON.parse(e.OTHER)])) throw new Error("the other account changed");
+    const mine = list.filter((a) => a.id === e.ID);
+    if (mine.length !== Number(e.WANT)) throw new Error(mine.length + " n8n entries");
+    if (mine.length === 0) process.exit(0);
+    const last = mine[mine.length - 1];
+    const sha = require("crypto").createHash("sha256").update(e.SECRET).digest("hex");
+    if (last.name !== "n8n" || last.secretSha256 !== sha || last.notAfter !== e.NA ||
+      JSON.stringify(last.scopes) !== JSON.stringify(["franchiseApplicationNotify"])) throw new Error("the n8n entry");
+  ' 2>&1
+}
+why="$(accounts_ok 1)" && ok "MACHINE_ACCOUNTS: the other account as it was, n8n's entry (sha256 of the secret, its scope, its day), as auth-service parses it" ||
+  bad "MACHINE_ACCOUNTS after the first run: $why: $(val MACHINE_ACCOUNTS)"
 leaked=''
-for k in AIWEB_POSTGRES_PASSWORD AIWEB_DB_OWNER_PASSWORD TOTP_ENCRYPTION_KEY; do
+for k in AIWEB_POSTGRES_PASSWORD AIWEB_DB_OWNER_PASSWORD TOTP_ENCRYPTION_KEY AIWEB_N8N_DB_PASSWORD AIWEB_N8N_ENCRYPTION_KEY \
+  AIWEB_N8N_TOKEN AIWEB_N8N_MACHINE_SECRET; do
   v="$(val "$k")"
   [ -n "$v" ] && printf '%s' "$OUT" | grep -qF "$v" && leaked="$leaked $k"
 done
@@ -320,6 +450,104 @@ secrets
 [ "$RC" != 0 ] && cmp -s "$BOX/.env" "$W/before" && ok "refuses an http AI_WEB_URL and writes nothing" ||
   bad "an http AI_WEB_URL: exit $RC, .env $(cmp -s "$BOX/.env" "$W/before" && echo unchanged || echo CHANGED)"
 
+# AI-5: n8n's machine secret over its life: kept, rotated, switched off, back on, repaired.
+cp infra/aiweb/docker-compose.yml "$BOX/infra/aiweb/"
+secrets
+[ "$RC" = 0 ] && why="$(accounts_ok 1)" && ok "the box is whole again (every key present, one n8n entry)" || bad "reset: $RC $OUT $why"
+cp "$BOX/.env" "$W/before"
+key_before="$(val AIWEB_N8N_ENCRYPTION_KEY)"
+secret_before="$(val AIWEB_N8N_MACHINE_SECRET)"
+secrets
+cmp -s "$BOX/.env" "$W/before" && ok "a secret with more than 30 days left: nothing written" || bad "a fresh secret was changed: $OUT"
+
+# Fewer than 30 days left: a new secret and day; the old entry stays (n8n holds it until this
+# deploy's setup gives it the new one) with its own day; the other account as it was.
+soon="$(date -u -d '+10 days' +%F)"
+old_sha="$(printf '%s' "$secret_before" | sha256sum | cut -d' ' -f1)"
+sed -i -e "s/^AIWEB_N8N_MACHINE_NOT_AFTER=.*/AIWEB_N8N_MACHINE_NOT_AFTER=$soon/" \
+  -e "s/\"notAfter\":\"$(val AIWEB_N8N_MACHINE_NOT_AFTER)\"/\"notAfter\":\"$soon\"/" "$BOX/.env"
+secrets
+if [ "$RC" = 0 ] && [ "$(val AIWEB_N8N_MACHINE_SECRET)" != "$secret_before" ] && why="$(accounts_ok 2)" &&
+  grep -qF "\"secretSha256\":\"$old_sha\",\"scopes\":[\"franchiseApplicationNotify\"],\"notAfter\":\"$soon\"" "$BOX/.env"; then
+  ok "10 days left: rotated; MACHINE_ACCOUNTS holds the old entry (its own day) and the new one"
+else
+  bad "rotation: rc=$RC $why: $(val MACHINE_ACCOUNTS)"
+fi
+[ "$(val AIWEB_N8N_ENCRYPTION_KEY)" = "$key_before" ] && ok "  ...and AIWEB_N8N_ENCRYPTION_KEY is never made again" ||
+  bad "the n8n encryption key changed"
+printf '%s' "$OUT" | grep -qF "$(val AIWEB_N8N_MACHINE_SECRET)" && bad "the new machine secret was printed" || ok "  ...and the new secret is never printed"
+# An entry already past its day is dropped by the next rotation, never carried on.
+past="$(date -u -d '-1 days' +%F)"
+sed -i -e "s/\"notAfter\":\"$soon\"/\"notAfter\":\"$past\"/" \
+  -e "s/^AIWEB_N8N_MACHINE_NOT_AFTER=.*/AIWEB_N8N_MACHINE_NOT_AFTER=$soon/" "$BOX/.env"
+secrets
+why="$(accounts_ok 2)" && ! grep -qF "\"notAfter\":\"$past\"" "$BOX/.env" &&
+  ok "an entry past its day is dropped at the next rotation" || bad "expired entry: $why $(val MACHINE_ACCOUNTS)"
+
+# The kill switch: the secret line kept and blanked.
+sed -i 's/^AIWEB_N8N_MACHINE_SECRET=.*/AIWEB_N8N_MACHINE_SECRET=/' "$BOX/.env"
+secrets
+why="$(accounts_ok 0)" && grep -qx 'AIWEB_N8N_MACHINE_SECRET=' "$BOX/.env" && printf '%s' "$OUT" | grep -qF "n8n's kill switch" &&
+  ok "a blank secret: every n8n entry leaves MACHINE_ACCOUNTS, the other stays, the line stays blank" ||
+  bad "kill switch: rc=$RC $why: $(val MACHINE_ACCOUNTS)"
+cp "$BOX/.env" "$W/before"
+secrets
+cmp -s "$BOX/.env" "$W/before" && ok "  ...and stays off: the next run writes nothing" || bad "the switched-off box changed: $OUT"
+# Back on, by the deploy workflow alone (env-set cannot delete a line): any placeholder secret
+# with no valid day is rotated into a real one.
+sed -i -e 's/^AIWEB_N8N_MACHINE_SECRET=.*/AIWEB_N8N_MACHINE_SECRET=renew/' -e 's/^AIWEB_N8N_MACHINE_NOT_AFTER=.*/AIWEB_N8N_MACHINE_NOT_AFTER=/' "$BOX/.env"
+secrets
+[[ "$(val AIWEB_N8N_MACHINE_SECRET)" =~ ^[0-9a-f]{64}$ ]] && why="$(accounts_ok 1)" &&
+  ok "back on: 'renew' with a blank day becomes a real secret and one n8n entry" || bad "back on: $why: $OUT"
+# MACHINE_ACCOUNTS overwritten by hand without n8n: its entry comes back, nothing else moves.
+sed -i "s/^MACHINE_ACCOUNTS=.*/MACHINE_ACCOUNTS='[$OTHER]'/" "$BOX/.env"
+secrets
+why="$(accounts_ok 1)" && printf '%s' "$OUT" | grep -q 'making on this box: MACHINE_ACCOUNTS$' &&
+  ok "a MACHINE_ACCOUNTS that lost n8n's entry gets it back, and only that is written" || bad "repair: $why: $OUT"
+
+# Nothing written when MACHINE_ACCOUNTS cannot be read, has two lines, or the release lacks n8n's
+# capability (auth-service would refuse to boot, and a rollback does not undo .env).
+ma_refused() { # <label> <words>
+  if [ "$RC" != 0 ] && cmp -s "$BOX/.env" "$W/before" && printf '%s' "$OUT" | grep -qF "$2"; then
+    ok "$1: nothing written, exit $RC"
+  else
+    bad "$1: exit $RC, .env $(cmp -s "$BOX/.env" "$W/before" && echo unchanged || echo CHANGED): $OUT"
+  fi
+}
+cp "$BOX/.env" "$W/good.env"
+sed -i -e "s/^MACHINE_ACCOUNTS=.*/MACHINE_ACCOUNTS='not json'/" -e '/^AIWEB_N8N_TOKEN=/d' "$BOX/.env"
+cp "$BOX/.env" "$W/before"
+secrets
+ma_refused "a MACHINE_ACCOUNTS that is not JSON" 'MACHINE_ACCOUNTS in .env is not a JSON list'
+cp "$W/good.env" "$BOX/.env"
+printf "MACHINE_ACCOUNTS='[$OTHER]'\n" >> "$BOX/.env"
+cp "$BOX/.env" "$W/before"
+secrets
+ma_refused "MACHINE_ACCOUNTS on two lines" 'more than one line'
+cp "$W/good.env" "$BOX/.env"
+sed -i -e '/^AIWEB_N8N_MACHINE_SECRET=/d' -e '/^AIWEB_N8N_DB_PASSWORD=/d' "$BOX/.env"
+printf '%s\n' "$CAPS" | grep -v franchiseApplicationNotify > "$BOX/packages/access/src/index.ts"
+cp "$BOX/.env" "$W/before"
+secrets
+ma_refused "a release without the capability franchiseApplicationNotify (PR #1042)" 'no capability franchiseApplicationNotify'
+# The release a failed gate rolls back to (.deploy/last-good-sha) must have it too: rolled back,
+# its auth-service boots with this .env.
+git -C "$BOX" init -q
+git -C "$BOX" -c user.name=t -c user.email=t@example.invalid add packages >/dev/null
+git -C "$BOX" -c user.name=t -c user.email=t@example.invalid commit -qm 'before #1042' >/dev/null
+mkdir -p "$BOX/.deploy"
+git -C "$BOX" rev-parse HEAD > "$BOX/.deploy/last-good-sha"
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
+secrets
+ma_refused "the last good release without the capability (a rollback would not boot)" 'last good release'
+rm -rf "$BOX/.deploy" "$BOX/.git"
+secrets
+[ "$RC" = 0 ] && why="$(accounts_ok 2)" && ok "  ...and written once the release has it" || bad "with the capability back: $why $OUT"
+# The real packages/access declares CAPABILITIES the way the lookup above reads it.
+sed -n '/^export const CAPABILITIES = {/,/^}/p' packages/access/src/index.ts | grep -qE '^  dashboard:' &&
+  ok "packages/access/src/index.ts declares CAPABILITIES in the shape aiweb-secrets.sh reads" ||
+  bad "aiweb-secrets.sh can no longer find CAPABILITIES' keys in packages/access/src/index.ts"
+
 # -------------------------------------------------------------- 3. the deploy, fake docker
 echo "deploy (aiweb-deploy.sh, fake docker):"
 T="$W/deploy"
@@ -330,6 +558,11 @@ cp infra/aiweb/docker-compose.yml infra/aiweb/roles.sql infra/aiweb/app-role.sql
 GOOD_ENV='AIWEB_POSTGRES_PASSWORD=p1
 AIWEB_DB_OWNER_PASSWORD=p2
 AIWEB_DB_APP_PASSWORD=p3
+AIWEB_N8N_DB_PASSWORD=p4
+AIWEB_N8N_ENCRYPTION_KEY=k5
+AIWEB_N8N_TOKEN=t6
+AIWEB_N8N_MACHINE_ID=11111111-2222-4333-8444-555555555555
+AIWEB_N8N_MACHINE_SECRET=s7
 ALERT_WEBHOOK_URL=https://alert.invalid/hook'
 IMAGES="$(sed -n 's/^ *image: *//p' infra/aiweb/docker-compose.yml | tr '\n' ' ')"
 
@@ -351,13 +584,16 @@ if [ "$RC" = 0 ] && said 'AI web OK'; then ok "a clean box deploys and proves is
   bad "the happy path failed ($RC): $(tail -4 "$W/out" | tr '\n' ' ')"; fi
 db="$(line_of ' up .* db$')"
 roles="$(line_of '^psql-file roles$')"
-mig="$(line_of ' run .*migrate')"
+mig="$(line_of ' run .* migrate$')"
+n8nrm="$(line_of ' rm --stop --force n8n$')"
+setup="$(line_of ' run .* n8n-setup$')"
 approle="$(line_of '^psql-file app-role$')"
 app="$(line_of ' up .*--remove-orphans')"
-[ -n "$db" ] && [ -n "$roles" ] && [ -n "$mig" ] && [ -n "$approle" ] && [ -n "$app" ] &&
-  [ "$db" -lt "$roles" ] && [ "$roles" -lt "$mig" ] && [ "$mig" -lt "$approle" ] && [ "$approle" -lt "$app" ] &&
-  ok "order: database, roles, migration as the owner, ai_app's password, then the app" ||
-  bad "wrong order: db=$db roles=$roles migrate=$mig app-role=$approle app=$app"
+[ -n "$db" ] && [ -n "$roles" ] && [ -n "$mig" ] && [ -n "$n8nrm" ] && [ -n "$setup" ] && [ -n "$approle" ] && [ -n "$app" ] &&
+  [ "$db" -lt "$roles" ] && [ "$roles" -lt "$mig" ] && [ "$mig" -lt "$n8nrm" ] && [ "$n8nrm" -lt "$setup" ] &&
+  [ "$setup" -lt "$approle" ] && [ "$approle" -lt "$app" ] &&
+  ok "order: database, roles, migration as the owner, n8n removed and set up, ai_app's password, then the app and n8n" ||
+  bad "wrong order: db=$db roles=$roles migrate=$mig n8n-rm=$n8nrm setup=$setup app-role=$approle app=$app"
 if grep '^compose' "$W/log" | grep -qv 'infra/aiweb/docker-compose.yml' || grep -qE 'docker-compose\.(prod\.)?yml( |$)' <(grep '^compose' "$W/log" | sed 's|infra/aiweb/docker-compose.yml||g'); then
   bad "a compose call names something other than infra/aiweb/docker-compose.yml: $(grep '^compose' "$W/log" | grep -v 'infra/aiweb' | head -1)"
 else
@@ -394,8 +630,8 @@ n172="$(grep -c '^172\.18\.' "$W/asked")"
 
 # The registry: token on stdin, a throwaway config, gone afterwards, and in no child's environment.
 deploy FAKE_PRESENT= GHCR_TOKEN=fake-tok1 GHCR_USER=bot
-[ "$RC" = 0 ] && [ "$(grep -c '^pull --quiet .*@sha256:' "$W/log")" = 3 ] &&
-  ok "missing images are pulled by digest" || bad "pull path ($RC): $(grep -E '^(login|pull)' "$W/log" | tr '\n' ' ')"
+[ "$RC" = 0 ] && [ "$(grep -c '^pull --quiet .*@sha256:' "$W/log")" = 4 ] &&
+  ok "missing images are pulled by digest, each once (n8n and its setup share one)" || bad "pull path ($RC): $(grep -E '^(login|pull)' "$W/log" | tr '\n' ' ')"
 [ "$(cat "$W/stdin")" = fake-tok1 ] && ! grep -qF fake-tok1 "$W/log" "$W/out" &&
   ok "the token reaches docker login on stdin, never as an argument or in the log" || bad "the token leaked into an argument or the log"
 if grep -qE '^(GHCR_TOKEN|GHCR_USER)=' "$W/envs" || grep -qF fake-tok1 "$W/envs"; then
@@ -512,6 +748,67 @@ deploy FAKE_MIGRATE_RC=1
 (cd "$T" && env "${FAKE_ENV[@]}" FAKE_PRESENT="$IMAGES" bash scripts/aiweb-deploy.sh >/dev/null 2>&1)
 [ ! -e "$T/.deploy/alerted/aiweb" ] && ok "a clean deploy clears the remembered alert" || bad "the alert memory survived a clean deploy"
 
+# AI-5: n8n in the deploy and the probe.
+deploy
+said 'n8n: set up from the' && said 'app and n8n: healthy' && said 'n8n: the AI web reaches http://n8n:5678/healthz' &&
+  said 'n8n: reaches https://api.hydromart-digital.com over its egress network' && said '[n8n-drift] none' &&
+  ok "n8n: set up, started, reached by the app, reaching hydromart's API, holding what git holds" ||
+  bad "the n8n half of a clean deploy: $(grep -F 'n8n' "$W/out" | tail -5 | tr '\n' ' ')"
+cmp -s "$W/asked" "$W/asked.n8n1" && [ -s "$W/asked.n8n1" ] &&
+  ok "the probe tries the same hydromart addresses from inside n8n as from inside the app" ||
+  bad "n8n's probe plan differs: $(diff "$W/asked" "$W/asked.n8n1" 2>&1 | head -3 | tr '\n' ' ')"
+said 'probe(n8n): hydromart-postgres@hydromart_default 172.18.0.4:5432 timeout/CODE-x -> isolated' &&
+  ok "  ...every target printed with its outcome, as n8n saw it" || bad "no probe(n8n) lines"
+grep -F 'run' "$W/log" | grep -F 'n8n-setup' | grep -qF -- '--profile n8n-setup run --rm --no-deps -T n8n-setup' &&
+  ok "n8n-setup runs as a one-shot (run --rm, no deps, behind its profile)" || bad "setup call: $(grep -F n8n-setup "$W/log")"
+grep '^compose' "$W/log" | grep -q 'config --images' && grep '^compose' "$W/log" | grep 'config --images' | grep -q -- '--profile n8n-setup' &&
+  ok "the images to pull include the setup job's" || bad "config --images without the n8n-setup profile"
+
+deploy FAKE_SETUP_RC=1
+[ "$RC" = 1 ] && ! called '^psql-file app-role' && ! called '\-\-remove-orphans' && alerted "n8n's setup failed (exit 1" &&
+  said "hydromart's events wait in the AI web's hd_events" && called ' rm --stop --force n8n$' &&
+  ok "a failed n8n setup: n8n left off (removed, so the watchdog cannot start it), the app untouched, events said to wait" ||
+  bad "setup failure ($RC): $(tail -3 "$W/out" | tr '\n' ' ')"
+deploy AIWEB_N8N_SETUP_TIMEOUT=2 FAKE_SETUP_HANG=1
+[ "$RC" = 1 ] && called '^rm -f setup1' && ! called '^psql-file app-role' && alerted 'stopped after 2s' &&
+  ok "a hung n8n setup: stopped at its timeout, its container removed, nothing after it runs" ||
+  bad "hung setup ($RC): $(grep -E '^(rm|ps -aq)' "$W/log" | tr '\n' ' ') $(tail -2 "$W/out" | tr '\n' ' ')"
+
+# The kill switch: secret kept and blanked. No setup, n8n scaled to nothing, the deploy green.
+ENV_FILE="$(sed 's/^AIWEB_N8N_MACHINE_SECRET=.*/AIWEB_N8N_MACHINE_SECRET=/' <<<"$GOOD_ENV")" deploy FAKE_NO_N8N=1
+[ "$RC" = 0 ] && ! called 'n8n-setup run' && ! called ' rm --stop --force n8n' && called ' up .*--remove-orphans.*--scale n8n=0' &&
+  said 'n8n is switched off' && said 'AI web OK' &&
+  ok "n8n switched off (blank secret): never set up, scaled to nothing, the deploy still green" ||
+  bad "kill switch deploy ($RC): $(grep -E 'n8n' "$W/out" | tail -3 | tr '\n' ' ')"
+ENV_FILE="$(sed 's/^AIWEB_N8N_MACHINE_SECRET=.*/AIWEB_N8N_MACHINE_SECRET=/' <<<"$GOOD_ENV")" deploy
+[ "$RC" = 1 ] && alerted 'n8n runs although AIWEB_N8N_MACHINE_SECRET is blank' &&
+  ok "switched off yet running (the fake up leaves it): the probe says so" || bad "off but running ($RC)"
+ENV_FILE="$(sed '/^AIWEB_N8N_MACHINE_SECRET=/d' <<<"$GOOD_ENV")" deploy
+[ "$RC" = 1 ] && ! called '^compose' && said 'no value in .env for: AIWEB_N8N_MACHINE_SECRET' &&
+  ok "no machine secret line at all: named, nothing touched" || bad "absent secret ($RC): $(tail -2 "$W/out" | tr '\n' ' ')"
+
+probe_fails "n8n not running though not switched off" 'no n8n container is running' FAKE_NO_N8N=1
+probe_fails "n8n on another network" 'isolation: n8n is attached to network hydromart_default' FAKE_N8N_EXTRA_NET=hydromart_default
+probe_fails "n8n's editor published wide" 'isolation: n8n publishes a host port (0.0.0.0:5678->5678/tcp)' "FAKE_N8N_BIND=0.0.0.0:5678->5678/tcp "
+probe_fails "a second n8n port" 'isolation: n8n publishes a host port' "FAKE_N8N_BIND=127.0.0.1:5678->5678/tcp 127.0.0.1:5679->5679/tcp "
+probe_fails "someone else on n8n's egress" 'hydromart/gateway(gw1) is on the hydromart-ai_egress network, where n8n can reach it' FAKE_EGRESS_EXTRA=gw1
+probe_fails "a hydromart address answering n8n" 'isolation: n8n reaches hydromart-gateway-1@hydromart_default at 172.18.0.9:8080 (open)' \
+  FAKE_N8N_OUTCOMES=172.18.0.9:8080=open
+probe_fails "n8n blind: its own database does not open" 'n8n could not open its own database' FAKE_N8N_OUTCOMES=db:5432=timeout
+probe_fails "n8n cut off from hydromart's API" "n8n: cannot fetch https://api.hydromart-digital.com/auth/api/v1/auth/jwks" FAKE_N8N_JWKS_FAIL=1
+probe_fails "the app cut off from n8n" 'n8n: the AI web cannot reach http://n8n:5678/healthz' FAKE_N8N_HEALTH_RC=1
+probe_fails "n8n drifted from git" 'drift.mjs exit 1' FAKE_DRIFT_RC=1
+said 'workflow x1 is published in n8n but is not in git' && ok "  ...naming the drift" || bad "the drift line was not shown"
+probe_fails "ai_app can delete hd_events in effect (through PUBLIC or a role)" 'ai_app can, in effect (PUBLIC or a role it belongs to): hd_events:DELETE' \
+  "FAKE_EFFECTIVE=hd_events:DELETE"
+probe_fails "ai_app may delete from hd_events" 'must hold exactly INSERT,SELECT,UPDATE on hd_events' \
+  "FAKE_GRANTS=answer_trail:INSERT,SELECT
+hd_events:DELETE,INSERT,SELECT,UPDATE
+kill_switch_events:INSERT,SELECT"
+probe_fails "no hd_events (a release before AI-5)" "must hold exactly INSERT,SELECT,UPDATE on hd_events, and holds ''" \
+  "FAKE_GRANTS=answer_trail:INSERT,SELECT
+kill_switch_events:INSERT,SELECT"
+
 # ------------------------------------------------------------- 4. deploy.sh and deploy.yml
 echo "wiring (deploy.sh, deploy.yml):"
 n() { grep -nF -- "$1" scripts/deploy.sh | head -1 | cut -d: -f1; }
@@ -558,6 +855,67 @@ if node -e '
 else
   bad "deploy.yml must grant packages: read and pass GHCR_TOKEN (the job token) to the SSH step"
 fi
+
+# ------------------------------------------------- 5. the nightly n8n check (AI-5), fake docker
+echo "nightly n8n check (aiweb-n8n-check.sh):"
+N="$W/n8ncheck"
+mkdir -p "$N/scripts/lib" "$N/infra/aiweb" "$N/bin"
+cp scripts/aiweb-n8n-check.sh "$N/scripts/"
+cp scripts/lib/deploy-common.sh "$N/scripts/lib/"
+cp infra/aiweb/docker-compose.yml "$N/infra/aiweb/"
+cat > "$N/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FAKE_LOG"
+case "$1" in
+  ps) case "$*" in *project=hydromart-ai*service=n8n*) [ -n "${FAKE_NO_N8N:-}" ] || echo n8n1 ;; esac ;;
+  exec)
+    case "${FAKE_DRIFT:-0}" in
+      0) echo '[n8n-drift] none: 2 workflow(s) and 2 credential(s) as git holds them' ;;
+      *) echo '[n8n-drift] workflow x1 is published in n8n but is not in git' >&2; exit "$FAKE_DRIFT" ;;
+    esac ;;
+esac
+exit 0
+EOF
+cp "$BIN/curl" "$N/bin/curl"
+chmod +x "$N/bin/docker" "$N/bin/curl"
+check() { # <AIWEB_N8N_MACHINE_SECRET line> <AIWEB_N8N_MACHINE_NOT_AFTER value> <env...>
+  local secret_line="$1" not_after="$2"
+  shift 2
+  printf '%s\nAIWEB_N8N_MACHINE_NOT_AFTER=%s\nALERT_WEBHOOK_URL=https://alert.invalid/hook\n' "$secret_line" "$not_after" > "$N/.env"
+  : > "$W/log"
+  : > "$W/alerts"
+  OUT="$(cd "$N" && env PATH="$N/bin:$PATH" FAKE_LOG="$W/log" FAKE_ALERTS="$W/alerts" FAKE_CURL="$W/curl" FAKE_ENVS="$W/envs" \
+    "$@" bash scripts/aiweb-n8n-check.sh 2>&1)"
+  RC=$?
+}
+later="$(date -u -d '+60 days' +%F)"
+check AIWEB_N8N_MACHINE_SECRET=s "$later"
+[ "$RC" = 0 ] && [ ! -s "$W/alerts" ] && grep -q 'exec n8n1 node /opt/hydromart/bin/drift.mjs' "$W/log" &&
+  ok "no drift and 60 days left: exit 0, silent, drift.mjs run inside the running n8n" || bad "all well ($RC): $OUT"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_DRIFT=1
+[ "$RC" = 1 ] && grep -q 'n8n drift check exit 1' "$W/alerts" && grep -q 'workflow x1 is published in n8n but is not in git' "$W/alerts" &&
+  ok "drift (exit 1): alerted, with the line that says what differs" || bad "drift ($RC): $(cat "$W/alerts")"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_DRIFT=1
+[ "$RC" = 1 ] && [ ! -s "$W/alerts" ] && ok "  ...once: the same drift the next night is not said again" || bad "drift said twice"
+check AIWEB_N8N_MACHINE_SECRET=s "$later"
+[ ! -e "$N/.deploy/alerted/aiweb-n8n-drift" ] && ok "  ...and forgotten when it ends" || bad "the drift memory survived a clean night"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_DRIFT=2
+[ "$RC" = 1 ] && grep -q 'n8n drift check exit 2' "$W/alerts" && ok "could not check (exit 2): alerted too" || bad "exit 2 ($RC)"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_N8N=1
+[ "$RC" = 1 ] && grep -q 'n8n is not running on this box' "$W/alerts" && ! grep -q '^exec' "$W/log" &&
+  ok "no n8n running: alerted, nothing run" || bad "no n8n ($RC): $(cat "$W/alerts")"
+check AIWEB_N8N_MACHINE_SECRET=s "$(date -u -d '+10 days' +%F)"
+[ "$RC" = 1 ] && grep -q 'n8n machine secret stops on' "$W/alerts" && grep -q 'run Deploy (mode deploy)' "$W/alerts" &&
+  ok "the machine secret 10 days from its end: alerted, saying a deploy renews it" || bad "10 days ($RC): $(cat "$W/alerts")"
+check AIWEB_N8N_MACHINE_SECRET=s "$(date -u -d '+20 days' +%F)"
+[ "$RC" = 0 ] && [ ! -s "$W/alerts" ] && [ ! -e "$N/.deploy/alerted/aiweb-n8n-secret" ] &&
+  ok "  ...20 days: silent (a deploy rotates it from 30), the earlier alert forgotten" || bad "20 days ($RC): $(cat "$W/alerts")"
+check AIWEB_N8N_MACHINE_SECRET=s 'soon'
+[ "$RC" = 1 ] && grep -q 'has no valid end date' "$W/alerts" && ok "an end date that is not a date: alerted" || bad "bad date ($RC)"
+check AIWEB_N8N_MACHINE_SECRET= "$(date -u -d '+3 days' +%F)" FAKE_DRIFT=1
+[ "$RC" = 0 ] && [ ! -s "$W/alerts" ] && [ ! -s "$W/log" ] && grep -q 'switched off' <<<"$OUT" &&
+  ok "n8n switched off (blank secret): said, nothing asked of docker, nothing alerted" || bad "switched off ($RC): $OUT"
+grep -q 'aiweb-n8n-check.sh' scripts/install-host-cron.sh && ok "install-host-cron.sh schedules it" || bad "install-host-cron.sh does not schedule the n8n check"
 
 if [ "$fails" -gt 0 ]; then
   echo "aiweb: $fails check(s) failed" >&2

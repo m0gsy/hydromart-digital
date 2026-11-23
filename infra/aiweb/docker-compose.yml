@@ -1,29 +1,36 @@
 # The AI web (Plan Eksekusi HD-9): the m0gsy/hydromart-ai app, its own Postgres and its migration
 # job, run on the production box as a SECOND compose project beside hydromart (HD-1). It is
 # started by scripts/aiweb-deploy.sh, which scripts/deploy.sh runs after every hydromart deploy
-# passes its gate. DEPLOY.md, "The AI web", says how to operate it.
+# passes its gate. DEPLOY.md, "The AI web", says how to operate it. AI-5 adds n8n beside it:
+# hydromart's events reach the app, the app hands them to n8n, and n8n acts on hydromart only
+# through its public API with a machine account (DEPLOY.md, "n8n").
 #
-# A RELEASE IS THIS FILE. The two ghcr.io/m0gsy/hydromart-ai digests below are the app and the
-# migration job the box runs; hydromart-ai's CI prints both for every commit on its main
-# ("Pin these in hydromart-digital's infra/aiweb/"). To ship one, change both lines in a PR here;
-# the deploy after its merge pulls them by digest, migrates, then swaps the app. The box never
-# builds this app and never follows a tag. To go back, revert that PR: a migration it applied
-# stays applied, so every AI web migration must be expand/contract (the release before it must
-# still run on the new schema).
+# A RELEASE IS THIS FILE. The three ghcr.io/m0gsy/hydromart-ai digests below are the app, the
+# migration job and n8n (the n8n service and its setup job run the same image) the box runs;
+# hydromart-ai's CI prints all three for every commit on its main ("Pin these in
+# hydromart-digital's infra/aiweb/"). To ship one, change those lines in a PR here; the deploy
+# after its merge pulls them by digest, migrates, sets n8n up, then swaps the app and n8n. The box
+# never builds this app and never follows a tag. To go back, revert that PR: a migration it
+# applied stays applied, so every AI web migration must be expand/contract (the release before it
+# must still run on the new schema).
 #
-# Pinned now: hydromart-ai 5818307 on its main (AI-6, the design kit; the schema of AI-4).
+# Pinned now: hydromart-ai 4832806 on its main (AI-5, #8: the event gate, hd_events, and n8n with
+# its workflows): the app, its migration job and the n8n image, all three from that one commit.
 #
 # Isolation, held by scripts/check-aiweb-compose.mjs in CI and proved on the box after every
 # deploy by the probe in scripts/aiweb-deploy.sh:
 #   - its own project name, so hydromart's `up --remove-orphans` never takes it for an orphan
 #     and docker-gc (which reads this `name:`) leaves its images alone;
 #   - `aiweb` joins `edge` (Caddy's side door, infra/caddy/sites/aiweb.caddy) and `private`;
-#     the database and the migration job join `private` only, which is internal: no way out;
-#   - no service publishes a host port, and none joins hydromart's own network;
-#   - only AIWEB_* keys of .env are interpolated here: none of hydromart's secrets
-#     (JWT_ACCESS_SECRET, INTERNAL_SERVICE_KEY, ...) can be handed to a container here.
+#     `n8n` joins `private` and `egress`, its own way out; the database and the one-shot jobs
+#     join `private` only, which is internal: no way out;
+#   - no service publishes a host port but n8n's editor, on the box's loopback only (reached
+#     through an ssh tunnel), and none joins hydromart's own network;
+#   - only AIWEB_* keys of .env are interpolated here, and ALERT_WEBHOOK_URL for the app's alarms:
+#     none of hydromart's secrets (JWT_ACCESS_SECRET, INTERNAL_SERVICE_KEY, ...) can be handed to
+#     a container here.
 #
-# The three passwords are made on the box by scripts/aiweb-secrets.sh (only when their line is
+# The passwords and keys are made on the box by scripts/aiweb-secrets.sh (only when their line is
 # absent from .env, never printed) and travel with .env in its encrypted nightly backup.
 name: hydromart-ai
 
@@ -48,10 +55,11 @@ services:
       # with .env. scripts/aiweb-deploy.sh applies roles.sql as the superuser over the container's
       # local socket; neither the app nor the migration job ever uses that role.
       POSTGRES_PASSWORD: ${AIWEB_POSTGRES_PASSWORD:?set by scripts/aiweb-secrets.sh}
-      # Read through psql's \getenv, so no password is ever on a command line: the owner's by
-      # roles.sql before the migration, the app's by app-role.sql only after it succeeded.
+      # Read through psql's \getenv, so no password is ever on a command line: the owner's and
+      # n8n's by roles.sql before the migration, the app's by app-role.sql only after it succeeded.
       AIWEB_DB_OWNER_PASSWORD: ${AIWEB_DB_OWNER_PASSWORD:?set by scripts/aiweb-secrets.sh}
       AIWEB_DB_APP_PASSWORD: ${AIWEB_DB_APP_PASSWORD:?set by scripts/aiweb-secrets.sh}
+      AIWEB_N8N_DB_PASSWORD: ${AIWEB_N8N_DB_PASSWORD:?set by scripts/aiweb-secrets.sh}
     volumes:
       - pgdata:/var/lib/postgresql/data
     networks:
@@ -69,7 +77,7 @@ services:
   # One shot, before every app start: `prisma migrate deploy` as ai_owner, the role that owns
   # database ai. A profile keeps it out of `up`; scripts/aiweb-deploy.sh runs it with `run --rm`.
   migrate:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:6c05d9d7175bd1adfbe4aefbd3b8949f087ca41d111583d97d0cb2af19661f6a
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:1372f825def876349c8c5f85d81d033780231d6a727327ecb73c269bb718ca6b
     profiles: ["migrate"]
     logging: *logging
     mem_limit: 512m
@@ -84,7 +92,7 @@ services:
       db: { condition: service_healthy }
 
   aiweb:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:bd7057ab010410ee70ffe961e63fb46a74e45f9da965a2df50f4073457a70527
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:15bb6b7d91b1ca4b92debbb9d19fff77e7b0bfa1ffe706c7c2b59cd248c9a972
     restart: unless-stopped
     logging: *logging
     mem_limit: 512m
@@ -103,6 +111,20 @@ services:
       # Reached the way a browser reaches it, through Caddy on the public address: the AI web
       # has no other way into hydromart.
       HYDROMART_API_URL: https://api.hydromart-digital.com
+      # AI-5 (hydromart-ai README, "Events and n8n"). The signing secret /hq/webhooks showed once
+      # when <AI_WEB_URL>/api/ingress/hd was registered, put in .env by the owner; blank, the
+      # ingress answers 503 and hydromart keeps the events in its own outbox. The _NEXT one is
+      # only set during a rotation (DEPLOY.md, "n8n").
+      HD_EVENT_SECRET: ${AIWEB_HD_EVENT_SECRET:-}
+      HD_EVENT_SECRET_NEXT: ${AIWEB_HD_EVENT_SECRET_NEXT:-}
+      # n8n on the private network, and the token between the two, both ways: this app shows it
+      # to n8n's webhooks, n8n shows it to /api/internal/n8n/* (n8n-setup stores it in n8n).
+      N8N_URL: http://n8n:5678
+      N8N_TOKEN: ${AIWEB_N8N_TOKEN:?set by scripts/aiweb-secrets.sh}
+      # The one hydromart key this file reads (check-aiweb-compose.mjs allows exactly this one,
+      # here and nowhere else): the AI web posts its alarms to the channel hydromart's alerts use.
+      # Blank, they go to its log only.
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
     networks:
       - edge
       - private
@@ -117,6 +139,87 @@ services:
       start_period: 60s
       start_interval: 2s
 
+  # AI-5: n8n (hydromart-ai's n8n/Dockerfile: n8n 2.48.8 with its configuration locked in the
+  # image, the workflows from git, and the scripts that load and check them). This file gives it
+  # only its database, its encryption key and the editor's address. Every hardening setting is
+  # the image's: check-aiweb-compose.mjs refuses any other environment key here.
+  n8n:
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:d8b2ea0968ed8ce5ee2636116df705c6d1d31c889a616f38b99b31961695d304
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 1g
+    cpus: 1.0
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # n8n writes its settings file (the encryption key in it) and its event log under ~/.n8n. In
+    # memory, owned by the image's user (node, 1000) and only by it: nothing of n8n outlives the
+    # container but its database, and no key is ever written to the box's disk.
+    tmpfs:
+      - /home/node/.n8n:uid=1000,gid=1000,mode=0700,size=128m
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: db
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${AIWEB_N8N_DB_PASSWORD:?set by scripts/aiweb-secrets.sh}
+      # Seals the credentials n8n stores. Made once by scripts/aiweb-secrets.sh and never again:
+      # a new key opens none of them (n8n-setup writes ours again, nothing else comes back).
+      N8N_ENCRYPTION_KEY: ${AIWEB_N8N_ENCRYPTION_KEY:?set by scripts/aiweb-secrets.sh}
+      # The editor is reached only through an ssh tunnel to the port below (DEPLOY.md, "n8n").
+      N8N_EDITOR_BASE_URL: http://localhost:5678
+    networks:
+      - private
+      - egress
+    # The editor, on the box's loopback and nowhere else: `ssh -L 5678:127.0.0.1:5678` reaches
+    # it, the internet and every other container do not.
+    ports:
+      - "127.0.0.1:5678:5678"
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:5678/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+
+  # One shot, in every deploy while n8n is stopped (scripts/aiweb-deploy.sh): hydromart-ai's
+  # n8n/bin/setup.mjs puts what git holds into n8n's database, the credentials from the three
+  # N8N_SETUP_* values below, then the workflows, published. A profile keeps it out of `up`.
+  n8n-setup:
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:d8b2ea0968ed8ce5ee2636116df705c6d1d31c889a616f38b99b31961695d304
+    profiles: ["n8n-setup"]
+    logging: *logging
+    mem_limit: 1g
+    cpus: 1.0
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    entrypoint: ["node", "/opt/hydromart/bin/setup.mjs"]
+    # As n8n's: the settings file holds the key. /tmp too: setup.mjs writes the credentials it
+    # imports to a file there for a moment, the secrets in it in the clear.
+    tmpfs:
+      - /home/node/.n8n:uid=1000,gid=1000,mode=0700,size=128m
+      - /tmp:size=64m
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: db
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${AIWEB_N8N_DB_PASSWORD:?set by scripts/aiweb-secrets.sh}
+      N8N_ENCRYPTION_KEY: ${AIWEB_N8N_ENCRYPTION_KEY:?set by scripts/aiweb-secrets.sh}
+      N8N_SETUP_AIWEB_TOKEN: ${AIWEB_N8N_TOKEN:?set by scripts/aiweb-secrets.sh}
+      N8N_SETUP_MACHINE_ACCOUNT_ID: ${AIWEB_N8N_MACHINE_ID:?set by scripts/aiweb-secrets.sh}
+      # Blank is n8n's kill switch: scripts/aiweb-deploy.sh then never runs this job, and n8n is
+      # removed rather than started (DEPLOY.md, "n8n").
+      N8N_SETUP_MACHINE_SECRET: ${AIWEB_N8N_MACHINE_SECRET:-}
+    networks:
+      - private
+    depends_on:
+      db: { condition: service_healthy }
+
 networks:
   # Created by hydromart's docker-compose.prod.yml (Caddy's second network, HD-1). Caddy and
   # `aiweb` are its only members; the probe in scripts/aiweb-deploy.sh says so after each deploy.
@@ -125,6 +228,10 @@ networks:
   # The database's network. `internal`: no route off the box and no route to anything else on it.
   private:
     internal: true
+  # AI-5: n8n's way out, and only n8n's (the probe says so after each deploy). Not internal: its
+  # workflows reach https://api.hydromart-digital.com at the public address, through Caddy, as
+  # the AI web does over edge. Not edge itself: n8n has no business beside Caddy.
+  egress: {}
 
 volumes:
   pgdata:
