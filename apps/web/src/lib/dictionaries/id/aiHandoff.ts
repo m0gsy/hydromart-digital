@@ -6,4 +6,6 @@ export const aiHandoff = {
   staffOnly: 'Web HYDROMART AI hanya untuk akun staf.',
   failed: 'Tidak bisa masuk ke HYDROMART AI.',
   retry: 'Coba lagi',
+  ask: 'Masuk ke web HYDROMART AI sebagai {name}? Lanjutkan hanya kalau kamu sendiri yang baru saja menekan Masuk di sana.',
+  continue: 'Lanjutkan',
 };

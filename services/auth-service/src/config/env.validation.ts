@@ -20,6 +20,31 @@ function totpKey(value: string): string {
  * The only way to run the log-printing OTP channel under NODE_ENV=production. Exists for
  * the E2E stack, which is production-parity by design and scrapes codes from the auth log.
  */
+/**
+ * AI-3b: the AI web callback a handoff code is sent to. Compared by exact string, so it must be
+ * the very string a URL parser writes back (the page re-serialises it), with no userinfo, query
+ * or fragment to smuggle anything through, and https outside a laptop: a code in clear text is
+ * a token for whoever reads the wire.
+ */
+export function aiWebReturnUrl(value: string): string {
+  if (value === '') return value;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error('AI_WEB_RETURN_URL is not a URL');
+  }
+  if (url.href !== value) throw new Error(`AI_WEB_RETURN_URL must be written as ${url.href}`);
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error('AI_WEB_RETURN_URL may not carry a user, a query or a fragment');
+  }
+  const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) {
+    throw new Error('AI_WEB_RETURN_URL must be https (http only for localhost)');
+  }
+  return value;
+}
+
 export const CONSOLE_ACK = 'yes-this-prints-login-codes-to-the-log';
 
 /**
@@ -114,7 +139,7 @@ export const envValidationSchema = Joi.object({
    * AI-3b: the AI web's handoff callback, exactly (https://<ai web>/masuk/callback). A handoff
    * code is sent there and nowhere else; blank = no handoff page works (503).
    */
-  AI_WEB_RETURN_URL: Joi.string().allow('').default('').uri({ scheme: ['https', 'http'] }),
+  AI_WEB_RETURN_URL: Joi.string().allow('').default('').custom(aiWebReturnUrl),
   AI_TOKEN_SIGNING_KEY_PREVIOUS: Joi.string().allow('').default('').custom(signingKey),
   MACHINE_ACCOUNTS: Joi.string()
     .allow('')

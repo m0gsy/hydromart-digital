@@ -2,7 +2,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { post, auth, query, FakeApiError } = vi.hoisted(() => ({
+const { post, auth, query, FakeApiError, native } = vi.hoisted(() => ({
+  native: { value: false },
   post: vi.fn(),
   auth: { customer: { id: 'u-1', role: 'HEAD_OFFICE' } as { id: string; role: string } | null, ready: true },
   query: { value: '' },
@@ -11,6 +12,7 @@ const { post, auth, query, FakeApiError } = vi.hoisted(() => ({
 
 vi.mock('@/lib/api', () => ({ api: { post }, ApiError: FakeApiError }));
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: auth.customer, ready: auth.ready }) }));
+vi.mock('@/lib/platform', () => ({ isNativeShell: () => native.value, openExternal: vi.fn() }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/ai/masuk',
@@ -27,9 +29,12 @@ const link = (over: Record<string, string> = {}) =>
   new URLSearchParams({ challenge: CHALLENGE, state: STATE, return: RETURN, ...over }).toString();
 
 const replace = vi.fn();
+const referrer = (value: string) => Object.defineProperty(document, 'referrer', { configurable: true, get: () => value });
 beforeEach(() => {
   auth.customer = { id: 'u-1', role: 'HEAD_OFFICE' };
   query.value = link();
+  native.value = false;
+  referrer('https://ai.example.test/masuk');
   vi.stubGlobal('location', { ...window.location, replace });
 });
 afterEach(() => {
@@ -77,6 +82,24 @@ describe('/ai/masuk: the AI web sign-in handoff (AI-3b)', () => {
     query.value = value;
     open();
     expect(await screen.findByText(/tidak lengkap/)).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  // Review M: a link on another site starts nothing by itself.
+  it('asks first when opened from anywhere but the AI web, then goes on', async () => {
+    post.mockResolvedValue({ code: 'c3', expiresIn: 60, returnTo: RETURN });
+    referrer('https://evil.example/page');
+    open();
+    expect(await screen.findByText(/Lanjutkan hanya kalau kamu sendiri/)).toBeTruthy();
+    expect(post).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /lanjutkan/i }));
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+  });
+
+  it('asks first with no referrer at all', async () => {
+    referrer('');
+    open();
+    expect(await screen.findByRole('button', { name: /lanjutkan/i })).toBeTruthy();
     expect(post).not.toHaveBeenCalled();
   });
 

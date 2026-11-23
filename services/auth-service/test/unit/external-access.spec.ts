@@ -1,3 +1,4 @@
+import { aiWebReturnUrl } from '../../src/config/env.validation';
 import { createHash, createPublicKey, generateKeyPairSync, type KeyObject } from 'node:crypto';
 
 import { verifyExternalToken } from '@hydromart/platform';
@@ -310,11 +311,36 @@ describe('ExternalAccessService handoff', () => {
       `${RETURN}?x=1`,
       `${RETURN}/`,
       'https://ai.example.test/masuk/callback#a',
+      'https://AI.example.test/masuk/callback',
+      'http://ai.example.test/masuk/callback',
       '',
     ]) {
       await expect(t.service.issueHandoffCode(me, challengeOf(VERIFIER), elsewhere, ctx)).rejects.toMatchObject({
         code: 'AUTH_HANDOFF_RETURN_REFUSED',
       });
+    }
+  });
+
+  it('refuses a customer before it looks at the address', async () => {
+    const t = setup();
+    await expect(
+      t.service.issueHandoffCode({ sub: 'c-9', role: Role.CUSTOMER }, challengeOf(VERIFIER), 'https://evil.example/', ctx),
+    ).rejects.toMatchObject({ code: 'AUTH_HANDOFF_STAFF_ONLY' });
+  });
+
+  it('accepts only a canonical https callback in the environment', () => {
+    expect(aiWebReturnUrl('')).toBe('');
+    expect(aiWebReturnUrl(RETURN)).toBe(RETURN);
+    expect(aiWebReturnUrl('http://localhost:3000/masuk/callback')).toBe('http://localhost:3000/masuk/callback');
+    for (const bad of [
+      'http://ai.example.test/masuk/callback',
+      'https://AI.example.test/masuk/callback',
+      'https://user:pw@ai.example.test/masuk/callback',
+      'https://ai.example.test/masuk/callback?x=1',
+      'https://ai.example.test/masuk/callback#f',
+      'not a url',
+    ]) {
+      expect(() => aiWebReturnUrl(bad)).toThrow(/AI_WEB_RETURN_URL/);
     }
   });
 
