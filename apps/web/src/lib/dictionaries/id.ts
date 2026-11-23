@@ -126,6 +126,7 @@ export const id = {
     version: 'Hydromart v{v}',
     nav: {
       profile: 'Profil',
+      authenticator: 'Autentikator web AI',
       addresses: 'Alamat',
       payments: 'Pembayaran',
       orders: 'Pesanan',

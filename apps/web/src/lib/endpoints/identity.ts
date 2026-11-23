@@ -90,6 +90,12 @@ auth: {
   // DELETE: anonymises the identity across services and closes the login for good
   // (staffDelete = SUPER_ADMIN). Irreversible.
   deleteStaff: (id: string) => `/auth/api/v1/auth/staff/${id}`,
+  // HD-4 / AI-3a: my authenticator for the AI web sign-in (status, set-up, confirm), and the
+  // SUPER_ADMIN reset of someone else's (never one's own: the service refuses).
+  totpStatus: '/auth/api/v1/auth/totp',
+  totpEnrolment: '/auth/api/v1/auth/totp/enrolment',
+  totpConfirm: '/auth/api/v1/auth/totp/enrolment/confirm',
+  resetTotp: (id: string) => `/auth/api/v1/auth/totp/${encodeURIComponent(id)}`,
   // Active STAFF_DEPOT roster for dispatch (courier assignment). Array of Customer.
   drivers: '/auth/api/v1/auth/drivers',
   // The same roster for ONE named depot. A manager who covers more than one depot MUST
