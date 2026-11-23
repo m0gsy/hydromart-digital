@@ -57,7 +57,15 @@ cat > "$W/bin/curl" <<'EOF'
 printf '%s\n' "$*" >> "$FAKE_ALERTS"
 exit 0
 EOF
-chmod +x "$W/bin/docker" "$W/bin/curl"
+# df, so how full the disk is comes from the test (FAKE_DF_PCT), never from this machine's.
+cat > "$W/bin/df" <<'EOF'
+#!/usr/bin/env bash
+echo 'Filesystem 1024-blocks Used Available Capacity Mounted on'
+echo "fake 1000000 500000 500000 ${FAKE_DF_PCT:-50}% /"
+EOF
+chmod +x "$W/bin/docker" "$W/bin/curl" "$W/bin/df"
+mkdir -p "$W/dfbin"
+cp "$W/bin/df" "$W/dfbin/df"
 
 run_dump() { # <env...>
   : > "$W/log"
@@ -87,6 +95,11 @@ run_dump FAKE_DUMP=tiny
 [ "$RC" = 1 ] && [ "$(aiweb_dumps)" = 0 ] && grep -q 'not a backup' "$W/alerts" &&
   ok "a dump too small to be one is refused, and alerted" || bad "tiny dump: rc=$RC, $OUT"
 
+# The disk hydromart's database and dumps live on is 95% full: the AI web's dump waits, and says so.
+run_dump FAKE_DF_PCT=95
+[ "$RC" = 1 ] && [ "$(aiweb_dumps)" = 0 ] && grep -q '95% full' "$W/alerts" && ! grep -q pg_dump "$W/log" &&
+  ok "a disk 95% full: no dump taken, and alerted" || bad "full disk: rc=$RC, $OUT"
+
 # Retention, with hydromart's dumps in the same directory.
 for d in 01 02 03 04 05 06 07 08 09 10 11 12 13 14 15; do
   printf 'old\n' | gzip > "$W/backups/aiweb-202611${d}-030500.sql.gz"
@@ -114,6 +127,14 @@ OUT="$(env PATH="$W/bin:$PATH" FAKE_LOG="$W/log" FAKE_ALERTS="$W/alerts" FAKE_RM
 RC=$?
 [ "$RC" = 1 ] && grep -q 'restore drill FAILED: no aiweb' "$W/alerts" &&
   ok "a drill with nothing to restore alerts, even when docker cannot clean up" || bad "early drill failure: rc=$RC, alerts=$(cat "$W/alerts"), $OUT"
+
+# The scratch database is capped, so a restore cannot take memory or CPU from the live stack.
+: > "$W/log"
+env PATH="$W/bin:$PATH" FAKE_LOG="$W/log" FAKE_ALERTS="$W/alerts" BACKUP_DIR="$W/backups" AIWEB_PG_IMAGE=fake-pg \
+  ALERT_WEBHOOK_URL= ALERT_MEMORY_DIR="$W/alerted" AIWEB_DB_CONTAINER=fake-db \
+  bash scripts/backup-aiweb-db.sh --drill >/dev/null 2>&1
+grep -E '^run ' "$W/log" | grep -q -- '--network none --memory 512m --cpus 0.5 ' &&
+  ok "the scratch database runs with no network, 512m of memory and half a CPU" || bad "scratch limits: $(grep -E '^run ' "$W/log")"
 
 # ------------------------------------------------------------- 2. the drill, real Postgres
 echo "backup-aiweb-db.sh --drill (real Postgres):"
@@ -152,7 +173,7 @@ SQL
 live_rows() { docker exec "$LIVE" psql -tAX -U postgres -d ai -c 'SELECT (SELECT count(*) FROM kill_switches) + (SELECT count(*) FROM answer_trail)'; }
 BEFORE="$(live_rows)"
 
-drill_env=(env PATH="$PATH" BACKUP_DIR="$W/drill" AIWEB_DB_CONTAINER="$LIVE" AIWEB_PG_IMAGE=
+drill_env=(env PATH="$W/dfbin:$PATH" BACKUP_DIR="$W/drill" AIWEB_DB_CONTAINER="$LIVE" AIWEB_PG_IMAGE=
   AIWEB_DRILL_CONTAINER="$DRILL" ALERT_WEBHOOK_URL= ALERT_MEMORY_DIR="$W/alerted2")
 mkdir -p "$W/drill"
 OUT="$("${drill_env[@]}" bash scripts/backup-aiweb-db.sh 2>&1)"

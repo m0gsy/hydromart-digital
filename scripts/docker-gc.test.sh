@@ -13,6 +13,9 @@ check() {
 # A fake `docker` that just prints its arguments, so the test reads the commands rather than
 # running them.
 tmp="$(mktemp -d)"
+# The deploy's stack lock that --old-images takes: a file of this test's own, never the checkout's.
+export STACK_LOCK="$tmp/stack.lock"
+unset HYDROMART_STACK_LOCKED
 cat > "$tmp/fake-docker" <<'EOF'
 #!/usr/bin/env bash
 echo "$@"
@@ -100,6 +103,40 @@ out="$(DOCKER_BIN="$tmp/ai-docker" GC_INFRA_DIR="$repo1/infra" bash scripts/dock
 removed="$(grep '^rmi ' "$tmp/ai.log" | sed 's/^rmi //' | sort | tr '\n' ' ')"
 check "with no earlier release in history, only the pinned and in-use images stay" \
   "$(d 12) $(d 21) $(d 22) $(d 41) $(d 42) sha256:classic " "$removed"
+
+# A compose file that pins no digest (tags only, or no image line at all) has nothing to keep by:
+# an empty keep list must never widen the prune to every AI web image no container uses.
+for shape in tags none; do
+  repo2="$tmp/repo-$shape"
+  mkdir -p "$repo2/infra/aiweb"
+  git -C "$repo2" init -q
+  if [ "$shape" = tags ]; then
+    printf 'name: hydromart-ai\nservices:\n  db:\n    image: postgres:16-alpine\n  aiweb:\n    image: ghcr.io/m0gsy/hydromart-ai:latest\n' > "$repo2/infra/aiweb/docker-compose.yml"
+  else
+    printf 'name: hydromart-ai\nservices:\n  aiweb:\n    build: .\n' > "$repo2/infra/aiweb/docker-compose.yml"
+  fi
+  git -C "$repo2" -c core.autocrlf=false add -A >/dev/null && git -C "$repo2" -c core.autocrlf=false -c user.name=t -c user.email=t@example.invalid commit -qm "$shape" >/dev/null
+  : > "$tmp/ai.log"
+  out="$(DOCKER_BIN="$tmp/ai-docker" GC_INFRA_DIR="$repo2/infra" bash scripts/docker-gc.sh --old-images 2>&1)"
+  check "a compose file with no digest pin ($shape): no AI web image removed" 0 "$(grep -c '^rmi ' "$tmp/ai.log" || true)"
+  case "$out" in
+    *"pins no digest; AI web images left alone"*) check "  ...and it says why ($shape)" yes yes ;;
+    *) check "  ...and it says why ($shape)" yes "$out" ;;
+  esac
+done
+
+# Beside a deploy (it holds the stack lock): no AI web image is touched, and the run does not wait.
+if command -v flock >/dev/null 2>&1; then
+  : > "$tmp/ai.log"
+  out="$( (flock 9; DOCKER_BIN="$tmp/ai-docker" GC_INFRA_DIR="$repo/infra" timeout 30 bash scripts/docker-gc.sh --old-images 2>&1) 9>>"$STACK_LOCK")"
+  check "while a deploy holds the stack lock: no AI web image removed" 0 "$(grep -c '^rmi ' "$tmp/ai.log" || true)"
+  case "$out" in
+    *"a deploy holds the stack lock"*) check "  ...and it says so, without waiting" yes yes ;;
+    *) check "  ...and it says so, without waiting" yes "$out" ;;
+  esac
+else
+  echo "skip the stack lock held by a deploy: no flock here (it runs on CI)"
+fi
 
 rm -rf "$tmp"
 exit "$fails"

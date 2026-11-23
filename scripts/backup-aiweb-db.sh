@@ -88,8 +88,13 @@ live_db() {
 }
 
 dump() {
-  local stamp file size
+  local stamp file size used
   live_db backup
+  # hydromart's database and every dump of it share this disk, and a full one takes the database
+  # down. The AI web's dump is the one that waits: none at 95% used, the line deploy.sh refuses at.
+  used="$(df -Pk "$BACKUP_DIR" 2>/dev/null | awk 'NR == 2 {gsub(/%/, "", $5); print $5}' || true)"
+  case "$used" in '' | *[!0-9]*) used=0 ;; esac
+  [ "$used" -lt 95 ] || die "the disk holding $BACKUP_DIR is ${used}% full: no AI web dump tonight, hydromart's needs the room"
   stamp="$(date +%Y%m%d-%H%M%S)"
   file="$BACKUP_DIR/aiweb-$stamp.sql.gz"
   # Written under a name no glob matches, renamed once it is whole: a dump cut short must never
@@ -125,8 +130,9 @@ drill() {
   [ -n "$PG_IMAGE" ] || PG_IMAGE="$(docker inspect --format '{{.Image}}' "$CID" 2>/dev/null || true)"
   [ -n "$PG_IMAGE" ] || die "could not read which image the live AI web database runs"
   docker rm -fv "$SCRATCH" >/dev/null 2>&1 || true
-  # No network: a copy of production data nothing can reach. Its own superuser password.
-  docker run -d --name "$SCRATCH" --network none -e POSTGRES_PASSWORD=drill "$PG_IMAGE" >/dev/null ||
+  # No network: a copy of production data nothing can reach. Its own superuser password. Capped,
+  # so a restore on a Monday morning cannot take memory or CPU from the live stack beside it.
+  docker run -d --name "$SCRATCH" --network none --memory 512m --cpus 0.5 -e POSTGRES_PASSWORD=drill "$PG_IMAGE" >/dev/null ||
     die "could not start the scratch database from $PG_IMAGE"
   # Over TCP, not the socket: the image's temporary first-start server listens on the socket only
   # and must not take the restore (restore-db.sh says why).

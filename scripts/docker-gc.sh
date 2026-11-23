@@ -85,6 +85,12 @@ aiweb_prune() {
   project="$(sed -n 's/^name:[[:space:]]*//p' "$file" | tr -d "\"' \r")"
   [ -n "$project" ] || return 0
   now="$(pinned_digests "$file")"
+  # Nothing pinned by digest (tags, or no image at all) means nothing here to keep by: an empty
+  # keep list would remove every AI web image no container uses, the rollback target included.
+  if [ -z "$now" ]; then
+    echo "docker-gc: the compose file pins no digest; AI web images left alone"
+    return 0
+  fi
   # The previous release: walk the file's history back to the first version whose pins differ.
   repo="$(cd "$INFRA_DIR/.." && pwd)"
   prev=''
@@ -123,7 +129,18 @@ before=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
 prune_images                                    # dangling/orphaned images (rebuild leftovers)
 if [ "$OLD_IMAGES" -eq 1 ]; then
   prune_images -a --filter "until=168h"         # unused tagged images older than 7 days
-  aiweb_prune
+  # A deploy pulls the AI web's next release before it starts it, and in between that image is
+  # pinned by a compose file this run may have read before the pull, and used by no container:
+  # exactly what aiweb_prune removes. So never beside a deploy, and never waiting for one (the
+  # stack lock, scripts/lib/deploy-common.sh); next week's run prunes instead.
+  # shellcheck source=scripts/lib/deploy-common.sh
+  . "$(dirname "$0")/lib/deploy-common.sh"
+  if stack_lock 0; then
+    aiweb_prune
+    exec 9>&- # the lock's descriptor: a deploy waiting on it need not wait for the cache trim below
+  else
+    echo "docker-gc: a deploy holds the stack lock; AI web images left alone until next week's run"
+  fi
 fi
 if [ "$IMAGES_ONLY" -eq 0 ]; then
   # Host-wide, and that is right: the build cache carries no project label, and only this

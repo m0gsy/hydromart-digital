@@ -337,16 +337,31 @@ hide the other:
   hydromart's; 14 kept). `backup-offsite.sh --aiweb` copies it off the box at 03:22 under
   `<prefix>-aiweb/` with its own 14, `backup-second-provider.sh` copies it to the second provider
   at 04:00, `--drill` restores it weekly (Monday 04:45, log
-  `/var/log/hydromart-aiweb-drill.log`) into a throwaway container with no network and compares
-  it with the live database, and `check-backup-freshness.sh` alerts at 05:00 when any of that
-  stopped. A missing AI web is said once a week; it never writes admin-service's backup card,
+  `/var/log/hydromart-aiweb-drill.log`) into a throwaway container with no network, 512m of
+  memory and half a CPU, and compares it with the live database, and `check-backup-freshness.sh`
+  alerts at 05:00 when any of that stopped. No dump is taken while the backup disk is 95% full
+  (alerted). A missing AI web is said once a week; it never writes admin-service's backup card,
   which shows hydromart's verdict.
-- **Watchdog.** Every 5 minutes, under the stack lock: a stopped `db` or `aiweb` is started
-  again with `docker start` (the same container and image deploy left, never a pull or a compose
-  `up`), running-but-unhealthy is alerted after two sightings, and `migrate` is never touched.
+  If `install-host-cron.sh` could not create the drill's log (no passwordless sudo), it says so,
+  installs the block anyway, and points the drill and the freshness check at
+  `.deploy/hydromart-aiweb-drill.log` in the repo. Run once as the deploy user (sudo asks for
+  its password), and the reinstall moves both back:
+
+  ```bash
+  sudo touch /var/log/hydromart-aiweb-drill.log && sudo chown "$(id -un)" /var/log/hydromart-aiweb-drill.log
+  bash scripts/install-host-cron.sh
+  ```
+
+- **Watchdog.** Every 5 minutes, after hydromart's own check, under the stack lock and for at most
+  60 seconds: an `exited` or `created` `db` or `aiweb` is started again with `docker start`
+  (the same container and image deploy left, never a pull or a compose `up`). Running but
+  unhealthy, `restarting` (a crash loop), `paused`, `dead` and `removing` are alerted after two
+  sightings and never started; those and a start that fails are said once per container until
+  both run healthy again. `migrate` is never touched.
 - **docker-gc.** The weekly prune keeps the AI web images the compose file pins, those it pinned
   in the release before (a revert's rollback), and any a container uses, and removes the rest of
-  that project's images.
+  that project's images. It leaves them all alone when the compose file pins no digest, and
+  skips them (until next week) while a deploy holds the stack lock.
 
 Not covered yet:
 
