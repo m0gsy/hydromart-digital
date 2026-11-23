@@ -366,5 +366,30 @@ is "unhealthy: nothing to report, nothing said" "$(watchdog_unhealthy_step '' 0 
 
 rm -rf "$probe"
 
+# lock_env_files: .env and every copy beside it go owner-only; templates and symlinks are left.
+envdir="$(mktemp -d)"
+mode() { stat -c %a "$envdir/$1" 2>/dev/null || stat -f %Lp "$envdir/$1"; }
+touch "$envdir/probe" && chmod 600 "$envdir/probe"
+if [ "$(mode probe)" != "600" ]; then
+  echo "skip lock_env_files: this filesystem keeps no file modes (CI on Linux runs it)"
+else
+  for f in .env .env.bak-20261123 .env.bak2 .env.bak.reviewer .env.tmp-1 .env.example .env.production.example target; do
+    echo "K=V" >"$envdir/$f"
+    chmod 664 "$envdir/$f"
+  done
+  ln -s target "$envdir/.env.bak-link"
+  (cd "$envdir" && lock_env_files)
+  for f in .env .env.bak-20261123 .env.bak2 .env.bak.reviewer .env.tmp-1; do
+    is "lock_env_files: $f is owner-only" "$(mode "$f")" "600"
+  done
+  is "lock_env_files: the template keeps its mode" "$(mode .env.example)" "664"
+  is "lock_env_files: the production template keeps its mode" "$(mode .env.production.example)" "664"
+  is "lock_env_files: a symlink's target is not followed" "$(mode target)" "664"
+  empty="$(mktemp -d)"
+  is "lock_env_files: nothing to lock is not a failure" "$(cd "$empty" && lock_env_files && echo ok)" "ok"
+  rm -rf "$empty"
+fi
+rm -rf "$envdir"
+
 [ "$fail" -eq 0 ] && echo "deploy-common: all checks passed"
 exit "$fail"
