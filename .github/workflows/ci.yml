@@ -628,6 +628,12 @@ jobs:
       - name: Backup freshness gate (CMP-04)
         run: bash scripts/check-backup-freshness.test.sh
 
+      # HD-9b: the AI web's database dump, and the drill that restores it into a scratch
+      # container and compares it with a live one (real Postgres where docker is; the fake-docker
+      # half runs everywhere).
+      - name: AI web database backup and restore drill (HD-9b)
+        run: bash scripts/backup-aiweb-db.test.sh
+
       # Nothing was provisioned in Grafana, so the first person to open it found it empty. The
       # dashboard is data, and a wrong one fails silently (an empty graph reads as "all quiet"):
       # its JSON, datasource variable, metric names and PromQL are checked, and its route

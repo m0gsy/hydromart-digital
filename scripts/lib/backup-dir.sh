@@ -25,3 +25,21 @@ hydromart_backup_dir() {
   done
   echo /var/backups/hydromart
 }
+
+# HD-9b — the AI web's database: `ai`, in the `db` container of the compose project
+# infra/aiweb/docker-compose.yml names. Its dumps sit in the same directory as aiweb-<stamp>.sql.gz,
+# a name no hydromart-*.sql.gz glob (the newest dump, the drill, retention) can ever match.
+#
+# aiweb_db_container — that container's id on this box, running or stopped; nothing when the AI
+# web is not here. AIWEB_DB_CONTAINER, when SET (empty included), answers instead: the self-tests.
+aiweb_db_container() {
+  if [ -n "${AIWEB_DB_CONTAINER+set}" ]; then
+    printf '%s' "$AIWEB_DB_CONTAINER"
+    return 0
+  fi
+  local project
+  project="$(sed -n 's/^name:[[:space:]]*//p' infra/aiweb/docker-compose.yml 2>/dev/null | tr -d "\"' \r")"
+  [ -n "$project" ] || return 0
+  docker ps -aq --filter "label=com.docker.compose.project=$project" \
+    --filter label=com.docker.compose.service=db 2>/dev/null | head -1 || true
+}
