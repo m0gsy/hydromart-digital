@@ -7,7 +7,11 @@
 # migration job the box runs; hydromart-ai's CI prints both for every commit on its main
 # ("Pin these in hydromart-digital's infra/aiweb/"). To ship one, change both lines in a PR here;
 # the deploy after its merge pulls them by digest, migrates, then swaps the app. The box never
-# builds this app and never follows a tag. To go back, revert that PR.
+# builds this app and never follows a tag. To go back, revert that PR: a migration it applied
+# stays applied, so every AI web migration must be expand/contract (the release before it must
+# still run on the new schema).
+#
+# Pinned now: hydromart-ai 5818307 on its main (AI-6, the design kit; the schema of AI-4).
 #
 # Isolation, held by scripts/check-aiweb-compose.mjs in CI and proved on the box after every
 # deploy by the probe in scripts/aiweb-deploy.sh:
@@ -44,7 +48,8 @@ services:
       # with .env. scripts/aiweb-deploy.sh applies roles.sql as the superuser over the container's
       # local socket; neither the app nor the migration job ever uses that role.
       POSTGRES_PASSWORD: ${AIWEB_POSTGRES_PASSWORD:?set by scripts/aiweb-secrets.sh}
-      # Read by roles.sql through psql's \getenv, so no password is ever on a command line.
+      # Read through psql's \getenv, so no password is ever on a command line: the owner's by
+      # roles.sql before the migration, the app's by app-role.sql only after it succeeded.
       AIWEB_DB_OWNER_PASSWORD: ${AIWEB_DB_OWNER_PASSWORD:?set by scripts/aiweb-secrets.sh}
       AIWEB_DB_APP_PASSWORD: ${AIWEB_DB_APP_PASSWORD:?set by scripts/aiweb-secrets.sh}
     volumes:
@@ -64,7 +69,7 @@ services:
   # One shot, before every app start: `prisma migrate deploy` as ai_owner, the role that owns
   # database ai. A profile keeps it out of `up`; scripts/aiweb-deploy.sh runs it with `run --rm`.
   migrate:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:11d66c05634ecff7a56430e94e81956f40b885586cd13e4d025111ca007f7b08
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:6c05d9d7175bd1adfbe4aefbd3b8949f087ca41d111583d97d0cb2af19661f6a
     profiles: ["migrate"]
     logging: *logging
     mem_limit: 512m
@@ -79,7 +84,7 @@ services:
       db: { condition: service_healthy }
 
   aiweb:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:9aa0cf6789fe7b194a2a29b5baface10f9e4eae54b7b5287813d6affe211a39a
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:bd7057ab010410ee70ffe961e63fb46a74e45f9da965a2df50f4073457a70527
     restart: unless-stopped
     logging: *logging
     mem_limit: 512m

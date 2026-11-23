@@ -1135,9 +1135,18 @@ if health_ok; then
   # hydromart is already live and recorded as good, nothing below can roll it back, and the AI
   # web never runs a release hydromart then rolls back from under it. Its own script pulls,
   # migrates, starts and probes it, alerts on its own failure, and touches nothing of
-  # hydromart's; `||` keeps that failure from ever becoming this deploy's.
-  GHCR_TOKEN="$AIWEB_GHCR_TOKEN" GHCR_USER="$AIWEB_GHCR_USER" bash scripts/aiweb-deploy.sh ||
-    log "!! the AI web was NOT deployed or is not isolated (its [aiweb] lines say why); hydromart is unaffected"
+  # hydromart's; `||` keeps that failure from ever becoming this deploy's, and `timeout` keeps
+  # a hung step from holding the deploy queue: 30 minutes, then TERM (the script still alerts
+  # and logs out of the registry), then KILL a minute later, which only this line can report.
+  AIWEB_RC=0
+  GHCR_TOKEN="$AIWEB_GHCR_TOKEN" GHCR_USER="$AIWEB_GHCR_USER" \
+    timeout --kill-after=60 1800 bash scripts/aiweb-deploy.sh || AIWEB_RC=$?
+  if [ "$AIWEB_RC" != 0 ]; then
+    log "!! the AI web was NOT deployed or is not isolated (exit $AIWEB_RC; 124 = stopped after 30 minutes): its [aiweb] lines say why; hydromart is unaffected"
+  fi
+  if [ "$AIWEB_RC" = 137 ]; then
+    alert_once aiweb "AI web step killed after 31 minutes on deploy $NEW_SHA, past its own alert: read the [aiweb] lines in the deploy log"
+  fi
   # C1 — prove the scheduler's clock instead of assuming it. Compose sets TZ on that
   # container, but alpine had no zone files to read it with, so it ran UTC and every cron
   # time landed seven hours late while looking perfectly healthy. Asking the container what

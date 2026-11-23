@@ -9,24 +9,39 @@
 #   1. Every image it names present. A missing one is pulled BY DIGEST, logged in with the deploy
 #      job's own GITHUB_TOKEN (packages: read) inside a throwaway docker config, logged out and
 #      deleted straight after. Nothing long-lived is left on the box.
-#   2. Its database up and healthy, then infra/aiweb/roles.sql: the two roles, re-asserted.
-#   3. The migration job, as the owning role. A failure stops here: the app is not swapped.
-#   4. The app up and healthy. /api/health answers 503 for a role that gets past row level
+#   2. Its database up and healthy, then infra/aiweb/roles.sql: both roles exist, the owner's and
+#      the superuser's passwords match .env, database ai and its default privileges.
+#   3. The migration job, as the owning role, for at most AIWEB_MIGRATE_TIMEOUT (900) seconds. A
+#      failure stops here: the app is not swapped and ai_app's password is not touched.
+#   4. infra/aiweb/app-role.sql: ai_app's password, set only now. Until a release gets this far,
+#      the database keeps the password the running app was started with, so a failed release
+#      never locks the running app out, even when it recreated the database container.
+#   5. The app up and healthy. /api/health answers 503 for a role that gets past row level
 #      security, so a wrong DATABASE_URL fails here rather than serving.
-#   5. The probe: what the containers are attached to and publish, what the app can open from
-#      inside its own container (its database must open; hydromart's must not), Caddy's way in,
-#      the public URL, the sign-in path and ai_app's privileges.
+#   6. The probe: what the containers are attached to and publish, what the app can open from
+#      inside its own container (its database must open; no address of any hydromart container
+#      may answer at all), Caddy's way in, the public URL, the sign-in path, ai_app's privileges.
 #
 # Hydromart is never touched: every compose call here names infra/aiweb/ and nothing else. Every
 # failure ends with exit 1, a `!!` line naming the step, and one alert (alert_once aiweb, again
 # when the reason or the release changes, else weekly). deploy.sh logs it and goes on, so the AI
-# web can never fail hydromart's deploy.
+# web can never fail hydromart's deploy; it also stops this script after 30 minutes.
 #
 # Env: GHCR_TOKEN, GHCR_USER   from deploy.yml; only needed when an image is missing here.
-#      AIWEB_COMPOSE, AI_PROJECT, HYDROMART_PROJECT, AIWEB_URL_CHECK=0   overrides for a run off
-#      the box (a laptop: another project name and overlay, no public URL to ask).
+#      AIWEB_COMPOSE, AI_PROJECT, HYDROMART_PROJECT, AIWEB_URL_CHECK=0, AIWEB_MIGRATE_TIMEOUT
+#      overrides for a run off the box (a laptop: another project name and overlay, no public
+#      URL to ask) and for the self-test.
 #
 # Exit: 0 deployed (or probed) and isolated · 1 not deployed, or the probe found a problem.
+
+# The registry token, FIRST: into shell variables, out of the environment, not exported, before
+# any other command runs. No child of this script (compose, curl, docker exec, the alert) ever
+# inherits it; only the printf that feeds `docker login --password-stdin` reads it.
+ghcr_token="${GHCR_TOKEN:-}"
+ghcr_user="${GHCR_USER:-}"
+unset GHCR_TOKEN GHCR_USER
+export -n ghcr_token ghcr_user
+
 set -euo pipefail
 cd "$(dirname "$0")/.."
 # shellcheck source=scripts/lib/deploy-common.sh
@@ -36,6 +51,7 @@ AIWEB_FILE=infra/aiweb/docker-compose.yml
 AIWEB_COMPOSE="${AIWEB_COMPOSE:-docker compose -f $AIWEB_FILE --env-file .env}"
 HYDROMART_PROJECT="${HYDROMART_PROJECT:-hydromart}"
 AI_PROJECT="${AI_PROJECT:-$(sed -n 's/^name: *//p' "$AIWEB_FILE" | tr -d "\"' \r")}"
+MIGRATE_TIMEOUT="${AIWEB_MIGRATE_TIMEOUT:-900}"
 # Literals in the compose file, read from it so they are written in one place.
 setting() { sed -n "s/^ *$1: *//p" "$AIWEB_FILE" | head -1 | tr -d "\"' \r"; }
 AI_WEB_URL="$(setting AI_WEB_URL)"
@@ -48,12 +64,13 @@ say() { echo "[aiweb] $*"; }
 fail() {
   say "!! $1"
   say "   hydromart is unaffected: nothing here touches its project."
-  # alert() writes the text into JSON unescaped, so no double quote may reach it.
-  alert_once aiweb "AI web $RELEASE NOT deployed or not isolated: $(printf '%s' "$1" | tr -d '"' | cut -c1-400)"
+  # alert() writes the text into JSON as it is: no quote, no backslash, no newline may reach it.
+  alert_once aiweb "AI web $RELEASE NOT deployed or not isolated: $(printf '%s' "$1" | tr -d '"\\' | tr '\n' ' ' | cut -c1-400)"
   exit 1
 }
 
-# The throwaway registry login. Logged out and deleted however this script ends.
+# The throwaway registry login. Logged out and deleted however this script ends, including when
+# deploy.sh's 30-minute timeout stops it: the signal still ends in one alert and the logout.
 CFG=''
 logout() {
   [ -n "$CFG" ] || return 0
@@ -62,29 +79,56 @@ logout() {
   CFG=''
 }
 trap logout EXIT
+# remove_migrate_leftovers (below) because a migration job outlives the compose client stopped
+# with it, and would hold the migration lock against the next release.
+trap 'remove_migrate_leftovers; fail "stopped by a signal before it finished (deploy.sh allows it 30 minutes); the last [aiweb] line above is where it stopped"' TERM INT
+
+# A key with a value in .env. Read as data, never sourced, with one layer of quotes removed the
+# way compose reads it, so AIWEB_X="" is no value.
+has_value() {
+  local v
+  v="$(tr -d '\r' < .env 2>/dev/null | sed -n "s/^$1=//p" | tail -1)"
+  case "$v" in
+    \"*\") v="${v#\"}" && v="${v%\"}" ;;
+    \'*\') v="${v#\'}" && v="${v%\'}" ;;
+  esac
+  [ -n "${v//[[:space:]]/}" ]
+}
 
 pull() {
   local ref
-  if [ -z "${GHCR_TOKEN:-}" ]; then
+  if [ -z "$ghcr_token" ]; then
     case " $* " in
       *" ghcr.io/"*) fail "the release's images are not on this box and there is no registry token to pull them: deploy through the Deploy workflow, which hands the box its own short-lived token" ;;
     esac
   fi
   CFG="$(mktemp -d)"
-  if [ -n "${GHCR_TOKEN:-}" ]; then
-    # The token goes in on stdin, never as an argument (`ps` shows arguments to every user).
-    if ! printf '%s' "$GHCR_TOKEN" |
-      DOCKER_CONFIG="$CFG" docker login ghcr.io -u "${GHCR_USER:-github-actions}" --password-stdin >/dev/null 2>&1; then
+  if [ -n "$ghcr_token" ]; then
+    # On stdin, never as an argument (`ps` shows arguments to every user) or in the environment.
+    if ! printf '%s' "$ghcr_token" |
+      DOCKER_CONFIG="$CFG" docker login ghcr.io -u "${ghcr_user:-github-actions}" --password-stdin >/dev/null 2>&1; then
       fail "ghcr.io refused the deploy job's token (has the hydromart-ai package given this repository's Actions read access?)"
     fi
   fi
   for ref in "$@"; do
     say "pulling $ref"
-    if ! DOCKER_CONFIG="$CFG" timeout 600 docker pull --quiet "$ref" >/dev/null; then
+    # --foreground: in deploy.sh's process group, so its 30-minute TERM reaches the pull too.
+    if ! DOCKER_CONFIG="$CFG" timeout --foreground 600 docker pull --quiet "$ref" >/dev/null; then
       fail "could not pull $ref (denied, no longer in the registry, or no answer in 10 minutes)"
     fi
   done
   logout
+}
+
+# What a migration job stopped by its timeout leaves behind: `timeout` ends the compose client,
+# not the container it started.
+remove_migrate_leftovers() {
+  local ids
+  ids="$(docker ps -aq --filter "label=com.docker.compose.project=$AI_PROJECT" \
+    --filter label=com.docker.compose.service=migrate 2>/dev/null || true)"
+  [ -n "$ids" ] || return 0
+  # shellcheck disable=SC2086 # one argument per container
+  docker rm -f $ids >/dev/null 2>&1 || say "!! could not remove the stopped migration job's container(s): $ids"
 }
 
 # ------------------------------------------------------------------------------------- probe
@@ -100,8 +144,35 @@ hydromart_container() {
     --filter "label=com.docker.compose.service=$1" | head -1
 }
 
+# PURE: what one outcome of scripts/lib/tcp-reach.cjs means for one kind of target.
+#   control    db:5432, the app's own database: must open, or no answer below proves anything
+#   container  an address a hydromart container holds on a network other than edge: isolated
+#              only if nothing comes back (timeout) or there is no route (unreachable); an
+#              answer of any kind, a connection or an RST, means the packets get there
+#   name       one of hydromart's service names: not resolving is said, never counted as a pass
+#   front      Caddy's address on edge, where the AI web is MEANT to reach it: 80 and 443 may
+#              open; any other port of it (the admin API on 2019) must not
+#   host       the host, through the edge gateway, on a port hydromart publishes: must not open
+#   info       printed, never judged (the host's ssh, the cloud metadata address)
+judge() { # <kind> <outcome> <port>
+  case "$1:$2" in
+    control:open) echo ok ;;
+    control:*) echo blind ;;
+    info:open) echo "reachable (informational)" ;;
+    info:*) echo "not reachable (informational)" ;;
+    name:not-found) echo "does not resolve (informational)" ;;
+    container:timeout | container:unreachable | name:timeout | name:unreachable) echo isolated ;;
+    container:open | container:refused | name:open | name:refused) echo breach ;;
+    front:open) case "$3" in 80 | 443) echo "Caddy's public port" ;; *) echo breach ;; esac ;;
+    front:refused | front:timeout | front:unreachable | host:refused | host:timeout | host:unreachable) echo closed ;;
+    host:open) echo breach ;;
+    *) echo blind ;;
+  esac
+}
+
 probe() {
-  local app id line who nets binds n allowed members closed pg gw edge_gw ports p results t caddy code jwks grants
+  local app id line who nets binds n allowed members plan name pairs ports tcp p pair net ip kind count
+  local edge_gw host_ports results target label outcome code verdict isolated caddy code jwks grants t
   PROBLEMS=''
   app="$($AIWEB_COMPOSE ps -q aiweb 2>/dev/null | head -1 || true)"
   if [ -z "$app" ]; then
@@ -135,43 +206,73 @@ probe() {
     note "probe: could not inspect the edge network"
   fi
 
-  # 3. From INSIDE the app's container. Its own database must open: that is the control, and a
-  # probe that cannot open even that proves nothing with its "closed". Hydromart must stay
-  # closed: by name, by address on its own network, and through every host port it publishes
-  # (loopback today; anything published wider, say PUBLIC_BIND=0.0.0.0, is what this catches)
-  # except Caddy's public 80 and 443, which are the internet's way in and so the AI web's too.
-  closed="postgres:5432 hydromart-postgres:5432 gateway:8080 auth:3001 web:3000"
-  pg="$(hydromart_container postgres)"
-  gw="$(hydromart_container gateway)"
-  for id in $pg $gw; do
-    for n in $(docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{$v.IPAddress}} {{end}}' "$id"); do
-      if [ "$id" = "$pg" ]; then closed+=" $n:5432"; else closed+=" $n:8080"; fi
+  # 3. From INSIDE the app's container, every address of every running hydromart container on
+  # every TCP port it exposes, read off docker rather than listed here, so a container added
+  # tomorrow is tried tomorrow. One line per target: `<kind> <host:port> <label>`.
+  plan="control db:5432 own-database"$'\n'
+  for t in postgres:5432 hydromart-postgres:5432 gateway:8080 auth:3001 web:3000; do
+    plan+="name $t service-name"$'\n'
+  done
+  count=0
+  for id in $(docker ps -q --filter "label=com.docker.compose.project=$HYDROMART_PROJECT"); do
+    line="$(docker inspect --format '{{.Name}}|{{range $k, $v := .NetworkSettings.Networks}}{{$k}}={{$v.IPAddress}} {{end}}|{{range $k, $v := .Config.ExposedPorts}}{{$k}} {{end}}' "$id")"
+    IFS='|' read -r name pairs ports <<<"$line"
+    name="${name#/}"
+    count=$((count + 1))
+    tcp=''
+    for p in $ports; do
+      case "$p" in */tcp) tcp+=" ${p%/tcp}" ;; esac
+    done
+    if [ -z "$tcp" ]; then
+      say "probe: $name exposes no TCP port, so none of its addresses was tried"
+      continue
+    fi
+    for pair in $pairs; do
+      net="${pair%%=*}"
+      ip="${pair#*=}"
+      [ -n "$ip" ] || continue
+      kind=container
+      [ "$net" = edge ] && kind=front
+      for p in $tcp; do plan+="$kind $ip:$p $name@$net"$'\n'; done
     done
   done
-  [ -n "$pg" ] || note "probe: hydromart's postgres is not running here, so its address was not tried"
-  [ -n "$gw" ] || note "probe: hydromart's gateway is not running here, so its address was not tried"
+  [ "$count" -gt 0 ] || note "probe: no running container of project $HYDROMART_PROJECT was found, so not one hydromart address was tried"
+  # The host through the edge gateway, on every port hydromart publishes but Caddy's 80 and 443:
+  # loopback-bound today, and anything published wider (PUBLIC_BIND=0.0.0.0) is what this catches.
   edge_gw="$(docker network inspect edge --format '{{range .IPAM.Config}}{{.Gateway}} {{end}}' 2>/dev/null | awk '{print $1}' || true)"
-  ports="$(docker ps --filter "label=com.docker.compose.project=$HYDROMART_PROJECT" --format '{{.Ports}}' |
+  host_ports="$(docker ps --filter "label=com.docker.compose.project=$HYDROMART_PROJECT" --format '{{.Ports}}' |
     grep -oE ':[0-9]+->' | sed 's/[^0-9]//g' | sort -un | grep -vxE '80|443' || true)"
   if [ -z "$edge_gw" ]; then
     note "probe: the edge network has no gateway address, so the host's ports were not tried"
   else
-    for p in $ports; do closed+=" $edge_gw:$p"; done
+    for p in $host_ports; do plan+="host $edge_gw:$p host"$'\n'; done
+    plan+="info $edge_gw:22 host-ssh"$'\n'
   fi
-  say "probe (inside aiweb): db:5432 must open; must stay closed:$closed"
-  # shellcheck disable=SC2086 # one argument per target
-  results="$(docker exec -i "$app" node - db:5432 $closed < scripts/lib/tcp-reach.cjs 2>&1 || true)"
-  state() { awk -v t="$1" '$2 == t { print $1; exit }' <<<"$results"; }
-  if [ "$(state db:5432)" != open ]; then
-    note "probe: the AI web could not open its own database (db:5432), so a closed below proves nothing: $(head -c 200 <<<"$results" | tr '\n' ' ')"
-  fi
-  for t in $closed; do
-    case "$(state "$t")" in
-      closed) ;;
-      open) note "isolation: the AI web can open $t" ;;
-      *) note "probe: no answer for $t" ;;
+  plan+="info 169.254.169.254:80 cloud-metadata"$'\n'
+
+  # shellcheck disable=SC2046 # one argument per target
+  results="$(docker exec -i "$app" node - $(awk '{print $2}' <<<"$plan") < scripts/lib/tcp-reach.cjs 2>&1 || true)"
+  isolated=0
+  while read -r kind target label; do
+    [ -n "$kind" ] || continue
+    read -r outcome code < <(awk -v t="$target" '$2 == t { print $1, $3; exit }' <<<"$results")
+    verdict="$(judge "$kind" "${outcome:-none}" "${target##*:}")"
+    say "probe: $label $target ${outcome:-no-answer}/${code:-none} -> $verdict"
+    case "$verdict" in
+      isolated) isolated=$((isolated + 1)) ;;
+      breach) note "isolation: the AI web reaches $label at $target (${outcome})" ;;
+      blind)
+        if [ "$kind" = control ]; then
+          note "probe: the AI web could not open its own database (db:5432: ${outcome:-no answer}), so no isolated line proves anything"
+        else
+          note "probe: no usable answer for $label at $target (${outcome:-none} ${code:-})"
+        fi
+        ;;
     esac
-  done
+    outcome=''
+    code=''
+  done <<<"$plan"
+  say "probe: $isolated hydromart address(es) and name(s) isolated, across $count running container(s)"
 
   # 4. The one way in: Caddy, over edge.
   caddy="$(hydromart_container caddy)"
@@ -229,9 +330,9 @@ probe() {
 
 # ------------------------------------------------------------------------------------ deploy
 deploy() {
-  local key missing='' ref images=() absent=()
+  local key missing='' ref images=() absent=() rc
   for key in AIWEB_POSTGRES_PASSWORD AIWEB_DB_OWNER_PASSWORD AIWEB_DB_APP_PASSWORD; do
-    grep -qE "^${key}=[^[:space:]]" .env 2>/dev/null || missing+=" $key"
+    has_value "$key" || missing+=" $key"
   done
   [ -z "$missing" ] ||
     fail "no value in .env for:$missing (scripts/aiweb-secrets.sh makes one when the line is absent and leaves a blank line alone)"
@@ -246,25 +347,40 @@ deploy() {
   if [ "${#absent[@]}" -gt 0 ]; then pull "${absent[@]}"; fi
   say "images: release $RELEASE, all ${#images[@]} present"
 
-  # 2. Database and roles.
+  # 2. Database, and what the migration needs from it. ai_app's password is left alone here.
   $AIWEB_COMPOSE up -d --wait --wait-timeout 180 db || fail "its database did not come up healthy"
   $AIWEB_COMPOSE exec -T db psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres -f - \
     < infra/aiweb/roles.sql >/dev/null ||
-    fail "infra/aiweb/roles.sql failed, so the roles ai_owner and ai_app are not as the app needs them"
-  say "database: up; roles ai_owner (owns ai) and ai_app (rows only) in place"
+    fail "infra/aiweb/roles.sql failed, so the roles and database are not as the migration needs them"
+  say "database: up; ai_owner owns ai, ai_app exists, default privileges in place"
 
-  # 3. Migrations, as the owner, before the app.
-  $AIWEB_COMPOSE --profile migrate run --rm --no-deps -T migrate </dev/null ||
-    fail "the migration job failed as ai_owner; the app was left on the release it was already running"
+  # 3. Migrations, as the owner, before the app, and bounded: a hung job must not hold the deploy.
+  # --foreground keeps the compose client in this script's process group, so deploy.sh's own
+  # timeout reaches it as well.
+  rc=0
+  timeout --foreground --kill-after=30 "$MIGRATE_TIMEOUT" \
+    $AIWEB_COMPOSE --profile migrate run --rm --no-deps -T migrate </dev/null || rc=$?
+  if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
+    remove_migrate_leftovers
+    fail "the migration job ran past ${MIGRATE_TIMEOUT}s and was stopped, its container removed; the app and ai_app's password were left as they were. Read the migration state (prisma migrate status, as ai_owner) before the next release"
+  elif [ "$rc" != 0 ]; then
+    fail "the migration job failed as ai_owner (exit $rc); the app and ai_app's password were left as they were"
+  fi
 
-  # 4. The app.
+  # 4. ai_app's password, only now that the release has migrated.
+  $AIWEB_COMPOSE exec -T db psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres -f - \
+    < infra/aiweb/app-role.sql >/dev/null ||
+    fail "infra/aiweb/app-role.sql failed, so ai_app is not as the app needs it; the app was left as it was"
+  say "database: ai_app (rows only) carries the password .env gives the app"
+
+  # 5. The app.
   if ! $AIWEB_COMPOSE up -d --remove-orphans --wait --wait-timeout 180; then
     $AIWEB_COMPOSE logs --tail 20 aiweb 2>&1 | sed 's/^/   /' || true
     fail "the app did not become healthy: /api/health is 503 when the database is unreachable or ai_app gets past row level security"
   fi
   say "app: healthy"
 
-  # 5. The probe.
+  # 6. The probe.
   probe || fail "probe: ${PROBLEMS%; }"
   alert_clear aiweb
   say "AI web OK: release $RELEASE serves $AI_WEB_URL and cannot reach hydromart"
