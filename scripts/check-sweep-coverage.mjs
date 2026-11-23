@@ -39,6 +39,10 @@ const EXEMPT = {
   '/hq/login':
     'the sign-in page itself. The pass signs in first, and a page that bounces to a login route ' +
     'aborts the run, so an authenticated visit here measures nothing',
+  '/ai/masuk':
+    "the AI web's sign-in handoff (AI-3b). It works only with the AI web's PKCE challenge, state " +
+    'and return address in its query and then sends the browser to the AI web; a bare visit only ' +
+    'says the link is incomplete, which test/ai-handoff.test.tsx covers',
 };
 
 const walk = (dir, out = []) => {

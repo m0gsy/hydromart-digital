@@ -1,6 +1,5 @@
 {
   "orphans": [
-    "GET customer: /profile/directory",
-    "POST auth: /auth/handoff/code"
+    "GET customer: /profile/directory"
   ]
 }
