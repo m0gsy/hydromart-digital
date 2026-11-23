@@ -96,6 +96,9 @@ auth: {
   totpEnrolment: '/auth/api/v1/auth/totp/enrolment',
   totpConfirm: '/auth/api/v1/auth/totp/enrolment/confirm',
   resetTotp: (id: string) => `/auth/api/v1/auth/totp/${encodeURIComponent(id)}`,
+  // AI-3b: a one-time code for the AI web's sign-in (PKCE S256), sent only to the AI web
+  // callback auth-service is configured with.
+  handoffCode: '/auth/api/v1/auth/handoff/code',
   // Active STAFF_DEPOT roster for dispatch (courier assignment). Array of Customer.
   drivers: '/auth/api/v1/auth/drivers',
   // The same roster for ONE named depot. A manager who covers more than one depot MUST

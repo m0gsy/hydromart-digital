@@ -165,6 +165,8 @@ services:
       AI_TOKEN_SIGNING_KEY: ${AI_TOKEN_SIGNING_KEY:-}
       AI_TOKEN_SIGNING_KEY_PREVIOUS: ${AI_TOKEN_SIGNING_KEY_PREVIOUS:-}
       MACHINE_ACCOUNTS: ${MACHINE_ACCOUNTS:-}
+      # AI-3b: the AI web's handoff callback, exactly. Blank = the handoff page answers 503.
+      AI_WEB_RETURN_URL: ${AI_WEB_RETURN_URL:-}
       # HD-4: seals authenticator secrets. Blank = no authenticator step (see the env template).
       TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-}
       CRM_SERVICE_URL: http://crm:3012

@@ -14,6 +14,13 @@ export class HandoffCodeDto {
   @ApiProperty({ enum: ['S256'], description: 'Only S256; the plain method is refused.' })
   @Equals('S256')
   codeChallengeMethod!: 'S256';
+
+  @ApiProperty({
+    description: "Where the AI web wants the code: refused unless it is exactly the server's AI_WEB_RETURN_URL.",
+  })
+  @IsString()
+  @MaxLength(2048)
+  returnTo!: string;
 }
 
 export class HandoffTokenDto {
@@ -73,6 +80,8 @@ export class JwksResponseDto {
 export class HandoffCodeResponseDto {
   @ApiProperty({ description: 'One-time code, valid for expiresIn seconds.' }) code!: string;
   @ApiProperty({ example: 60 }) expiresIn!: number;
+  @ApiProperty({ description: 'The AI web callback the code is for: send the browser there.' })
+  returnTo!: string;
 }
 
 export class ExternalTokenResponseDto {

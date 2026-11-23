@@ -55,8 +55,8 @@ export class ExternalAccessController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: HandoffCodeDto,
     @Req() req: Request,
-  ): Promise<{ code: string; expiresIn: number }> {
-    return this.external.issueHandoffCode(user, dto.codeChallenge, getRequestContext(req));
+  ): Promise<{ code: string; expiresIn: number; returnTo: string }> {
+    return this.external.issueHandoffCode(user, dto.codeChallenge, dto.returnTo, getRequestContext(req));
   }
 
   /** The AI web's server trades the code and its verifier for a 15-minute token. */

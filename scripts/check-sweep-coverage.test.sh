@@ -42,8 +42,8 @@ EOF
 }
 make_app() {
   rm -rf "$1"
-  # hq/login is the one page the gate exempts by name, so the clean tree has it.
-  for route in a b/detail c d e hq/login "$@"; do
+  # hq/login and ai/masuk are the pages the gate exempts by name, so the clean tree has them.
+  for route in a b/detail c d e hq/login ai/masuk "$@"; do
     [ "$route" = "$1" ] && continue
     mkdir -p "$1/$route"
     echo "export default function P() { return null; }" >"$1/$route/page.tsx"

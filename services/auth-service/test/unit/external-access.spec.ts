@@ -1,3 +1,4 @@
+import { aiWebReturnUrl } from '../../src/config/env.validation';
 import { createHash, createPublicKey, generateKeyPairSync, type KeyObject } from 'node:crypto';
 
 import { verifyExternalToken } from '@hydromart/platform';
@@ -66,9 +67,13 @@ function verifierKeys(signer: ExternalTokenSigner): Map<string, KeyObject> {
   );
 }
 
+/** AI-3b: the one address a handoff code may go to. */
+const RETURN = 'https://ai.example.test/masuk/callback';
+
 function setup(env: Record<string, string> = {}) {
   const config = buildTestConfig({
     AI_TOKEN_SIGNING_KEY: keyB64(),
+    AI_WEB_RETURN_URL: RETURN,
     MACHINE_ACCOUNTS: JSON.stringify([machine()]),
     TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString('base64'),
     ...env,
@@ -206,7 +211,7 @@ describe('ExternalTokenSigner', () => {
 describe('ExternalAccessService handoff', () => {
   it('trades a code and the right verifier for an AI token with the person own role', async () => {
     const { service, signer, staff, caller, auditLog } = setup();
-    const { code, expiresIn } = await service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx);
+    const { code, expiresIn } = await service.issueHandoffCode(caller, challengeOf(VERIFIER), RETURN, ctx);
     expect(expiresIn).toBe(60);
 
     const result = await service.exchangeHandoffCode(code, VERIFIER, ctx);
@@ -226,7 +231,7 @@ describe('ExternalAccessService handoff', () => {
 
   it('spends the code on first use, so a replay fails', async () => {
     const { service, caller } = setup();
-    const { code } = await service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx);
+    const { code } = await service.issueHandoffCode(caller, challengeOf(VERIFIER), RETURN, ctx);
     await service.exchangeHandoffCode(code, VERIFIER, ctx);
     await expect(service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject({
       code: 'AUTH_HANDOFF_INVALID',
@@ -235,7 +240,7 @@ describe('ExternalAccessService handoff', () => {
 
   it('a wrong verifier fails and spends the code too', async () => {
     const { service, caller, auditLog } = setup();
-    const { code } = await service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx);
+    const { code } = await service.issueHandoffCode(caller, challengeOf(VERIFIER), RETURN, ctx);
     await expect(service.exchangeHandoffCode(code, 'w'.repeat(43), ctx)).rejects.toMatchObject({
       code: 'AUTH_HANDOFF_INVALID',
     });
@@ -248,7 +253,7 @@ describe('ExternalAccessService handoff', () => {
 
   it('a code older than 60 seconds is refused', async () => {
     const { service, caller, clock, auditLog } = setup();
-    const { code } = await service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx);
+    const { code } = await service.issueHandoffCode(caller, challengeOf(VERIFIER), RETURN, ctx);
     clock.advance(60);
     await expect(service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject({
       code: 'AUTH_HANDOFF_INVALID',
@@ -258,7 +263,7 @@ describe('ExternalAccessService handoff', () => {
 
   it('reads the account again at exchange: gone, suspended or now a customer', async () => {
     const { service, customers, staff, caller, auditLog } = setup();
-    const issue = () => service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx);
+    const issue = () => service.issueHandoffCode(caller, challengeOf(VERIFIER), RETURN, ctx);
 
     let { code } = await issue();
     customers.rows.set(staff.id, { ...staff.toProps(), status: CustomerStatus.SUSPENDED });
@@ -284,7 +289,7 @@ describe('ExternalAccessService handoff', () => {
     const { service, caller } = setup();
     const codes: string[] = [];
     for (let i = 0; i < 4; i += 1) {
-      codes.push((await service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx)).code);
+      codes.push((await service.issueHandoffCode(caller, challengeOf(VERIFIER), RETURN, ctx)).code);
     }
     await expect(service.exchangeHandoffCode(codes[0]!, VERIFIER, ctx)).rejects.toMatchObject({
       code: 'AUTH_HANDOFF_INVALID',
@@ -292,23 +297,77 @@ describe('ExternalAccessService handoff', () => {
     await expect(service.exchangeHandoffCode(codes[3]!, VERIFIER, ctx)).resolves.toBeDefined();
   });
 
+  // AI-3b: whoever holds the code and its verifier gets a token for this person, so the code
+  // goes to the AI web's configured callback and nowhere a link names.
+  it('sends a code only to the configured AI web callback, and says where', async () => {
+    const t = setup();
+    const me = { sub: 'staff-1', role: Role.HEAD_OFFICE };
+    await expect(t.service.issueHandoffCode(me, challengeOf(VERIFIER), RETURN, ctx)).resolves.toMatchObject({
+      returnTo: RETURN,
+      expiresIn: 60,
+    });
+    for (const elsewhere of [
+      'https://evil.example/masuk/callback',
+      `${RETURN}?x=1`,
+      `${RETURN}/`,
+      'https://ai.example.test/masuk/callback#a',
+      'https://AI.example.test/masuk/callback',
+      'http://ai.example.test/masuk/callback',
+      '',
+    ]) {
+      await expect(t.service.issueHandoffCode(me, challengeOf(VERIFIER), elsewhere, ctx)).rejects.toMatchObject({
+        code: 'AUTH_HANDOFF_RETURN_REFUSED',
+      });
+    }
+  });
+
+  it('refuses a customer before it looks at the address', async () => {
+    const t = setup();
+    await expect(
+      t.service.issueHandoffCode({ sub: 'c-9', role: Role.CUSTOMER }, challengeOf(VERIFIER), 'https://evil.example/', ctx),
+    ).rejects.toMatchObject({ code: 'AUTH_HANDOFF_STAFF_ONLY' });
+  });
+
+  it('accepts only a canonical https callback in the environment', () => {
+    expect(aiWebReturnUrl('')).toBe('');
+    expect(aiWebReturnUrl(RETURN)).toBe(RETURN);
+    expect(aiWebReturnUrl('http://localhost:3000/masuk/callback')).toBe('http://localhost:3000/masuk/callback');
+    for (const bad of [
+      'http://ai.example.test/masuk/callback',
+      'https://AI.example.test/masuk/callback',
+      'https://user:pw@ai.example.test/masuk/callback',
+      'https://ai.example.test/masuk/callback?x=1',
+      'https://ai.example.test/masuk/callback#f',
+      'not a url',
+    ]) {
+      expect(() => aiWebReturnUrl(bad)).toThrow(/AI_WEB_RETURN_URL/);
+    }
+  });
+
+  it('issues no code at all while the AI web is not connected', async () => {
+    const t = setup({ AI_WEB_RETURN_URL: '' });
+    await expect(
+      t.service.issueHandoffCode({ sub: 'staff-1', role: Role.HEAD_OFFICE }, challengeOf(VERIFIER), RETURN, ctx),
+    ).rejects.toMatchObject({ code: 'AUTH_HANDOFF_RETURN_UNSET', status: 503 });
+  });
+
   it('refuses customers, a full queue, and everything when switched off', async () => {
     const { service, caller, clock } = setup();
     await expect(
-      service.issueHandoffCode({ sub: 'c1', role: Role.CUSTOMER }, challengeOf(VERIFIER), ctx),
+      service.issueHandoffCode({ sub: 'c1', role: Role.CUSTOMER }, challengeOf(VERIFIER), RETURN, ctx),
     ).rejects.toMatchObject({ code: 'AUTH_HANDOFF_STAFF_ONLY' });
 
     for (let i = 0; i < 1000; i += 1) {
-      await service.issueHandoffCode({ ...caller, sub: `staff-${i}` }, challengeOf(VERIFIER), ctx);
+      await service.issueHandoffCode({ ...caller, sub: `staff-${i}` }, challengeOf(VERIFIER), RETURN, ctx);
     }
-    await expect(service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx)).rejects.toMatchObject({
+    await expect(service.issueHandoffCode(caller, challengeOf(VERIFIER), RETURN, ctx)).rejects.toMatchObject({
       code: 'AUTH_HANDOFF_BUSY',
     });
     clock.advance(61); // expired codes are swept, which makes room again
-    await expect(service.issueHandoffCode(caller, challengeOf(VERIFIER), ctx)).resolves.toBeDefined();
+    await expect(service.issueHandoffCode(caller, challengeOf(VERIFIER), RETURN, ctx)).resolves.toBeDefined();
 
     const off = setup({ AI_TOKEN_SIGNING_KEY: '' });
-    await expect(off.service.issueHandoffCode(off.caller, challengeOf(VERIFIER), ctx)).rejects.toMatchObject({
+    await expect(off.service.issueHandoffCode(off.caller, challengeOf(VERIFIER), RETURN, ctx)).rejects.toMatchObject({
       code: 'AUTH_EXTERNAL_TOKENS_OFF',
     });
     await expect(off.service.exchangeHandoffCode('x', VERIFIER, ctx)).rejects.toMatchObject({
@@ -367,7 +426,7 @@ describe('ExternalAccessController', () => {
     expect(controller.jwks().keys).toHaveLength(1);
     const { code } = await controller.handoffCode(
       caller as never,
-      { codeChallenge: challengeOf(VERIFIER), codeChallengeMethod: 'S256' },
+      { codeChallenge: challengeOf(VERIFIER), codeChallengeMethod: 'S256', returnTo: RETURN },
       req,
     );
     await expect(controller.handoffToken({ code, codeVerifier: VERIFIER }, req)).resolves.toMatchObject({
@@ -402,7 +461,7 @@ describe('ExternalAccessService handoff second factor (HD-4)', () => {
     await t.totp.startEnrolment(me, ctx);
     await t.totp.confirmEnrolment(me, appCode(), t.sms.lastCode!, ctx);
     t.clock.advance(30);
-    const newCode = async () => (await t.service.issueHandoffCode(me, challengeOf(VERIFIER), ctx)).code;
+    const newCode = async () => (await t.service.issueHandoffCode(me, challengeOf(VERIFIER), RETURN, ctx)).code;
     return { ...t, hq, me, appCode, wrongCode, newCode };
   }
 
@@ -413,6 +472,7 @@ describe('ExternalAccessService handoff second factor (HD-4)', () => {
     const { code } = await t.service.issueHandoffCode(
       { sub: finance.id, role: finance.role },
       challengeOf(VERIFIER),
+      RETURN,
       ctx,
     );
     await expect(t.service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject({
@@ -488,6 +548,7 @@ describe('ExternalAccessService handoff second factor (HD-4)', () => {
     const { code } = await t.service.issueHandoffCode(
       { sub: director.id, role: director.role },
       challengeOf(VERIFIER),
+      RETURN,
       ctx,
     );
     await expect(t.service.exchangeHandoffCode(code, VERIFIER, ctx)).rejects.toMatchObject({
