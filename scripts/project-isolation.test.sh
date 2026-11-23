@@ -176,10 +176,23 @@ PRUNES="$(grep '^image prune' "$W/gc.log")"
 printf '%s\n' "$PRUNES" | grep -q 'label!=' &&
   bad "docker-gc pruned unlabelled images while another project is on the box" ||
   ok "with another project here, unlabelled images are left alone"
-run "$W/containers.one" "$W/gc1.log" bash scripts/docker-gc.sh --old-images >/dev/null
+# Alone means no container of another project AND no other project declared in infra/: since
+# HD-9 this repository's own infra/aiweb/ declares one, so this case reads an empty infra/.
+mkdir -p "$W/no-infra"
+GC_INFRA_DIR="$W/no-infra" run "$W/containers.one" "$W/gc1.log" bash scripts/docker-gc.sh --old-images >/dev/null
 [ "$(grep -c '^image prune .*label!=com.docker.compose.project$' "$W/gc1.log")" = 2 ] &&
   ok "alone on the box, docker-gc still reclaims unlabelled images (older CI pulls, third-party)" ||
   bad "alone on the box, docker-gc must prune unlabelled images too: $(grep '^image prune' "$W/gc1.log" | tr '\n' ';')"
+# HD-9: the AI web's real compose file is what declares it, so its `name:` must be one docker-gc reads.
+OUT="$(run "$W/containers.one" "$W/gc3.log" bash scripts/docker-gc.sh --old-images)"
+if grep -q 'label!=' "$W/gc3.log"; then
+  bad "docker-gc does not see the project infra/aiweb/docker-compose.yml declares, and would prune its images"
+else
+  case "$OUT" in
+    *hydromart-ai*) ok "docker-gc reads infra/aiweb/docker-compose.yml's name and keeps the AI web's images" ;;
+    *) bad "docker-gc should name hydromart-ai, declared by infra/aiweb/docker-compose.yml: $OUT" ;;
+  esac
+fi
 # A project declared in infra/ but with no container right now (mid-redeploy, stopped) is
 # still here: its unlabelled images are its rollback.
 mkdir -p "$W/infra/aiweb"

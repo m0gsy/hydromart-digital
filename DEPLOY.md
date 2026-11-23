@@ -276,6 +276,51 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml down -v
 > Tip: alias the long invocation once —
 > `alias dcp='docker compose -f docker-compose.yml -f docker-compose.prod.yml'`.
 
+### The AI web (HD-9) — a second compose project on this box
+
+[`infra/aiweb/docker-compose.yml`](infra/aiweb/docker-compose.yml) runs the AI web
+(m0gsy/hydromart-ai) as project `hydromart-ai`: `aiweb` (the app), `db` (its own Postgres, never
+hydromart's) and `migrate` (a one-shot job). Caddy serves it at `https://ai.hydromart-digital.com`
+from [`infra/caddy/sites/aiweb.caddy`](infra/caddy/sites/aiweb.caddy) over the `edge` network.
+
+- **Every deploy** runs [`scripts/aiweb-secrets.sh`](scripts/aiweb-secrets.sh) before its
+  converge and [`scripts/aiweb-deploy.sh`](scripts/aiweb-deploy.sh) after `DEPLOY OK`. The first
+  makes, on the box, every key whose line is absent from `.env` (`AIWEB_*` database passwords,
+  `AI_TOKEN_SIGNING_KEY`, `TOTP_ENCRYPTION_KEY`, `AI_WEB_RETURN_URL`), through `env-set.sh`, never
+  printing a value; `.env`'s nightly encrypted backup carries them off the box. The second pulls
+  any missing image by digest (logged in with the Deploy job's own token, logged out at once),
+  starts the database, applies [`infra/aiweb/roles.sql`](infra/aiweb/roles.sql) (`ai_owner` owns
+  database `ai` and migrates, `ai_app` holds row privileges only), migrates as `ai_owner`, starts
+  the app until `/api/health` is healthy, then probes: the app opens its own database and nothing
+  of hydromart's (by name, by container address, through any host port), only Caddy and `aiweb`
+  sit on `edge`, nothing publishes a host port, the public URL answers, and `ai_app` holds exactly
+  `INSERT, SELECT` on its two record tables.
+- **A failure there never fails hydromart's deploy.** It prints `[aiweb] !!` lines, alerts once
+  (again when the reason or the release changes, else weekly) and leaves the AI web as it was:
+  a refused pull or a failed migration does not touch the running app.
+- **A release is a PR** that changes the two `ghcr.io/m0gsy/hydromart-ai@sha256:` digests in the
+  compose file (hydromart-ai's CI prints both for every commit on its main). To go back, revert
+  that PR; a migration it applied stays applied.
+- **Kill switch for AI tokens:** keep the line and blank it (`AI_TOKEN_SIGNING_KEY=` through
+  deploy mode `env-set`, `services` = `auth`). Deleting the line instead makes a new key on the
+  next deploy.
+- **Its first appearance takes two deploys:** deploy.sh changes run one release late (its own
+  header says why), so the deploy that merges HD-9 only reloads Caddy (the certificate). Press
+  Deploy (mode `deploy`) once after it to bring the AI web up.
+
+By hand, on the box:
+
+```bash
+alias dca='docker compose -f infra/aiweb/docker-compose.yml --env-file .env'
+dca ps; dca logs -f aiweb
+bash scripts/aiweb-deploy.sh --probe   # the isolation probe, against what runs now
+bash scripts/aiweb-deploy.sh           # a full run; a missing image needs the Deploy workflow's token
+```
+
+Not covered yet: `backup-db.sh` and the restore drill dump hydromart's Postgres only, the watchdog
+converges hydromart only (the AI web relies on `restart: unless-stopped`), and docker-gc keeps the
+AI web's images, so old releases stay on disk until removed by hand.
+
 ### Backups + restore drill (host cron)
 
 [`scripts/backup-db.sh`](scripts/backup-db.sh) dumps the whole Postgres cluster

@@ -11,7 +11,10 @@ import { CAPABILITIES } from '@hydromart/access';
  *                          machine token within a minute, and nothing new is signed.
  *   MACHINE_ACCOUNTS       a JSON list of machine accounts (n8n). See parseMachineAccounts.
  *
- * Make a key: openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -outform DER | base64 -w0
+ * Make a key (scripts/aiweb-secrets.sh does it on the box when the line is absent):
+ *   openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 \
+ *     | openssl pkcs8 -topk8 -nocrypt -outform DER | base64 -w0
+ * Not `genpkey -outform DER` alone: for an EC key that writes the SEC1 form, which this refuses.
  */
 
 /** A P-256 private key from its base64 PKCS8 DER form. Throws on anything else. */

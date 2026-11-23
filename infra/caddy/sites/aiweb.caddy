@@ -1,0 +1,19 @@
+# HD-9: the AI web (m0gsy/hydromart-ai), run by infra/aiweb/docker-compose.yml as its own compose
+# project. Its container joins the `edge` network as `aiweb`; Caddy is hydromart's only member
+# there, and reaches nothing else of that project. The host is the compose file's AI_WEB_URL
+# (scripts/check-aiweb-compose.mjs holds the two together). DNS is a Cloudflare DNS-only record,
+# so Caddy gets and renews the certificate itself, as it does for the two sites in ../Caddyfile.
+#
+# No `log` directive, like those two: Caddy writes no access log for this site, so the one-time
+# code /masuk/callback carries in its query is not recorded per request. Only a request Caddy
+# fails (a 502 while the app is down) reaches its error log with its URI; that code is single
+# use, lives 60 seconds and is worthless without the verifier, which never leaves the AI web and
+# the browser's HttpOnly cookie. Should an access log ever be added here, drop the query from it
+# (`format filter` with `request>uri query`).
+#
+# The Host header goes through unchanged, reverse_proxy's default: the authenticator form is a
+# server action, and Next refuses one whose Origin and Host differ.
+ai.hydromart-digital.com {
+	import hsts
+	reverse_proxy aiweb:3000
+}

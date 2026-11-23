@@ -1,0 +1,125 @@
+# The AI web (Plan Eksekusi HD-9): the m0gsy/hydromart-ai app, its own Postgres and its migration
+# job, run on the production box as a SECOND compose project beside hydromart (HD-1). It is
+# started by scripts/aiweb-deploy.sh, which scripts/deploy.sh runs after every hydromart deploy
+# passes its gate. DEPLOY.md, "The AI web", says how to operate it.
+#
+# A RELEASE IS THIS FILE. The two ghcr.io/m0gsy/hydromart-ai digests below are the app and the
+# migration job the box runs; hydromart-ai's CI prints both for every commit on its main
+# ("Pin these in hydromart-digital's infra/aiweb/"). To ship one, change both lines in a PR here;
+# the deploy after its merge pulls them by digest, migrates, then swaps the app. The box never
+# builds this app and never follows a tag. To go back, revert that PR.
+#
+# Isolation, held by scripts/check-aiweb-compose.mjs in CI and proved on the box after every
+# deploy by the probe in scripts/aiweb-deploy.sh:
+#   - its own project name, so hydromart's `up --remove-orphans` never takes it for an orphan
+#     and docker-gc (which reads this `name:`) leaves its images alone;
+#   - `aiweb` joins `edge` (Caddy's side door, infra/caddy/sites/aiweb.caddy) and `private`;
+#     the database and the migration job join `private` only, which is internal: no way out;
+#   - no service publishes a host port, and none joins hydromart's own network;
+#   - only AIWEB_* keys of .env are interpolated here: none of hydromart's secrets
+#     (JWT_ACCESS_SECRET, INTERNAL_SERVICE_KEY, ...) can be handed to a container here.
+#
+# The three passwords are made on the box by scripts/aiweb-secrets.sh (only when their line is
+# absent from .env, never printed) and travel with .env in its encrypted nightly backup.
+name: hydromart-ai
+
+# The same cap as docker-compose.prod.yml and ops/docker-daemon.json (check-compose-logging.mjs).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 50m
+    max-file: "3"
+
+services:
+  db:
+    # The image hydromart's own Postgres runs (16.16, read off the box 2026-11-23), so the box
+    # already holds it. hydromart-ai's CI tests against postgres:16-alpine.
+    image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
+    cpus: 0.5
+    environment:
+      # The superuser's. The image needs one to create the cluster, and roles.sql keeps it in step
+      # with .env. scripts/aiweb-deploy.sh applies roles.sql as the superuser over the container's
+      # local socket; neither the app nor the migration job ever uses that role.
+      POSTGRES_PASSWORD: ${AIWEB_POSTGRES_PASSWORD:?set by scripts/aiweb-secrets.sh}
+      # Read by roles.sql through psql's \getenv, so no password is ever on a command line.
+      AIWEB_DB_OWNER_PASSWORD: ${AIWEB_DB_OWNER_PASSWORD:?set by scripts/aiweb-secrets.sh}
+      AIWEB_DB_APP_PASSWORD: ${AIWEB_DB_APP_PASSWORD:?set by scripts/aiweb-secrets.sh}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - private
+    healthcheck:
+      # Over TCP, not the socket: during the first initialisation the image runs a temporary
+      # server on the socket only, and that one must not count as ready.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "postgres"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+      start_interval: 2s
+
+  # One shot, before every app start: `prisma migrate deploy` as ai_owner, the role that owns
+  # database ai. A profile keeps it out of `up`; scripts/aiweb-deploy.sh runs it with `run --rm`.
+  migrate:
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:11d66c05634ecff7a56430e94e81956f40b885586cd13e4d025111ca007f7b08
+    profiles: ["migrate"]
+    logging: *logging
+    mem_limit: 512m
+    cpus: 1.0
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      DATABASE_URL: postgresql://ai_owner:${AIWEB_DB_OWNER_PASSWORD:?set by scripts/aiweb-secrets.sh}@db:5432/ai
+    networks:
+      - private
+    depends_on:
+      db: { condition: service_healthy }
+
+  aiweb:
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:9aa0cf6789fe7b194a2a29b5baface10f9e4eae54b7b5287813d6affe211a39a
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
+    cpus: 1.0
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      # ai_app: row privileges only. As the owner, a superuser or a BYPASSRLS role the app
+      # answers /api/health with 503, and the deploy reports the AI web as not deployed.
+      DATABASE_URL: postgresql://ai_app:${AIWEB_DB_APP_PASSWORD:?set by scripts/aiweb-secrets.sh}@db:5432/ai
+      # Origins only (hydromart-ai README, "Sign-in"). auth-service's AI_WEB_RETURN_URL is this
+      # plus /masuk/callback (scripts/aiweb-secrets.sh writes it from here), and the Caddy site
+      # serves this host (scripts/check-aiweb-compose.mjs holds the three together).
+      AI_WEB_URL: https://ai.hydromart-digital.com
+      HYDROMART_WEB_URL: https://hydromart-digital.com
+      # Reached the way a browser reaches it, through Caddy on the public address: the AI web
+      # has no other way into hydromart.
+      HYDROMART_API_URL: https://api.hydromart-digital.com
+    networks:
+      - edge
+      - private
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      # 503 when the database is unreachable or row level security does not hold for ai_app.
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+
+networks:
+  # Created by hydromart's docker-compose.prod.yml (Caddy's second network, HD-1). Caddy and
+  # `aiweb` are its only members; the probe in scripts/aiweb-deploy.sh says so after each deploy.
+  edge:
+    external: true
+  # The database's network. `internal`: no route off the box and no route to anything else on it.
+  private:
+    internal: true
+
+volumes:
+  pgdata:

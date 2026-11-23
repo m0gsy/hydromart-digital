@@ -352,6 +352,20 @@ jobs:
       - name: Project isolation self-check
         run: bash scripts/project-isolation.test.sh
 
+      # HD-9: the AI web is that second project. Its compose file keeps to the isolation above
+      # (its own name, `edge` plus an internal network of its own, no host port, every image
+      # pinned by digest, nothing of hydromart's .env but AIWEB_* keys), every compose variable
+      # it reads is in the env template, and its deploy can neither fail hydromart's deploy nor
+      # call a breach a pass: proved against a fake docker, the key maker against a scratch .env.
+      - name: AI web compose policy (HD-9)
+        run: node scripts/check-aiweb-compose.mjs
+
+      - name: Every AI web compose variable is in the env template
+        run: node scripts/check-env-template.mjs infra/aiweb/docker-compose.yml
+
+      - name: AI web deploy self-check (HD-9)
+        run: bash scripts/aiweb.test.sh
+
       # env-doctor --fix rewrites the live .env, so every branch of it is pinned by tests:
       # what it joins, what it refuses, and that it never prints the key.
       - name: .env doctor self-check

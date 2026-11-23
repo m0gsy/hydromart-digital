@@ -51,6 +51,8 @@
 # ---- Deployment, secrets, security posture ---------------------------------
 /docker-compose.prod.yml                    @m0gsy
 /Caddyfile                                  @m0gsy
+# Caddy's sites and the AI web's stack; infra/aiweb/docker-compose.yml pins its release (HD-9).
+/infra/                                     @m0gsy
 /scripts/                                   @m0gsy
 /.github/workflows/                         @m0gsy
 /SECURITY.md                                @m0gsy
