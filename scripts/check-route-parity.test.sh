@@ -46,6 +46,10 @@ echo "check-route-parity (PAR-20):"
 
 run_check
 [ "$RC" = 0 ] && ok "passes on the repository as it stands" || bad "the repo should pass: $OUT"
+# How many routes the repository already opens to the AI web (AI-5 added the first real one), so
+# the case below counts the route it adds on top of them.
+AI_BEFORE="$(printf '%s' "$OUT" | grep -oE '[0-9]+ for the AI web' | grep -oE '^[0-9]+' || true)"
+AI_BEFORE="${AI_BEFORE:-0}"
 
 # 1. A new route nobody can reach. This is the whole point: it is written, guarded, and has
 #    no screen, no adapter, no cron line — exactly like the birthday-points sweep.
@@ -89,7 +93,7 @@ io.open(p, 'w', encoding='utf-8', newline='\n').write(s[:i] + route + s[i:])
 PY
 run_check
 [ "$RC" = 0 ] && ok "a route opened to the AI web is not an orphan" || bad "an @ExternalAccess route must not be an orphan (rc=$RC): $OUT"
-case "$OUT" in *"1 for the AI web"*) ok "  ...and is counted as the AI web's" ;; *) bad "  expected it counted for the AI web: $OUT" ;; esac
+case "$OUT" in *" $((AI_BEFORE + 1)) for the AI web"*) ok "  ...and is counted as the AI web's" ;; *) bad "  expected it counted for the AI web ($((AI_BEFORE + 1))): $OUT" ;; esac
 cp "$WORK/victim.orig" "$VICTIM"
 
 # The decorator in a COMMENT opens nothing to anybody, so it must not excuse an orphan.

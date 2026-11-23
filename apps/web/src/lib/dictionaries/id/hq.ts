@@ -319,6 +319,7 @@ export const hq = {
       kasbonApprove: 'Setujui kasbon (asisten SPV depotnya)',
       priceOverrideDecide: 'Putuskan usulan harga depot',
       franchiseApplications: 'Putuskan aplikasi waralaba',
+      franchiseApplicationNotify: 'Kirim notifikasi lamaran waralaba baru (akun mesin n8n)',
       voucherRequestDecide: 'Putuskan permintaan voucher',
       fraudReview: 'Tinjau tanda kecurangan',
       refundIssue: 'Ajukan refund',

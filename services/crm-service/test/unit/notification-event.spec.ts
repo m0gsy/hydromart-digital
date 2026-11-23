@@ -296,9 +296,10 @@ describe('the staff switch for each depot alert', () => {
     }
   });
 
-  it('puts every depot-wide alert on a switch the settings screen offers', () => {
-    // admin-service's DEPOT_EVENT_IDS; "courierFail" and the rest must match it exactly.
-    const offered = ['newOrder', 'lowStock', 'courierFail', 'approval', 'dailySummary'];
+  it('puts every alert on a switch a settings screen offers', () => {
+    // admin-service's PUSH_TOGGLE_IDS: its DEPOT_EVENT_IDS ("courierFail" and the rest must match
+    // it exactly) plus the /hq/profile switch "newFranchiseApp" (AI-5).
+    const offered = ['newOrder', 'lowStock', 'courierFail', 'approval', 'dailySummary', 'newFranchiseApp'];
     for (const toggle of Object.values(STAFF_TOGGLE_FOR_EVENT)) expect(offered).toContain(toggle);
   });
 

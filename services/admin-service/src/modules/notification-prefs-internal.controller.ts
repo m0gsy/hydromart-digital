@@ -23,7 +23,7 @@ export class NotificationPrefsInternalController {
   @ApiSecurity('internal-key')
   @Post('push-disabled')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Which accounts switched push off for a depot toggle (internal)' })
+  @ApiOperation({ summary: 'Which accounts switched push off for a toggle (internal)' })
   async pushDisabled(@Body() dto: PushDisabledDto): Promise<PushDisabledResponseDto> {
     return { disabled: await this.prefs.pushDisabledFor(dto.accountIds, dto.toggle) };
   }

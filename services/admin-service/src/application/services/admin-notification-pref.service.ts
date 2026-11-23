@@ -34,6 +34,13 @@ export const DEPOT_EVENT_IDS = [
 export const NOTIFICATION_EVENT_IDS = [...HQ_EVENT_IDS, ...DEPOT_EVENT_IDS] as const;
 
 /**
+ * The switches crm-service asks about before it pushes: every depot toggle, and the one HQ
+ * toggle with a push behind it, "Lamaran waralaba baru" (AI-5: n8n raises that notification).
+ * The other HQ toggles are kept on /hq/profile but nothing pushes for them yet.
+ */
+export const PUSH_TOGGLE_IDS = [...DEPOT_EVENT_IDS, 'newFranchiseApp'] as const;
+
+/**
  * Which list an account gets. There is no HQ-only scope on purpose: every role holding
  * `hqConsole` also holds `opsNotif`, so a head-office account genuinely owns both lists,
  * and a third scope nothing could ever select would be a branch no caller reaches.
@@ -86,15 +93,17 @@ export class AdminNotificationPrefService {
   }
 
   /**
-   * Which of these accounts have switched PUSH off for one depot toggle.
+   * Which of these accounts have switched PUSH off for one toggle.
    *
-   * crm-service asks this before it pushes a depot alert to staff, so the switches on the
-   * settings screens decide what a phone buzzes for. An account that never saved anything has
-   * the default for that toggle (see DEPOT_DEFAULTS), so "no row" is not "all on". Only depot
-   * toggles are answerable: an HQ toggle has no depot alert behind it.
+   * crm-service asks this before it pushes an alert to staff, so the switches on the settings
+   * screens decide what a phone buzzes for. An account that never saved anything has the
+   * default for that toggle (DEPOT_DEFAULTS, HQ_DEFAULTS), so "no row" is not "all on". Only
+   * PUSH_TOGGLE_IDS are answerable: the other HQ toggles have no push behind them.
    */
   async pushDisabledFor(accountIds: readonly string[], toggle: string): Promise<string[]> {
-    const def = DEPOT_DEFAULTS.find((d) => d.id === toggle);
+    const def = (PUSH_TOGGLE_IDS as readonly string[]).includes(toggle)
+      ? [...DEPOT_DEFAULTS, ...HQ_DEFAULTS].find((d) => d.id === toggle)
+      : undefined;
     if (!def) return [];
     const saved = new Map((await this.repo.getMany(accountIds)).map((r) => [r.accountId, r]));
     return accountIds.filter((id) => {

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEnum,
   IsISO8601,
+  IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
@@ -145,4 +146,43 @@ export class PdpAnonymiseDto {
   @IsString()
   @MaxLength(32)
   phone?: string | null;
+}
+
+/** AI-5: the dedupe key of the event is `franchise.application_submitted:<applicationId>`. */
+export const FRANCHISE_EVENT_PREFIX = 'franchise.application_submitted:';
+
+/**
+ * AI-5 — what n8n forwards from the signed `franchise.application_submitted` event
+ * (contracts/ai-v1/events.openapi.json): its `eventId` and `data`. city and province are
+ * checked as depot-service's form checks them; the controller then makes each one line.
+ */
+export class FranchiseApplicationSubmittedDto {
+  @ApiProperty({ example: 'franchise.application_submitted:3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807' })
+  @IsString()
+  @Matches(
+    /^franchise\.application_submitted:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    { message: 'eventId must be franchise.application_submitted:<applicationId>' },
+  )
+  eventId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  applicationId!: string;
+
+  @ApiProperty({ example: 'Bekasi', maxLength: 100 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  city!: string;
+
+  @ApiProperty({ example: 'Jawa Barat', maxLength: 100 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  province!: string;
+}
+
+export class NotificationIdDto {
+  @ApiProperty({ format: 'uuid', description: 'The notification row; a repeated eventId answers the same one.' })
+  id!: string;
 }

@@ -194,6 +194,9 @@ export function destinationFor(
       return forDepot(withId('/dashboard/expense-claims', vars.claimId), options.depotId);
     case NotificationEvent.REFUND_REQUESTED:
       return '/hq/refunds';
+    // AI-5: the application itself (head office's, web only like pricing), or the list.
+    case NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED:
+      return vars.applicationId ? withId('/hq/applications/detail', vars.applicationId) : '/hq/applications';
     case NotificationEvent.LEAVE_SUBMITTED:
       return options.leaveScreen ? withId('/hr/leave', vars.leaveId) : INBOX;
     case NotificationEvent.LEAVE_APPROVED:

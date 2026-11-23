@@ -35,6 +35,7 @@ export const notifications = {
     PRICE_OVERRIDE_PROPOSED: 'Price change proposed',
     EXPENSE_CLAIM_SUBMITTED: 'Expense claim waiting for approval',
     REFUND_REQUESTED: 'Refund waiting for approval',
+    FRANCHISE_APPLICATION_SUBMITTED: 'New franchise application',
     PAYMENT_FAILED: 'Payment did not go through',
     PAYMENT_REMINDER: 'Complete your payment',
     REFUND_PROCESSED: 'Refund processed',

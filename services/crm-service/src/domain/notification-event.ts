@@ -56,6 +56,10 @@ export enum NotificationEvent {
   EXPENSE_CLAIM_SUBMITTED = 'EXPENSE_CLAIM_SUBMITTED',
   // A refund above the HQ threshold waits in the refund queue. Tokens: {{amount}}, {{paymentId}}.
   REFUND_REQUESTED = 'REFUND_REQUESTED',
+  // AI-5: a calon mitra applied on /waralaba. Raised by n8n (machine token) through
+  // POST notifications/external/franchise-application-submitted, never by a service.
+  // Tokens: {{city}}, {{province}}; `applicationId` rides along for the tap.
+  FRANCHISE_APPLICATION_SUBMITTED = 'FRANCHISE_APPLICATION_SUBMITTED',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -212,6 +216,9 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Klaim biaya kurir {{amount}} ({{category}}) menunggu persetujuan. Buka menu Klaim biaya untuk memutuskan.',
   [NotificationEvent.REFUND_REQUESTED]:
     'Refund {{amount}} menunggu persetujuan pusat. Buka antrean Refund untuk memutuskan.',
+  // "Lamaran waralaba" is the HQ menu label of that screen (hq.nav.applications).
+  [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]:
+    'Lamaran waralaba baru dari calon mitra di {{city}}, {{province}}. Buka menu Lamaran waralaba untuk meninjau.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
   [NotificationEvent.PAYMENT_REMINDER]:
@@ -323,6 +330,8 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.PRICE_OVERRIDE_PROPOSED,
   NotificationEvent.EXPENSE_CLAIM_SUBMITTED,
   NotificationEvent.REFUND_REQUESTED,
+  // AI-5: no depot. The row is for those who review applications, the push likewise.
+  NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -365,11 +374,13 @@ export const OVERSEER_EVENTS: readonly NotificationEvent[] = [
 ];
 
 /**
- * The staff settings switch ("Pesanan baru", "Stok menipis", ...) that governs each depot alert.
- * The ids are admin-service's DEPOT_EVENT_IDS. An event with no entry has no switch on any
- * screen - a leave decision, a payslip, a courier's own delivery - and is always pushed.
+ * The staff settings switch ("Pesanan baru", "Stok menipis", ...) that governs each alert's push.
+ * The ids are admin-service's DEPOT_EVENT_IDS, plus `newFranchiseApp`, the one /hq/profile
+ * switch with a push behind it ("Lamaran waralaba baru", admin-service PUSH_TOGGLE_IDS). An
+ * event with no entry has no switch on any screen - a leave decision, a payslip, a courier's own
+ * delivery - and is always pushed.
  */
-export type StaffToggle = 'newOrder' | 'lowStock' | 'courierFail' | 'approval' | 'dailySummary';
+export type StaffToggle = 'newOrder' | 'lowStock' | 'courierFail' | 'approval' | 'dailySummary' | 'newFranchiseApp';
 
 export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffToggle>> = {
   [NotificationEvent.DEPOT_ORDER_INCOMING]: 'newOrder',
@@ -388,6 +399,8 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.PRICE_OVERRIDE_PROPOSED]: 'approval',
   [NotificationEvent.EXPENSE_CLAIM_SUBMITTED]: 'approval',
   [NotificationEvent.REFUND_REQUESTED]: 'approval',
+  // AI-5: its own switch on /hq/profile, not the depot consoles' "approval".
+  [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: 'newFranchiseApp',
   [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
 };
 
@@ -403,6 +416,9 @@ export const APPROVER_CAP_FOR_EVENT: Partial<Record<NotificationEvent, Capabilit
   [NotificationEvent.PRICE_OVERRIDE_PROPOSED]: 'priceOverrideDecide',
   [NotificationEvent.EXPENSE_CLAIM_SUBMITTED]: 'expenseApprove',
   [NotificationEvent.REFUND_REQUESTED]: 'refundQueue',
+  // AI-5, owner decision: whoever may review applications (head office, the director, and
+  // "Sales" once its role is given this capability in the matrix).
+  [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: 'franchiseApplications',
 };
 
 /**
@@ -446,6 +462,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'A courier expense claim of {{amount}} ({{category}}) waits for approval. Open Expense claims to decide.',
   [NotificationEvent.REFUND_REQUESTED]:
     'A refund of {{amount}} waits for head office approval. Open the Refund queue to decide.',
+  [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]:
+    'New franchise application from a prospective partner in {{city}}, {{province}}. Open Franchise applications to review it.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Hi {{name}}, the payment for order {{orderNumber}} did not go through ({{reason}}). Please pay again from the app.',
   [NotificationEvent.PAYMENT_REMINDER]:
