@@ -15,6 +15,15 @@ function cfg(over: Partial<Record<string, unknown>> = {}): HrConfigService {
   } as unknown as HrConfigService;
 }
 
+/**
+ * onnxruntime-node and sharp are optional: the verifier loads them at run time and answers 503
+ * without them, and no package.json lists them. A virtual mock does not need them on disk, so
+ * this spec no longer passes or fails by what a runner's install happened to leave behind.
+ */
+function mockOptional(name: string, factory: () => unknown): void {
+  jest.doMock(name, factory, { virtual: true });
+}
+
 describe('StubFaceVerifier', () => {
   const svc = new StubFaceVerifier(cfg());
 
@@ -81,10 +90,10 @@ describe('OnnxArcFaceVerifier', () => {
   it('enrolls + verifies through a mocked ONNX session and sharp decoder', async () => {
     const vec = new Float32Array(512).fill(0.1);
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () =>
+      mockOptional('onnxruntime-node', () =>
         fakeOrt(async () => fakeSession(async () => ({ output: { data: vec } }))),
       );
-      jest.doMock('sharp', () => fakeSharp());
+      mockOptional('sharp', () => fakeSharp());
     });
     const svc = new Verifier(cfg());
 
@@ -102,10 +111,10 @@ describe('OnnxArcFaceVerifier', () => {
   it('cannot judge a face with no comparable template: engine unavailable, not a mismatch', async () => {
     const vec = new Float32Array(512).fill(0.1);
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () =>
+      mockOptional('onnxruntime-node', () =>
         fakeOrt(async () => fakeSession(async () => ({ output: { data: vec } }))),
       );
-      jest.doMock('sharp', () => fakeSharp());
+      mockOptional('sharp', () => fakeSharp());
     });
     await expect(new Verifier(cfg()).verify(Buffer.from('probe'), [[], [1, 2]])).rejects.toThrow(
       /no comparable face template/,
@@ -114,18 +123,18 @@ describe('OnnxArcFaceVerifier', () => {
 
   it('503s when the model returns no embedding', async () => {
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({}))));
-      jest.doMock('sharp', () => fakeSharp());
+      mockOptional('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({}))));
+      mockOptional('sharp', () => fakeSharp());
     });
     await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]])).rejects.toThrow(/embedding/);
   });
 
   it('503s (and lets a later retry) when the ArcFace model fails to load', async () => {
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () =>
+      mockOptional('onnxruntime-node', () =>
         fakeOrt(async () => Promise.reject(new Error('model file missing'))),
       );
-      jest.doMock('sharp', () => fakeSharp());
+      mockOptional('sharp', () => fakeSharp());
     });
     await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]])).rejects.toThrow(
       /model ArcFace/,
@@ -135,10 +144,10 @@ describe('OnnxArcFaceVerifier', () => {
   it('503s when onnxruntime-node is not installed', async () => {
     // Force require('onnxruntime-node') to throw → optionalRequire returns null → unavailable.
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () => {
+      mockOptional('onnxruntime-node', () => {
         throw new Error('Cannot find module onnxruntime-node');
       });
-      jest.doMock('sharp', () => fakeSharp());
+      mockOptional('sharp', () => fakeSharp());
     });
     await expect(new Verifier(cfg()).verify(Buffer.from('x'), [[1]])).rejects.toThrow(
       /onnxruntime-node/,
@@ -147,10 +156,10 @@ describe('OnnxArcFaceVerifier', () => {
 
   it('503s when sharp (image decoder) is not installed', async () => {
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () =>
+      mockOptional('onnxruntime-node', () =>
         fakeOrt(async () => fakeSession(async () => ({ output: { data: new Float32Array(512) } }))),
       );
-      jest.doMock('sharp', () => {
+      mockOptional('sharp', () => {
         throw new Error('Cannot find module sharp');
       });
     });
@@ -159,7 +168,7 @@ describe('OnnxArcFaceVerifier', () => {
 
   it('rejects an empty enroll before any engine work', async () => {
     const Verifier = loadVerifier(() => {
-      jest.doMock('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({}))));
+      mockOptional('onnxruntime-node', () => fakeOrt(async () => fakeSession(async () => ({}))));
     });
     await expect(new Verifier(cfg()).enroll([])).rejects.toThrow(/no frames/);
   });
