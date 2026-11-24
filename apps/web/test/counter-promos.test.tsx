@@ -195,8 +195,8 @@ const addOneGalon = () =>
 
 /**
  * The pay button stays disabled until the quote for THIS basket has come back (`quoteFresh`),
- * and a wait on `quoteBodies` only sees it requested. On a slow runner a click right away
- * landed on the disabled button and did nothing, so the receipt never came (main, 22 Nov).
+ * and a wait on `quoteBodies` only sees it requested. A click inside the 300 ms debounce (the
+ * run had reached Bayar 283 ms in) landed on the disabled button: no sale (main, 22 Nov).
  */
 async function payWhenReady() {
   const pay = screen.getByTestId('counter-pay');
@@ -294,10 +294,7 @@ describe("the identified buyer's own vouchers, one tap", () => {
     expect((screen.getByLabelText(/kode voucher/i) as HTMLInputElement).value).toBe('HEMAT10');
   });
 
-  // A whole till session (open, sell, print, sell again) in one test: ~4 s on a quiet laptop,
-  // so the defaults (1 s per wait, 5 s per test) failed it on a busy CI runner with nothing
-  // wrong. The slow steps get room; every assertion is unchanged.
-  it('forgets the buyer once the sale is rung, so the next one is priced as nobody', { timeout: 20_000 }, async () => {
+  it('forgets the buyer once the sale is rung, so the next one is priced as nobody', async () => {
     granted = [voucher()];
     await openTill();
     await addOneGalon();
@@ -307,7 +304,10 @@ describe("the identified buyer's own vouchers, one tap", () => {
 
     await userEvent.type(screen.getByLabelText(/uang tunai diterima/i), '20000');
     await payWhenReady();
-    await waitFor(() => expect(screen.getByText(/WI-001/)).toBeTruthy(), { timeout: 5_000 });
+    // Exact, so it is the last-sale card. /WI-001/ also matched the "Penjualan WI-001
+    // tersimpan." toast, and the wait only passed once the toast's 3.2 s timer removed it:
+    // a race with the 5 s timeout, and a pause that hid the page's next-basket bug below.
+    await screen.findByText('WI-001');
 
     // The buyer's list is gone with the buyer…
     await waitFor(() => expect(screen.queryByText(/pilih voucher pembeli/i)).toBeNull());
@@ -424,15 +424,15 @@ describe('what the till remembers between buyers', () => {
     expect((screen.getByLabelText(/kode voucher/i) as HTMLInputElement).value).toBe('HEMAT10');
   });
 
-  // The same sale-and-print path as above, so the same room for a busy runner.
-  it("puts the sale just made into the till's own recent list", { timeout: 20_000 }, async () => {
+  it("puts the sale just made into the till's own recent list", async () => {
     await openTill();
     await addOneGalon();
     await waitFor(() => expect(pay2().disabled).toBe(false));
     const before = recentReads;
     await userEvent.type(screen.getByLabelText(/uang tunai diterima/i), '20000');
     await payWhenReady();
-    await waitFor(() => expect(screen.getByText(/WI-001/)).toBeTruthy(), { timeout: 5_000 });
+    // Exact: the toast says WI-001 too (see "forgets the buyer…" above).
+    await screen.findByText('WI-001');
     await waitFor(() => expect(recentReads).toBeGreaterThan(before));
   });
 });

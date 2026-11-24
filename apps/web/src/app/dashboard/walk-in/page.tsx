@@ -455,9 +455,13 @@ function WalkIn({ depotId }: { depotId: string }) {
   // The phone is required by the sale DTO too, so an address without one is not sendable.
   const deliveryReady = deliveryAddress !== null && deliveryAddress.phone.length > 0;
 
-  // The basket and the voucher as typed, and the same once they have been still for a moment.
-  // A typed voucher was a quote per keystroke too.
-  const quoteKey = `${basketKey}#${voucher.trim()}`;
+  // Everything the quote is priced from, as typed, and the same once it has been still for a
+  // moment (a typed voucher was a quote per keystroke too). The buyer and Antar sit IN the key:
+  // as separate triggers they priced whatever basket was on screen mid-debounce, and that
+  // answer counted as fresh once the basket was back at its settled key. After a sale to an
+  // identified buyer, "+" within 300 ms left the next buyer with no total and Bayar dead.
+  // Antar counts as on/off and "address complete" only: the fee is per galon.
+  const quoteKey = JSON.stringify([depotId, basketKey, voucher.trim(), buyerId, deliveryReady]);
   const settledQuoteKey = useDebounce(quoteKey, 300);
   const quote = useAsync<CounterQuote | null>(
     () =>
@@ -476,14 +480,7 @@ function WalkIn({ depotId }: { depotId: string }) {
             },
             true,
           ),
-    [
-      depotId,
-      settledQuoteKey,
-      buyerId,
-      // Re-quote when delivery is switched on or off, and when the address first becomes
-      // complete — the fee is per galon, so it moves with the basket as well.
-      deliveryReady,
-    ],
+    [settledQuoteKey],
   );
 
   // Offered only for a buyer the cashier deliberately identified: the list is that buyer's
