@@ -339,10 +339,11 @@ export class DeliveryService {
     });
     const codAmount = payment?.method === 'CASH' ? payment.amount : null;
 
-    const assignMeta: OrderAdvanceMeta | undefined =
-      input.driverName || input.driverPhone
-        ? { driverName: input.driverName, driverPhone: input.driverPhone }
-        : undefined;
+    const assignMeta: OrderAdvanceMeta = {
+      driverId: input.driverId,
+      driverName: input.driverName,
+      driverPhone: input.driverPhone,
+    };
     const data: CreateDeliveryData = {
       orderId: input.orderId,
       orderNumber: input.orderNumber,
