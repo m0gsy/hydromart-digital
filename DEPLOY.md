@@ -339,7 +339,7 @@ bash scripts/aiweb-deploy.sh           # a full run; a missing image needs the D
 bash scripts/backup-aiweb-db.sh         # dump databases ai and n8n now (the 03:05 job)
 bash scripts/backup-aiweb-db.sh --drill # restore the newest AI web dump into a scratch container
 bash scripts/aiweb-n8n-check.sh         # n8n's drift check and its machine secret's day (the 04:40 job)
-dca logs -f n8n                         # n8n's own log (no execution data is kept, by design)
+dca logs -f n8n                         # n8n's own log (a failed run is kept ~72 h, readable in the editor)
 ```
 
 #### n8n (AI-5)
