@@ -66,6 +66,7 @@ describe('OrderCoordinationHttpAdapter', () => {
       'DELIVERED',
       'Bearer x',
       {
+        driverId: 'drv-1',
         driverName: 'Budi',
         driverPhone: '081298765432',
       },
@@ -75,7 +76,12 @@ describe('OrderCoordinationHttpAdapter', () => {
       expect.objectContaining({ method: 'PATCH' }),
     );
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(body).toEqual({ status: 'DELIVERED', driverName: 'Budi', driverPhone: '081298765432' });
+    expect(body).toEqual({
+      status: 'DELIVERED',
+      driverId: 'drv-1',
+      driverName: 'Budi',
+      driverPhone: '081298765432',
+    });
   });
 
   it('serialises the ETA as an ISO string when given', async () => {
