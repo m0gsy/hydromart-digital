@@ -101,15 +101,36 @@ export class AdminNotificationPrefService {
    * PUSH_TOGGLE_IDS are answerable: the other HQ toggles have no push behind them.
    */
   async pushDisabledFor(accountIds: readonly string[], toggle: string): Promise<string[]> {
-    const def = (PUSH_TOGGLE_IDS as readonly string[]).includes(toggle)
-      ? [...DEPOT_DEFAULTS, ...HQ_DEFAULTS].find((d) => d.id === toggle)
-      : undefined;
-    if (!def) return [];
+    if (!(PUSH_TOGGLE_IDS as readonly string[]).includes(toggle)) return [];
+    const on = await this.switchedOn(accountIds, toggle, 'push');
+    return accountIds.filter((id) => !on.has(id));
+  }
+
+  /**
+   * Which of these accounts have EMAIL on for one toggle, as /hq/profile shows it: the saved
+   * switch, else the toggle's default ("Lamaran waralaba baru" defaults to on). The staff
+   * email asks this before it sends anything.
+   */
+  async emailOnFor(accountIds: readonly string[], toggle: string): Promise<string[]> {
+    const on = await this.switchedOn(accountIds, toggle, 'email');
+    return accountIds.filter((id) => on.has(id));
+  }
+
+  /** One channel of one toggle per account: the saved row, else the default. Unknown toggle = none. */
+  private async switchedOn(
+    accountIds: readonly string[],
+    toggle: string,
+    channel: 'push' | 'email',
+  ): Promise<Set<string>> {
+    const def = [...DEPOT_DEFAULTS, ...HQ_DEFAULTS].find((d) => d.id === toggle);
+    if (!def) return new Set();
     const saved = new Map((await this.repo.getMany(accountIds)).map((r) => [r.accountId, r]));
-    return accountIds.filter((id) => {
-      const row = saved.get(id)?.channels.find((c) => c.id === toggle);
-      return !(row ? !!row.push : def.push);
-    });
+    return new Set(
+      accountIds.filter((id) => {
+        const row = saved.get(id)?.channels.find((c) => c.id === toggle);
+        return row ? !!row[channel] : def[channel];
+      }),
+    );
   }
 
   /**

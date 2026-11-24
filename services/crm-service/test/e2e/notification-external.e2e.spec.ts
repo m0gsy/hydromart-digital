@@ -18,6 +18,7 @@ import {
 } from '@hydromart/platform';
 
 import { ApproverDirectoryPort } from '../../src/application/ports/approver-directory.port';
+import { StaffEmail } from '../../src/application/ports/staff-email.port';
 import { PushService } from '../../src/application/services/push.service';
 import { CRM_TOKENS } from '../../src/application/tokens';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
@@ -63,6 +64,7 @@ describe('POST notifications/external/franchise-application-submitted (AI-5)', (
   const before: AuditEvent[] = [];
   const after: AuditEvent[] = [];
   const pushed: string[] = [];
+  const emailed: StaffEmail[] = [];
   const sink: AuditMutationSink = {
     record: async (event) => void after.push(event),
     recordOrThrow: async (event) => {
@@ -114,6 +116,8 @@ describe('POST notifications/external/franchise-application-submitted (AI-5)', (
       .useValue(approvers)
       .overrideProvider(PushService)
       .useValue({ sendToCustomer: async (id: string) => void pushed.push(id) })
+      .overrideProvider(CRM_TOKENS.StaffEmail)
+      .useValue({ send: async (email: StaffEmail) => void emailed.push(email) })
       .overrideProvider(AUDIT_MUTATION_SINK)
       .useValue(sink)
       .compile();
@@ -160,6 +164,14 @@ describe('POST notifications/external/franchise-application-submitted (AI-5)', (
     expect(after).toEqual([expect.objectContaining({ success: true, actorId: MACHINE })]);
     // Head office and the director; the superuser holds the capability but owns no queue.
     expect(pushed.sort()).toEqual(['di-1', 'ho-1']);
+    // And the email channel, to the same people under the push's own switch.
+    expect(emailed).toHaveLength(1);
+    expect([...emailed[0]!.accountIds].sort()).toEqual(['di-1', 'ho-1']);
+    expect(emailed[0]).toMatchObject({
+      toggle: 'newFranchiseApp',
+      subject: 'Lamaran waralaba baru: calon mitra di Bekasi, Jawa Barat',
+      path: `/hq/applications/detail?id=${APP}`,
+    });
   });
 
   it('answers a repeated eventId with the same row and tells nobody twice', async () => {
@@ -168,6 +180,7 @@ describe('POST notifications/external/franchise-application-submitted (AI-5)', (
     expect(res.body).toEqual({ id: repo.records[0]!.id });
     expect(repo.records).toHaveLength(1);
     expect(pushed).toHaveLength(2);
+    expect(emailed).toHaveLength(1);
   });
 
   it.each([

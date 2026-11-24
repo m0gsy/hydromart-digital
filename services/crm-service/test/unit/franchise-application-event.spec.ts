@@ -1,7 +1,11 @@
+import { Logger } from '@nestjs/common';
+
 import { loadOverrides } from '@hydromart/access';
 
 import { ApproverDirectoryPort } from '../../src/application/ports/approver-directory.port';
 import { PushPayload } from '../../src/application/ports/push-sender.port';
+import { StaffEmail, StaffEmailPort } from '../../src/application/ports/staff-email.port';
+import { StaffPrefsPort } from '../../src/application/ports/staff-prefs.port';
 import { NotificationService } from '../../src/application/services/notification.service';
 import { PushService } from '../../src/application/services/push.service';
 import { destinationFor, storedDestinationFor } from '../../src/domain/notification-destination';
@@ -59,7 +63,10 @@ const ROLES: Record<string, string> = {
   'op-1': 'STAFF_DEPOT',
 };
 
-function build() {
+function build(
+  staffEmail: StaffEmailPort = { send: async (e) => void emails.push(e) },
+  staffPrefs?: StaffPrefsPort,
+) {
   const pushed: { id: string; payload: PushPayload }[] = [];
   const push = {
     sendToCustomer: async (id: string, payload: PushPayload) => {
@@ -83,10 +90,11 @@ function build() {
     push,
     undefined,
     { staffIdsForDepot: roster },
-    undefined,
+    staffPrefs,
     undefined,
     undefined,
     approvers,
+    staffEmail,
   );
   return { service, pushed, repo, byRoles, roster };
 }
@@ -95,7 +103,12 @@ const raise = (service: NotificationService, dedupeKey = 'franchise.application_
   service.notify(EVENT, '', VARS, null, null, dedupeKey);
 const drain = () => new Promise((r) => setImmediate(r));
 
-afterEach(() => loadOverrides({}));
+let emails: StaffEmail[] = [];
+beforeEach(() => (emails = []));
+afterEach(() => {
+  loadOverrides({});
+  jest.restoreAllMocks();
+});
 
 describe('who is told about a new franchise application', () => {
   it('pushes head office and the director, not the superuser, a depot role or marketing', async () => {
@@ -140,5 +153,78 @@ describe('who is told about a new franchise application', () => {
     expect(repo.records).toHaveLength(1);
     expect(repo.records[0]).toMatchObject({ phone: '', customerId: null, depotId: null });
     expect(pushed).toHaveLength(2);
+    expect(emails).toHaveLength(1);
+  });
+});
+
+/*
+ * Owner rule 24 Nov 2026: a notification n8n raises also goes out by email, to the same people,
+ * under the same switch id as its push (admin-service applies the EMAIL column of it).
+ */
+describe('the email of a new franchise application', () => {
+  it('goes to the reviewers told, under newFranchiseApp, with the place and the application screen', async () => {
+    const { service } = build();
+    await raise(service);
+    await drain();
+    expect(emails).toHaveLength(1);
+    expect([...emails[0]!.accountIds].sort()).toEqual(['di-1', 'ho-1']);
+    expect(emails[0]).toEqual({
+      accountIds: expect.any(Array),
+      toggle: 'newFranchiseApp',
+      subject: 'Lamaran waralaba baru: calon mitra di Bekasi, Jawa Barat',
+      text: expect.stringContaining('Lamaran waralaba baru dari calon mitra di Bekasi, Jawa Barat.'),
+      path: '/hq/applications/detail?id=app-1',
+    });
+  });
+
+  it("is asked for everyone told, before anyone's push switch is applied", async () => {
+    const { service, pushed } = build(undefined, { pushDisabled: async () => new Set(['ho-1']) });
+    await raise(service);
+    await drain();
+    expect(pushed.map((p) => p.id)).toEqual(['di-1']);
+    expect([...emails[0]!.accountIds].sort()).toEqual(['di-1', 'ho-1']);
+  });
+
+  it('costs only the email when admin-service will not take it', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const { service, pushed, repo } = build({ send: async () => Promise.reject(new Error('admin-service responded 503')) });
+    await raise(service);
+    await drain();
+    expect(warn).toHaveBeenCalledWith(
+      'Email for FRANCHISE_APPLICATION_SUBMITTED failed: admin-service responded 503',
+    );
+    expect(pushed).toHaveLength(2);
+    expect(repo.records[0]!.status).toBe('SENT');
+  });
+
+  it('is not sent for a decision that has no email template', async () => {
+    // Someone in the fixture must hold the refund queue, or "no email" would prove nothing.
+    loadOverrides({ refundQueue: ['HEAD_OFFICE', 'SUPER_ADMIN'] });
+    const { service, pushed } = build();
+    await service.notify(NotificationEvent.REFUND_REQUESTED, '', { amount: 'Rp150.000' }, null, null);
+    await drain();
+    expect(pushed.length).toBeGreaterThan(0);
+    expect(emails).toEqual([]);
+  });
+
+  it('is skipped, and the push still goes, when crm has no email channel wired', async () => {
+    const repo = new InMemoryNotificationRepository();
+    const pushedIds: string[] = [];
+    const service = new NotificationService(
+      repo,
+      { sendToCustomer: async (id: string) => void pushedIds.push(id) } as unknown as PushService,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        staffIdsByRoles: async () => ['ho-1'],
+        rolesOf: async (ids) => new Map(ids.map((i) => [i, 'HEAD_OFFICE'])),
+      },
+    );
+    await raise(service);
+    await drain();
+    expect(pushedIds).toEqual(['ho-1']);
   });
 });

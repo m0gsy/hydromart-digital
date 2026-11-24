@@ -28,6 +28,10 @@ import {
   SOURCE_CODE_PATTERN,
 } from '../../domain/franchise-application';
 
+// Twin of PLACE_NAME_PATTERN in crm-service notification.dto.ts and the web form: a place name
+// never carries a link, because it goes into an email sent from our own address.
+export const PLACE_NAME_PATTERN = /^(?=.*\p{L})(?!.*\.[\p{L}\p{M}]{2})[\p{L}\p{M} .,'’()-]+$/u;
+
 export class ListApplicationsQueryDto {
   @ApiPropertyOptional({ default: 1, maximum: 1000 })
   @IsOptional()
@@ -123,12 +127,14 @@ export class SubmitFranchiseApplicationDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
+  @Matches(PLACE_NAME_PATTERN, { message: "Kota hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -; beri spasi setelah titik" })
   city!: string;
 
   @ApiProperty({ example: 'Jawa Barat' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
+  @Matches(PLACE_NAME_PATTERN, { message: "Provinsi hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -; beri spasi setelah titik" })
   province!: string;
 
   @ApiProperty({ example: -6.9421, description: 'Proposed location latitude.' })

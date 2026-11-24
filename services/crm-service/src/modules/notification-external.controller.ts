@@ -32,6 +32,10 @@ const oneLine = (value: string): string =>
  * Only a `machine` ES256 token is admitted, and only with the route's capability in its scopes
  * (a staff token needs the capability itself, which no role but SUPER_ADMIN holds). Each call is
  * written to the audit trail before it runs and refused with 503 when it cannot be.
+ *
+ * Owner rule 24 Nov 2026: every kind raised here also goes out by email (and by WhatsApp once
+ * Meta is ready). A new kind needs its entry in STAFF_EMAIL_TEMPLATES and a switch in
+ * STAFF_TOGGLE_FOR_EVENT; staff-email.spec.ts reads this file and fails a kind without them.
  */
 @ApiTags('Notifications')
 @ApiBearerAuth()

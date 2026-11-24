@@ -14,6 +14,9 @@ import { useT } from '@/lib/locale-context';
 import { franchise as franchiseID } from '@/lib/dictionaries/id/franchise';
 import { franchise as franchiseEN } from '@/lib/dictionaries/en/franchise';
 
+// Twin of PLACE_NAME_PATTERN in depot-service and crm-service: a place name, never a link.
+const PLACE_NAME_PATTERN = /^(?=.*\p{L})(?!.*\.[\p{L}\p{M}]{2})[\p{L}\p{M} .,'’()-]+$/u;
+
 interface Receipt {
   id: string;
   proposedCode: string;
@@ -94,7 +97,9 @@ export default function FranchiseApplicationPage() {
     if (!form.proposedCode.trim()) return setError(copy.needCode);
     if (!form.proposedName.trim()) return setError(copy.needDepotName);
     if (!form.city.trim()) return setError(copy.needCity);
+    if (!PLACE_NAME_PATTERN.test(form.city.trim())) return setError(copy.badCity);
     if (!form.province.trim()) return setError(copy.needProvince);
+    if (!PLACE_NAME_PATTERN.test(form.province.trim())) return setError(copy.badProvince);
     if (!form.lat || !form.lng || !Number.isFinite(lat) || !Number.isFinite(lng)) {
       return setError(copy.needLocation);
     }

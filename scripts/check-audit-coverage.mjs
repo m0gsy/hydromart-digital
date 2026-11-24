@@ -46,6 +46,10 @@ const EXEMPT = new Map([
     'a READ over POST (the body carries up to 500 ids) that crm calls on every depot alert - it changes nothing',
   ],
   [
+    'admin-service:notification-prefs-internal.controller.ts:emailStaff',
+    "crm's email channel for a notification it has just filed: it stores nothing, and the call that raised the notification is in crm's own trail",
+  ],
+  [
     'admin-service:webhook-delivery.controller.ts:publish',
     'partner event ingest — the highest-volume write in the service',
   ],

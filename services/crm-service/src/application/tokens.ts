@@ -17,4 +17,6 @@ export const CRM_TOKENS = {
   DestinationBrakes: Symbol('DestinationBrakes'),
   // Flow 6b: who holds a role, and what role an account holds (auth-service).
   ApproverDirectory: Symbol('ApproverDirectory'),
+  // Owner rule 24 Nov 2026: the email channel of staff notifications (admin-service).
+  StaffEmail: Symbol('StaffEmail'),
 } as const;
