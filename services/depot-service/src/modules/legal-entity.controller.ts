@@ -26,6 +26,7 @@ import {
 } from '@hydromart/platform';
 
 import {
+  AiGrantsOfRole,
   LegalEntityDirectory,
   LegalEntityService,
 } from '../application/services/legal-entity.service';
@@ -38,7 +39,10 @@ import {
 } from '../domain/legal-entity';
 import {
   AssignDepotsDto,
+  AiGrantsOfRoleResponseDto,
   AssignedDepotResponseDto,
+  DepotEntitiesQueryDto,
+  DepotEntitiesResponseDto,
   CreateLegalEntityDto,
   DepotLegalEntityHistoryResponseDto,
   LegalEntityDirectoryResponseDto,
@@ -175,6 +179,34 @@ export class LegalEntityController {
       legalEntityId: removed.legalEntityId,
       effectiveFrom: removed.effectiveFrom,
     });
+  }
+
+  /**
+   * Service-to-service (HD-6, dashboard-service's AI read API): the legal entity each of these
+   * depots belonged to over a period. Declared before `internal/:id` so the static segment wins.
+   */
+  @ApiOkResponse({ type: DepotEntitiesResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/depot-entities')
+  @ApiOperation({ summary: 'Internal: legal entity of each depot over [from, to], W-06 rule' })
+  async internalDepotEntities(@Query() query: DepotEntitiesQueryDto): Promise<DepotEntitiesResponseDto> {
+    const from = parseCalendarDay(query.from);
+    const to = parseCalendarDay(query.to);
+    if (!from || !to) throw new BadRequestException('from and to must be calendar days (YYYY-MM-DD)');
+    if (from > to) throw new BadRequestException('from is after to');
+    return { spans: await this.entities.entityTimeline(query.depotIds, from, to) };
+  }
+
+  /** Service-to-service (HD-6): what a role may read in the AI web. SUPER_ADMIN reads every entity. */
+  @ApiOkResponse({ type: AiGrantsOfRoleResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/ai-grants/:roleKey')
+  @ApiOperation({ summary: 'Internal: the legal entities a role key is granted in the AI web' })
+  internalAiGrants(@Param('roleKey') roleKey: string): Promise<AiGrantsOfRole> {
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(roleKey)) throw new BadRequestException('roleKey is not a role key');
+    return this.entities.aiGrantsFor(roleKey);
   }
 
   /**

@@ -246,6 +246,7 @@ export const hq = {
       settingsRead: 'Settings (view)',
       dashboard: 'Executive dashboard',
       pendingApprovals: 'See how many approvals wait for you (AI web Command Center)',
+      aiRead: 'Read business figures for AI web answers, within the allowed depots and legal entities',
       orderQueue: 'Order queue',
       inventoryRead: 'View inventory',
       inventoryWrite: 'Edit inventory',

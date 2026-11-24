@@ -233,4 +233,46 @@ describe('Legal entities (e2e)', () => {
       .set({ 'x-internal-key': INTERNAL_KEY })
       .expect(404);
   });
+
+  it('answers the AI read API lookups to the internal key only, static routes ahead of :id', async () => {
+    const depotId = depots.rows[0].id;
+    const created = await request(server())
+      .post('/api/v1/legal-entities')
+      .set(as(Role.HEAD_OFFICE))
+      .send({ name: 'PT Lookup', kind: 'OPERATOR' })
+      .expect(201);
+    const legalEntityId = created.body.id as string;
+    await request(server())
+      .post('/api/v1/legal-entities/depots')
+      .set(as(Role.HEAD_OFFICE))
+      .send({ legalEntityId, effectiveFrom: '2026-01-01', depotIds: [depotId], seen: [] })
+      .expect(201);
+    await request(server())
+      .put('/api/v1/legal-entities/ai-grants')
+      .set(as(Role.SUPER_ADMIN))
+      .send({ changes: [{ legalEntityId, roleKey: 'FINANCE', granted: true }] })
+      .expect(200);
+    const key = { 'x-internal-key': INTERNAL_KEY };
+    const spans = (q: string) => `/api/v1/legal-entities/internal/depot-entities?${q}`;
+    const good = `from=2026-11-01&to=2026-11-30&depotIds=${depotId}`;
+
+    await request(server()).get(spans(good)).expect(401);
+    await request(server()).get(spans(good)).set(as(Role.SUPER_ADMIN)).expect(401);
+    const ok = await request(server()).get(spans(good)).set(key).expect(200);
+    expect(ok.body).toEqual({ spans: [{ depotId, legalEntityId, from: '2026-11-01' }] });
+    await request(server()).get(spans(`from=2026-02-30&to=2026-11-30&depotIds=${depotId}`)).set(key).expect(400);
+    await request(server()).get(spans(`from=2026-12-01&to=2026-11-30&depotIds=${depotId}`)).set(key).expect(400);
+    await request(server()).get(spans('from=2026-11-01&to=2026-11-30')).set(key).expect(400);
+    await request(server()).get(spans('from=2026-11-01&to=2026-11-30&depotIds=nope')).set(key).expect(400);
+
+    const grants = (role: string) => request(server()).get(`/api/v1/legal-entities/internal/ai-grants/${role}`);
+    await grants('FINANCE').expect(401);
+    // earlier tests granted other cells of the matrix, so it is a membership check
+    const finance = (await grants('FINANCE').set(key).expect(200)).body;
+    expect(finance).toMatchObject({ roleKey: 'FINANCE', all: false });
+    expect(finance.legalEntityIds).toContain(legalEntityId);
+    expect((await grants('MANAGER').set(key).expect(200)).body.legalEntityIds).not.toContain(legalEntityId);
+    expect((await grants('SUPER_ADMIN').set(key).expect(200)).body.all).toBe(true);
+    await grants('1bad').set(key).expect(400);
+  });
 });

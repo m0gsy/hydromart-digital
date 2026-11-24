@@ -12,9 +12,11 @@ import { StaleWriteError } from '@hydromart/platform';
 import { DuplicateLegalEntityNameError } from '../../src/domain/errors';
 import {
   DepotLegalEntityHistory,
+  DepotEntitySpan,
   DepotLegalEntityPoint,
   LegalEntity,
   LegalEntityRecord,
+  entitySpans,
   formatCalendarDay,
 } from '../../src/domain/legal-entity';
 
@@ -50,6 +52,14 @@ export class InMemoryLegalEntityRepository implements LegalEntityRepository {
           .map((g) => g.slice(e.id.length + 1))
           .sort(),
       }));
+  }
+
+  async entityTimeline(depotIds: string[], from: Date, to: Date): Promise<DepotEntitySpan[]> {
+    return entitySpans(depotIds, this.points, formatCalendarDay(from), formatCalendarDay(to));
+  }
+
+  async grantedEntityIds(roleKey: string): Promise<string[]> {
+    return [...this.grants].filter((g) => g.endsWith(`|${roleKey}`)).map((g) => g.split('|')[0]);
   }
 
   async findById(id: string): Promise<LegalEntity | null> {

@@ -1,4 +1,5 @@
 import {
+  DepotEntitySpan,
   DepotLegalEntityHistory,
   DepotLegalEntityPoint,
   LegalEntity,
@@ -47,6 +48,10 @@ export interface AssignedDepot {
 }
 
 export interface LegalEntityRepository {
+  /** HD-6: the depots' legal entity over `[from, to]` (calendar days, UTC midnight), see `entitySpans`. */
+  entityTimeline(depotIds: string[], from: Date, to: Date): Promise<DepotEntitySpan[]>;
+  /** HD-6: the legal entities this role key is granted in the AI web (no row = not granted). */
+  grantedEntityIds(roleKey: string): Promise<string[]>;
   /** Every legal entity, by name, with the roles granted on it. */
   list(): Promise<LegalEntityRecord[]>;
   findById(id: string): Promise<LegalEntity | null>;

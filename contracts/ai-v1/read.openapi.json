@@ -1,0 +1,367 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hydromart-digital read API for the AI web",
+    "version": "1.0.0",
+    "description": "HD-6, foundation (H1). The numbers behind the AI web's answers. Every route under /dashboard/api/v1/ai/read answers ONE envelope (AnswerEnvelope), so a metric group added later changes only metricId, value and unit. H1 ships a single route, GET scope, which answers what the caller may read for a period; the metric routes follow in later versions within version 1.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. A machine token (aud hydromart-machine) is refused with 403 whatever its scopes. The door is the aiRead capability: every staff role by default, franchise owners not.\n\nScope, applied in this order: (1) the person's own depots, exactly as hydromart-digital's own screens resolve them (a network-wide role: every depot); (2) narrowed to the depots whose legal entity, on a day of the period, is one the person's ROLE is granted in the role x legal entity matrix (HD-5). No grant = only SUPER_ADMIN reads it. A grant never widens step 1. The answer echoes the depots and legal entities it covered in scope. When hydromart-digital cannot work the scope out (a depot service that does not answer), nothing is answered: 503, never an answer without the narrowing.\n\nPeriod: the WIB (Asia/Jakarta, UTC+7) calendar. Send period=day|week|month|year (with date, any day inside it; default today in WIB) OR from and to (YYYY-MM-DD, both days included, at most 366 days). Both or neither is a 400. Weeks run Monday to Sunday. The resolved period is always echoed back, with the same span as UTC instants (fromAt inclusive, toAt exclusive). A metric defined only over whole months or years refuses a range that is not a run of them (400).\n\nvalue and status: ok = a real value, and 0 is a real value. belum_ada = there is nothing to say yet (not built, no data, not defined): value is null and reason says why; never read it as 0. ditahan = held back on purpose (masking, or a decision still open): value is null and reason says why. Quote the number from value, and the period and scope from the envelope.\n\nMasking (owner decision 24 Nov 2026): no phone number, name or address ever leaves this API. Customers and couriers appear only as counts or opaque ids. A group of fewer than 3 people is not given as a number: its cell has value null and flag \"kurang dari 3\", and when a total is published beside it, the smallest other non-empty cell is held back with it (flag \"ditahan\") so the small cell cannot be computed back from the total; if there is no such cell the total itself is null with totalFlag \"ditahan\". A group of 0 people is shown as 0.\n\nRead-only: nothing is written and nothing is recorded in the audit trail. Rate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a field you do not know; removing or renaming one is a new contract version."
+  },
+  "servers": [
+    {
+      "url": "https://api.hydromart-digital.com"
+    }
+  ],
+  "paths": {
+    "/dashboard/api/v1/ai/read/scope": {
+      "get": {
+        "summary": "How many depots the caller may read for a period, and which legal entities they belong to.",
+        "description": "metricId meta.scope, unit depot. value is the number of depots in scope (0 when the caller may read none, which is a real answer). scope lists them and the legal entities they belonged to on a day of the period.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            },
+            "description": "A whole calendar period in WIB. Not together with from/to."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Any day inside the period; default today in WIB. Only with period."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "First day of an explicit range, with to."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Last day of an explicit range (included), with from."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The envelope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerEnvelope"
+                },
+                "example": {
+                  "metricId": "meta.scope",
+                  "period": {
+                    "unit": "month",
+                    "from": "2026-11-01",
+                    "to": "2026-11-30",
+                    "timeZone": "Asia/Jakarta",
+                    "fromAt": "2026-10-31T17:00:00.000Z",
+                    "toAt": "2026-11-30T17:00:00.000Z"
+                  },
+                  "scope": {
+                    "depotIds": [
+                      "11111111-1111-4111-8111-111111111111"
+                    ],
+                    "legalEntityIds": [
+                      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+                    ]
+                  },
+                  "value": 1,
+                  "status": "ok",
+                  "unit": "depot",
+                  "asOf": "2026-11-25T03:00:00.000Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: a period that is ambiguous (both period and from/to, or neither), not a real day, backwards, longer than 366 days, or not whole where the metric needs it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. Hand off again for a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, or a person whose role does not hold aiRead (a franchise owner, by default). Not worth retrying until their role changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the scope could not be worked out (the depot list or the legal-entity matrix could not be read). Nothing is answered rather than an answer without the narrowing. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "aiToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Authorization: Bearer <accessToken> from POST /auth/api/v1/auth/handoff/token. ES256, aud hydromart-ai; carries the person's own role and depot."
+      }
+    },
+    "schemas": {
+      "AnswerEnvelope": {
+        "type": "object",
+        "required": [
+          "metricId",
+          "period",
+          "scope",
+          "value",
+          "status",
+          "unit",
+          "asOf"
+        ],
+        "properties": {
+          "metricId": {
+            "type": "string",
+            "description": "The dictionary code of the metric (for example P-01), or meta.* for an answer about the API itself."
+          },
+          "period": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "value": {
+            "description": "The number or structure answered. Null with belum_ada and ditahan, never 0.",
+            "type": [
+              "number",
+              "object",
+              "array",
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "belum_ada",
+              "ditahan"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "description": "For example rupiah, persen, menit, depot, galon, orang."
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the answer was read, UTC."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Present with belum_ada and ditahan: why, in words that can be quoted."
+          }
+        }
+      },
+      "Period": {
+        "type": "object",
+        "required": [
+          "unit",
+          "from",
+          "to",
+          "timeZone",
+          "fromAt",
+          "toAt"
+        ],
+        "properties": {
+          "unit": {
+            "type": "string",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "year",
+              "range"
+            ]
+          },
+          "from": {
+            "type": "string",
+            "format": "date",
+            "description": "First day, WIB."
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "description": "Last day, WIB, included."
+          },
+          "timeZone": {
+            "type": "string",
+            "enum": [
+              "Asia/Jakarta"
+            ]
+          },
+          "fromAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The start of from, as a UTC instant (included)."
+          },
+          "toAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The start of the day after to, as a UTC instant (excluded)."
+          }
+        }
+      },
+      "Scope": {
+        "type": "object",
+        "required": [
+          "depotIds",
+          "legalEntityIds"
+        ],
+        "properties": {
+          "depotIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The depots the answer covers: the caller's own depots, narrowed by the legal-entity matrix."
+          },
+          "legalEntityIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The legal entities those depots belonged to during the period, among the ones the caller's role may read."
+          }
+        }
+      },
+      "MaskedCell": {
+        "type": "object",
+        "description": "A group of people in a metric that counts them. Defined here so every later metric answers the same shape.",
+        "required": [
+          "key",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Null when held back; see flag."
+          },
+          "flag": {
+            "type": "string",
+            "enum": [
+              "kurang dari 3",
+              "ditahan"
+            ],
+            "description": "kurang dari 3: the group has 1 or 2 people. ditahan: held back only so a published total cannot give a small cell away."
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "statusCode",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "description": "BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, RATE_LIMITED or SERVICE_UNAVAILABLE."
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "For people reading logs. Route on statusCode and code."
+          }
+        }
+      }
+    }
+  }
+}

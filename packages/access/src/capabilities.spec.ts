@@ -163,6 +163,14 @@ describe('CAPABILITIES', () => {
     expect(can('pendingApprovals', 'CUSTOMER')).toBe(false);
   });
 
+  // HD-6: same door as pendingApprovals; the depot scope and the legal-entity matrix do the fencing.
+  it('opens the AI read API to every staff role but owners and customers, and to custom roles', () => {
+    expect([...CAPABILITIES.aiRead].sort()).toEqual([...CAPABILITIES.pendingApprovals].sort());
+    expect(can('aiRead', 'FRANCHISE_OWNER')).toBe(false);
+    expect(can('aiRead', 'CUSTOMER')).toBe(false);
+    expect(CUSTOM_FORBIDDEN).not.toContain('aiRead');
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);

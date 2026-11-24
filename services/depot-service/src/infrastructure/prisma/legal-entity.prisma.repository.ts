@@ -18,6 +18,8 @@ import {
   LegalEntity,
   LegalEntityKind,
   LegalEntityRecord,
+  DepotEntitySpan,
+  entitySpans,
   formatCalendarDay,
 } from '../../domain/legal-entity';
 import { PrismaService } from './prisma.service';
@@ -63,6 +65,31 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
       ...this.toEntity(row),
       aiReadRoles: aiGrants.map((g) => g.roleKey),
     }));
+  }
+
+  async entityTimeline(depotIds: string[], from: Date, to: Date): Promise<DepotEntitySpan[]> {
+    // ponytail: every point up to `to` of at most 100 depots is read and shaped in memory (a depot
+    // changes hands a handful of times); the `take` is a ceiling, past it a depot's history is cut.
+    const rows = await this.prisma.depotLegalEntity.findMany({
+      where: { depotId: { in: depotIds }, effectiveFrom: { lte: to } },
+      orderBy: [{ depotId: 'asc' }, { effectiveFrom: 'asc' }],
+      take: LIST_CAP * 10,
+    });
+    return entitySpans(
+      depotIds,
+      rows.map((r) => ({ depotId: r.depotId, legalEntityId: r.legalEntityId, effectiveFrom: formatCalendarDay(r.effectiveFrom) })),
+      formatCalendarDay(from),
+      formatCalendarDay(to),
+    );
+  }
+
+  async grantedEntityIds(roleKey: string): Promise<string[]> {
+    const rows = await this.prisma.legalEntityAiGrant.findMany({
+      where: { roleKey },
+      select: { legalEntityId: true },
+      take: LIST_CAP,
+    });
+    return rows.map((r) => r.legalEntityId);
   }
 
   async findById(id: string): Promise<LegalEntity | null> {

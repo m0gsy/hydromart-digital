@@ -16,12 +16,17 @@ import { DashboardSourcesHttpAdapter } from '../infrastructure/http/dashboard-so
 import { DashboardController } from './dashboard.controller';
 import { PendingApprovalsController } from './pending-approvals.controller';
 import { PendingApprovalsService } from '../application/services/pending-approvals.service';
+import { AiReadController } from './ai-read.controller';
+import { ReadScopeService } from '../application/ai-read/scope.service';
+import { AiReadSourcesHttpAdapter } from '../infrastructure/http/ai-read-sources.http.adapter';
 import { PendingApprovalSourcesHttpAdapter } from '../infrastructure/http/pending-approval-sources.http.adapter';
 
 const providers: Provider[] = [
   DashboardConfigService,
   DashboardService,
   { provide: DASHBOARD_TOKENS.Sources, useClass: DashboardSourcesHttpAdapter },
+  ReadScopeService,
+  { provide: DASHBOARD_TOKENS.AiReadSources, useClass: AiReadSourcesHttpAdapter },
   PendingApprovalsService,
   { provide: DASHBOARD_TOKENS.PendingApprovalSources, useClass: PendingApprovalSourcesHttpAdapter },
   {
@@ -40,7 +45,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [DashboardController, PendingApprovalsController],
+  controllers: [DashboardController, PendingApprovalsController, AiReadController],
   providers,
   exports: [DashboardConfigService],
 })
