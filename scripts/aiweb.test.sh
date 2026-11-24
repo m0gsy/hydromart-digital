@@ -382,6 +382,7 @@ cp infra/aiweb/docker-compose.yml "$BOX/infra/aiweb/"
 CAPS="export const CAPABILITIES = {
   dashboard: ['HEAD_OFFICE'],
   franchiseApplicationNotify: ['SUPER_ADMIN'],
+  morningSummaryNotify: ['SUPER_ADMIN'],
 } as const satisfies Record<string, readonly Role[]>;"
 printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
 secrets() { # <env assignments...>: one key-maker run on the scratch box; exit code in $RC
@@ -424,8 +425,10 @@ done
 [ "$(val AIWEB_N8N_MACHINE_NOT_AFTER)" = "$(date -u -d '+89 days' +%F)" ] &&
   ok "the machine secret runs until today + 89 days (UTC)" || bad "AIWEB_N8N_MACHINE_NOT_AFTER is '$(val AIWEB_N8N_MACHINE_NOT_AFTER)'"
 # What auth-service checks at boot (external-access.ts parseMachineAccounts), on what was written.
-accounts_ok() { # <expected n8n entries> : MACHINE_ACCOUNTS, single-quoted, parses as auth-service does
-  MA="$(val MACHINE_ACCOUNTS)" ID="$(val AIWEB_N8N_MACHINE_ID)" SECRET="$(val AIWEB_N8N_MACHINE_SECRET)" \
+BOTH='["franchiseApplicationNotify","morningSummaryNotify"]'
+BASE='["franchiseApplicationNotify"]'
+accounts_ok() { # <expected n8n entries> [scopes JSON, both by default]: MACHINE_ACCOUNTS parses as auth-service does
+  WANT_SCOPES="${2:-$BOTH}" MA="$(val MACHINE_ACCOUNTS)" ID="$(val AIWEB_N8N_MACHINE_ID)" SECRET="$(val AIWEB_N8N_MACHINE_SECRET)" \
     NA="$(val AIWEB_N8N_MACHINE_NOT_AFTER)" OTHER="$OTHER" WANT="$1" node -e '
     const e = process.env;
     const q = String.fromCharCode(39);
@@ -449,7 +452,7 @@ accounts_ok() { # <expected n8n entries> : MACHINE_ACCOUNTS, single-quoted, pars
     const last = mine[mine.length - 1];
     const sha = require("crypto").createHash("sha256").update(e.SECRET).digest("hex");
     if (last.name !== "n8n" || last.secretSha256 !== sha || last.notAfter !== e.NA ||
-      JSON.stringify(last.scopes) !== JSON.stringify(["franchiseApplicationNotify"])) throw new Error("the n8n entry");
+      JSON.stringify(last.scopes) !== e.WANT_SCOPES) throw new Error("the n8n entry");
   ' 2>&1
 }
 why="$(accounts_ok 1)" && ok "MACHINE_ACCOUNTS: the other account as it was, n8n's entry (sha256 of the secret, its scope, its day), as auth-service parses it" ||
@@ -544,7 +547,7 @@ sed -i -e "s/^AIWEB_N8N_MACHINE_NOT_AFTER=.*/AIWEB_N8N_MACHINE_NOT_AFTER=$soon/"
   -e "s/\"notAfter\":\"$(val AIWEB_N8N_MACHINE_NOT_AFTER)\"/\"notAfter\":\"$soon\"/" "$BOX/.env"
 secrets
 if [ "$RC" = 0 ] && [ "$(val AIWEB_N8N_MACHINE_SECRET)" != "$secret_before" ] && why="$(accounts_ok 2)" &&
-  grep -qF "\"secretSha256\":\"$old_sha\",\"scopes\":[\"franchiseApplicationNotify\"],\"notAfter\":\"$soon\"" "$BOX/.env"; then
+  grep -qF "\"secretSha256\":\"$old_sha\",\"scopes\":[\"franchiseApplicationNotify\",\"morningSummaryNotify\"],\"notAfter\":\"$soon\"" "$BOX/.env"; then
   ok "10 days left: rotated; MACHINE_ACCOUNTS holds the old entry (its own day) and the new one"
 else
   bad "rotation: rc=$RC $why: $(val MACHINE_ACCOUNTS)"
@@ -602,7 +605,7 @@ secrets
 ma_refused "MACHINE_ACCOUNTS on two lines" 'more than one line'
 cp "$W/good.env" "$BOX/.env"
 sed -i -e '/^AIWEB_N8N_MACHINE_SECRET=/d' -e '/^AIWEB_N8N_DB_PASSWORD=/d' "$BOX/.env"
-printf '%s\n' "$CAPS" | grep -v franchiseApplicationNotify > "$BOX/packages/access/src/index.ts"
+printf '%s\n' "$CAPS" | grep -v '^  franchiseApplicationNotify:' > "$BOX/packages/access/src/index.ts"
 cp "$BOX/.env" "$W/before"
 secrets
 ma_refused "a release without the capability franchiseApplicationNotify (PR #1042)" 'no capability franchiseApplicationNotify'
@@ -619,6 +622,93 @@ ma_refused "the last good release without the capability (a rollback would not b
 rm -rf "$BOX/.deploy" "$BOX/.git"
 secrets
 [ "$RC" = 0 ] && why="$(accounts_ok 2)" && ok "  ...and written once the release has it" || bad "with the capability back: $why $OUT"
+
+# AI-9: the morning summary scope rides along once a rollback would still boot.
+ids() { MA="$(val MACHINE_ACCOUNTS)" node -e 'const q=String.fromCharCode(39);const l=JSON.parse(process.env.MA.slice(1,-1));console.log(JSON.stringify(l.map(a=>[a.id,a.secretSha256,a.notAfter])))'; }
+cp "$BOX/.env" "$W/good.env"
+secrets
+why="$(accounts_ok 2)" && cmp -s "$BOX/.env" "$W/good.env" && ok "both scopes capable: n8n entries hold [franchiseApplicationNotify, morningSummaryNotify], a run on a box made so writes nothing" ||
+  bad "both scopes: $why $OUT"
+# A base-only box (made before AI-9), then a release that has the scope: rewritten in place.
+BASE_ENV="$W/base.env"
+node -e '
+  const fs = require("fs");
+  const q = String.fromCharCode(39);
+  const t = fs.readFileSync(process.argv[1], "utf8").split("\n").map((l) => {
+    if (!l.startsWith("MACHINE_ACCOUNTS=")) return l;
+    const list = JSON.parse(l.slice(18, -1)).map((a) => (a.name === "n8n" ? { ...a, scopes: ["franchiseApplicationNotify"] } : a));
+    return "MACHINE_ACCOUNTS=" + q + JSON.stringify(list) + q;
+  });
+  fs.writeFileSync(process.argv[2], t.join("\n"));
+' "$W/good.env" "$BASE_ENV"
+cp "$BASE_ENV" "$BOX/.env"
+ids_before="$(ids)"
+secrets
+why="$(accounts_ok 2)" && [ "$RC" = 0 ] && [ "$(ids)" = "$ids_before" ] && ! printf '%s' "$OUT" | grep -qF 'morningSummaryNotify' &&
+  ok "a base-only entry, scope now capable: rewritten in place (same id, secret hash, day, order), the other account untouched" ||
+  bad "rewrite in place: rc=$RC $why $OUT"
+cp "$BOX/.env" "$W/before"
+secrets
+cmp -s "$BOX/.env" "$W/before" && printf '%s' "$OUT" | grep -q 'nothing missing' && ok "  ...and a second run changes nothing (.env byte-identical)" || bad "second run: $OUT"
+# The last good release lacks the scope: left out with one plain line, exit 0; on a box that had it, dropped again.
+git -C "$BOX" init -q
+printf '%s\n' "$CAPS" | grep -v '^  morningSummaryNotify:' > "$BOX/packages/access/src/index.ts"
+git -C "$BOX" -c user.name=t -c user.email=t@example.invalid add packages >/dev/null
+git -C "$BOX" -c user.name=t -c user.email=t@example.invalid commit -qm 'before AI-9' >/dev/null
+mkdir -p "$BOX/.deploy"
+git -C "$BOX" rev-parse HEAD > "$BOX/.deploy/last-good-sha"
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
+secrets
+why="$(accounts_ok 2 "$BASE")" && [ "$RC" = 0 ] && [ "$(ids)" = "$ids_before" ] &&
+  [ "$(printf '%s\n' "$OUT" | grep -c 'morningSummaryNotify')" = 1 ] && printf '%s' "$OUT" | grep -q 'last good release [0-9a-f]\{12\} has no capability morningSummaryNotify yet' &&
+  ok "the last good release lacks the scope: both n8n entries dropped back to the base scope, one log line says why, exit 0" ||
+  bad "dropped scope: rc=$RC $why $OUT"
+cp "$BASE_ENV" "$BOX/.env"
+secrets
+why="$(accounts_ok 2 "$BASE")" && [ "$RC" = 0 ] && cmp -s "$BOX/.env" "$BASE_ENV" && printf '%s' "$OUT" | grep -q 'has no capability morningSummaryNotify yet' &&
+  ok "a base-only box whose last good release lacks the scope: nothing changes, the line still says why" || bad "base-only, not capable: $why $OUT"
+# The base scope not capable in the last good release: refused as before.
+printf '%s\n' "$CAPS" | grep -v '^  franchiseApplicationNotify:' > "$BOX/packages/access/src/index.ts"
+git -C "$BOX" -c user.name=t -c user.email=t@example.invalid add packages >/dev/null
+git -C "$BOX" -c user.name=t -c user.email=t@example.invalid commit -qm 'before #1042' >/dev/null
+git -C "$BOX" rev-parse HEAD > "$BOX/.deploy/last-good-sha"
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
+sed -i -e '/^AIWEB_N8N_MACHINE_SECRET=/d' -e '/^AIWEB_N8N_DB_PASSWORD=/d' "$BOX/.env"
+cp "$BOX/.env" "$W/before"
+secrets
+ma_refused "the base scope missing from the last good release" 'last good one'
+[ "$RC" = 1 ] && ok "  ...with the refusal itself (exit 1), not only the rollback warning" || bad "refusal exit code $RC: $OUT"
+rm -rf "$BOX/.deploy" "$BOX/.git"
+cp "$W/good.env" "$BOX/.env"
+# Rotation with an older live entry that is still base-only: all three n8n entries end with both
+# scopes; the two old ones keep id, secret hash, day and place.
+soon="$(date -u -d '+10 days' +%F)"
+cur_na="$(sed -n 's/^AIWEB_N8N_MACHINE_NOT_AFTER=//p' "$BASE_ENV")"
+sed -e "s/^AIWEB_N8N_MACHINE_NOT_AFTER=.*/AIWEB_N8N_MACHINE_NOT_AFTER=$soon/" -e "s/\"notAfter\":\"$cur_na\"/\"notAfter\":\"$soon\"/" "$BASE_ENV" > "$BOX/.env"
+ids_before="$(ids)"
+secrets
+IDS_BEFORE="$ids_before" IDS_AFTER="$(ids)" SC="$(val MACHINE_ACCOUNTS)" ID="$(val AIWEB_N8N_MACHINE_ID)" BOTH="$BOTH" node -e '
+  const e = process.env;
+  const a = JSON.parse(e.IDS_BEFORE), b = JSON.parse(e.IDS_AFTER);
+  if (b.length !== a.length + 1 || JSON.stringify(b.slice(0, a.length)) !== e.IDS_BEFORE) throw new Error("old entries moved");
+  const mine = JSON.parse(e.SC.slice(1, -1)).filter((x) => x.id === e.ID);
+  if (mine.length !== 3 || mine.some((x) => JSON.stringify(x.scopes) !== e.BOTH)) throw new Error("scopes " + mine.map((x) => x.scopes));
+' && [ "$RC" = 0 ] && ok "rotation: the older base-only entry and the new one all carry both scopes, the old ones unmoved" ||
+  bad "rotation with an older base-only entry: rc=$RC $OUT"
+# The kill switch on an entry with drifted scopes: every n8n entry leaves, the other account stays.
+cp "$BASE_ENV" "$BOX/.env"
+sed -i 's/^AIWEB_N8N_MACHINE_SECRET=.*/AIWEB_N8N_MACHINE_SECRET=/' "$BOX/.env"
+secrets
+why="$(accounts_ok 0)" && [ "$RC" = 0 ] && grep -qx 'AIWEB_N8N_MACHINE_SECRET=' "$BOX/.env" && printf '%s' "$OUT" | grep -qF "n8n's kill switch" &&
+  ok "off with base-only entries: every n8n entry removed, the other account untouched" || bad "off with drifted scopes: rc=$RC $why $OUT"
+# A capability that merely starts with the scope's name is not the scope.
+cp "$BASE_ENV" "$BOX/.env"
+printf '%s\n' "$CAPS" | sed 's/^  morningSummaryNotify:/  morningSummaryNotifyX:/' > "$BOX/packages/access/src/index.ts"
+secrets
+why="$(accounts_ok 2 "$BASE")" && [ "$RC" = 0 ] && cmp -s "$BOX/.env" "$BASE_ENV" && printf '%s' "$OUT" | grep -q 'no capability morningSummaryNotify yet' &&
+  ok "morningSummaryNotifyX does not make morningSummaryNotify capable" || bad "prefix capability: rc=$RC $why $OUT"
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
+cp "$W/good.env" "$BOX/.env"
 # The real packages/access declares CAPABILITIES the way the lookup above reads it.
 sed -n '/^export const CAPABILITIES = {/,/^}/p' packages/access/src/index.ts | grep -qE '^  dashboard:' &&
   ok "packages/access/src/index.ts declares CAPABILITIES in the shape aiweb-secrets.sh reads" ||
