@@ -1756,6 +1756,8 @@ export const hrFix = {
     monthLabel: 'Month',
     netCashFlow: 'Net cash flow',
     governance: 'Governance',
+    governanceNote:
+      'A day that was reopened and not closed again is not counted as closed, and its settlement variance is left out.',
     teamCustomers: 'Team & customers',
     managerOnly: 'Depot managers only',
     needsCostData: 'needs cost data',

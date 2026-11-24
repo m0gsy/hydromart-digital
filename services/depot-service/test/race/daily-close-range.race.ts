@@ -55,7 +55,8 @@ describeRace('daily-close range read against a DATE column', () => {
   });
   afterAll(async () => drop?.());
 
-  it('PROOF of the bug: a WIB-midnight INSTANT against the DATE column shifts both ends', async () => {
+  // Documents the OLD behaviour (what listForDepotRange used to send); it guards the finding, not the code.
+  it('DOCUMENTS the old bug: a WIB-midnight INSTANT against the DATE column shifts both ends', async () => {
     const from = dayStartUtc('2026-08-01', tz); // 2026-07-31T17:00Z
     const to = addLocalDays(from, 31, tz); // 2026-08-31T17:00Z
     const rows = await prisma.depotDailyClose.findMany({

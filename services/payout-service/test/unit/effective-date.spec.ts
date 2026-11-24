@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+
 import { effectiveFrom } from '../../src/domain/effective-date';
 
 describe('effectiveFrom', () => {
@@ -9,5 +11,14 @@ describe('effectiveFrom', () => {
     expect(effectiveFrom('2026-08-01T16:59:00.000Z', 'Asia/Jakarta').toISOString()).toBe(
       '2026-08-01T16:59:00.000Z',
     );
+  });
+  it('refuses a day that does not exist instead of rolling it to another day', () => {
+    expect(() => effectiveFrom('2026-02-30', 'Asia/Jakarta')).toThrow(BadRequestException);
+    expect(() => effectiveFrom('2026-02-29', 'Asia/Jakarta')).toThrow(BadRequestException);
+    expect(() => effectiveFrom('2026-13-01', 'Asia/Jakarta')).toThrow();
+  });
+  it('accepts a real leap day and a year end', () => {
+    expect(effectiveFrom('2028-02-29', 'Asia/Jakarta').toISOString()).toBe('2028-02-28T17:00:00.000Z');
+    expect(effectiveFrom('2026-12-31', 'Asia/Jakarta').toISOString()).toBe('2026-12-30T17:00:00.000Z');
   });
 });

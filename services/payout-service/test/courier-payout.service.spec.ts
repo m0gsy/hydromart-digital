@@ -664,6 +664,17 @@ it('credits base + on-time + peak using the WIB hour of deliveredAt', async () =
       expect(incentives()[0].sourceRef).toContain(':2026-08:2');
     });
 
+    it.each([
+      ['leap day', ['2028-03-01T03:00:00.000Z', '2028-03-02T03:00:00.000Z'], '2028-02-29T10:00:00.000Z'],
+      ['year end', ['2027-01-02T03:00:00.000Z', '2027-01-03T03:00:00.000Z'], '2026-12-31T10:00:00.000Z'],
+    ])('the tally upper bound holds across a %s', async (_n, later, late) => {
+      await service.recordDeliveryEarning(event('x1', later[0], true));
+      await service.recordDeliveryEarning(event('x2', later[1], true));
+      expect(incentives()).toHaveLength(1);
+      await service.recordDeliveryEarning(event('x3', late, true));
+      expect(incentives()).toHaveLength(1);
+    });
+
     it('posts nothing before the first rung is reached', async () => {
       await service.recordDeliveryEarning(event('d1', day(1), true));
       expect(incentives()).toHaveLength(0);

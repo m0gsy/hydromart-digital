@@ -422,7 +422,11 @@ function MonthlyReviewBody() {
           />
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <Panel title={t('hrFix.monthlyReview.governance')} rows={governance} />
+            <Panel
+              title={t('hrFix.monthlyReview.governance')}
+              rows={governance}
+              note={t('hrFix.monthlyReview.governanceNote')}
+            />
             <Panel title={t('hrFix.monthlyReview.teamCustomers')} rows={team} />
           </div>
 
