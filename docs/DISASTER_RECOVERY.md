@@ -15,7 +15,7 @@ dengan tangan gemetar.
 
 | Ada                                                            | Di mana                                           | Sedalam apa                                                                                                              |
 | -------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Dump seluruh cluster, tiap malam 03:00                         | `s3://hydromart-backup/db/`                       | 14 malam (`BACKUP_KEEP`)                                                                                                 |
+| Dump seluruh cluster, tiap malam 03:00, terenkripsi (D8)       | `s3://hydromart-backup/db/*.sql.gz.enc`           | 14 malam (`BACKUP_KEEP`)                                                                                                 |
 | `.env` terenkripsi, tiap malam 03:25                           | `s3://hydromart-backup/env/`                      | 14 malam                                                                                                                 |
 | Berkas objek (foto PoD, bukti transfer, dll), tiap malam 03:40 | `s3://hydromart-backup/objects/<bucket>/`         | salinan `pod/` dan `payment-proof/` kedaluwarsa **395 hari** (12 bulan janji privasi + 1 bulan); sisanya tidak dipangkas |
 | Kode                                                           | GitHub, `main`                                    | seluruh riwayat                                                                                                          |
@@ -40,7 +40,8 @@ dengan tangan gemetar.
 ## Yang Anda butuhkan sebelum bisa mulai
 
 1. **Kunci privat `.env`** — `hydromart-env-private.pem`. **Tidak ada di server, itu memang
-   intinya.** Tanpa ini, dump-nya bisa dipulihkan tapi tidak ada yang tahu konfigurasinya.
+   intinya.** Sejak D8 (24 Nov 2026) kunci yang sama juga satu-satunya pembuka setiap dump di
+   luar kotak: tanpa ini, baik konfigurasinya maupun datanya tidak bisa dibuka.
 2. **Kredensial NEO Object Storage** — untuk mengunduh dari `hydromart-backup`.
 3. **Akses GitHub** — untuk kode dan image.
 4. **Sebuah kotak baru** dengan Docker + Docker Compose v2.
@@ -60,22 +61,29 @@ Dari mesin mana pun yang punya kredensial NEO:
 aws --endpoint-url https://nos.jkt-1.neo.id s3 ls s3://hydromart-backup/db/
 aws --endpoint-url https://nos.jkt-1.neo.id s3 ls s3://hydromart-backup/env/
 
-aws --endpoint-url https://nos.jkt-1.neo.id s3 cp s3://hydromart-backup/db/hydromart-<TANGGAL>.sql.gz .
+aws --endpoint-url https://nos.jkt-1.neo.id s3 cp s3://hydromart-backup/db/hydromart-<TANGGAL>.sql.gz.enc .
 aws --endpoint-url https://nos.jkt-1.neo.id s3 cp s3://hydromart-backup/env/env-<TANGGAL>.enc .
 ```
 
 Ambil `.env` dari malam **yang sama atau lebih baru** daripada dump-nya. Konfigurasi yang lebih
 tua bisa menunjuk ke hal yang belum ada saat itu.
 
-### 2. Buka `.env`
+Objek `db/hydromart-<TANGGAL>.sql.gz` tanpa `.enc` adalah salinan polos yang dikirim sebelum D8;
+masih bisa dipakai sampai habis umurnya, tanpa langkah dekripsi dump di bawah.
+
+### 2. Buka `.env` dan dump-nya
 
 ```bash
 openssl smime -decrypt -binary -inform DER -in env-<TANGGAL>.enc \
   -inkey hydromart-env-private.pem -out .env
+openssl smime -decrypt -binary -inform DER -in hydromart-<TANGGAL>.sql.gz.enc \
+  -inkey hydromart-env-private.pem -out hydromart-<TANGGAL>.sql.gz
+gzip -t hydromart-<TANGGAL>.sql.gz
 ```
 
 Kalau ini gagal, kunci privatnya salah dan tidak ada jalan lain — enkripsinya asimetris,
-justru supaya kotak yang jatuh tidak membawa kunci pembukanya.
+justru supaya kotak yang jatuh tidak membawa kunci pembukanya. Rinciannya (dan latihan membuka
+salinan dari luar kotak): `DEPLOY.md`, "Offsite copies are encrypted (D8)".
 
 Sertifikat publik yang dipakai kotak ada di repo (`ops/env-backup-public.pem`, dibuat 2026-09-25,
 berlaku sampai 2036); pasangan pribadinya dibuat di laptop pemilik dan **harus dipindahkan ke
@@ -154,7 +162,7 @@ dibuat-buat. Isi kolom kanan sambil berjalan; selisih antara perkiraan dan kenya
 | #   | Langkah (bagian di atas)                                                 | Mulai | Selesai | Durasi | Perkiraan | Lulus jika                                    |
 | --- | ------------------------------------------------------------------------ | ----- | ------- | ------ | --------- | --------------------------------------------- |
 | 1   | Ambil dump + `.env` terenkripsi dari bucket (langkah 1)                  |       |         |        | 5 mnt     | kedua berkas ada, ukuran wajar                |
-| 2   | Buka `.env` dengan kunci privat dari password manager (2)                |       |         |        | 2 mnt     | `.env` terbaca; `env-doctor --inspect` bersih |
+| 2   | Buka `.env` dan dump dengan kunci privat dari password manager (2)       |       |         |        | 2 mnt     | `.env` terbaca; `env-doctor --inspect` bersih |
 | 3   | Siapkan kotak: clone, `.env`, periksa nilai yang menunjuk mesin lama (3) |       |         |        | 15 mnt    | tak ada nilai menunjuk IP/host lama           |
 | 4   | Postgres saja, lalu `restore-db.sh --into-prod` (4)                      |       |         |        | 10 mnt    | angka durasi tercetak; 16 database cocok      |
 | 5   | `deploy.sh --all` dengan image dari registry (5)                         |       |         |        | 10 mnt    | semua container `healthy`                     |
@@ -171,9 +179,14 @@ tanpa risiko: memulihkan beberapa objek ke prefix sementara dan membuktikan byte
 
 ## Kalau kunci privat `.env` hilang
 
-Dump-nya masih bisa dipulihkan — datanya utuh. Yang hilang adalah konfigurasinya, dan itu
-harus dibangun ulang dari `.env.example` plus setiap kredensial dibuat baru: kunci S3,
-rahasia JWT (semua sesi keluar), kredensial Zenziva, DSN Sentry, service account FCM.
+**Sejak D8, dump di luar kotak terkunci dengan kunci yang sama.** Selama kotaknya masih ada,
+dump di kotak itu (polos, tidak terenkripsi) masih bisa dipulihkan — datanya utuh. Kalau kotaknya
+juga hilang, yang tersisa hanya salinan polos dari sebelum D8 yang belum habis umurnya; sesudah
+itu datanya ikut hilang. Buat pasangan kunci baru (kepala `scripts/backup-env.sh`) dan ganti
+`ops/env-backup-public.pem` hari itu juga, supaya salinan berikutnya bisa dibuka lagi.
+
+Konfigurasinya harus dibangun ulang dari `.env.example` plus setiap kredensial dibuat baru: kunci
+S3, rahasia JWT (semua sesi keluar), kredensial Zenziva, DSN Sentry, service account FCM.
 
 Perkiraan jujur: setengah hari, dan setiap pelanggan harus login ulang.
 

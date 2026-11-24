@@ -21,7 +21,8 @@ cd "$(dirname "$0")/.."
 # H-37: whatever happens from here on gets recorded in admin-service, so /hq/retention
 # stops being a card that can only say NONE. The trap covers every failure path — a dump
 # that never ran is exactly the case the console must not keep reporting as fine.
-trap 'rc=$?; [ "$rc" -ne 0 ] && report_backup_run BACKUP FAILED "backup-db.sh exited $rc — see the backup log"; exit $rc' EXIT
+PART=''
+trap 'rc=$?; [ -n "$PART" ] && rm -f "$PART"; [ "$rc" -ne 0 ] && report_backup_run BACKUP FAILED "backup-db.sh exited $rc — see the backup log"; exit $rc' EXIT
 
 CONTAINER="${PG_CONTAINER:-hydromart-postgres}"
 PG_USER="${PG_USER:-hydromart}"
@@ -44,58 +45,31 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 FILE="$BACKUP_DIR/hydromart-$STAMP.sql.gz"
 
 # Stream the dump straight through gzip so nothing large lands uncompressed.
-docker exec "$CONTAINER" pg_dumpall -U "$PG_USER" | gzip > "$FILE"
+# It is written under a part name and renamed, so a dump that is cut short (a full disk, a killed
+# run) never wears the final name that backup-offsite.sh and the restore drills glob for.
+PART="$BACKUP_DIR/.hydromart-$STAMP.sql.gz.part"
+docker exec "$CONTAINER" pg_dumpall -U "$PG_USER" | gzip > "$PART"
 
 # Fail loudly if the dump is suspiciously tiny (container down / auth failed).
-SIZE=$(wc -c < "$FILE")
+SIZE=$(wc -c < "$PART")
 if [ "$SIZE" -lt 1000 ]; then
   echo "ERROR: backup $FILE is only ${SIZE}B — dump likely failed" >&2
   exit 1
 fi
+gzip -t "$PART" || { echo "ERROR: backup $FILE is not valid gzip — dump cut short" >&2; exit 1; }
+mv -f "$PART" "$FILE"
+PART=''
 HUMAN_SIZE="$(du -h "$FILE" | cut -f1)"
 echo "backup OK: $FILE ($HUMAN_SIZE)"
 report_backup_run BACKUP OK "$HUMAN_SIZE, $(basename "$FILE")"
 
-# Offsite copy to NEO (optional but recommended — if the VPS disk/box dies the
-# local backups die with it). Enable by setting BACKUP_S3_BUCKET (+ creds) in the
-# cron env; unset = local-only. Uses a separate bucket/key from app uploads.
-OFFSITE_NOTE=""
-if [ -n "${BACKUP_S3_BUCKET:-}" ]; then
-  REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-  # CMP-06 — a HALF-configured bucket used to end the run right here.
-  #
-  # `${BACKUP_S3_ACCESS_KEY_ID:?...}` under `set -u` aborts the script, and it aborted it
-  # AFTER a perfectly good dump had been written: the EXIT trap then reported BACKUP FAILED
-  # to the console (so /hq/retention showed a failure over a backup that exists), and the
-  # local retention prune below never ran — so the disk kept every dump ever taken, on the
-  # box whose disk filling up is one of the ways the database dies in the first place.
-  #
-  # A missing credential is now what it actually is: the OFFSITE COPY did not happen. The
-  # dump is real, retention still runs, and the gap is stated instead of thrown.
-  if [ -z "${BACKUP_S3_ACCESS_KEY_ID:-}" ] || [ -z "${BACKUP_S3_SECRET_ACCESS_KEY:-}" ]; then
-    echo "WARN: BACKUP_S3_BUCKET is set but BACKUP_S3_ACCESS_KEY_ID/SECRET are not —" >&2
-    echo "      the dump is local-only. Set both, or unset BACKUP_S3_BUCKET." >&2
-    OFFSITE_NOTE="offsite SKIPPED (no credentials)"
-  elif S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-https://nos.jkt-1.neo.id}" \
-     S3_REGION="${BACKUP_S3_REGION:-jkt-1}" \
-     S3_BUCKET="$BACKUP_S3_BUCKET" \
-     S3_ACCESS_KEY_ID="${BACKUP_S3_ACCESS_KEY_ID:-}" \
-     S3_SECRET_ACCESS_KEY="${BACKUP_S3_SECRET_ACCESS_KEY:-}" \
-     node "$REPO_DIR/scripts/upload-to-s3.mjs" "$FILE" "db/$(basename "$FILE")"; then
-    echo "offsite OK -> $BACKUP_S3_BUCKET/db/$(basename "$FILE")"
-  else
-    echo "WARN: offsite upload to NEO failed — kept local copy" >&2
-    OFFSITE_NOTE="offsite FAILED"
-  fi
-fi
+# The dump stays HERE, plaintext, for the restore drills. It leaves the box one way only:
+# scripts/backup-offsite.sh (cron, 03:20), which encrypts it to the owner's public certificate
+# (D8), sends it and reads it back. This script used to upload the dump itself, in the clear,
+# whenever BACKUP_S3_BUCKET was set, and never read it back; D8 removed that path rather than
+# encrypt it a second time here. BACKUP_S3_BUCKET is no longer read: BACKUP_OFFSITE_DEST is.
 
-# Local retention: keep the newest $KEEP, delete older. (NEO retention = set a
-# bucket lifecycle/expiry rule in the console; this script doesn't prune remote.)
+# Local retention: keep the newest $KEEP, delete older. Offsite retention is
+# backup-offsite.sh's (s3-prune.mjs); it also removes the encrypted twin (<dump>.enc) it made
+# beside each dump once that dump is gone from here.
 ls -1t "$BACKUP_DIR"/hydromart-*.sql.gz 2>/dev/null | tail -n +"$((KEEP + 1))" | xargs -r rm -f
-
-# The console said OK the moment the dump landed, and that is still true. When the offsite
-# copy did not happen, say so on the same card rather than letting "OK" mean more than it does
-# (CMP-06 — the run used to abort here instead, leaving a FAILED verdict over a good dump).
-if [ -n "$OFFSITE_NOTE" ]; then
-  report_backup_run BACKUP OK "$HUMAN_SIZE, $(basename "$FILE") — $OFFSITE_NOTE"
-fi

@@ -210,8 +210,9 @@ tail -50 /var/log/hydromart-backup.log
 ```
 
 Blok cron hilang (kotak baru/dibangun ulang) → `bash scripts/install-host-cron.sh`. Salinan luar kotak gagal →
-cek `BACKUP_OFFSITE_DEST` dan kunci `BACKUP_S3_*` di `.env`. Sampai satu drill lulus lagi, perlakukan backup
-sebagai tidak bisa dipercaya dan jalankan `bash scripts/backup-db.sh` dengan tangan.
+cek `BACKUP_OFFSITE_DEST` dan kunci `BACKUP_S3_*` di `.env`, dan sertifikat publik yang dipakai mengenkripsi
+(`BACKUP_ENV_CERT`, bawaan `ops/env-backup-public.pem`): tanpa itu tak ada yang dikirim (D8). Sampai satu drill
+lulus lagi, perlakukan backup sebagai tidak bisa dipercaya dan jalankan `bash scripts/backup-db.sh` dengan tangan.
 
 ## Deploy gagal / commit tidak terkirim
 

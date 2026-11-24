@@ -130,7 +130,9 @@ fi
 # remote twin back and compares size + sha256. Re-running it here costs one read-back a day
 # and is the only thing in this repo that can distinguish "offsite is configured" from
 # "offsite is working". Reused rather than reimplemented — a second checksum comparison
-# would be a second thing to keep true.
+# would be a second thing to keep true. D8: the twin offsite is the dump ENCRYPTED
+# (<dump>.enc), compared with the <dump>.enc this box made and sent; a plaintext copy sent
+# before D8 is not taken for it.
 if [ -z "${BACKUP_OFFSITE_DEST:-}" ]; then
   echo "!! BACKUP_OFFSITE_DEST is not set: every copy of this database is on the disk the" >&2
   echo "   database is on. The two checks above pass in exactly this state, which is why" >&2

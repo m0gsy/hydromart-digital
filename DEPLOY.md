@@ -464,8 +464,9 @@ hide the other:
 
 - **Backups.** [`scripts/backup-aiweb-db.sh`](scripts/backup-aiweb-db.sh) dumps databases `ai`
   and `n8n` (one file: ai's dump, a `\connect n8n` line, n8n's) at
-  03:05 next to hydromart's dumps, as `aiweb-<stamp>.sql.gz` (gzip, not encrypted, like
-  hydromart's; 14 kept). `backup-offsite.sh --aiweb` copies it off the box at 03:22 under
+  03:05 next to hydromart's dumps, as `aiweb-<stamp>.sql.gz` (gzip, plaintext on the box like
+  hydromart's; 14 kept). `backup-offsite.sh --aiweb` copies it off the box, encrypted
+  ([D8](#offsite-copies-are-encrypted-d8)), at 03:22 under
   `<prefix>-aiweb/` with its own 14, `backup-second-provider.sh` copies it to the second provider
   at 04:00, `--drill` restores it weekly (Monday 04:45, log
   `/var/log/hydromart-aiweb-drill.log`) into a throwaway container on a throwaway internal
@@ -551,8 +552,6 @@ Not covered yet:
 - **What the AI web may reach on the network is not all decided.** The probe prints whether it
   reaches the cloud metadata address (`169.254.169.254:80`) and never fails on it: the owner
   decides whether to block it. The host's ssh is decided, and closed (above).
-- **The AI web's dumps are not encrypted**, exactly like hydromart's (D8 is still open): when D8
-  lands it has to cover `aiweb-*.sql.gz` too.
 
 ### Backups + restore drill (host cron)
 
@@ -569,6 +568,100 @@ from **host cron**, not the `scheduler` container:
 0 4 * * 1  cd /opt/hydromart && ALERT_WEBHOOK_URL=... bash scripts/restore-db.sh --drill >> /var/log/hydromart-restore-drill.log 2>&1
 */5 * * * * cd /opt/hydromart && ALERT_WEBHOOK_URL=... bash scripts/watchdog.sh        >> /var/log/hydromart-watchdog.log 2>&1
 ```
+
+### Offsite copies are encrypted (D8)
+
+Owner decision D8 (24 Nov 2026): every database dump that leaves the box is encrypted; the dumps
+on the box are not.
+
+- **On the box:** `hydromart-<stamp>.sql.gz` and `aiweb-<stamp>.sql.gz` in `BACKUP_DIR` stay
+  plain gzip, so the weekly drills (`restore-db.sh --drill`, `backup-aiweb-db.sh --drill`) read
+  them unchanged.
+- **Off the box:** [`scripts/backup-offsite.sh`](scripts/backup-offsite.sh) (03:20, `--aiweb`
+  03:22) and `backup-second-provider.sh` (04:00) send `<dump>.enc` instead: the dump encrypted
+  with the `.env` backup's command and certificate (`openssl smime -encrypt`, AES-256, DER,
+  streamed, to `BACKUP_ENV_CERT`, default `ops/env-backup-public.pem`). The box holds only that
+  public certificate. The owner's private key (`hydromart-env-private.pem`, the one that opens
+  `env/env-<date>.enc`) opens every copy and never goes on the box.
+- Objects are `db/hydromart-<stamp>.sql.gz.enc` and `db-aiweb/aiweb-<stamp>.sql.gz.enc` (under
+  `BACKUP_OFFSITE_DEST`'s prefix; the second provider under `BACKUP2_OFFSITE_DEST`'s). The `.enc`
+  is made once per dump and kept beside it until the dump is pruned, so both providers get the
+  same bytes and the read-back still compares the object with the file that was sent.
+- No certificate on the box: exit 2 and an alert, nothing sent. Never a plaintext copy instead.
+- Each night's log line ends `encrypted from <dump>, sha256 <hash>`: the hash the copy must have
+  once decrypted. `/var/log/hydromart-backup.log` on the box, or **Actions → Deploy → mode
+  `backup-offsite`** for the newest dump.
+
+**Plaintext copies sent before D8** (`<dump>.sql.gz` objects, no `.enc`) are left where they
+are; nothing deletes them for being plaintext, and a locked bucket could not. On NEO they age out
+with the usual 14-copy window: `s3-prune.mjs` sorts them with the encrypted copies by date, so
+they are the oldest and leave the listing within about two weeks; NEO keeps a pruned object as a
+noncurrent version for 30 more days. Any in the second provider's locked bucket (key without
+delete) stay until that bucket's own lifecycle rule removes them after its lock, about 395 days.
+Until then anyone with that bucket's key can read them, as before D8.
+
+**The twin is checked before it leaves.** `<dump>.enc` has its dump's sha256 beside it
+(`<dump>.enc.sha256`). Before every send, and on every `--verify`, it must parse as DER to its
+end, be larger than its dump and carry the dump's current hash (the box's OpenSSL 3.0.2 exits 0
+on a full disk and leaves a cut-short envelope, and a dump can be replaced under its name). A
+twin that fails is deleted and made again once by the copy run; `--verify` only reports it. A
+dump that is not valid gzip is an alert and nothing is sent. To force a new encryption, delete
+the twin and its hash: `rm <dump>.enc <dump>.enc.sha256`, then run `backup-offsite.sh`. Twins of
+dumps already pruned, and `.part` files older than an hour, are removed by the next copy run.
+
+**The first night after this deploys.** Until the 03:20 copy run has made `<dump>.enc` for the
+newest dump, every `--verify` exits 1 saying "no encrypted copy yet": that is
+a deploy's backup check, or a hand-run `check-backup-freshness.sh` (the cron one, at 05:00, comes
+after the copy). If one runs before 03:20 on that day, one red check or alert is expected and
+clears by itself once the 03:20 run has sent the first copy. On any night, a `--verify` that
+starts while a copy run is sending (03:20, 03:22 for the AI web, 04:00 for the second provider)
+waits up to 5 minutes for it, then fails with "a copy run held the lock": run it again after.
+
+**Rolling back across this change.** A release before D8 has a `backup-db.sh` that uploads each
+dump itself, in the clear, whenever `BACKUP_S3_BUCKET` is set. Before rolling back past it, the
+box's `.env` must not have `BACKUP_S3_BUCKET` (checked 24 Nov 2026: it has none). If it has, remove
+it first, or the old script sends plaintext dumps to that bucket.
+
+**Restoring from an encrypted copy.** On your own machine, never the box (Git Bash works):
+
+```bash
+# 1. Fetch the copy (any S3 client; NEO shown, the second provider works the same way).
+aws --endpoint-url https://nos.jkt-1.neo.id s3 ls s3://<bucket>/db/
+aws --endpoint-url https://nos.jkt-1.neo.id s3 cp s3://<bucket>/db/hydromart-<stamp>.sql.gz.enc .
+
+# 2. Open it with the private key. What comes out is the dump the box had.
+openssl smime -decrypt -binary -inform DER -in hydromart-<stamp>.sql.gz.enc \
+  -inkey hydromart-env-private.pem -out hydromart-<stamp>.sql.gz
+gzip -t hydromart-<stamp>.sql.gz
+```
+
+Then the existing steps apply to `hydromart-<stamp>.sql.gz`: copy it to the box and run
+`CONFIRM=RESTORE bash scripts/restore-db.sh --into-prod hydromart-<stamp>.sql.gz` (the whole box
+lost: [docs/DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md)), or
+`bash scripts/restore-db.sh --drill hydromart-<stamp>.sql.gz` to try it without touching
+production. An AI web copy (`db-aiweb/aiweb-<stamp>.sql.gz.enc`) opens the same way and is tried
+with `bash scripts/backup-aiweb-db.sh --drill aiweb-<stamp>.sql.gz`.
+
+**The owner's drill, off the box** (once after the first encrypted night, then monthly; nothing
+on the box can do it, because the box cannot decrypt):
+
+1. Fetch the newest `db/hydromart-*.sql.gz.enc` and `db-aiweb/aiweb-*.sql.gz.enc` (step 1 above).
+2. Open each with the private key from the password manager (step 2 above); `gzip -t` passes.
+3. `sha256sum hydromart-<stamp>.sql.gz` prints the hash that night's log line gives after
+   `encrypted from hydromart-<stamp>.sql.gz, sha256` (the same for the AI web dump). On the box:
+   `grep 'encrypted from' /var/log/hydromart-backup.log | tail -4`.
+4. Delete the opened dumps from your machine: they are the whole database in the clear.
+
+Equal hashes mean the copy opens to byte-for-byte the dump the box had when it was encrypted:
+before every send the `.enc` is checked whole (it parses as DER, ends with the envelope's five
+end-of-contents pairs, which a cut at any element boundary lacks, and is larger than its dump)
+and tied to its dump by the recorded sha256. The weekly drill there proves that dump restores. A copy that does not open means the box encrypts to a certificate
+whose private key you do not hold: check `BACKUP_ENV_CERT` and `ops/env-backup-public.pem`
+before anything else.
+
+**Without the private key no offsite copy opens**, by design, and only the dumps on the box
+remain. A new keypair (header of [`scripts/backup-env.sh`](scripts/backup-env.sh)) replaces
+`ops/env-backup-public.pem` for the copies after it; the ones before stay sealed to the old key.
 
 ### Docker daemon config — `live-restore` is load-bearing
 
