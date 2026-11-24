@@ -248,6 +248,7 @@ export const hq = {
       approvalThresholdWrite: 'Ambang persetujuan (ubah)',
       settingsRead: 'Setelan (lihat)',
       dashboard: 'Dashboard eksekutif',
+      pendingApprovals: 'Lihat jumlah persetujuan yang menunggu Anda (Command Center web AI)',
       orderQueue: 'Antrean pesanan',
       inventoryRead: 'Lihat inventori',
       inventoryWrite: 'Ubah inventori',

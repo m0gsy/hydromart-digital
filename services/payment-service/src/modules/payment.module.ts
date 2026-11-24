@@ -27,6 +27,8 @@ import { CASHIER_SHIFT_PORT } from '../application/ports/cashier-shift.port';
 import { PaymentController } from './payment.controller';
 import { TaxController } from './tax.controller';
 import { RefundAlertHttpAdapter } from '../infrastructure/http/refund-alert.http.adapter';
+import { PendingApprovalsPrismaReader } from '../infrastructure/prisma/pending-approvals.prisma.reader';
+import { PendingApprovalsController } from './pending-approvals.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -55,6 +57,7 @@ const providers: Provider[] = [
   // C2: which drawer a counter payment lands in, asked with the cashier's own token.
   { provide: CASHIER_SHIFT_PORT, useClass: CashierShiftHttpAdapter },
   { provide: PAYMENT_TOKENS.RefundAlert, useClass: RefundAlertHttpAdapter },
+  { provide: PAYMENT_TOKENS.PendingApprovalsReader, useClass: PendingApprovalsPrismaReader },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -62,7 +65,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [PaymentController, TaxController],
+  controllers: [PaymentController, TaxController, PendingApprovalsController],
   providers,
   exports: [PrismaService, PaymentConfigService],
 })

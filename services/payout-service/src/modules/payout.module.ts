@@ -35,6 +35,8 @@ import { CourierPayoutController } from './courier-payout.controller';
 import { ExpenseApprovalController } from './expense-approval.controller';
 import { EarningRuleController } from './earning-rule.controller';
 import { SettingsController } from './settings.controller';
+import { PendingApprovalsController } from './pending-approvals.controller';
+import { PendingApprovalsPrismaReader } from '../infrastructure/prisma/pending-approvals.prisma.reader';
 
 const providers: Provider[] = [
   PrismaService,
@@ -67,6 +69,7 @@ const providers: Provider[] = [
   // CA-4-49: delivery-service owns the bucket a receipt lives in; this asks it for a link.
   { provide: PAYOUT_TOKENS.PhotoLink, useClass: PhotoLinkHttpAdapter },
   { provide: PAYOUT_TOKENS.ExpenseClaimAlert, useClass: ExpenseClaimAlertHttpAdapter },
+  { provide: PAYOUT_TOKENS.PendingApprovalsReader, useClass: PendingApprovalsPrismaReader },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -83,6 +86,7 @@ const providers: Provider[] = [
     ExpenseApprovalController,
     EarningRuleController,
     SettingsController,
+    PendingApprovalsController,
   ],
   providers,
   exports: [PrismaService, PayoutConfigService],

@@ -58,6 +58,30 @@ export const CAPABILITIES = {
     'DIREKTUR',
     'SUPER_ADMIN',
   ],
+  /*
+   * dashboard-service — HD-11: how many items wait for the CALLER's decision in each queue they
+   * decide (price overrides, refunds, courier expense claims and settlements, leave, kasbon,
+   * franchise applications, depot approvals), for the AI web's Command Center.
+   *
+   * Every staff role, on purpose: the answer only ever names the queues the caller's own role
+   * decides, counted within their own depots, so a role that decides nothing reads an empty
+   * list. A narrower door would have to be kept in step with the nine deciding capabilities a
+   * SUPER_ADMIN retunes at runtime. FRANCHISE_OWNER is out: an owner's depots are fenced by
+   * ownership, not by the depot scope these counts are held to.
+   */
+  pendingApprovals: [
+    'STAFF_DEPOT',
+    'KEPALA_DEPOT',
+    'ASSISTANT_SUPERVISOR',
+    'SUPERVISOR',
+    'MANAGER',
+    'DIREKTUR',
+    'HEAD_OFFICE',
+    'FINANCE',
+    'HR',
+    'MARKETING',
+    'SUPER_ADMIN',
+  ],
   // order-service — staff order queue (cross-customer read).
   orderQueue: [
     'KEPALA_DEPOT',

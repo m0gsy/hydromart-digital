@@ -136,6 +136,7 @@ export const dashC = {
       approvalThresholdWrite: 'Approval threshold (edit)',
       settingsRead: 'Settings (view)',
       dashboard: 'Executive dashboard',
+      pendingApprovals: 'Approvals waiting for you (AI web)',
       orderQueue: 'Order queue',
       inventoryRead: 'Inventory (view)',
       inventoryWrite: 'Inventory (edit)',

@@ -39,7 +39,7 @@ export class LoanRequestPrismaRepository implements LoanRequestRepository {
   async pendingCountsByDepot(
     depotIds: readonly string[] | undefined,
     excludeEmployeeId: string | null,
-  ): Promise<Array<{ depotId: string; count: number }>> {
+  ): Promise<Array<{ depotId: string; count: number; oldestAt: Date }>> {
     const groups = await this.prisma.loanRequest.groupBy({
       by: ['depotId'],
       where: {
@@ -48,8 +48,14 @@ export class LoanRequestPrismaRepository implements LoanRequestRepository {
         ...(excludeEmployeeId ? { employeeId: { not: excludeEmployeeId } } : {}),
       },
       _count: { _all: true },
+      _min: { createdAt: true },
     });
-    return groups.map((g) => ({ depotId: g.depotId, count: g._count._all }));
+    // A group exists only with a row in it, and `createdAt` is never null: the minimum is there.
+    return groups.map((g) => ({
+      depotId: g.depotId,
+      count: g._count._all,
+      oldestAt: g._min.createdAt!,
+    }));
   }
 
   async listAll(

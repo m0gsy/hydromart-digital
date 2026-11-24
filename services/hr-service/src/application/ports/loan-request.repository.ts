@@ -52,12 +52,12 @@ export interface LoanRequestRepository {
   /**
    * PENDING requests per depot, within `depotIds` (undefined: every depot), leaving out one
    * employee's own: the caller's, since nobody decides their own money. For the count the
-   * decision inbox shows.
+   * decision inbox shows, and (HD-11) when the oldest of each depot's was raised.
    */
   pendingCountsByDepot(
     depotIds: readonly string[] | undefined,
     excludeEmployeeId: string | null,
-  ): Promise<Array<{ depotId: string; count: number }>>;
+  ): Promise<Array<{ depotId: string; count: number; oldestAt: Date }>>;
   /**
    * Answer a request — but only while it is still PENDING; null when somebody else got there
    * first. `seenUpdatedAt` is checked by the service, not here.

@@ -138,6 +138,7 @@ export const dashC = {
       approvalThresholdWrite: 'Ambang persetujuan (ubah)',
       settingsRead: 'Setelan (lihat)',
       dashboard: 'Dashboard eksekutif',
+      pendingApprovals: 'Persetujuan yang menunggu Anda (web AI)',
       orderQueue: 'Antrean pesanan',
       inventoryRead: 'Inventory (lihat)',
       inventoryWrite: 'Inventory (ubah)',

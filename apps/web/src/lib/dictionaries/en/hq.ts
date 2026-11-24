@@ -245,6 +245,7 @@ export const hq = {
       approvalThresholdWrite: 'Approval threshold (edit)',
       settingsRead: 'Settings (view)',
       dashboard: 'Executive dashboard',
+      pendingApprovals: 'See how many approvals wait for you (AI web Command Center)',
       orderQueue: 'Order queue',
       inventoryRead: 'View inventory',
       inventoryWrite: 'Edit inventory',

@@ -256,14 +256,29 @@ export class LoanRequestService {
    * depot-service is an error (the inbox then says "Buka"), not "nobody decides".
    */
   async decidableCount(user: AuthenticatedUser): Promise<{ total: number }> {
-    const me = await this.employees.findByAuthSubjectId(user.sub);
-    const groups = await this.repo.pendingCountsByDepot(depotScopeIds(user), me?.id ?? null);
-    let total = 0;
+    return { total: (await this.decidableSummary(user.sub, depotScopeIds(user))).count };
+  }
+
+  /**
+   * HD-11: the same count, and when the oldest of those requests was raised, for an account
+   * named by id over depots already resolved (dashboard-service read both off the token).
+   * `depotIds` undefined is every depot.
+   */
+  async decidableSummary(
+    actorId: string,
+    depotIds: readonly string[] | undefined,
+  ): Promise<{ count: number; oldestAt: Date | null }> {
+    const me = await this.employees.findByAuthSubjectId(actorId);
+    const groups = await this.repo.pendingCountsByDepot(depotIds, me?.id ?? null);
+    let count = 0;
+    let oldestAt: Date | null = null;
     for (const g of groups) {
       const decider = await this.supervision.assistantOfDepot(g.depotId);
-      if (!decider || decider === user.sub) total += g.count;
+      if (decider && decider !== actorId) continue;
+      count += g.count;
+      if (!oldestAt || g.oldestAt < oldestAt) oldestAt = g.oldestAt;
     }
-    return { total };
+    return { count, oldestAt };
   }
 
   /** The decision queue, depot-scoped and paged like every other HR list. */

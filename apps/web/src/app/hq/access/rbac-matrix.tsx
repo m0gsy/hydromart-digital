@@ -94,6 +94,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
     key: 'network',
     caps: [
       'dashboard',
+      'pendingApprovals',
       'hqConsole',
       'depotAdmin',
       'depotLifecycle',
