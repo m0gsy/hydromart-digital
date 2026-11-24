@@ -354,7 +354,7 @@ dca logs -f n8n                         # n8n's own log (a failed run is kept ~7
 hydromart's events go to the AI web first (`POST /api/ingress/hd`, signed, recorded in its
 `hd_events` before it answers); the AI web hands each one to n8n on the private network, and n8n
 acts on hydromart only through `https://api.hydromart-digital.com`, with a machine account whose
-token carries one capability (`franchiseApplicationNotify`). n8n is hydromart-ai's image (n8n
+token carries two capabilities (`franchiseApplicationNotify`, and `morningSummaryNotify` for the AI-9 morning summary). n8n is hydromart-ai's image (n8n
 2.48.8 with its configuration locked in, the workflows from git and their setup): the compose file
 gives it only its database, its encryption key and the editor's address. It sits on `private` and
 its own `egress` network (its way to the public API, which nothing else joins), keeps nothing
@@ -376,7 +376,12 @@ loopback only.
   add the new one. Only n8n's entries are touched; another account's are kept as they are.
   `aiweb-secrets.sh` writes nothing if `MACHINE_ACCOUNTS` does not parse, or if the release being
   deployed has no capability `franchiseApplicationNotify` (auth-service would refuse to boot, and
-  a rollback does not undo `.env`). The nightly check alerts when fewer than 14 days are left:
+  a rollback does not undo `.env`). n8n's entry carries both scopes, but each only while this tree
+  and the last good release (`.deploy/last-good-sha`) both hold it: `morningSummaryNotify` is added
+  on the first deploy after the release holding it has become the last good one (the n8n morning
+  summary works from then on), and dropped again, in every n8n entry, if a rollback or removal makes
+  it not so. Until then the deploy logs `the last good release <sha12> has no capability
+  morningSummaryNotify yet; n8n's entry gets it on a later deploy` and goes on. The nightly check alerts when fewer than 14 days are left:
   press Deploy (mode `deploy`).
 - **Nightly** at 04:40 [`scripts/aiweb-n8n-check.sh`](scripts/aiweb-n8n-check.sh) (log
   `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is

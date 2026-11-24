@@ -165,9 +165,11 @@ if absent AI_WEB_RETURN_URL; then
 fi
 
 # ------------------------------------------------------------- n8n's machine account (AI-5)
-# The one capability n8n's token carries (hydromart-digital's crm route for a new franchise
-# application, PR #1042).
+# What n8n's token carries: the base capability (hydromart-digital's crm route for a new
+# franchise application, PR #1042), required, and the optional ones (the morning summary, AI-9),
+# each added only once a rollback would still boot.
 SCOPE=franchiseApplicationNotify
+OPTIONAL_SCOPES=(morningSummaryNotify)
 if absent AIWEB_N8N_MACHINE_ID; then
   id="$("$node_bin" -e 'process.stdout.write(require("node:crypto").randomUUID())' 2>&1 || true)"
   add AIWEB_N8N_MACHINE_ID "$id"
@@ -205,27 +207,52 @@ if [ "$(grep -c '^MACHINE_ACCOUNTS=' .env || true)" -gt 1 ]; then
   echo "aiweb-secrets: !! MACHINE_ACCOUNTS has more than one line in .env (compose reads the last); leave one; nothing written" >&2
   exit 1
 fi
-# The block is read whole before it is searched: with grep -q in a pipe, grep stops at the first
+# Each block is read whole before it is searched: with grep -q in a pipe, grep stops at the first
 # match, sed can die of SIGPIPE, and pipefail would then call a present capability absent.
-has_scope() {
-  local block
-  block="$(sed -n '/^export const CAPABILITIES = {/,/^}/p')"
-  grep -q "^  $SCOPE:" <<<"$block"
-}
-capable=0
-if has_scope 2>/dev/null <packages/access/src/index.ts; then capable=1; fi
+caps_block() { sed -n '/^export const CAPABILITIES = {/,/^}/p'; }
+has_scope() { grep -q "^  $1:" <<<"$2"; } # <scope> <block>
+tree_block="$(caps_block 2>/dev/null <packages/access/src/index.ts || true)"
 # And in the release a failed gate rolls back to (deploy.sh's last good commit): rolled back with
 # this .env, its auth-service must boot too. Unreadable (no such file, a commit git cannot show)
 # is not held against it.
 last_good="$(cat .deploy/last-good-sha 2>/dev/null || true)"
-if [ "$capable" = 1 ] && [ -n "$last_good" ] &&
-  previous="$(git show "$last_good:packages/access/src/index.ts" 2>/dev/null)" && ! has_scope <<<"$previous"; then
-  capable=0
-  echo "aiweb-secrets: the last good release ${last_good:0:12} has no capability $SCOPE: a rollback to it would not boot auth-service with n8n's entry" >&2
+prev_block=''
+have_prev=0
+if [ -n "$last_good" ] && previous="$(git show "$last_good:packages/access/src/index.ts" 2>/dev/null)"; then
+  prev_block="$(caps_block <<<"$previous")"
+  have_prev=1
 fi
+# <scope>: 0 and the reason in $why_not when the tree or the last good release lacks it.
+scope_capable() {
+  why_not=''
+  if ! has_scope "$1" "$tree_block"; then
+    why_not="the release in this tree has no capability $1"
+  elif [ "$have_prev" = 1 ] && ! has_scope "$1" "$prev_block"; then
+    why_not="the last good release ${last_good:0:12} has no capability $1"
+  else
+    return 0
+  fi
+  return 1
+}
+capable=0
+scopes=()
+if scope_capable "$SCOPE"; then
+  capable=1
+  scopes=("$SCOPE")
+  for s in "${OPTIONAL_SCOPES[@]}"; do
+    if scope_capable "$s"; then
+      scopes+=("$s")
+    else
+      echo "aiweb-secrets: $why_not yet; n8n's entry gets it on a later deploy"
+    fi
+  done
+elif [ "$have_prev" = 1 ] && has_scope "$SCOPE" "$tree_block"; then
+  echo "aiweb-secrets: $why_not: a rollback to it would not boot auth-service with n8n's entry" >&2
+fi
+scopes_csv="$(IFS=,; echo "${scopes[*]}")"
 rc=0
 accounts="$(MA_RAW="$(value MACHINE_ACCOUNTS)" MA_ID="$id" MA_MODE="$mode" MA_SECRET="$secret" \
-  MA_NOT_AFTER="$not_after" MA_SCOPE="$SCOPE" MA_CAPABLE="$capable" "$node_bin" -e '
+  MA_NOT_AFTER="$not_after" MA_SCOPES="$scopes_csv" MA_CAPABLE="$capable" "$node_bin" -e '
   // Prints the new value (single-quoted for .env), exits 3 when nothing changes, 1 with the
   // reason when nothing may be written. Never prints a secret: entries hold its sha256 only.
   const e = process.env;
@@ -252,13 +279,21 @@ accounts="$(MA_RAW="$(value MACHINE_ACCOUNTS)" MA_ID="$id" MA_MODE="$mode" MA_SE
     const t = Date.parse(a.notAfter);
     return t > now && t - now <= 90 * DAY;
   };
+  const scopes = e.MA_SCOPES.split(",");
   const entry = () => ({
     id: e.MA_ID,
     name: "n8n",
     secretSha256: require("node:crypto").createHash("sha256").update(e.MA_SECRET).digest("hex"),
-    scopes: [e.MA_SCOPE],
+    scopes,
     notAfter: e.MA_NOT_AFTER,
   });
+  // The n8n entries (the older live one too) carry the capable scopes, base first; one that stops
+  // being capable is dropped. Same id, secret and day, same place in the list. Only while the base
+  // scope is capable: otherwise the entries stay as they are (and a new one is refused below).
+  const original = JSON.stringify(list);
+  if (e.MA_CAPABLE === "1") {
+    list = list.map((a) => (a.id === e.MA_ID && JSON.stringify(a.scopes) !== JSON.stringify(scopes) ? { ...a, scopes } : a));
+  }
   const mine = list.filter((a) => a.id === e.MA_ID);
   let next = [];
   if (e.MA_MODE !== "off") {
@@ -269,10 +304,10 @@ accounts="$(MA_RAW="$(value MACHINE_ACCOUNTS)" MA_ID="$id" MA_MODE="$mode" MA_SE
   }
   // Every other entry where it was, the kept n8n ones too; a new one last.
   const out = [...list.filter((a) => a.id !== e.MA_ID || next.includes(a)), ...next.filter((a) => !list.includes(a))];
-  if (JSON.stringify(out) === JSON.stringify(list)) process.exit(3);
+  if (JSON.stringify(out) === original) process.exit(3);
   for (const a of next.filter((n) => !list.includes(n))) {
     if (e.MA_CAPABLE !== "1") {
-      refuse("the release in this tree, or the last good one a rollback returns to, has no capability " + e.MA_SCOPE + " (hydromart-digital PR #1042): auth-service would refuse to boot with the n8n entry, so MACHINE_ACCOUNTS was not changed");
+      refuse("the release in this tree, or the last good one a rollback returns to, has no capability franchiseApplicationNotify (hydromart-digital PR #1042): auth-service would refuse to boot with the n8n entry, so MACHINE_ACCOUNTS was not changed");
     }
     if (!live(a)) refuse("the new n8n entry ends " + a.notAfter + ", not within the 90 days auth-service allows");
   }
