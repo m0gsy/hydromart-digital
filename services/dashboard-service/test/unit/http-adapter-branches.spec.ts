@@ -174,6 +174,12 @@ describe('DashboardSourcesHttpAdapter', () => {
       .mockResolvedValueOnce(okResponse({ items: [{ id: 'd1' }], totalPages: 2 }))
       .mockResolvedValueOnce(errResponse(502));
     expect(await adapter.allDepots('t')).toBeNull();
+
+    // More pages than the service will serve: null at once, no page past the first is asked.
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValueOnce(okResponse({ items: [{ id: 'd1' }], totalPages: 1001 }));
+    expect(await adapter.allDepots('t')).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('slaByDepot adds thresholdMinutes when admin wired, and no query when not', async () => {

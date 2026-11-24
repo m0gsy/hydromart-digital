@@ -195,8 +195,10 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     const first = await this.getInternal<{ items: NetworkDepot[]; totalPages?: number }>(url(1));
     if (!first) return null;
     const items = [...first.items];
-    // The service refuses pages past 1000; a list that long is not a depot network.
-    const pages = Math.min(first.totalPages ?? 1, 1000);
+    // The service refuses pages past 1000, so a longer list could only be read in part: null,
+    // never a partial list (a depot network of 100 000 depots is not this one).
+    const pages = first.totalPages ?? 1;
+    if (pages > 1000) return null;
     for (let page = 2; page <= pages; page += 1) {
       const next = await this.getInternal<{ items: NetworkDepot[] }>(url(page));
       if (!next) return null;
