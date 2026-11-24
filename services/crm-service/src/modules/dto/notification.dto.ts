@@ -177,14 +177,18 @@ export class FranchiseApplicationSubmittedDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  @Matches(PLACE_NAME_PATTERN, { message: "city hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -" })
+  @Matches(PLACE_NAME_PATTERN, {
+    message: "city: kota hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -; beri spasi setelah titik",
+  })
   city!: string;
 
   @ApiProperty({ example: 'Jawa Barat', maxLength: 100 })
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  @Matches(PLACE_NAME_PATTERN, { message: "province hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -" })
+  @Matches(PLACE_NAME_PATTERN, {
+    message: "province: provinsi hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -; beri spasi setelah titik",
+  })
   province!: string;
 }
 
