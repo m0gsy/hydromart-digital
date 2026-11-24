@@ -5,7 +5,7 @@ import { Response } from 'express';
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { AnalyticsService, ReportData } from '../application/services/analytics.service';
-import { PayrollService } from '../application/services/payroll.service';
+import { PayrollService, SALES_SHORTFALL_NOTE } from '../application/services/payroll.service';
 import { tableReportPdf } from '../domain/payroll-pdf';
 import { toXlsx } from '../domain/xlsx';
 import {
@@ -160,7 +160,7 @@ export class ReportsController {
       await this.payrolls.salesBonusShortfallReport(user, q.periodMonth),
       q.format,
       'Selisih bonus penjualan',
-      q.periodMonth,
+      `${q.periodMonth} - ${SALES_SHORTFALL_NOTE}`,
     );
   }
 

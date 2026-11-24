@@ -1574,7 +1574,17 @@ export class PayrollService {
     user: AuthenticatedUser,
     periodMonth: string,
   ): Promise<{ headers: string[]; rows: (string | number)[][] }> {
-    const headers = ['periodMonth', 'employeeId', 'name', 'status', 'paidBonus', 'correctBonus', 'difference'];
+    const headers = [
+      'periodMonth',
+      'employeeId',
+      'name',
+      'status',
+      'rules',
+      'paidBonus',
+      'correctBonus',
+      'difference',
+    ];
+    let skipped = 0;
     const rows: (string | number)[][] = [];
     if (!this.bonusRules || !this.sales) return { headers, rows };
     const window = salesWindow(periodMonth);
@@ -1589,10 +1599,20 @@ export class PayrollService {
       });
       for (const slip of slips) {
         if (slip.status !== 'APPROVED' && slip.status !== 'PAID') continue;
-        const [employee, full] = await Promise.all([
-          this.employees.getById(user, slip.employeeId),
-          this.repo.findById(slip.id),
-        ]);
+        let loaded: Employee;
+        let full: PayrollWithItems | null;
+        try {
+          [loaded, full] = await Promise.all([
+            this.employees.getById(user, slip.employeeId),
+            this.repo.findById(slip.id),
+          ]);
+        } catch {
+          skipped++; // missing or out-of-scope employee: one row must not sink the report
+          continue;
+        }
+        // The depot generate() prices from: the home depot when depots can lend staff.
+        const home = this.config.depotAssignmentEnabled ? homeDepotOf(loaded) : loaded.depotId;
+        const employee = { depotId: home };
         const depot = employee.depotId ?? '';
         if (!rulesByDepot.has(depot)) {
           rulesByDepot.set(depot, this.bonusRules.listActiveForDepot(employee.depotId));
@@ -1603,7 +1623,7 @@ export class PayrollService {
           salesByDepot.set(
             depot,
             employee.depotId
-              ? this.sales.depotSales(employee.depotId, window.from, window.to)
+              ? this.sales.depotSales(employee.depotId, window.from, window.to).catch(() => null)
               : Promise.resolve(null),
           );
         }
@@ -1647,6 +1667,7 @@ export class PayrollService {
           slip.employeeId,
           slip.employeeName ?? '',
           slip.status,
+          rules.length,
           paid,
           correct ?? '',
           correct === null ? '' : correct - paid,
@@ -1654,6 +1675,17 @@ export class PayrollService {
       }
       if (slips.length < 100) break;
     }
+    // The caveat travels with the file, not only the screen it was downloaded from.
+    rows.push([
+      '',
+      '',
+      `CATATAN: ${SALES_SHORTFALL_NOTE}${skipped ? ` ${skipped} slip dilewati (karyawan tidak ditemukan atau di luar cakupan).` : ''}`,
+      '',
+      '',
+      '',
+      '',
+      '',
+    ]);
     return { headers, rows };
   }
 
@@ -1665,6 +1697,10 @@ export class PayrollService {
     };
   }
 }
+
+/** Printed in the sales-bonus shortfall file itself (and its PDF subtitle). */
+export const SALES_SHORTFALL_NOTE =
+  'Dihitung dengan aturan bonus SALES_TOTAL yang berlaku HARI INI, bukan aturan saat slip dibuat; aturan yang sudah dihapus atau dinonaktifkan tidak dibandingkan.';
 
 /**
  * The LOCAL day key of a `@db.Date` value. Those are stored as UTC-midnight, so the UTC

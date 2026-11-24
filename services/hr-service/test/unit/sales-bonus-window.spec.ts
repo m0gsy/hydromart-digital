@@ -65,6 +65,10 @@ function build(opts: {
   depotId?: string | null;
   noSales?: boolean;
   noRules?: boolean;
+  flag?: boolean;
+  homeDepotId?: string | null;
+  salesRejects?: boolean;
+  employeeThrows?: boolean;
 }) {
   const pages = opts.pages ?? [[]];
   const list = jest.fn(async ({ skip }: { skip: number }) => ({
@@ -73,17 +77,28 @@ function build(opts: {
   }));
   const repo = { list, findById: jest.fn(async (id: string) => opts.slips?.[id] ?? null) };
   const employees = {
-    getById: jest.fn(async () => ({ depotId: opts.depotId === undefined ? 'd1' : opts.depotId })),
+    getById: jest.fn(async () => {
+      if (opts.employeeThrows) throw new Error('404');
+      return {
+        depotId: opts.depotId === undefined ? 'd1' : opts.depotId,
+        homeDepotId: opts.homeDepotId ?? null,
+      };
+    }),
   };
   const bonusRules = { listActiveForDepot: jest.fn(async () => opts.rules ?? [rule()]) };
-  const sales = { depotSales: jest.fn(async () => (opts.sales === undefined ? null : opts.sales)) };
+  const sales = {
+    depotSales: jest.fn(async () => {
+      if (opts.salesRejects) throw new Error('down');
+      return opts.sales === undefined ? null : opts.sales;
+    }),
+  };
   const svc = new PayrollService(
     repo as never,
     {} as never,
     {} as never,
     {} as never,
     employees as never,
-    {} as never,
+    { depotAssignmentEnabled: !!opts.flag } as never,
     undefined,
     opts.noRules ? undefined : (bonusRules as never),
     undefined,
@@ -91,6 +106,11 @@ function build(opts: {
   );
   return { svc, repo, sales, bonusRules, employees };
 }
+
+const data = async (t: ReturnType<typeof build>) => {
+  const out = await t.svc.salesBonusShortfallReport(user, '2026-07');
+  return out.rows.slice(0, -1);
+};
 
 describe('PayrollService.salesBonusShortfallReport', () => {
   it('lists paid vs whole-month bonus for APPROVED/PAID slips only, never touching a DRAFT', async () => {
@@ -105,13 +125,14 @@ describe('PayrollService.salesBonusShortfallReport', () => {
       'employeeId',
       'name',
       'status',
+      'rules',
       'paidBonus',
       'correctBonus',
       'difference',
     ]);
-    expect(out.rows).toEqual([
-      ['2026-07', 'emp-a', 'Budi', 'PAID', 0, 100_000, 100_000],
-      ['2026-07', 'emp-c', '', 'APPROVED', 100_000, 100_000, 0],
+    expect(out.rows.slice(0, -1)).toEqual([
+      ['2026-07', 'emp-a', 'Budi', 'PAID', 1, 0, 100_000, 100_000],
+      ['2026-07', 'emp-c', '', 'APPROVED', 1, 100_000, 100_000, 0],
     ]);
     // the whole WIB month, asked once per depot
     expect(t.sales.depotSales).toHaveBeenCalledTimes(1);
@@ -129,8 +150,8 @@ describe('PayrollService.salesBonusShortfallReport', () => {
       slips: { a: full(100_000), b: full(0) },
       sales: null,
     });
-    expect((await t.svc.salesBonusShortfallReport(user, '2026-07')).rows).toEqual([
-      ['2026-07', 'emp-a', 'Budi', 'PAID', 100_000, '', ''],
+    expect(await data(t)).toEqual([
+      ['2026-07', 'emp-a', 'Budi', 'PAID', 1, 100_000, '', ''],
     ]);
   });
 
@@ -144,7 +165,7 @@ describe('PayrollService.salesBonusShortfallReport', () => {
         rule({ id: 'x', metric: 'PRESENT_DAYS' }),
       ],
     });
-    expect((await t.svc.salesBonusShortfallReport(user, '2026-07')).rows[0]![5]).toBe(150_000);
+    expect((await data(t))[0]![6]).toBe(150_000);
   });
 
   it('pages through every slip and ignores slips without SALES rules or a stored slip', async () => {
@@ -154,11 +175,11 @@ describe('PayrollService.salesBonusShortfallReport', () => {
       slips: { a: full(0) },
       rules: [rule({ metric: 'PRESENT_DAYS' })],
     });
-    expect((await t.svc.salesBonusShortfallReport(user, '2026-07')).rows).toEqual([]);
+    expect(await data(t)).toEqual([]);
     expect(t.repo.list).toHaveBeenCalledTimes(2);
 
     const missing = build({ pages: [[slip('gone', 'PAID')]], sales: 9_000_000 });
-    expect((await missing.svc.salesBonusShortfallReport(user, '2026-07')).rows).toEqual([]);
+    expect(await data(missing)).toEqual([]);
   });
 
   it('never asks for sales of an employee with no home depot', async () => {
@@ -168,16 +189,45 @@ describe('PayrollService.salesBonusShortfallReport', () => {
       depotId: null,
       sales: 9,
     });
-    expect((await t.svc.salesBonusShortfallReport(user, '2026-07')).rows).toEqual([
-      ['2026-07', 'emp-a', 'Budi', 'PAID', 100_000, '', ''],
+    expect(await data(t)).toEqual([
+      ['2026-07', 'emp-a', 'Budi', 'PAID', 1, 100_000, '', ''],
     ]);
     expect(t.sales.depotSales).not.toHaveBeenCalled();
+  });
+
+  it('prices a lent employee from the home depot when depots can lend staff, like generate()', async () => {
+    const lent = build({
+      pages: [[slip('a', 'PAID')]],
+      slips: { a: full(0) },
+      depotId: 'lent',
+      homeDepotId: 'home',
+      flag: true,
+      sales: 2_000_000,
+    });
+    await data(lent);
+    expect(lent.bonusRules.listActiveForDepot).toHaveBeenCalledWith('home');
+    expect(lent.sales.depotSales).toHaveBeenCalledWith('home', expect.any(Date), expect.any(Date));
+
+    const off = build({ pages: [[slip('a', 'PAID')]], slips: { a: full(0) }, depotId: 'lent', homeDepotId: 'home', sales: 1 });
+    await data(off);
+    expect(off.bonusRules.listActiveForDepot).toHaveBeenCalledWith('lent');
+  });
+
+  it('blanks a depot whose sales call fails, skips an unreadable employee, and says so in the note', async () => {
+    const down = build({ pages: [[slip('a', 'PAID')]], slips: { a: full(100_000) }, salesRejects: true });
+    expect(await data(down)).toEqual([['2026-07', 'emp-a', 'Budi', 'PAID', 1, 100_000, '', '']]);
+
+    const gone = build({ pages: [[slip('a', 'PAID'), slip('b', 'PAID')]], employeeThrows: true });
+    const out = await gone.svc.salesBonusShortfallReport(user, '2026-07');
+    expect(out.rows).toHaveLength(1);
+    expect(out.rows[0]![2]).toContain('2 slip dilewati');
+    expect(out.rows[0]![2]).toContain('HARI INI'); // the rules-in-force caveat travels with the file
   });
 
   it('is empty when the rule repository or the sales port is not wired', async () => {
     for (const o of [{ noSales: true }, { noRules: true }]) {
       const t = build({ pages: [[slip('a', 'PAID')]], slips: { a: full(1) }, ...o });
-      expect((await t.svc.salesBonusShortfallReport(user, '2026-07')).rows).toEqual([]);
+      expect(await data(t)).toEqual([]);
     }
   });
 });
