@@ -62,6 +62,11 @@ export class CashierShiftService {
     await this.shifts.recordLiability(shiftId, -approval.amountIdr);
   }
 
+  /** HD-6 H2: the variance of the shifts closed in a window, for the AI read API (internal key). */
+  varianceInWindow(depotId: string, from: Date, to: Date) {
+    return this.shifts.varianceInWindow(depotId, from, to);
+  }
+
   /** Closed shifts at this depot whose recorded shortfall is still owed. */
   async outstandingLiabilities(depotId: string, user?: AuthenticatedUser): Promise<CashierShift[]> {
     assertDepotAccess(user, depotId);

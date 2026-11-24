@@ -12,6 +12,7 @@ import {
   IsPositive,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -352,6 +353,29 @@ export class DepotRefundsQueryDto {
 
   @ApiProperty({ format: 'date-time', description: 'Exclusive end of the window.' })
   @IsDateString()
+  to!: string;
+}
+
+/** HD-6 H2: money by depot of the order, for the AI read API. */
+export class DepotMoneyQueryDto {
+  @ApiProperty({ enum: ['collected', 'pending', 'refunded'] })
+  @IsIn(['collected', 'pending', 'refunded'])
+  kind!: 'collected' | 'pending' | 'refunded';
+
+  @ApiProperty({ example: 'uuid-a,uuid-b', description: 'Comma-separated depot ids, at most 100.' })
+  @Matches(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}){0,99}$/i,
+  )
+  depotIds!: string;
+
+  @ApiProperty({ format: 'date-time' })
+  @IsDateString()
+  from!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'Exclusive end of the window, after `from`, at most 400 days later.' })
+  @IsDateString()
+  @IsNotBefore('from')
+  @IsWithinDays('from', 400)
   to!: string;
 }
 

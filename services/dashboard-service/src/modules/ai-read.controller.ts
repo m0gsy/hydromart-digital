@@ -4,9 +4,10 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuthenticatedUser, Can, CurrentUser, ExternalAccess } from '@hydromart/platform';
 
 import { AnswerEnvelope, belumAda, ok } from '../application/ai-read/envelope';
+import { MoneyMetricsService } from '../application/ai-read/money-metrics';
 import { parsePeriod } from '../application/ai-read/period';
 import { ReadScopeService } from '../application/ai-read/scope.service';
-import { AnswerEnvelopeDto, PeriodQueryDto } from './dto/ai-read.dto';
+import { AnswerEnvelopeDto, MoneyQueryDto, PeriodQueryDto } from './dto/ai-read.dto';
 
 /**
  * HD-6: the AI web's read API (contracts/ai-v1/read.openapi.json). Every route answers the same
@@ -19,7 +20,10 @@ import { AnswerEnvelopeDto, PeriodQueryDto } from './dto/ai-read.dto';
 @ApiBearerAuth()
 @Controller({ path: 'ai/read', version: '1' })
 export class AiReadController {
-  constructor(private readonly scopes: ReadScopeService) {}
+  constructor(
+    private readonly scopes: ReadScopeService,
+    private readonly money: MoneyMetricsService,
+  ) {}
 
   @ApiOkResponse({ type: AnswerEnvelopeDto })
   @ExternalAccess('ai')
@@ -39,5 +43,23 @@ export class AiReadController {
       return belumAda(base, 'Tidak ada depot yang boleh Anda baca pada periode ini.');
     }
     return ok(base, scope.echo.depotIds.length);
+  }
+
+  /**
+   * HD-6 H2: the money metrics (sales P-, cash U-, profit and loss L-). One route, the metric id in
+   * the `metric` query; the answer is the same envelope as `scope`, so a new metric changes only its id,
+   * value and unit. An id outside the dictionary is a 404.
+   */
+  @ApiOkResponse({ type: AnswerEnvelopeDto })
+  @ExternalAccess('ai')
+  @Can('aiRead')
+  @Get('money')
+  @ApiOperation({ summary: 'One money metric (sales, cash and COD, profit and loss) for a period' })
+  moneyMetric(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: MoneyQueryDto,
+  ): Promise<AnswerEnvelope> {
+    const { metric, ...period } = query;
+    return this.money.answer(metric, user, period);
   }
 }

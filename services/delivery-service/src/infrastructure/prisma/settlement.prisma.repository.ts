@@ -152,6 +152,19 @@ export class SettlementPrismaRepository implements SettlementRepository {
     };
   }
 
+  async varianceInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ shortfallIdr: number; surplusIdr: number }> {
+    const where = { depotId, status: SettlementStatus.VERIFIED, verifiedAt: { gte: from, lt: to } };
+    const [short, over] = await Promise.all([
+      this.prisma.cashSettlement.aggregate({ where: { ...where, variance: { lt: 0 } }, _sum: { variance: true } }),
+      this.prisma.cashSettlement.aggregate({ where: { ...where, variance: { gt: 0 } }, _sum: { variance: true } }),
+    ]);
+    return { shortfallIdr: Math.abs(short._sum.variance ?? 0), surplusIdr: over._sum.variance ?? 0 };
+  }
+
   async verifiedByOperatorInWindow(
     depotId: string,
     from: Date,

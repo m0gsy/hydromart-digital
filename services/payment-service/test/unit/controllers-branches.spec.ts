@@ -28,6 +28,7 @@ describe('PaymentController', () => {
     refundCountsByCustomer: jest.fn(),
     refundedTotalByDepot: jest.fn().mockResolvedValue([]),
     refundedByOrder: jest.fn().mockResolvedValue([]),
+    moneyByDepot: jest.fn().mockResolvedValue({ rows: [] }),
     unsettledByMethod: jest.fn(),
     revenueByMethod: jest.fn(),
     cashCollected: jest.fn(),
@@ -169,6 +170,21 @@ describe('PaymentController', () => {
       ['d1', 'd2'],
       new Date('2026-06-30T17:00:00.000Z'),
       new Date('2026-07-31T17:00:00.000Z'),
+    );
+  });
+
+  it('depotMoney splits the depots and passes the kind and the window (HD-6 H2)', async () => {
+    await controller.depotMoney({
+      kind: 'collected',
+      depotIds: 'd1,d2',
+      from: '2026-10-31T17:00:00.000Z',
+      to: '2026-11-30T17:00:00.000Z',
+    } as never);
+    expect(svc.moneyByDepot).toHaveBeenCalledWith(
+      'collected',
+      ['d1', 'd2'],
+      new Date('2026-10-31T17:00:00.000Z'),
+      new Date('2026-11-30T17:00:00.000Z'),
     );
   });
 

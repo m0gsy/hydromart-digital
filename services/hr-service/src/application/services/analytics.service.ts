@@ -87,6 +87,11 @@ export interface HrDepotSummary {
    * the month's payroll has not been run yet, so its wages are UNKNOWN, not zero (flow 5a).
    */
   payrollCount: number;
+  /** HD-6 H2: payslips of the month not yet APPROVED or PAID; the batch route only (0 elsewhere). */
+  payrollDraftCount: number;
+  /** HD-6 H2: employees with an APPROVED/PAID slip for the month, and employees the month is waiting for (batch route only). */
+  payrollFinalCount: number;
+  payrollExpectedCount: number;
   activeHeadcount: number;
 }
 
@@ -203,6 +208,9 @@ export class AnalyticsService {
       payrollMtdNet: facts.get(depotId)?.payrollMtdNet ?? 0,
       payrollMtdGross: facts.get(depotId)?.payrollMtdGross ?? 0,
       payrollCount: facts.get(depotId)?.payrollCount ?? 0,
+      payrollDraftCount: facts.get(depotId)?.payrollDraftCount ?? 0,
+      payrollFinalCount: facts.get(depotId)?.payrollFinalCount ?? 0,
+      payrollExpectedCount: facts.get(depotId)?.payrollExpectedCount ?? 0,
       activeHeadcount: facts.get(depotId)?.activeHeadcount ?? 0,
     }));
   }
@@ -236,6 +244,9 @@ export class AnalyticsService {
       payrollMtdNet: payroll.net,
       payrollMtdGross: payroll.gross,
       payrollCount: payroll.count,
+      payrollDraftCount: 0,
+      payrollFinalCount: 0,
+      payrollExpectedCount: 0,
       activeHeadcount: headcount.find((g) => g.key === 'ACTIVE')?.count ?? 0,
     };
   }

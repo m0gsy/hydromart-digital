@@ -108,6 +108,20 @@ export interface OrderCashRow {
   amountIdr: number;
 }
 
+/** HD-6 H2: what one order's payments came to, in one window, by method (and age for pending). */
+export interface MoneyOrderRow {
+  orderId: string;
+  /** The depot whose drawer took it: set only for a counter sale, null for a delivery order. */
+  counterDepotId: string | null;
+  method: PaymentMethod;
+  /** Age bucket of a pending payment (index into the caller's boundaries); 0 for the other kinds. */
+  bucket: number;
+  amountIdr: number;
+  count: number;
+}
+
+export type MoneyKind = 'collected' | 'pending' | 'refunded';
+
 export interface DateRange {
   from?: Date;
   to?: Date;
@@ -296,6 +310,23 @@ export interface PaymentRepository {
     range: DateRange,
     cashierShiftId?: string,
   ): Promise<CashCollectedSummary>;
+  /**
+   * HD-6 H2: per-order money in `[from, to)`, newest rows not first: at most `limit` rows (the
+   * caller asks for one more than it will take, to tell "exactly full" from "cut off").
+   *  - collected: PAID and part-refunded payments by `paidAt`, at what was kept (KEPT_AMOUNT).
+   *  - pending: PENDING payments by `createdAt`, aged in WIB days at `aging.asOf` into `aging` buckets.
+   *  - refunded: SETTLED refunds by `refundedAt`, at the refunded part.
+   * Counter payments are read only for `depotIds`; delivery payments (no depot of their own on this
+   * table) are read NETWORK-WIDE and placed by order-service afterwards, so `limit` counts them all.
+   * Upgrade path: an order-depot column on `payments` would let those be filtered here too.
+   */
+  moneyByOrder(
+    kind: MoneyKind,
+    window: { from: Date; to: Date },
+    limit: number,
+    aging: { asOf: Date; tz: string; maxDays: readonly number[] },
+    depotIds: readonly string[],
+  ): Promise<MoneyOrderRow[]>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
 
   /**

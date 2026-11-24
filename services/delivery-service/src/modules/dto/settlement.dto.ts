@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -64,8 +65,10 @@ export class DepositedCodQueryDto {
   @IsISO8601()
   from!: string;
 
-  @ApiProperty({ example: '2026-08-05T00:00:00.000Z' })
+  @ApiProperty({ example: '2026-08-05T00:00:00.000Z', description: 'Exclusive; not before `from`, at most 400 days later.' })
   @IsISO8601()
+  @IsNotBefore('from')
+  @IsWithinDays('from', 400)
   to!: string;
 }
 

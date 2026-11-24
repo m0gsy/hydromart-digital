@@ -1,12 +1,12 @@
-import { Body, Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { Can, CurrentUser, AuthenticatedUser } from '@hydromart/platform';
+import { Can, CurrentUser, AuthenticatedUser, InternalAuthGuard, Public } from '@hydromart/platform';
 import { can } from '@hydromart/access';
 
 import { CashierShiftService } from '../application/services/cashier-shift.service';
 import { CashierShift } from '../domain/cashier-shift';
-import { CloseShiftDto, OpenShiftDto, SettleLiabilityDto, ShiftQueryDto } from './dto/cashier-shift.dto';
+import { CloseShiftDto, OpenShiftDto, SettleLiabilityDto, ShiftQueryDto, ShiftVarianceQueryDto } from './dto/cashier-shift.dto';
 import { CashierShiftResponseDto, ListResponseDto } from './dto/responses.generated.dto';
 
 /**
@@ -19,6 +19,17 @@ import { CashierShiftResponseDto, ListResponseDto } from './dto/responses.genera
 @Controller({ path: 'cashier-shifts', version: '1' })
 export class CashierShiftController {
   constructor(private readonly shifts: CashierShiftService) {}
+
+  /** HD-6 H2: counted-minus-expected of the shifts closed in a window, short and over apart (internal key). */
+  @ApiOkResponse({ description: '`{ shifts, shortfallIdr, surplusIdr }`' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/variance')
+  @ApiOperation({ summary: 'Closed-shift cash variance in [from, to) (internal service auth)' })
+  variance(@Query() query: ShiftVarianceQueryDto) {
+    return this.shifts.varianceInWindow(query.depotId, new Date(query.from), new Date(query.to));
+  }
 
   @ApiOkResponse({ type: CashierShiftResponseDto })
   @Post()

@@ -152,9 +152,17 @@ describe('CashierShiftController', () => {
     close: jest.fn(),
     outstandingLiabilities: jest.fn(),
     settleLiability: jest.fn(),
+    varianceInWindow: jest.fn().mockResolvedValue({ shifts: 1 }),
   };
   const c = new CashierShiftController(svc as never);
   beforeEach(() => jest.clearAllMocks());
+
+  it('variance reads the window as instants (HD-6 H2)', async () => {
+    await expect(
+      c.variance({ depotId: DEPOT, from: '2026-10-31T17:00:00.000Z', to: '2026-11-30T17:00:00.000Z' } as never),
+    ).resolves.toEqual({ shifts: 1 });
+    expect(svc.varianceInWindow).toHaveBeenCalledWith(DEPOT, new Date('2026-10-31T17:00:00.000Z'), new Date('2026-11-30T17:00:00.000Z'));
+  });
 
   // The token has no display name, so the shift row records the phone — the identifier a
   // depot will still recognise months later when the drawer is questioned.

@@ -107,6 +107,9 @@ describe('AnalyticsService.depotSummaryMany', () => {
             payrollMtdNet: 9_000_000,
             payrollMtdGross: 11_000_000,
             payrollCount: 7,
+            payrollDraftCount: 2,
+            payrollFinalCount: 5,
+            payrollExpectedCount: 6,
             activeHeadcount: 7,
           },
         ],
@@ -125,6 +128,10 @@ describe('AnalyticsService.depotSummaryMany', () => {
       payrollMtdGross: 11_000_000,
       // Flow 5a: how many payslips back that figure; 0 with staff = not run yet.
       payrollCount: 7,
+      // HD-6 H2: how many of them are still DRAFT, so the AI read API can call the month unfinished.
+      payrollDraftCount: 2,
+      payrollFinalCount: 5,
+      payrollExpectedCount: 6,
     });
     // A depot with no rows still gets a card, all zeroes — a missing card reads as broken.
     expect(rows[1]).toMatchObject({
@@ -135,6 +142,9 @@ describe('AnalyticsService.depotSummaryMany', () => {
       payrollMtdNet: 0,
       payrollMtdGross: 0,
       payrollCount: 0,
+      payrollDraftCount: 0,
+      payrollFinalCount: 0,
+      payrollExpectedCount: 0,
       activeHeadcount: 0,
     });
   });

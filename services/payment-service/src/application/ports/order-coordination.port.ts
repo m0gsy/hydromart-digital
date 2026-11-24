@@ -5,6 +5,13 @@
  * payment is already settled, so an order-confirm hiccup must never surface as a
  * payment error. Idempotent on the order side.
  */
+/** `getOrderDepotsStrict` asked for orders order-service does not know (ids only, no personal data). */
+export class UnknownOrdersError extends Error {
+  constructor(readonly orderIds: readonly string[]) {
+    super(`order-service did not know ${orderIds.length} order(s)`);
+  }
+}
+
 export interface OrderCoordinationPort {
   confirmPaid(orderId: string): Promise<void>;
   /**
@@ -77,6 +84,14 @@ export interface OrderCoordinationPort {
    * "not yours", exactly like `getOrderDepot`'s null.
    */
   getOrderDepots(orderIds: string[]): Promise<Map<string, string>>;
+  /**
+   * HD-6 H2: like `getOrderDepots`, but for a report that must not answer from a partial read.
+   * Every id comes back as a key: a depot id, or null for an order that exists and has no depot
+   * (an unassigned order: legitimately placed nowhere). THROWS when order-service is unwired,
+   * cannot be reached, answers non-2xx, or leaves any asked id out of its answer (no such order).
+   * Asks in batches of 500, the most `internal/values` takes.
+   */
+  getOrderDepotsStrict(orderIds: string[]): Promise<Map<string, string | null>>;
   /**
    * Owner decision, 2026-10-02: imported pre-Hydromart sales history counts toward the
    * revenue-by-method report. The history lives in order-service's own database, not

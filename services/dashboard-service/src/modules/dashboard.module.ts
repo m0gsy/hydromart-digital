@@ -20,6 +20,8 @@ import { PendingApprovalsService } from '../application/services/pending-approva
 import { AiReadController } from './ai-read.controller';
 import { ReadScopeService } from '../application/ai-read/scope.service';
 import { AiReadSourcesHttpAdapter } from '../infrastructure/http/ai-read-sources.http.adapter';
+import { AiMoneySourcesHttpAdapter } from '../infrastructure/http/ai-money-sources.http.adapter';
+import { MoneyMetricsService } from '../application/ai-read/money-metrics';
 import { PendingApprovalSourcesHttpAdapter } from '../infrastructure/http/pending-approval-sources.http.adapter';
 
 const providers: Provider[] = [
@@ -28,6 +30,8 @@ const providers: Provider[] = [
   { provide: DASHBOARD_TOKENS.Sources, useClass: DashboardSourcesHttpAdapter },
   ReadScopeService,
   { provide: DASHBOARD_TOKENS.AiReadSources, useClass: AiReadSourcesHttpAdapter },
+  { provide: DASHBOARD_TOKENS.AiMoneySources, useClass: AiMoneySourcesHttpAdapter },
+  MoneyMetricsService,
   PendingApprovalsService,
   { provide: DASHBOARD_TOKENS.PendingApprovalSources, useClass: PendingApprovalSourcesHttpAdapter },
   {

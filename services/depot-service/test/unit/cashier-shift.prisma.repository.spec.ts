@@ -1,3 +1,6 @@
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { ShiftVarianceQueryDto } from '../../src/modules/dto/cashier-shift.dto';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { CashierShiftPrismaRepository } from '../../src/infrastructure/prisma/cashier-shift.prisma.repository';
 import { CashierShiftStatus } from '../../src/domain/cashier-shift';
@@ -193,5 +196,42 @@ describe('CashierShiftPrismaRepository', () => {
       ).rejects.toBeInstanceOf(ShiftAlreadyClosedError);
       expect(findUniqueOrThrow).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('CashierShiftPrismaRepository.varianceInWindow (HD-6 H2)', () => {
+  const from = new Date('2026-10-31T17:00:00.000Z');
+  const to = new Date('2026-11-30T17:00:00.000Z');
+
+  it('counts the shifts closed in the window and keeps short and over apart, as positive amounts', async () => {
+    const count = jest.fn().mockResolvedValue(4);
+    const aggregate = jest
+      .fn()
+      .mockResolvedValueOnce({ _sum: { variance: -30_000 } })
+      .mockResolvedValueOnce({ _sum: { variance: 5_000 } });
+    await expect(repoWith({ count, aggregate }).varianceInWindow('depot-1', from, to)).resolves.toEqual({
+      shifts: 4,
+      shortfallIdr: 30_000,
+      surplusIdr: 5_000,
+    });
+    expect(count.mock.calls[0][0].where).toMatchObject({ depotId: 'depot-1', status: 'CLOSED', closedAt: { gte: from, lt: to } });
+    expect(aggregate.mock.calls[0][0].where.variance).toEqual({ lt: 0 });
+    expect(aggregate.mock.calls[1][0].where.variance).toEqual({ gt: 0 });
+  });
+
+  it('reads nothing short or over as zero', async () => {
+    const count = jest.fn().mockResolvedValue(0);
+    const aggregate = jest.fn().mockResolvedValue({ _sum: { variance: null } });
+    await expect(repoWith({ count, aggregate }).varianceInWindow('d', from, to)).resolves.toEqual({ shifts: 0, shortfallIdr: 0, surplusIdr: 0 });
+  });
+});
+
+describe('ShiftVarianceQueryDto (HD-6 H2)', () => {
+  const check = (o: object) =>
+    validate(plainToInstance(ShiftVarianceQueryDto, { depotId: '11111111-1111-4111-8111-111111111111', ...o }));
+  it('wants from before to, and a window of at most 400 days', async () => {
+    expect(await check({ from: '2026-10-31T17:00:00.000Z', to: '2026-11-30T17:00:00.000Z' })).toHaveLength(0);
+    expect(await check({ from: '2026-11-30T17:00:00.000Z', to: '2026-10-31T17:00:00.000Z' })).not.toHaveLength(0);
+    expect(await check({ from: '2025-01-01T00:00:00.000Z', to: '2026-11-30T17:00:00.000Z' })).not.toHaveLength(0);
   });
 });

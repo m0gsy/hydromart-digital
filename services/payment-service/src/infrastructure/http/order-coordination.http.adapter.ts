@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { OrderCoordinationPort } from '../../application/ports/order-coordination.port';
+import { OrderCoordinationPort, UnknownOrdersError } from '../../application/ports/order-coordination.port';
 import { PaymentConfigService } from '../../config/payment-config.service';
 
 /**
@@ -10,6 +10,8 @@ import { PaymentConfigService } from '../../config/payment-config.service';
  */
 @Injectable()
 export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
+  /** The most order ids `internal/values` takes in one call (its DTO refuses more). */
+  private static readonly VALUES_BATCH = 500;
   private static readonly TIMEOUT_MS = 5000;
   private readonly logger = new Logger(OrderCoordinationHttpAdapter.name);
 
@@ -134,6 +136,28 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
 
   async getOrderDepots(orderIds: string[]): Promise<Map<string, string>> {
     return this.getValues(orderIds, 'depotId');
+  }
+
+  async getOrderDepotsStrict(orderIds: string[]): Promise<Map<string, string | null>> {
+    const { orderServiceUrl, internalServiceKey } = this.config;
+    if (!orderServiceUrl || !internalServiceKey) throw new Error('order-service is not wired');
+    const unique = [...new Set(orderIds.filter((id) => id.length > 0))];
+    const out = new Map<string, string | null>();
+    for (let i = 0; i < unique.length; i += OrderCoordinationHttpAdapter.VALUES_BATCH) {
+      const batch = unique.slice(i, i + OrderCoordinationHttpAdapter.VALUES_BATCH);
+      const res = await fetch(`${orderServiceUrl}/api/v1/orders/internal/values`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+        body: JSON.stringify({ orderIds: batch }),
+        signal: AbortSignal.timeout(OrderCoordinationHttpAdapter.TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`order-service responded ${res.status}`);
+      const rows = (await res.json()) as { orderId?: string; depotId?: string | null }[];
+      for (const r of rows) if (r.orderId) out.set(r.orderId, r.depotId ?? null);
+      const missing = batch.filter((id) => !out.has(id));
+      if (missing.length > 0) throw new UnknownOrdersError(missing);
+    }
+    return out;
   }
 
   /** One field of `internal/values`, keyed by order id. Fails SOFT: the map just misses. */

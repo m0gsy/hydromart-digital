@@ -178,6 +178,9 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       payrollMtdNet: 0,
       payrollMtdGross: 0,
       payrollCount: 0,
+      payrollDraftCount: 0,
+      payrollFinalCount: 0,
+      payrollExpectedCount: 0,
       activeHeadcount: 0,
     });
     const at = (depotId: string): DepotSummaryFacts => {
@@ -187,7 +190,17 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
     };
     const ids = [...depotIds];
 
-    const [attendance, headcount, payroll] = await Promise.all([
+    // Who the month's payroll is waiting for: employed at any time in it: joined by its last day, and
+    // ACTIVE, or with an exit date on or after its first day (an ACTIVE person with a stale exit date
+    // from before the month, a rehire, is therefore expected; an INACTIVE/RESIGNED person with NO exit
+    // date is not, or one forgotten record would strand the month as belum_ada for good). A leaver with an exit
+    // date in the month who never gets a slip keeps the month unfinished, on purpose: somebody was owed.
+    // Expected, final and draft are ALL counted at the employee's own depot, whatever cost shares split
+    // the slip across: a depot whose only employee is 100% lent out must still be able to finish.
+    const [y, mo] = periodMonth.split('-').map(Number);
+    const monthStart = new Date(Date.UTC(y, mo - 1, 1));
+    const monthEnd = new Date(Date.UTC(y, mo, 0));
+    const [attendance, headcount, payroll, expected, finished] = await Promise.all([
       this.prisma.attendance.groupBy({
         by: ['depotId', 'status'],
         where: { workDate, depotId: { in: ids } },
@@ -223,6 +236,26 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
           AND e."depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
         GROUP BY e."depotId"
       `,
+      this.prisma.employee.groupBy({
+        by: ['depotId'],
+        where: {
+          depotId: { in: ids },
+          joinDate: { lte: monthEnd },
+          OR: [{ status: 'ACTIVE' }, { exitDate: { gte: monthStart } }],
+        },
+        _count: { _all: true },
+      }),
+      // Slips by the employee's own depot: still DRAFT, and employees with an APPROVED or PAID one.
+      this.prisma.$queryRaw<{ depotId: string; draft: bigint; final: bigint }[]>`
+        SELECT e."depotId" AS "depotId",
+               COUNT(*) FILTER (WHERE p."status" = 'DRAFT') AS "draft",
+               COUNT(DISTINCT p."employeeId") FILTER (WHERE p."status" IN ('APPROVED', 'PAID')) AS "final"
+        FROM "payrolls" p
+        JOIN "employees" e ON e."id" = p."employeeId"
+        WHERE p."periodMonth" = ${periodMonth}
+          AND e."depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
+        GROUP BY e."depotId"
+      `,
     ]);
 
     for (const row of attendance) {
@@ -235,6 +268,13 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
     for (const row of headcount) {
       if (!row.depotId) continue;
       at(row.depotId).activeHeadcount = row._count._all;
+    }
+    for (const row of expected) {
+      if (row.depotId) at(row.depotId).payrollExpectedCount = row._count._all;
+    }
+    for (const row of finished) {
+      at(row.depotId).payrollDraftCount = Number(row.draft ?? 0);
+      at(row.depotId).payrollFinalCount = Number(row.final ?? 0);
     }
     for (const row of payroll) {
       at(row.depotId).payrollMtdNet = row.net ? Number(row.net) : 0;

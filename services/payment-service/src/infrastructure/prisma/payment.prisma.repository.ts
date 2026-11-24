@@ -9,6 +9,8 @@ import {
   OrderCashRow,
   CreatePaymentData,
   DateRange,
+  MoneyKind,
+  MoneyOrderRow,
   PaymentQuery,
   PaymentRecord,
   PaymentRepository,
@@ -26,6 +28,15 @@ function isUniqueViolation(error: unknown): boolean {
   return (
     typeof error === 'object' && error !== null && (error as { code?: string }).code === 'P2002'
   );
+}
+
+interface MoneyRaw {
+  orderId: string;
+  counterDepotId: string | null;
+  method: string;
+  bucket: number | bigint;
+  amount: Prisma.Decimal | null;
+  count: bigint;
 }
 
 interface PaymentRow {
@@ -488,6 +499,72 @@ export class PaymentPrismaRepository implements PaymentRepository {
     `,
     );
     return { total: Number(row.total), count: Number(row.count) };
+  }
+
+  async moneyByOrder(
+    kind: MoneyKind,
+    window: { from: Date; to: Date },
+    limit: number,
+    aging: { asOf: Date; tz: string; maxDays: readonly number[] },
+    depotIds: readonly string[],
+  ): Promise<MoneyOrderRow[]> {
+    // The columns are naive timestamps holding UTC. The PARAMETER is converted to naive UTC and the
+    // column is left bare, so the paidAt / createdAt / refundedAt indexes stay usable.
+    const between = (column: string): Prisma.Sql =>
+      Prisma.sql`"${Prisma.raw(column)}" >= (${window.from}::timestamptz AT TIME ZONE 'UTC')
+        AND "${Prisma.raw(column)}" < (${window.to}::timestamptz AT TIME ZONE 'UTC')`;
+    // Counter payments name their depot and are read only for the depots asked. Delivery payments
+    // (depotId NULL) are placed by order-service afterwards, so they are read network-wide: the row
+    // cap is therefore network-wide for them. Upgrade path: an order-depot column on payments.
+    const ids = depotIds.length === 0 ? Prisma.sql`ARRAY[]::uuid[]` : Prisma.sql`ARRAY[${Prisma.join(depotIds.map((id) => Prisma.sql`${id}::uuid`))}]`;
+    const scope = Prisma.sql`("depotId" IS NULL OR "depotId" = ANY(${ids}))`;
+    const cases = Prisma.join(
+      aging.maxDays.map((max, i) => Prisma.sql`WHEN "age" <= ${max}::int THEN ${i}::int`),
+      ' ',
+    );
+    const rows =
+      kind === 'pending'
+        ? await this.prisma.$queryRaw<MoneyRaw[]>(Prisma.sql`
+            SELECT "orderId"::text AS "orderId", "depotId"::text AS "counterDepotId", "method"::text AS method,
+                   CASE ${cases} ELSE ${aging.maxDays.length}::int END AS bucket,
+                   SUM("amount") AS amount, COUNT(*)::bigint AS count
+            FROM (
+              SELECT "orderId", "depotId", "method", "amount",
+                     GREATEST(0, (${aging.asOf}::timestamptz AT TIME ZONE ${aging.tz})::date
+                       - ("createdAt" AT TIME ZONE 'UTC' AT TIME ZONE ${aging.tz})::date) AS "age"
+              FROM "payments"
+              WHERE "status" = ${PaymentStatus.PENDING}::"PaymentStatus" AND ${between('createdAt')} AND ${scope}
+            ) pending
+            GROUP BY 1, 2, 3, 4
+            LIMIT ${limit}`)
+        : kind === 'collected'
+          ? await this.prisma.$queryRaw<MoneyRaw[]>(Prisma.sql`
+              SELECT "orderId"::text AS "orderId", "depotId"::text AS "counterDepotId", "method"::text AS method,
+                     0 AS bucket, SUM(${KEPT_AMOUNT}) AS amount,
+                     COUNT(*) FILTER (WHERE ${KEPT_AMOUNT} > 0)::bigint AS count
+              FROM "payments"
+              WHERE "status" IN (${PaymentStatus.PAID}::"PaymentStatus", ${PaymentStatus.REFUNDED}::"PaymentStatus")
+                AND "paidAt" IS NOT NULL AND ${between('paidAt')} AND ${scope}
+              GROUP BY 1, 2, 3
+              HAVING SUM(${KEPT_AMOUNT}) > 0
+              LIMIT ${limit}`)
+          : await this.prisma.$queryRaw<MoneyRaw[]>(Prisma.sql`
+              SELECT "orderId"::text AS "orderId", "depotId"::text AS "counterDepotId", "method"::text AS method,
+                     0 AS bucket, SUM(COALESCE("refundedAmount", "amount")) AS amount, COUNT(*)::bigint AS count
+              FROM "payments"
+              WHERE "status" = ${PaymentStatus.REFUNDED}::"PaymentStatus"
+                AND ("refundSettledAt" IS NOT NULL OR "refundedAt" < now() - interval '15 minutes')
+                AND "refundedAt" IS NOT NULL AND ${between('refundedAt')} AND ${scope}
+              GROUP BY 1, 2, 3
+              LIMIT ${limit}`);
+    return rows.map((r) => ({
+      orderId: r.orderId,
+      counterDepotId: r.counterDepotId,
+      method: r.method as PaymentMethod,
+      bucket: Number(r.bucket),
+      amountIdr: r.amount ? Math.round(Number(r.amount)) : 0,
+      count: Number(r.count),
+    }));
   }
 
   async refundedTotalForOrder(orderId: string): Promise<number> {

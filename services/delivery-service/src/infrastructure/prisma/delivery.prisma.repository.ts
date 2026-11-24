@@ -400,6 +400,26 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     }));
   }
 
+  async undepositedCodInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ deliveries: number; amountIdr: number }> {
+    const [row] = await this.prisma.$queryRaw<{ deliveries: bigint; amount: bigint }[]>(Prisma.sql`
+      -- Any settlement counts, whatever its depot: a settlement belongs to the COURIER's shift depot and
+      -- may list orders of another depot, so no depot test on s. @> (not ANY) is what the GIN index serves.
+      SELECT COUNT(*)::bigint AS "deliveries", COALESCE(SUM(d."codAmount"), 0)::bigint AS "amount"
+      FROM "deliveries" d
+      WHERE d."depotId" = ${depotId}::uuid
+        AND d."status" = ${DeliveryStatus.DELIVERED}::"DeliveryStatus"
+        AND d."codAmount" > 0
+        AND d."deliveredAt" >= ${from} AND d."deliveredAt" < ${to}
+        AND NOT EXISTS (
+          SELECT 1 FROM "cash_settlements" s WHERE s."orderIds" @> ARRAY[d."orderId"]
+        )`);
+    return { deliveries: Number(row?.deliveries ?? 0), amountIdr: Number(row?.amount ?? 0) };
+  }
+
   async unsettledUnfinished(
     depotId: string,
     since: Date,

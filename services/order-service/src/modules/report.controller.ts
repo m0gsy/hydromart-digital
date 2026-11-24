@@ -25,7 +25,7 @@ import {
   depotScopeIds,
 } from '@hydromart/platform';
 
-import { ReportRange } from '../application/ports/order.repository';
+import { DepotSalesSummary, ReportRange } from '../application/ports/order.repository';
 import { MeterService } from '../application/services/meter.service';
 import { DailySalesBroadcastResult, ReportService } from '../application/services/report.service';
 import {
@@ -37,6 +37,7 @@ import {
   DepotDailyQueryDto,
   DepotMonthlyQueryDto,
   DepotRatingsQueryDto,
+  DepotSalesSummaryQueryDto,
   DepotWeeklyQueryDto,
   ExportRowsQueryDto,
   ReportTableQueryDto,
@@ -445,6 +446,75 @@ export class ReportController {
       depotId: q.depotId,
       days: await this.reports.depotDailyGallons(q.depotId, q.from, q.to),
     };
+  }
+
+  /**
+   * HD-6 H2: per-depot sales for the AI read API. Internal key only; the caller (dashboard-service)
+   * has already narrowed the depot list to what the asker may read, per day range, so this route
+   * answers for exactly the depots and instants it is given. Live orders only: no imported history.
+   */
+  @ApiOkResponse({ description: '`{ items: DepotSalesSummary[] }`; a depot with no orders is absent.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-sales-summary')
+  @ApiOperation({ summary: 'Per-depot sales, cancelled and delivered counts for a window (internal service auth)' })
+  internalDepotSalesSummary(
+    @Query() q: DepotSalesSummaryQueryDto,
+  ): Promise<{ items: DepotSalesSummary[] }> {
+    return this.reports.depotSalesSummary(
+      { from: new Date(q.from), to: new Date(q.to) },
+      q.depotIds.split(','),
+    );
+  }
+
+  /** HD-6 H2: every product's line value for the window (no top-N), for merging across stretches. */
+  @ApiOkResponse({ description: '`{ items: ProductRevenue[] }`; 422 past 2000 products.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/product-revenue-all')
+  @ApiOperation({ summary: 'All products by line value for a window (internal service auth)' })
+  internalProductRevenueAll(@Query() q: DepotSalesSummaryQueryDto) {
+    return this.reports.productRevenueAll(
+      { from: new Date(q.from), to: new Date(q.to) },
+      q.depotIds.split(','),
+    );
+  }
+
+  /** HD-6 H2: weekday x hour and EVERY delivery city for the window (no top-10), for merging across stretches. */
+  @ApiOkResponse({ description: 'The time-area report with byArea holding every city; 422 past 2000 cities.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/time-area-all')
+  @ApiOperation({ summary: 'Orders by weekday, hour and every city for a window (internal service auth)' })
+  internalTimeAreaAll(@Query() q: DepotSalesSummaryQueryDto) {
+    return this.reports.timeAreaAll(
+      { from: new Date(q.from), to: new Date(q.to) },
+      q.depotIds.split(','),
+    );
+  }
+
+  /**
+   * HD-6 H2: one depot's month as arus kas (F2): the same figure the monthly review prints, with
+   * the payroll term included. Internal key only, because the caller decides who may see payroll
+   * (the asker's `payrollRead`) before it asks.
+   */
+  @ApiOkResponse({ description: '`{ depotId, month, netRevenueIdr, netCashFlowIdr }`; netCashFlowIdr is null when a cost term is unreadable.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-cash-flow')
+  @ApiOperation({ summary: "One depot's net cash flow for a month (internal service auth)" })
+  async internalDepotCashFlow(@Query() q: DepotMonthlyQueryDto): Promise<{
+    depotId: string;
+    month: string;
+    netRevenueIdr: number;
+    netCashFlowIdr: number | null;
+  }> {
+    const r = await this.reports.reportsDepotMonthly(q.depotId, q.month, true);
+    return { depotId: q.depotId, month: q.month, netRevenueIdr: r.netRevenueIdr, netCashFlowIdr: r.netCashFlowIdr };
   }
 
   /**

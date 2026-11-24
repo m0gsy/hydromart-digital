@@ -8,6 +8,7 @@ import {
   CashCollectedSummary,
   CreatePaymentData,
   DateRange,
+  MoneyOrderRow,
   PaymentQuery,
   PaymentRecord,
   PaymentRepository,
@@ -21,7 +22,7 @@ import {
   PaymentGatewayPort,
   RefundResult,
 } from '../../src/application/ports/payment-gateway.port';
-import { OrderCoordinationPort } from '../../src/application/ports/order-coordination.port';
+import { OrderCoordinationPort, UnknownOrdersError } from '../../src/application/ports/order-coordination.port';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -277,6 +278,44 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       total: all.length,
     };
   }
+  /** HD-6 H2: a plain mirror of the three readers, over this fake's rows. */
+  async moneyByOrder(
+    kind: 'collected' | 'pending' | 'refunded',
+    window: { from: Date; to: Date },
+    limit: number,
+    aging: { asOf: Date; tz: string; maxDays: readonly number[] },
+    depotIds: readonly string[] = [],
+  ): Promise<MoneyOrderRow[]> {
+    const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: aging.tz }).format(d);
+    const within = (d: Date | null) => !!d && d >= window.from && d < window.to;
+    const out = new Map<string, MoneyOrderRow>();
+    for (const r of this.rows) {
+      let amount = 0;
+      let at: Date | null = null;
+      let bucket = 0;
+      if (kind === 'collected' && (r.status === PaymentStatus.PAID || r.status === PaymentStatus.REFUNDED)) {
+        amount = this.kept(r);
+        at = r.paidAt;
+      } else if (kind === 'pending' && r.status === PaymentStatus.PENDING) {
+        amount = r.amount;
+        at = r.createdAt;
+        const age = Math.max(0, Math.round((Date.parse(day(aging.asOf)) - Date.parse(day(r.createdAt))) / 86_400_000));
+        const found = aging.maxDays.findIndex((m) => age <= m);
+        bucket = found === -1 ? aging.maxDays.length : found;
+      } else if (kind === 'refunded' && r.status === PaymentStatus.REFUNDED) {
+        amount = r.refundedAmount ?? r.amount;
+        at = r.refundedAt;
+      }
+      if (!within(at) || (kind === 'collected' && amount <= 0)) continue;
+      if (r.depotId && !depotIds.includes(r.depotId)) continue;
+      const key = `${r.orderId}#${r.depotId}#${r.method}#${bucket}`;
+      const row = out.get(key) ?? { orderId: r.orderId, counterDepotId: r.depotId, method: r.method, bucket, amountIdr: 0, count: 0 };
+      row.amountIdr += Math.round(amount);
+      row.count += 1;
+      out.set(key, row);
+    }
+    return [...out.values()].slice(0, limit);
+  }
   async aggregateUnsettledAging(
     asOf: Date,
     tz: string,
@@ -461,6 +500,19 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
   orderDepots = new Map<string, string>();
   async getOrderDepot(orderId: string): Promise<string | null> {
     return this.orderDepots.get(orderId) ?? null;
+  }
+  /** Orders the fake answers as existing without a depot; ids it has never heard of are missing. */
+  depotlessOrders = new Set<string>();
+  strictFails = false;
+  async getOrderDepotsStrict(orderIds: string[]): Promise<Map<string, string | null>> {
+    if (this.strictFails) throw new Error('order-service down');
+    const out = new Map<string, string | null>();
+    for (const id of orderIds) {
+      if (this.orderDepots.has(id)) out.set(id, this.orderDepots.get(id)!);
+      else if (this.depotlessOrders.has(id)) out.set(id, null);
+      else throw new UnknownOrdersError([id]);
+    }
+    return out;
   }
   async getOrderDepots(orderIds: string[]): Promise<Map<string, string>> {
     return new Map(

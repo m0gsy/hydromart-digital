@@ -78,6 +78,20 @@ export interface DepotSummaryFacts {
    * the month's payroll has not been run yet, so its wages are UNKNOWN, not zero (flow 5a).
    */
   payrollCount: number;
+  /**
+   * HD-6 H2: payslips of the month NOT yet APPROVED or PAID (DRAFT). A month is finished only
+   * when `payrollCount > 0` and this is 0; the AI read API answers belum_ada for any other month.
+   */
+  payrollDraftCount: number;
+  /**
+   * HD-6 H2, who the month is waiting for. `payrollFinalCount` = DISTINCT employees with an
+   * APPROVED or PAID slip for the month; `payrollExpectedCount` = employees of the depot employed
+   * at any time in it (joined on or before its last day, not left before its first day; ACTIVE, or
+   * with an exit date inside it). The month is finished iff no slip is DRAFT and final >= expected.
+   * Batch route only (0 on the single-depot route).
+   */
+  payrollFinalCount: number;
+  payrollExpectedCount: number;
   activeHeadcount: number;
 }
 

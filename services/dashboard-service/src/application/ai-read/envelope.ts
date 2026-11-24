@@ -26,6 +26,8 @@ export interface AnswerEnvelope<V = unknown> {
   asOf: string;
   /** Why it is not `ok`, in words the AI web may quote. */
   reason?: string;
+  /** What the number is, where its name alone would mislead (e.g. a payroll that is base pay and allowances only). */
+  label?: string;
 }
 
 interface Base {
@@ -34,6 +36,7 @@ interface Base {
   scope: AnswerScope;
   unit: string;
   asOf: Date;
+  label?: string;
 }
 
 const logger = new Logger('AiReadEnvelope');
@@ -48,6 +51,7 @@ const build = <V>(b: Base, status: AnswerStatus, value: V | null, reason?: strin
     unit: b.unit,
     asOf: b.asOf.toISOString(),
     ...(reason ? { reason } : {}),
+    ...(b.label ? { label: b.label } : {}),
   };
   try {
     assertNoPersonalData(envelope);
