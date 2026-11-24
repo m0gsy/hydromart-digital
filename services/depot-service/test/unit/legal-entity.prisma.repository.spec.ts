@@ -264,4 +264,18 @@ describe('LegalEntityPrismaRepository', () => {
       expect.objectContaining({ where: { roleKey: 'FINANCE' } }),
     );
   });
+
+  it('refuses, instead of cutting a history short, when the read hits its row cap', async () => {
+    const { prisma, repo } = setup();
+    prisma.depotLegalEntity.findMany.mockResolvedValue(Array.from({ length: 10_000 }, () => POINT));
+    const day = new Date('2026-11-01T00:00:00.000Z');
+    await expect(repo.entityTimeline(['d1'], day, day)).rejects.toThrow('read cap');
+    expect(prisma.depotLegalEntity.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 10_000 }));
+  });
+
+  it('refuses when a role has as many grants as the read cap', async () => {
+    const { prisma, repo } = setup();
+    prisma.legalEntityAiGrant.findMany.mockResolvedValue(Array.from({ length: 1000 }, () => ({ legalEntityId: 'e1' })));
+    await expect(repo.grantedEntityIds('FINANCE')).rejects.toThrow('read cap');
+  });
 });

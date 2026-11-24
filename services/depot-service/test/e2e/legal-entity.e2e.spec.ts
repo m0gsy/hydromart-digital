@@ -273,6 +273,10 @@ describe('Legal entities (e2e)', () => {
     expect(finance.legalEntityIds).toContain(legalEntityId);
     expect((await grants('MANAGER').set(key).expect(200)).body.legalEntityIds).not.toContain(legalEntityId);
     expect((await grants('SUPER_ADMIN').set(key).expect(200)).body.all).toBe(true);
+    // a custom role key as auth-service mints it: C_ + lower-case slug, up to 40 characters
+    await grants('C_kasir_depot').set(key).expect(200);
+    await grants(`C_${'a'.repeat(40)}`).set(key).expect(200);
     await grants('1bad').set(key).expect(400);
+    await grants('C_bad-key').set(key).expect(400);
   });
 });

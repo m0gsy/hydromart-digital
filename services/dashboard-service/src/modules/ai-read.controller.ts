@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 
 import { AuthenticatedUser, Can, CurrentUser, ExternalAccess } from '@hydromart/platform';
 
-import { AnswerEnvelope, ok } from '../application/ai-read/envelope';
+import { AnswerEnvelope, belumAda, ok } from '../application/ai-read/envelope';
 import { parsePeriod } from '../application/ai-read/period';
 import { ReadScopeService } from '../application/ai-read/scope.service';
 import { AnswerEnvelopeDto, PeriodQueryDto } from './dto/ai-read.dto';
@@ -33,9 +33,11 @@ export class AiReadController {
     const asOf = new Date();
     const period = parsePeriod(query, asOf);
     const scope = await this.scopes.resolve(user, period);
-    return ok(
-      { metricId: 'meta.scope', period, scope: { depotIds: scope.depotIds, legalEntityIds: scope.legalEntityIds }, unit: 'depot', asOf },
-      scope.depotIds.length,
-    );
+    const base = { metricId: 'meta.scope', period, scope: scope.echo, unit: 'depot', asOf };
+    // No depot is "nothing to read", not a count of 0 depots: it must not be quoted as a number.
+    if (scope.echo.depotIds.length === 0) {
+      return belumAda(base, 'Tidak ada depot yang boleh Anda baca pada periode ini.');
+    }
+    return ok(base, scope.echo.depotIds.length);
   }
 }

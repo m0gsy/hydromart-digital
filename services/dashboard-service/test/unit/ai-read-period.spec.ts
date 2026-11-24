@@ -70,6 +70,12 @@ describe('parsePeriod (WIB calendar)', () => {
     bad({ from: '2026-1-1', to: '2026-11-01' });
   });
 
+  it('refuses a year past 9998 with 400, not a RangeError', () => {
+    expect(() => p({ period: 'day', date: '9999-12-31' })).toThrow(BadRequestException);
+    expect(() => p({ from: '9999-01-01', to: '9999-12-31' })).toThrow(BadRequestException);
+    expect(p({ period: 'year', date: '9998-06-01' }).to).toBe('9998-12-31');
+  });
+
   it('allows a range of 366 days (a leap year) and refuses 367', () => {
     expect(p({ from: '2028-01-01', to: '2028-12-31' }).unit).toBe('range');
     expect(() => p({ from: '2028-01-01', to: '2029-01-01' })).toThrow('366');

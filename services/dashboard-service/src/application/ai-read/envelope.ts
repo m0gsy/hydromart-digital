@@ -1,4 +1,6 @@
-import { assertNoPersonalData } from './masking';
+import { InternalServerErrorException, Logger } from '@nestjs/common';
+
+import { PersonalDataError, assertNoPersonalData } from './masking';
 import { ResolvedPeriod } from './period';
 
 /**
@@ -34,6 +36,8 @@ interface Base {
   asOf: Date;
 }
 
+const logger = new Logger('AiReadEnvelope');
+
 const build = <V>(b: Base, status: AnswerStatus, value: V | null, reason?: string): AnswerEnvelope<V> => {
   const envelope: AnswerEnvelope<V> = {
     metricId: b.metricId,
@@ -45,7 +49,14 @@ const build = <V>(b: Base, status: AnswerStatus, value: V | null, reason?: strin
     asOf: b.asOf.toISOString(),
     ...(reason ? { reason } : {}),
   };
-  assertNoPersonalData(envelope);
+  try {
+    assertNoPersonalData(envelope);
+  } catch (error) {
+    if (!(error instanceof PersonalDataError)) throw error;
+    // The rule and the metric only: the offending key or value is never logged or sent.
+    logger.error(`${b.metricId}: answer held back, it carried personal data (${error.rule})`);
+    throw new InternalServerErrorException('Jawaban ini tidak bisa dikirim.');
+  }
   return envelope;
 };
 

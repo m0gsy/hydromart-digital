@@ -27,6 +27,7 @@ import { PrismaService } from './prisma.service';
 // ponytail: one read for the whole admin screen. A network of 100+ depots has a few hundred
 // entities at most; past this the list is cut and the screen would need paging.
 const LIST_CAP = 1000;
+const ENTITY_ROWS_CAP = LIST_CAP * 10;
 
 interface EntityRow {
   id: string;
@@ -73,8 +74,11 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
     const rows = await this.prisma.depotLegalEntity.findMany({
       where: { depotId: { in: depotIds }, effectiveFrom: { lte: to } },
       orderBy: [{ depotId: 'asc' }, { effectiveFrom: 'asc' }],
-      take: LIST_CAP * 10,
+      take: ENTITY_ROWS_CAP,
     });
+    // A full page may have been cut: an answer built on part of a depot's history would put it in
+    // the wrong entity, so refuse (the caller fails closed) rather than guess.
+    if (rows.length >= ENTITY_ROWS_CAP) throw new Error('depot legal-entity history exceeds the read cap');
     return entitySpans(
       depotIds,
       rows.map((r) => ({ depotId: r.depotId, legalEntityId: r.legalEntityId, effectiveFrom: formatCalendarDay(r.effectiveFrom) })),
@@ -89,6 +93,8 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
       select: { legalEntityId: true },
       take: LIST_CAP,
     });
+    // Cut short = some grant unseen; a missing grant only narrows, but say so instead of hiding it.
+    if (rows.length >= LIST_CAP) throw new Error('AI grants of the role exceed the read cap');
     return rows.map((r) => r.legalEntityId);
   }
 

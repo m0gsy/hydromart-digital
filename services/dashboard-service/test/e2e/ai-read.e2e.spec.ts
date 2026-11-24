@@ -181,9 +181,10 @@ describe('GET ai/read/scope (HD-6 H1)', () => {
     expect(res.body).toMatchObject({ value: 1, scope: { depotIds: [D1], legalEntityIds: [PT_A] } });
   });
 
-  it('answers 0 depots (a real answer) for a role the matrix grants nothing', async () => {
+  it('answers belum_ada, not 0, for a role the matrix grants nothing', async () => {
     const res = await get(aiToken('HEAD_OFFICE')).expect(200);
-    expect(res.body).toMatchObject({ status: 'ok', value: 0, scope: { depotIds: [], legalEntityIds: [] } });
+    expect(res.body).toMatchObject({ status: 'belum_ada', value: null, scope: { depotIds: [], legalEntityIds: [] } });
+    expect(typeof res.body.reason).toBe('string');
   });
 
   it("holds a manager to their own depots even though both entities are granted", async () => {
@@ -252,11 +253,13 @@ describe('GET ai/read/scope (HD-6 H1)', () => {
     expect(op).toBeDefined();
     expect(op.parameters.map((p: { name: string }) => p.name).sort()).toEqual(['date', 'from', 'period', 'to']);
     expect(op.parameters.find((p: { name: string }) => p.name === 'period').schema.enum).toEqual([...PERIOD_UNITS]);
-    expect(Object.keys(op.responses).sort()).toEqual(['200', '400', '401', '403', '429', '503']);
+    expect(Object.keys(op.responses).sort()).toEqual(['200', '400', '401', '403', '429', '500', '503']);
 
     const schemas = contract.components.schemas;
     expect(schemas.AnswerEnvelope.properties.status.enum).toEqual([...ANSWER_STATUSES]);
     expect(schemas.Period.properties.unit.enum).toEqual([...PERIOD_UNITS, 'range']);
+    // the one place a display name may travel is documented
+    expect(contract.info.description).toContain('field label');
     expect(schemas.MaskedCell.properties.flag.enum).toEqual(['kurang dari 3', 'ditahan']);
 
     const res = await get(aiToken('FINANCE')).expect(200);

@@ -42,7 +42,8 @@ function parseDay(text: string, what: string): number {
   const m = DAY.exec(text);
   const ms = m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : NaN;
   // The round trip refuses 2026-02-30 rather than letting it roll over into March.
-  if (Number.isNaN(ms) || fmt(ms) !== text) {
+  // Year 9999 + 1 day is past what a Date can hold: refuse it here instead of a RangeError 500.
+  if (Number.isNaN(ms) || Number(m?.[1]) > 9998 || fmt(ms) !== text) {
     throw new BadRequestException(`${what} harus tanggal kalender YYYY-MM-DD yang sah`);
   }
   return ms;

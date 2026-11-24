@@ -3,7 +3,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { AuthenticatedUser, configureDepotScope, resetDepotScope } from '@hydromart/platform';
 
 import { parsePeriod } from '../../src/application/ai-read/period';
-import { ReadScopeService } from '../../src/application/ai-read/scope.service';
+import { ReadScopeService, covers, grantedRanges } from '../../src/application/ai-read/scope.service';
 import {
   AiGrants,
   AiReadSourcesPort,
@@ -58,7 +58,7 @@ describe('ReadScopeService (HD-6): depot scope first, then the legal-entity gran
 
   it('gives a network role the depots of the entities its role is granted, and nothing of the others', async () => {
     sources.grants.FINANCE = { all: false, legalEntityIds: [PT_A] };
-    expect(await service.resolve(user('FINANCE'), NOVEMBER)).toMatchObject({
+    expect((await service.resolve(user('FINANCE'), NOVEMBER)).echo).toEqual({
       depotIds: [D1],
       legalEntityIds: [PT_A],
     });
@@ -66,49 +66,66 @@ describe('ReadScopeService (HD-6): depot scope first, then the legal-entity gran
 
   it('gives SUPER_ADMIN every depot, one with no entity recorded included', async () => {
     sources.grants.SUPER_ADMIN = { all: true, legalEntityIds: [] };
-    expect(await service.resolve(user('SUPER_ADMIN'), NOVEMBER)).toMatchObject({
-      depotIds: [D1, D2, D3],
-      legalEntityIds: [PT_A, PT_B],
-    });
+    const scope = await service.resolve(user('SUPER_ADMIN'), NOVEMBER);
+    expect(scope.echo).toEqual({ depotIds: [D1, D2, D3], legalEntityIds: [PT_A, PT_B] });
+    expect(covers(scope, D3, '2026-11-15')).toBe(true);
   });
 
   it('gives a role with no grants nothing, not everything', async () => {
     expect(await service.resolve(user('HEAD_OFFICE'), NOVEMBER)).toEqual({
-      depotIds: [],
-      legalEntityIds: [],
       spans: [],
+      echo: { depotIds: [], legalEntityIds: [] },
     });
   });
 
   it("never widens the caller's own depots: a grant to another depot's entity adds nothing", async () => {
     sources.grants.MANAGER = { all: false, legalEntityIds: [PT_A, PT_B] };
     const scope = await service.resolve(user('MANAGER', D2), NOVEMBER);
-    expect(scope.depotIds).toEqual([D2]);
+    expect(scope.echo.depotIds).toEqual([D2]);
     expect(sources.asked[0].depotIds).not.toContain(D1);
   });
 
   it('holds a depot-locked role to its one depot', async () => {
     sources.grants.KEPALA_DEPOT = { all: false, legalEntityIds: [PT_A, PT_B] };
-    expect((await service.resolve(user('KEPALA_DEPOT', D1), NOVEMBER)).depotIds).toEqual([D1]);
+    expect((await service.resolve(user('KEPALA_DEPOT', D1), NOVEMBER)).echo.depotIds).toEqual([D1]);
     expect(sources.asked[0].depotIds).toEqual([D1]);
   });
 
-  it('keeps a depot that moved entities mid-period if one side is granted, with only that stretch', async () => {
+  it('counts a depot that moved from a non-granted to a granted entity only from the move (10 Nov)', async () => {
     sources.timeline = [
       { depotId: D1, legalEntityId: PT_A, from: '2026-11-01' },
-      { depotId: D1, legalEntityId: PT_B, from: '2026-11-16' },
+      { depotId: D1, legalEntityId: PT_B, from: '2026-11-10' },
     ];
     sources.grants.FINANCE = { all: false, legalEntityIds: [PT_B] };
     const scope = await service.resolve(user('FINANCE'), NOVEMBER);
-    expect(scope.depotIds).toEqual([D1]);
-    expect(scope.legalEntityIds).toEqual([PT_B]);
-    expect(scope.spans).toEqual([{ depotId: D1, legalEntityId: PT_B, from: '2026-11-16' }]);
+    expect(scope.echo).toEqual({ depotIds: [D1], legalEntityIds: [PT_B] });
+    expect(scope.spans).toEqual([{ depotId: D1, legalEntityId: PT_B, from: '2026-11-10', to: '2026-11-30' }]);
+    expect(grantedRanges(scope, D1)).toHaveLength(1);
+    expect(grantedRanges(scope, D2)).toEqual([]);
+    expect(covers(scope, D1, '2026-11-09')).toBe(false);
+    expect(covers(scope, D1, '2026-11-10')).toBe(true);
+    expect(covers(scope, D1, '2026-11-30')).toBe(true);
+    expect(covers(scope, D2, '2026-11-15')).toBe(false);
     expect(sources.asked[0]).toMatchObject({ from: '2026-11-01', to: '2026-11-30' });
+  });
+
+  it('ends a granted stretch the day before the next one, across a month boundary', async () => {
+    sources.timeline = [
+      { depotId: D1, legalEntityId: PT_A, from: '2026-11-01' },
+      { depotId: D1, legalEntityId: PT_B, from: '2026-11-01'.replace('11-01', '12-01') },
+      { depotId: D1, legalEntityId: PT_A, from: '2026-12-15' },
+    ];
+    sources.grants.FINANCE = { all: false, legalEntityIds: [PT_A] };
+    const scope = await service.resolve(user('FINANCE'), parsePeriod({ from: '2026-11-01', to: '2026-12-31' }, NOW));
+    expect(scope.spans.map((s) => [s.from, s.to])).toEqual([
+      ['2026-11-01', '2026-11-30'],
+      ['2026-12-15', '2026-12-31'],
+    ]);
   });
 
   it('answers nothing, without asking depot-service, for an account with no depot at all', async () => {
     configureDepotScope(async () => []);
-    expect(await service.resolve(user('SUPERVISOR'), NOVEMBER)).toEqual({ depotIds: [], legalEntityIds: [], spans: [] });
+    expect((await service.resolve(user('SUPERVISOR'), NOVEMBER)).spans).toEqual([]);
     expect(sources.asked).toEqual([]);
   });
 
