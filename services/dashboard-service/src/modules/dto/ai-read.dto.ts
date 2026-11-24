@@ -33,6 +33,13 @@ export class PeriodQueryDto {
   to?: string;
 }
 
+/** The money route: a period, and which metric of the money group. An id outside it is a 404, not a 400. */
+export class MoneyQueryDto extends PeriodQueryDto {
+  @ApiProperty({ example: 'P-01', description: 'A metric of the money group (see the contract).' })
+  @IsString()
+  metric!: string;
+}
+
 class PeriodDto {
   @ApiProperty({ enum: [...PERIOD_UNITS, 'range'] })
   unit!: string;
