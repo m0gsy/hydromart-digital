@@ -339,9 +339,11 @@ jobs:
             # an alert rather than as a verdict somebody asked for.
             #
             # Safe to press any time: idempotent by construction (an object already correct is
-            # verified and left alone), it never deletes, and it reads the dump back to compare
-            # size + sha256 before saying OK. Exit 2 = not configured, 1 = not verifiable,
-            # 0 = verified.
+            # verified and left alone), it never deletes, and it reads the copy back to compare
+            # size + sha256 before saying OK. The copy is the dump encrypted to
+            # ops/env-backup-public.pem (D8); its last line gives the dump's own sha256, which the
+            # owner's off-box drill compares with (DEPLOY.md). Exit 2 = not configured, 1 = not
+            # verifiable, 0 = verified.
             backup-offsite) echo "run=. ./scripts/load-env.sh && bash scripts/backup-offsite.sh" >> "$GITHUB_OUTPUT" ;;
             backup-objects) echo "run=. ./scripts/load-env.sh && node scripts/backup-objects.mjs" >> "$GITHUB_OUTPUT" ;;
             smoke)       echo "run=bash scripts/smoke.sh" >> "$GITHUB_OUTPUT" ;;
@@ -423,7 +425,7 @@ jobs:
             fi
             if [ "${{ github.event.inputs.mode }}" = "backup-offsite" ]; then
               git fetch --quiet origin main
-              git checkout origin/main -- scripts/backup-offsite.sh scripts/lib/backup-dir.sh
+              git checkout origin/main -- scripts/backup-offsite.sh scripts/lib/backup-dir.sh ops/env-backup-public.pem
             fi
 
             # The nightly cron runs at 03:40. Installing it at 05:16 means the first copy is
@@ -450,7 +452,7 @@ jobs:
             fi
             if [ "${{ github.event.inputs.mode }}" = "backup-second" ]; then
               git fetch --quiet origin main
-              git checkout origin/main -- scripts/backup-second-provider.sh scripts/lib/second-provider.sh scripts/backup-offsite.sh scripts/lib/backup-dir.sh scripts/backup-objects.mjs scripts/lib/s3-lifecycle.mjs
+              git checkout origin/main -- scripts/backup-second-provider.sh scripts/lib/second-provider.sh scripts/backup-offsite.sh scripts/lib/backup-dir.sh ops/env-backup-public.pem scripts/backup-objects.mjs scripts/lib/s3-lifecycle.mjs
             fi
             if [ "${{ github.event.inputs.mode }}" = "alert-channel-2" ]; then
               git fetch --quiet origin main

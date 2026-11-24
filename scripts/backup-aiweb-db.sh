@@ -17,7 +17,8 @@
 # (scripts/lib/backup-dir.sh), named aiweb-<stamp>.sql.gz so nothing that looks for
 # hydromart-*.sql.gz can pick it up; off the box by `backup-offsite.sh --aiweb` and to the second
 # provider by backup-second-provider.sh, kept BACKUP_KEEP there too; watched by
-# check-backup-freshness.sh. Like hydromart's, the dump is not encrypted on this box (D8).
+# check-backup-freshness.sh. Like hydromart's, the dump is plaintext on this box and leaves it
+# only encrypted (D8, backup-offsite.sh).
 #
 # A job of its own, scheduled beside hydromart's by install-host-cron.sh, so the two cannot touch
 # each other: an AI web that is missing, unhealthy or failing is reported (log, alert) and can

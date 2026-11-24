@@ -58,18 +58,20 @@ CRON_TZ=$CRON_TZ_VALUE
 # Where the AI web drill logs, for check-backup-freshness.sh.
 AIWEB_DRILL_LOG=$AIWEB_DRILL_LOG_PATH
 
-# Nightly full-cluster dump + offsite copy. Reports OK/FAILED to admin-service (H-37).
+# Nightly full-cluster dump, kept here in plaintext for the drill; backup-offsite.sh below sends
+# it off the box encrypted (D8). Reports OK/FAILED to admin-service (H-37).
 0 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-db.sh >> /var/log/hydromart-backup.log 2>&1
 
 # Weekly tested restore into a scratch container (H-36/Q-10). Non-destructive. Verifies
 # the newest dump against the LIVE cluster and alerts loudly when it does not match.
 30 4 * * 1 cd $REPO && . ./scripts/load-env.sh && bash scripts/restore-db.sh --drill >> /var/log/hydromart-restore-drill.log 2>&1
 
-# CMP-03 — get the dump OFF this box, and READ IT BACK. backup-db.sh's own S3 push fails
-# soft (a WARN in a log nobody reads) and nothing ever verifies the object afterwards;
-# backup-offsite.sh copies and then re-reads and compares SHA-256 — and it existed in this
-# repo for weeks with NOTHING calling it: not cron, not deploy, not CI. Twenty minutes after
-# the nightly dump, so it copies the file that job just wrote.
+# CMP-03 — get the dump OFF this box, and READ IT BACK. backup-db.sh's own S3 push failed
+# soft (a WARN in a log nobody reads) and nothing ever verified the object afterwards (D8
+# removed it: it sent the dump in the clear); backup-offsite.sh encrypts the dump to the
+# owner's public certificate, copies it, then re-reads and compares SHA-256 — and it existed
+# in this repo for weeks with NOTHING calling it: not cron, not deploy, not CI. Twenty
+# minutes after the nightly dump, so it copies the file that job just wrote.
 20 3 * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/backup-offsite.sh >> /var/log/hydromart-backup.log 2>&1
 
 # HD-9b — the AI web's database (ai, in the hydromart-ai project), on hydromart's schedule: a

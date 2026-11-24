@@ -47,10 +47,16 @@ mkdir -p "$OFFSITE"
 # because sha256 of nothing matches sha256 of nothing. So a dump gets bytes, and the offsite
 # twin is written at the same time — the cases below assert staleness and drills, and must
 # not go red for a reason they are not testing.
+#
+# D8: the twin is the dump ENCRYPTED, so it is made the way production makes it, by
+# backup-offsite.sh itself (to the committed certificate): <dump>.enc beside the dump and at the
+# destination. A plaintext cp there would no longer count, which is case 9b below.
 make_dump() {
   printf 'hydromart-fake-dump-%s
 ' "$1" >"$DUMPS/$1"
-  cp "$DUMPS/$1" "$OFFSITE/$1"
+  env -u BACKUP_ENV_CERT BACKUP_OFFSITE_DEST="$OFFSITE" BACKUP_OFFSITE_ALLOW_SAME_FS=1 \
+    bash scripts/backup-offsite.sh "$DUMPS/$1" >"$WORK/make-dump.out" 2>&1 ||
+    bad "could not send $1 offsite to set the case up: $(tail -1 "$WORK/make-dump.out")"
 }
 
 run_check() {
@@ -143,12 +149,31 @@ case "$OUT" in
   *"reads back byte-identical"*) ok "  ...by reading the bytes back, not by trusting a log" ;;
   *) bad "  expected the read-back line: $OUT" ;;
 esac
+# D8: and what it read back is the encrypted copy; the dump itself never went.
+if [ -s "$OFFSITE/hydromart-20260827-030000.sql.gz.enc" ] && [ ! -e "$OFFSITE/hydromart-20260827-030000.sql.gz" ]; then
+  ok "  ...the copy offsite is the encrypted twin, and no plaintext dump is there"
+else
+  bad "  expected only hydromart-20260827-030000.sql.gz.enc offsite: $(ls "$OFFSITE" | tr '\n' ' ')"
+fi
 
 # 9. HD-9b: the AI web's database. Not on this box: nothing is expected, and it is said.
 case "$OUT" in
   *"AI web's database is not on this box"*) ok "no AI web here: no AI web dump is expected, and the run says so" ;;
   *) bad "  expected the AI web absence line: $OUT" ;;
 esac
+
+# 9b. D8: a destination holding only a PLAINTEXT copy of the newest dump (what was sent before
+#     D8) is not a verified offsite copy: the gate judges the newest dump by its encrypted object.
+OFFSITE_OVERRIDE="$WORK/pre-d8-offsite"
+mkdir -p "$OFFSITE_OVERRIDE"
+cp "$DUMPS/hydromart-20260827-030000.sql.gz" "$OFFSITE_OVERRIDE/"
+run_check
+check "a plaintext copy offsite (sent before D8) does not pass for the encrypted one" 1 "$RC"
+case "$OUT" in
+  *"NOT verifiable"*) ok "  ...and it says the dump is not verifiable" ;;
+  *) bad "  expected 'NOT verifiable': $OUT" ;;
+esac
+unset OFFSITE_OVERRIDE
 
 # 10. Here and never backed up: red, and hydromart's green lines still read green beside it.
 AIWEB_OVERRIDE=fake-ai-db
@@ -169,7 +194,7 @@ touch -d '3 days ago' "$DUMPS/aiweb-20260824-030500.sql.gz" 2>/dev/null ||
 run_check
 check "a three-day-old AI web dump is a failure, though it is offsite and drilled" 1 "$RC"
 case "$OUT" in *"backup-aiweb-db.sh has stopped"*) ok "  ...naming the AI web's job" ;; *) bad "  expected the AI web stale line: $OUT" ;; esac
-rm -f "$DUMPS/aiweb-20260824-030500.sql.gz" "$OFFSITE/aiweb-20260824-030500.sql.gz"
+rm -f "$DUMPS/aiweb-20260824-030500.sql.gz" "$DUMPS/aiweb-20260824-030500.sql.gz.enc" "$OFFSITE/aiweb-20260824-030500.sql.gz.enc"
 
 # 11. A fresh AI web dump, its offsite twin and a recent AI web drill: green.
 make_dump aiweb-20260827-030500.sql.gz
@@ -190,11 +215,11 @@ case "$OUT" in *"last AI web restore drill"*) ok "  ...named as the AI web's dri
 touch "$AIWEB_DRILL_LOG"
 
 # 13. Its offsite copy is gone: red.
-rm -f "$OFFSITE/aiweb-20260827-030500.sql.gz"
+rm -f "$OFFSITE/aiweb-20260827-030500.sql.gz.enc"
 run_check
 check "an AI web dump with no offsite copy is a failure" 1 "$RC"
 case "$OUT" in *"AI web dump is NOT verifiable"*) ok "  ...said as the AI web's" ;; *) bad "  expected the AI web offsite line: $OUT" ;; esac
-cp "$DUMPS/aiweb-20260827-030500.sql.gz" "$OFFSITE/"
+cp "$DUMPS/aiweb-20260827-030500.sql.gz.enc" "$OFFSITE/"
 
 # 14. A green AI web never hides a red hydromart: hydromart's dump stopped, the AI web's did not.
 touch -d '3 days ago' "$DUMPS/hydromart-20260827-030000.sql.gz" 2>/dev/null ||
