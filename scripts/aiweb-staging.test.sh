@@ -45,7 +45,7 @@ mutate "the private network not internal" 's/^    internal: true$/    internal: 
 mutate "a production secret interpolated" 's/\${STAGING_N8N_TOKEN:?/${AIWEB_N8N_TOKEN:?/' 'only STAGING_* keys'
 mutate "the real alert channel" 's|ALERT_WEBHOOK_URL: http://hydromart-mock:9911/alert|ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}|' 'ALERT_WEBHOOK_URL'
 mutate "a production host name" 's|HYDROMART_API_URL: https://staging-ai.hydromart-digital.com|HYDROMART_API_URL: https://api.hydromart-digital.com|' 'may name only staging-ai.hydromart-digital.com'
-mutate "a tag instead of a digest" 's|hydromart-ai@sha256:9be3190ec3bdb6dd2afc915a958f6be631a993e92d7c5a83e2b2973b47155517|hydromart-ai:latest|' 'must be pinned by digest'
+mutate "a tag instead of a digest" 's|hydromart-ai@sha256:[0-9a-f]*|hydromart-ai:latest|' 'must be pinned by digest'
 mutate "a published port" 's|^    entrypoint: \["node", "/mock/server.mjs"\]|    ports: ["9911:9911"]\n    entrypoint: ["node", "/mock/server.mjs"]|' 'publishes a port'
 mutate "the host mounted" 's|      - ./mock:/mock:ro|      - /var/run/docker.sock:/mock:ro|' 'mounts'
 mutate "the alias on edge-staging" 's|^      edge-staging: {}$|      edge-staging:\n        aliases: [aiweb]|' 'alias'

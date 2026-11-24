@@ -10,6 +10,7 @@
 //   POST /auth/api/v1/auth/handoff/token  code + PKCE verifier (+ authenticator code) -> token
 //   POST /auth/api/v1/auth/machine/token  n8n's machine account -> token
 //   POST /crm/api/v1/notifications/external/franchise-application-submitted   n8n's notification
+//   POST /crm/api/v1/notifications/external/morning-summary   n8n's 07.00 WIB summary (AI-9)
 //   POST /alert                         the AI web's alarm webhook
 //   GET  /health                        for the container's health check
 //   GET  /_mock/ , /_mock/calls         what arrived; kill switch, signed event, reset
@@ -269,20 +270,42 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     state.calls.tokens += 1;
     return [200, {
       tokenType: 'Bearer',
-      accessToken: jwt({ aud: 'hydromart-machine', sub: env.MOCK_MACHINE_ID, scopes: ['franchiseApplicationNotify'] }),
+      accessToken: jwt({ aud: 'hydromart-machine', sub: env.MOCK_MACHINE_ID, scopes: ['franchiseApplicationNotify', 'morningSummaryNotify'] }),
       expiresIn: TOKEN_TTL_S,
     }];
   }
 
-  function notification(req, body) {
+  function machineAllowed(req, scope) {
     const auth = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
     const claims = auth ? readJwt(auth[1]) : null;
     const t = now() / 1000;
     if (!claims || claims.aud !== 'hydromart-machine' || !(claims.exp > t) ||
-      !Array.isArray(claims.scopes) || !claims.scopes.includes('franchiseApplicationNotify')) {
+      !Array.isArray(claims.scopes) || !claims.scopes.includes(scope)) {
       state.calls.refusedNotifications += 1;
-      return [401, errorBody(401, 'UNAUTHORIZED', 'Invalid or expired access token.')];
+      return false;
     }
+    return true;
+  }
+  const refusedToken = () => [401, errorBody(401, 'UNAUTHORIZED', 'Invalid or expired access token.')];
+
+  // AI-9's 07.00 WIB summary: the body is exactly today's eventId + date (Asia/Jakarta). The answer is
+  // the real route's shape with every count zero: staging has no people to notify.
+  function morningSummary(req, body) {
+    if (!machineAllowed(req, 'morningSummaryNotify')) return refusedToken();
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(now());
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    if (Object.keys(b).sort().join(',') !== 'date,eventId' || b.date !== today || b.eventId !== `morning-summary:${today}`) {
+      return [400, errorBody(400, 'VALIDATION_ERROR', ['The notification is not what the contract asks for'])];
+    }
+    keep(state.calls.notifications, {
+      workflow: String(req.headers['x-workflow'] ?? '').slice(0, 120) || null,
+      eventId: b.eventId, city: null, province: null,
+    });
+    return [200, { date: today, recipients: 0, notified: 0, nothingWaiting: 0, whatsapp: 'pending' }];
+  }
+
+  function notification(req, body) {
+    if (!machineAllowed(req, 'franchiseApplicationNotify')) return refusedToken();
     const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
     const keys = Object.keys(b).sort().join(',');
     const idPart = typeof b.eventId === 'string' ? b.eventId.split(':')[1] : '';
@@ -467,6 +490,10 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (post && path === '/crm/api/v1/notifications/external/franchise-application-submitted') {
         const [status, body] = notification(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (post && path === '/crm/api/v1/notifications/external/morning-summary') {
+        const [status, body] = morningSummary(req, parseJson(raw));
         return send(res, status, body);
       }
       if (post && path === '/alert') {
