@@ -3,7 +3,6 @@ import { Type } from 'class-transformer';
 import {
   IsBoolean,
   IsDateString,
-  IsEnum,
   IsIn,
   IsInt,
   IsObject,
@@ -15,8 +14,6 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-
-import { MembershipTier } from '../../domain/membership-tier.enum';
 
 export class UpdateProfileDto {
   @ApiPropertyOptional({
@@ -99,11 +96,6 @@ export class UpdateNotificationsDto {
 }
 
 export class DirectoryQueryDto {
-  @ApiPropertyOptional({ enum: MembershipTier, description: 'Filter by membership tier.' })
-  @IsOptional()
-  @IsEnum(MembershipTier)
-  tier?: MembershipTier;
-
   @ApiPropertyOptional({
     example: 'Bandung',
     description: 'Filter by primary-address city (case-insensitive).',
@@ -158,8 +150,6 @@ export class DirectoryRecipientDto {
 export class ProfileResponseDto {
   @ApiProperty({ format: 'uuid' })
   customerId!: string;
-  @ApiProperty({ enum: MembershipTier })
-  membershipTier!: MembershipTier;
   @ApiProperty({ example: 0 })
   pointBalance!: number;
   @ApiProperty({ nullable: true, format: 'uuid' })

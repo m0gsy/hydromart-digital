@@ -99,7 +99,6 @@ export default function HrCustomersPage() {
               <tr className="text-left text-[12.5px] text-muted">
                 <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrCustomers.name')}</th>
                 <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrCustomers.phone')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrCustomers.tier')}</th>
                 <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrCustomers.orders')}</th>
                 <th className="px-4 py-2.5 font-semibold">{t('hrFix.hrCustomers.lastOrder')}</th>
               </tr>
@@ -109,7 +108,6 @@ export default function HrCustomersPage() {
                 <tr key={c.id} className="border-t border-app">
                   <td className="px-4 py-2.5 font-semibold">{c.fullName ?? '—'}</td>
                   <td className="px-4 py-2.5">{c.phone ?? '—'}</td>
-                  <td className="px-4 py-2.5">{c.membershipTier}</td>
                   <td className="px-4 py-2.5 tabular-nums">{c.orderCount ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted">
                     {c.lastOrderAt ? formatDateTime(c.lastOrderAt) : '—'}

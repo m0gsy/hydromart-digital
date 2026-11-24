@@ -25,6 +25,16 @@ export interface ReportData {
 export const DOCUMENT_EXPIRY_WARNING_DAYS = 30;
 
 const dec = (d: Prisma.Decimal | null): number => (d ? d.toNumber() : 0);
+
+/** The employer BPJS lines a slip was priced with (HD-6 A7), or null when it carries none. */
+function storedEmployerLines(memo: unknown): { label: string; amountIdr: number }[] | null {
+  const lines = (memo as { lines?: unknown } | null)?.lines;
+  if (!Array.isArray(lines)) return null;
+  return lines.filter(
+    (l): l is { label: string; amountIdr: number } =>
+      typeof l?.label === 'string' && typeof l?.amountIdr === 'number',
+  );
+}
 // tz-ok: only ever applied to @db.Date columns (joinDate, workDate, effectiveDate…), which
 // Prisma reads back as UTC-midnight — the slice IS the local date.
 const isoDate = (d: Date | null): string => (d ? d.toISOString().slice(0, 10) : '');
@@ -333,6 +343,15 @@ export class AnalyticsService {
       new Date(query.to),
       depotIds,
     );
+    // HD-6 A7: months whose raw rows the retention scrub already deleted survive as one
+    // monthly count per person (written first, see anonymiseRetentionEligible). Appended after
+    // the daily rows; `workDate` carries the month and the last five columns the counts (PENDING days are in no count, as in the daily rows).
+    const rollups =
+      (await this.repo.attendanceRollupsForReport?.(
+        query.from.slice(0, 7),
+        query.to.slice(0, 7),
+        depotIds,
+      )) ?? [];
     return {
       headers: [
         'workDate',
@@ -343,17 +362,44 @@ export class AnalyticsService {
         'checkOutAt',
         'lateMinutes',
         'workingMinutes',
+        'rekapHadir',
+        'rekapTelat',
+        'rekapAbsen',
+        'rekapCuti',
+        'rekapLibur',
       ],
-      rows: rows.map((a) => [
-        isoDate(a.workDate),
-        a.employee.employeeCode,
-        a.employee.fullName,
-        a.status,
-        isoTime(a.checkInAt),
-        isoTime(a.checkOutAt),
-        a.lateMinutes,
-        a.workingMinutes ?? '',
-      ]),
+      rows: [
+        ...rows.map((a): CsvCell[] => [
+          isoDate(a.workDate),
+          a.employee.employeeCode,
+          a.employee.fullName,
+          a.status,
+          isoTime(a.checkInAt),
+          isoTime(a.checkOutAt),
+          a.lateMinutes,
+          a.workingMinutes ?? '',
+          '',
+          '',
+          '',
+          '',
+          '',
+        ]),
+        ...rollups.map((r): CsvCell[] => [
+          r.month,
+          r.employeeCode,
+          r.fullName,
+          'REKAP BULANAN',
+          '',
+          '',
+          '',
+          '',
+          r.present,
+          r.late,
+          r.absent,
+          r.leave,
+          r.holiday,
+        ]),
+      ],
     };
   }
 
@@ -412,16 +458,18 @@ export class AnalyticsService {
    * JKM, the employer's half. A COST report - nothing here is on a payslip or in anyone's net.
    *
    * Computed on the whole slip's gross (the wage ceilings belong to the person, not to a depot),
-   * then divided between the depots in proportion to the gross each carries, by the same
-   * largest-remainder rule the payroll split uses. A slip with no stored split is the home
-   * depot's alone. Head-office and finance only: a depot reader would see a share-narrowed
+   * on the rates of the employee's OWN depot (HD-6 A7), then divided between the depots in
+   * proportion to the gross each carries, by the same largest-remainder rule the payroll split
+   * uses. A slip with no stored split is the home depot's alone. A slip generated since A7
+   * carries the memo it was priced with and the report reads that; an older slip or imported
+   * history is re-priced here from its employee's depot rates. Head-office and finance only: a depot reader would see a share-narrowed
    * gross, and a ceiling applied to a fragment is the wrong number.
    */
   async employerCostReport(
     _user: AuthenticatedUser,
     query: { periodMonth: string },
   ): Promise<ReportData> {
-    const rates = { ...this.config.statutoryRates(null), ...this.config.employerRates(null) };
+    const ratesFor = new Map<string | null, ReturnType<AnalyticsService['depotRates']>>();
     const rows = await this.repo.payrollForReport(query.periodMonth, undefined);
     const ids = rows.map((p) => p.employeeId);
     const enrolled = (await this.repo.enrollmentFor?.(ids)) ?? new Map();
@@ -443,16 +491,20 @@ export class AnalyticsService {
     for (const p of rows) {
       const e = enrolled.get(p.employeeId) ?? { kes: false, tk: false };
       const gross = dec(p.gross);
-      const lines = bpjsEmployerCosts(
-        {
-          grossIdr: gross,
-          ptkpStatus: null,
-          hasNpwp: true,
-          enrolledHealth: e.kes,
-          enrolledEmployment: e.tk,
-        },
-        rates,
-      );
+      const depotId = p.employee.depotId ?? null;
+      if (!ratesFor.has(depotId)) ratesFor.set(depotId, this.depotRates(depotId));
+      const lines =
+        storedEmployerLines(p.employerMemo) ??
+        bpjsEmployerCosts(
+          {
+            grossIdr: gross,
+            ptkpStatus: null,
+            hasNpwp: true,
+            enrolledHealth: e.kes,
+            enrolledEmployment: e.tk,
+          },
+          ratesFor.get(depotId)!,
+        );
       const total = lines.reduce((a, l) => a + l.amountIdr, 0);
       grand += total;
       const parts = split.get(p.id) ?? [];
@@ -500,6 +552,11 @@ export class AnalyticsService {
       ],
       rows: out,
     };
+  }
+
+  /** The statutory + employer BPJS rates one depot's payslips are priced with. */
+  private depotRates(depotId: string | null) {
+    return { ...this.config.statutoryRates(depotId), ...this.config.employerRates(depotId) };
   }
 
   // ── C4 reports ──────────────────────────────────────────────────────

@@ -53,6 +53,7 @@ function model(): ModelMock {
 }
 
 const MODELS = [
+  'attendanceMonthRollup',
   'shift',
   'department',
   'allowance',
@@ -1394,7 +1395,7 @@ describe('AnalyticsPrismaRepository', () => {
     await repo.payrollForReport('2026-07');
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
       where: { periodMonth: '2026-07' },
-      include: { employee: { select: { employeeCode: true, fullName: true } } },
+      include: { employee: { select: { employeeCode: true, fullName: true, depotId: true } } },
       orderBy: [{ employee: { employeeCode: 'asc' } }, { id: 'asc' }],
       take: 500,
     });
@@ -1438,9 +1439,39 @@ describe('AnalyticsPrismaRepository', () => {
     await repo.payrollForReport('2026-07', ['d1']);
     expect(m(p, 'payroll').findMany).toHaveBeenCalledWith({
       where: { periodMonth: '2026-07', employee: { depotId: { in: ['d1'] } } },
-      include: { employee: { select: { employeeCode: true, fullName: true } } },
+      include: { employee: { select: { employeeCode: true, fullName: true, depotId: true } } },
       orderBy: [{ employee: { employeeCode: 'asc' } }, { id: 'asc' }],
       take: 500,
+    });
+  });
+
+  it('attendanceRollupsForReport reads the kept month counts, depot-scoped, with the person', async () => {
+    const p = makePrisma();
+    m(p, 'attendanceMonthRollup').findMany.mockResolvedValue([
+      {
+        month: '2026-03',
+        present: 18,
+        late: 2,
+        absent: 1,
+        leave: 1,
+        holiday: 3,
+        employee: { employeeCode: 'HR-9', fullName: 'Karyawan dihapus' },
+      },
+    ]);
+    const repo = new AnalyticsPrismaRepository(asService(p));
+    const out = await repo.attendanceRollupsForReport('2026-03', '2026-04', ['d1']);
+    expect(m(p, 'attendanceMonthRollup').findMany).toHaveBeenCalledWith({
+      where: { month: { gte: '2026-03', lte: '2026-04' }, depotId: { in: ['d1'] } },
+      include: { employee: { select: { employeeCode: true, fullName: true } } },
+      orderBy: [{ month: 'asc' }, { id: 'asc' }],
+      take: 50000,
+    });
+    expect(out).toEqual([
+      { month: '2026-03', employeeCode: 'HR-9', fullName: 'Karyawan dihapus', present: 18, late: 2, absent: 1, leave: 1, holiday: 3 },
+    ]);
+    await repo.attendanceRollupsForReport('2026-03', '2026-04');
+    expect(m(p, 'attendanceMonthRollup').findMany.mock.calls[1][0].where).toEqual({
+      month: { gte: '2026-03', lte: '2026-04' },
     });
   });
 
@@ -2090,6 +2121,16 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
     expect(out).toBe(2);
     expect(p.$transaction).toHaveBeenCalledTimes(1);
     const ids = { employeeId: { in: ['e1', 'e2'] } };
+    // HD-6 A7: the month counts are written first and idempotently, before the raw rows go.
+    expect(p.$executeRaw).toHaveBeenCalledTimes(1);
+    const rollupSql = ((p.$executeRaw as jest.Mock).mock.calls[0][0] as string[]).join('?');
+    expect(rollupSql).toContain('INSERT INTO "attendance_month_rollups"');
+    expect(rollupSql).toContain('ON CONFLICT ("employeeId", "month", "depotId") DO NOTHING');
+    // Filed under the depot of each attendance row, not the employee's current depot.
+    expect(rollupSql).toContain('GROUP BY a."employeeId", a."depotId"');
+    expect(
+      (p.$executeRaw as jest.Mock).mock.invocationCallOrder[0],
+    ).toBeLessThan(m(p, 'attendance').deleteMany.mock.invocationCallOrder[0]);
     expect(m(p, 'faceEmbedding').deleteMany).toHaveBeenCalledWith({ where: ids });
     expect(m(p, 'attendance').deleteMany).toHaveBeenCalledWith({ where: ids });
     expect(m(p, 'performanceReview').deleteMany).toHaveBeenCalledWith({ where: ids });
@@ -2129,6 +2170,10 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
 
     expect(out).toBe(1);
     const ids = { employeeId: 'e9' };
+    expect(p.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(
+      (p.$executeRaw as jest.Mock).mock.invocationCallOrder[0],
+    ).toBeLessThan(m(p, 'attendance').deleteMany.mock.invocationCallOrder[0]);
     expect(m(p, 'faceEmbedding').deleteMany).toHaveBeenCalledWith({ where: ids });
     expect(m(p, 'attendance').deleteMany).toHaveBeenCalledWith({ where: ids });
     expect(m(p, 'performanceReview').deleteMany).toHaveBeenCalledWith({ where: ids });

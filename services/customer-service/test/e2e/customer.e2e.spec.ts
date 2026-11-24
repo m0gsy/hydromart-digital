@@ -9,7 +9,6 @@ import { AllExceptionsFilter, GlobalValidationPipe, Role, localDayKey } from '@h
 
 import { CustomerModule } from '../../src/modules/customer.module';
 import { CUSTOMER_TOKENS } from '../../src/application/tokens';
-import { MembershipTier } from '../../src/domain/membership-tier.enum';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import {
   FakeLoyaltyReward,
@@ -109,7 +108,8 @@ describe('Customer HTTP flows (e2e)', () => {
 
   it('lazily returns a default profile', async () => {
     const res = await auth(request(server()).get('/api/v1/profile')).expect(200);
-    expect(res.body).toMatchObject({ membershipTier: 'BASIC', pointBalance: 0 });
+    expect(res.body).toMatchObject({ pointBalance: 0 });
+    expect(res.body).not.toHaveProperty('membershipTier');
   });
 
   it('runs the address journey: create → list → set primary → delete', async () => {
@@ -250,10 +250,10 @@ describe('Customer HTTP flows (e2e)', () => {
     );
   });
 
-  it('resolves the CRM broadcast segment by tier + city, staff-only (FR-087)', async () => {
-    // Seed a SILVER customer in Depok and a BASIC customer in Bogor, each with a primary address.
+  it('resolves the CRM broadcast segment by city, staff-only (FR-087)', async () => {
+    // Seed a customer in Depok and another in Bogor, each with a primary address.
     const nullGeo = { postalCode: null, latitude: null, longitude: null, notes: null };
-    await profiles.setTier('seg-silver', MembershipTier.SILVER);
+    await profiles.create('seg-silver');
     await addresses.create({
       customerId: 'seg-silver',
       label: 'Rumah',
@@ -283,7 +283,7 @@ describe('Customer HTTP flows (e2e)', () => {
 
     const admin = (r: request.Test) => r.set('Authorization', `Bearer ${adminToken}`);
     const res = await admin(
-      request(server()).get('/api/v1/profile/directory').query({ tier: 'SILVER', city: 'depok' }),
+      request(server()).get('/api/v1/profile/directory').query({ city: 'depok' }),
     ).expect(200);
     // The account owner, not the address recipient (Sinta, +628111).
     expect(res.body).toEqual([
@@ -301,7 +301,7 @@ describe('Customer HTTP flows (e2e)', () => {
 
     const res = await request(server())
       .get('/api/v1/profile/internal/directory')
-      .query({ tier: 'SILVER', city: 'depok' })
+      .query({ city: 'depok' })
       .set('x-internal-key', INTERNAL_KEY)
       .expect(200);
     // The account owner, not the address recipient (Sinta, +628111).
@@ -310,10 +310,10 @@ describe('Customer HTTP flows (e2e)', () => {
     ]);
   });
 
-  it('rejects an invalid tier filter (400)', async () => {
+  it('rejects the removed tier filter (400)', async () => {
     await request(server())
       .get('/api/v1/profile/directory')
-      .query({ tier: 'PLATINUM' })
+      .query({ tier: 'BASIC' })
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(400);
   });

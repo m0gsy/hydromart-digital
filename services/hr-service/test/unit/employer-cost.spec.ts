@@ -129,6 +129,42 @@ describe('AnalyticsService.employerCostReport', () => {
   });
 });
 
+describe('employerCostReport on each depot rates (HD-6 A7)', () => {
+  const D = (n: number) => ({ toNumber: () => n });
+  const slip = (id: string, depotId: string, memo?: unknown) => ({
+    id, employeeId: `e${id}`, periodMonth: '2026-09', gross: D(5_000_000), employerMemo: memo,
+    employee: { employeeCode: id, fullName: id, depotId },
+  });
+  const build = (rows: unknown[]) => {
+    const repo = {
+      payrollForReport: async () => rows,
+      enrollmentFor: async () => new Map(rows.map((r) => [(r as { employeeId: string }).employeeId, { kes: true, tk: false }])),
+    };
+    const config = {
+      statutoryRates: () => rates,
+      // depot B pays a 5% employer Kesehatan share, depot A the default 4%.
+      employerRates: (d: string | null) => ({ healthEmployerPct: d === 'B' ? 5 : 4 }),
+      depotAssignmentEnabled: false,
+      timeZone: 'Asia/Jakarta',
+    };
+    return new AnalyticsService(repo as never, config as never);
+  };
+  const user = { sub: 'hr', role: 'HR' } as never;
+
+  it('prices two depots with different rates differently', async () => {
+    const r = await build([slip('a', 'A'), slip('b', 'B')]).employerCostReport(user, { periodMonth: '2026-09' });
+    expect(r.rows[0]![5]).toBe(200_000); // 4% of 5jt
+    expect(r.rows[1]![5]).toBe(250_000); // 5% of 5jt
+  });
+
+  it('reads the memo the slip was priced with, not the current rates', async () => {
+    const memo = { ratesDepotId: 'A', lines: [{ label: 'BPJS Kesehatan (perusahaan)', amountIdr: 123_000 }] };
+    const r = await build([slip('b', 'B', memo)]).employerCostReport(user, { periodMonth: '2026-09' });
+    expect(r.rows[0]![5]).toBe(123_000);
+    expect(r.rows[0]![10]).toBe(123_000);
+  });
+});
+
 describe('route and repository', () => {
   it('the route is delivered like every report', async () => {
     const employerCostReport = jest.fn().mockResolvedValue({ headers: ['a'], rows: [['1']] });

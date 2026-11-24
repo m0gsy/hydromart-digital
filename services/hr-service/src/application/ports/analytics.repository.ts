@@ -84,8 +84,19 @@ export interface DepotSummaryFacts {
 export type AttendanceWithEmployee = Attendance & {
   employee: Pick<Employee, 'employeeCode' | 'fullName'>;
 };
+export interface AttendanceRollupRow {
+  month: string;
+  employeeCode: string;
+  fullName: string;
+  present: number;
+  late: number;
+  absent: number;
+  leave: number;
+  holiday: number;
+}
 export type PayrollWithEmployee = Payroll & {
-  employee: Pick<Employee, 'employeeCode' | 'fullName'>;
+  /** `depotId` only on the payroll report reads that need it (the employer-cost fallback). */
+  employee: Pick<Employee, 'employeeCode' | 'fullName'> & { depotId?: string | null };
 };
 export type LeaveWithEmployee = LeaveRequest & {
   employee: Pick<Employee, 'employeeCode' | 'fullName'>;
@@ -146,7 +157,17 @@ export interface AnalyticsRepository {
   departmentCodesByIds(ids: readonly string[]): Promise<Map<string, string>>;
   shiftNamesByIds(ids: readonly string[]): Promise<Map<string, string>>;
   attendanceForReport(from: Date, to: Date, depotIds?: readonly string[]): Promise<AttendanceWithEmployee[]>;
+  /** Slips of ANY status (DRAFT/APPROVED/PAID). Labour cost must sum APPROVED/PAID only (HD-6 owner decision). */
   payrollForReport(periodMonth: string, depotIds?: readonly string[]): Promise<PayrollWithEmployee[]>;
+  /**
+   * Monthly attendance counts kept from before the retention scrub deleted the raw rows,
+   * for the months `fromMonth`..`toMonth` ("YYYY-MM"). Optional: only the Prisma repository has them.
+   */
+  attendanceRollupsForReport?(
+    fromMonth: string,
+    toMonth: string,
+    depotIds?: readonly string[],
+  ): Promise<AttendanceRollupRow[]>;
   /**
    * The stored per-depot parts of these slips, by payroll id; narrowed to `depotIds` for a
    * depot-scoped reader. Optional: only a repository that knows the split provides it.

@@ -9,6 +9,7 @@ import {
   EndingEmployment,
   ExpiringDocument,
   AssetWithHolder,
+  AttendanceRollupRow,
   AttendanceWithEmployee,
   GroupCount,
   LeaveWithEmployee,
@@ -20,6 +21,8 @@ import { HrConfigService } from '../../config/hr-config.service';
 import { PrismaService } from './prisma.service';
 
 const EMPLOYEE_SUMMARY = { select: { employeeCode: true, fullName: true } } as const;
+/** Payroll reads also need the depot whose rates priced the slip (employer-cost fallback). */
+const EMPLOYEE_WITH_DEPOT = { select: { employeeCode: true, fullName: true, depotId: true } } as const;
 
 /** Rows per keyset page while an export walks its window. */
 const PAGE = 500;
@@ -388,12 +391,38 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
     return this.allPages(({ take, cursor }) =>
       this.prisma.payroll.findMany({
         where: { periodMonth, ...(depotIds ? { employee: { depotId: depotWhere(depotIds) } } : {}) },
-        include: { employee: EMPLOYEE_SUMMARY },
+        include: { employee: EMPLOYEE_WITH_DEPOT },
         orderBy: [{ employee: { employeeCode: 'asc' } }, { id: 'asc' }],
         take,
         ...fromCursor(cursor),
       }),
     );
+  }
+
+  async attendanceRollupsForReport(
+    fromMonth: string,
+    toMonth: string,
+    depotIds?: readonly string[],
+  ): Promise<AttendanceRollupRow[]> {
+    const rows = await this.prisma.attendanceMonthRollup.findMany({
+      where: {
+        month: { gte: fromMonth, lte: toMonth },
+        ...(depotIds ? { depotId: depotWhere(depotIds) } : {}),
+      },
+      include: { employee: EMPLOYEE_SUMMARY },
+      orderBy: [{ month: 'asc' }, { id: 'asc' }],
+      take: MAX_EXPORT_ROWS,
+    });
+    return rows.map((r) => ({
+      month: r.month,
+      employeeCode: r.employee.employeeCode,
+      fullName: r.employee.fullName,
+      present: r.present,
+      late: r.late,
+      absent: r.absent,
+      leave: r.leave,
+      holiday: r.holiday,
+    }));
   }
 
   async sharesForPayrolls(
@@ -537,7 +566,7 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
             { shares: { none: {} }, employee: { depotId: { in: ids } } },
           ],
         },
-        include: { employee: EMPLOYEE_SUMMARY, shares: { where: { depotId: { in: ids } } } },
+        include: { employee: EMPLOYEE_WITH_DEPOT, shares: { where: { depotId: { in: ids } } } },
         orderBy: [{ employee: { employeeCode: 'asc' } }, { id: 'asc' }],
         take,
         ...fromCursor(cursor),

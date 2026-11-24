@@ -26,7 +26,6 @@ import { DepotGallonLedgerRow, DepotLedgerPort } from '../ports/depot-ledger.por
 import { ProfileRepository } from '../ports/profile.repository';
 import { ChurnRiskPort } from '../ports/churn-risk.port';
 import { DepotGeo, DepotProfilePort } from '../ports/depot-profile.port';
-import { MembershipTier } from '../../domain/membership-tier.enum';
 import { parseLocation } from '../../domain/pin-location';
 import { classifySegment, daysBetween, needsFollowUp, CrmSegment } from '../../domain/crm-segment';
 import { CustomerConfigService } from '../../config/customer-config.service';
@@ -41,7 +40,6 @@ export interface DepotCustomerListItem {
   id: string;
   fullName: string | null;
   phone: string | null;
-  membershipTier: MembershipTier;
   orderCount: number | null;
   gallonsOnLoan: number | null;
   /** Of `gallonsOnLoan`, held longer than the depot's limit. Null = not known, never 0. */
@@ -120,7 +118,6 @@ export interface DepotCustomerDetail {
     id: string;
     fullName: string | null;
     phone: string | null;
-    membershipTier: MembershipTier;
     /** null = "not computed yet" (cross-service aggregate unwired), not zero. */
     isSubscriber: boolean | null;
     orderCount: number | null;
@@ -385,7 +382,6 @@ export class DepotCrmService {
         // who has only ever ordered here has no row in either of the first two.
         fullName: account?.fullName ?? r.fullName ?? s?.name ?? null,
         phone: account?.phone ?? r.phone ?? s?.phone ?? null,
-        membershipTier: r.membershipTier,
         // Order aggregates from order-service; null (not 0) when it had no data / was unreachable.
         orderCount: s ? s.orderCount : null,
         lastOrderAt: s?.lastOrderAt ? s.lastOrderAt.toISOString() : null,
@@ -528,7 +524,6 @@ export class DepotCrmService {
         // Same rule as the list: account name first, address recipient as the fallback.
         fullName: account?.fullName ?? primary?.recipientName ?? null,
         phone: account?.phone ?? primary?.phone ?? null,
-        membershipTier: profile?.membershipTier ?? MembershipTier.BASIC,
         // Same null-vs-zero rule as the directory: a customer who has never ordered comes
         // back as 0, order-service being unreachable comes back as null. Different answers.
         orderCount: stats.length > 0 ? (stat?.orderCount ?? 0) : null,

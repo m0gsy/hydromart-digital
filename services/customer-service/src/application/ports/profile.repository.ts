@@ -1,8 +1,5 @@
-import { MembershipTier } from '../../domain/membership-tier.enum';
-
 export interface CustomerProfileRecord {
   customerId: string;
-  membershipTier: MembershipTier;
   pointBalance: number;
   favoriteDepotId: string | null;
   birthdate: Date | null;
@@ -20,7 +17,6 @@ export interface DirectoryRecipient {
 
 /** Attribute filter for the CRM broadcast audience (FR-087). Empty = all reachable customers. */
 export interface SegmentFilter {
-  tier?: MembershipTier;
   city?: string;
   /** CUS-06: resume after this customerId (the last one of the previous page). */
   after?: string;
@@ -38,7 +34,7 @@ export interface ProfileRepository {
   findByCustomerId(customerId: string): Promise<CustomerProfileRecord | null>;
   /** Whether a customer profile exists for this id (reseller registration precondition). */
   exists(customerId: string): Promise<boolean>;
-  /** Create a default (BASIC, 0 points) profile. */
+  /** Create a default (0 points) profile. */
   create(customerId: string): Promise<CustomerProfileRecord>;
   updateFavoriteDepot(
     customerId: string,

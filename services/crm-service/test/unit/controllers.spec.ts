@@ -344,7 +344,7 @@ describe('CampaignController', () => {
       {
         name: 'Blast',
         messageTemplate: 'Hi {{name}}',
-        segment: { tier: 'GOLD' },
+        segment: { city: 'Depok' },
       } as CreateCampaignDto,
       'Bearer tok',
     );
@@ -353,7 +353,7 @@ describe('CampaignController', () => {
       'Blast',
       'Hi {{name}}',
       undefined,
-      { tier: 'GOLD' },
+      { city: 'Depok' },
       'Bearer tok',
       null,
     );

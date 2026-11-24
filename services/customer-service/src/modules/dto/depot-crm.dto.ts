@@ -13,7 +13,6 @@ import {
 } from 'class-validator';
 import { DEFAULT_MAX_ROWS } from '@hydromart/platform';
 
-import { MembershipTier } from '../../domain/membership-tier.enum';
 
 export class DepotCustomerQueryDto {
   @ApiProperty({ format: 'uuid', description: 'Depot whose customers to list.' })
@@ -66,8 +65,6 @@ export class DepotCustomerDto {
   fullName!: string | null;
   @ApiProperty({ nullable: true })
   phone!: string | null;
-  @ApiProperty({ enum: MembershipTier })
-  membershipTier!: MembershipTier;
   @ApiProperty({
     nullable: true,
     example: null,
@@ -211,8 +208,6 @@ export class DepotCustomerDetailProfileDto {
   fullName!: string | null;
   @ApiProperty({ nullable: true })
   phone!: string | null;
-  @ApiProperty({ enum: MembershipTier })
-  membershipTier!: MembershipTier;
   @ApiProperty({
     nullable: true,
     example: null,

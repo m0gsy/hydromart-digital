@@ -33,6 +33,8 @@ enum SavedPaymentType {
 /// Profile extension for a customer. One row per identity, lazily created.
 model CustomerProfile {
   customerId     String         @id @db.Uuid
+  /// DEAD (HD-6 A7): nothing ever wrote it, so every row is BASIC. No longer read, served or filtered on;
+  /// the member tier lives in loyalty-service. Column drop later.
   membershipTier MembershipTier @default(BASIC)
   pointBalance   Int            @default(0)
   favoriteDepotId String?       @db.Uuid

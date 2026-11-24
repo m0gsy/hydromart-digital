@@ -1272,7 +1272,6 @@ export const hrFix = {
     customers2: 'Customers',
     name: 'Name',
     phone: 'Phone',
-    tier: 'Tier',
     orders: 'Orders',
     lastOrder: 'Last order',
     searchHint: 'Search by name or number',

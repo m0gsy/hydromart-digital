@@ -92,6 +92,7 @@ function build(o: Opts = {}) {
       overtimeMultiplierPct: () => 0,
       overtimeOffDayMultiplierPct: () => 0,
       standardWorkingMinutes: () => 480,
+      employerRates: () => ({}),
       statutoryRates: () => '',
       pph21TerTable: () => ({}),
       tenureRaiseLadder: () => '',

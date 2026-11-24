@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsDateString,
+  IsEmpty,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -46,10 +47,14 @@ export class RecipientInputDto {
 }
 
 export class CampaignSegmentDto {
-  @ApiPropertyOptional({ enum: ['BASIC', 'SILVER', 'GOLD'], description: 'Filter by membership tier.' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
+  // HD-6 A7: the BASIC/SILVER/GOLD column behind this filter was never written by anything, so
+  // "BASIC" matched everybody and the others matched nobody. It no longer exists; a caller that
+  // still sends one is told so instead of being silently ignored (and blasting everyone).
+  @ApiPropertyOptional({
+    deprecated: true,
+    description: 'Removed. Sending a value answers 400; the member tier now lives in loyalty-service.',
+  })
+  @IsEmpty({ message: 'Filter tier sudah tidak ada. Pilih segmen berdasarkan kota atau aktivitas pelanggan.' })
   tier?: string;
 
   @ApiPropertyOptional({ example: 'Bandung', description: 'Filter by primary-address city.' })
@@ -140,7 +145,7 @@ export class CreateCampaignDto {
 
   @ApiPropertyOptional({
     type: CampaignSegmentDto,
-    description: 'Attribute segment (tier/city) — resolved to recipients from customer-service (FR-087).',
+    description: 'Attribute segment (city) — resolved to recipients from customer-service (FR-087).',
   })
   @IsOptional()
   @ValidateNested()

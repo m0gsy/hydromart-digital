@@ -1290,7 +1290,6 @@ export const hrFix = {
     customers2: 'Pelanggan',
     name: 'Nama',
     phone: 'Nomor',
-    tier: 'Tier',
     orders: 'Order',
     lastOrder: 'Order terakhir',
     searchHint: 'Cari nama atau nomor',

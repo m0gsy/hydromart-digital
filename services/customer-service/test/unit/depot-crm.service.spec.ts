@@ -19,7 +19,6 @@ import {
   ProfileRepository,
 } from '../../src/application/ports/profile.repository';
 import { CustomerIdentity, IdentityPort } from '../../src/application/ports/identity.port';
-import { MembershipTier } from '../../src/domain/membership-tier.enum';
 
 // Minimal fake: findIdsByDepot + listDepotCustomers are exercised here. `asked` records
 // the query object, because W9 is about what reaches the DATABASE, not about what comes back.
@@ -178,7 +177,6 @@ describe('DepotCrmService directory search reaches the identity the screen shows
     customerId: 'c1',
     fullName: 'Rumah Budi',
     phone: '+62811-ADDRESS',
-    membershipTier: MembershipTier.BASIC,
   };
   const noOrders: OrderCrmPort = {
     depotCustomerStats: async () => [],
@@ -268,7 +266,6 @@ describe('DepotCrmService.listDepotCustomers', () => {
     customerId,
     fullName: `name-${customerId}`,
     phone: `phone-${customerId}`,
-    membershipTier: MembershipTier.BASIC,
   });
 
   function service(
@@ -365,7 +362,6 @@ describe('DepotCrmService.listDepotCustomers', () => {
       customerId: 'c2',
       fullName: null,
       phone: null,
-      membershipTier: MembershipTier.BASIC,
     };
     const [only] = await service([nameless], [], identity).listDepotCustomers('depot-a');
     expect(only).toMatchObject({ fullName: 'Siti', phone: '0822' });
@@ -426,7 +422,6 @@ describe('DepotCrmService.listDepotCustomers', () => {
       customerId: 'c-orderer',
       fullName: null,
       phone: null,
-      membershipTier: MembershipTier.BASIC,
     };
     const [only] = await service(
       [nameless],
@@ -528,11 +523,11 @@ describe('DepotCrmPrismaRepository paging and search reach the SQL', () => {
     expect(sql().text).not.toContain('ILIKE');
   });
 
-  it('maps the tier and joins the orderers in as the third membership source', async () => {
+  it('joins the orderers in as the third membership source', async () => {
     let captured: Prisma.Sql | undefined;
     const $queryRaw = jest.fn(async (q: Prisma.Sql) => {
       captured = q;
-      return [{ customerId: 'c1', fullName: 'Budi', phone: '+62800', membershipTier: 'SILVER' }];
+      return [{ customerId: 'c1', fullName: 'Budi', phone: '+62800' }];
     });
     const repo = new DepotCrmPrismaRepository({ $queryRaw } as never);
     const out = await repo.listDepotCustomers('depot-1', {
@@ -540,7 +535,7 @@ describe('DepotCrmPrismaRepository paging and search reach the SQL', () => {
       q: 'x',
       qMatchedIds: ['c-orderer'],
     });
-    expect(out[0]!.membershipTier).toBe(MembershipTier.SILVER);
+    expect(out[0]).not.toHaveProperty('membershipTier');
     expect(captured!.text).toContain('unnest');
     expect(captured!.values).toEqual(expect.arrayContaining([['c-orderer']]));
   });
@@ -662,9 +657,8 @@ describe('DepotCrmService.getDepotDetail', () => {
     );
   }
 
-  const profile = (tier: MembershipTier): CustomerProfileRecord => ({
+  const profile = (): CustomerProfileRecord => ({
     customerId: 'c1',
-    membershipTier: tier,
     pointBalance: 0,
     // Belongs to the depot the card is being read at — AUTHZ-A7 refuses a customer who
     // does not, so every mapping test below states the membership it relies on.
@@ -686,7 +680,7 @@ describe('DepotCrmService.getDepotDetail', () => {
    */
   describe('a customer who has nothing to do with this depot', () => {
     it('is not found, and no address book comes back with the refusal', async () => {
-      const svc = service(profile(MembershipTier.GOLD), [addr({ id: 'a1', isPrimary: true })]);
+      const svc = service(profile(), [addr({ id: 'a1', isPrimary: true })]);
       await expect(svc.getDepotDetail('c1', 'depot-lain')).rejects.toBeInstanceOf(
         NotFoundException,
       );
@@ -712,8 +706,8 @@ describe('DepotCrmService.getDepotDetail', () => {
     });
   });
 
-  it('takes name/phone/tier from the PRIMARY address and maps every address', async () => {
-    const svc = service(profile(MembershipTier.GOLD), [
+  it('takes name/phone from the PRIMARY address and maps every address', async () => {
+    const svc = service(profile(), [
       addr({ id: 'a1', isPrimary: false, recipientName: 'Secondary', phone: '0001' }),
       addr({ id: 'a2', isPrimary: true, recipientName: 'Primary', phone: '0002' }),
     ]);
@@ -724,7 +718,6 @@ describe('DepotCrmService.getDepotDetail', () => {
       id: 'c1',
       fullName: 'Primary',
       phone: '0002',
-      membershipTier: MembershipTier.GOLD,
       isSubscriber: null,
       orderCount: null,
       churnRisk: null,
@@ -741,18 +734,17 @@ describe('DepotCrmService.getDepotDetail', () => {
   });
 
   it('falls back to the first address when none is primary', async () => {
-    const svc = service(profile(MembershipTier.SILVER), [
+    const svc = service(profile(), [
       addr({ recipientName: 'First', phone: '0009' }),
     ]);
     const d = await svc.getDepotDetail('c1', 'depot-a');
     expect(d.profile).toMatchObject({
       fullName: 'First',
       phone: '0009',
-      membershipTier: MembershipTier.SILVER,
     });
   });
 
-  it('no profile + no addresses → BASIC tier and null name/phone', async () => {
+  it('no profile + no addresses → null name/phone', async () => {
     // Known to the depot through their orders rather than a profile — see AUTHZ-A7 above.
     const d = await service(null, [], new FakeIdentity(), {
       stats: [
@@ -770,13 +762,12 @@ describe('DepotCrmService.getDepotDetail', () => {
     expect(d.profile).toMatchObject({
       fullName: null,
       phone: null,
-      membershipTier: MembershipTier.BASIC,
     });
     expect(d.addresses).toEqual([]);
   });
 
   it('fills the cross-service numbers, the ledger and the recent orders', async () => {
-    const svc = service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+    const svc = service(profile(), [], new FakeIdentity(), {
       stats: [
         {
           customerId: 'c1',
@@ -834,7 +825,7 @@ describe('DepotCrmService.getDepotDetail', () => {
   // The distinction the whole J-2 fix exists for: a customer nobody has data ON, at a depot
   // whose services DID answer, is a real zero. An unreachable service is not.
   it('a customer missing from an answered aggregate is 0, not null', async () => {
-    const d = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+    const d = await service(profile(), [], new FakeIdentity(), {
       stats: [
         {
           customerId: 'someone-else',
@@ -865,7 +856,7 @@ describe('DepotCrmService.getDepotDetail', () => {
    */
   describe('how long the gallons have been out', () => {
     const detail = (gallons: Wired['gallons']) =>
-      service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+      service(profile(), [], new FakeIdentity(), {
         stats: [],
         gallons,
       }).getDepotDetail('c1', 'depot-a');
@@ -908,7 +899,7 @@ describe('DepotCrmService.getDepotDetail', () => {
   });
 
   it('unreachable order-service and depot-service stay null, never 0', async () => {
-    const d = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+    const d = await service(profile(), [], new FakeIdentity(), {
       stats: [],
       gallons: null,
     }).getDepotDetail('c1', 'depot-a');
@@ -927,19 +918,19 @@ describe('DepotCrmService.getDepotDetail', () => {
    * or "0 km away, inside the radius".
    */
   it('marks a linked subscriber, and everyone else as not one', async () => {
-    const sub = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+    const sub = await service(profile(), [], new FakeIdentity(), {
       subscribers: ['c1', 'c9'],
     }).getDepotDetail('c1', 'depot-a');
     expect(sub.profile.isSubscriber).toBe(true);
 
-    const not = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+    const not = await service(profile(), [], new FakeIdentity(), {
       subscribers: ['c9'],
     }).getDepotDetail('c1', 'depot-a');
     expect(not.profile.isSubscriber).toBe(false);
   });
 
   it('leaves isSubscriber and churnRisk null when their services went quiet', async () => {
-    const d = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+    const d = await service(profile(), [], new FakeIdentity(), {
       subscribers: null,
       churn: null,
     }).getDepotDetail('c1', 'depot-a');
@@ -953,7 +944,7 @@ describe('DepotCrmService.getDepotDetail', () => {
   it('reports all three as null when neither optional port is wired', async () => {
     // Member of this depot (AUTHZ-A7); what this test is about is the two unwired ports.
     const profiles = {
-      findByCustomerId: async () => profile(MembershipTier.BASIC),
+      findByCustomerId: async () => profile(),
     } as unknown as ProfileRepository;
     const addressRepo = { listByCustomer: async () => [addr({})] } as unknown as AddressRepository;
     const orderCrm: OrderCrmPort = {
@@ -977,7 +968,7 @@ describe('DepotCrmService.getDepotDetail', () => {
   });
 
   it('carries the churn band forecast-service scored', async () => {
-    const d = await service(profile(MembershipTier.BASIC), [], new FakeIdentity(), {
+    const d = await service(profile(), [], new FakeIdentity(), {
       churn: 'HIGH',
     }).getDepotDetail('c1', 'depot-a');
     expect(d.profile.churnRisk).toBe('HIGH');
@@ -986,7 +977,7 @@ describe('DepotCrmService.getDepotDetail', () => {
   it('measures each address against the depot radius, to one decimal', async () => {
     // ~1.1 km north of the depot, well inside a 5 km radius.
     const d = await service(
-      profile(MembershipTier.BASIC),
+      profile(),
       [addr({ latitude: -6.89, longitude: 107.6 })],
       new FakeIdentity(),
       {
@@ -999,7 +990,7 @@ describe('DepotCrmService.getDepotDetail', () => {
 
   it('calls an address beyond the radius out of range', async () => {
     const d = await service(
-      profile(MembershipTier.BASIC),
+      profile(),
       [addr({ latitude: -7.4, longitude: 107.6 })],
       new FakeIdentity(),
       {
@@ -1022,7 +1013,7 @@ describe('DepotCrmService.getDepotDetail', () => {
       ],
     ];
     const ask = (latitude: number, longitude: number) =>
-      service(profile(MembershipTier.BASIC), [addr({ latitude, longitude })], new FakeIdentity(), {
+      service(profile(), [addr({ latitude, longitude })], new FakeIdentity(), {
         geo: { lat: -6.9, lng: 107.6, serviceRadiusKm: 1, serviceArea: area },
       }).getDepotDetail('c1', 'depot-a');
     expect((await ask(-6.9, 107.64)).addresses[0].inRadius).toBe(true);
@@ -1039,7 +1030,7 @@ describe('DepotCrmService.getDepotDetail', () => {
     ],
     ['the depot location could not be read', {}, null],
   ])('leaves distance and inRadius null when %s', async (_label, addrOver, geo) => {
-    const d = await service(profile(MembershipTier.BASIC), [addr(addrOver)], new FakeIdentity(), {
+    const d = await service(profile(), [addr(addrOver)], new FakeIdentity(), {
       geo: geo as never,
     }).getDepotDetail('c1', 'depot-a');
     expect(d.addresses[0].distanceKm).toBeNull();

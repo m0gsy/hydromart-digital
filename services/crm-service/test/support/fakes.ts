@@ -355,9 +355,9 @@ export class InMemoryNotificationRepository implements NotificationRepository {
   }
 }
 
-/** Directory fake: returns a seeded audience, filtered by tier/city. Throws if `down`. */
+/** Directory fake: returns a seeded audience, filtered by city. Throws if `down`. */
 export class FakeCustomerDirectory implements CustomerDirectoryPort {
-  recipients: (DirectoryRecipient & { tier?: string; city?: string })[] = [];
+  recipients: (DirectoryRecipient & { city?: string })[] = [];
   down = false;
   lastAuth?: string;
   asService = false;
@@ -375,7 +375,6 @@ export class FakeCustomerDirectory implements CustomerDirectoryPort {
   private match(filter: SegmentFilter): DirectoryRecipient[] {
     if (this.down) throw new SegmentUnavailableError('directory down');
     return this.recipients
-      .filter((r) => !filter.tier || r.tier === filter.tier)
       .filter((r) => !filter.city || r.city?.toLowerCase() === filter.city.toLowerCase())
       .map(({ customerId, name, phone }) => ({ customerId, name, phone }));
   }

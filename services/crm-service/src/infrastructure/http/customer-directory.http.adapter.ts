@@ -60,7 +60,6 @@ export class CustomerDirectoryHttpAdapter implements CustomerDirectoryPort {
       // ignores it would otherwise be asked for the same page forever).
       for (let pages = 0; pages < CustomerDirectoryHttpAdapter.MAX_PAGES; pages += 1) {
         const params = new URLSearchParams();
-        if (filter.tier) params.set('tier', filter.tier);
         if (filter.city) params.set('city', filter.city);
         if (after) params.set('after', after);
         const qs = params.toString();
