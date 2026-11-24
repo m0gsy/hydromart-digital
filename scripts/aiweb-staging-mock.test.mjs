@@ -290,7 +290,7 @@ test('n8n: machine token, then the franchise notification, idempotent, validated
     const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
     const claims = verifyToken(accessToken, await jwks(mock));
     assert.equal(claims.aud, 'hydromart-machine');
-    assert.deepEqual(claims.scopes, ['franchiseApplicationNotify']);
+    assert.deepEqual(claims.scopes, ['franchiseApplicationNotify', 'morningSummaryNotify']);
 
     const applicationId = randomUUID();
     const body = { eventId: `franchise.application_submitted:${applicationId}`, applicationId, city: 'Bekasi', province: 'Jawa Barat' };
@@ -313,6 +313,30 @@ test('n8n: machine token, then the franchise notification, idempotent, validated
     const human = await (await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE })).json();
     assert.equal((await note(human.accessToken, body)).status, 401);
     assert.equal((await note('nope', body)).status, 401);
+  } finally {
+    await mock.close();
+  }
+});
+
+test('n8n: the morning summary needs the machine scope and the Jakarta date of today', async () => {
+  const mock = await boot();
+  const send = (token, body) =>
+    json('POST', mock.base, '/crm/api/v1/notifications/external/morning-summary', body, token ? { authorization: `Bearer ${token}` } : {});
+  try {
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+    const ok = await send(accessToken, { eventId: `morning-summary:${date}`, date });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(await ok.json(), { date, recipients: 0, notified: 0, nothingWaiting: 0, whatsapp: 'pending' });
+    assert.equal((await send(accessToken, { eventId: 'morning-summary:2020-01-01', date: '2020-01-01' })).status, 400);
+    assert.equal((await send(accessToken, { eventId: `morning-summary:${date}`, date: '2020-01-01' })).status, 400);
+    assert.equal((await send(accessToken, { eventId: `morning-summary:${date}`, date, extra: 1 })).status, 400);
+    const p = pkce();
+    const { code } = await pick(mock, user('SUPER_ADMIN'), p);
+    const human = await (await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE })).json();
+    assert.equal((await send(human.accessToken, { eventId: `morning-summary:${date}`, date })).status, 401);
+    assert.equal((await send('nope', { eventId: `morning-summary:${date}`, date })).status, 401);
+    assert.equal((await send(null, { eventId: `morning-summary:${date}`, date })).status, 401);
   } finally {
     await mock.close();
   }
