@@ -787,8 +787,13 @@ export interface OrderRepository {
    * or VOIDED - those are already absent from revenue), by order date, half-open `[from, to)`.
    */
   refundedOnSales(depotId: string, range: { from: Date; to: Date }): Promise<number>;
-  /** Record the refunded amount on an order (payment-service coordination). Idempotent set. */
-  recordRefund(orderId: string, amount: number): Promise<void>;
+  /**
+   * Record the order's refunded TOTAL (payment-service sends the sum over all its refunded
+   * payments). An idempotent set that only ever raises the stored total, so a retried or
+   * out-of-order notice cannot lower it. Returns the total held before, for the caller to tell
+   * what is new.
+   */
+  recordRefund(orderId: string, amount: number): Promise<number>;
   /**
    * Order health for the insight dashboard (see {@link StatusSummaryRaw}). `depotIds`
    * narrows every read to a set of depots; omitted is the whole network, and an empty set

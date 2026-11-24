@@ -1468,8 +1468,23 @@ export class PaymentService {
     this.logger.log(`Payment ${payment.id} refunded by ${changedBy}`);
     // Still conditional on the row being the one we claimed; falls back to the claim's own
     // result (which already carries every field but the gateway's raw payload).
+    // `refundSettledAt` is stamped only here, after the gateway answered: the order's refunded
+    // total counts rows that carry it, so a claim handed back above never inflates the total.
+    // A database error here, after the money moved, must not turn a settled refund into a 500
+    // (a retry would meet PaymentNotRefundableError). The unmarked row is still counted by the
+    // order total once it is older than the in-flight window.
     const updated =
-      (await this.payments.updateIfStatus(payment.id, [PaymentStatus.REFUNDED], patch)) ?? claimed;
+      (await this.payments
+        .updateIfStatus(payment.id, [PaymentStatus.REFUNDED], {
+          ...patch,
+          refundSettledAt: new Date(),
+        })
+        .catch((error: Error) => {
+          this.logger.error(
+            `Refund of payment ${payment.id} moved money but the settled stamp was not written: ${error.message}`,
+          );
+          return null;
+        })) ?? claimed;
     // H-29: recorded AFTER the money moved, so the trail never claims a refund that the
     // gateway refused. `approval` distinguishes an HQ-approved settlement from one under
     // the threshold that needed nobody — that difference is the whole point of the queue.
@@ -1481,7 +1496,21 @@ export class PaymentService {
     });
     // Record the refund on the order for per-depot reconciliation. Fail-open: the refund
     // is already settled, so a coordination hiccup must never surface as a payment error.
-    await this.orderCoordination.notifyRefunded(payment.orderId, amount);
+    // HD-6 A3: the ORDER'S refunded total, not just this payment's part. The order sets the value
+    // it is given, so sending a lone amount let a second part-refund overwrite the first; the sum
+    // over the order's refunded payments is the same on a retry, so it cannot double either.
+    // The total is read inside the guard too: a database blip after the money moved must not turn
+    // a settled refund into an error (a retry would then meet PaymentNotRefundableError).
+    try {
+      await this.orderCoordination.notifyRefunded(
+        payment.orderId,
+        await this.payments.refundedTotalForOrder(payment.orderId),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Refund of payment ${payment.id} settled but the order was not told: ${(error as Error).message}`,
+      );
+    }
     return updated;
   }
 

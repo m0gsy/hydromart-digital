@@ -134,6 +134,58 @@ describe('PaymentService (branch coverage)', () => {
     expect(orders.refunded).toEqual([]);
   });
 
+  it('HD-6 A3: the order total counts only SETTLED refunds, never a claim that is handed back', async () => {
+    const payment = await initiate(PaymentMethod.VA, 80_000);
+    await service.confirm(payment.id, 'staff');
+    // A sibling payment of the same order: claimed (REFUNDED) but the gateway has not answered.
+    repo.rows.push({
+      ...repo.rows[0],
+      id: 'sibling',
+      status: PaymentStatus.REFUNDED,
+      refundedAmount: 9_000,
+    });
+    await service.refund(payment.id, 'finance', 'x', undefined, 20_000);
+    expect(orders.refunded.at(-1)).toEqual({ orderId: payment.orderId, amount: 20_000 });
+    // After a gateway failure the claim is handed back to PAID: it never counts.
+    const again = await initiate(PaymentMethod.VA, 50_000);
+    await service.confirm(again.id, 'staff');
+    gateway.throwOnRefund = true;
+    await expect(service.refund(again.id, 'finance')).rejects.toBeInstanceOf(
+      GatewayUnavailableError,
+    );
+    expect(await repo.refundedTotalForOrder(again.orderId)).toBe(0);
+  });
+
+  it('HD-6 A3: a failing order notice never turns a settled refund into an error', async () => {
+    const payment = await initiate(PaymentMethod.VA, 80_000);
+    await service.confirm(payment.id, 'staff');
+    jest.spyOn(repo, 'refundedTotalForOrder').mockRejectedValueOnce(new Error('db blip'));
+    const refunded = await service.refund(payment.id, 'finance');
+    expect(refunded.status).toBe(PaymentStatus.REFUNDED);
+    expect(orders.refunded).toEqual([]);
+    jest.spyOn(orders, 'notifyRefunded').mockRejectedValueOnce(new Error('order down'));
+    const second = await initiate(PaymentMethod.VA, 40_000);
+    await service.confirm(second.id, 'staff');
+    await expect(service.refund(second.id, 'finance')).resolves.toMatchObject({
+      status: PaymentStatus.REFUNDED,
+    });
+  });
+
+  it('HD-6 A3: a failing settled-stamp write after the money moved still returns the refund', async () => {
+    const payment = await initiate(PaymentMethod.VA, 80_000);
+    await service.confirm(payment.id, 'staff');
+    const real = repo.updateIfStatus.bind(repo);
+    let calls = 0;
+    jest.spyOn(repo, 'updateIfStatus').mockImplementation(async (...args) => {
+      calls += 1;
+      if (calls === 2) throw new Error('db down');
+      return real(...args);
+    });
+    const refunded = await service.refund(payment.id, 'finance');
+    expect(refunded.status).toBe(PaymentStatus.REFUNDED);
+    expect(orders.refunded).toHaveLength(1);
+  });
+
   it('rejects rejectRefund when the refund is not pending approval', async () => {
     const payment = await initiate(PaymentMethod.VA, 80_000);
     await service.confirm(payment.id, 'staff');

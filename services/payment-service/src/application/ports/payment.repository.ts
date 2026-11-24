@@ -57,6 +57,7 @@ export interface PaymentStatusPatch {
   paidAt?: Date | null;
   failedAt?: Date | null;
   refundedAt?: Date | null;
+  refundSettledAt?: Date | null;
   refundReason?: string | null;
   refundRequestedBy?: string | null;
   refundDueAt?: Date | null;
@@ -230,6 +231,12 @@ export interface PaymentRepository {
    * leave out refunds of orders that no longer count as sales (cancelled/voided orders are
    * already absent from revenue; subtracting their refund again counts it twice).
    */
+  /**
+   * HD-6 A3: everything refunded on ONE order, summed over its REFUNDED payments (an order can
+   * carry several: a part-refund, then a re-take). The order records this total, so the notice is
+   * a SET of the running sum and a retried webhook cannot double it.
+   */
+  refundedTotalForOrder(orderId: string): Promise<number>;
   refundedByOrder(
     depotIds: readonly string[],
     from: Date,

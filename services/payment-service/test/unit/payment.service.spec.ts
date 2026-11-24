@@ -358,6 +358,24 @@ describe('PaymentService', () => {
       expect(orders.refunded).toEqual([{ orderId: payment.orderId, amount: 20000 }]);
     });
 
+    it('HD-6 A3: a part-refund, a second payment, and a second part-refund add up on the order', async () => {
+      const first = await initiate(PaymentMethod.VA);
+      await service.confirm(first.id, 'staff');
+      await service.refund(first.id, 'finance', 'overcharged', undefined, 20000);
+      // The rest of the first payment still counts as kept money.
+      expect(await service.revenueByMethod({})).toEqual([
+        expect.objectContaining({ method: PaymentMethod.VA, amount: 25000, count: 1 }),
+      ]);
+      const second = await service.initiate(first.customerId, {
+        orderId: first.orderId,
+        method: PaymentMethod.VA,
+        amount: 10000,
+      });
+      await service.confirm(second.id, 'staff');
+      await service.refund(second.id, 'finance', 'again', undefined, 4000);
+      expect(orders.refunded.map((r) => r.amount)).toEqual([20000, 24000]);
+    });
+
     it('no amount still refunds the whole payment (unchanged)', async () => {
       const payment = await initiate(PaymentMethod.VA);
       await service.confirm(payment.id, 'staff');

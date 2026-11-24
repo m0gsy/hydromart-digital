@@ -4761,6 +4761,17 @@ describe('OrderService', () => {
       expect(call!.vars.amount).toContain('15.000');
     });
 
+    it('adds refunds up: the second part-refund tells only the new part, a repeat says nothing', async () => {
+      const order = await place();
+      await service.recordRefund(order.id, 15000);
+      await service.recordRefund(order.id, 20000);
+      await service.recordRefund(order.id, 20000);
+      const calls = notification.calls.filter((c) => c.event === 'REFUND_PROCESSED');
+      expect(calls).toHaveLength(2);
+      expect(calls[0]!.vars.amount).toContain('15.000');
+      expect(calls[1]!.vars.amount).toContain('5.000');
+    });
+
     it('tells the customer a payment failed, with the reason in words', async () => {
       const order = await place();
       await service.notifyPaymentEvent(order.id, 'FAILED', 20000, 'EXPIRED');

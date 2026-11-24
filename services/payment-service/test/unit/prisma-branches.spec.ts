@@ -35,25 +35,18 @@ describe('PaymentPrismaRepository aggregate range branches', () => {
     );
   });
 
-  it('aggregateRevenueByMethod: to only → lte, no gte', async () => {
-    const to = new Date('2026-02-28');
-    await repo.aggregateRevenueByMethod({ to });
-    expect(model.groupBy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { status: PaymentStatus.PAID, createdAt: { lte: to } },
-      }),
+  it('aggregateRevenueByMethod: bounds only what is given, and coerces null sums', async () => {
+    const raw = jest.fn().mockResolvedValue([{ method: 'QRIS', amount: null, count: BigInt(2) }]);
+    const r = new PaymentPrismaRepository({ $queryRaw: raw } as unknown as PrismaService);
+    const out = await r.aggregateRevenueByMethod({ to: new Date('2026-02-28') });
+    const sql = (raw.mock.calls[0]![0] as { strings: string[] }).strings.join('?');
+    expect(sql).toContain('<= ');
+    expect(sql).not.toContain('>= ');
+    expect(out).toEqual([{ method: PaymentMethod.QRIS, amount: 0, count: 2 }]);
+    await r.aggregateRevenueByMethod({});
+    expect((raw.mock.calls[1]![0] as { values: unknown[] }).values).not.toContainEqual(
+      expect.any(Date),
     );
-  });
-
-  it('aggregateRevenueByMethod: empty range omits createdAt and coerces null sums', async () => {
-    model.groupBy.mockResolvedValue([
-      { method: 'QRIS', _sum: { amount: null }, _count: { _all: 0 } },
-    ]);
-    const out = await repo.aggregateRevenueByMethod({});
-    expect(model.groupBy).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { status: PaymentStatus.PAID } }),
-    );
-    expect(out).toEqual([{ method: PaymentMethod.QRIS, amount: 0, count: 0 }]);
   });
 });
 

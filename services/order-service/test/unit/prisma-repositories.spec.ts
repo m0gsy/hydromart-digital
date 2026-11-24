@@ -2025,12 +2025,16 @@ describe('OrderPrismaRepository', () => {
   });
 
   it('records a refund amount on an order', async () => {
-    order.update.mockResolvedValue({});
-    await repo.recordRefund('ord-1', 20000);
-    expect(order.update).toHaveBeenCalledWith({
-      where: { id: 'ord-1' },
-      data: { refundedAmount: 20000 },
-    });
+    // One statement, no separate read: the previous total comes back from the UPDATE itself.
+    $queryRaw.mockResolvedValueOnce([{ before: 5000 }]);
+    await expect(repo.recordRefund('ord-1', 20000)).resolves.toBe(5000);
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect(order.findUnique).not.toHaveBeenCalled();
+    $queryRaw.mockResolvedValueOnce([{ before: null }]);
+    await expect(repo.recordRefund('ord-1', 20000)).resolves.toBe(0);
+    // Total did not rise: no row comes back, and "nothing new" is reported.
+    $queryRaw.mockResolvedValueOnce([]);
+    await expect(repo.recordRefund('ord-1', 20000)).resolves.toBe(20000);
   });
 
   it('computes average rating per depot from raw rows', async () => {
