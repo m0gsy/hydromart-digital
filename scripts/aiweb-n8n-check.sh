@@ -92,13 +92,13 @@ fi
 #    `roleSlug` (global:owner, global:admin, ...). Prints "<count> <invites among them> <roles>".
 read -r -d '' NO_2FA_SQL <<'SQL' || true
 SELECT count(*) || ' ' || count(*) FILTER (WHERE password IS NULL) || ' '
-       || coalesce(string_agg("roleSlug", ',' ORDER BY "roleSlug"), '')
+       || coalesce(string_agg(replace("roleSlug", ' ', '_'), ',' ORDER BY "roleSlug"), '')
   FROM "user"
  WHERE kind = 'person' AND NOT disabled AND NOT "mfaEnabled" AND email IS NOT NULL
 SQL
 db="$(docker ps -q --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=db 2>/dev/null | head -1 || true)"
 # psql's stderr apart from its answer, so a warning on a good run is not read as the answer.
-errf="$(mktemp)"
+errf="$(mktemp)" || errf=/dev/null
 if [ -z "$db" ]; then
   say "!! no database is running in project $project, so no 2FA check ran"
   alert_once aiweb-n8n-2fa "the AI web's database is not running on this box ($project): no n8n 2FA check ran; the watchdog says why it stopped"
