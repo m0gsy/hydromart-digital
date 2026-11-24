@@ -1,4 +1,4 @@
-import { loadDepotOverrides } from '@hydromart/access';
+import { loadCustomRoles, loadDepotOverrides, loadRoleSettings } from '@hydromart/access';
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
 import { DashboardSourcesPort } from '../../src/application/ports/dashboard-sources.port';
@@ -50,7 +50,11 @@ function make(fail: PendingQueueKey[] = [], network: string[] | null | 'THROW' =
 const keys = (r: { queues: { key: string }[] }) => r.queues.map((q) => q.key);
 
 describe('PendingApprovalsService', () => {
-  afterEach(() => loadDepotOverrides([]));
+  afterEach(() => {
+    loadDepotOverrides([]);
+    loadCustomRoles([]);
+    loadRoleSettings([]);
+  });
 
   it('answers exactly the queues the role decides, in the fixed order, with where to act', async () => {
     const { svc } = make();
@@ -179,6 +183,31 @@ describe('PendingApprovalsService', () => {
       'franchiseApplications',
     ]);
     expect(listed.calls).toBe(0);
+  });
+
+  it('counts nothing for a custom role that is archived or unknown, even with a depot GRANT', async () => {
+    loadDepotOverrides([{ capability: 'approvals', roleKey: 'C_GHOST', depotId: D2, effect: 'GRANT' }]);
+    const { svc, asked, listed } = make();
+    await expect(svc.forCaller(user('C_GHOST'))).resolves.toEqual({ queues: [] });
+    expect(asked).toEqual([]);
+    expect(listed.calls).toBe(0);
+  });
+
+  it('opens a queue at the GRANTed depot for a live custom role', async () => {
+    loadCustomRoles([{ key: 'C_AUDIT', name: 'Audit', scope: 'GLOBAL' }]);
+    loadDepotOverrides([{ capability: 'approvals', roleKey: 'C_AUDIT', depotId: D2, effect: 'GRANT' }]);
+    const { svc, asked } = make();
+    const res = await svc.forCaller(user('C_AUDIT'));
+    expect(keys(res)).toEqual(['approvals']);
+    expect(asked[0][1].depotIds).toEqual([D2]);
+  });
+
+  it('leaves everything out for a disabled role that still has a depot GRANT', async () => {
+    loadRoleSettings([{ roleKey: 'HEAD_OFFICE', disabled: true }]);
+    loadDepotOverrides([{ capability: 'approvals', roleKey: 'HEAD_OFFICE', depotId: D2, effect: 'GRANT' }]);
+    const { svc, asked } = make();
+    await expect(svc.forCaller(user(Role.HEAD_OFFICE))).resolves.toEqual({ queues: [] });
+    expect(asked).toEqual([]);
   });
 
   it.each<[string, string[] | null | 'THROW']>([

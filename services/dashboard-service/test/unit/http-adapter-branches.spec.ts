@@ -157,6 +157,25 @@ describe('DashboardSourcesHttpAdapter', () => {
     expect(await adapter.allDepots('t')).toBeNull();
   });
 
+  it('allDepots reads every page, and answers null when any later page fails', async () => {
+    const adapter = makeAdapter();
+    fetchMock
+      .mockResolvedValueOnce(okResponse({ items: [{ id: 'd1' }], totalPages: 3 }))
+      .mockResolvedValueOnce(okResponse({ items: [{ id: 'd2' }], totalPages: 3 }))
+      .mockResolvedValueOnce(okResponse({ items: [{ id: 'd3' }], totalPages: 3 }));
+    expect(await adapter.allDepots('t')).toEqual([{ id: 'd1' }, { id: 'd2' }, { id: 'd3' }]);
+    expect(fetchMock.mock.calls.slice(-3).map((c) => String(c[0]).split('?')[1])).toEqual([
+      'limit=100&page=1',
+      'limit=100&page=2',
+      'limit=100&page=3',
+    ]);
+
+    fetchMock
+      .mockResolvedValueOnce(okResponse({ items: [{ id: 'd1' }], totalPages: 2 }))
+      .mockResolvedValueOnce(errResponse(502));
+    expect(await adapter.allDepots('t')).toBeNull();
+  });
+
   it('slaByDepot adds thresholdMinutes when admin wired, and no query when not', async () => {
     const withAdmin = makeAdapter({ adminServiceUrl: 'http://admin' });
     fetchMock

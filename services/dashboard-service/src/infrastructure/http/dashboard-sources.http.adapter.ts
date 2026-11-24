@@ -184,13 +184,25 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
     return out;
   }
 
-  // ponytail: single page of 100 depots — the whole network today. Add pagination
-  // to allDepots (and the roll-up fan-out) when the depot count outgrows one page.
+  // Pages through depots/manage (limit 100 is its maximum, page its offset): a roll-up, and the
+  // pending-approvals depot walk, must not stop at the first hundred. Any page failing is null,
+  // never a partial list.
+  // ponytail: pages are read one after another; fetch them in parallel if the network ever
+  // runs to a few hundred depots.
   async allDepots(_token: string): Promise<NetworkDepot[] | null> {
-    const page = await this.getInternal<{ items: NetworkDepot[] }>(
-      `${this.config.depotServiceUrl}/api/v1/depots/manage?limit=100`,
-    );
-    return page ? page.items : null;
+    const url = (page: number) =>
+      `${this.config.depotServiceUrl}/api/v1/depots/manage?limit=100&page=${page}`;
+    const first = await this.getInternal<{ items: NetworkDepot[]; totalPages?: number }>(url(1));
+    if (!first) return null;
+    const items = [...first.items];
+    // The service refuses pages past 1000; a list that long is not a depot network.
+    const pages = Math.min(first.totalPages ?? 1, 1000);
+    for (let page = 2; page <= pages; page += 1) {
+      const next = await this.getInternal<{ items: NetworkDepot[] }>(url(page));
+      if (!next) return null;
+      items.push(...next.items);
+    }
+    return items;
   }
 
   async slaByDepot(range: DateRange, _token: string): Promise<DepotSlaByDepot | null> {

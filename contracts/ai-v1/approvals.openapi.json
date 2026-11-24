@@ -19,7 +19,7 @@
         "priceOverrideDecide"
       ],
       "depotBound": true,
-      "waiting": "Price changes a depot proposed that are still PENDING, at the depots the person decides them (a depot where their role is denied the capability is left out). The person's own proposal is counted too: they may still reject it (approving their own above the depot's auto-pass limit is refused). oldestAt: when the proposal was made."
+      "waiting": "Price changes a depot proposed that are still PENDING, at the depots the person decides them (a depot where their role is denied the capability is left out). The person's own proposal is counted too: they may still reject it (approving their own above the depot's auto-pass limit is refused). oldestAt: when the proposal was made. A depot-level DENY removes that depot from this count, which is stricter than the decide route: approving or rejecting a proposal does not apply depot overrides (only the person's depot scope), so a denied person could still act on it."
     },
     {
       "key": "refunds",
@@ -39,7 +39,7 @@
         "expenseApprove"
       ],
       "depotBound": true,
-      "waiting": "Courier expense claims PENDING review at the depots the person decides them (a claim with no depot only for a network-wide reviewer). Every amount counts for a MANAGER too: above the manager's approval ceiling they cannot approve, but they can still reject, so it waits for their decision (and for finance's). oldestAt: when the claim was filed."
+      "waiting": "Courier expense claims PENDING review at the depots the person decides them (a claim with no depot only for a network-wide reviewer). Every amount counts for a MANAGER too: above the manager's approval ceiling they cannot approve, but they can still reject, so it waits for their decision (and for finance's). oldestAt: when the claim was filed. A claim with no depot is counted only while the person is asked network-wide; for a person whose depots an administrator override narrowed, it is not counted."
     },
     {
       "key": "settlements",
@@ -60,7 +60,7 @@
         "hrAdmin"
       ],
       "depotBound": true,
-      "waiting": "Leave applications at each stage the person may decide, at the depots they decide them: stage 1 (PENDING_MANAGER) for a holder of leaveApprove, stage 2 (PENDING_HR) for a holder of hrAdmin; HR holds both, so both count for HR, while head office (hrAdmin only) counts stage 2 only. Never their own application, and at stage 2 never one they signed at stage 1. oldestAt: when the application was filed."
+      "waiting": "Leave applications at each stage the person may decide, at the depots they decide them: stage 1 (PENDING_MANAGER) for a holder of leaveApprove, stage 2 (PENDING_HR) for a holder of hrAdmin; HR holds both, so both count for HR, while head office (hrAdmin only) counts stage 2 only. Never their own application, and at stage 2 never one they signed at stage 1. oldestAt: when the application was filed. A leave application with no depot is counted only while the person is asked network-wide; for a person whose depots an administrator override narrowed, it is not counted."
     },
     {
       "key": "kasbon",
@@ -90,14 +90,14 @@
         "approvals"
       ],
       "depotBound": true,
-      "waiting": "Depot approval items above the depot's auto-pass limit (stock-count losses, deposit refunds, COD and gallon variances), PENDING or HELD, at the depots the person decides them. Never one the person raised themselves: nobody decides what they raised. oldestAt: when the item was raised."
+      "waiting": "Depot approval items above the depot's auto-pass limit (stock-count losses, deposit refunds, COD and gallon variances), PENDING or HELD, at the depots the person decides them. Never one the person raised themselves: nobody decides what they raised. oldestAt: when the item was raised. A depot-level DENY removes that depot from this count, which is stricter than the decide route: deciding an approval item does not apply depot overrides (only the person's depot scope), so a denied person could still act on it."
     }
   ],
   "paths": {
     "/dashboard/api/v1/dashboard/pending-approvals": {
       "get": {
         "summary": "How many items wait for my decision, per queue I decide.",
-        "description": "The queues the person decides, in the fixed order of x-hydromart-queues. Each has key, count, oldestAt (the UTC time the oldest counted item was raised; null when none waits), href (the hydromart-digital web path where the person acts on it, to be opened on the hydromart-digital web origin) and, only when the queue could not be read, error.\n\nThe number means items waiting for THIS person's decision, not the rows on their screen, so it can be lower than the screen's list: it leaves out what they raised themselves, what only a higher approver can release, and the depots where their role is denied the decision. x-hydromart-queues gives the rule for each queue (waiting).",
+        "description": "The queues the person decides, in the fixed order of x-hydromart-queues. Each has key, count, oldestAt (the UTC time the oldest counted item was raised; null when none waits), href (the hydromart-digital web path where the person acts on it, to be opened on the hydromart-digital web origin) and, only when the queue could not be read, error.\n\nThe number means items waiting for THIS person's decision, not the rows on their screen, so it can be lower than the screen's list: it leaves out what they raised themselves, what only a higher approver can release, and the depots where their role is denied the decision. A depot-level DENY can make it stricter than the decide route of two queues (price overrides, approvals). x-hydromart-queues gives the rule for each queue (waiting).",
         "security": [
           {
             "aiToken": []

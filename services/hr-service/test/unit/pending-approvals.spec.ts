@@ -109,6 +109,28 @@ describe('Pending approvals, internal (HTTP)', () => {
     expect(again.body).toEqual({ count: 1, oldestAt: earlier.toISOString() });
   });
 
+  it('counts each item once, and never a stage-2 item the same person signed at stage 1', async () => {
+    const other = '44444444-4444-4444-8444-444444444444';
+    const rows = [
+      { status: 'PENDING_MANAGER', managerDecidedBy: null, at: OLDEST },
+      { status: 'PENDING_HR', managerDecidedBy: ACTOR, at: new Date('2026-10-01T00:00:00.000Z') },
+      { status: 'PENDING_HR', managerDecidedBy: other, at: new Date('2026-10-05T00:00:00.000Z') },
+    ];
+    leave.mockImplementation(async (f) => {
+      const hit = rows.filter(
+        (r) => r.status === f.status && (f.notManagerDecidedBy === null || r.managerDecidedBy !== f.notManagerDecidedBy),
+      );
+      return { count: hit.length, oldestAt: hit.map((r) => r.at).sort((a, b) => a.getTime() - b.getTime())[0] ?? null };
+    });
+    try {
+      const res = await get(`leave?actorId=${ACTOR}&role=HR`).expect(200);
+      // Three rows, one signed by this person at stage 1: two wait for them, each counted once.
+      expect(res.body).toEqual({ count: 2, oldestAt: '2026-10-05T00:00:00.000Z' });
+    } finally {
+      leave.mockImplementation(async () => ({ count: 2, oldestAt: OLDEST }));
+    }
+  });
+
   it('asks nothing for a stage the person does not hold, or holds only where a depot is denied', async () => {
     leave.mockClear();
     const none = await get(`leave?actorId=${ACTOR}&role=KEPALA_DEPOT`).expect(200);
