@@ -14,8 +14,8 @@
 # applied stays applied, so every AI web migration must be expand/contract (the release before it
 # must still run on the new schema).
 #
-# Pinned now: hydromart-ai 4832806 on its main (AI-5, #8: the event gate, hd_events, and n8n with
-# its workflows): the app, its migration job and the n8n image, all three from that one commit.
+# Pinned now: hydromart-ai 966464f on its main (AI-5 #8, plus #9/#10: n8n keeps a failed run about
+# 72 hours for the editor): the app, its migration job and the n8n image, all three from that commit.
 #
 # Isolation, held by scripts/check-aiweb-compose.mjs in CI and proved on the box after every
 # deploy by the probe in scripts/aiweb-deploy.sh:
@@ -77,7 +77,7 @@ services:
   # One shot, before every app start: `prisma migrate deploy` as ai_owner, the role that owns
   # database ai. A profile keeps it out of `up`; scripts/aiweb-deploy.sh runs it with `run --rm`.
   migrate:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:1372f825def876349c8c5f85d81d033780231d6a727327ecb73c269bb718ca6b
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:cd00a3d71cb28e354a076159bd40b360182b3514fce8f3e13ad4c6f1f8c197d5
     profiles: ["migrate"]
     logging: *logging
     mem_limit: 512m
@@ -92,7 +92,7 @@ services:
       db: { condition: service_healthy }
 
   aiweb:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:15bb6b7d91b1ca4b92debbb9d19fff77e7b0bfa1ffe706c7c2b59cd248c9a972
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:9be3190ec3bdb6dd2afc915a958f6be631a993e92d7c5a83e2b2973b47155517
     restart: unless-stopped
     logging: *logging
     mem_limit: 512m
@@ -144,7 +144,7 @@ services:
   # only its database, its encryption key and the editor's address. Every hardening setting is
   # the image's: check-aiweb-compose.mjs refuses any other environment key here.
   n8n:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:d8b2ea0968ed8ce5ee2636116df705c6d1d31c889a616f38b99b31961695d304
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:3b5eaa33d1483727f607510e3ab06e03dc8e09217e483c036baa9ff38572d4ce
     restart: unless-stopped
     logging: *logging
     mem_limit: 1g
@@ -189,7 +189,7 @@ services:
   # n8n/bin/setup.mjs puts what git holds into n8n's database, the credentials from the three
   # N8N_SETUP_* values below, then the workflows, published. A profile keeps it out of `up`.
   n8n-setup:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:d8b2ea0968ed8ce5ee2636116df705c6d1d31c889a616f38b99b31961695d304
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:3b5eaa33d1483727f607510e3ab06e03dc8e09217e483c036baa9ff38572d4ce
     profiles: ["n8n-setup"]
     logging: *logging
     mem_limit: 1g
