@@ -123,14 +123,17 @@ describe('DailyClosePrismaRepository', () => {
   });
 
   it('lists a range of closed days oldest first, mapping each business date', async () => {
-    const from = new Date('2026-08-01T00:00:00.000Z');
-    const to = new Date('2026-09-01T00:00:00.000Z');
     depotDailyClose.findMany.mockResolvedValue([row]);
-    await expect(repo.listForDepotRange('d1', from, to)).resolves.toEqual([
+    await expect(repo.listForDepotRange('d1', '2026-08-01', '2026-09-01')).resolves.toEqual([
       expect.objectContaining({ businessDate: '2026-08-04', codExpectedIdr: 520_000 }),
     ]);
     expect(depotDailyClose.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'd1', businessDate: { gte: from, lt: to } },
+      // Day keys as DATEs, and only days still closed (a reopened day is open again).
+      where: {
+        depotId: 'd1',
+        businessDate: { gte: new Date('2026-08-01'), lt: new Date('2026-09-01') },
+        reopenedAt: null,
+      },
       orderBy: { businessDate: 'asc' },
     });
   });

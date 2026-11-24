@@ -69,7 +69,7 @@ const TANK_HISTORY_DAYS = 7;
  * sales account for, and raises one ops alert per day when the gap is too wide.
  *
  * The sales side deliberately reuses report.service's own `gallonQty`/`isDelivered`
- * and the same UTC day window as `depotDaily`, so the two screens can never disagree
+ * and the same WIB day window as `depotDaily`, so the two screens can never disagree
  * about what "today" or "a galon" means.
  */
 @Injectable()
@@ -93,6 +93,17 @@ export class MeterService {
     @Inject(ORDER_TOKENS.AccountNames)
     private readonly accountNames?: AccountNamesPort,
   ) {}
+
+  /** Today's WIB calendar day (the default end of the history window). */
+  today(now: Date = new Date()): string {
+    return localDayKey(now, this.config.businessTimeZone);
+  }
+
+  /** The WIB day key `n` days before the day key `day`. */
+  dayKeyBefore(day: string, n: number): string {
+    const tz = this.config.businessTimeZone;
+    return localDayKey(addLocalDays(dayStartUtc(day, tz), -n, tz), tz);
+  }
 
   /**
    * The METER_READINGS scheduled report: per depot with a reading in the window, built from
@@ -328,7 +339,7 @@ export class MeterService {
   }
 
   /**
-   * The sales side of one UTC day, from the same rows `depotDaily` reads.
+   * The sales side of one WIB day, from the same rows `depotDaily` reads.
    * CANCELLED orders are excluded there and here.
    */
   private async soldTotals(depotId: string, date: string): Promise<SoldTotals> {

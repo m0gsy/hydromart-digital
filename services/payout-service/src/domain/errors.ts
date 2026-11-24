@@ -180,3 +180,12 @@ export class InvalidCommissionSchemeError extends DomainError {
     super(message);
   }
 }
+
+/** A date-only effectiveDate that is not a real calendar day ("2026-02-30" would roll to 2 March). */
+export class InvalidEffectiveDateError extends DomainError {
+  readonly code = 'PAYOUT_INVALID_EFFECTIVE_DATE';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(value: string) {
+    super(`effectiveDate ${value} is not a real calendar day`);
+  }
+}

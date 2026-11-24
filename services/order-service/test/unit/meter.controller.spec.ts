@@ -12,6 +12,8 @@ describe('MeterController', () => {
     save: jest.fn().mockResolvedValue({ ok: true }),
     reconcile: jest.fn().mockResolvedValue({ ok: true }),
     history: jest.fn().mockResolvedValue([]),
+    today: jest.fn().mockReturnValue('2026-08-01'),
+    dayKeyBefore: jest.fn().mockReturnValue('2026-07-03'),
   };
   const controller = new MeterController(service as unknown as MeterService);
 
@@ -56,11 +58,9 @@ describe('MeterController', () => {
   describe('history', () => {
     it('defaults to the trailing 30 days when the window is open', async () => {
       await controller.history(DEPOT, {});
-      const [, from, to] = service.history.mock.calls[0];
-      expect(from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      expect(to).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-      const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
-      expect(days).toBe(29);
+      // The WIB day keys come from the service (WIB), not from toISOString() of now.
+      expect(service.dayKeyBefore).toHaveBeenCalledWith('2026-08-01', 29);
+      expect(service.history).toHaveBeenCalledWith(DEPOT, '2026-07-03', '2026-08-01');
     });
 
     it('accepts an explicit window and trims an ISO timestamp to its day', async () => {

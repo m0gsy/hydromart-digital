@@ -146,7 +146,7 @@ export class LoyaltyService {
    * Depot-scoped loyalty rollup. Loyalty rows key only on customerId, so we ask
    * customer-service which customers belong to the depot, then aggregate over them.
    * Directory unreachable/empty → zeroed summary (no aggregate queries). `redeemedThisMonth`
-   * is measured from the start of the current UTC month.
+   * is measured from the start of the current WIB month.
    */
   async depotSummary(depotId: string, now: Date = new Date()): Promise<DepotLoyaltySummary> {
     const ids = await this.customers.customerIdsForDepot(depotId);

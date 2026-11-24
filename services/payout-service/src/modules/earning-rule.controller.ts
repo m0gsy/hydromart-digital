@@ -22,6 +22,8 @@ import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 import { CourierPayoutService } from '../application/services/courier-payout.service';
 import { CourierEarningRuleRecord } from '../application/ports/courier-ledger.repository';
 import { ApplyEarningRuleDto } from './dto/earning-rule.dto';
+import { PayoutConfigService } from '../config/payout-config.service';
+import { effectiveFrom } from '../domain/effective-date';
 import { CourierEarningRuleResponseDto } from './dto/responses.generated.dto';
 
 /**
@@ -34,7 +36,10 @@ import { CourierEarningRuleResponseDto } from './dto/responses.generated.dto';
 @Can('earningRules')
 @Controller({ path: 'courier-earning-rules', version: '1' })
 export class EarningRuleController {
-  constructor(private readonly payout: CourierPayoutService) {}
+  constructor(
+    private readonly payout: CourierPayoutService,
+    private readonly config: PayoutConfigService,
+  ) {}
 
   @ApiOkResponse({ type: CourierEarningRuleResponseDto, isArray: true })
   @Get()
@@ -61,7 +66,7 @@ export class EarningRuleController {
       peakEndHour: dto.peakEndHour,
       monthlyTarget: dto.monthlyTarget ?? 0,
       tiers: dto.tiers ?? [],
-      effectiveDate: new Date(dto.effectiveDate),
+      effectiveDate: effectiveFrom(dto.effectiveDate, this.config.businessTimeZone),
     });
   }
 

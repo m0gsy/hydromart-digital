@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { localHour, localMonthKey, startOfLocalMonth } from '@hydromart/platform';
+import { localHour, addLocalMonths, localMonthKey, startOfLocalMonth } from '@hydromart/platform';
 
 import { computeEarning, tiersReached, tiersValid } from '../../domain/courier-earning';
 import {
@@ -141,7 +141,13 @@ export class CourierPayoutService {
     // A delivery with no depot on it cannot be counted per depot; it falls back to the
     // courier-wide tally, which is what the whole ladder used to be.
     const scope = event.depotId ?? undefined;
-    const delivered = await this.ledger.countByType(event.courierId, 'EARNING', monthStart, scope);
+    const delivered = await this.ledger.countByType(
+      event.courierId,
+      'EARNING',
+      monthStart,
+      scope,
+      addLocalMonths(monthStart, 1, tz),
+    );
     const month = localMonthKey(deliveredAt, tz);
     for (const tier of tiersReached(rule.tiers, delivered)) {
       // NOT keyed by rule id. `applyEarningRule` appends a row rather than editing one, so the

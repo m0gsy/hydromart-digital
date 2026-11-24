@@ -1775,6 +1775,8 @@ export const hrFix = {
     monthLabel: 'Bulan',
     netCashFlow: 'Arus kas bersih',
     governance: 'Governance',
+    governanceNote:
+      'Hari yang dibuka kembali dan belum ditutup lagi tidak dihitung sebagai hari ditutup, dan selisih setorannya tidak ikut.',
     teamCustomers: 'Tim & pelanggan',
     managerOnly: 'Akses terbatas',
     needsCostData: 'butuh data biaya',

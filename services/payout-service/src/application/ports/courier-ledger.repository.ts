@@ -85,12 +85,16 @@ export interface CourierLedgerRepository {
    * courier worked. 30 deliveries at depot A plus 30 at depot B fired depot B's 50-delivery rung
    * on the 50th COMBINED delivery — depot B paying for depot A's work. Omit it for a
    * courier-wide figure (the balance and the month's earnings are personal, not per depot).
+   *
+   * `until` is an exclusive upper bound. The incentive tally passes the start of the NEXT month:
+   * without it a late event for a past month also counted every later month's deliveries.
    */
   countByType(
     courierId: string,
     type: CourierLedgerEntryType,
     since: Date,
     depotId?: string,
+    until?: Date,
   ): Promise<number>;
   listForCourier(
     courierId: string,

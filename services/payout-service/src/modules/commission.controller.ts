@@ -4,6 +4,8 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
 
 import { CommissionService } from '../application/services/commission.service';
+import { PayoutConfigService } from '../config/payout-config.service';
+import { effectiveFrom } from '../domain/effective-date';
 import { CommissionSchemeRecord } from '../domain/commission';
 import { ApplySchemeDto } from './dto/commission.dto';
 import { CommissionSchemeResponseDto } from './dto/responses.generated.dto';
@@ -19,7 +21,10 @@ import { CommissionSchemeResponseDto } from './dto/responses.generated.dto';
 @Can('commissionRuns')
 @Controller({ path: 'commission', version: '1' })
 export class CommissionController {
-  constructor(private readonly commission: CommissionService) {}
+  constructor(
+    private readonly commission: CommissionService,
+    private readonly config: PayoutConfigService,
+  ) {}
 
   // Reading the agreed cut is not applying one. /hq/reconciliation and /hq/franchise show
   // this percentage to head office — and on the reconciliation statement it IS the line a
@@ -42,7 +47,7 @@ export class CommissionController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CommissionSchemeRecord[]> {
     return this.commission.apply({
-      effectiveDate: new Date(dto.effectiveDate),
+      effectiveDate: effectiveFrom(dto.effectiveDate, this.config.businessTimeZone),
       items: dto.items,
       appliedBy: user.sub,
     });
