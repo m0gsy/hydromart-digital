@@ -23,7 +23,7 @@ export class PendingApprovalsController {
     @Inject(DELIVERY_TOKENS.PendingApprovalsReader) private readonly reader: PendingApprovalsReader,
   ) {}
 
-  @ApiOkResponse({ description: '{ count, oldestAt }: SUBMITTED courier settlements' })
+  @ApiOkResponse({ description: '{ count, oldestAt }: SUBMITTED or DISPUTED courier settlements' })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

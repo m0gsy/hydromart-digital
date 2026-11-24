@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
+import { loadDepotOverrides } from '@hydromart/access';
 import { AllExceptionsFilter, GlobalValidationPipe } from '@hydromart/platform';
 
 import {
@@ -19,6 +20,7 @@ import { PendingApprovalsController } from '../../src/modules/pending-approvals.
 const INTERNAL_KEY = 'test-internal-service-key-01';
 const ACTOR = '11111111-1111-4111-8111-111111111111';
 const D1 = '22222222-2222-4222-8222-222222222222';
+const D2 = '33333333-3333-4333-8333-333333333333';
 const OLDEST = new Date('2026-11-20T01:02:03.000Z');
 
 /**
@@ -69,9 +71,10 @@ describe('Pending approvals, internal (HTTP)', () => {
     return key ? req.set('x-internal-key', key) : req;
   };
 
-  it("counts stage 1 for a manager, within their depots, never their own application", async () => {
+  it('counts stage 1 for a manager, within their depots, never their own application', async () => {
     const res = await get(`leave?actorId=${ACTOR}&role=MANAGER&depotIds=${D1}`).expect(200);
     expect(res.body).toEqual({ count: 2, oldestAt: OLDEST.toISOString() });
+    expect(leave).toHaveBeenCalledTimes(1);
     expect(leave).toHaveBeenLastCalledWith({
       status: 'PENDING_MANAGER',
       depotIds: [D1],
@@ -80,16 +83,47 @@ describe('Pending approvals, internal (HTTP)', () => {
     });
   });
 
-  it('counts stage 2 for HR, never one they signed at stage 1, an account with no record too', async () => {
+  it('counts only stage 2 for head office (hrAdmin without leaveApprove), never one they signed at stage 1', async () => {
     employee = null;
-    await get(`leave?actorId=${ACTOR}&role=HR`).expect(200);
+    leave.mockClear();
+    await get(`leave?actorId=${ACTOR}&role=HEAD_OFFICE`).expect(200);
     employee = { id: 'emp-me' };
+    expect(leave).toHaveBeenCalledTimes(1);
     expect(leave).toHaveBeenLastCalledWith({
       status: 'PENDING_HR',
       depotIds: undefined,
       notEmployeeId: null,
       notManagerDecidedBy: ACTOR,
     });
+  });
+
+  it('counts BOTH stages for HR, who decides either, and sums them with the earliest oldestAt', async () => {
+    const earlier = new Date('2026-11-01T00:00:00.000Z');
+    leave.mockClear();
+    leave.mockResolvedValueOnce({ count: 1, oldestAt: OLDEST }).mockResolvedValueOnce({ count: 4, oldestAt: earlier });
+    const res = await get(`leave?actorId=${ACTOR}&role=HR`).expect(200);
+    expect(res.body).toEqual({ count: 5, oldestAt: earlier.toISOString() });
+    expect(leave.mock.calls.map(([f]) => f.status)).toEqual(['PENDING_MANAGER', 'PENDING_HR']);
+    leave.mockResolvedValueOnce({ count: 1, oldestAt: earlier }).mockResolvedValueOnce({ count: 0, oldestAt: null });
+    const again = await get(`leave?actorId=${ACTOR}&role=HR`).expect(200);
+    expect(again.body).toEqual({ count: 1, oldestAt: earlier.toISOString() });
+  });
+
+  it('asks nothing for a stage the person does not hold, or holds only where a depot is denied', async () => {
+    leave.mockClear();
+    const none = await get(`leave?actorId=${ACTOR}&role=KEPALA_DEPOT`).expect(200);
+    expect(none.body).toEqual({ count: 0, oldestAt: null });
+    expect(leave).not.toHaveBeenCalled();
+    loadDepotOverrides([{ capability: 'leaveApprove', roleKey: 'MANAGER', depotId: D1, effect: 'DENY' }]);
+    try {
+      await get(`leave?actorId=${ACTOR}&role=MANAGER&depotIds=${D1},${D2}`).expect(200);
+      expect(leave).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'PENDING_MANAGER', depotIds: [D2] }));
+      leave.mockClear();
+      await get(`leave?actorId=${ACTOR}&role=MANAGER&depotIds=${D1}`).expect(200);
+      expect(leave).not.toHaveBeenCalled();
+    } finally {
+      loadDepotOverrides([]);
+    }
   });
 
   it('answers kasbon with the decision inbox rule, for the depots given', async () => {

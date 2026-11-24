@@ -8,7 +8,6 @@ import {
   PendingSummary,
 } from '../application/ports/pending-approvals.reader';
 import { PAYOUT_TOKENS } from '../application/tokens';
-import { PayoutConfigService } from '../config/payout-config.service';
 import { PendingSummaryQueryDto } from './dto/pending-approvals.dto';
 
 /**
@@ -21,7 +20,6 @@ import { PendingSummaryQueryDto } from './dto/pending-approvals.dto';
 export class PendingApprovalsController {
   constructor(
     @Inject(PAYOUT_TOKENS.PendingApprovalsReader) private readonly reader: PendingApprovalsReader,
-    private readonly config: PayoutConfigService,
   ) {}
 
   @ApiOkResponse({ description: '{ count, oldestAt }: PENDING courier expense claims' })
@@ -31,8 +29,8 @@ export class PendingApprovalsController {
   @Get('expenses')
   @ApiOperation({ summary: "Courier expense claims waiting for this person's decision (internal)" })
   expenses(@Query() query: PendingSummaryQueryDto): Promise<PendingSummary> {
-    // PYO-5, as `approve` applies it: a claim above the manager's ceiling is finance's to decide.
-    const ceiling = query.role === 'MANAGER' ? this.config.expenseManagerApproveMaxIdr : null;
-    return this.reader.expenses(query.depotIds, ceiling);
+    // PYO-5: above the manager's ceiling a manager cannot approve, but can still reject (`reject`
+    // has no ceiling), so every PENDING claim waits for their decision, and for finance's.
+    return this.reader.expenses(query.depotIds);
   }
 }

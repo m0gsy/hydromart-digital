@@ -244,10 +244,14 @@ function make(
     },
   } as unknown as LoanService;
   const assistant = 'assistant' in overrides ? overrides.assistant : ASV;
+  const lookups = { inflight: 0, peak: 0 };
   const supervision = {
     superiorOf: async () => null,
     setSuperior: async () => {},
     assistantOfDepot: async () => {
+      lookups.peak = Math.max(lookups.peak, ++lookups.inflight);
+      await new Promise((resolve) => setImmediate(resolve));
+      lookups.inflight -= 1;
       if (assistant === 'THROW') throw new ServiceUnavailableException('depot-service');
       return assistant ?? null;
     },
@@ -260,6 +264,7 @@ function make(
   };
   return {
     repo,
+    lookups,
     created,
     sent,
     employee,
@@ -761,6 +766,15 @@ describe('LoanRequestService.decidableSummary', () => {
     // The second depot's request is the oldest; the first and third are recent.
     repo.rows[1]!.createdAt = OLD;
     await expect(svc.decidableSummary(ASV, undefined)).resolves.toEqual({ count: 3, oldestAt: OLD });
+  });
+
+  it('asks about every depot at once, not one after another', async () => {
+    const { svc, repo, lookups } = make({ assistant: ASV });
+    await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 1, reason: 'a' });
+    await repo.create({ employeeId: 'emp-2', depotId: DEPOT_B, amount: 1, reason: 'b' });
+    await repo.create({ employeeId: 'emp-3', depotId: DEPOT_C, amount: 1, reason: 'c' });
+    await svc.decidableSummary(ASV, undefined);
+    expect(lookups.peak).toBe(3);
   });
 
   it('answers nothing for depots another assistant decides, held to the depots given', async () => {

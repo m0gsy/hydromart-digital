@@ -10,15 +10,11 @@ import { PrismaService } from './prisma.service';
 export class PendingApprovalsPrismaReader implements PendingApprovalsReader {
   constructor(private readonly prisma: PrismaService) {}
 
-  async expenses(
-    depotIds: readonly string[] | undefined,
-    maxAmountIdr: number | null,
-  ): Promise<PendingSummary> {
+  async expenses(depotIds: readonly string[] | undefined): Promise<PendingSummary> {
     const agg = await this.prisma.expenseClaim.aggregate({
       where: {
         status: 'PENDING',
         ...(depotIds ? { depotId: { in: [...depotIds] } } : {}),
-        ...(maxAmountIdr === null ? {} : { amount: { lte: maxAmountIdr } }),
       },
       _count: { _all: true },
       _min: { createdAt: true },

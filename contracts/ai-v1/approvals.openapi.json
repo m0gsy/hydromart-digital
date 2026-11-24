@@ -3,7 +3,7 @@
   "info": {
     "title": "hydromart-digital approvals waiting for the signed-in person",
     "version": "1.0.0",
-    "description": "HD-11. How many items wait for the signed-in person's decision in each approval queue they decide, for the AI web's Command Center (\"jumlah persetujuan yang menunggu\"). Eight queues, owner decision 24 Nov 2026; x-hydromart-queues says what each one counts and who decides it.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. hydromart-digital applies that person's own role and depots, exactly as its own screens do. A machine token (aud hydromart-machine) is refused with 403 whatever its scopes. The door is the pendingApprovals capability: every staff role by default, franchise owners not; a role that decides none of the queues gets an empty list.\n\nWhat the answer shows: only the queues the person decides. A queue they may not decide is absent, never 0, so its size is never shown to someone who cannot act on it. Depot queues are counted at the depots the person oversees (their own depot, or the depots their supervision chain gives them), the same depots hydromart-digital holds their staff screens and their decisions to; head office, finance and the other network-wide roles see the whole network. Refunds and franchise applications are network queues, counted network-wide for whoever decides them. No names, phone numbers or amounts are returned.\n\nA queue that cannot be read: when the service holding it does not answer within 5 seconds, refuses, or answers something malformed, that queue comes back with count null and error unavailable, and the other queues still answer. Show it as \"belum lengkap\", never as 0.\n\nRead-only: nothing is written and nothing is recorded in the audit trail. Rate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field, or a queue key, may be added within version 1, so ignore a key you do not know; removing or renaming one is a new contract version."
+    "description": "HD-11. How many items wait for the signed-in person's decision in each approval queue they decide, for the AI web's Command Center (\"jumlah persetujuan yang menunggu\"). Eight queues, owner decision 24 Nov 2026; x-hydromart-queues says what each one counts and who decides it.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. hydromart-digital applies that person's own role and depots, exactly as its own screens do. A machine token (aud hydromart-machine) is refused with 403 whatever its scopes. The door is the pendingApprovals capability: every staff role by default, franchise owners not; a role that decides none of the queues gets an empty list.\n\nWhat the answer shows: only the queues the person decides. A queue they may not decide is absent, never 0, so its size is never shown to someone who cannot act on it. Depot queues are counted at the depots the person oversees (their own depot, or the depots their supervision chain gives them) and decides at (a depot where an administrator denied their role the decision is left out; one where it was granted is added), the same depots hydromart-digital holds their staff screens and their decisions to; head office, finance and the other network-wide roles see the whole network. Refunds and franchise applications are network queues, counted network-wide for whoever decides them. No names, phone numbers or amounts are returned.\n\nA queue that cannot be read: when the service holding it does not answer within 5 seconds, refuses, or answers something malformed, that queue comes back with count null and error unavailable, and the other queues still answer. Show it as \"belum lengkap\", never as 0.\n\nRead-only: nothing is written and nothing is recorded in the audit trail. Rate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field, or a queue key, may be added within version 1, so ignore a key you do not know; removing or renaming one is a new contract version."
   },
   "servers": [
     {
@@ -19,7 +19,7 @@
         "priceOverrideDecide"
       ],
       "depotBound": true,
-      "waiting": "Price changes a depot proposed that are still PENDING, at the depots the person oversees. The proposer's own proposal is counted for them too: they may still reject it (approving their own above the depot's auto-pass limit is refused). oldestAt: when the proposal was made."
+      "waiting": "Price changes a depot proposed that are still PENDING, at the depots the person decides them (a depot where their role is denied the capability is left out). The person's own proposal is counted too: they may still reject it (approving their own above the depot's auto-pass limit is refused). oldestAt: when the proposal was made."
     },
     {
       "key": "refunds",
@@ -29,7 +29,7 @@
         "refundQueue"
       ],
       "depotBound": false,
-      "waiting": "Refunds parked above the HQ threshold (PENDING), network-wide: the queue has no depot and is decided network-wide. Leaves out the refunds the person raised themselves, who may not release their own, except a SUPER_ADMIN. oldestAt: the last time the request was raised, or raised again for a larger sum."
+      "waiting": "Refunds parked above the HQ threshold (PENDING), network-wide: the queue has no depot and is decided network-wide. Leaves out the refunds the person raised themselves: only someone else can release them (a SUPER_ADMIN may release their own, so it is counted for them). oldestAt: the last write of the payment row, because no column records when a refund parked; that is the time it was requested, or raised again for a larger sum, and it is how the HQ queue orders itself."
     },
     {
       "key": "expenses",
@@ -39,7 +39,7 @@
         "expenseApprove"
       ],
       "depotBound": true,
-      "waiting": "Courier expense claims PENDING review at the person's depots (a claim with no depot only for a network-wide reviewer). For a MANAGER only the claims at or under the manager's approval ceiling: a larger one is finance's to decide. oldestAt: when the claim was filed."
+      "waiting": "Courier expense claims PENDING review at the depots the person decides them (a claim with no depot only for a network-wide reviewer). Every amount counts for a MANAGER too: above the manager's approval ceiling they cannot approve, but they can still reject, so it waits for their decision (and for finance's). oldestAt: when the claim was filed."
     },
     {
       "key": "settlements",
@@ -49,7 +49,7 @@
         "courierSettle"
       ],
       "depotBound": true,
-      "waiting": "Courier cash deposits SUBMITTED and not yet verified or disputed, at the person's depots. One with a shortfall charge raised waits for a second signature, so it is counted only for a person whose role holds approvals and who did not raise the charge. oldestAt: when the courier submitted it."
+      "waiting": "Courier cash deposits SUBMITTED, or DISPUTED and not yet ruled on again (a dispute only parks a deposit; a cashier closes it later), at the depots the person decides them. One with a shortfall charge raised waits for a second signature, so it is counted only for a person whose role holds approvals and who did not raise the charge. oldestAt: when the courier submitted it."
     },
     {
       "key": "leave",
@@ -60,7 +60,7 @@
         "hrAdmin"
       ],
       "depotBound": true,
-      "waiting": "Leave applications at the stage the person decides, at the person's depots: stage 2 (PENDING_HR) for a holder of hrAdmin, otherwise stage 1 (PENDING_MANAGER). Never their own application, and at stage 2 never one they signed at stage 1. oldestAt: when the application was filed."
+      "waiting": "Leave applications at each stage the person may decide, at the depots they decide them: stage 1 (PENDING_MANAGER) for a holder of leaveApprove, stage 2 (PENDING_HR) for a holder of hrAdmin; HR holds both, so both count for HR, while head office (hrAdmin only) counts stage 2 only. Never their own application, and at stage 2 never one they signed at stage 1. oldestAt: when the application was filed."
     },
     {
       "key": "kasbon",
@@ -70,7 +70,7 @@
         "kasbonApprove"
       ],
       "depotBound": true,
-      "waiting": "Kasbon requests PENDING at the person's depots that they decide: the depot's own assistant supervisor decides, or, where the depot has none recorded, whoever's depots include it. Never their own. A request past its three-working-day window is still counted (the screen shows it overdue). oldestAt: when the request was raised."
+      "waiting": "Kasbon requests PENDING at the depots the person decides them: the depot's own assistant supervisor decides, or, where the depot has none recorded, whoever's depots include it. Never their own. A request past its three-working-day window is still counted (the screen shows it overdue). oldestAt: when the request was raised."
     },
     {
       "key": "franchiseApplications",
@@ -90,14 +90,14 @@
         "approvals"
       ],
       "depotBound": true,
-      "waiting": "Depot approval items above the depot's auto-pass limit (stock-count losses, deposit refunds, COD and gallon variances), PENDING or HELD, at the person's depots: the items hydromart tells the manager at the top of the depot's supervision chain about (APPROVAL_REQUESTED). Never one the person raised. oldestAt: when the item was raised."
+      "waiting": "Depot approval items above the depot's auto-pass limit (stock-count losses, deposit refunds, COD and gallon variances), PENDING or HELD, at the depots the person decides them. Never one the person raised themselves: nobody decides what they raised. oldestAt: when the item was raised."
     }
   ],
   "paths": {
     "/dashboard/api/v1/dashboard/pending-approvals": {
       "get": {
         "summary": "How many items wait for my decision, per queue I decide.",
-        "description": "The queues the person decides, in the fixed order of x-hydromart-queues. Each has key, count, oldestAt (the UTC time the oldest counted item was raised; null when none waits), href (the hydromart-digital web path where the person acts on it, to be opened on the hydromart-digital web origin) and, only when the queue could not be read, error.\n\nA person never counts what they raised themselves where that queue's own rule stops them approving it; x-hydromart-queues says which. An answer is a snapshot taken when the request arrives: ask again for a newer one.",
+        "description": "The queues the person decides, in the fixed order of x-hydromart-queues. Each has key, count, oldestAt (the UTC time the oldest counted item was raised; null when none waits), href (the hydromart-digital web path where the person acts on it, to be opened on the hydromart-digital web origin) and, only when the queue could not be read, error.\n\nThe number means items waiting for THIS person's decision, not the rows on their screen, so it can be lower than the screen's list: it leaves out what they raised themselves, what only a higher approver can release, and the depots where their role is denied the decision. x-hydromart-queues gives the rule for each queue (waiting).",
         "security": [
           {
             "aiToken": []

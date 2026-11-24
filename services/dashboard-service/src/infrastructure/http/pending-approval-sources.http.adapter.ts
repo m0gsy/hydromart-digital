@@ -30,10 +30,34 @@ const ROUTES: Record<PendingQueueKey, { holder: Holder; segment: string }> = {
 @Injectable()
 export class PendingApprovalSourcesHttpAdapter implements PendingApprovalSourcesPort {
   private static readonly TIMEOUT_MS = 5000;
+  /** The most depots one internal call takes (the services' DTOs refuse more); also keeps the query under Node's 16 KB header limit. */
+  private static readonly DEPOTS_PER_CALL = 100;
 
   constructor(private readonly config: DashboardConfigService) {}
 
   async count(queue: PendingQueueKey, asker: PendingAsker): Promise<PendingCount> {
+    const { depotIds } = asker;
+    if (!depotIds || depotIds.length <= PendingApprovalSourcesHttpAdapter.DEPOTS_PER_CALL) {
+      return this.countOnce(queue, asker);
+    }
+    // Every counted item belongs to exactly one depot (the queues that have none are never
+    // sent a depot list), so the chunks never overlap: counts add, the oldest is the earliest.
+    const size = PendingApprovalSourcesHttpAdapter.DEPOTS_PER_CALL;
+    const chunks: PendingAsker[] = [];
+    for (let i = 0; i < depotIds.length; i += size) {
+      chunks.push({ ...asker, depotIds: depotIds.slice(i, i + size) });
+    }
+    const parts = await Promise.all(chunks.map((chunk) => this.countOnce(queue, chunk)));
+    return parts.reduce<PendingCount>(
+      (sum, part) => ({
+        count: sum.count + part.count,
+        oldestAt: part.oldestAt && (!sum.oldestAt || part.oldestAt < sum.oldestAt) ? part.oldestAt : sum.oldestAt,
+      }),
+      { count: 0, oldestAt: null },
+    );
+  }
+
+  private async countOnce(queue: PendingQueueKey, asker: PendingAsker): Promise<PendingCount> {
     const { holder, segment } = ROUTES[queue];
     // payment, payout and hr are optional here (blank in a stack without them): unanswered.
     const base = {

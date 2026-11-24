@@ -10,10 +10,6 @@ export interface PendingApprovalsReader {
   /**
    * PENDING claims. `depotIds` undefined is every depot (claims with no depot included, as the
    * review queue shows them to a network-wide reviewer); a list holds the count to those depots.
-   * `maxAmountIdr` leaves out the claims above it (null: none left out).
    */
-  expenses(
-    depotIds: readonly string[] | undefined,
-    maxAmountIdr: number | null,
-  ): Promise<PendingSummary>;
+  expenses(depotIds: readonly string[] | undefined): Promise<PendingSummary>;
 }

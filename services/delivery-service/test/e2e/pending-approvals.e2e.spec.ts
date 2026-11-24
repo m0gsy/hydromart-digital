@@ -111,11 +111,11 @@ describe('PendingApprovalsPrismaReader', () => {
   const aggregate = jest.fn(async () => ({ _count: { _all: 3 }, _min: { createdAt: OLDEST } }));
   const reader = new PendingApprovalsPrismaReader({ cashSettlement: { aggregate } } as unknown as PrismaService);
 
-  it('counts SUBMITTED deposits, a raised charge only for a second signer', async () => {
+  it('counts SUBMITTED and DISPUTED deposits, a raised charge only for a second signer', async () => {
     await expect(reader.settlements([D1], ACTOR)).resolves.toEqual({ count: 3, oldestAt: OLDEST });
     expect(aggregate).toHaveBeenLastCalledWith({
       where: {
-        status: SettlementStatus.SUBMITTED,
+        status: { in: [SettlementStatus.SUBMITTED, SettlementStatus.DISPUTED] },
         depotId: { in: [D1] },
         OR: [{ chargeRequestedBy: null }, { chargeRequestedBy: { not: ACTOR } }],
       },
@@ -124,7 +124,7 @@ describe('PendingApprovalsPrismaReader', () => {
     });
     await reader.settlements(undefined, null);
     expect(aggregate).toHaveBeenLastCalledWith({
-      where: { status: SettlementStatus.SUBMITTED, OR: [{ chargeRequestedBy: null }] },
+      where: { status: { in: [SettlementStatus.SUBMITTED, SettlementStatus.DISPUTED] }, OR: [{ chargeRequestedBy: null }] },
       _count: { _all: true },
       _min: { createdAt: true },
     });

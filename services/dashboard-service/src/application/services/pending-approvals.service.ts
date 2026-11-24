@@ -1,7 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { can, type Capability } from '@hydromart/access';
+import { can, currentDepotOverrides, type Capability } from '@hydromart/access';
 import { AuthenticatedUser, depotScopeIds, isDepotLocked } from '@hydromart/platform';
+
+import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
 
 import {
   PendingApprovalSourcesPort,
@@ -54,11 +56,6 @@ export interface PendingApprovals {
   queues: PendingQueue[];
 }
 
-/** The depots a request naming none touches, exactly as RolesGuard reads them for @Can. */
-function ownDepot(user: AuthenticatedUser): string[] | undefined {
-  return isDepotLocked(user.role) && user.depotId ? [user.depotId] : undefined;
-}
-
 /**
  * The caller's depots as every staff screen resolves them: undefined for a network-wide role.
  * `depotScopeIds` refuses a scoped account with no depot at all; here that is simply nothing to
@@ -79,6 +76,7 @@ export class PendingApprovalsService {
   constructor(
     @Inject(DASHBOARD_TOKENS.PendingApprovalSources)
     private readonly sources: PendingApprovalSourcesPort,
+    @Inject(DASHBOARD_TOKENS.Sources) private readonly depots: DashboardSourcesPort,
   ) {}
 
   /**
@@ -87,23 +85,52 @@ export class PendingApprovalsService {
    * cannot be read comes back `count: null, error: 'unavailable'`, and the rest still answer.
    */
   async forCaller(user: AuthenticatedUser): Promise<PendingApprovals> {
-    const own = ownDepot(user);
+    const own = isDepotLocked(user.role) && user.depotId ? [user.depotId] : undefined;
     const scope = scopeOf(user);
-    const decided = PENDING_QUEUES.filter((q) => q.decidedWith.some((c) => can(c, user.role, own)));
-    return { queues: await Promise.all(decided.map((q) => this.answer(q, user, scope))) };
+    // The network's depots, read at most once and only when a depot-level override makes
+    // "every depot" something to walk rather than something to say.
+    let network: Promise<readonly string[] | null> | undefined;
+    const networkDepots = (): Promise<readonly string[] | null> =>
+      (network ??= this.depots.allDepots('').then(
+        (all) => (all ? all.map((d) => d.id) : null),
+        () => null,
+      ));
+    const rows = await Promise.all(
+      PENDING_QUEUES.map((q) => this.answer(q, user, own, scope, networkDepots)),
+    );
+    return { queues: rows.filter((r): r is PendingQueue => r !== null) };
   }
 
+  /** Null: the caller does not decide this queue at all, so it is left out of the answer. */
   private async answer(
     q: QueueDef,
     user: AuthenticatedUser,
+    own: string[] | undefined,
     scope: readonly string[] | undefined,
-  ): Promise<PendingQueue> {
-    // A depot where the caller's role is denied the capability is one their screen will not
-    // list either (RolesGuard checks @Can against the depot a list names).
-    const depotIds =
-      q.depotBound && scope
-        ? scope.filter((d) => q.decidedWith.some((c) => can(c, user.role, [d])))
-        : undefined;
+    networkDepots: () => Promise<readonly string[] | null>,
+  ): Promise<PendingQueue | null> {
+    let depotIds: readonly string[] | undefined;
+    if (!q.depotBound) {
+      if (!q.decidedWith.some((c) => can(c, user.role, own))) return null;
+    } else {
+      // The queue is the caller's when the role holds a capability of it with no depot named,
+      // or a depot-level GRANT opens it somewhere; a depot where the role is DENIED the
+      // capability is one its screen will not list either (RolesGuard checks @Can against the
+      // depot a list names), so it is left out of the count.
+      const held = q.decidedWith.some((c) => can(c, user.role));
+      const overridden = currentDepotOverrides().filter(
+        (o) => o.roleKey === user.role && (q.decidedWith as readonly string[]).includes(o.capability),
+      );
+      if (!held && !overridden.some((o) => o.effect === 'GRANT')) return null;
+      // Fast path: a network-wide role no depot override touches is asked network-wide.
+      let candidates: readonly string[] | null | undefined = scope;
+      if (candidates === undefined && overridden.length > 0) candidates = await networkDepots();
+      if (candidates === null) {
+        return { key: q.key, count: null, oldestAt: null, href: q.href, error: 'unavailable' };
+      }
+      depotIds = candidates?.filter((d) => q.decidedWith.some((c) => can(c, user.role, [d])));
+      if (!held && depotIds?.length === 0) return null;
+    }
     if (depotIds?.length === 0) return { key: q.key, count: 0, oldestAt: null, href: q.href };
     try {
       const { count, oldestAt } = await this.sources.count(q.key, {

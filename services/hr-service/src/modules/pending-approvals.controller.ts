@@ -27,23 +27,43 @@ export class PendingApprovalsController {
     private readonly loanRequests: LoanRequestService,
   ) {}
 
-  @ApiOkResponse({ description: '{ count, oldestAt }: leave applications at the stage this person decides' })
+  @ApiOkResponse({ description: '{ count, oldestAt }: leave applications at each stage this person decides' })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Get('leave')
   @ApiOperation({ summary: "Leave applications waiting for this person's decision (internal)" })
   async leave(@Query() query: PendingSummaryQueryDto): Promise<PendingSummary> {
-    // The approvals screen's own default: whoever holds stage 2 (hrAdmin) reads stage 2; a
-    // manager reads stage 1. HR holds stage 1 too, only so a depot without a manager is not stuck.
-    const status = can('hrAdmin', query.role) ? 'PENDING_HR' : 'PENDING_MANAGER';
+    // Both stages, as far as the person may decide them: stage 1 is the manager-decision route
+    // (leaveApprove), stage 2 the hr-decision route (hrAdmin). HR holds both, so both count for
+    // HR; a depot-level GRANT or DENY is read per depot, as RolesGuard reads it.
     const me = await this.employees.findByAuthSubjectId(query.actorId);
-    return this.reader.leave({
-      status,
-      depotIds: query.depotIds,
-      notEmployeeId: me?.id ?? null,
-      notManagerDecidedBy: status === 'PENDING_HR' ? query.actorId : null,
-    });
+    const stages = [
+      { status: 'PENDING_MANAGER', capability: 'leaveApprove', stageOneSigner: null },
+      { status: 'PENDING_HR', capability: 'hrAdmin', stageOneSigner: query.actorId },
+    ] as const;
+    const parts = await Promise.all(
+      stages.map(async (stage) => {
+        const depotIds = query.depotIds
+          ? query.depotIds.filter((d) => can(stage.capability, query.role, [d]))
+          : undefined;
+        // No depot given: only a person holding the capability network-wide decides this stage.
+        if (depotIds ? depotIds.length === 0 : !can(stage.capability, query.role)) return null;
+        return this.reader.leave({
+          status: stage.status,
+          depotIds,
+          notEmployeeId: me?.id ?? null,
+          notManagerDecidedBy: stage.stageOneSigner,
+        });
+      }),
+    );
+    return parts.reduce<PendingSummary>(
+      (sum, part) => ({
+        count: sum.count + (part?.count ?? 0),
+        oldestAt: part?.oldestAt && (!sum.oldestAt || part.oldestAt < sum.oldestAt) ? part.oldestAt : sum.oldestAt,
+      }),
+      { count: 0, oldestAt: null },
+    );
   }
 
   @ApiOkResponse({ description: '{ count, oldestAt }: PENDING kasbon this person may decide (K1/K2)' })

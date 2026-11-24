@@ -23,7 +23,7 @@ describe('Pending approvals, internal (e2e)', () => {
   const reader = {
     expenses: jest.fn<
       ReturnType<PendingApprovalsReader['expenses']>,
-      [readonly string[] | undefined, number | null]
+      [readonly string[] | undefined]
     >(async () => ({ count: 1, oldestAt: OLDEST })),
   };
 
@@ -44,7 +44,6 @@ describe('Pending approvals, internal (e2e)', () => {
               PAYOUT_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
               JWT_ACCESS_SECRET: 'test-access-secret-that-is-long-enough-01',
               INTERNAL_SERVICE_KEY: INTERNAL_KEY,
-              EXPENSE_MANAGER_APPROVE_MAX_IDR: 250000,
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
               RATE_LIMIT_MAX: 100,
@@ -77,17 +76,17 @@ describe('Pending approvals, internal (e2e)', () => {
     return key ? req.set('x-internal-key', key) : req;
   };
 
-  it("holds a manager to their depots and to what a manager may approve", async () => {
+  it("counts every amount for a manager too (above the ceiling they can still reject), held to their depots", async () => {
     const res = await get(`actorId=${ACTOR}&role=MANAGER&depotIds=${D1}`).expect(200);
     expect(res.body).toEqual({ count: 1, oldestAt: OLDEST.toISOString() });
-    expect(reader.expenses).toHaveBeenLastCalledWith([D1], 250000);
+    expect(reader.expenses).toHaveBeenLastCalledWith([D1]);
   });
 
-  it('counts every amount for finance, across the network', async () => {
+  it('counts across the network for finance', async () => {
     await get(`actorId=${ACTOR}&role=FINANCE`).expect(200);
-    expect(reader.expenses).toHaveBeenLastCalledWith(undefined, null);
+    expect(reader.expenses).toHaveBeenLastCalledWith(undefined);
     await get(`actorId=${ACTOR}&role=FINANCE&depotIds=${D1}&depotIds=${D1}`).expect(200);
-    expect(reader.expenses).toHaveBeenLastCalledWith([D1, D1], null);
+    expect(reader.expenses).toHaveBeenLastCalledWith([D1, D1]);
   });
 
   it('turns away a call without the internal key, and a query of the wrong shape', async () => {
@@ -101,14 +100,14 @@ describe('PendingApprovalsPrismaReader', () => {
   const aggregate = jest.fn(async () => ({ _count: { _all: 5 }, _min: { createdAt: OLDEST } }));
   const reader = new PendingApprovalsPrismaReader({ expenseClaim: { aggregate } } as unknown as PrismaService);
 
-  it('counts PENDING claims within the depots and under the ceiling it is given', async () => {
-    await expect(reader.expenses([D1], 250000)).resolves.toEqual({ count: 5, oldestAt: OLDEST });
+  it('counts PENDING claims within the depots it is given', async () => {
+    await expect(reader.expenses([D1])).resolves.toEqual({ count: 5, oldestAt: OLDEST });
     expect(aggregate).toHaveBeenLastCalledWith({
-      where: { status: 'PENDING', depotId: { in: [D1] }, amount: { lte: 250000 } },
+      where: { status: 'PENDING', depotId: { in: [D1] } },
       _count: { _all: true },
       _min: { createdAt: true },
     });
-    await reader.expenses(undefined, null);
+    await reader.expenses(undefined);
     expect(aggregate).toHaveBeenLastCalledWith({
       where: { status: 'PENDING' },
       _count: { _all: true },

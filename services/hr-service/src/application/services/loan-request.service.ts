@@ -270,10 +270,14 @@ export class LoanRequestService {
   ): Promise<{ count: number; oldestAt: Date | null }> {
     const me = await this.employees.findByAuthSubjectId(actorId);
     const groups = await this.repo.pendingCountsByDepot(depotIds, me?.id ?? null);
+    // ponytail: one depot-service read per depot, all at once (about a hundred depots at most
+    // today); a batch route on depot-service when the network outgrows that. Still fails
+    // closed: one failed lookup rejects the whole answer.
+    const deciders = await Promise.all(groups.map((g) => this.supervision.assistantOfDepot(g.depotId)));
     let count = 0;
     let oldestAt: Date | null = null;
-    for (const g of groups) {
-      const decider = await this.supervision.assistantOfDepot(g.depotId);
+    for (const [i, g] of groups.entries()) {
+      const decider = deciders[i];
       if (decider && decider !== actorId) continue;
       count += g.count;
       if (!oldestAt || g.oldestAt < oldestAt) oldestAt = g.oldestAt;

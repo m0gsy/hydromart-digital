@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { ArrayMinSize, IsOptional, IsString, IsUUID, Length } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsOptional, IsString, IsUUID, Length } from 'class-validator';
 
 /**
  * HD-11: the person dashboard-service asks for, read from their verified token. Each queue
@@ -21,7 +21,7 @@ export class PendingSummaryQueryDto {
    * list here can only be a mistake, and it is refused rather than read as "every depot".
    */
   @ApiPropertyOptional({
-    description: 'Comma-separated depots the account oversees. Absent: the whole network.',
+    description: 'Comma-separated depots the account oversees (at most 100). Absent: the whole network.',
   })
   @IsOptional()
   @Transform(({ value }) =>
@@ -33,6 +33,7 @@ export class PendingSummaryQueryDto {
       : value,
   )
   @ArrayMinSize(1)
+  @ArrayMaxSize(100)
   @IsUUID('all', { each: true })
   depotIds?: string[];
 }

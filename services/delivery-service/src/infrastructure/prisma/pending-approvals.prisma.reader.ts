@@ -17,7 +17,8 @@ export class PendingApprovalsPrismaReader implements PendingApprovalsReader {
   ): Promise<PendingSummary> {
     const agg = await this.prisma.cashSettlement.aggregate({
       where: {
-        status: SettlementStatus.SUBMITTED,
+        // A disputed deposit is parked, not closed: a cashier rules on it again (C10 `canResolve`).
+        status: { in: [SettlementStatus.SUBMITTED, SettlementStatus.DISPUTED] },
         ...(depotIds ? { depotId: { in: [...depotIds] } } : {}),
         // No charge raised: any cashier may verify or dispute it. A raised charge waits for a
         // second person, never the one who raised it.

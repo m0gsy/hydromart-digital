@@ -69,6 +69,32 @@ describe('PendingApprovalSourcesHttpAdapter', () => {
     expect(urlOf().searchParams.get('depotIds')).toBe(`${D1},${D2}`);
   });
 
+  it('splits a long depot list into calls of 100, adds the counts and keeps the earliest oldestAt', async () => {
+    const ids = Array.from({ length: 250 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    const oldest = ['2026-11-20T00:00:00.000Z', '2026-11-05T00:00:00.000Z', null];
+    let n = 0;
+    fetchMock.mockImplementation(async () => answer({ count: 10 + n, oldestAt: oldest[n++] }));
+    await expect(
+      new PendingApprovalSourcesHttpAdapter(config()).count('approvals', { actorId: ACTOR, role: 'MANAGER', depotIds: ids }),
+    ).resolves.toEqual({ count: 33, oldestAt: '2026-11-05T00:00:00.000Z' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const sent = [0, 1, 2].map((i) => urlOf(i).searchParams.get('depotIds')!.split(','));
+    expect(sent.map((c) => c.length)).toEqual([100, 100, 50]);
+    expect(sent.flat()).toEqual(ids);
+  });
+
+  it('keeps one call for exactly 100 depots, and fails the whole answer when one chunk fails', async () => {
+    const ids = Array.from({ length: 100 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    const adapter = new PendingApprovalSourcesHttpAdapter(config());
+    await adapter.count('approvals', { actorId: ACTOR, role: 'MANAGER', depotIds: ids });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValueOnce(answer({ count: 1, oldestAt: null })).mockResolvedValueOnce(answer({}, 503));
+    await expect(
+      adapter.count('approvals', { actorId: ACTOR, role: 'MANAGER', depotIds: [...ids, D1] }),
+    ).rejects.toThrow('depot-service answered 503');
+  });
+
   it('answers the oldest time as UTC ISO', async () => {
     fetchMock.mockResolvedValue(answer({ count: 1, oldestAt: '2026-11-20T08:02:03+07:00' }));
     await expect(
