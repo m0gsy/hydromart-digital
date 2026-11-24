@@ -361,6 +361,25 @@ describe('OrderService.walkInSale', () => {
       notes: null,
     };
 
+    // HD-6 (#24-A): a delivery rung up at the till starts CONFIRMED. The courier takes the
+    // empties at the door and records them herself, so booking them at the till too would
+    // count them twice (the return ledger is unique per order).
+    it('books the issue without the till empties when it completes (HD-6)', async () => {
+      const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+      const order = await service.walkInSale(operator, {
+        depotId: DEPOT,
+        lines: [{ productId: p.id, quantity: 2 }],
+        emptiesReturned: 2,
+        deliveryAddress: ADDRESS,
+      });
+      orders.outbox!.enqueue([{ topic: 'GALLON_ISSUE', orderId: order.id }]);
+      await (
+        service as unknown as { outboxService: { processDue(): Promise<unknown> } }
+      ).outboxService.processDue();
+      expect(gallonIssue.booked).toHaveLength(1);
+      expect('emptiesReturned' in gallonIssue.booked[0]).toBe(false);
+    });
+
     it('is born CONFIRMED so a courier can actually be assigned', async () => {
       const p = catalog.seed({ id: randomUUID(), basePrice: 20000 });
 
@@ -454,6 +473,33 @@ describe('OrderService.walkInSale', () => {
             emptiesReturned: 3,
           }),
         ).rejects.toThrow(/melebihi galon isi/);
+      });
+
+      // HD-6 (#24-A): the empty comes back through the gallon ledger at the moment of sale.
+      it('reports the empties handed over to the gallon ledger with the issue (HD-6)', async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+        await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 3 }],
+          emptiesReturned: 2,
+        });
+        expect(gallonIssue.booked).toHaveLength(1);
+        expect(gallonIssue.booked[0]).toMatchObject({ quantity: 3, emptiesReturned: 2 });
+      });
+
+      it('sends no empties for a new-gallon sale, an unasked sale or zero (HD-6)', async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+        await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 1 }],
+          emptiesReturned: 0,
+        });
+        await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 1 }],
+        });
+        expect(gallonIssue.booked).toHaveLength(2);
+        for (const b of gallonIssue.booked) expect('emptiesReturned' in b).toBe(false);
       });
 
       it('classifies a full exchange as refill', async () => {
@@ -1758,6 +1804,96 @@ describe('OrderService.walkInSale', () => {
       const order = await sell(2, extra);
       return { order, now: new Date(order.createdAt.getTime() + 60 * 60 * 1000) };
     };
+
+    // HD-6 (#24-A): the void owes the gallon ledger a reversal, written with the status so it
+    // survives the cancel of the completion rows, and sent to depot-service by the sweep.
+    describe('the gallons it booked (HD-6)', () => {
+      const sellGallons = async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+        const order = await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 2 }],
+          emptiesReturned: 2,
+        });
+        orders.onVoidOutbox = (rows) => orders.outbox!.enqueue(rows);
+        return { order, now: new Date(order.createdAt.getTime() + 60 * 60 * 1000) };
+      };
+      const sweep = (at: Date) =>
+        (
+          service as unknown as { outboxService: { processDue(n: Date): Promise<unknown> } }
+        ).outboxService.processDue(at);
+
+      it('reverses the gallons once, even if the sweep runs again', async () => {
+        const { order, now } = await sellGallons();
+        await service.voidCounterSale(operator, order.id, 'Salah', now, 'Bearer t');
+        const row = orders.outbox!.rows.find((r) => r.topic === 'GALLON_ISSUE_VOID')!;
+        expect(row.status).toBe('PENDING');
+        await sweep(new Date(now.getTime() + 10 * 60_000));
+        expect(gallonIssue.voided).toEqual([{ depotId: DEPOT, orderId: order.id }]);
+        expect(row.status).toBe('DONE');
+        await sweep(new Date(now.getTime() + 20 * 60_000));
+        expect(gallonIssue.voided).toHaveLength(1);
+      });
+
+      // A void that lands while the issue is still being booked: the issue lands after the
+      // void's own reversal ran against nothing, so bookGallonIssue must send the reversal.
+      it('reverses the issue itself when the sale is voided mid-booking', async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+        const order = await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 2 }],
+          emptiesReturned: 2,
+        });
+        gallonIssue.booked.length = 0;
+        gallonIssue.voided.length = 0;
+        const now = new Date(order.createdAt.getTime() + 60 * 60 * 1000);
+        gallonIssue.afterBook = async () => {
+          gallonIssue.afterBook = undefined;
+          await service.voidCounterSale(operator, order.id, 'Salah', now, 'Bearer t');
+        };
+        orders.onVoidOutbox = (rows) => orders.outbox!.enqueue(rows);
+        orders.outbox!.enqueue([{ topic: 'GALLON_ISSUE', orderId: order.id }]);
+        await (
+          service as unknown as { bookGallonIssue(id: string): Promise<void> }
+        ).bookGallonIssue(order.id);
+        // The void's own row already ran as a no-op before the issue landed; it is re-armed
+        // (not sent inline, depot-service may be down) and delivering it reverses once.
+        const row = orders.outbox!.rows.find((r) => r.topic === 'GALLON_ISSUE_VOID')!;
+        row.status = 'DONE';
+        await (
+          service as unknown as { bookGallonIssue(id: string): Promise<void> }
+        ).bookGallonIssue(order.id);
+        expect(row.status).toBe('PENDING');
+        expect(gallonIssue.voided).toHaveLength(0);
+        await sweep(new Date(now.getTime() + 10 * 60_000));
+        expect(gallonIssue.voided).toEqual([{ depotId: DEPOT, orderId: order.id }]);
+        expect(row.status).toBe('DONE');
+      });
+
+      it('keeps owing the reversal while depot-service is down', async () => {
+        const { order, now } = await sellGallons();
+        await service.voidCounterSale(operator, order.id, 'Salah', now, 'Bearer t');
+        gallonIssue.error = new Error('depot down');
+        await sweep(new Date(now.getTime() + 10 * 60_000));
+        const row = orders.outbox!.rows.find((r) => r.topic === 'GALLON_ISSUE_VOID')!;
+        expect(row.status).toBe('PENDING');
+        gallonIssue.error = null;
+        await sweep(new Date(now.getTime() + 24 * 3600_000));
+        expect(gallonIssue.voided).toHaveLength(1);
+      });
+
+      it('owes no reversal for a sale with no gallon line', async () => {
+        const plain = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: false });
+        const order = await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: plain.id, quantity: 2 }],
+        });
+        orders.onVoidOutbox = (rows) => orders.outbox!.enqueue(rows);
+        const at = new Date(order.createdAt.getTime() + 3600_000);
+        await service.voidCounterSale(operator, order.id, 'Salah', at, 'Bearer t');
+        expect(orders.outbox!.rows.some((r) => r.topic === 'GALLON_ISSUE_VOID')).toBe(false);
+      });
+    });
 
     it('reverses the sale, puts the stock back and takes the points away', async () => {
       const customerId = randomUUID();

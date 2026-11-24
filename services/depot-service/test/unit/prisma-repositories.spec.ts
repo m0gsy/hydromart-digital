@@ -1025,6 +1025,7 @@ describe('GallonReminderPrismaRepository', () => {
 describe('GallonIssuePrismaRepository', () => {
   const model = {
     create: jest.fn(),
+    findUnique: jest.fn(),
     upsert: jest.fn(),
     findMany: jest.fn(),
     findFirst: jest.fn(),
@@ -1110,16 +1111,42 @@ describe('GallonIssuePrismaRepository', () => {
     });
   });
 
+  // HD-6: the void reversal reads the issue a counter sale booked, by its order.
+  it('finds the issue booked from an order, or null', async () => {
+    model.findUnique.mockResolvedValueOnce(row);
+    expect(await repo.findByOrderId('o-1')).toEqual({ ...row, depositHeld: 100000 });
+    expect(model.findUnique).toHaveBeenCalledWith({ where: { orderId: 'o-1' } });
+    model.findUnique.mockResolvedValueOnce(null);
+    expect(await repo.findByOrderId('o-2')).toBeNull();
+  });
+
   // Aging needs dates the totals do not carry. Newest first, bounded, and never a query at
   // all for an empty set of customers.
   it('reads the newest issues for the named customers, bounded, newest first', async () => {
     const at = new Date('2026-09-01T00:00:00.000Z');
-    model.findMany.mockResolvedValue([{ customerId: 'c1', quantity: 2, createdAt: at }]);
+    model.findMany
+      .mockResolvedValueOnce([{ idempotencyKey: 'void:o-9' }])
+      .mockResolvedValueOnce([{ customerId: 'c1', quantity: 2, createdAt: at }]);
     await expect(repo.newestIssuesForCustomers('depot-1', ['c1', 'c2'], 500)).resolves.toEqual([
       { customerId: 'c1', quantity: 2, createdAt: at },
     ]);
-    expect(model.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', customerId: { in: ['c1', 'c2'] } },
+    // A voided sale's issue (its reversal row names the order) is left out of the walk.
+    expect(model.findMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        depotId: 'depot-1',
+        customerId: { in: ['c1', 'c2'] },
+        quantity: { lt: 0 },
+        idempotencyKey: { startsWith: 'void:' },
+      },
+      select: { idempotencyKey: true },
+    });
+    expect(model.findMany).toHaveBeenLastCalledWith({
+      where: {
+        depotId: 'depot-1',
+        customerId: { in: ['c1', 'c2'] },
+        quantity: { gt: 0 },
+        OR: [{ orderId: null }, { orderId: { notIn: ['o-9'] } }],
+      },
       select: { customerId: true, quantity: true, createdAt: true },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 500,
@@ -1224,16 +1251,15 @@ describe('GallonIssuePrismaRepository', () => {
   });
 
   it('summarises a depot, defaulting null sums to zero', async () => {
-    model.aggregate.mockResolvedValue({
-      _count: { _all: 3 },
-      _sum: { quantity: 12, depositHeld: null },
-    });
+    model.aggregate.mockResolvedValue({ _sum: { quantity: 12, depositHeld: null } });
+    model.count.mockResolvedValueOnce(3);
     const out = await repo.summaryForDepot('depot-1');
     expect(model.aggregate).toHaveBeenCalledWith({
       where: { depotId: 'depot-1' },
-      _count: { _all: true },
       _sum: { quantity: true, depositHeld: true },
     });
+    // Only positive rows are issue events; a void's negative reversal row is not one.
+    expect(model.count).toHaveBeenLastCalledWith({ where: { depotId: 'depot-1', quantity: { gt: 0 } } });
     expect(out).toEqual({ issues: 3, gallons: 12, depositHeld: 0 });
   });
 
@@ -1299,6 +1325,41 @@ describe('GallonReturnPrismaRepository', () => {
     });
     model.findFirst.mockResolvedValueOnce(null);
     await expect(repo.findByIdempotencyKey('d1', 'none')).resolves.toBeNull();
+  });
+
+  it('createKeyed: writes, or reads the winner on a unique violation, or rethrows (HD-6)', async () => {
+    model.create.mockReset();
+    model.findFirst.mockReset();
+    const row = { id: 'r1', depotId: 'd1', quantity: -1, condition: 'GOOD', depositRefunded: '0', createdAt: new Date() };
+    const data = { depotId: 'd1', idempotencyKey: 'void:o1' } as never;
+    model.create.mockResolvedValueOnce(row);
+    await expect(repo.createKeyed(data)).resolves.toMatchObject({ created: true });
+    model.create.mockRejectedValueOnce({ code: 'P2002' });
+    model.findFirst.mockResolvedValueOnce(row);
+    await expect(repo.createKeyed(data)).resolves.toMatchObject({ created: false });
+    model.create.mockRejectedValueOnce({ code: 'P2002' });
+    model.findFirst.mockResolvedValueOnce(null);
+    await expect(repo.createKeyed(data)).rejects.toEqual({ code: 'P2002' });
+    model.create.mockRejectedValueOnce({ code: 'P2002' });
+    await expect(repo.createKeyed({ depotId: 'd1' } as never)).rejects.toEqual({ code: 'P2002' });
+  });
+
+  it('finds the return booked from an order, or null (HD-6)', async () => {
+    model.findUnique.mockReset();
+    const r = {
+      id: 'r1',
+      depotId: 'd1',
+      orderId: 'o1',
+      quantity: 1,
+      condition: 'GOOD',
+      depositRefunded: '15000',
+      createdAt: new Date(),
+    };
+    model.findUnique.mockResolvedValueOnce(r);
+    await expect(repo.findByOrderId('o1')).resolves.toMatchObject({ id: 'r1', depositRefunded: 15000 });
+    expect(model.findUnique).toHaveBeenCalledWith({ where: { orderId: 'o1' } });
+    model.findUnique.mockResolvedValueOnce(null);
+    await expect(repo.findByOrderId('o2')).resolves.toBeNull();
   });
 
   // MONEY-04. The courier handover arrives through the offline queue, which is
@@ -1486,20 +1547,20 @@ describe('GallonReturnPrismaRepository', () => {
 
   it('summarises with a separate damaged count, coercing refund decimal', async () => {
     model.aggregate.mockResolvedValue({
-      _count: { _all: 2 },
       _sum: { quantity: 6, depositRefunded: decimal(120000) },
     });
-    model.count.mockResolvedValue(1);
+    model.count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
     const out = await repo.summaryForDepot('depot-1');
+    // Row counts skip a void's negative reversal rows; the sums keep them.
+    expect(model.count).toHaveBeenCalledWith({ where: { depotId: 'depot-1', quantity: { gt: 0 } } });
     expect(model.count).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', condition: GallonCondition.DAMAGED },
+      where: { depotId: 'depot-1', condition: GallonCondition.DAMAGED, quantity: { gt: 0 } },
     });
     expect(out).toEqual({ returns: 2, gallons: 6, damaged: 1, depositRefunded: 120000 });
   });
 
   it('summarises defaulting a null refund sum to zero', async () => {
     model.aggregate.mockResolvedValue({
-      _count: { _all: 0 },
       _sum: { quantity: null, depositRefunded: null },
     });
     model.count.mockResolvedValue(0);

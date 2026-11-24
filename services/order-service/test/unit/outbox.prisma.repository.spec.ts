@@ -22,7 +22,10 @@ describe('OutboxPrismaRepository', () => {
     nextAttemptAt: new Date('2026-08-03T10:00:00Z'),
     lastError: 'depot-service down',
     createdAt: new Date('2026-08-03T09:00:00Z'),
+    updatedAt: new Date('2026-08-03T09:30:00Z'),
   };
+
+  const SEEN = new Date('2026-08-03T09:30:00Z');
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -52,19 +55,56 @@ describe('OutboxPrismaRepository', () => {
     });
   });
 
-  it('closes a delivered row and clears the last error', async () => {
-    await repo.markDone('ob-1');
+  // HD-6: a void cancels what the sale still owed, but never the rows the VOID itself owes.
+  it('cancels a voided sale pending rows except the ones the void owes', async () => {
+    model.updateMany.mockResolvedValue({ count: 2 });
+    await expect(repo.cancelForOrder('ord-1', 'Salah')).resolves.toBe(2);
     expect(model.updateMany).toHaveBeenCalledWith({
-      where: { id: 'ob-1', status: 'PENDING' },
+      where: {
+        orderId: 'ord-1',
+        status: 'PENDING',
+        topic: {
+          notIn: [
+            'PAYMENT_REVERSAL',
+            'FRANCHISE_REVENUE_VOID',
+            'REFERRAL_REVERSE',
+            'GALLON_ISSUE_VOID',
+          ],
+        },
+      },
+      data: { status: 'CANCELLED', lastError: 'Salah' },
+    });
+  });
+
+  it('re-arms the one row of a topic and order instead of duplicating it', async () => {
+    const upsert = jest.fn();
+    const r = new OutboxPrismaRepository({ outboxMessage: { upsert } } as unknown as PrismaService);
+    await r.requeue('GALLON_ISSUE_VOID', 'ord-1');
+    expect(upsert).toHaveBeenCalledWith({
+      where: { topic_orderId: { topic: 'GALLON_ISSUE_VOID', orderId: 'ord-1' } },
+      create: { topic: 'GALLON_ISSUE_VOID', orderId: 'ord-1' },
+      update: {
+        status: 'PENDING',
+        attempts: 0,
+        nextAttemptAt: expect.any(Date),
+        lastError: null,
+      },
+    });
+  });
+
+  it('closes a delivered row and clears the last error', async () => {
+    await repo.markDone('ob-1', SEEN);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: { id: 'ob-1', status: 'PENDING', updatedAt: SEEN },
       data: { status: 'DONE', lastError: null },
     });
   });
 
   it('schedules the next attempt when retries remain', async () => {
     const retryAt = new Date('2026-08-03T12:00:00Z');
-    await repo.markFailed('ob-1', 'depot-service down', retryAt);
+    await repo.markFailed('ob-1', 'depot-service down', retryAt, SEEN);
     expect(model.updateMany).toHaveBeenCalledWith({
-      where: { id: 'ob-1', status: 'PENDING' },
+      where: { id: 'ob-1', status: 'PENDING', updatedAt: SEEN },
       data: {
         status: 'PENDING',
         attempts: { increment: 1 },
@@ -75,7 +115,7 @@ describe('OutboxPrismaRepository', () => {
   });
 
   it('marks the row DEAD when there is no next attempt, and truncates the reason', async () => {
-    await repo.markFailed('ob-1', 'x'.repeat(900), null);
+    await repo.markFailed('ob-1', 'x'.repeat(900), null, SEEN);
     const data = model.updateMany.mock.calls[0][0].data;
     expect(data.status).toBe('DEAD');
     expect(data.nextAttemptAt).toBeUndefined();
@@ -85,7 +125,12 @@ describe('OutboxPrismaRepository', () => {
 
   it('counts every status, including the ones with no rows', async () => {
     model.groupBy.mockResolvedValue([{ status: 'PENDING', _count: { _all: 3 } }]);
-    await expect(repo.countByStatus()).resolves.toEqual({ PENDING: 3, DONE: 0, DEAD: 0, CANCELLED: 0 });
+    await expect(repo.countByStatus()).resolves.toEqual({
+      PENDING: 3,
+      DONE: 0,
+      DEAD: 0,
+      CANCELLED: 0,
+    });
   });
 
   // Owner decision 2026-11-21: head office may not change who owns a depot while any of its

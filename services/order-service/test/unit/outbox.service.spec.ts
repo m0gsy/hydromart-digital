@@ -29,6 +29,46 @@ describe('OutboxService edges', () => {
     await expect(service.pendingRevenue('dep-9')).resolves.toBe(0);
   });
 
+  // HD-6: a long depot outage must not turn the void's gallon reversal DEAD (issue left booked).
+  it('gives the gallon void the same larger retry cap as a payment reversal', async () => {
+    repo.enqueue([
+      { topic: 'GALLON_ISSUE_VOID', orderId: 'o1' },
+      { topic: 'GALLON_ISSUE', orderId: 'o2' },
+    ]);
+    for (const r of repo.rows) r.attempts = 7;
+    const result = await service.processDue(new Date());
+    expect(result).toMatchObject({ failed: 2, dead: 1 });
+    expect(repo.rows.find((r) => r.topic === 'GALLON_ISSUE_VOID')!.status).toBe('PENDING');
+    expect(repo.rows.find((r) => r.topic === 'GALLON_ISSUE')!.status).toBe('DEAD');
+  });
+
+  it('requeues a topic: re-arms an existing row, creates a missing one', async () => {
+    repo.enqueue([{ topic: 'GALLON_ISSUE_VOID', orderId: 'o1' }]);
+    repo.rows[0].status = 'DONE';
+    await service.requeue('GALLON_ISSUE_VOID', 'o1');
+    expect(repo.rows[0]).toMatchObject({ status: 'PENDING', attempts: 0 });
+    await service.requeue('GALLON_ISSUE_VOID', 'o2');
+    expect(repo.rows).toHaveLength(2);
+  });
+
+  // HD-6: the void row's delivery is in flight (it found nothing booked) when a late booking
+  // re-arms it. The first delivery's success must not close the row over the second owing.
+  it('a requeue during an in-flight delivery is not swallowed by that delivery finishing', async () => {
+    const ran: string[] = [];
+    service.register('GALLON_ISSUE_VOID', async (id) => {
+      ran.push(id);
+      if (ran.length === 1) await service.requeue('GALLON_ISSUE_VOID', id); // re-armed mid-flight
+    });
+    repo.enqueue([{ topic: 'GALLON_ISSUE_VOID', orderId: 'o1' }]);
+    jest.spyOn(orders, 'findById').mockResolvedValue({ status: 'COMPLETED' } as never);
+    const first = await service.processDue(new Date(1000));
+    expect(first.delivered).toBe(1);
+    expect(repo.rows[0].status).toBe('PENDING'); // not DONE: owed again
+    await service.processDue(new Date(2000));
+    expect(ran).toEqual(['o1', 'o1']);
+    expect(repo.rows[0].status).toBe('DONE');
+  });
+
   it('retries a topic no running version knows how to handle', async () => {
     repo.enqueue([{ topic: 'INVENTORY_CONSUME', orderId: 'ord-1' }]);
 

@@ -22,6 +22,7 @@ import {
 } from '@hydromart/platform';
 
 import { GallonIssueService } from '../application/services/gallon-issue.service';
+import { GallonReturnService } from '../application/services/gallon-return.service';
 import { ownerIdsOf } from '../domain/depot-owners';
 import { DepotService } from '../application/services/depot.service';
 import {
@@ -34,6 +35,7 @@ import {
   CreateGallonIssueFromOrderDto,
   ImportGallonBalancesDto,
   ListIssuesQueryDto,
+  VoidGallonOrderDto,
 } from './dto/gallon-issue.dto';
 import {
   GallonIssueResponseDto,
@@ -49,6 +51,7 @@ export class GallonIssueController {
   constructor(
     private readonly issues: GallonIssueService,
     private readonly depots: DepotService,
+    private readonly returns: GallonReturnService,
   ) {}
 
   @ApiOkResponse({ type: ImportResponseDto })
@@ -103,15 +106,49 @@ export class GallonIssueController {
   @ApiSecurity('internal-key')
   @Post('internal/from-order')
   @ApiOperation({ summary: 'Book the empties a completed order carried out (internal)' })
-  recordFromOrder(
+  async recordFromOrder(
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Body() dto: CreateGallonIssueFromOrderDto,
   ): Promise<GallonIssueRecord> {
-    return this.issues.recordFromOrder(
+    const record = await this.issues.recordFromOrder(
       depotId,
       { orderId: dto.orderId, customerId: dto.customerId ?? null, quantity: dto.quantity },
       'order-service',
     );
+    // HD-6 (#24-A): a counter refill takes the empty back at the till as it hands the full
+    // gallon out. Booked AFTER the issue so the return is measured against a balance that
+    // already holds the new gallon; both writes are idempotent on the order, so the
+    // outbox's retry of a half-done call finishes it instead of doubling it.
+    if (dto.emptiesReturned && dto.emptiesReturned > 0) {
+      await this.returns.recordFromCounter(
+        depotId,
+        {
+          orderId: dto.orderId,
+          customerId: dto.customerId ?? null,
+          quantity: Math.min(dto.emptiesReturned, dto.quantity),
+        },
+        'order-service',
+      );
+    }
+    return record;
+  }
+
+  /**
+   * HD-6 (#24-A): a counter sale was voided, so the gallons it booked go back (the issue and,
+   * for a refill, the return). Idempotent: a retried void reverses once.
+   */
+  @ApiOkResponse({ description: 'Which ledgers this call reversed' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @HttpCode(200)
+  @Post('internal/void-order')
+  @ApiOperation({ summary: "Reverse a voided counter sale's gallon movements (internal)" })
+  voidOrder(
+    @Param('depotId', ParseUUIDPipe) depotId: string,
+    @Body() dto: VoidGallonOrderDto,
+  ): Promise<{ reversedIssue: boolean; reversedReturn: boolean }> {
+    return this.returns.reverseOrder(depotId, dto.orderId, 'order-service');
   }
 
   // Static `summary` segment declared before the paginated list so the route is unambiguous.

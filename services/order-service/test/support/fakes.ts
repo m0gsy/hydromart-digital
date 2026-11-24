@@ -68,7 +68,11 @@ import {
   OrderRevenueEvent,
   RevenuePostResult,
 } from '../../src/application/ports/franchise-revenue.port';
-import { GallonIssueEvent, GallonIssuePort } from '../../src/application/ports/gallon-issue.port';
+import {
+  GallonIssueEvent,
+  GallonIssuePort,
+  GallonVoidEvent,
+} from '../../src/application/ports/gallon-issue.port';
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { CashierShiftPort, OpenShift } from '../../src/application/ports/cashier-shift.port';
 import { PaymentReversalPort } from '../../src/application/ports/payment-reversal.port';
@@ -974,6 +978,13 @@ export class InMemoryOrderRepository implements OrderRepository {
     return out;
   }
 
+  async emptiesReturnedFor(orderId: string): Promise<number | null> {
+    const row = this.rows.find((r) => r.id === orderId) as
+      | { emptiesReturned?: number | null }
+      | undefined;
+    return row?.emptiesReturned ?? null;
+  }
+
   async firstTimeBuyersByCashier(
     depotId: string,
     range: ReportRange,
@@ -1376,10 +1387,19 @@ export class FakeFranchiseRevenue implements FranchiseRevenuePort {
  */
 export class FakeGallonIssue implements GallonIssuePort {
   booked: GallonIssueEvent[] = [];
+  /** HD-6: the void reversals sent to depot-service. */
+  voided: GallonVoidEvent[] = [];
   error: Error | null = null;
+  /** Runs inside `orderDelivered`, after the booking: lets a test void the sale mid-call. */
+  afterBook?: (event: GallonIssueEvent) => Promise<void>;
   async orderDelivered(event: GallonIssueEvent): Promise<void> {
     if (this.error) throw this.error;
     this.booked.push(event);
+    await this.afterBook?.(event);
+  }
+  async orderVoided(event: GallonVoidEvent): Promise<void> {
+    if (this.error) throw this.error;
+    this.voided.push(event);
   }
 }
 
@@ -1974,8 +1994,21 @@ export class InMemoryOutboxRepository implements OutboxRepository {
         nextAttemptAt: new Date(0),
         lastError: null,
         createdAt: nextDate(),
+        updatedAt: nextDate(),
       });
     }
+  }
+
+  async requeue(topic: OutboxMessageRecord['topic'], orderId: string): Promise<void> {
+    const row = this.rows.find((r) => r.topic === topic && r.orderId === orderId);
+    if (!row) return this.enqueue([{ topic, orderId }]);
+    Object.assign(row, {
+      status: 'PENDING',
+      attempts: 0,
+      nextAttemptAt: new Date(0),
+      lastError: null,
+      updatedAt: nextDate(),
+    });
   }
 
   async findDue(now: Date, limit: number): Promise<OutboxMessageRecord[]> {
@@ -1995,15 +2028,22 @@ export class InMemoryOutboxRepository implements OutboxRepository {
       .slice(0, limit)
       .map((r) => ({ ...r }));
   }
-  async markDone(id: string): Promise<void> {
+  async markDone(id: string, seenUpdatedAt: Date): Promise<void> {
     const row = this.rows.find((r) => r.id === id)!;
-    if (row.status !== 'PENDING') return;
+    if (row.status !== 'PENDING' || row.updatedAt.getTime() !== seenUpdatedAt.getTime()) return;
+    row.updatedAt = nextDate();
     row.status = 'DONE';
     row.lastError = null;
   }
-  async markFailed(id: string, error: string, nextAttemptAt: Date | null): Promise<void> {
+  async markFailed(
+    id: string,
+    error: string,
+    nextAttemptAt: Date | null,
+    seenUpdatedAt: Date,
+  ): Promise<void> {
     const row = this.rows.find((r) => r.id === id)!;
-    if (row.status !== 'PENDING') return;
+    if (row.status !== 'PENDING' || row.updatedAt.getTime() !== seenUpdatedAt.getTime()) return;
+    row.updatedAt = nextDate();
     row.status = nextAttemptAt ? 'PENDING' : 'DEAD';
     row.attempts += 1;
     row.lastError = error;
@@ -2016,7 +2056,8 @@ export class InMemoryOutboxRepository implements OutboxRepository {
         r.status === 'PENDING' &&
         r.topic !== 'PAYMENT_REVERSAL' &&
         r.topic !== 'FRANCHISE_REVENUE_VOID' &&
-        r.topic !== 'REFERRAL_REVERSE',
+        r.topic !== 'REFERRAL_REVERSE' &&
+        r.topic !== 'GALLON_ISSUE_VOID',
     );
     for (const row of owed) {
       row.status = 'CANCELLED';

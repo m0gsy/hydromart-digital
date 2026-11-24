@@ -1766,6 +1766,15 @@ describe('OrderPrismaRepository', () => {
       });
     });
 
+    it('reads the empties the cashier recorded, null when none or no order (HD-6)', async () => {
+      order.findUnique.mockResolvedValueOnce({ emptiesReturned: 2 });
+      expect(await repo.emptiesReturnedFor('o-1')).toBe(2);
+      order.findUnique.mockResolvedValueOnce({ emptiesReturned: null });
+      expect(await repo.emptiesReturnedFor('o-1')).toBeNull();
+      order.findUnique.mockResolvedValueOnce(null);
+      expect(await repo.emptiesReturnedFor('o-x')).toBeNull();
+    });
+
     it('does not query for an empty list', async () => {
       order.findMany.mockClear();
       expect((await repo.counterNotesFor([])).size).toBe(0);

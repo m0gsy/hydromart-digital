@@ -99,6 +99,11 @@ export class OutboxService {
     return cancelled;
   }
 
+  /** Owes `topic` for the order again, due now; see `OutboxRepository.requeue`. */
+  requeue(topic: OutboxTopic, orderId: string): Promise<void> {
+    return this.outbox.requeue(topic, orderId);
+  }
+
   async processForOrder(orderId: string, authorization: string): Promise<OutboxSweepResult> {
     const now = new Date();
     // ORD-12: ask for THIS order's rows. Filtering the oldest batch of everyone's rows meant a
@@ -123,12 +128,12 @@ export class OutboxService {
     for (const message of due) {
       try {
         await this.deliver(message, authorization);
-        await this.outbox.markDone(message.id);
+        await this.outbox.markDone(message.id, message.updatedAt);
         result.delivered += 1;
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         const retryAt = this.nextAttemptFor(message, now);
-        await this.outbox.markFailed(message.id, reason, retryAt);
+        await this.outbox.markFailed(message.id, reason, retryAt, message.updatedAt);
         result.failed += 1;
         if (!retryAt) {
           result.dead += 1;
@@ -201,6 +206,7 @@ export class OutboxService {
       message.topic !== 'VOUCHER_RELEASE' &&
       message.topic !== 'FRANCHISE_REVENUE_VOID' &&
       message.topic !== 'REFERRAL_REVERSE' &&
+      message.topic !== 'GALLON_ISSUE_VOID' &&
       (order.status === OrderStatus.VOIDED || order.status === OrderStatus.CANCELLED)
     ) {
       return;
@@ -211,7 +217,7 @@ export class OutboxService {
   private nextAttemptFor(message: OutboxMessageRecord, now: Date): Date | null {
     const attempts = message.attempts + 1;
     const max =
-      message.topic === 'PAYMENT_REVERSAL'
+      message.topic === 'PAYMENT_REVERSAL' || message.topic === 'GALLON_ISSUE_VOID'
         ? OutboxService.MAX_ATTEMPTS_PAYMENT_REVERSAL
         : OutboxService.MAX_ATTEMPTS;
     if (attempts >= max) return null;

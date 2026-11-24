@@ -93,6 +93,26 @@ export class GallonReturnPrismaRepository implements GallonReturnRepository {
     return row ? this.toRecord(row as ReturnRow) : null;
   }
 
+  async createKeyed(
+    data: CreateGallonReturnData,
+  ): Promise<{ record: GallonReturnRecord; created: boolean }> {
+    try {
+      return { record: await this.create(data), created: true };
+    } catch (error) {
+      if ((error as { code?: string })?.code !== 'P2002' || !data.idempotencyKey) throw error;
+      const row = await this.prisma.gallonReturn.findFirst({
+        where: { depotId: data.depotId, idempotencyKey: data.idempotencyKey },
+      });
+      if (!row) throw error;
+      return { record: this.toRecord(row as ReturnRow), created: false };
+    }
+  }
+
+  async findByOrderId(orderId: string): Promise<GallonReturnRecord | null> {
+    const row = await this.prisma.gallonReturn.findUnique({ where: { orderId } });
+    return row ? this.toRecord(row as ReturnRow) : null;
+  }
+
   async create(data: CreateGallonReturnData): Promise<GallonReturnRecord> {
     const row = await this.prisma.gallonReturn.create({ data });
     return this.toRecord(row);
@@ -129,16 +149,20 @@ export class GallonReturnPrismaRepository implements GallonReturnRepository {
   }
 
   async summaryForDepot(depotId: string): Promise<GallonReturnSummary> {
-    const [agg, damaged] = await Promise.all([
+    // HD-6: a void's reversal row is negative; it is not a return event, so the row counts
+    // skip it (the sums keep it, which is what makes the balance net out).
+    const [agg, returns, damaged] = await Promise.all([
       this.prisma.gallonReturn.aggregate({
         where: { depotId },
-        _count: { _all: true },
         _sum: { quantity: true, depositRefunded: true },
       }),
-      this.prisma.gallonReturn.count({ where: { depotId, condition: GallonCondition.DAMAGED } }),
+      this.prisma.gallonReturn.count({ where: { depotId, quantity: { gt: 0 } } }),
+      this.prisma.gallonReturn.count({
+        where: { depotId, condition: GallonCondition.DAMAGED, quantity: { gt: 0 } },
+      }),
     ]);
     return {
-      returns: agg._count._all,
+      returns,
       gallons: agg._sum.quantity ?? 0,
       damaged,
       depositRefunded: Number(agg._sum.depositRefunded ?? 0),

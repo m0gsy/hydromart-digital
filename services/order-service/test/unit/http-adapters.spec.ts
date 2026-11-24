@@ -516,6 +516,38 @@ describe('GallonIssueHttpAdapter', () => {
     expect('depositHeld' in body).toBe(false);
   });
 
+  it('carries the counter refill empties on the same booking (HD-6)', async () => {
+    fetchMock.mockResolvedValue(res({ body: { id: 'gi3' } }));
+    await new GallonIssueHttpAdapter(
+      makeConfig({ depotServiceUrl: 'http://depot:3007' }),
+    ).orderDelivered({ ...event, emptiesReturned: 1 });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body) as Record<string, unknown>;
+    expect(body).toEqual({ orderId: 'o1', customerId: 'c1', quantity: 2, emptiesReturned: 1 });
+  });
+
+  it('reverses a voided counter sale on the depot, fail-closed (HD-6)', async () => {
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValue(res({ body: { reversedIssue: true } }));
+    const adapter = new GallonIssueHttpAdapter(
+      makeConfig({ depotServiceUrl: 'http://depot:3007' }),
+    );
+    await adapter.orderVoided({ depotId: 'd1', orderId: 'o1' });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('http://depot:3007/api/v1/depots/d1/gallon-issues/internal/void-order');
+    expect(init.headers['x-internal-key']).toBe(KEY);
+    expect(JSON.parse(init.body)).toEqual({ orderId: 'o1' });
+
+    fetchMock.mockResolvedValue(res({ ok: false, status: 503 }));
+    await expect(adapter.orderVoided({ depotId: 'd1', orderId: 'o1' })).rejects.toThrow(/503/);
+
+    fetchMock.mockClear();
+    await new GallonIssueHttpAdapter(makeConfig({ depotServiceUrl: '' })).orderVoided({
+      depotId: 'd1',
+      orderId: 'o1',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('omits the customer for an anonymous counter sale', async () => {
     fetchMock.mockResolvedValue(res({ body: { id: 'gi2' } }));
     await new GallonIssueHttpAdapter(

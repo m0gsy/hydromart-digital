@@ -557,7 +557,8 @@ describe('GallonIssueController', () => {
     list: jest.fn(),
   };
   const depots = { get: jest.fn() };
-  const c = new GallonIssueController(issues as never, depots as never);
+  const returns = { recordFromCounter: jest.fn(), reverseOrder: jest.fn() };
+  const c = new GallonIssueController(issues as never, depots as never, returns as never);
   beforeEach(() => {
     jest.clearAllMocks();
     depots.get.mockResolvedValue({ ownerId: null });
@@ -598,6 +599,40 @@ describe('GallonIssueController', () => {
       { orderId: 'o-2', customerId: 'cu', quantity: 3 },
       'order-service',
     );
+  });
+
+  // HD-6 (#24-A): the empty a refill buyer hands over rides on the same call and is booked
+  // as a return AFTER the issue; a new-gallon sale (nothing handed over) books no return.
+  it('books the counter refill empties as a return, capped at the gallons sold (HD-6)', async () => {
+    await c.recordFromOrder(DEPOT, { orderId: 'o-3', quantity: 2 } as never);
+    await c.recordFromOrder(DEPOT, { orderId: 'o-3', quantity: 2, emptiesReturned: 0 } as never);
+    expect(returns.recordFromCounter).not.toHaveBeenCalled();
+    await c.recordFromOrder(DEPOT, {
+      orderId: 'o-4',
+      customerId: 'cu',
+      quantity: 2,
+      emptiesReturned: 5,
+    } as never);
+    expect(returns.recordFromCounter).toHaveBeenCalledWith(
+      DEPOT,
+      { orderId: 'o-4', customerId: 'cu', quantity: 2 },
+      'order-service',
+    );
+    await c.recordFromOrder(DEPOT, { orderId: 'o-5', quantity: 3, emptiesReturned: 1 } as never);
+    expect(returns.recordFromCounter).toHaveBeenLastCalledWith(
+      DEPOT,
+      { orderId: 'o-5', customerId: null, quantity: 1 },
+      'order-service',
+    );
+  });
+
+  it('reverses a voided counter sale through the return service (HD-6)', async () => {
+    returns.reverseOrder.mockResolvedValue({ reversedIssue: true, reversedReturn: false });
+    await expect(c.voidOrder(DEPOT, { orderId: 'o-9' } as never)).resolves.toEqual({
+      reversedIssue: true,
+      reversedReturn: false,
+    });
+    expect(returns.reverseOrder).toHaveBeenCalledWith(DEPOT, 'o-9', 'order-service');
   });
 
   it('summarizes and lists with default and explicit paging', async () => {

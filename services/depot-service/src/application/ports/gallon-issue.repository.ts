@@ -117,6 +117,8 @@ export interface GallonIssueRepository {
    * and therefore what it later refunds.
    */
   createFromOrder(data: CreateGallonIssueFromOrderData): Promise<GallonIssueRecord>;
+  /** HD-6: the issue fulfilment booked from this order, if it ever did (void reversal reads it). */
+  findByOrderId(orderId: string): Promise<GallonIssueRecord | null>;
   listForDepot(
     depotId: string,
     page: number,

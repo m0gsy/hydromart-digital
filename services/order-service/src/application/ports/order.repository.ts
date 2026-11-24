@@ -912,6 +912,12 @@ export interface OrderRepository {
    */
   counterNotesFor(orderIds: readonly string[]): Promise<Map<string, string>>;
   /**
+   * HD-6 (#24-A): the empties the cashier recorded on a counter sale, or null when none were
+   * asked. Not on `OrderRecord` for the reason `emptiesReturned` never was (see
+   * `CreateOrderData`): this is its one reader besides the refill report.
+   */
+  emptiesReturnedFor(orderId: string): Promise<number | null>;
+  /**
    * How many buyers each cashier at this depot sold to FOR THE FIRST TIME in the range — a
    * sale to a customer with no earlier order (voided and cancelled ones do not count as
    * earlier). The anonymous sentinel is not a buyer. A voided first sale still counts for the

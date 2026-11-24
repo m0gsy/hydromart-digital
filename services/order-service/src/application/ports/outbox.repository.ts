@@ -18,6 +18,13 @@ export type OutboxTopic =
    */
   | 'GALLON_ISSUE'
   /**
+   * HD-6 (#24-A): a voided counter sale gives its gallons back — the issue and, for a refill,
+   * the empty it took. Written with the VOIDED status, so a void cannot exist without the
+   * reversal being owed. Owed BY a voided order, so exempt from the skip guard and from
+   * `cancelForOrder`, like FRANCHISE_REVENUE_VOID.
+   */
+  | 'GALLON_ISSUE_VOID'
+  /**
    * A cancelled order owes its customer the money back.
    *
    * Written in the SAME transaction as the CANCELLED status, so a cancellation cannot exist
@@ -63,6 +70,11 @@ export interface OutboxMessageRecord {
   nextAttemptAt: Date;
   lastError: string | null;
   createdAt: Date;
+  /**
+   * When the row last changed. A sweep hands it back to `markDone` / `markFailed`, which only
+   * act on a row that has not changed since it was read (see those methods).
+   */
+  updatedAt: Date;
 }
 
 /** What an order owes, written alongside the state change that earns it. */
@@ -85,14 +97,32 @@ export interface OutboxRepository {
    * order's rows and filter in memory, so behind a backlog it saw none of its own.
    */
   findDueForOrder(orderId: string, now: Date, limit: number): Promise<OutboxMessageRecord[]>;
-  /** The effect landed; the row is closed and never picked up again. */
-  markDone(id: string): Promise<void>;
+  /**
+   * Owes this effect (again), due now. There is one row per (topic, order), so an existing one
+   * is re-armed to PENDING with a fresh attempt count rather than duplicated: a row that already
+   * ran as a no-op is exactly the one a late booking needs to run once more.
+   */
+  requeue(topic: OutboxTopic, orderId: string): Promise<void>;
+  /**
+   * The effect landed; the row is closed and never picked up again.
+   *
+   * Only if the row is still the one the sweep read (`seenUpdatedAt`): a `requeue` that landed
+   * while the delivery was in flight owes the effect AGAIN, and this delivery's success must not
+   * swallow that. A miss leaves the row PENDING, which is safe: every consumer is idempotent
+   * (the queue is at-least-once), so the cost of a miss is one repeated call.
+   */
+  markDone(id: string, seenUpdatedAt: Date): Promise<void>;
   /**
    * The effect failed. Bumps the attempt count, records why, and either schedules the
    * next try or gives up — a row nobody will retry has to say so, not sit as PENDING
    * forever pretending it is still coming.
    */
-  markFailed(id: string, error: string, nextAttemptAt: Date | null): Promise<void>;
+  markFailed(
+    id: string,
+    error: string,
+    nextAttemptAt: Date | null,
+    seenUpdatedAt: Date,
+  ): Promise<void>;
   /**
    * C3: the order stopped owing these. Cancels every row still PENDING for it and answers
    * how many, so the caller can say so rather than guess.

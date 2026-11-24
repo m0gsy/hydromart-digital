@@ -126,7 +126,7 @@ describe('GallonIssueService.importOpening', () => {
 describe('route and DTO', () => {
   it('the route hands rows, depot and actor to the service', async () => {
     const importOpening = jest.fn().mockResolvedValue('ok');
-    const c = new GallonIssueController({ importOpening } as never, {} as never);
+    const c = new GallonIssueController({ importOpening } as never, {} as never, {} as never);
     const rows = [{ customerPhone: '1', quantity: 1 }] as never;
     await c.importOpening(DEPOT, { rows }, { sub: 'u1' } as never);
     expect(importOpening).toHaveBeenCalledWith(DEPOT, rows, 'u1');

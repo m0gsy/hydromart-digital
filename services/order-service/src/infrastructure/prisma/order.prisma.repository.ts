@@ -1585,6 +1585,14 @@ export class OrderPrismaRepository implements OrderRepository {
     return new Map(rows.map((r) => [r.id, r.counterNote as string]));
   }
 
+  async emptiesReturnedFor(orderId: string): Promise<number | null> {
+    const row = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { emptiesReturned: true },
+    });
+    return row?.emptiesReturned ?? null;
+  }
+
   async firstTimeBuyersByCashier(
     depotId: string,
     range: ReportRange,
