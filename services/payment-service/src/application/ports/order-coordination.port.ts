@@ -5,6 +5,13 @@
  * payment is already settled, so an order-confirm hiccup must never surface as a
  * payment error. Idempotent on the order side.
  */
+/** `getOrderDepotsStrict` asked for orders order-service does not know (ids only, no personal data). */
+export class UnknownOrdersError extends Error {
+  constructor(readonly orderIds: readonly string[]) {
+    super(`order-service did not know ${orderIds.length} order(s)`);
+  }
+}
+
 export interface OrderCoordinationPort {
   confirmPaid(orderId: string): Promise<void>;
   /**

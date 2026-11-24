@@ -231,7 +231,7 @@ model CashSettlement {
   @@index([depotId, status])
   @@index([driverId, createdAt])
   /// HD-6 H2: `orderIds @> ARRAY[orderId]` (is this order in any settlement?) uses it.
-  @@index([orderIds], type: Gin)
+  @@index([orderIds], map: "cash_settlements_orderIds_gin_idx", type: Gin)
   @@map("cash_settlements")
 }
 

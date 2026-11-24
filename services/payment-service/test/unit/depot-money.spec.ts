@@ -85,15 +85,31 @@ describe('PaymentService.moneyByDepot', () => {
     // down
     orders.strictFails = true;
     await expect(service.moneyByDepot('collected', [D1], from, to)).rejects.toBeInstanceOf(ServiceUnavailableException);
-    // an order id order-service does not know (partial answer)
+    // an order id order-service does not know (partial answer): the count is in the 503, the ids in the log
     orders.strictFails = false;
-    add({});
-    await expect(service.moneyByDepot('collected', [D1], from, to)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    const orphan = add({});
+    const warn = jest.spyOn((service as unknown as { logger: { warn: (m: string) => void } }).logger, 'warn').mockImplementation();
+    await expect(service.moneyByDepot('collected', [D1], from, to)).rejects.toThrow('1 pesanan tidak dikenal');
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(orphan.orderId));
+    warn.mockRestore();
     // counter-only windows need no lookup at all
     repo.rows.length = 0;
     add({ depotId: D1, amount: 30_000 });
     orders.strictFails = true;
     expect((await service.moneyByDepot('collected', [D1], from, to)).rows).toHaveLength(1);
+  });
+
+  it('counts paid orders with no depot apart, in no depot number (N2)', async () => {
+    const none = add({ amount: 40_000 });
+    orders.depotlessOrders.add(none.orderId);
+    const placed = add({ amount: 10_000 });
+    orders.orderDepots.set(placed.orderId, D1);
+    const out = await service.moneyByDepot('collected', [D1], from, to);
+    expect(out.unplaced).toEqual({ orders: 1, amountIdr: 40_000 });
+    expect(out.rows.reduce((s, r) => s + r.amountIdr, 0)).toBe(10_000);
+    // none: unplaced is zero, not absent
+    repo.rows.length = 0;
+    expect((await service.moneyByDepot('collected', [D1], from, to)).unplaced).toEqual({ orders: 0, amountIdr: 0 });
   });
 
   it('reads counter payments only for the depots asked', async () => {

@@ -1319,13 +1319,14 @@ describe('AnalyticsPrismaRepository', () => {
     expect(expectedWhere).toEqual({
       depotId: { in: ['d1', 'd2', 'd3'] },
       joinDate: { lte: new Date('2026-07-31T00:00:00.000Z') },
-      OR: [{ exitDate: { gte: new Date('2026-07-01T00:00:00.000Z') } }, { exitDate: null, status: 'ACTIVE' }],
+      OR: [{ status: 'ACTIVE' }, { exitDate: null }, { exitDate: { gte: new Date('2026-07-01T00:00:00.000Z') } }],
     });
     expect(facts.get('d2')?.absentToday).toBe(1);
     // A depot with nothing at all is simply absent — the service decides what that means.
     expect(facts.has('d3')).toBe(false);
     expect(m(p, 'attendance').groupBy).toHaveBeenCalledTimes(1);
-    expect(p.$queryRaw).toHaveBeenCalledTimes(1);
+    // the cost totals, and the slips by the employee's own depot (finished check)
+    expect(p.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it('depotSummaryFacts reads a null payroll sum as zero, and asks nothing for no depots', async () => {
@@ -1341,7 +1342,7 @@ describe('AnalyticsPrismaRepository', () => {
 
     const none = await repo.depotSummaryFacts(new Date('2026-07-01'), '2026-07', []);
     expect(none.size).toBe(0);
-    expect(p.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(p.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it('payrollTotals converts Decimals (and null → 0), scoped by depot', async () => {

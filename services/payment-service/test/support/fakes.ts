@@ -22,7 +22,7 @@ import {
   PaymentGatewayPort,
   RefundResult,
 } from '../../src/application/ports/payment-gateway.port';
-import { OrderCoordinationPort } from '../../src/application/ports/order-coordination.port';
+import { OrderCoordinationPort, UnknownOrdersError } from '../../src/application/ports/order-coordination.port';
 
 let seq = 0;
 const nextDate = (): Date => new Date(1_800_000_000_000 + (seq += 1) * 1000);
@@ -510,7 +510,7 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
     for (const id of orderIds) {
       if (this.orderDepots.has(id)) out.set(id, this.orderDepots.get(id)!);
       else if (this.depotlessOrders.has(id)) out.set(id, null);
-      else throw new Error('order-service did not know 1 order(s)');
+      else throw new UnknownOrdersError([id]);
     }
     return out;
   }

@@ -346,6 +346,26 @@ describe('MoneyMetricsService: cash and COD (3.3)', () => {
     expect(v.shiftVariance.status).toBe('belum_ada');
   });
 
+  it('says how many paid orders have no depot and how much, and that they are not counted (N2)', async () => {
+    const { ask, sources } = build();
+    const withUnplaced = (rows: DepotMoneyRow[]) => Object.assign(rows, { unplaced: { orders: 2, amountIdr: 125_000 } });
+    sources.money.mockImplementation((async (kind: string) =>
+      withUnplaced(kind === 'refunded' ? [money({ orderId: 'o1', amountIdr: 15_000 })] : [money({ channel: 'delivery', amountIdr: 100_000, count: 1 })])) as never);
+    for (const id of ['U-01', 'U-02', 'U-04', 'U-05', 'P-02', 'P-03']) {
+      expect((await ask(id)).label).toContain('2 pesanan tanpa depot (Rp 125.000) tidak dihitung');
+    }
+    // nothing unplaced: no note
+    sources.money.mockImplementation((async () => [money({ amountIdr: 1 })]) as never);
+    expect((await ask('U-01')).label).not.toContain('tanpa depot');
+  });
+
+  it('counts the unplaced orders once per stretch, not once per 100-depot chunk', async () => {
+    const many = Array.from({ length: 101 }, (_, i) => span(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, '2026-11-01', '2026-11-30'));
+    const { ask, sources } = build(scopeOf(many));
+    sources.money.mockImplementation((async () => Object.assign([money({ amountIdr: 1 })], { unplaced: { orders: 3, amountIdr: 9_000 } })) as never);
+    expect((await ask('U-01')).label).toContain('3 pesanan tanpa depot (Rp 9.000) tidak dihitung');
+  });
+
   it('U-02 pending money by method and age', async () => {
     const { ask } = build();
     expect((await ask('U-02')).value).toEqual({

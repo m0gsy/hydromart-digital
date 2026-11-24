@@ -397,13 +397,15 @@ export class PaymentController {
    * its drawer; a delivery order's depot is read from order-service), for the AI read API. The
    * caller has already cut the depot list and the window to what the asker may read.
    */
-  @ApiOkResponse({ description: '`{ rows: MoneyDepotRow[] }` by depot, channel, method (and age or order).' })
+  @ApiOkResponse({ description: '`{ rows, unplaced }`: rows by depot, channel, method (and age or order); unplaced = paid orders with no depot, counted nowhere.' })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Get('internal/depot-money')
   @ApiOperation({ summary: 'Money by depot of the order over a window (internal service auth)' })
-  depotMoney(@Query() query: DepotMoneyQueryDto): Promise<{ rows: MoneyDepotRow[] }> {
+  depotMoney(
+    @Query() query: DepotMoneyQueryDto,
+  ): Promise<{ rows: MoneyDepotRow[]; unplaced: { orders: number; amountIdr: number } }> {
     return this.payments.moneyByDepot(
       query.kind,
       query.depotIds.split(','),

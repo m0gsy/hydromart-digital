@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { OrderCoordinationPort } from '../../application/ports/order-coordination.port';
+import { OrderCoordinationPort, UnknownOrdersError } from '../../application/ports/order-coordination.port';
 import { PaymentConfigService } from '../../config/payment-config.service';
 
 /**
@@ -155,7 +155,7 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
       const rows = (await res.json()) as { orderId?: string; depotId?: string | null }[];
       for (const r of rows) if (r.orderId) out.set(r.orderId, r.depotId ?? null);
       const missing = batch.filter((id) => !out.has(id));
-      if (missing.length > 0) throw new Error(`order-service did not know ${missing.length} order(s)`);
+      if (missing.length > 0) throw new UnknownOrdersError(missing);
     }
     return out;
   }

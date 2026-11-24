@@ -3,7 +3,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { can } from '@hydromart/access';
 import { AuthenticatedUser, addLocalDays, dayStartUtc, localDayKey } from '@hydromart/platform';
 
-import { AiMoneySourcesPort, DepotMoneyRow, InstantRange } from '../ports/ai-money-sources.port';
+import { AiMoneySourcesPort, DepotMoneyRow, InstantRange, MoneyKind, UnplacedMoney } from '../ports/ai-money-sources.port';
 import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
 import { DashboardService } from '../services/dashboard.service';
 import { DASHBOARD_TOKENS } from '../tokens';
@@ -261,7 +261,7 @@ export class MoneyMetricsService {
       case 'P-03': {
         const refund = await this.refundTotals(c);
         if (!refund) return c.none(DOWN);
-        return c.ok(revenue - refund.counted, 'omzet bersih: omzet dikurangi refund menurut tanggal refund');
+        return c.ok(revenue - refund.counted, 'omzet bersih: omzet dikurangi refund menurut tanggal refund' + MoneyMetricsService.unplacedNote(refund.unplaced));
       }
       case 'P-04':
         return c.ok(orders);
@@ -285,10 +285,37 @@ export class MoneyMetricsService {
     }
   }
 
+  /**
+   * Money rows of a window, once per stretch and per 100 depots, plus the paid orders with no depot
+   * (read network-wide by payment-service, so counted once per stretch, not once per chunk).
+   */
+  private async readMoney(c: Ctx, kind: MoneyKind): Promise<{ rows: DepotMoneyRow[]; unplaced: UnplacedMoney } | null> {
+    const rows: DepotMoneyRow[] = [];
+    const unplaced = { orders: 0, amountIdr: 0 };
+    for (const st of c.stretches) {
+      for (let i = 0; i < st.depotIds.length; i += DEPOTS_PER_READ) {
+        const part = await this.sources.money(kind, st.depotIds.slice(i, i + DEPOTS_PER_READ), st.range);
+        if (!part) return null;
+        rows.push(...part);
+        if (i === 0 && part.unplaced) {
+          unplaced.orders += part.unplaced.orders;
+          unplaced.amountIdr += part.unplaced.amountIdr;
+        }
+      }
+    }
+    return { rows, unplaced };
+  }
+
+  /** What the answer says about paid orders no depot owns: kept out of every depot's number, but not hidden. */
+  private static unplacedNote(u: UnplacedMoney): string {
+    return u.orders > 0 ? `; ${u.orders} pesanan tanpa depot (Rp ${rp(u.amountIdr).toLocaleString('id-ID')}) tidak dihitung` : '';
+  }
+
   /** Refunds by refund date, split by whether the order still counts as sales. Null = a source is down. */
-  private async refundTotals(c: Ctx): Promise<{ counted: number; notCounted: number } | null> {
-    const rows = await this.pool(c, (d, r) => this.sources.money('refunded', d, r));
-    if (!rows) return null;
+  private async refundTotals(c: Ctx): Promise<{ counted: number; notCounted: number; unplaced: UnplacedMoney } | null> {
+    const read = await this.readMoney(c, 'refunded');
+    if (!read) return null;
+    const { rows, unplaced } = read;
     const counting = await this.sources.countingOrders([...new Set(rows.flatMap((r) => (r.orderId ? [r.orderId] : [])))]);
     if (!counting) return null;
     let counted = 0;
@@ -297,7 +324,7 @@ export class MoneyMetricsService {
       if (r.orderId && counting.has(r.orderId)) counted += r.amountIdr;
       else notCounted += r.amountIdr;
     }
-    return { counted: rp(counted), notCounted: rp(notCounted) };
+    return { counted: rp(counted), notCounted: rp(notCounted), unplaced };
   }
 
   private async refunds(c: Ctx): Promise<AnswerEnvelope> {
@@ -305,7 +332,7 @@ export class MoneyMetricsService {
     if (!t) return c.none(DOWN);
     return c.ok(
       { refundIdr: t.counted, refundOfCancelledAndVoidOrdersIdr: t.notCounted },
-      'refund yang benar-benar dikembalikan menurut tanggal refund, pesanan antar dan kasir, hanya pesanan yang masih dihitung omzet; refund pesanan batal dan void dipisah',
+      'refund yang benar-benar dikembalikan menurut tanggal refund, pesanan antar dan kasir, hanya pesanan yang masih dihitung omzet; refund pesanan batal dan void dipisah' + MoneyMetricsService.unplacedNote(t.unplaced),
     );
   }
 
@@ -368,18 +395,20 @@ export class MoneyMetricsService {
 
   private async cash(id: 'U-01' | 'U-02' | 'U-04' | 'U-05', c: Ctx): Promise<AnswerEnvelope> {
     const kind = id === 'U-02' ? 'pending' : 'collected';
-    const rows = await this.pool(c, (d, r) => this.sources.money(kind, d, r));
-    if (!rows) return c.none(DOWN);
+    const read = await this.readMoney(c, kind);
+    if (!read) return c.none(DOWN);
+    const { rows } = read;
+    const note = MoneyMetricsService.unplacedNote(read.unplaced);
     if (id === 'U-01') {
       return c.ok(
         { totalIdr: rp(sum(rows, (r) => r.amountIdr)), byMethod: tally(rows, (r) => r.method) },
-        'pembayaran lunas menurut tanggal lunas, dikurangi refund sebesar yang dikembalikan; tunai mencakup COD dan kasir',
+        'pembayaran lunas menurut tanggal lunas, dikurangi refund sebesar yang dikembalikan; tunai mencakup COD dan kasir' + note,
       );
     }
     if (id === 'U-02') {
       return c.ok(
         { totalIdr: rp(sum(rows, (r) => r.amountIdr)), count: sum(rows, (r) => r.count), byMethod: tally(rows, (r) => r.method), byAge: tally(rows, (r) => r.age ?? '') },
-        'pembayaran MENUNGGU yang dibuat pada periode; umur dalam hari kalender WIB sampai hari ini',
+        'pembayaran MENUNGGU yang dibuat pada periode; umur dalam hari kalender WIB sampai hari ini' + note,
       );
     }
     if (id === 'U-05') {
@@ -393,7 +422,7 @@ export class MoneyMetricsService {
             ? { shifts: sum(shifts, (s) => s.shifts), shortfallIdr: rp(sum(shifts, (s) => s.shortfallIdr)), surplusIdr: rp(sum(shifts, (s) => s.surplusIdr)) }
             : { status: 'belum_ada', reason: DOWN },
         },
-        'kas konter: tunai lunas di kasir menurut tanggal lunas, tanpa modal awal; selisih shift = uang dihitung dikurangi seharusnya pada shift yang ditutup dalam periode, kurang dan lebih terpisah',
+        'kas konter: tunai lunas di kasir menurut tanggal lunas, tanpa modal awal; selisih shift = uang dihitung dikurangi seharusnya pada shift yang ditutup dalam periode, kurang dan lebih terpisah' + note,
       );
     }
     const collected = rp(sum(rows.filter((r) => r.channel === 'delivery' && r.method === 'CASH'), (r) => r.amountIdr));
@@ -408,7 +437,7 @@ export class MoneyMetricsService {
         shortfallIdr: rp(sum(dep, (r) => r.shortfallIdr)),
         surplusIdr: rp(sum(dep, (r) => r.surplusIdr)),
       },
-      'COD: tertagih = tunai lunas pada pesanan antar menurut tanggal lunas; disetor = setoran kurir terverifikasi menurut tanggal verifikasi; belum disetor = COD pesanan terkirim pada periode yang belum masuk setoran mana pun; seharusnya disetor dengan kurang dan lebih dijumlah terpisah (shortfallIdr, surplusIdr). Tertagih mengikuti depot PESANAN; setoran, seharusnya, kurang dan lebih mengikuti depot SHIFT kurir yang menyetor (satu setoran bisa memuat pesanan depot lain); belum disetor mengikuti depot pengiriman',
+      'COD: tertagih = tunai lunas pada pesanan antar menurut tanggal lunas; disetor = setoran kurir terverifikasi menurut tanggal verifikasi; belum disetor = COD pesanan terkirim pada periode yang belum masuk setoran mana pun; seharusnya disetor dengan kurang dan lebih dijumlah terpisah (shortfallIdr, surplusIdr). Tertagih mengikuti depot PESANAN; setoran, seharusnya, kurang dan lebih mengikuti depot SHIFT kurir yang menyetor (satu setoran bisa memuat pesanan depot lain); belum disetor mengikuti depot pengiriman' + note,
     );
   }
 

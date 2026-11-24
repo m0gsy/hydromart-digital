@@ -32,6 +32,15 @@ export interface ShiftVariance {
   surplusIdr: number;
 }
 
+/** Paid orders that exist but have no depot: in no depot's number, disclosed in the answer. */
+export interface UnplacedMoney {
+  orders: number;
+  amountIdr: number;
+}
+
+/** The rows, with the window's unplaced figure riding along (absent from a source that predates it). */
+export type MoneyRows = DepotMoneyRow[] & { unplaced?: UnplacedMoney };
+
 export type MoneyKind = 'collected' | 'pending' | 'refunded';
 
 /** payment-service `payments/internal/depot-money`: money by the depot of the order. */
@@ -72,7 +81,7 @@ export interface AiMoneySourcesPort {
   salesSummary(depotIds: readonly string[], range: InstantRange): Promise<DepotSalesRow[] | null>;
   productRevenue(depotIds: readonly string[], range: InstantRange): Promise<ProductRow[] | null>;
   timeArea(depotIds: readonly string[], range: InstantRange): Promise<TimeAreaRows | null>;
-  money(kind: MoneyKind, depotIds: readonly string[], range: InstantRange): Promise<DepotMoneyRow[] | null>;
+  money(kind: MoneyKind, depotIds: readonly string[], range: InstantRange): Promise<MoneyRows | null>;
   /** Of these order ids, those order-service still counts as sales. */
   countingOrders(orderIds: readonly string[]): Promise<Set<string> | null>;
   /** One depot: goods received (cogs) and cashbook cost (opex) over a window. */

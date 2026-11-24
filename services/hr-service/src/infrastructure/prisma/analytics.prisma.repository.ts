@@ -190,14 +190,16 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
     };
     const ids = [...depotIds];
 
-    // Who the month's payroll is waiting for: employed at any time in it. ACTIVE staff, or leavers whose
-    // exit date falls inside it; an INACTIVE person with no exit date is not waited for (nobody could
-    // ever finish that month). ponytail: by the employee's own depot even when payslips are split by
-    // share; a lent-out person is expected at their home depot and finalised where the share lands.
+    // Who the month's payroll is waiting for: employed at any time in it: joined by its last day, and
+    // ACTIVE, or with no exit date, or an exit date on or after its first day (an ACTIVE person with a
+    // stale exit date from before the month, a rehire, is therefore expected). A leaver with an exit
+    // date in the month who never gets a slip keeps the month unfinished, on purpose: somebody was owed.
+    // Expected, final and draft are ALL counted at the employee's own depot, whatever cost shares split
+    // the slip across: a depot whose only employee is 100% lent out must still be able to finish.
     const [y, mo] = periodMonth.split('-').map(Number);
     const monthStart = new Date(Date.UTC(y, mo - 1, 1));
     const monthEnd = new Date(Date.UTC(y, mo, 0));
-    const [attendance, headcount, payroll, expected] = await Promise.all([
+    const [attendance, headcount, payroll, expected, finished] = await Promise.all([
       this.prisma.attendance.groupBy({
         by: ['depotId', 'status'],
         where: { workDate, depotId: { in: ids } },
@@ -210,14 +212,12 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       }),
       this.byShare
         ? this.prisma.$queryRaw<
-            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null; count: bigint; draft?: bigint; final?: bigint }[]
+            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null; count: bigint }[]
           >`
             SELECT COALESCE(s."depotId", e."depotId") AS "depotId",
                    SUM(COALESCE(s."net", p."net")) AS "net",
                    SUM(COALESCE(s."gross", p."gross")) AS "gross",
-                   COUNT(DISTINCT p."id") AS "count",
-                   COUNT(DISTINCT p."id") FILTER (WHERE p."status" = 'DRAFT') AS "draft",
-                   COUNT(DISTINCT p."employeeId") FILTER (WHERE p."status" IN ('APPROVED', 'PAID')) AS "final"
+                   COUNT(DISTINCT p."id") AS "count"
             FROM "payrolls" p
             JOIN "employees" e ON e."id" = p."employeeId"
             ${shareJoin(ids)}
@@ -225,11 +225,10 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
             GROUP BY COALESCE(s."depotId", e."depotId")
           `
         : this.prisma.$queryRaw<
-            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null; count: bigint; draft?: bigint; final?: bigint }[]
+            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null; count: bigint }[]
           >`
         SELECT e."depotId" AS "depotId", SUM(p."net") AS "net", SUM(p."gross") AS "gross",
-               COUNT(*) AS "count", COUNT(*) FILTER (WHERE p."status" = 'DRAFT') AS "draft",
-               COUNT(DISTINCT p."employeeId") FILTER (WHERE p."status" IN ('APPROVED', 'PAID')) AS "final"
+               COUNT(*) AS "count"
         FROM "payrolls" p
         JOIN "employees" e ON e."id" = p."employeeId"
         WHERE p."periodMonth" = ${periodMonth}
@@ -241,10 +240,21 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
         where: {
           depotId: { in: ids },
           joinDate: { lte: monthEnd },
-          OR: [{ exitDate: { gte: monthStart } }, { exitDate: null, status: 'ACTIVE' }],
+          OR: [{ status: 'ACTIVE' }, { exitDate: null }, { exitDate: { gte: monthStart } }],
         },
         _count: { _all: true },
       }),
+      // Slips by the employee's own depot: still DRAFT, and employees with an APPROVED or PAID one.
+      this.prisma.$queryRaw<{ depotId: string; draft: bigint; final: bigint }[]>`
+        SELECT e."depotId" AS "depotId",
+               COUNT(*) FILTER (WHERE p."status" = 'DRAFT') AS "draft",
+               COUNT(DISTINCT p."employeeId") FILTER (WHERE p."status" IN ('APPROVED', 'PAID')) AS "final"
+        FROM "payrolls" p
+        JOIN "employees" e ON e."id" = p."employeeId"
+        WHERE p."periodMonth" = ${periodMonth}
+          AND e."depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
+        GROUP BY e."depotId"
+      `,
     ]);
 
     for (const row of attendance) {
@@ -261,14 +271,16 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
     for (const row of expected) {
       if (row.depotId) at(row.depotId).payrollExpectedCount = row._count._all;
     }
+    for (const row of finished) {
+      at(row.depotId).payrollDraftCount = Number(row.draft ?? 0);
+      at(row.depotId).payrollFinalCount = Number(row.final ?? 0);
+    }
     for (const row of payroll) {
       at(row.depotId).payrollMtdNet = row.net ? Number(row.net) : 0;
       // CA-2-59: gross rides along with net rather than in a second query — the P&L wants
       // what the employer spends, the dashboard card wants what was paid out.
       at(row.depotId).payrollMtdGross = row.gross ? Number(row.gross) : 0;
       at(row.depotId).payrollCount = Number(row.count ?? 0);
-      at(row.depotId).payrollDraftCount = Number(row.draft ?? 0);
-      at(row.depotId).payrollFinalCount = Number(row.final ?? 0);
     }
     return out;
   }

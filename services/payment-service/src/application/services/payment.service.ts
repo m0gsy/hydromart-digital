@@ -59,7 +59,9 @@ import {
   UnsettledMethodAggregate,
 } from '../ports/payment.repository';
 import { PaymentGatewayPort } from '../ports/payment-gateway.port';
-import { OrderCoordinationPort } from '../ports/order-coordination.port';
+import { OrderCoordinationPort,
+  UnknownOrdersError,
+} from '../ports/order-coordination.port';
 import { CASHIER_SHIFT_PORT, CashierShiftPort } from '../ports/cashier-shift.port';
 import { PAYMENT_TOKENS } from '../tokens';
 import { RefundAlertPort } from '../ports/refund-alert.port';
@@ -532,7 +534,7 @@ export class PaymentService {
     depotIds: readonly string[],
     from: Date,
     to: Date,
-  ): Promise<{ rows: MoneyDepotRow[] }> {
+  ): Promise<{ rows: MoneyDepotRow[]; unplaced: { orders: number; amountIdr: number } }> {
     const cap = PaymentService.MONEY_ORDER_CAP;
     const maxDays = AGING_BUCKETS.slice(0, -1).map((b) => b.maxDays);
     const raw = await this.payments.moneyByOrder(
@@ -555,13 +557,29 @@ export class PaymentService {
     } catch (error) {
       // A delivery payment is placed in a depot only by order-service. A partial or failed read
       // must not turn into counter-only numbers that look complete: refuse, so the caller says belum_ada.
+      if (error instanceof UnknownOrdersError) {
+        // Ids only (no personal data), the first ten, so somebody can find the orphan payments.
+        this.logger.warn(
+          `Money report refused: ${error.orderIds.length} order(s) unknown to order-service, e.g. ${error.orderIds.slice(0, 10).join(', ')}`,
+        );
+        throw new ServiceUnavailableException(
+          `Depot pesanan belum bisa dipastikan: ${error.orderIds.length} pesanan tidak dikenal order-service.`,
+        );
+      }
       this.logger.warn(`Order depots unavailable for the money report: ${(error as Error).message}`);
       throw new ServiceUnavailableException('Depot pesanan belum bisa dipastikan sekarang; coba lagi nanti.');
     }
     const rows = new Map<string, MoneyDepotRow>();
+    // Paid orders that exist but have no depot: kept out of every depot's number, but counted so the answer can say so.
+    const unplacedOrders = new Set<string>();
+    let unplacedIdr = 0;
     for (const r of raw) {
       // null = the order exists and has no depot: it belongs to no depot's report, on purpose.
       const depotId = r.counterDepotId ?? orderDepot.get(r.orderId);
+      if (!r.counterDepotId && orderDepot.get(r.orderId) === null) {
+        unplacedOrders.add(r.orderId);
+        unplacedIdr += r.amountIdr;
+      }
       if (!depotId || !wanted.has(depotId)) continue;
       const channel = r.counterDepotId ? 'counter' : 'delivery';
       const age = kind === 'pending' ? AGING_BUCKETS[Math.min(r.bucket, AGING_BUCKETS.length - 1)].label : undefined;
@@ -579,7 +597,7 @@ export class PaymentService {
       row.count += r.count;
       rows.set(key, row);
     }
-    return { rows: [...rows.values()] };
+    return { rows: [...rows.values()], unplaced: { orders: unplacedOrders.size, amountIdr: unplacedIdr } };
   }
 
   /** PLP-13: refunds per order for the P&L. A month holds far fewer than this per network. */

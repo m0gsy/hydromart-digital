@@ -7,6 +7,7 @@ import {
   DepotSalesRow,
   InstantRange,
   MoneyKind,
+  MoneyRows,
   ProductRow,
   ShiftVariance,
   TimeAreaRows,
@@ -100,12 +101,12 @@ export class AiMoneySourcesHttpAdapter implements AiMoneySourcesPort {
     };
   }
 
-  async money(kind: MoneyKind, depotIds: readonly string[], range: InstantRange): Promise<DepotMoneyRow[] | null> {
+  async money(kind: MoneyKind, depotIds: readonly string[], range: InstantRange): Promise<MoneyRows | null> {
     const base = this.config.paymentServiceUrl;
     if (!base) return null;
     const body = (await this.call(
       `${base}/api/v1/payments/internal/depot-money?${this.q({ kind, depotIds: depotIds.join(','), ...range })}`,
-    )) as { rows?: unknown } | null;
+    )) as { rows?: unknown; unplaced?: { orders?: unknown; amountIdr?: unknown } } | null;
     const rows = body?.rows;
     if (!isList(rows)) return null;
     const valid = rows.every(
@@ -116,7 +117,11 @@ export class AiMoneySourcesHttpAdapter implements AiMoneySourcesPort {
         isNum(r.amountIdr) &&
         isNum(r.count),
     );
-    return valid ? (rows as unknown as DepotMoneyRow[]) : null;
+    if (!valid) return null;
+    const u = body?.unplaced;
+    return Object.assign(rows as unknown as DepotMoneyRow[], {
+      ...(u && isNum(u.orders) && isNum(u.amountIdr) ? { unplaced: { orders: u.orders, amountIdr: u.amountIdr } } : {}),
+    });
   }
 
   async countingOrders(orderIds: readonly string[]): Promise<Set<string> | null> {
