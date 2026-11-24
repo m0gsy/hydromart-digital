@@ -111,7 +111,7 @@ describe('Delivery SLA report (e2e)', () => {
       totalDelivered: 0,
       onTime: 0,
       breached: 0,
-      slaRate: 0,
+      slaRate: null,
       avgMinutes: null,
       failedCount: 0,
     });

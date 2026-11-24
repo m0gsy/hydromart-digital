@@ -851,7 +851,11 @@ describe('DeliveryPrismaRepository', () => {
       medianMinutes: null,
       failedCount: 0,
     });
-    expect(delivery.count).toHaveBeenCalledWith({ where: { failedAt: { not: null } } });
+    expect(delivery.count).toHaveBeenCalledWith({
+      where: { failedAt: { not: null }, depotId: { not: null } },
+    });
+    // depot-less deliveries are left out of the aggregate so network total = sum of depots
+    expect(JSON.stringify($queryRaw.mock.calls[0])).toContain('depotId');
   });
 
   it('slaStats treats an empty depotIds array as unscoped', async () => {
@@ -859,7 +863,7 @@ describe('DeliveryPrismaRepository', () => {
     delivery.count.mockResolvedValue(0);
     await repo.slaStats({ from: new Date('2026-01-01') }, 30, []);
     expect(delivery.count).toHaveBeenCalledWith({
-      where: { failedAt: { not: null, gte: expect.any(Date) } },
+      where: { failedAt: { not: null, gte: expect.any(Date) }, depotId: { not: null } },
     });
   });
 

@@ -10,6 +10,7 @@ import { useDepot } from '@/lib/depot-context';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { useAsync } from '@/lib/use-async';
+import { monthRangeWib } from '@/lib/wib';
 import type { ApprovalCounts, Delivery, ExecutiveDashboard, InventoryItem, Page } from '@/lib/types';
 
 function firstName(name: string | null | undefined): string {
@@ -24,7 +25,7 @@ function Kpis({ d }: { d: ExecutiveDashboard }) {
   // ponytail: no gallon KPI in the dashboard BFF — delivered count is the closest real
   // figure; swap for a gallon metric when dashboard-service exposes one.
   const gallons = d.deliverySla?.totalDelivered ?? 0;
-  const sla = d.deliverySla ? Math.round(d.deliverySla.slaRate * 100) : null;
+  const sla = d.deliverySla?.slaRate != null ? Math.round(d.deliverySla.slaRate * 100) : null;
 
   return (
     <Card className="grid grid-cols-2 gap-y-4 p-5">
@@ -90,6 +91,8 @@ export default function ManagerHomePage() {
   const { t } = useT();
   const { customer } = useAuth();
   const { selected, depots, scopedId, ready } = useDepot();
+  // The KPI card is the depot named in the header, not the network, and the CURRENT WIB
+  // month: with no range the server answered all-time, so SLA (and orders, revenue) never moved.
   // The KPI card is the depot named in the header, not the network. It asked for the
   // unscoped executive dashboard — every depot's orders and every depot's revenue — and
   // printed the answer directly under one depot's name. The scoped id goes in the request;
@@ -97,7 +100,7 @@ export default function ManagerHomePage() {
   const dash = useAsync<ExecutiveDashboard>(
     () =>
       scopedId
-        ? api.get(endpoints.dashboard.executive({ depotId: scopedId }), true)
+        ? api.get(endpoints.dashboard.executive({ ...monthRangeWib(), depotId: scopedId }), true)
         : Promise.resolve(null as unknown as ExecutiveDashboard),
     [scopedId],
   );

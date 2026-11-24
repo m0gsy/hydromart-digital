@@ -585,7 +585,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       (!range.to || d.getTime() < range.to.getTime());
     const scoped = depotIds !== undefined && depotIds.length > 0;
     const inScope = (r: DeliveryRecord): boolean =>
-      !scoped || (r.depotId !== null && depotIds!.includes(r.depotId));
+      r.depotId !== null && (!scoped || depotIds!.includes(r.depotId));
     const delivered = this.rows.filter(
       (r) => r.deliveredAt && inRange(r.deliveredAt) && inScope(r),
     );

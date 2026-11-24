@@ -73,16 +73,19 @@ export class PerformanceService {
     ).length;
     const delivered = rows.length;
 
-    // Rank = 1 + couriers who delivered strictly more. The caller's own count comes
-    // from `delivered` (0 if they're absent from the leaderboard).
+    // Rank = 1 + couriers who delivered strictly more AT THIS DEPOT. `delivered` spans every
+    // depot the courier worked, so their own count is read off the depot board too (0 if
+    // absent); an all-depot count against a one-depot board over-ranked them.
+    const ownDepot = depotCounts.find((c) => c.driverId === driverId)?.count ?? 0;
     const rank =
-      depotId === undefined ? null : 1 + depotCounts.filter((c) => c.count > delivered).length;
-    // Prior-week rank on the same board (own prior count = prevRows.length). Null when
-    // the courier had no delivery last week — there's no meaningful rank to compare to.
+      depotId === undefined ? null : 1 + depotCounts.filter((c) => c.count > ownDepot).length;
+    // Prior-week rank on the same depot board. Null when the courier had no delivery at
+    // this depot last week — there's no meaningful rank to compare to.
+    const ownDepotPrev = depotCountsPrev.find((c) => c.driverId === driverId)?.count ?? 0;
     const rankPrev =
-      depotId === undefined || prevRows.length === 0
+      depotId === undefined || ownDepotPrev === 0
         ? null
-        : 1 + depotCountsPrev.filter((c) => c.count > prevRows.length).length;
+        : 1 + depotCountsPrev.filter((c) => c.count > ownDepotPrev).length;
     const target = this.config.courierWeeklyTarget(depotId ?? null);
 
     return {

@@ -74,7 +74,7 @@ function FranchiseBody() {
         />
         <Stat
           label={t('dashboard.franchise.slaOnTime')}
-          value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
+          value={deliverySla?.slaRate != null ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
           hint={
             deliverySla
               ? t('dashboard.franchise.delivered', {

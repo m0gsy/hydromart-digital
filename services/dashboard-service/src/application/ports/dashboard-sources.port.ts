@@ -39,7 +39,7 @@ export interface DeliverySla {
   totalDelivered: number;
   onTime: number;
   breached: number;
-  slaRate: number;
+  slaRate: number | null;
   avgMinutes: number | null;
   /** Median delivery minutes; null when nothing was delivered. Screens show this one. */
   medianMinutes: number | null;
@@ -72,7 +72,7 @@ export interface NetworkDepot {
 /** One depot's on-time SLA (subset of delivery-service DepotSlaRow). */
 export interface DepotSlaRow {
   depotId: string;
-  slaRate: number;
+  slaRate: number | null;
   /** Average delivered-order lead time in minutes, or null when none delivered. */
   avgMinutes: number | null;
   /** Median lead time in minutes (steady against one very late delivery), or null. */

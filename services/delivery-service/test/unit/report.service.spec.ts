@@ -20,7 +20,7 @@ function seed(repo: InMemoryDeliveryRepository, over: Partial<DeliveryRecord>): 
     orderId: randomUUID(),
     orderNumber: 'HM-1',
     driverId: randomUUID(),
-    depotId: null,
+    depotId: '00000000-0000-4000-8000-0000000000aa',
     status: DeliveryStatus.DELIVERED,
     destinationAddress: 'Jl. Merdeka 10',
     destinationLat: null,
@@ -139,14 +139,30 @@ describe('ReportService.sla', () => {
     expect(r.failedCount).toBe(1);
   });
 
-  it('returns slaRate 0 and avgMinutes null for an empty set', async () => {
+  it('returns slaRate null (never 0%) and avgMinutes null for an empty set', async () => {
     const r = await service.sla({});
 
     expect(r.totalDelivered).toBe(0);
-    expect(r.slaRate).toBe(0);
+    expect(r.slaRate).toBeNull();
     expect(r.avgMinutes).toBeNull();
     expect(r.medianMinutes).toBeNull();
     expect(r.failedCount).toBe(0);
+  });
+
+  it('network total equals the sum of the depot rows; depot-less deliveries leave it', async () => {
+    const depotA = randomUUID();
+    const depotB = randomUUID();
+    seed(repo, { depotId: depotA, deliveredAt: at(60) });
+    seed(repo, { depotId: depotA, deliveredAt: at(181) });
+    seed(repo, { depotId: depotB, deliveredAt: at(60) });
+    seed(repo, { depotId: null, deliveredAt: at(60) });
+
+    const total = await service.sla({});
+    const byDepot = await service.slaByDepot({});
+
+    expect(total.totalDelivered).toBe(byDepot.depots.reduce((n, d) => n + d.totalDelivered, 0));
+    expect(total.onTime).toBe(byDepot.depots.reduce((n, d) => n + d.onTime, 0));
+    expect(total.totalDelivered).toBe(3);
   });
 
   it('groups SLA per depot, excluding null-depot deliveries', async () => {

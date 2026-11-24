@@ -146,7 +146,7 @@ describe('SettlementService reads', () => {
 describe('ReportService arithmetic on empty sets', () => {
   const config = { slaMinutes: jest.fn().mockReturnValue(60) } as unknown as DeliveryConfigService;
 
-  it('a depot that delivered nothing scores 0, and its average is null rather than NaN', async () => {
+  it('a depot that delivered nothing has a null rate, and its average is null rather than NaN', async () => {
     const deliveries = {
       slaStatsByDepot: jest.fn().mockResolvedValue([
         { depotId: 'dep-1', totalDelivered: 0, onTime: 0, breached: 0, sumMinutes: 0, medianMinutes: null },
@@ -161,7 +161,7 @@ describe('ReportService arithmetic on empty sets', () => {
       } as never,
     );
 
-    expect(report.depots[0]).toMatchObject({ slaRate: 0, avgMinutes: null });
+    expect(report.depots[0]).toMatchObject({ slaRate: null, avgMinutes: null });
     expect(report.depots[1]).toMatchObject({ slaRate: 0.75, avgMinutes: 50 });
   });
 

@@ -359,7 +359,6 @@ export const opsFix = {
     weeklyTitle: 'Weekly report',
     orders: 'Orders',
     avgPerDay: 'Average per day',
-    slaOnTime: 'On-time SLA',
     revenuePerDay: 'Revenue per day',
     noRevenueThisWeek: 'No revenue this week yet.',
     topProducts: 'Top products',

@@ -201,8 +201,6 @@ export class DepotWeeklyReportResponseDto {
   revenueIdr!: number;
   @ApiProperty({ type: Number })
   avgPerDayIdr!: number;
-  @ApiProperty({ required: false, type: Number })
-  slaOnTimePct?: number;
   @ApiProperty({ type: [DepotWeeklyReportRevenueByDayResponseDto] })
   revenueByDay!: DepotWeeklyReportRevenueByDayResponseDto[];
   @ApiProperty({
