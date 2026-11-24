@@ -2,6 +2,7 @@ import { PayoutController } from '../../src/modules/payout.controller';
 import { PayoutService } from '../../src/application/services/payout.service';
 import { AuthenticatedUser } from '@hydromart/platform';
 import {
+  CommissionByDepotQueryDto,
   LedgerQueryDto,
   OrderRevenueDto,
   RequestWithdrawalDto,
@@ -15,11 +16,26 @@ describe('PayoutController', () => {
     recordOrderRevenue: jest
       .fn()
       .mockResolvedValue({ recorded: true, revenue: 240000, commission: 12000, commissionPct: 5 }),
+    commissionByDepot: jest.fn().mockResolvedValue([{ depotId: 'd1', commissionIdr: 5 }]),
     reverseOrderRevenue: jest.fn().mockResolvedValue({ reversed: true }),
   };
   const controller = new PayoutController(payout as unknown as PayoutService);
   const user = { sub: 'owner-1' } as AuthenticatedUser;
   afterEach(() => jest.clearAllMocks());
+
+  it('commissionByDepot (HD-6 H5) hands the window to the service as instants', async () => {
+    const out = await controller.commissionByDepot({
+      depotIds: ['d1'],
+      from: '2026-11-01T00:00:00Z',
+      to: '2026-12-01T00:00:00Z',
+    } as CommissionByDepotQueryDto);
+    expect(out).toEqual([{ depotId: 'd1', commissionIdr: 5 }]);
+    expect(payout.commissionByDepot).toHaveBeenCalledWith(
+      ['d1'],
+      new Date('2026-11-01T00:00:00Z'),
+      new Date('2026-12-01T00:00:00Z'),
+    );
+  });
 
   it('summary delegates with user.sub', async () => {
     await controller.summary(user);

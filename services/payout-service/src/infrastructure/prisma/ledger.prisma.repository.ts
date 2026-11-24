@@ -87,6 +87,20 @@ export class LedgerPrismaRepository implements LedgerRepository {
       .sort((a, b) => b.availableBalance - a.availableBalance);
   }
 
+  async commissionByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<{ depotId: string; commissionIdr: number }[]> {
+    const rows = await this.prisma.ledgerEntry.groupBy({
+      by: ['depotId'],
+      where: { type: 'COMMISSION', depotId: { in: [...depotIds] }, occurredAt: { gte: from, lt: to } },
+      _sum: { amount: true },
+    });
+    const byDepot = new Map(rows.map((r) => [r.depotId, 0 - Number(r._sum.amount ?? 0)]));
+    return depotIds.map((depotId) => ({ depotId, commissionIdr: byDepot.get(depotId) ?? 0 }));
+  }
+
   async sumByType(franchiseOwnerId: string, type: LedgerEntryType, since: Date): Promise<number> {
     const agg = await this.prisma.ledgerEntry.aggregate({
       where: { franchiseOwnerId, type, occurredAt: { gte: since } },

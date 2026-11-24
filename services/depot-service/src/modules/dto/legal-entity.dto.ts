@@ -284,3 +284,32 @@ export class AiGrantsOfRoleResponseDto {
   @ApiProperty({ type: [String] })
   legalEntityIds!: string[];
 }
+
+/** HD-6 H5: which legal entities to name the kind of. */
+export class EntityKindsQueryDto {
+  @ApiProperty({ description: 'Comma-separated legal entity ids (1 to 100).' })
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
+      : value,
+  )
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  ids!: string[];
+}
+
+export class EntityKindResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+  @ApiProperty({ enum: LEGAL_ENTITY_KINDS })
+  kind!: LegalEntityKind;
+}
+
+export class EntityKindsResponseDto {
+  @ApiProperty({ type: [EntityKindResponseDto] })
+  entities!: EntityKindResponseDto[];
+}

@@ -11,6 +11,7 @@ import { LegalEntityController } from '../../src/modules/legal-entity.controller
 import {
   AssignDepotsDto,
   CreateLegalEntityDto,
+  EntityKindsQueryDto,
   UpdateLegalEntityDto,
 } from '../../src/modules/dto/legal-entity.dto';
 import { InMemoryDepotRepository } from '../support/fakes';
@@ -141,6 +142,13 @@ describe('LegalEntityController', () => {
     ]);
   });
 
+  it('names the kind of the entities asked for (HD-6 H5), leaving an unknown one out', async () => {
+    const e = await create();
+    expect(await controller.internalKinds({ ids: [e.id.toUpperCase(), UNKNOWN] })).toEqual({
+      entities: [{ id: e.id, kind: 'OPERATOR' }],
+    });
+  });
+
   it('answers hr-service with name, kind and on/off, and 404 for an unknown id', async () => {
     const e = await create();
     expect(await controller.internalSummary(e.id)).toEqual({
@@ -154,6 +162,14 @@ describe('LegalEntityController', () => {
 });
 
 describe('legal entity DTOs', () => {
+  it('takes 1 to 100 uuids, comma-separated, for the kinds route', async () => {
+    const ok = plainToInstance(EntityKindsQueryDto, { ids: `${UNKNOWN}, ${UNKNOWN}` });
+    expect(ok.ids).toHaveLength(2);
+    expect(await validate(ok as object)).toHaveLength(0);
+    expect(await validate(plainToInstance(EntityKindsQueryDto, { ids: '' }) as object)).not.toHaveLength(0);
+    expect(await validate(plainToInstance(EntityKindsQueryDto, { ids: 'nope' }) as object)).not.toHaveLength(0);
+  });
+
   const check = async <T extends object>(cls: new () => T, body: object) =>
     validate(plainToInstance(cls, body) as object);
 

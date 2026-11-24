@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
 import {
@@ -7,10 +7,12 @@ import {
   franchiseApplicationSubmitted,
 } from '../../domain/franchise-application';
 import {
+  ApplicationSummary,
   CreateFranchiseApplicationData,
   FranchiseApplicationRecord,
   FranchiseApplicationRepository,
   ListApplicationsFilter,
+  MAX_SUMMARY_APPLICATIONS,
   UpdateFranchiseApplicationData,
 } from '../../application/ports/franchise-application.repository';
 import { PrismaService } from './prisma.service';
@@ -66,6 +68,10 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
       await tx.webhookEventOutbox.create({
         data: { ...event, payload: event.payload as Prisma.InputJsonValue },
       });
+      // HD-6 H5: the stage history starts with the stage it was submitted in, at the submit time.
+      await tx.franchiseApplicationStageEvent.create({
+        data: { applicationId: created.id, stage: created.stage, at: created.submittedAt },
+      });
       return created;
     });
     return this.toRecord(row as unknown as ApplicationRow);
@@ -98,19 +104,26 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
     patch: UpdateFranchiseApplicationData,
     seenUpdatedAt?: Date,
   ): Promise<FranchiseApplicationRecord | null> {
-    const { count } = await this.prisma.franchiseApplication.updateMany({
-      where: {
-        id,
-        stage: { notIn: [FranchiseAppStage.APPROVED, FranchiseAppStage.REJECTED] },
-        ...(seenUpdatedAt ? { updatedAt: seenUpdatedAt } : {}),
-      },
-      data: {
-        ...(patch.stage !== undefined ? { stage: patch.stage } : {}),
-        ...(patch.decisionReason !== undefined ? { decisionReason: patch.decisionReason } : {}),
-        ...(patch.checklist !== undefined
-          ? { checklist: patch.checklist as unknown as Prisma.InputJsonValue }
-          : {}),
-      },
+    // HD-6 H5: the stage change and its history row are one commit, and only when the write landed.
+    const count = await this.prisma.$transaction(async (tx) => {
+      const { count: written } = await tx.franchiseApplication.updateMany({
+        where: {
+          id,
+          stage: { notIn: [FranchiseAppStage.APPROVED, FranchiseAppStage.REJECTED] },
+          ...(seenUpdatedAt ? { updatedAt: seenUpdatedAt } : {}),
+        },
+        data: {
+          ...(patch.stage !== undefined ? { stage: patch.stage } : {}),
+          ...(patch.decisionReason !== undefined ? { decisionReason: patch.decisionReason } : {}),
+          ...(patch.checklist !== undefined
+            ? { checklist: patch.checklist as unknown as Prisma.InputJsonValue }
+            : {}),
+        },
+      });
+      if (written > 0 && patch.stage !== undefined) {
+        await tx.franchiseApplicationStageEvent.create({ data: { applicationId: id, stage: patch.stage } });
+      }
+      return written;
     });
     if (count === 0) return null;
     const row = await this.prisma.franchiseApplication.findUnique({ where: { id } });
@@ -122,5 +135,42 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
       where: { stage: FranchiseAppStage.REJECTED, updatedAt: { lt: cutoff } },
     });
     return count;
+  }
+
+  async summary(from: Date, to: Date): Promise<ApplicationSummary> {
+    const byStage = Object.fromEntries(Object.values(FranchiseAppStage).map((s) => [s, 0])) as Record<
+      FranchiseAppStage,
+      number
+    >;
+    const [live, entered] = await Promise.all([
+      this.prisma.franchiseApplication.groupBy({
+        by: ['stage'],
+        where: { submittedAt: { gte: from, lt: to } },
+        _count: { _all: true },
+      }),
+      // The first PENDING row of an application is its submission; a later move back to PENDING is not.
+      this.prisma.franchiseApplicationStageEvent.groupBy({
+        by: ['applicationId'],
+        where: { stage: FranchiseAppStage.PENDING },
+        _min: { at: true },
+        having: { at: { _min: { gte: from, lt: to } } },
+        orderBy: { applicationId: 'asc' },
+        take: MAX_SUMMARY_APPLICATIONS + 1,
+      }),
+    ]);
+    if (entered.length > MAX_SUMMARY_APPLICATIONS) {
+      throw new UnprocessableEntityException(
+        `Lebih dari ${MAX_SUMMARY_APPLICATIONS} pengajuan pada rentang ini; persempit rentangnya.`,
+      );
+    }
+    for (const g of live) byStage[g.stage as FranchiseAppStage] += g._count._all;
+    // In the history but no longer in the table: deleted, so it was rejected.
+    const ids = entered.map((e) => e.applicationId);
+    let kept = 0;
+    for (let i = 0; i < ids.length; i += 5000) {
+      kept += await this.prisma.franchiseApplication.count({ where: { id: { in: ids.slice(i, i + 5000) } } });
+    }
+    byStage[FranchiseAppStage.REJECTED] += ids.length - kept;
+    return { total: Object.values(byStage).reduce((a, b) => a + b, 0), byStage };
   }
 }

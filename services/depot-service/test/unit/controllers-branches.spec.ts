@@ -428,6 +428,7 @@ describe('FranchiseApplicationController', () => {
     reject: jest.fn(),
     create: jest.fn(),
     purgeRejectedOlderThan: jest.fn(),
+    summary: jest.fn(),
   };
   const c = new FranchiseApplicationController(svc as never);
   beforeEach(() => jest.clearAllMocks());
@@ -444,6 +445,12 @@ describe('FranchiseApplicationController', () => {
     investmentAmount: 150_000_000,
     projectedMonthlyRevenue: 45_000_000,
   };
+
+  it('answers the AI read API summary for the window as instants', async () => {
+    svc.summary.mockResolvedValue({ total: 2, byStage: {} });
+    expect(await c.summary({ from: '2026-11-01T00:00:00Z', to: '2026-12-01T00:00:00Z' })).toEqual({ total: 2, byStage: {} });
+    expect(svc.summary).toHaveBeenCalledWith(new Date('2026-11-01T00:00:00Z'), new Date('2026-12-01T00:00:00Z'));
+  });
 
   // UAT-M14-06: a prospective partner had no way to apply — the queue was HQ-only.
   it('accepts a public submission, normalising the proposed code', async () => {

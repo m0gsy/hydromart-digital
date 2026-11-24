@@ -20,7 +20,7 @@ import {
   ApproveResult,
   FranchiseApplicationService,
 } from '../application/services/franchise-application.service';
-import { FranchiseApplicationRecord } from '../application/ports/franchise-application.repository';
+import { ApplicationSummary, FranchiseApplicationRecord } from '../application/ports/franchise-application.repository';
 import {
   emptyChecklist,
   FranchiseAppStage,
@@ -28,6 +28,8 @@ import {
 } from '../domain/franchise-application';
 import { Page } from '../application/pagination';
 import {
+  ApplicationSummaryQueryDto,
+  ApplicationSummaryResponseDto,
   DecisionReasonDto,
   ListApplicationsQueryDto,
   PatchApplicationDto,
@@ -84,6 +86,20 @@ export class FranchiseApplicationController {
   })
   purgeRejected(@Body() dto: PurgeRejectedApplicationsDto): Promise<{ deleted: number }> {
     return this.applications.purgeRejectedOlderThan(new Date(dto.cutoff));
+  }
+
+  /**
+   * HD-6 H5, dashboard-service's AI read API: how many applications were submitted in a window and
+   * the stage each is in now. Counts only. Static segment, declared before ':id'.
+   */
+  @ApiOkResponse({ type: ApplicationSummaryResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/summary')
+  @ApiOperation({ summary: 'Applications submitted in [from, to) by current stage (internal, counts only)' })
+  summary(@Query() query: ApplicationSummaryQueryDto): Promise<ApplicationSummary> {
+    return this.applications.summary(new Date(query.from), new Date(query.to));
   }
 
   @ApiOkResponse({ type: SubmittedApplicationView })

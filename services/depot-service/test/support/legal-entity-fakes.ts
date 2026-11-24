@@ -67,6 +67,10 @@ export class InMemoryLegalEntityRepository implements LegalEntityRepository {
     return found ? { ...found } : null;
   }
 
+  async kindsOf(ids: string[]) {
+    return this.entities.filter((e) => ids.includes(e.id)).map((e) => ({ id: e.id, kind: e.kind }));
+  }
+
   async existingIds(ids: string[]): Promise<string[]> {
     return ids.filter((id) => this.entities.some((e) => e.id === id));
   }

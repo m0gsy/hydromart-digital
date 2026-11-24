@@ -483,6 +483,25 @@ describe('LedgerPrismaRepository', () => {
   };
 
   beforeEach(() => jest.clearAllMocks());
+
+  // HD-6 H5: commissions are stored as debits (voids give them back as credits), so HQ's share is the negated net.
+  it('sums the net commission per depot in [from, to), a row for every depot asked', async () => {
+    model.groupBy.mockResolvedValue([{ depotId: 'dep-1', _sum: { amount: '-7000' } }]);
+    const from = new Date('2026-11-01');
+    const to = new Date('2026-12-01');
+    expect(await repo.commissionByDepot(['dep-1', 'dep-2'], from, to)).toEqual([
+      { depotId: 'dep-1', commissionIdr: 7000 },
+      { depotId: 'dep-2', commissionIdr: 0 },
+    ]);
+    expect(model.groupBy).toHaveBeenCalledWith({
+      by: ['depotId'],
+      where: { type: 'COMMISSION', depotId: { in: ['dep-1', 'dep-2'] }, occurredAt: { gte: from, lt: to } },
+      _sum: { amount: true },
+    });
+    model.groupBy.mockResolvedValue([{ depotId: 'dep-1', _sum: { amount: null } }]);
+    expect((await repo.commissionByDepot(['dep-1'], from, to))[0].commissionIdr).toBe(0);
+  });
+
   // A depot with several owners writes one row per owner, so a reversal finds them by order.
   it('finds every entry pushed for an order, with the key each was pushed under', async () => {
     model.findMany.mockResolvedValue([

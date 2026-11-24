@@ -103,6 +103,15 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
     return row ? this.toEntity(row) : null;
   }
 
+  async kindsOf(ids: string[]): Promise<{ id: string; kind: LegalEntityKind }[]> {
+    const rows = await this.prisma.legalEntity.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, kind: true },
+      take: ids.length,
+    });
+    return rows.map((r) => ({ id: r.id, kind: r.kind as LegalEntityKind }));
+  }
+
   async existingIds(ids: string[]): Promise<string[]> {
     const rows = await this.prisma.legalEntity.findMany({
       where: { id: { in: ids } },

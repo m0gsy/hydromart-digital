@@ -1219,6 +1219,20 @@ model LegalEntityAiGrant {
   @@map("legal_entity_ai_grants")
 }
 
+/// HD-6 H5 (decision 32): the stage history of franchise applications, one row per stage an
+/// application entered (PENDING at submission, then each stage change and the decision). No
+/// foreign key and no personal data, on purpose: a rejected application is deleted after its
+/// retention window (CA-3-53), and the count of how many came in and how many were turned down
+/// must outlive it. History starts the day this ships; nothing is backfilled.
+model FranchiseApplicationStageEvent {
+  id            String            @id @default(uuid()) @db.Uuid
+  applicationId String            @db.Uuid
+  stage         FranchiseAppStage
+  at            DateTime          @default(now())
+
+  @@map("franchise_application_stage_events")
+}
+
 /// HD-7: events owed to admin-service's webhook fan-out, the same shape as delivery-service's
 /// AAS-11 outbox. Written in the SAME transaction as the row the event reports (a franchise
 /// application), so a crash cannot keep one without the other; sent once inline, re-sent by the

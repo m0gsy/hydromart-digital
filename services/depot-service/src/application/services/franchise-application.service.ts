@@ -20,6 +20,7 @@ import {
 import { buildPage, Page } from '../pagination';
 import { DepotRepository } from '../ports/depot.repository';
 import {
+  ApplicationSummary,
   CreateFranchiseApplicationData,
   FranchiseApplicationRecord,
   FranchiseApplicationRepository,
@@ -88,6 +89,11 @@ export class FranchiseApplicationService {
   async list(filter: ListApplicationsFilter): Promise<Page<FranchiseApplicationRecord>> {
     const { items, total } = await this.applications.list(filter);
     return buildPage(items, total, filter.page, filter.limit);
+  }
+
+  /** HD-6 H5: counts only (no applicant is named), for the AI read API. */
+  summary(from: Date, to: Date): Promise<ApplicationSummary> {
+    return this.applications.summary(from, to);
   }
 
   async get(id: string): Promise<FranchiseApplicationRecord> {

@@ -27,6 +27,8 @@ import {
 import { LedgerEntryRecord, WithdrawalRecord } from '../domain/ledger';
 import { Page } from '../application/pagination';
 import {
+  CommissionByDepotQueryDto,
+  CommissionByDepotResponseDto,
   LedgerQueryDto,
   OrderRevenueDto,
   RequestWithdrawalDto,
@@ -53,6 +55,22 @@ export class PayoutController {
   @ApiOperation({ summary: 'Balance, month revenue/commission, next payout + recent activity' })
   summary(@CurrentUser() user: AuthenticatedUser): Promise<PayoutSummary> {
     return this.payout.summary(user.sub);
+  }
+
+  /**
+   * HD-6 H5, dashboard-service's AI read API: HQ's commission from each depot's partner sales over
+   * a window. Identity-less (the internal key), like the other internal reads of this service.
+   */
+  @ApiOkResponse({ type: CommissionByDepotResponseDto, isArray: true })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/commission-by-depot')
+  @ApiOperation({ summary: "HQ's commission per depot over [from, to) (internal)" })
+  commissionByDepot(
+    @Query() query: CommissionByDepotQueryDto,
+  ): Promise<{ depotId: string; commissionIdr: number }[]> {
+    return this.payout.commissionByDepot(query.depotIds, new Date(query.from), new Date(query.to));
   }
 
   @ApiOkResponse({ type: PagedLedgerEntryResponseDto })

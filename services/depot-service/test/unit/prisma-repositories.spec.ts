@@ -825,12 +825,16 @@ describe('FranchiseApplicationPrismaRepository', () => {
     update: jest.fn(),
     updateMany: jest.fn(),
     deleteMany: jest.fn(),
+    groupBy: jest.fn(),
   };
+  // HD-6 H5: the stage history, written in the same transaction as the stage it records.
+  const events = { create: jest.fn(), groupBy: jest.fn() };
   // HD-7: create() writes the application and its outbox row in one interactive transaction.
   const outbox = { create: jest.fn() };
-  const tx = { franchiseApplication: model, webhookEventOutbox: outbox };
+  const tx = { franchiseApplication: model, webhookEventOutbox: outbox, franchiseApplicationStageEvent: events };
   const prisma = {
     franchiseApplication: model,
+    franchiseApplicationStageEvent: events,
     $transaction: jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
   } as unknown as PrismaService;
   const repo = new FranchiseApplicationPrismaRepository(prisma);
@@ -879,6 +883,66 @@ describe('FranchiseApplicationPrismaRepository', () => {
         payload: { applicationId: 'fa-1', city: 'Bandung', province: 'Jabar' },
         occurredAt: row.submittedAt,
       },
+    });
+  });
+
+  it('starts the stage history with the stage it was submitted in, at the submit time', async () => {
+    model.create.mockResolvedValue(row);
+    await repo.create({ checklist: {} } as never);
+    expect(events.create).toHaveBeenCalledWith({
+      data: { applicationId: 'fa-1', stage: 'LEAD', at: row.submittedAt },
+    });
+  });
+
+  it('records a stage change in the history only when the write landed', async () => {
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUnique.mockResolvedValue(row);
+    await repo.updateIfOpen('fa-1', { stage: 'SURVEY' } as never);
+    expect(events.create).toHaveBeenCalledWith({ data: { applicationId: 'fa-1', stage: 'SURVEY' } });
+    events.create.mockClear();
+    await repo.updateIfOpen('fa-1', { checklist: {} } as never);
+    model.updateMany.mockResolvedValue({ count: 0 });
+    await repo.updateIfOpen('fa-1', { stage: 'REJECTED' } as never);
+    expect(events.create).not.toHaveBeenCalled();
+  });
+
+  describe('summary (HD-6 H5)', () => {
+    const from = new Date('2026-11-01T00:00:00Z');
+    const to = new Date('2026-12-01T00:00:00Z');
+
+    it('counts live applications by stage, and a deleted one in the history as REJECTED', async () => {
+      model.groupBy.mockResolvedValue([
+        { stage: 'PENDING', _count: { _all: 2 } },
+        { stage: 'APPROVED', _count: { _all: 1 } },
+      ]);
+      events.groupBy.mockResolvedValue([{ applicationId: 'a' }, { applicationId: 'b' }, { applicationId: 'c' }, { applicationId: 'd' }]);
+      model.count.mockResolvedValue(3); // d was deleted after it was rejected
+      const out = await repo.summary(from, to);
+      expect(out).toEqual({
+        total: 4,
+        byStage: { PENDING: 2, DOC_VERIFICATION: 0, SURVEY: 0, APPROVED: 1, REJECTED: 1 },
+      });
+      expect(model.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { submittedAt: { gte: from, lt: to } } }),
+      );
+      expect(events.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { stage: 'PENDING' }, having: { at: { _min: { gte: from, lt: to } } } }),
+      );
+    });
+
+    it('refuses a window holding more applications than it will count, rather than cutting it', async () => {
+      model.groupBy.mockResolvedValue([]);
+      events.groupBy.mockResolvedValue(Array.from({ length: 20001 }, (_, i) => ({ applicationId: String(i) })));
+      await expect(repo.summary(from, to)).rejects.toThrow(/persempit/);
+    });
+
+    it('asks which of a long history are still stored in batches', async () => {
+      model.groupBy.mockResolvedValue([]);
+      events.groupBy.mockResolvedValue(Array.from({ length: 5001 }, (_, i) => ({ applicationId: String(i) })));
+      model.count.mockResolvedValue(0);
+      const out = await repo.summary(from, to);
+      expect(model.count).toHaveBeenCalledTimes(2);
+      expect(out.byStage.REJECTED).toBe(5001);
     });
   });
 

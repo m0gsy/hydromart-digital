@@ -56,6 +56,15 @@ export interface ListApplicationsFilter {
   stage?: FranchiseAppStage;
 }
 
+/** HD-6 H5: how many applications were submitted in a window, and the stage each is in now. */
+export interface ApplicationSummary {
+  total: number;
+  byStage: Record<FranchiseAppStage, number>;
+}
+
+/** The most applications one summary window may hold; past it the window is refused, not cut. */
+export const MAX_SUMMARY_APPLICATIONS = 20000;
+
 export interface FranchiseApplicationRepository {
   create(data: CreateFranchiseApplicationData): Promise<FranchiseApplicationRecord>;
   /** Queue read: oldest-first by submittedAt (highest SLA age first). */
@@ -90,4 +99,12 @@ export interface FranchiseApplicationRepository {
    * ship in the same release.
    */
   purgeRejectedBefore(cutoff: Date): Promise<number>;
+  /**
+   * HD-6 H5: applications submitted in `[from, to)`, by the stage each is in now. A rejected
+   * application is deleted after its retention window (CA-3-53); the stage history outlives it, so
+   * one that was submitted in the window, is gone, and was recorded in the history is still counted
+   * (as REJECTED: only rejected ones are ever deleted). One deleted before the history existed
+   * cannot be recovered. Refuses (422) a window holding more than MAX_SUMMARY_APPLICATIONS.
+   */
+  summary(from: Date, to: Date): Promise<ApplicationSummary>;
 }
