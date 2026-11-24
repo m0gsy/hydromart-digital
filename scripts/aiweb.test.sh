@@ -103,7 +103,7 @@ case "$1" in
         printf '%s\n' "0d0d0d0d0d0d false bridge " "${FAKE_EDGE_ID:-e0e0e0e0e0e0} false edge hydromart" \
           "b2b2b2b2b2b2 ${FAKE_EGRESS_IPV6:-false} hydromart-ai_egress hydromart-ai" \
           "${FAKE_PRIVATE_ID:-a1a1a1a1a1a1} false hydromart-ai_private hydromart-ai" \
-          "c3c3c3c3c3c3 false hydromart_default hydromart" "5e5e5e5e5e5e false host " ;;
+          "c3c3c3c3c3c3 false hydromart_default hydromart" "5e5e5e5e5e5e false host "           ${FAKE_STAGING:+"f4f4f4f4f4f4 false edge-staging hydromart" "a5a5a5a5a5a5 false hydromart-ai-staging_private hydromart-ai-staging" "d6d6d6d6d6d6 false hydromart-ai-staging_tunnel hydromart-ai-staging"} ;;
       *IPAM*)
         case "$args" in
           *" ${FAKE_NO_GW:-no-such-network} "*) exit 1 ;;
@@ -1205,6 +1205,39 @@ fw FAKE_NO_SUDO=1
 fw
 [ "$RC" = 0 ] && [ "$(chain AIWEB-NO-SSH)" = "$CLOSED" ] && [ ! -e "$T/.deploy/alerted/aiweb-firewall" ] &&
   ok "  ...and forgotten by the run that closes it" || bad "after sudo came back ($RC): $OUT"
+# D3 staging: its networks (edge-staging, and every network of the staging project) are closed
+# like the AI web's, in the same chain; with none of them on the box nothing above changes.
+reset_fakes
+rm -f "$SAVED"
+fw FAKE_STAGING=1
+[ "$RC" = 0 ] && [ "$(chain AIWEB-NO-SSH)" = '-i br-a1a1a1a1a1a1 -j DROP
+-i br-a5a5a5a5a5a5 -j DROP
+-i br-b2b2b2b2b2b2 -j DROP
+-i br-d6d6d6d6d6d6 -j DROP
+-i br-e0e0e0e0e0e0 -j DROP
+-i br-f4f4f4f4f4f4 -j DROP' ] &&
+  ok "the staging networks (edge-staging, the staging project's private and tunnel) get TCP 22 dropped beside the AI web's, and no other network does" ||
+  bad "the chain with staging networks ($RC): $(chain AIWEB-NO-SSH | tr '\n' ' ') $OUT"
+grep -qF 'edge-staging=br-f4f4f4f4f4f4' "$SAVED" && grep -qF 'hydromart-ai-staging_private=br-a5a5a5a5a5a5' "$SAVED" &&
+  ok "  ...and saves their bridges for a run docker cannot answer" || bad "saved: $(cat "$SAVED" 2>&1)"
+reset_fakes
+rm -f "$SAVED"
+fw
+[ "$RC" = 0 ] && [ "$(chain AIWEB-NO-SSH)" = "$CLOSED" ] &&
+  ok "with no staging network on the box the chain is the same three bridges as before" || bad "without staging ($RC): $(chain AIWEB-NO-SSH | tr '\n' ' ') $OUT"
+fw STAGING_PROJECT='x # y'
+[ "$RC" = 1 ] && grep -qF "'x # y' (the staging project's name) is not a compose project name" <<<"$OUT" &&
+  ok "a staging project name that is not one is refused before iptables" || bad "a bad staging name ($RC): $OUT"
+for prod in hydromart hydromart-ai; do
+  : > "$W/log"
+  fw "STAGING_PROJECT=$prod"
+  [ "$RC" = 1 ] && grep -qF "is a production project; refused" <<<"$OUT" && ! grep -q '^iptables' "$W/log" &&
+    ok "a staging project named '$prod' (a production project) is refused before iptables is touched" ||
+    bad "staging project '$prod' ($RC): $OUT"
+done
+rm -f "$T/.deploy/alerted/aiweb-firewall"
+reset_fakes
+fw
 fw_lines="$(bash scripts/install-host-cron.sh --show 2>/dev/null | grep -F 'scripts/aiweb-firewall.sh')"
 case "$fw_lines" in
   "@reboot cd "*" && bash scripts/aiweb-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1

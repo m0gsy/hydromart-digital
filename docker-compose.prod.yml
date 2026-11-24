@@ -1143,11 +1143,20 @@ services:
     networks:
       # `default` must be named once a service lists networks at all, or Caddy loses
       # web:3000 and gateway:8080.
-      - default
+      default: {}
       # HD-1: the network a second project's web front joins so Caddy can proxy to it,
       # without either stack joining the other's default network. Caddy is this project's
       # only member. Its site file goes in infra/caddy/sites/.
-      - edge
+      edge: {}
+      # D3 staging: the same idea for the AI web's staging copy, on a network of its own so
+      # nothing of staging ever shares `edge` with the production AI web (a second container
+      # named like it there would take production's traffic, and could open its port). Internal:
+      # no way out. The alias is the staging site's own host name, so the staging app's calls to
+      # "hydromart" (a name that is Caddy's) go to Caddy over this network, with the real
+      # certificate, and never leave the box. Nothing joins it until the staging stack runs.
+      edge-staging:
+        aliases:
+          - staging-ai.hydromart-digital.com
     volumes:
       # The DIRECTORY, not the file - and that difference is a live security finding.
       #
@@ -1170,6 +1179,10 @@ networks:
   edge:
     # A fixed name, not `hydromart_edge`, so the other project can declare it `external`.
     name: edge
+  edge-staging:
+    # Fixed name for the same reason; internal, see Caddy's network list above.
+    name: edge-staging
+    internal: true
 
 volumes:
   caddy_data:
