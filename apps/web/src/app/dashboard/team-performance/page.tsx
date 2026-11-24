@@ -4,6 +4,7 @@ import { ChartBar, Lock, Star } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, Chip, ErrorState, Skeleton } from '@/components/ui';
+import { isSlaCritical, useSlaBands } from '@/lib/sla-bands';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -46,6 +47,7 @@ function Avatar({ name, color }: { name: string; color: string }) {
 function TeamPerformanceBody() {
   const { t } = useT();
   const { customer } = useAuth();
+  const bands = useSlaBands();
   const { selected, depots, scopedId } = useDepot();
   const depot = selected ?? depots.find((item) => item.id === scopedId) ?? null;
   // Current business-calendar month, read at render so a long-open app does not keep last month's.
@@ -168,7 +170,7 @@ function TeamPerformanceBody() {
                               {name}
                             </EntityLink>
                           </p>
-                          {(sla < 90 || courier.failed >= 5) && (
+                          {(isSlaCritical(sla, bands) || courier.failed >= 5) && (
                             <Chip tone="amber">{t('mgrFix.teamPerf.needsAttention')}</Chip>
                           )}
                         </div>

@@ -52,6 +52,7 @@ import { OrderPaymentPort } from '../ports/order-payment.port';
 import { OrderLookupPort } from '../ports/order-lookup.port';
 import { haversineMeters } from '../../domain/geo';
 import { clampCapturedAt } from '../../domain/offline';
+import { isOnTime, RescheduleInitiator, slaClockStart } from '../../domain/sla';
 import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
 import { StoragePort } from '../ports/storage.port';
@@ -172,6 +173,8 @@ export interface RescheduleInput {
    * the money visible in the shift deposit rather than writing it off. See `settleHeldCash`.
    */
   cashReturned?: boolean;
+  /** Who asked (HD-6 #20). Defaults to CUSTOMER: the courier's reschedule is the customer's new time. */
+  initiator?: RescheduleInitiator;
 }
 
 const NO_SHOW_REASON = 'Pelanggan tidak di tempat (no-show).';
@@ -478,7 +481,7 @@ export class DeliveryService {
       proof.capturedAt,
       new Date(),
       this.config.offlineMaxAgeHours(delivery.depotId),
-      delivery.assignedAt,
+      slaClockStart(delivery),
     );
     /*
      * DLV-4 — is the courier where the order was going?
@@ -510,6 +513,12 @@ export class DeliveryService {
     //
     // The status guard rides along: a re-tapped Selesai matches no row and raises rather
     // than paying the courier twice for one handover (H-5).
+    // HD-6 #19/#20: graded once, here, on the clock of THIS attempt; everything downstream
+    // (reports, courier pay) reads what is stored.
+    const startedAt = slaClockStart(delivery);
+    // One chain for every reader: the depot's own setting, else the global one /hq/sla-policy
+    // saves, else the env default (all of it is `slaMinutes`).
+    const thresholdMinutes = this.config.slaMinutes(delivery.depotId);
     const completed = await this.deliveries.completeWithProof(
       id,
       delivery.status,
@@ -519,6 +528,7 @@ export class DeliveryService {
       // AAS-11: recorded in the same transaction as the handover. Only when a fan-out is
       // bound at all; without one nothing is owed to anybody.
       this.events ? this.deliveredEvent(delivery, capturedAt, proof.recipientName) : undefined,
+      { startedAt, thresholdMinutes, onTime: isOnTime(startedAt, capturedAt, thresholdMinutes) },
     );
     this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
     // Proof of delivery is the real-world close of the order: nothing downstream of it is
@@ -592,13 +602,18 @@ export class DeliveryService {
   /** Reports a completed delivery to payout-service. On-time = beat the SLA window. */
   private async pushEarning(delivery: DeliveryRecord): Promise<void> {
     if (!delivery.deliveredAt) return;
-    const minutes = (delivery.deliveredAt.getTime() - delivery.assignedAt.getTime()) / 60000;
+    // FORWARD-ONLY for money: a delivery completed now always carries its stored verdict. A
+    // row without one (completed before HD-6) is graded as it always was, so no earning that
+    // was approved or paid can change.
+    const onTime =
+      delivery.slaOnTime ??
+      isOnTime(delivery.assignedAt, delivery.deliveredAt, this.config.slaMinutes(delivery.depotId));
     await this.payout.deliveryCompleted({
       courierId: delivery.driverId,
       depotId: delivery.depotId,
       deliveryId: delivery.id,
       deliveredAt: delivery.deliveredAt.toISOString(),
-      onTime: minutes <= this.config.slaMinutes(delivery.depotId),
+      onTime,
     });
   }
 
@@ -954,6 +969,8 @@ export class DeliveryService {
           rescheduledFor: input.rescheduledFor,
           rescheduleSlot: input.slot ?? null,
           rescheduleNote: input.note ?? null,
+          // The courier endpoint is "the new time agreed with the customer" (design 3c).
+          rescheduleInitiator: input.initiator ?? 'CUSTOMER',
         },
         driverId,
         input.note ?? null,
@@ -977,7 +994,12 @@ export class DeliveryService {
           id,
           DeliveryStatus.RESCHEDULED,
           delivery.status,
-          { rescheduledFor: null, rescheduleSlot: null, rescheduleNote: null },
+          {
+            rescheduledFor: null,
+            rescheduleSlot: null,
+            rescheduleNote: null,
+            rescheduleInitiator: null,
+          },
           driverId,
           'Pengembalian tunai gagal dikonfirmasi; status dikembalikan.',
         )
@@ -1352,7 +1374,8 @@ export class DeliveryService {
       id,
       delivery.status,
       DeliveryStatus.RESCHEDULED,
-      { rescheduleNote: reason },
+      // A depot release is how the courier is swapped: it must NOT restart the SLA clock.
+      { rescheduleNote: reason, rescheduleInitiator: 'DEPOT' },
       user.sub,
       reason,
     );

@@ -61,6 +61,13 @@ export interface DeliveryRecord {
   lastLocationAt: Date | null;
   estimatedArrivalAt: Date | null;
   assignedAt: Date;
+  /** HD-6 #20: restarted clock of the successful attempt; null = `assignedAt` is the start. */
+  slaStartedAt: Date | null;
+  /** HD-6 #19: stored at completion; all three null on rows completed before it shipped. */
+  slaThresholdMinutes: number | null;
+  slaOnTime: boolean | null;
+  /** HD-6 #20: CUSTOMER | DEPOT for the last reschedule; null = unknown/none. */
+  rescheduleInitiator?: string | null;
   pickedUpAt: Date | null;
   startedAt: Date | null;
   deliveredAt: Date | null;
@@ -85,7 +92,8 @@ export interface SlaCandidate {
   orderId: string;
   orderNumber: string;
   depotId: string | null;
-  assignedAt: Date;
+  /** HD-6: COALESCE(slaStartedAt, assignedAt), the clock of the attempt now running. */
+  clockStartedAt: Date;
 }
 
 export interface CreateDeliveryData {
@@ -119,6 +127,7 @@ export interface DeliveryTimestamps {
   rescheduledFor?: Date | null;
   rescheduleSlot?: string | null;
   rescheduleNote?: string | null;
+  rescheduleInitiator?: string | null;
 }
 
 export interface DeliveryQuery {
@@ -142,6 +151,13 @@ export interface DeliveryQuery {
 }
 
 /** Reporting window. Both bounds optional; open-ended when absent. */
+/** The on-time verdict stored on a delivery at completion (HD-6 #19/#20). */
+export interface StoredSla {
+  startedAt: Date;
+  thresholdMinutes: number;
+  onTime: boolean;
+}
+
 export interface ReportRange {
   from?: Date;
   to?: Date;
@@ -152,6 +168,9 @@ export interface DeliveredRow {
   orderId: string;
   assignedAt: Date;
   deliveredAt: Date;
+  /** HD-6: the stored verdict; null = completed before it was stored (compute it). */
+  slaOnTime: boolean | null;
+  slaStartedAt: Date | null;
 }
 
 /** One depot-leaderboard row: a driver and their delivered count in the window (4c). */
@@ -172,11 +191,13 @@ export interface SlaStats {
   totalDelivered: number;
   onTime: number;
   breached: number;
-  /** Sum of delivery minutes ((deliveredAt-assignedAt)/60000) over the delivered set. */
+  /** Sum of delivery minutes ((deliveredAt - clock start)/60000), clock = slaStartedAt ?? assignedAt. */
   sumMinutes: number;
   /** Median delivery minutes (percentile_cont 0.5); null when nothing was delivered. */
   medianMinutes: number | null;
   failedCount: number;
+  /** Delivered rows that carry a stored verdict; the rest were graded by the threshold given. */
+  storedVerdicts: number;
 }
 
 /** Per-depot SLA aggregates (one row per attributed depot); no failedCount — the
@@ -188,6 +209,7 @@ export interface DepotSlaStats {
   breached: number;
   sumMinutes: number;
   medianMinutes: number | null;
+  storedVerdicts: number;
 }
 
 /** The projection behind `findPingState` — no history, no proof. */
@@ -400,16 +422,6 @@ export interface DeliveryRepository {
     note: string | null,
   ): Promise<DeliveryRecord>;
   /**
-   * Puts a RESCHEDULED delivery back to ASSIGNED for a second attempt, possibly with a
-   * different driver. One row per order (orderId is unique), so the retry reuses it.
-   */
-  reassign(
-    id: string,
-    driverId: string,
-    changedBy: string,
-    note: string | null,
-  ): Promise<DeliveryRecord>;
-  /**
    * Record proof of delivery and mark the delivery DELIVERED atomically, from `from` only.
    *
    * The guard is what stops a re-tapped Selesai paying the courier for one handover twice
@@ -428,6 +440,8 @@ export interface DeliveryRepository {
      * cannot leave a completed delivery whose event was never written. Absent = none owed.
      */
     event?: { event: string; eventId: string; payload: Record<string, unknown> },
+    /** HD-6: the verdict, written in the same update as the handover. */
+    sla?: StoredSla,
   ): Promise<DeliveryRecord>;
   /**
    * UU PDP retention: delete proof-of-delivery rows (photo/signature URL, recipient name,
@@ -475,8 +489,9 @@ export interface DeliveryRepository {
     depotIds?: readonly string[],
   ): Promise<DepotSlaStats[]>;
   /**
-   * J8. Deliveries still on the road (ASSIGNED/PICKED_UP/ON_DELIVERY) that were assigned
-   * before `assignedBefore` and have not had their breach reported yet.
+   * J8. Deliveries still on the road (ASSIGNED/PICKED_UP/ON_DELIVERY) whose SLA clock
+   * (slaStartedAt, else assignedAt) began before `assignedBefore` and whose breach has not
+   * been reported yet.
    *
    * `assignedBefore` is a COARSE filter — the SLA window is per-depot, so this cannot
    * decide a breach, only narrow the set the caller has to look at. The caller applies

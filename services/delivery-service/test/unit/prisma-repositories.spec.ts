@@ -137,13 +137,6 @@ describe('DeliveryPrismaRepository', () => {
     expect(delivery.update.mock.calls[0][0].data).not.toHaveProperty('estimatedArrivalAt');
   });
 
-  it('reassign puts the delivery back to ASSIGNED and clears the abandoned attempt', async () => {
-    delivery.update.mockResolvedValue(deliveryRow({ status: 'ASSIGNED', driverId: 'drv-2' }));
-    const rec = await repo.reassign('del-1', 'drv-2', 'sup-1', 'kurir sakit');
-    expect(delivery.update.mock.calls[0][0].data).toMatchObject({ driverId: 'drv-2' });
-    expect(rec.status).toBe('ASSIGNED');
-  });
-
   it('create passes ASSIGNED status + seed history and maps the row', async () => {
     delivery.create.mockResolvedValue(deliveryRow({ proof: proofRow }));
     const rec = await repo.create({
@@ -405,7 +398,9 @@ describe('DeliveryPrismaRepository', () => {
     const text = q.sql.replace(/\s+/g, ' ');
     expect(text).toContain('d."depotId" = ?::uuid');
     expect(text).toContain('d."codAmount" > 0');
-    expect(text).toContain('NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )');
+    expect(text).toContain(
+      'NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )',
+    );
     expect(q.values).toEqual(expect.arrayContaining(['depot-1', since]));
   });
 
@@ -417,20 +412,35 @@ describe('DeliveryPrismaRepository', () => {
       { driverId: 'drv-1', depotId: 'dep-1', deliveries: 2n, amount: 80000n, oldest },
     ]);
     expect(await repo.codHeldByCourier(since, until, 5001)).toEqual([
-      { driverId: 'drv-1', depotId: 'dep-1', deliveries: 2, amountIdr: 80000, oldestDeliveredAt: oldest },
+      {
+        driverId: 'drv-1',
+        depotId: 'dep-1',
+        deliveries: 2,
+        amountIdr: 80000,
+        oldestDeliveredAt: oldest,
+      },
     ]);
     const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
     const text = q.sql.replace(/\s+/g, ' ');
     expect(text).toContain('GROUP BY d."driverId", d."depotId"');
     expect(text).toContain('d."deliveredAt" < ?');
-    expect(text).toContain('NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )');
+    expect(text).toContain(
+      'NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )',
+    );
     expect(q.values).toEqual(expect.arrayContaining([since, until, 5001]));
   });
 
   it('failedInWindow reads FAILED and RESCHEDULED in [from, to), newest first, bounded', async () => {
     const from = new Date('2026-10-25T00:00:00Z');
     const to = new Date('2026-10-26T00:00:00Z');
-    const row = { orderNumber: 'HM-1', driverId: 'drv-1', depotId: null, status: 'FAILED', at: from, reason: 'x' };
+    const row = {
+      orderNumber: 'HM-1',
+      driverId: 'drv-1',
+      depotId: null,
+      status: 'FAILED',
+      at: from,
+      reason: 'x',
+    };
     $queryRaw.mockResolvedValue([row]);
     expect(await repo.failedInWindow(from, to, 5001)).toEqual([row]);
     const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
@@ -451,10 +461,14 @@ describe('DeliveryPrismaRepository', () => {
     const text = q.sql.replace(/\s+/g, ' ');
     expect(text).toContain('d."depotId" = ?::uuid');
     expect(text).toContain('d."status" IN (?::"DeliveryStatus", ?::"DeliveryStatus")');
-    expect(text).toContain('NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )');
+    expect(text).toContain(
+      'NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )',
+    );
     expect(text).toContain('ORDER BY d."updatedAt" DESC');
     expect(text).toContain('LIMIT ?');
-    expect(q.values).toEqual(expect.arrayContaining(['depot-1', 'FAILED', 'RESCHEDULED', since, 500]));
+    expect(q.values).toEqual(
+      expect.arrayContaining(['depot-1', 'FAILED', 'RESCHEDULED', since, 500]),
+    );
   });
 
   it('codBearingInWindow maps to order ids with their COD and how they ended', async () => {
@@ -510,9 +524,11 @@ describe('DeliveryPrismaRepository', () => {
     const to = new Date('2026-01-31');
     const assignedAt = new Date('2026-01-02T08:00:00Z');
     const deliveredAt = new Date('2026-01-02T08:20:00Z');
-    delivery.findMany.mockResolvedValue([{ orderId: 'ord-1', assignedAt, deliveredAt }]);
+    delivery.findMany.mockResolvedValue([
+      { orderId: 'ord-1', assignedAt, deliveredAt, slaOnTime: true, slaStartedAt: assignedAt },
+    ]);
     expect(await repo.driverDeliveredInWindow('drv-1', from, to)).toEqual([
-      { orderId: 'ord-1', assignedAt, deliveredAt },
+      { orderId: 'ord-1', assignedAt, deliveredAt, slaOnTime: true, slaStartedAt: assignedAt },
     ]);
     expect(delivery.findMany).toHaveBeenCalledWith({
       where: {
@@ -520,7 +536,13 @@ describe('DeliveryPrismaRepository', () => {
         status: DeliveryStatus.DELIVERED,
         deliveredAt: { gte: from, lt: to },
       },
-      select: { orderId: true, assignedAt: true, deliveredAt: true },
+      select: {
+        orderId: true,
+        assignedAt: true,
+        deliveredAt: true,
+        slaOnTime: true,
+        slaStartedAt: true,
+      },
     });
   });
 
@@ -619,20 +641,48 @@ describe('DeliveryPrismaRepository', () => {
     const deliveredAt = new Date('2026-01-02T08:30:00Z');
     const failedAt = new Date('2026-01-03T08:00:00Z');
     delivery.findMany.mockResolvedValue([
-      { driverId: 'drv-1', orderId: 'ord-1', assignedAt, deliveredAt, failedAt: null },
-      { driverId: 'drv-1', orderId: 'ord-2', assignedAt, deliveredAt: null, failedAt },
-      { driverId: 'drv-2', orderId: 'ord-3', assignedAt, deliveredAt, failedAt: null },
+      {
+        driverId: 'drv-1',
+        orderId: 'ord-1',
+        assignedAt,
+        deliveredAt,
+        failedAt: null,
+        slaOnTime: false,
+        slaStartedAt: null,
+      },
+      {
+        driverId: 'drv-1',
+        orderId: 'ord-2',
+        assignedAt,
+        deliveredAt: null,
+        failedAt,
+        slaOnTime: null,
+        slaStartedAt: null,
+      },
+      {
+        driverId: 'drv-2',
+        orderId: 'ord-3',
+        assignedAt,
+        deliveredAt,
+        failedAt: null,
+        slaOnTime: null,
+        slaStartedAt: null,
+      },
     ]);
 
     expect(await repo.depotCourierActivityInWindow('dep-1', from, to)).toEqual([
       {
         driverId: 'drv-1',
-        delivered: [{ orderId: 'ord-1', assignedAt, deliveredAt }],
+        delivered: [
+          { orderId: 'ord-1', assignedAt, deliveredAt, slaOnTime: false, slaStartedAt: null },
+        ],
         failed: 1,
       },
       {
         driverId: 'drv-2',
-        delivered: [{ orderId: 'ord-3', assignedAt, deliveredAt }],
+        delivered: [
+          { orderId: 'ord-3', assignedAt, deliveredAt, slaOnTime: null, slaStartedAt: null },
+        ],
         failed: 0,
       },
     ]);
@@ -654,6 +704,8 @@ describe('DeliveryPrismaRepository', () => {
         assignedAt: true,
         deliveredAt: true,
         failedAt: true,
+        slaOnTime: true,
+        slaStartedAt: true,
       },
     });
   });
@@ -744,6 +796,27 @@ describe('DeliveryPrismaRepository', () => {
     expect(call.data.history).toEqual({
       create: { status: DeliveryStatus.DELIVERED, changedBy: 'drv-1' },
     });
+    // No verdict given (a caller from before HD-6): nothing is stored, the row stays "not stored".
+    expect(call.data).not.toHaveProperty('slaOnTime');
+  });
+
+  it('completeWithProof stores the SLA verdict in the same update as the handover', async () => {
+    delivery.update.mockResolvedValue(deliveryRow({ status: 'DELIVERED', proof: proofRow }));
+    const startedAt = new Date('2026-07-29T07:00:00.000Z');
+    await repo.completeWithProof(
+      'del-1',
+      DeliveryStatus.ON_DELIVERY,
+      {} as never,
+      'drv-1',
+      new Date('2026-07-29T08:15:00.000Z'),
+      undefined,
+      { startedAt, thresholdMinutes: 90, onTime: true },
+    );
+    expect(delivery.update.mock.calls[0][0].data).toMatchObject({
+      slaStartedAt: startedAt,
+      slaThresholdMinutes: 90,
+      slaOnTime: true,
+    });
   });
 
   // AAS-11: the partner event is recorded in the SAME transaction as the handover, so a crash
@@ -764,7 +837,11 @@ describe('DeliveryPrismaRepository', () => {
       { sealIntact: true, recipientName: 'Budi' } as never,
       'drv-1',
       capturedAt,
-      { event: 'delivery.delivered', eventId: 'delivery.delivered:del-1', payload: { deliveryId: 'del-1' } },
+      {
+        event: 'delivery.delivered',
+        eventId: 'delivery.delivered:del-1',
+        payload: { deliveryId: 'del-1' },
+      },
     );
     expect($tx).toHaveBeenCalledTimes(1);
     expect(createMany).toHaveBeenCalledWith({
@@ -788,11 +865,18 @@ describe('DeliveryPrismaRepository', () => {
       $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
     } as unknown as PrismaService);
     await expect(
-      txRepo.completeWithProof('del-1', DeliveryStatus.ON_DELIVERY, {} as never, 'drv-1', new Date(), {
-        event: 'e.x',
-        eventId: 'k',
-        payload: {},
-      }),
+      txRepo.completeWithProof(
+        'del-1',
+        DeliveryStatus.ON_DELIVERY,
+        {} as never,
+        'drv-1',
+        new Date(),
+        {
+          event: 'e.x',
+          eventId: 'k',
+          payload: {},
+        },
+      ),
     ).rejects.toThrow();
   });
 
@@ -815,7 +899,9 @@ describe('DeliveryPrismaRepository', () => {
   });
 
   it('slaStats aggregates a scoped range and derives breached', async () => {
-    $queryRaw.mockResolvedValue([{ total: 10n, ontime: 8n, summinutes: 240, medianminutes: 22.5 }]);
+    $queryRaw.mockResolvedValue([
+      { total: 10n, ontime: 8n, stored: 6n, summinutes: 240, medianminutes: 22.5 },
+    ]);
     delivery.count.mockResolvedValue(2);
     const stats = await repo.slaStats(
       { from: new Date('2026-01-01'), to: new Date('2026-02-01') },
@@ -829,6 +915,7 @@ describe('DeliveryPrismaRepository', () => {
       sumMinutes: 240,
       medianMinutes: 22.5,
       failedCount: 2,
+      storedVerdicts: 6,
     });
     expect($queryRaw).toHaveBeenCalledTimes(1);
     expect(delivery.count).toHaveBeenCalledWith({
@@ -840,7 +927,9 @@ describe('DeliveryPrismaRepository', () => {
   });
 
   it('slaStats handles an unscoped, unbounded range with null summinutes', async () => {
-    $queryRaw.mockResolvedValue([{ total: 0n, ontime: 0n, summinutes: null, medianminutes: null }]);
+    $queryRaw.mockResolvedValue([
+      { total: 0n, ontime: 0n, stored: 0n, summinutes: null, medianminutes: null },
+    ]);
     delivery.count.mockResolvedValue(0);
     const stats = await repo.slaStats({}, 30);
     expect(stats).toEqual({
@@ -850,6 +939,7 @@ describe('DeliveryPrismaRepository', () => {
       sumMinutes: 0,
       medianMinutes: null,
       failedCount: 0,
+      storedVerdicts: 0,
     });
     expect(delivery.count).toHaveBeenCalledWith({
       where: { failedAt: { not: null }, depotId: { not: null } },
@@ -859,7 +949,7 @@ describe('DeliveryPrismaRepository', () => {
   });
 
   it('slaStats treats an empty depotIds array as unscoped', async () => {
-    $queryRaw.mockResolvedValue([{ total: 1n, ontime: 1n, summinutes: 5 }]);
+    $queryRaw.mockResolvedValue([{ total: 1n, ontime: 1n, stored: 1n, summinutes: 5 }]);
     delivery.count.mockResolvedValue(0);
     await repo.slaStats({ from: new Date('2026-01-01') }, 30, []);
     expect(delivery.count).toHaveBeenCalledWith({
@@ -869,16 +959,39 @@ describe('DeliveryPrismaRepository', () => {
 
   it('slaStatsByDepot maps per-depot aggregate rows', async () => {
     $queryRaw.mockResolvedValue([
-      { depotid: 'dep-1', total: 4n, ontime: 3n, summinutes: 90, medianminutes: 20 },
-      { depotid: 'dep-2', total: 2n, ontime: 2n, summinutes: null, medianminutes: null },
+      { depotid: 'dep-1', total: 4n, ontime: 3n, stored: 2n, summinutes: 90, medianminutes: 20 },
+      {
+        depotid: 'dep-2',
+        total: 2n,
+        ontime: 2n,
+        stored: 0n,
+        summinutes: null,
+        medianminutes: null,
+      },
     ]);
     const rows = await repo.slaStatsByDepot(
       { from: new Date('2026-01-01'), to: new Date('2026-02-01') },
       30,
     );
     expect(rows).toEqual([
-      { depotId: 'dep-1', totalDelivered: 4, onTime: 3, breached: 1, sumMinutes: 90, medianMinutes: 20 },
-      { depotId: 'dep-2', totalDelivered: 2, onTime: 2, breached: 0, sumMinutes: 0, medianMinutes: null },
+      {
+        depotId: 'dep-1',
+        totalDelivered: 4,
+        onTime: 3,
+        breached: 1,
+        sumMinutes: 90,
+        medianMinutes: 20,
+        storedVerdicts: 2,
+      },
+      {
+        depotId: 'dep-2',
+        totalDelivered: 2,
+        onTime: 2,
+        breached: 0,
+        sumMinutes: 0,
+        medianMinutes: null,
+        storedVerdicts: 0,
+      },
     ]);
     expect($queryRaw).toHaveBeenCalledTimes(1);
   });
@@ -891,22 +1004,16 @@ describe('DeliveryPrismaRepository', () => {
   // J8. The sweep's query is the only thing standing between a ten-minute cron and a
   // sequential scan of the whole delivery book, so its shape is asserted rather than
   // assumed: in-flight only, never-alerted only, oldest first, bounded.
-  it('findUnalertedInFlight asks for in-flight, unalerted deliveries, oldest first', async () => {
-    delivery.findMany.mockResolvedValue([]);
-    const before = new Date('2026-08-25T09:45:00.000Z');
+  it('findUnalertedInFlight reads the restarted clock and hands the rows back', async () => {
+    const clockStartedAt = new Date('2026-08-25T09:00:00.000Z');
+    const row = { id: 'd1', orderId: 'o1', orderNumber: 'HM-1', depotId: 'dep-1', clockStartedAt };
+    $queryRaw.mockResolvedValue([row]);
 
-    await repo.findUnalertedInFlight(before, 200);
+    const out = await repo.findUnalertedInFlight(new Date('2026-08-25T09:45:00.000Z'), 200);
 
-    expect(delivery.findMany).toHaveBeenCalledWith({
-      where: {
-        status: { in: ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'] },
-        slaAlertedAt: null,
-        assignedAt: { lt: before },
-      },
-      orderBy: { assignedAt: 'asc' },
-      take: 200,
-      select: { id: true, orderId: true, orderNumber: true, depotId: true, assignedAt: true },
-    });
+    expect(out).toEqual([row]);
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    // The statement itself is exercised against real Postgres in test/race/sla.race.ts.
   });
 
   it('markSlaAlerted stamps the one delivery it was given', async () => {
@@ -1548,6 +1655,7 @@ describe('DeliveryPrismaRepository assignment under the courier cap', () => {
       count: jest.fn(),
       create: jest.fn(),
       updateMany: jest.fn(),
+      findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
     },
     deliveryStatusHistory: { create: jest.fn() },
@@ -1605,25 +1713,40 @@ describe('DeliveryPrismaRepository assignment under the courier cap', () => {
   it('re-opens only a RESCHEDULED row, and writes the history entry', async () => {
     tx.delivery.count.mockResolvedValue(0);
     tx.delivery.updateMany.mockResolvedValue({ count: 1 });
+    tx.delivery.findUnique.mockResolvedValue({ rescheduleInitiator: 'CUSTOMER' });
     tx.delivery.findUniqueOrThrow.mockResolvedValue(row);
     await repo.reassignIfUnderCap('del-1', 'drv-2', 'staff', 'note', 1);
     expect(tx.delivery.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'del-1', status: 'RESCHEDULED' } }),
     );
     expect(tx.deliveryStatusHistory.create).toHaveBeenCalled();
+    const data = tx.delivery.updateMany.mock.calls[0][0].data;
+    expect(data.slaStartedAt).toBeInstanceOf(Date); // a customer reschedule restarts the clock
+    expect(data.slaAlertedAt).toBeNull(); // and the new attempt is judged afresh
+  });
+
+  it.each(['DEPOT', null])('a %s re-open keeps the clock it had', async (initiator) => {
+    tx.delivery.count.mockResolvedValue(0);
+    tx.delivery.updateMany.mockResolvedValue({ count: 1 });
+    tx.delivery.findUnique.mockResolvedValue(initiator ? { rescheduleInitiator: initiator } : null);
+    tx.delivery.findUniqueOrThrow.mockResolvedValue(row);
+    await repo.reassignIfUnderCap('del-1', 'drv-2', 'staff', 'note', 1);
+    expect(tx.delivery.updateMany.mock.calls.at(-1)[0].data).not.toHaveProperty('slaStartedAt');
   });
 
   it('conflicts when the row is no longer RESCHEDULED', async () => {
     tx.delivery.count.mockResolvedValue(0);
     tx.delivery.updateMany.mockResolvedValue({ count: 0 });
-    await expect(repo.reassignIfUnderCap('del-1', 'drv-2', 'staff', null, 1)).rejects.toBeInstanceOf(
-      DeliveryAlreadyExistsError,
-    );
+    await expect(
+      repo.reassignIfUnderCap('del-1', 'drv-2', 'staff', null, 1),
+    ).rejects.toBeInstanceOf(DeliveryAlreadyExistsError);
   });
 
   it('undoes a fresh assignment by deleting it, a re-opened one by rescheduling it back', async () => {
     await repo.undoAssignment('del-1', null);
-    expect(delivery.deleteMany).toHaveBeenCalledWith({ where: { id: 'del-1', status: 'ASSIGNED' } });
+    expect(delivery.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'del-1', status: 'ASSIGNED' },
+    });
     await repo.undoAssignment('del-1', 'drv-0');
     expect(delivery.updateMany).toHaveBeenCalledWith({
       where: { id: 'del-1', status: 'ASSIGNED' },

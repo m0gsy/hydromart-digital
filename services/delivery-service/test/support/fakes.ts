@@ -8,6 +8,7 @@ import { SettingRow, SettingsCache } from '@hydromart/platform';
 
 import { DeliveryConfigService } from '../../src/config/delivery-config.service';
 import { DeliveryStatus, OrderFulfilmentStatus } from '../../src/domain/delivery-status';
+import { slaClockStart } from '../../src/domain/sla';
 import {
   DeliveryAlreadyExistsError,
   DriverBusyError,
@@ -36,6 +37,7 @@ import {
   ReportRange,
   SlaCandidate,
   SlaStats,
+  StoredSla,
 } from '../../src/application/ports/delivery.repository';
 import { ClaimableOrder, OrderLookupPort } from '../../src/application/ports/order-lookup.port';
 import { ContactMethod, ContactState } from '../../src/domain/no-show';
@@ -148,6 +150,10 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       lastLocationAt: null,
       estimatedArrivalAt: null,
       assignedAt: now,
+      slaStartedAt: null,
+      slaThresholdMinutes: null,
+      slaOnTime: null,
+      rescheduleInitiator: null,
       pickedUpAt: null,
       startedAt: null,
       deliveredAt: null,
@@ -247,7 +253,24 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     if ((await this.countActiveByDriver(driverId)) >= max) throw new DriverBusyError();
     const row = this.rows.find((r) => r.id === id);
     if (!row || row.status !== DeliveryStatus.RESCHEDULED) throw new DeliveryAlreadyExistsError();
-    return this.reassign(id, driverId, changedBy, note);
+    Object.assign(row, {
+      driverId,
+      status: DeliveryStatus.ASSIGNED,
+      pickedUpAt: null,
+      startedAt: null,
+      estimatedArrivalAt: null,
+      // Only a CUSTOMER reschedule restarts the SLA clock; a re-opened alert is judged afresh.
+      ...(row.rescheduleInitiator === 'CUSTOMER' ? { slaStartedAt: new Date() } : {}),
+      updatedAt: nextDate(),
+    });
+    this.slaAlerted.delete(id);
+    row.history.push({
+      status: DeliveryStatus.ASSIGNED,
+      changedBy,
+      note,
+      createdAt: row.updatedAt,
+    });
+    return clone(row);
   }
   async undoAssignment(id: string, previousDriverId: string | null): Promise<void> {
     const row = this.rows.find((r) => r.id === id);
@@ -439,7 +462,13 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
           r.deliveredAt.getTime() >= from.getTime() &&
           r.deliveredAt.getTime() < to.getTime(),
       )
-      .map((r) => ({ orderId: r.orderId, assignedAt: r.assignedAt, deliveredAt: r.deliveredAt! }));
+      .map((r) => ({
+        orderId: r.orderId,
+        assignedAt: r.assignedAt,
+        deliveredAt: r.deliveredAt!,
+        slaOnTime: r.slaOnTime,
+        slaStartedAt: r.slaStartedAt,
+      }));
   }
   async driverFailedCountInWindow(driverId: string, from: Date, to: Date): Promise<number> {
     return this.rows.filter(
@@ -495,6 +524,8 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
           orderId: row.orderId,
           assignedAt: row.assignedAt,
           deliveredAt: row.deliveredAt!,
+          slaOnTime: row.slaOnTime,
+          slaStartedAt: row.slaStartedAt,
         });
       }
       if (failedInWindow) activity.failed += 1;
@@ -533,29 +564,6 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     row.history.push({ status, changedBy, note, createdAt: row.updatedAt });
     return clone(row);
   }
-  async reassign(
-    id: string,
-    driverId: string,
-    changedBy: string,
-    note: string | null,
-  ): Promise<DeliveryRecord> {
-    const row = this.rows.find((r) => r.id === id)!;
-    Object.assign(row, {
-      driverId,
-      status: DeliveryStatus.ASSIGNED,
-      pickedUpAt: null,
-      startedAt: null,
-      estimatedArrivalAt: null,
-      updatedAt: nextDate(),
-    });
-    row.history.push({
-      status: DeliveryStatus.ASSIGNED,
-      changedBy,
-      note,
-      createdAt: row.updatedAt,
-    });
-    return clone(row);
-  }
   async completeWithProof(
     id: string,
     from: DeliveryStatus,
@@ -563,6 +571,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     changedBy: string,
     capturedAt: Date,
     _event?: { event: string; eventId: string; payload: Record<string, unknown> },
+    sla?: StoredSla,
   ): Promise<DeliveryRecord> {
     // One handover, one proof row, one courier earning — however many times Selesai is
     // tapped. Same guard the real repository carries (H-5).
@@ -571,6 +580,11 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     const now = nextDate();
     row.status = DeliveryStatus.DELIVERED;
     row.deliveredAt = capturedAt;
+    if (sla) {
+      row.slaStartedAt = sla.startedAt;
+      row.slaThresholdMinutes = sla.thresholdMinutes;
+      row.slaOnTime = sla.onTime;
+    }
     row.updatedAt = now;
     row.proof = { ...proof, capturedAt };
     row.history.push({ status: DeliveryStatus.DELIVERED, changedBy, note: null, createdAt: now });
@@ -607,10 +621,10 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
     let sumMinutes = 0;
     const all: number[] = [];
     for (const r of delivered) {
-      const minutes = (r.deliveredAt!.getTime() - r.assignedAt.getTime()) / 60000;
+      const minutes = (r.deliveredAt!.getTime() - slaClockStart(r).getTime()) / 60000;
       sumMinutes += minutes;
       all.push(minutes);
-      if (minutes <= thresholdMinutes) onTime += 1;
+      if (r.slaOnTime ?? minutes <= thresholdMinutes) onTime += 1;
     }
     return {
       totalDelivered: delivered.length,
@@ -618,6 +632,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       breached: delivered.length - onTime,
       sumMinutes,
       medianMinutes: median(all),
+      storedVerdicts: delivered.filter((r) => r.slaOnTime !== null).length,
       failedCount: this.rows.filter((r) => r.failedAt && inRange(r.failedAt) && inScope(r)).length,
     };
   }
@@ -636,14 +651,16 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
         breached: 0,
         sumMinutes: 0,
         medianMinutes: null,
+        storedVerdicts: 0,
       };
-      const minutes = (r.deliveredAt.getTime() - r.assignedAt.getTime()) / 60000;
+      const minutes = (r.deliveredAt.getTime() - slaClockStart(r).getTime()) / 60000;
       const bucket = (depotMinutes.get(r.depotId) ?? []).concat(minutes);
       depotMinutes.set(r.depotId, bucket);
       cur.medianMinutes = median(bucket);
       cur.totalDelivered += 1;
+      if (r.slaOnTime !== null) cur.storedVerdicts += 1;
       cur.sumMinutes += minutes;
-      if (minutes <= thresholdMinutes) cur.onTime += 1;
+      if (r.slaOnTime ?? minutes <= thresholdMinutes) cur.onTime += 1;
       cur.breached = cur.totalDelivered - cur.onTime;
       byDepot.set(r.depotId, cur);
     }
@@ -656,16 +673,16 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
         (r) =>
           IN_FLIGHT.includes(r.status) &&
           !this.slaAlerted.has(r.id) &&
-          r.assignedAt.getTime() < assignedBefore.getTime(),
+          slaClockStart(r).getTime() < assignedBefore.getTime(),
       )
-      .sort((a, b) => a.assignedAt.getTime() - b.assignedAt.getTime())
+      .sort((a, b) => slaClockStart(a).getTime() - slaClockStart(b).getTime())
       .slice(0, limit)
       .map((r) => ({
         id: r.id,
         orderId: r.orderId,
         orderNumber: r.orderNumber,
         depotId: r.depotId,
-        assignedAt: r.assignedAt,
+        clockStartedAt: slaClockStart(r),
       }));
   }
 

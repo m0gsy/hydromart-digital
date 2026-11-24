@@ -144,6 +144,8 @@ export const admin = {
     },
     // SLA policy (19d) — HEAD_OFFICE + SUPER_ADMIN. GET current, PUT to replace.
     slaPolicy: '/admin/api/v1/sla-policy',
+    // The two colour bands only, readable by every dashboard role (HD-6 #19).
+    slaBands: '/admin/api/v1/sla-policy/bands',
     /*
      * CA-5-01: the seventeen scheduled sweeps and how each one is doing.
      *

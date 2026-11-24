@@ -12,6 +12,10 @@ export class SlaReportResponseDto {
   @ApiProperty({ type: Number })
   thresholdMinutes!: number;
   @ApiProperty({ type: Number })
+  storedVerdicts!: number;
+  @ApiProperty({ type: String })
+  thresholdNote!: string;
+  @ApiProperty({ type: Number })
   totalDelivered!: number;
   @ApiProperty({ type: Number })
   onTime!: number;
@@ -43,6 +47,8 @@ export class DepotSlaRowResponseDto {
   avgMinutes!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   medianMinutes!: number | null;
+  @ApiProperty({ type: Number })
+  storedVerdicts!: number;
 }
 
 /** Mirrors `DepotSlaReport` exactly — generated for audit D-6, no field added or removed. */
@@ -53,6 +59,8 @@ export class DepotSlaReportResponseDto {
   to!: string | null;
   @ApiProperty({ type: Number })
   thresholdMinutes!: number;
+  @ApiProperty({ type: String })
+  thresholdNote!: string;
   @ApiProperty({ type: [DepotSlaRowResponseDto] })
   depots!: DepotSlaRowResponseDto[];
 }

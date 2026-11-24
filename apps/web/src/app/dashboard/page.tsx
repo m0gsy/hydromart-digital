@@ -8,6 +8,7 @@ import { Buildings, CaretRight, ChartLineUp, Gavel, Lock, Package, Truck, UsersT
 import { RequireAuth } from '@/components/require-auth';
 import { OperatorRingkasan } from '@/components/operator/operator-ringkasan';
 import { Card, CenterState, ErrorState, Money, Skeleton, Spinner } from '@/components/ui';
+import { useSlaBands } from '@/lib/sla-bands';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -247,6 +248,7 @@ function TopListsWidgets({ data }: { data: ExecutiveDashboard }) {
 }
 
 function DashboardBody({ view }: { view: 'manager' | 'executive' }) {
+  const bands = useSlaBands();
   const { t } = useT();
   // Manager gets an ops-first KPI set (spec 1a: Order · Pendapatan · Galon · SLA); the other
   // dashboard-capable roles (HEAD_OFFICE/SUPER_ADMIN) keep the exec latency view.
@@ -309,7 +311,7 @@ function DashboardBody({ view }: { view: 'manager' | 'executive' }) {
             <Stat
               label={t('mgrFix.dash.slaOnTime')}
               value={deliverySla?.slaRate != null ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
-              hint={deliverySla ? t('mgrFix.dash.slaTarget', { n: 96 }) : undefined}
+              hint={deliverySla ? t('mgrFix.dash.slaTarget', { n: bands.healthy }) : undefined}
             />
           </>
         ) : (

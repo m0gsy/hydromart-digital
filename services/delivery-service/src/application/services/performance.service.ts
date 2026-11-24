@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
+import { onTimeOf } from '../../domain/sla';
 import { dayIndex, previousWeek, weekWindow, WeekWindow } from '../../domain/courier-performance';
 import { DeliveredRow, DeliveryRepository } from '../ports/delivery.repository';
 import { RatingPort } from '../ports/rating.port';
@@ -68,9 +69,7 @@ export class PerformanceService {
     ]);
 
     const perDay = this.bucket(rows, week);
-    const onTime = rows.filter(
-      (r) => (r.deliveredAt.getTime() - r.assignedAt.getTime()) / 60000 <= sla,
-    ).length;
+    const onTime = rows.filter((r) => onTimeOf(r, sla)).length;
     const delivered = rows.length;
 
     // Rank = 1 + couriers who delivered strictly more AT THIS DEPOT. `delivered` spans every

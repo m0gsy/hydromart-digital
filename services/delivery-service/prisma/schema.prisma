@@ -168,6 +168,20 @@ model Delivery {
   /// swallowing it.
   slaAlertedAt DateTime?
 
+  /// HD-6 #20: where the SLA clock of the attempt that succeeded began. Set when a customer
+  /// reschedule is re-opened (the wait is not the courier's); a courier swap never touches
+  /// it. Null while the first attempt is still the one running, then `assignedAt` is the start.
+  slaStartedAt DateTime?
+  /// HD-6 #19: written ONCE, when the delivery completes. The threshold used (depot setting,
+  /// else the network policy) and the verdict. NULL on every row completed before this
+  /// shipped = "not stored", and readers fall back to the old computation for those.
+  slaThresholdMinutes Int?
+  slaOnTime           Boolean?
+  /// HD-6 #20: who asked for the reschedule - CUSTOMER (the courier agreed a new time with them)
+  /// or DEPOT (staff released it, e.g. to swap the courier). Only CUSTOMER restarts the SLA
+  /// clock on re-open. NULL on rows rescheduled before this existed = clock is not restarted.
+  rescheduleInitiator String?
+
   proof           ProofOfDelivery?
   history         DeliveryStatusHistory[]
   contactAttempts ContactAttempt[]

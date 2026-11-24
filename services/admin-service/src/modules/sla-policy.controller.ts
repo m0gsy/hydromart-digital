@@ -4,11 +4,11 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuditMutationsInterceptor, Can } from '@hydromart/platform';
 
 import { SlaPolicyService } from '../application/services/sla-policy.service';
-import { SaveSlaPolicyDto, SlaPolicyDto } from './dto/sla-policy.dto';
+import { SaveSlaPolicyDto, SlaBandsDto, SlaPolicyDto } from './dto/sla-policy.dto';
 
 // Design 19d — on-time SLA policy (singleton). HEAD_OFFICE + SUPER_ADMIN, read and write.
-// NOTE: delivery-service still grades on-time delivery with its OWN threshold; it does not
-// yet read this policy (cross-service wiring is a later change, not done here).
+// HD-6: delivery-service reads the threshold from here (internal key) when a depot has no
+// threshold of its own, and stores the on-time verdict when a delivery completes.
 @ApiTags('SLA policy')
 @ApiBearerAuth()
 @Can('hqBackOffice')
@@ -23,6 +23,18 @@ export class SlaPolicyController {
   @ApiOperation({ summary: 'Read the SLA policy (threshold + healthy/critical bands)' })
   async get(): Promise<SlaPolicyDto> {
     return SlaPolicyDto.from(await this.policy.get());
+  }
+
+  /**
+   * HD-6 #19: only the colour bands, for every screen that colours an SLA percentage. The
+   * policy itself stays HQ-only; the bands are not sensitive and the dashboard roles need them.
+   */
+  @ApiOkResponse({ type: SlaBandsDto })
+  @Can('dashboard')
+  @Get('bands')
+  @ApiOperation({ summary: 'Read the SLA colour bands (healthy / critical %)' })
+  async bands(): Promise<SlaBandsDto> {
+    return SlaBandsDto.from(await this.policy.get());
   }
 
   @ApiOkResponse({ type: SlaPolicyDto })
