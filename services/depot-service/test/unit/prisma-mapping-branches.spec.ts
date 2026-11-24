@@ -19,7 +19,8 @@ describe('prisma repository null/empty branches', () => {
     const gallonIssue = {
       aggregate: jest
         .fn()
-        .mockResolvedValue({ _count: { _all: 0 }, _sum: { quantity: null, depositHeld: null } }),
+        .mockResolvedValue({ _sum: { quantity: null, depositHeld: null } }),
+      count: jest.fn().mockResolvedValue(0),
       groupBy: jest
         .fn()
         .mockResolvedValue([{ depotId: 'd', _sum: { quantity: null, depositHeld: null } }]),

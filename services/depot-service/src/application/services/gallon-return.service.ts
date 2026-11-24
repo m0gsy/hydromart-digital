@@ -419,6 +419,14 @@ export class GallonReturnService {
     return this.bookHandover(depotId, input, actorId, true);
   }
 
+  /** The per-gallon deposit the order's own issue row was booked at; today's rate if none. */
+  private async issueUnitDeposit(depotId: string, orderId: string): Promise<number> {
+    const issue = await this.issues.findByOrderId(orderId);
+    return issue && issue.quantity > 0
+      ? issue.depositHeld / issue.quantity
+      : this.config.gallonDepositIdr(depotId);
+  }
+
   private async bookHandover(
     depotId: string,
     input: CourierReturnInput,
@@ -463,9 +471,15 @@ export class GallonReturnService {
           input.quantity,
           input.customerId ?? null,
         );
+        // HD-6: an exchange refunds at the rate its OWN issue was booked at, not today's, so the
+        // refill nets the deposit to exactly zero even if the depot's rate changed between the
+        // issue and an outbox retry of this return.
+        const unitDeposit = exchange
+          ? await this.issueUnitDeposit(depotId, input.orderId)
+          : this.config.gallonDepositIdr(depotId);
         const depositRefunded =
           condition === GallonCondition.GOOD && (identified || exchange)
-            ? Math.min(this.config.gallonDepositIdr(depotId) * input.quantity, depositLeft)
+            ? Math.min(unitDeposit * input.quantity, depositLeft)
             : 0;
         const booked = await this.returns.createFromOrder({
           depotId,
@@ -497,6 +511,9 @@ export class GallonReturnService {
     if (!created) return { ...record, alreadyRecorded: true };
     // Only on a genuinely new record: `created === false` is the offline queue replaying one
     // handover, and stock must not move twice for empties that came back once.
+    // Known residual risk: the row above and this shelf move are not one transaction. A crash
+    // between them leaves the ledger right and the shelf short by `quantity`, and a retry sees
+    // created=false and does not finish it. Shelf drift is what opname reconciles.
     await this.moveStockIn(depotId, record, condition, courierId, exchange ? undefined : input.orderId);
     if (excessGallons > 0) {
       await this.queueBestEffort(`variance approval for return ${record.id}`, () =>
@@ -530,6 +547,16 @@ export class GallonReturnService {
    * Idempotent on `void:<orderId>`, the key the reversal rows carry: a retried void finds
    * the rows and moves nothing twice. An order that never booked (its outbox row was
    * cancelled before it ran) has nothing to reverse and reports so.
+   *
+   * It reverses WHATEVER return is booked against the order, including one a courier recorded
+   * for a counter delivery that was voided after it was delivered: the sale never happened, so
+   * the empties it took go back to the buyer too. Intended; owner may overrule.
+   *
+   * Residual risk (same shape as `bookHandover`): the reversal row and the shelf move are not
+   * one transaction, so a crash between them leaves the shelf unrestored and the retry sees
+   * created=false. The original out-move may also have been clamped to what the shelf had, so
+   * the restore can overshoot by that shortfall. Both are shelf-count drift for opname, never
+   * a ledger or deposit error.
    */
   async reverseOrder(
     depotId: string,

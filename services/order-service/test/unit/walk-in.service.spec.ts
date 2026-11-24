@@ -1835,6 +1835,29 @@ describe('OrderService.walkInSale', () => {
         expect(gallonIssue.voided).toHaveLength(1);
       });
 
+      // A void that lands while the issue is still being booked: the issue lands after the
+      // void's own reversal ran against nothing, so bookGallonIssue must send the reversal.
+      it('reverses the issue itself when the sale is voided mid-booking', async () => {
+        const p = catalog.seed({ id: randomUUID(), basePrice: 20000, isGallon: true });
+        const order = await service.walkInSale(operator, {
+          depotId: DEPOT,
+          lines: [{ productId: p.id, quantity: 2 }],
+          emptiesReturned: 2,
+        });
+        gallonIssue.booked.length = 0;
+        gallonIssue.voided.length = 0;
+        const now = new Date(order.createdAt.getTime() + 60 * 60 * 1000);
+        gallonIssue.afterBook = async () => {
+          gallonIssue.afterBook = undefined;
+          await service.voidCounterSale(operator, order.id, 'Salah', now, 'Bearer t');
+        };
+        orders.outbox!.enqueue([{ topic: 'GALLON_ISSUE', orderId: order.id }]);
+        await (
+          service as unknown as { bookGallonIssue(id: string): Promise<void> }
+        ).bookGallonIssue(order.id);
+        expect(gallonIssue.voided).toEqual([{ depotId: DEPOT, orderId: order.id }]);
+      });
+
       it('keeps owing the reversal while depot-service is down', async () => {
         const { order, now } = await sellGallons();
         await service.voidCounterSale(operator, order.id, 'Salah', now, 'Bearer t');

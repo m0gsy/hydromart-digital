@@ -490,6 +490,15 @@ export class OrderService {
       quantity,
       ...(empties && empties > 0 ? { emptiesReturned: Math.min(empties, quantity) } : {}),
     });
+    // A void can land while this call is in flight: the sweep claimed the row while the sale was
+    // still COMPLETED, the void then committed and its GALLON_ISSUE_VOID ran against nothing
+    // booked yet (a no-op, DONE), and only now does the issue land. Re-read, and if the order
+    // is gone, send the reversal ourselves. depot-service reverses once per ledger row, so a
+    // double call is harmless and a half-booked refill (issue without its return) is completed.
+    const after = await this.orders.findById(orderId);
+    if (after && (after.status === OrderStatus.VOIDED || after.status === OrderStatus.CANCELLED)) {
+      await this.gallonIssue.orderVoided({ depotId: order.depotId, orderId: order.id });
+    }
   }
 
   /**

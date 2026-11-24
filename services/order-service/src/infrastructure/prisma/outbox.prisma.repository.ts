@@ -106,7 +106,13 @@ export class OutboxPrismaRepository implements OutboxRepository {
       where: {
         orderId,
         status: 'PENDING',
-        topic: { notIn: ['PAYMENT_REVERSAL', 'FRANCHISE_REVENUE_VOID', 'REFERRAL_REVERSE', 'GALLON_ISSUE_VOID'],
+        topic: {
+          notIn: [
+            'PAYMENT_REVERSAL',
+            'FRANCHISE_REVENUE_VOID',
+            'REFERRAL_REVERSE',
+            'GALLON_ISSUE_VOID',
+          ],
         },
       },
       data: { status: 'CANCELLED', lastError: reason.slice(0, 500) },

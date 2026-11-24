@@ -1390,9 +1390,12 @@ export class FakeGallonIssue implements GallonIssuePort {
   /** HD-6: the void reversals sent to depot-service. */
   voided: GallonVoidEvent[] = [];
   error: Error | null = null;
+  /** Runs inside `orderDelivered`, after the booking: lets a test void the sale mid-call. */
+  afterBook?: (event: GallonIssueEvent) => Promise<void>;
   async orderDelivered(event: GallonIssueEvent): Promise<void> {
     if (this.error) throw this.error;
     this.booked.push(event);
+    await this.afterBook?.(event);
   }
   async orderVoided(event: GallonVoidEvent): Promise<void> {
     if (this.error) throw this.error;

@@ -937,6 +937,35 @@ describe('GallonReturnService', () => {
       expect(await stock()).toBe(10);
     });
 
+    // LOW-1: the refund follows the issue's own rate, so a rate change before a retried return
+    // cannot leave a deposit behind.
+    it('refunds at the rate the issue was booked at, even after the rate changed', async () => {
+      await sell(1, 0);
+      (configStub as unknown as { gallonDepositIdr: () => number }).gallonDepositIdr = () => 50000;
+      try {
+        await service.recordFromCounter(depotId, { orderId: O1, customerId: ANI, quantity: 1 }, 'os');
+      } finally {
+        (configStub as unknown as { gallonDepositIdr: () => number }).gallonDepositIdr = () => GALLON_DEPOSIT_IDR;
+      }
+      expect(await net(ANI)).toEqual({ gallons: 0, deposit: 0 });
+    });
+
+    it('falls back to the current rate when the order has no issue row', async () => {
+      const r = await service.recordFromCounter(depotId, { orderId: O1, customerId: ANI, quantity: 1 }, 'os');
+      expect(r.depositRefunded).toBe(0); // nothing held to refund; clamped by the balance
+    });
+
+    // LOW-3: a courier return booked on a (counter-delivery) order goes back with the void.
+    it('a void also reverses a courier return booked on the same order', async () => {
+      await sell(2, 0);
+      await service.recordFromCourier(depotId, { orderId: O1, customerId: ANI, quantity: 2 }, 'c1');
+      expect(await net(ANI)).toEqual({ gallons: 0, deposit: 0 });
+      const r = await service.reverseOrder(depotId, O1, 'os');
+      expect(r).toEqual({ reversedIssue: true, reversedReturn: true });
+      expect(await net(ANI)).toEqual({ gallons: 0, deposit: 0 });
+      expect((await issues.summaryForDepot(depotId)).issues).toBe(2); // 100-seed + sale; reversal not counted
+    });
+
     it('voiding a new-gallon sale takes the gallon back off the customer', async () => {
       await sell(1, 0);
       const r = await service.reverseOrder(depotId, O1, 'os');

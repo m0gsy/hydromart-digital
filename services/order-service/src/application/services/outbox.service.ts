@@ -212,7 +212,7 @@ export class OutboxService {
   private nextAttemptFor(message: OutboxMessageRecord, now: Date): Date | null {
     const attempts = message.attempts + 1;
     const max =
-      message.topic === 'PAYMENT_REVERSAL'
+      message.topic === 'PAYMENT_REVERSAL' || message.topic === 'GALLON_ISSUE_VOID'
         ? OutboxService.MAX_ATTEMPTS_PAYMENT_REVERSAL
         : OutboxService.MAX_ATTEMPTS;
     if (attempts >= max) return null;

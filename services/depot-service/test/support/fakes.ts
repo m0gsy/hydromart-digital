@@ -951,7 +951,7 @@ export class InMemoryGallonIssueRepository implements GallonIssueRepository {
   async summaryForDepot(depotId: string): Promise<GallonIssueSummary> {
     const all = this.rows.filter((r) => r.depotId === depotId);
     return {
-      issues: all.length,
+      issues: all.filter((r) => r.quantity > 0).length,
       gallons: all.reduce((s, r) => s + r.quantity, 0),
       depositHeld: all.reduce((s, r) => s + r.depositHeld, 0),
     };

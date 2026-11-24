@@ -61,7 +61,12 @@ describe('OutboxPrismaRepository', () => {
         orderId: 'ord-1',
         status: 'PENDING',
         topic: {
-          notIn: ['PAYMENT_REVERSAL', 'FRANCHISE_REVENUE_VOID', 'REFERRAL_REVERSE', 'GALLON_ISSUE_VOID'],
+          notIn: [
+            'PAYMENT_REVERSAL',
+            'FRANCHISE_REVENUE_VOID',
+            'REFERRAL_REVERSE',
+            'GALLON_ISSUE_VOID',
+          ],
         },
       },
       data: { status: 'CANCELLED', lastError: 'Salah' },
@@ -101,7 +106,12 @@ describe('OutboxPrismaRepository', () => {
 
   it('counts every status, including the ones with no rows', async () => {
     model.groupBy.mockResolvedValue([{ status: 'PENDING', _count: { _all: 3 } }]);
-    await expect(repo.countByStatus()).resolves.toEqual({ PENDING: 3, DONE: 0, DEAD: 0, CANCELLED: 0 });
+    await expect(repo.countByStatus()).resolves.toEqual({
+      PENDING: 3,
+      DONE: 0,
+      DEAD: 0,
+      CANCELLED: 0,
+    });
   });
 
   // Owner decision 2026-11-21: head office may not change who owns a depot while any of its

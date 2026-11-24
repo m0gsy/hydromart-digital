@@ -1124,12 +1124,29 @@ describe('GallonIssuePrismaRepository', () => {
   // all for an empty set of customers.
   it('reads the newest issues for the named customers, bounded, newest first', async () => {
     const at = new Date('2026-09-01T00:00:00.000Z');
-    model.findMany.mockResolvedValue([{ customerId: 'c1', quantity: 2, createdAt: at }]);
+    model.findMany
+      .mockResolvedValueOnce([{ idempotencyKey: 'void:o-9' }])
+      .mockResolvedValueOnce([{ customerId: 'c1', quantity: 2, createdAt: at }]);
     await expect(repo.newestIssuesForCustomers('depot-1', ['c1', 'c2'], 500)).resolves.toEqual([
       { customerId: 'c1', quantity: 2, createdAt: at },
     ]);
-    expect(model.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', customerId: { in: ['c1', 'c2'] }, quantity: { gt: 0 } },
+    // A voided sale's issue (its reversal row names the order) is left out of the walk.
+    expect(model.findMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        depotId: 'depot-1',
+        customerId: { in: ['c1', 'c2'] },
+        quantity: { lt: 0 },
+        idempotencyKey: { startsWith: 'void:' },
+      },
+      select: { idempotencyKey: true },
+    });
+    expect(model.findMany).toHaveBeenLastCalledWith({
+      where: {
+        depotId: 'depot-1',
+        customerId: { in: ['c1', 'c2'] },
+        quantity: { gt: 0 },
+        OR: [{ orderId: null }, { orderId: { notIn: ['o-9'] } }],
+      },
       select: { customerId: true, quantity: true, createdAt: true },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 500,
@@ -1234,16 +1251,15 @@ describe('GallonIssuePrismaRepository', () => {
   });
 
   it('summarises a depot, defaulting null sums to zero', async () => {
-    model.aggregate.mockResolvedValue({
-      _count: { _all: 3 },
-      _sum: { quantity: 12, depositHeld: null },
-    });
+    model.aggregate.mockResolvedValue({ _sum: { quantity: 12, depositHeld: null } });
+    model.count.mockResolvedValueOnce(3);
     const out = await repo.summaryForDepot('depot-1');
     expect(model.aggregate).toHaveBeenCalledWith({
       where: { depotId: 'depot-1' },
-      _count: { _all: true },
       _sum: { quantity: true, depositHeld: true },
     });
+    // Only positive rows are issue events; a void's negative reversal row is not one.
+    expect(model.count).toHaveBeenLastCalledWith({ where: { depotId: 'depot-1', quantity: { gt: 0 } } });
     expect(out).toEqual({ issues: 3, gallons: 12, depositHeld: 0 });
   });
 

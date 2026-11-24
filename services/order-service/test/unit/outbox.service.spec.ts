@@ -29,6 +29,19 @@ describe('OutboxService edges', () => {
     await expect(service.pendingRevenue('dep-9')).resolves.toBe(0);
   });
 
+  // HD-6: a long depot outage must not turn the void's gallon reversal DEAD (issue left booked).
+  it('gives the gallon void the same larger retry cap as a payment reversal', async () => {
+    repo.enqueue([
+      { topic: 'GALLON_ISSUE_VOID', orderId: 'o1' },
+      { topic: 'GALLON_ISSUE', orderId: 'o2' },
+    ]);
+    for (const r of repo.rows) r.attempts = 7;
+    const result = await service.processDue(new Date());
+    expect(result).toMatchObject({ failed: 2, dead: 1 });
+    expect(repo.rows.find((r) => r.topic === 'GALLON_ISSUE_VOID')!.status).toBe('PENDING');
+    expect(repo.rows.find((r) => r.topic === 'GALLON_ISSUE')!.status).toBe('DEAD');
+  });
+
   it('retries a topic no running version knows how to handle', async () => {
     repo.enqueue([{ topic: 'INVENTORY_CONSUME', orderId: 'ord-1' }]);
 

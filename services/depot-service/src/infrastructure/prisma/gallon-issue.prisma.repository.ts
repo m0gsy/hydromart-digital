@@ -121,13 +121,16 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
   }
 
   async summaryForDepot(depotId: string): Promise<GallonIssueSummary> {
-    const agg = await this.prisma.gallonIssue.aggregate({
-      where: { depotId },
-      _count: { _all: true },
-      _sum: { quantity: true, depositHeld: true },
-    });
+    const [agg, issues] = await Promise.all([
+      this.prisma.gallonIssue.aggregate({
+        where: { depotId },
+        _sum: { quantity: true, depositHeld: true },
+      }),
+      // HD-6: a void's reversal row is negative; it is not an issue event, so it is not counted.
+      this.prisma.gallonIssue.count({ where: { depotId, quantity: { gt: 0 } } }),
+    ]);
     return {
-      issues: agg._count._all,
+      issues,
       gallons: agg._sum.quantity ?? 0,
       depositHeld: Number(agg._sum.depositHeld ?? 0),
     };
@@ -169,10 +172,26 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
   ): Promise<GallonIssueAgeRow[]> {
     // Not asked at all for an empty set: `in: []` matches nothing, but it is still a round trip.
     if (customerIds.length === 0) return [];
+    // HD-6: a voided sale's issue is no handover either. Its reversal row (key `void:<orderId>`,
+    // negative) says so; leaving the issue in the walk would assign the still-out gallons to it
+    // and understate how long they have really been out.
+    const reversals = await this.prisma.gallonIssue.findMany({
+      where: {
+        depotId,
+        customerId: { in: [...customerIds] },
+        quantity: { lt: 0 },
+        idempotencyKey: { startsWith: 'void:' },
+      },
+      select: { idempotencyKey: true },
+    });
+    const voidedOrders = reversals.map((r) => (r.idempotencyKey as string).slice('void:'.length));
     const rows = await this.prisma.gallonIssue.findMany({
-      // HD-6: a void's reversal row is negative; it is not a handover and would be walked
-      // as one, adding gallons to what the aging thinks is still out.
-      where: { depotId, customerId: { in: [...customerIds] }, quantity: { gt: 0 } },
+      where: {
+        depotId,
+        customerId: { in: [...customerIds] },
+        quantity: { gt: 0 },
+        OR: [{ orderId: null }, { orderId: { notIn: voidedOrders } }],
+      },
       select: { customerId: true, quantity: true, createdAt: true },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
