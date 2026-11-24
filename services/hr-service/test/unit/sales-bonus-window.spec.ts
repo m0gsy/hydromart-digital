@@ -1,3 +1,4 @@
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { PayrollService } from '../../src/application/services/payroll.service';
@@ -68,7 +69,7 @@ function build(opts: {
   flag?: boolean;
   homeDepotId?: string | null;
   salesRejects?: boolean;
-  employeeThrows?: boolean;
+  employeeThrows?: Error;
 }) {
   const pages = opts.pages ?? [[]];
   const list = jest.fn(async ({ skip }: { skip: number }) => ({
@@ -78,7 +79,7 @@ function build(opts: {
   const repo = { list, findById: jest.fn(async (id: string) => opts.slips?.[id] ?? null) };
   const employees = {
     getById: jest.fn(async () => {
-      if (opts.employeeThrows) throw new Error('404');
+      if (opts.employeeThrows) throw opts.employeeThrows;
       return {
         depotId: opts.depotId === undefined ? 'd1' : opts.depotId,
         homeDepotId: opts.homeDepotId ?? null,
@@ -217,11 +218,21 @@ describe('PayrollService.salesBonusShortfallReport', () => {
     const down = build({ pages: [[slip('a', 'PAID')]], slips: { a: full(100_000) }, salesRejects: true });
     expect(await data(down)).toEqual([['2026-07', 'emp-a', 'Budi', 'PAID', 1, 100_000, '', '']]);
 
-    const gone = build({ pages: [[slip('a', 'PAID'), slip('b', 'PAID')]], employeeThrows: true });
+    const gone = build({ pages: [[slip('a', 'PAID'), slip('b', 'PAID')]], employeeThrows: new NotFoundException() });
     const out = await gone.svc.salesBonusShortfallReport(user, '2026-07');
     expect(out.rows).toHaveLength(1);
     expect(out.rows[0]![2]).toContain('2 slip dilewati');
     expect(out.rows[0]![2]).toContain('HARI INI'); // the rules-in-force caveat travels with the file
+
+    const forbidden = build({ pages: [[slip('a', 'PAID')]], employeeThrows: new ForbiddenException() });
+    expect((await forbidden.svc.salesBonusShortfallReport(user, '2026-07')).rows[0]![2]).toContain(
+      '1 slip dilewati',
+    );
+  });
+
+  it('does not hide a database error as a skipped row', async () => {
+    const t = build({ pages: [[slip('a', 'PAID')]], employeeThrows: new Error('connection lost') });
+    await expect(t.svc.salesBonusShortfallReport(user, '2026-07')).rejects.toThrow('connection lost');
   });
 
   it('is empty when the rule repository or the sales port is not wired', async () => {
@@ -232,7 +243,25 @@ describe('PayrollService.salesBonusShortfallReport', () => {
   });
 });
 
+jest.mock('../../src/domain/payroll-pdf', () => ({
+  ...jest.requireActual('../../src/domain/payroll-pdf'),
+  tableReportPdf: jest.fn(async () => Buffer.from('%PDF')),
+}));
+
 describe('ReportsController.payrollSalesBonusShortfall', () => {
+  it('puts the rules caveat in the PDF subtitle (pdfkit wraps it)', async () => {
+    const { tableReportPdf } = jest.requireMock('../../src/domain/payroll-pdf');
+    const res = { setHeader: jest.fn(), send: jest.fn() };
+    const c = new ReportsController(
+      {} as never,
+      { salesBonusShortfallReport: async () => ({ headers: ['a'], rows: [['1']] }) } as never,
+    );
+    await c.payrollSalesBonusShortfall({ periodMonth: '2026-07', format: 'pdf' } as never, user, res as never);
+    expect(tableReportPdf).toHaveBeenCalledWith(
+      expect.objectContaining({ subtitle: expect.stringContaining('HARI INI') }),
+    );
+  });
+
   it('is delivered like every report', async () => {
     const report = jest.fn().mockResolvedValue({ headers: ['a'], rows: [['1']] });
     const res = { setHeader: jest.fn(), send: jest.fn() };

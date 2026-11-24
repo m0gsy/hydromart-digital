@@ -1606,8 +1606,11 @@ export class PayrollService {
             this.employees.getById(user, slip.employeeId),
             this.repo.findById(slip.id),
           ]);
-        } catch {
-          skipped++; // missing or out-of-scope employee: one row must not sink the report
+        } catch (err) {
+          // Only what getById really throws for "no such employee" / "not yours" is skipped;
+          // a database or network error must fail the report, not hide as a skipped row.
+          if (!(err instanceof NotFoundException || err instanceof ForbiddenException)) throw err;
+          skipped++;
           continue;
         }
         // The depot generate() prices from: the home depot when depots can lend staff.
