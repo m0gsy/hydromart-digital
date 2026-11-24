@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { InvalidEffectiveDateError } from './errors';
 
 import { dayStartUtc, localDayKey } from '@hydromart/platform';
 
@@ -17,7 +17,7 @@ export function effectiveFrom(value: string, timeZone: string): Date {
   if (!DATE_ONLY.test(value)) return new Date(value);
   const at = dayStartUtc(value, timeZone);
   if (localDayKey(at, timeZone) !== value) {
-    throw new BadRequestException(`effectiveDate ${value} is not a real calendar day`);
+    throw new InvalidEffectiveDateError(value);
   }
   return at;
 }
