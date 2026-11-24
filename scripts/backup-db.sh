@@ -21,7 +21,8 @@ cd "$(dirname "$0")/.."
 # H-37: whatever happens from here on gets recorded in admin-service, so /hq/retention
 # stops being a card that can only say NONE. The trap covers every failure path — a dump
 # that never ran is exactly the case the console must not keep reporting as fine.
-trap 'rc=$?; [ "$rc" -ne 0 ] && report_backup_run BACKUP FAILED "backup-db.sh exited $rc — see the backup log"; exit $rc' EXIT
+PART=''
+trap 'rc=$?; [ -n "$PART" ] && rm -f "$PART"; [ "$rc" -ne 0 ] && report_backup_run BACKUP FAILED "backup-db.sh exited $rc — see the backup log"; exit $rc' EXIT
 
 CONTAINER="${PG_CONTAINER:-hydromart-postgres}"
 PG_USER="${PG_USER:-hydromart}"
@@ -44,14 +45,20 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 FILE="$BACKUP_DIR/hydromart-$STAMP.sql.gz"
 
 # Stream the dump straight through gzip so nothing large lands uncompressed.
-docker exec "$CONTAINER" pg_dumpall -U "$PG_USER" | gzip > "$FILE"
+# It is written under a part name and renamed, so a dump that is cut short (a full disk, a killed
+# run) never wears the final name that backup-offsite.sh and the restore drills glob for.
+PART="$BACKUP_DIR/.hydromart-$STAMP.sql.gz.part"
+docker exec "$CONTAINER" pg_dumpall -U "$PG_USER" | gzip > "$PART"
 
 # Fail loudly if the dump is suspiciously tiny (container down / auth failed).
-SIZE=$(wc -c < "$FILE")
+SIZE=$(wc -c < "$PART")
 if [ "$SIZE" -lt 1000 ]; then
   echo "ERROR: backup $FILE is only ${SIZE}B — dump likely failed" >&2
   exit 1
 fi
+gzip -t "$PART" || { echo "ERROR: backup $FILE is not valid gzip — dump cut short" >&2; exit 1; }
+mv -f "$PART" "$FILE"
+PART=''
 HUMAN_SIZE="$(du -h "$FILE" | cut -f1)"
 echo "backup OK: $FILE ($HUMAN_SIZE)"
 report_backup_run BACKUP OK "$HUMAN_SIZE, $(basename "$FILE")"

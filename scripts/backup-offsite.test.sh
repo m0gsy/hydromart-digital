@@ -26,13 +26,19 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-# No ops pings from a drill. This file produces ten non-zero exits on purpose, and the
-# webhook being empty makes alert() return before it ever reaches curl.
-#
-# This comment used to read "backup-offsite.sh alerts on every non-zero exit" — stated, never
-# measured, and false: the EXIT trap was installed after the destination check, so the eight
-# exits above it were silent. Section 12 below now measures it instead of asserting it.
-export ALERT_WEBHOOK_URL=''
+# No ops pings from a drill. This file produces many non-zero exits on purpose, and every one
+# of them alerts. The sink is a curl on PATH that only records its argv: nothing can reach a
+# webhook, whatever ./.env says (scripts/lib/deploy-common.sh reads it, so an empty
+# ALERT_WEBHOOK_URL here would not silence anything). Section 12 reads the same recording.
+TMP_STUB="$(mktemp -d)"
+cat >"$TMP_STUB/curl" <<'STUBEOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"${ALERT_CAPTURE:-/dev/null}"
+STUBEOF
+chmod +x "$TMP_STUB/curl"
+export PATH="$TMP_STUB:$PATH"
+export ALERT_WEBHOOK_URL='http://alert.invalid/hook'
+export ALERT_CAPTURE="$TMP_STUB/alerts-all"
 
 fails=0
 ok() { echo "  ok   $1"; }
@@ -68,7 +74,7 @@ expect() {
 echo "backup-offsite.sh:"
 
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+trap 'rm -rf "$TMP" "$TMP_STUB"' EXIT
 SRC="$TMP/backups"
 REM="$TMP/remote"
 mkdir -p "$SRC" "$REM"
@@ -261,7 +267,7 @@ fi
 # Copying yesterday's dump every night is a silent, plausible-looking failure: the file is
 # there, the checksum matches, and the data is a day old.
 OLD="$SRC/hydromart-20260824-030000.sql.gz"
-printf 'yesterday\n' >"$OLD"
+printf 'yesterday\n' | gzip >"$OLD"
 touch -d '2026-08-24 03:00:00' "$OLD" 2>/dev/null || touch -t 202608240300 "$OLD"
 touch "$DUMP"
 run env BACKUP_OFFSITE_DEST="$REM" BACKUP_DIR="$SRC" bash scripts/backup-offsite.sh
@@ -353,8 +359,8 @@ AIREM="$TMP/ai-remote"
 mkdir -p "$AISRC" "$AIREM"
 HMD="$AISRC/hydromart-20260901-030000.sql.gz"
 AIW="$AISRC/aiweb-20260901-030500.sql.gz"
-printf 'hydromart-fake-dump-payload-0123456789\n' >"$HMD"
-printf 'aiweb-fake-dump-payload-0123456789\n' >"$AIW"
+printf 'hydromart-fake-dump-payload-0123456789\n' | gzip >"$HMD"
+printf 'aiweb-fake-dump-payload-0123456789\n' | gzip >"$AIW"
 touch -d '2026-09-01 03:00:00' "$HMD" 2>/dev/null || touch -t 202609010300 "$HMD"
 touch -d '2026-09-01 03:05:00' "$AIW" 2>/dev/null || touch -t 202609010305 "$AIW"
 run env BACKUP_OFFSITE_DEST="$AIREM" BACKUP_DIR="$AISRC" bash scripts/backup-offsite.sh --aiweb
@@ -432,14 +438,21 @@ else
   bad "  ...different bytes from the first destination's: the twin was not reused"
 fi
 
-# The tripwire: a twin that is really the plaintext (the hurried `cp` where openssl was).
+# The tripwire: a twin that is really the plaintext (the hurried `cp` where openssl was) is
+# never sent: the upload path deletes it and encrypts again, --verify refuses it.
 FAKE="$SRC/hydromart-20260828-030000.sql.gz"
 echo 'plaintext' | gzip >"$FAKE"
 cp "$FAKE" "$FAKE.enc"
+run env BACKUP_OFFSITE_DEST="$D8REM" bash scripts/backup-offsite.sh --verify "$FAKE"
+expect "--verify refuses a twin that is not an envelope" 1 "is not encrypted"
 run env BACKUP_OFFSITE_DEST="$D8REM" bash scripts/backup-offsite.sh "$FAKE"
-expect "a twin that is not an envelope is refused" 1 "not encrypted"
-[ ! -e "$D8REM/$(basename "$FAKE").enc" ] && ok "  ...and nothing was sent" || bad "  ...the plaintext twin was sent"
-rm -f "$FAKE" "$FAKE.enc"
+expect "the upload path replaces a plaintext twin with a real one" 0 "offsite OK"
+if cmp -s "$D8REM/$(basename "$FAKE").enc" "$FAKE" || grep -qa 'plaintext' "$D8REM/$(basename "$FAKE").enc"; then
+  bad "  ...the plaintext twin was sent"
+else
+  ok "  ...and only the encrypted one was sent"
+fi
+rm -f "$FAKE" "$FAKE.enc" "$FAKE.enc.sha256"
 
 # A plaintext copy an older release sent does not count, and is never deleted: the next copy
 # lands beside it.
@@ -465,6 +478,188 @@ if [ ! -e "$OLD.enc" ] && [ -e "$NEW.enc" ] && [ -e "$DUMP.enc" ]; then
   ok "a pruned dump's twin goes with it, the others stay"
 else
   bad "twins after a prune: old=$([ -e "$OLD.enc" ] && echo kept || echo gone) new=$([ -e "$NEW.enc" ] && echo kept || echo gone)"
+fi
+
+# --- 15. D8 review: the twin is checked whole and tied to its dump before anything leaves --
+REALSSL="$(command -v openssl)"
+mkdir -p "$TMP/ssl-stub"
+# An openssl whose `smime` exits 0 and leaves a TRUNCATED envelope: what 3.0.2 does on a full
+# disk. SSL_CUT_FIRST=n makes only the first n encryptions short; unset = every one.
+cat >"$TMP/ssl-stub/openssl" <<STUBEOF
+#!/usr/bin/env bash
+if [ "\${1:-}" = smime ]; then
+  "$REALSSL" "\$@" || exit \$?
+  n=\$(cat "\$SSL_COUNT" 2>/dev/null || echo 0); n=\$((n + 1)); echo "\$n" >"\$SSL_COUNT"
+  if [ "\$n" -le "\${SSL_CUT_FIRST:-999}" ]; then
+    out=""; prev=""; for a in "\$@"; do [ "\$prev" = -out ] && out="\$a"; prev="\$a"; done
+    head -c 200 "\$out" >"\$out.cut" && mv -f "\$out.cut" "\$out"
+  fi
+  exit 0
+fi
+exec "$REALSSL" "\$@"
+STUBEOF
+chmod +x "$TMP/ssl-stub/openssl"
+gz() { printf '%s\n' "$2" | gzip >"$1"; }
+TRD="$TMP/d15"
+mkdir -p "$TRD/src" "$TRD/rem"
+D1="$TRD/src/hydromart-20260901-040000.sql.gz"
+gz "$D1" "dump one"
+
+# a. a full disk during encryption: every twin cut short -> exit 1, nothing sent, no twin left
+: >"$TMP/ssl-count"
+run env PATH="$TMP/ssl-stub:$PATH" SSL_COUNT="$TMP/ssl-count" BACKUP_OFFSITE_DEST="$TRD/rem" bash scripts/backup-offsite.sh "$D1"
+expect "a truncated twin made twice is a failure, not a copy" 1 "Nothing was sent"
+if [ -z "$(ls -A "$TRD/rem")" ] && [ ! -e "$D1.enc" ]; then
+  ok "  ...nothing reached the destination and no short twin is left behind"
+else
+  bad "  ...a short twin or a copy was left: rem=$(ls -A "$TRD/rem" | tr '\n' ' ') twin=$([ -e "$D1.enc" ] && echo yes || echo no)"
+fi
+# b. only the first encryption is cut short: it is remade once and what goes is whole
+: >"$TMP/ssl-count"
+run env PATH="$TMP/ssl-stub:$PATH" SSL_COUNT="$TMP/ssl-count" SSL_CUT_FIRST=1 BACKUP_OFFSITE_DEST="$TRD/rem" bash scripts/backup-offsite.sh "$D1"
+expect "a twin cut short once is encrypted again and sent whole" 0 "offsite OK"
+openssl asn1parse -inform DER -in "$TRD/rem/$(basename "$D1").enc" >/dev/null 2>&1 \
+  && ok "  ...what was sent parses as DER to its end" || bad "  ...what was sent is not a whole envelope"
+[ "$(cat "$D1.enc.sha256" 2>/dev/null)" = "$(sha256sum "$D1" | cut -d' ' -f1)" ] \
+  && ok "  ...and its dump's sha256 is recorded beside the twin" || bad "  ...no dump sha256 recorded beside the twin"
+
+# c. a good twin gets cut short afterwards (reuse): upload path remakes it, --verify fails and leaves it
+head -c 300 "$D1.enc" >"$TRD/cut" && cp "$TRD/cut" "$D1.enc"
+rm -f "$TRD/rem/"* 2>/dev/null || true
+run env BACKUP_OFFSITE_DEST="$TRD/rem" bash scripts/backup-offsite.sh --verify "$D1"
+expect "--verify fails on a truncated twin" 1 "not a complete DER envelope"
+[ "$(wc -c <"$D1.enc" | tr -d ' ')" = 300 ] && ok "  ...and never re-encrypts" || bad "  ...--verify touched the twin"
+run env BACKUP_OFFSITE_DEST="$TRD/rem" bash scripts/backup-offsite.sh "$D1"
+expect "a truncated twin on reuse is deleted and encrypted again" 0 "offsite OK"
+openssl asn1parse -inform DER -in "$D1.enc" >/dev/null 2>&1 && ok "  ...the twin is whole again" || bad "  ...the twin is still cut short"
+
+# d. a twin that belongs to an OLDER dump of the same name
+gz "$D1" "dump one, written again"
+run env BACKUP_OFFSITE_DEST="$TRD/rem" bash scripts/backup-offsite.sh --verify "$D1"
+expect "--verify fails on a twin made from a different dump" 1 "was not made from"
+OLDTWIN="$(sha256sum "$D1.enc" | cut -d' ' -f1)"
+run env BACKUP_OFFSITE_DEST="$TRD/rem" bash scripts/backup-offsite.sh "$D1"
+expect "the upload path encrypts the dump as it is now" 0 "offsite OK"
+if [ "$(sha256sum "$D1.enc" | cut -d' ' -f1)" != "$OLDTWIN" ] \
+  && [ "$(cat "$D1.enc.sha256")" = "$(sha256sum "$D1" | cut -d' ' -f1)" ]; then
+  ok "  ...a new twin, tied to the new dump"
+else
+  bad "  ...the stale twin was reused"
+fi
+
+# e. a dump that is not valid gzip is an alert, not an upload
+D2="$TRD/src/hydromart-20260902-040000.sql.gz"
+gz "$D2" "dump two, long enough to cut in two parts"
+head -c 20 "$D2" >"$TRD/cutgz" && cp "$TRD/cutgz" "$D2"
+: >"$TMP_STUB/alerts-all"
+run env BACKUP_OFFSITE_DEST="$TRD/rem" bash scripts/backup-offsite.sh "$D2"
+expect "a corrupt dump is refused" 1 "not valid gzip"
+{ [ ! -e "$D2.enc" ] && [ ! -e "$TRD/rem/$(basename "$D2").enc" ]; } && ok "  ...nothing encrypted, nothing sent" || bad "  ...a corrupt dump was encrypted or sent"
+grep -q 'FAILED' "$TMP_STUB/alerts-all" && ok "  ...and it alerts" || bad "  ...it did not alert"
+rm -f "$D2"
+
+# f. orphans: a twin (and its hash) whose dump is gone, a stale part file; never a live one
+D3="$TRD/src/hydromart-20260903-040000.sql.gz"
+gz "$D3" "dump three"
+GONE="$TRD/src/hydromart-20260801-040000.sql.gz"
+echo x >"$GONE.enc"; echo x >"$GONE.enc.sha256"
+echo x >"$TRD/src/.hydromart-20260801-040000.sql.gz.part"
+touch -d '2026-08-01 04:00:00' "$TRD/src/.hydromart-20260801-040000.sql.gz.part" 2>/dev/null || touch -t 202608010400 "$TRD/src/.hydromart-20260801-040000.sql.gz.part"
+echo x >"$TRD/src/.hydromart-20260903-050000.sql.gz.part"   # fresh: a dump may be writing it now
+if [ -e "$GONE.enc" ] && [ -e "$GONE.enc.sha256" ] && [ -e "$TRD/src/.hydromart-20260801-040000.sql.gz.part" ]; then
+  ok "orphans exist before the run (the precondition is real)"
+else
+  bad "orphans exist before the run — the test set nothing up"
+fi
+run env BACKUP_OFFSITE_DEST="$TRD/rem" bash scripts/backup-offsite.sh "$D3"
+expect "a run with orphans around still copies" 0 "offsite OK"
+if [ ! -e "$GONE.enc" ] && [ ! -e "$GONE.enc.sha256" ] && [ ! -e "$TRD/src/.hydromart-20260801-040000.sql.gz.part" ]; then
+  ok "  ...the orphan twin, its hash and the stale part file are gone"
+else
+  bad "  ...orphans left: $(ls -A "$TRD/src" | tr '\n' ' ')"
+fi
+if [ -e "$D1" ] && [ -e "$D1.enc" ] && [ -e "$D1.enc.sha256" ] && [ -e "$D3.enc" ] && [ -e "$TRD/src/.hydromart-20260903-050000.sql.gz.part" ]; then
+  ok "  ...and no dump, live twin or fresh part file was touched"
+else
+  bad "  ...cleanup touched something in use: $(ls -A "$TRD/src" | tr '\n' ' ')"
+fi
+
+# g. what is handed to the uploader (s3 shape): the .enc, ciphertext, never the gzip
+CAP="$TMP/upcap"
+mkdir -p "$CAP" "$TMP/node-stub"
+cat >"$TMP/node-stub/node" <<'STUBEOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+  scripts/upload-to-s3.mjs)
+    echo "$*" >>"$UPCAP/args"
+    cp "$2" "$UPCAP/uploaded"
+    ;;
+  scripts/s3-prune.mjs) ;;
+  -e)
+    [ -f "$UPCAP/uploaded" ] || exit 3
+    echo "$(wc -c <"$UPCAP/uploaded" | tr -d ' ') $(sha256sum "$UPCAP/uploaded" | cut -d' ' -f1)"
+    ;;
+  *) exit 1 ;;
+esac
+STUBEOF
+chmod +x "$TMP/node-stub/node"
+D4="$TRD/src/hydromart-20260904-040000.sql.gz"
+gz "$D4" "dump four SENTINEL-ROW"
+run env PATH="$TMP/node-stub:$PATH" UPCAP="$CAP" BACKUP_OFFSITE_DEST=s3://hydromart-backups/db \
+  BACKUP_S3_ACCESS_KEY_ID=fake-id BACKUP_S3_SECRET_ACCESS_KEY=fake-secret bash scripts/backup-offsite.sh "$D4"
+expect "s3: a copy through a stubbed uploader verifies" 0 "offsite OK"
+case "$(cat "$CAP/args" 2>/dev/null)" in
+  "scripts/upload-to-s3.mjs $D4.enc db/hydromart-20260904-040000.sql.gz.enc") ok "the uploader is handed <dump>.enc and the .enc object key" ;;
+  *) bad "the uploader was handed: $(cat "$CAP/args" 2>/dev/null)" ;;
+esac
+UPHEX="$(head -c 32 "$CAP/uploaded" | od -An -tx1 | tr -d '[:space:]')"
+case "$UPHEX" in
+  30*06092a864886f70d010703*) ok "the uploaded file is a PKCS#7 envelope (SEQUENCE, enveloped-data OID)" ;;
+  *) bad "the uploaded file starts $UPHEX" ;;
+esac
+if cmp -s "$CAP/uploaded" "$D4" || grep -qa 'SENTINEL-ROW' "$CAP/uploaded" || gzip -t "$CAP/uploaded" 2>/dev/null; then
+  bad "the uploader received the plaintext dump or something that is gzip"
+else
+  ok "the uploader never received the plaintext gzip"
+fi
+
+# h. two runs at once: one twin, the same bytes at both destinations
+D5="$TRD/src/hydromart-20260905-040000.sql.gz"
+gz "$D5" "dump five"
+mkdir -p "$TRD/remA" "$TRD/remB"
+env BACKUP_OFFSITE_DEST="$TRD/remA" bash scripts/backup-offsite.sh "$D5" >/dev/null 2>&1 &
+pidA=$!
+env BACKUP_OFFSITE_DEST="$TRD/remB" bash scripts/backup-offsite.sh "$D5" >/dev/null 2>&1 &
+pidB=$!
+wait "$pidA" || true
+wait "$pidB" || true
+if [ -s "$TRD/remA/$(basename "$D5").enc" ] && cmp -s "$TRD/remA/$(basename "$D5").enc" "$TRD/remB/$(basename "$D5").enc"; then
+  ok "two concurrent runs send the same ciphertext to both destinations"
+else
+  bad "two concurrent runs sent different ciphertexts (or one failed)"
+fi
+
+# i. backup-db.sh writes under a part name and renames, and refuses a dump that is not gzip
+DBS="$TMP/db-stub"
+mkdir -p "$DBS" "$TMP/db-out"
+cat >"$DBS/docker" <<'STUBEOF'
+#!/usr/bin/env bash
+if [ -n "${DUMP_BAD:-}" ]; then echo 'not gzip data'; else for i in $(seq 1 400); do echo "INSERT INTO t VALUES ($i, 'padding padding padding');"; done; fi
+STUBEOF
+chmod +x "$DBS/docker"
+run env PATH="$DBS:$PATH" BACKUP_DIR="$TMP/db-out" bash scripts/backup-db.sh
+if [ "$RC" = 0 ] && ls "$TMP/db-out"/hydromart-*.sql.gz >/dev/null 2>&1 && [ -z "$(ls -A "$TMP/db-out" | grep part || true)" ] \
+  && gzip -t "$TMP/db-out"/hydromart-*.sql.gz; then
+  ok "backup-db.sh: a good dump lands under its final name, no part file left"
+else
+  bad "backup-db.sh: exit $RC, dir: $(ls -A "$TMP/db-out" | tr '\n' ' '); $(echo "$OUT" | tail -2 | tr '\n' ' ')"
+fi
+rm -f "$TMP/db-out"/hydromart-*.sql.gz
+run env PATH="$DBS:$PATH" DUMP_BAD=1 BACKUP_DIR="$TMP/db-out" bash scripts/backup-db.sh
+if [ "$RC" != 0 ] && [ -z "$(ls -A "$TMP/db-out")" ]; then
+  ok "backup-db.sh: a dump that is not gzip fails and leaves nothing under any name"
+else
+  bad "backup-db.sh: bad dump gave exit $RC, dir: $(ls -A "$TMP/db-out" | tr '\n' ' ')"
 fi
 
 if [ "$fails" -gt 0 ]; then

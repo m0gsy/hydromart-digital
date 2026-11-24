@@ -72,7 +72,9 @@ lain adalah komentar; ia tidak pernah sekali pun berjalan jam 03:00). Blok yang 
 | `*/5 * * * *`                                         | `watchdog.sh`                                                                          |
 
 Retensi lokal: `BACKUP_KEEP=14` (`scripts/backup-db.sh`) → 14 dump. Salinan luar-kotak
-bersifat opsional dan menyala hanya jika `BACKUP_S3_BUCKET` diset.
+dikirim oleh `scripts/backup-offsite.sh` (cron 03:20, `BACKUP_OFFSITE_DEST`), terenkripsi, dibaca ulang dan
+dibandingkan sha256-nya (D8, 24 Nov 2026; sebelumnya opsional lewat `BACKUP_S3_BUCKET` di `backup-db.sh`,
+yang jalurnya sudah dihapus).
 
 > **Ukur:** `grep -c BACKUP .env.example` → **0**. `grep -c BACKUP .env.production.example` →
 > **0**. Tidak ada satu pun berkas contoh env yang menyebut variabel yang menyalakan salinan
@@ -105,7 +107,7 @@ terakhir**, dan hari sibuk adalah hari dengan kerugian terbesar.
    sebelah `max_connections=150`, plus tempat menaruh WAL-nya.
 2. Dump lebih sering, hanya untuk basis data uang (`hydromart_order`, `hydromart_payment`,
    `hydromart_payout`) — lebih murah dari WAL, tapi RPO terbaiknya tetap = interval dump.
-3. `BACKUP_S3_BUCKET` diset. Tanpa ini, RPO untuk **kehilangan kotak** bukan 24 jam melainkan
+3. `BACKUP_OFFSITE_DEST` diset (dulu `BACKUP_S3_BUCKET`, kini tidak dibaca lagi). Tanpa ini, RPO untuk **kehilangan kotak** bukan 24 jam melainkan
    tak terhingga: tidak ada salinan di luar mesin yang mati.
 
 ### 1.3 RTO — bagian mesinnya diukur, bagian manusianya tak berbatas
@@ -790,7 +792,7 @@ Ditulis eksplisit supaya tidak ada baris di atas yang terbaca lebih kuat dari se
 3. **Waktu restore pada volume produksi.** 46 detik itu untuk dump 4,6 MB. Prod lebih besar
    dengan faktor yang saya tidak tahu. Angkanya harus diambil ulang di sana, dan itu satu
    perintah: `time BACKUP_DIR=… bash scripts/restore-db.sh --drill`.
-4. **Apakah salinan luar-kotak aktif.** `BACKUP_S3_BUCKET` diset atau tidak hanya terlihat di
+4. **Apakah salinan luar-kotak aktif.** `BACKUP_S3_BUCKET` (kini `BACKUP_OFFSITE_DEST`) diset atau tidak hanya terlihat di
    `.env` kotak itu. Tidak terdokumentasi di berkas contoh mana pun (terukur: 0 kecocokan),
    jadi kemungkinan terbesarnya tidak — tapi itu dugaan, dan saya menandainya sebagai dugaan.
 5. **Tingkat OTP.** Tidak diuji, sengaja: satu register sungguhan mengirim satu SMS berbayar
@@ -819,7 +821,7 @@ Ditulis eksplisit supaya tidak ada baris di atas yang terbaca lebih kuat dari se
 | 6  | Mode drill kedua yang tidak butuh cluster hidup                                                | L3-DR-3           | satu fungsi                                 |
 | 7  | Registry penghapusan PDP, dengan 9 tabel di §4.2 sebagai barisnya                              | L3-RET-2          | sedang                                      |
 | 8  | Klasifikasikan 141 tabel; mulai dari 13 baris di §4.1                                          | L3-RET-1          | sedang, dan butuh keputusan bisnis           |
-| 9  | `archive_mode=on` + arsip WAL ke NEO; set `BACKUP_S3_BUCKET`                                   | L3-DR-1           | sedang + biaya bulanan                      |
+| 9  | `archive_mode=on` + arsip WAL ke NEO; set `BACKUP_OFFSITE_DEST`                                | L3-DR-1           | sedang + biaya bulanan                      |
 | 10 | Skenario beban kedua dengan limiter produksi, ambangnya "429 pertama setelah N"                 | L3-CAP-2          | sedang                                      |
 | 11 | Nama + tanggal untuk: akuntan (TER), penguji PDP pihak ketiga, pemilik PPN ritel                | L3-LEG-1/2/3      | bukan pekerjaan kode                        |
 

@@ -593,6 +593,20 @@ noncurrent version for 30 more days. Any in the second provider's locked bucket 
 delete) stay until that bucket's own lifecycle rule removes them after its lock, about 395 days.
 Until then anyone with that bucket's key can read them, as before D8.
 
+**The twin is checked before it leaves.** `<dump>.enc` has its dump's sha256 beside it
+(`<dump>.enc.sha256`). Before every send, and on every `--verify`, it must parse as DER to its
+end, be larger than its dump and carry the dump's current hash (the box's OpenSSL 3.0.2 exits 0
+on a full disk and leaves a cut-short envelope, and a dump can be replaced under its name). A
+twin that fails is deleted and made again once by the copy run; `--verify` only reports it. A
+dump that is not valid gzip is an alert and nothing is sent. To force a new encryption, delete
+the twin and its hash: `rm <dump>.enc <dump>.enc.sha256`, then run `backup-offsite.sh`. Twins of
+dumps already pruned, and `.part` files older than an hour, are removed by the next copy run.
+
+**Rolling back across this change.** A release before D8 has a `backup-db.sh` that uploads each
+dump itself, in the clear, whenever `BACKUP_S3_BUCKET` is set. Before rolling back past it, the
+box's `.env` must not have `BACKUP_S3_BUCKET` (checked 24 Nov 2026: it has none). If it has, remove
+it first, or the old script sends plaintext dumps to that bucket.
+
 **Restoring from an encrypted copy.** On your own machine, never the box (Git Bash works):
 
 ```bash
@@ -623,8 +637,9 @@ on the box can do it, because the box cannot decrypt):
    `grep 'encrypted from' /var/log/hydromart-backup.log | tail -4`.
 4. Delete the opened dumps from your machine: they are the whole database in the clear.
 
-Equal hashes mean the copy is byte-for-byte the dump on the box, and the weekly drill there
-proves that dump restores. A copy that does not open means the box encrypts to a certificate
+Equal hashes mean the copy opens to byte-for-byte the dump the box had when it was encrypted (the
+`.enc` is checked whole and tied to its dump's recorded sha256 before every send, so it is that
+dump or nothing), and the weekly drill there proves that dump restores. A copy that does not open means the box encrypts to a certificate
 whose private key you do not hold: check `BACKUP_ENV_CERT` and `ops/env-backup-public.pem`
 before anything else.
 

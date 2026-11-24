@@ -53,7 +53,7 @@ mkdir -p "$OFFSITE"
 # destination. A plaintext cp there would no longer count, which is case 9b below.
 make_dump() {
   printf 'hydromart-fake-dump-%s
-' "$1" >"$DUMPS/$1"
+' "$1" | gzip >"$DUMPS/$1"
   env -u BACKUP_ENV_CERT BACKUP_OFFSITE_DEST="$OFFSITE" BACKUP_OFFSITE_ALLOW_SAME_FS=1 \
     bash scripts/backup-offsite.sh "$DUMPS/$1" >"$WORK/make-dump.out" 2>&1 ||
     bad "could not send $1 offsite to set the case up: $(tail -1 "$WORK/make-dump.out")"

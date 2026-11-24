@@ -36,6 +36,12 @@
 # never be compared with the copy offsite. The object is named <dump>.enc as well, so the
 # plaintext <dump> objects sent before D8 stay told apart; nothing here deletes them (DEPLOY.md
 # says how they age out). No certificate is exit 2 with nothing sent, never a plaintext copy.
+# The twin is checked whole before anything is sent, whenever it is made or reused: valid DER to
+# its end, larger than its dump, and its dump's sha256 recorded beside it as <dump>.enc.sha256
+# (openssl 3.0.2 exits 0 on a full disk and leaves a cut-short envelope; a twin could also
+# belong to an older dump). A bad twin is deleted and made again once; --verify only fails.
+# To force a new encryption: delete <dump>.enc and <dump>.enc.sha256. One run per family at a time
+# (flock), so the two providers never get different ciphertexts.
 # Opening a copy, off the box: DEPLOY.md, "Offsite copies are encrypted (D8)".
 #
 #   bash scripts/backup-offsite.sh                     # newest dump in $BACKUP_DIR
@@ -185,6 +191,14 @@ fi
   exit 2
 }
 
+# A dump that is not valid gzip is a failed backup (backup-db.sh wrote the final name directly
+# before D8's review, so a cut-short dump can wear it): an alert, never something to encrypt and
+# send as if it were one.
+gzip -t "$FILE" 2>/dev/null || {
+  echo "!! $FILE is not valid gzip (cut short or corrupt). Refusing: nothing was sent." >&2
+  exit 1
+}
+
 # What leaves the box is the dump's encrypted twin, never the dump (D8, made in 2b below).
 ENC="$FILE.enc"
 KEY="$(basename "$ENC")"
@@ -274,7 +288,88 @@ esac
 # --- 2b. what goes is the dump ENCRYPTED (D8) --------------------------------------------
 # Made once per dump and reused after (the header says why it must be). --verify never makes
 # one: no twin on this box means this dump never left it from here.
-if [ "$MODE" = copy ] && [ ! -s "$ENC" ]; then
+#
+# openssl 3.0.2, the box's, exits 0 from `smime -encrypt -stream` on a full disk and leaves a
+# TRUNCATED envelope. The read-back below compares what was sent with the twin, so a short twin
+# would verify against itself. The twin is therefore checked whole, by itself, before anything
+# is sent, every time it is made and every time it is reused: it must parse as DER to its end,
+# be larger than its dump, and carry the sha256 of the dump it was made from (backup-db.sh
+# used to write the final name directly, so a twin could belong to an older or cut-short dump).
+DUMP_SHA="$(sha256_of "$FILE")"
+SHAFILE="$ENC.sha256"
+TWIN_WHY=''
+twin_check() {
+  local magic
+  [ -s "$ENC" ] || { TWIN_WHY="is missing"; return 1; }
+  # backup-env.sh's plaintext tripwire, for dumps: what goes must open as a PKCS#7 envelope (the
+  # enveloped-data OID, 1.2.840.113549.1.7.3, is in its first bytes), never as gzip or SQL. It
+  # catches the hurried fix that swaps the openssl line for a cp.
+  magic="$(head -c 32 "$ENC" | od -An -tx1 | tr -d '[:space:]')"
+  case "$magic" in
+    *06092a864886f70d010703*) ;;
+    *) TWIN_WHY="is not encrypted (it starts ${magic:0:8}, not a PKCS#7 envelope)"; return 1 ;;
+  esac
+  openssl asn1parse -inform DER -in "$ENC" >/dev/null 2>&1 \
+    || { TWIN_WHY="is not a complete DER envelope (cut short?)"; return 1; }
+  [ "$(wc -c <"$ENC" | tr -d ' ')" -gt "$(wc -c <"$FILE" | tr -d ' ')" ] \
+    || { TWIN_WHY="is not larger than its dump (cut short?)"; return 1; }
+  [ -s "$SHAFILE" ] && [ "$(tr -d '[:space:]' <"$SHAFILE")" = "$DUMP_SHA" ] \
+    || { TWIN_WHY="was not made from $(basename "$FILE") as it is now (its dump sha256 is not recorded beside it, or differs)"; return 1; }
+  return 0
+}
+
+make_twin() {
+  local part
+  part="$(dirname "$ENC")/.$KEY.part.$$"
+  CLEANUP="$part"
+  # -stream: one pass, the dump is never held whole. The only file written is ciphertext, here,
+  # under a name no glob matches until it is complete; the plaintext is never copied anywhere.
+  # ponytail: only the encrypting side streams. `openssl smime -decrypt`, on the owner's side,
+  # holds the whole copy in memory. Dumps are a few MB; if one nears a GB, change the format
+  # for both families (and DEPLOY.md) to one that decrypts as a stream.
+  if ! openssl smime -encrypt -aes256 -binary -outform DER -stream -in "$FILE" -out "$part" "$CERT"; then
+    rm -f "$part"; CLEANUP=''
+    return 1
+  fi
+  rm -f "$ENC" "$SHAFILE"
+  mv -f "$part" "$ENC"
+  CLEANUP=''
+  printf '%s\n' "$DUMP_SHA" >"$SHAFILE.part.$$" && mv -f "$SHAFILE.part.$$" "$SHAFILE"
+}
+
+if [ "$MODE" = copy ]; then
+  # One run per family at a time (cron + somebody by hand): two runs could each make a twin and
+  # send different ciphertexts to the two providers. Held until exit.
+  if command -v flock >/dev/null 2>&1; then
+    exec 9>"$(dirname "$ENC")/.offsite-$FAMILY.lock"
+    flock -w 1800 9 || { echo "!! another backup-offsite.sh run held the lock for 30 minutes" >&2; exit 1; }
+  fi
+  # A twin lives exactly as long as its dump: those whose dump backup-db.sh or backup-aiweb-db.sh
+  # has since pruned go too (with their recorded hash), or this directory would keep every
+  # encrypted copy ever made. Only a twin whose dump is GONE is touched, and part files old
+  # enough that no run can still be writing them.
+  for twin in "$(dirname "$ENC")/$FAMILY"-*.sql.gz.enc; do
+    [ -e "$twin" ] || continue
+    [ -e "${twin%.enc}" ] || rm -f "$twin" "$twin.sha256" || true
+  done
+  for sha in "$(dirname "$ENC")/$FAMILY"-*.sql.gz.enc.sha256; do
+    [ -e "$sha" ] || continue
+    [ -e "${sha%.enc.sha256}" ] || rm -f "$sha" || true
+  done
+  find "$(dirname "$ENC")" -maxdepth 1 -type f -name ".$FAMILY-*.part*" -mmin +60 -delete 2>/dev/null || true
+fi
+
+if [ ! -s "$ENC" ] && [ "$MODE" = verify ]; then
+  echo "!! $(basename "$FILE") has no encrypted twin ($KEY) on this box, so it has never been" >&2
+  echo "   sent offsite from here. bash scripts/backup-offsite.sh makes it and sends it." >&2
+  exit 1
+fi
+if ! twin_check; then
+  if [ "$MODE" = verify ]; then
+    echo "!! $ENC $TWIN_WHY, so nothing offsite can be compared with it." >&2
+    echo "   --verify never makes one. bash scripts/backup-offsite.sh remakes it and sends it." >&2
+    exit 1
+  fi
   CERT="${BACKUP_ENV_CERT:-ops/env-backup-public.pem}"
   if [ ! -f "$CERT" ]; then
     echo "!! cannot encrypt $(basename "$FILE"): the certificate $CERT (BACKUP_ENV_CERT, default" >&2
@@ -283,43 +378,21 @@ if [ "$MODE" = copy ] && [ ! -s "$ENC" ]; then
     echo "   key, or restore the committed one: git checkout -- ops/env-backup-public.pem" >&2
     exit 2
   fi
-  # -stream: one pass, the dump is never held whole. The only file written is ciphertext, here,
-  # under a name no glob matches until it is complete; the plaintext is never copied anywhere.
-  # ponytail: only the encrypting side streams. `openssl smime -decrypt`, on the owner's side,
-  # holds the whole copy in memory. Dumps are a few MB; if one nears a GB, change the format
-  # for both families (and DEPLOY.md) to one that decrypts as a stream.
-  part="$(dirname "$ENC")/.$KEY.part.$$"
-  CLEANUP="$part"
-  openssl smime -encrypt -aes256 -binary -outform DER -stream -in "$FILE" -out "$part" "$CERT" || {
-    echo "!! openssl could not encrypt $FILE to $CERT, so nothing was sent." >&2
-    exit 1
-  }
-  mv -f "$part" "$ENC"
-  CLEANUP=''
+  [ -e "$ENC" ] && echo "offsite: $ENC $TWIN_WHY: deleting it and encrypting $(basename "$FILE") again" >&2
+  # Twice at most: a twin that fails its own check straight after being made is retried once,
+  # then it is a failure (a full disk, most likely), never a copy.
+  attempt=0
+  until make_twin && twin_check; do
+    attempt=$((attempt + 1))
+    rm -f "$ENC" "$SHAFILE"
+    if [ "$attempt" -ge 2 ]; then
+      echo "!! could not make a whole encrypted copy of $FILE ($TWIN_WHY) — disk full? Nothing was sent." >&2
+      exit 1
+    fi
+  done
 fi
-if [ ! -s "$ENC" ]; then
-  echo "!! $(basename "$FILE") has no encrypted twin ($KEY) on this box, so it has never been" >&2
-  echo "   sent offsite from here. bash scripts/backup-offsite.sh makes it and sends it." >&2
-  exit 1
-fi
-# backup-env.sh's plaintext tripwire, for dumps: what goes must open as a PKCS#7 envelope (the
-# enveloped-data OID, 1.2.840.113549.1.7.3, is in its first bytes), never as gzip or SQL. It
-# catches the hurried fix that swaps the openssl line for a cp, which would send every customer
-# row there is to a bucket that cannot delete it for a year.
-magic="$(head -c 32 "$ENC" | od -An -tx1 | tr -d '[:space:]')"
-case "$magic" in
-  *06092a864886f70d010703*) ;;
-  *)
-    echo "!! $ENC is not encrypted (it starts ${magic:0:8}, not a PKCS#7 envelope). Refusing to" >&2
-    echo "   send it. Delete it and run again: a new one is made from the dump." >&2
-    exit 1
-    ;;
-esac
 LOCAL_SIZE="$(wc -c <"$ENC" | tr -d ' ')"
 LOCAL_SHA="$(sha256_of "$ENC")"
-# The dump's own hash, printed beside the copy's: decrypted off the box, the copy must hash to
-# exactly this (DEPLOY.md, the owner's drill).
-DUMP_SHA="$(sha256_of "$FILE")"
 
 # --- 3. read-back verification -----------------------------------------------------------
 # Prints "<size> <sha256>" of what is ACTUALLY at the destination.
@@ -486,11 +559,6 @@ case "$verdict" in
 if [ "$SHAPE" = s3 ] && [ "${BACKUP_SKIP_PRUNE:-}" != 1 ]; then
   S3_ENDPOINT="${BACKUP_S3_ENDPOINT:-https://nos.jkt-1.neo.id}"     S3_REGION="${BACKUP_S3_REGION:-jkt-1}"     S3_ACCESS_KEY_ID="$BACKUP_S3_ACCESS_KEY_ID"     S3_SECRET_ACCESS_KEY="$BACKUP_S3_SECRET_ACCESS_KEY"     node scripts/s3-prune.mjs --bucket "$BUCKET" --prefix "$OBJ_PREFIX/"      --keep "${BACKUP_KEEP:-14}" || echo "!! offsite prune failed — the copy is safe, the bucket will grow" >&2
 fi
-# A twin lives exactly as long as its dump: those whose dump backup-db.sh or backup-aiweb-db.sh
-# has since pruned go too, or this directory would keep every encrypted copy ever made.
-for twin in "$(dirname "$ENC")/$FAMILY"-*.sql.gz.enc; do
-  [ -e "${twin%.enc}" ] || rm -f "$twin" || true
-done
 
 echo "offsite OK — $TARGET_LABEL verified by read-back: ${LOCAL_SIZE}B, sha256 $LOCAL_SHA; encrypted from $(basename "$FILE"), sha256 $DUMP_SHA" ;;
   3)
