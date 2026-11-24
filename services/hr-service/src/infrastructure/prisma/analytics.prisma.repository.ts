@@ -191,8 +191,9 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
     const ids = [...depotIds];
 
     // Who the month's payroll is waiting for: employed at any time in it: joined by its last day, and
-    // ACTIVE, or with no exit date, or an exit date on or after its first day (an ACTIVE person with a
-    // stale exit date from before the month, a rehire, is therefore expected). A leaver with an exit
+    // ACTIVE, or with an exit date on or after its first day (an ACTIVE person with a stale exit date
+    // from before the month, a rehire, is therefore expected; an INACTIVE/RESIGNED person with NO exit
+    // date is not, or one forgotten record would strand the month as belum_ada for good). A leaver with an exit
     // date in the month who never gets a slip keeps the month unfinished, on purpose: somebody was owed.
     // Expected, final and draft are ALL counted at the employee's own depot, whatever cost shares split
     // the slip across: a depot whose only employee is 100% lent out must still be able to finish.
@@ -240,7 +241,7 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
         where: {
           depotId: { in: ids },
           joinDate: { lte: monthEnd },
-          OR: [{ status: 'ACTIVE' }, { exitDate: null }, { exitDate: { gte: monthStart } }],
+          OR: [{ status: 'ACTIVE' }, { exitDate: { gte: monthStart } }],
         },
         _count: { _all: true },
       }),

@@ -1319,7 +1319,7 @@ describe('AnalyticsPrismaRepository', () => {
     expect(expectedWhere).toEqual({
       depotId: { in: ['d1', 'd2', 'd3'] },
       joinDate: { lte: new Date('2026-07-31T00:00:00.000Z') },
-      OR: [{ status: 'ACTIVE' }, { exitDate: null }, { exitDate: { gte: new Date('2026-07-01T00:00:00.000Z') } }],
+      OR: [{ status: 'ACTIVE' }, { exitDate: { gte: new Date('2026-07-01T00:00:00.000Z') } }],
     });
     expect(facts.get('d2')?.absentToday).toBe(1);
     // A depot with nothing at all is simply absent — the service decides what that means.

@@ -52,6 +52,9 @@ describeRace('AnalyticsPrismaRepository.depotSummaryFacts: payroll finished, on 
     const leaver = await person({ status: 'RESIGNED', exitDate: new Date('2026-11-05') });
     await person({ status: 'RESIGNED', exitDate: new Date('2026-10-31') }); // left before the month
     await person({ joinDate: new Date('2026-12-01') }); // joins after it
+    await person({ status: 'INACTIVE' }); // no exit date and not ACTIVE: not waited for
+    await person({ status: 'RESIGNED' }); // same
+    // ACTIVE with a null exit date is expected: the plain `a`, `b`, `c` above
     // an ACTIVE rehire with a stale exit date from before the month IS expected (and has a slip)
     const rehire = await person({ exitDate: new Date('2026-03-31') });
     await slip(rehire.id, 'APPROVED');
