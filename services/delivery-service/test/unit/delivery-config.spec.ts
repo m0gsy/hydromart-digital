@@ -116,4 +116,21 @@ describe('setting-defs mirrors env.validation (B6)', () => {
       .value.SHIFT_BREAK_QUOTA_MINUTES;
     expect(applied).toBe(advertised);
   });
+
+  it('slaDepotOverride answers only what the depot itself set', async () => {
+    const cache = cacheWith([
+      { scope: 'GLOBAL', depotId: null, key: 'slaMinutes', value: '100' },
+      { scope: 'DEPOT', depotId: 'd1', key: 'slaMinutes', value: '45' },
+      { scope: 'DEPOT', depotId: 'd2', key: 'slaMinutes', value: 'junk' },
+    ]);
+    await cache.refresh();
+    const cfg = new DeliveryConfigService(
+      new ConfigService({ DELIVERY_SLA_MINUTES: '120' } as never),
+      cache,
+    );
+    expect(cfg.slaDepotOverride('d1')).toBe(45);
+    expect(cfg.slaDepotOverride('d2')).toBeNull(); // unreadable row = no override
+    expect(cfg.slaDepotOverride('d3')).toBeNull(); // the global row is not a depot choice
+    expect(cfg.slaDepotOverride(null)).toBeNull();
+  });
 });

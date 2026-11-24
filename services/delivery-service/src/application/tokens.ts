@@ -7,6 +7,8 @@ export const DELIVERY_TOKENS = {
   CashCollection: Symbol('CashCollection'),
   CourierPayout: Symbol('CourierPayout'),
   Rating: Symbol('Rating'),
+  /** HD-6 #19: the network on-time threshold owned by admin-service (/hq/sla-policy). */
+  NetworkSla: Symbol('NetworkSla'),
   DepotLocation: Symbol('DepotLocation'),
   OrderPayment: Symbol('OrderPayment'),
   OrderLookup: Symbol('OrderLookup'),

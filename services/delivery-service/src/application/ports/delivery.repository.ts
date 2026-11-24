@@ -61,6 +61,11 @@ export interface DeliveryRecord {
   lastLocationAt: Date | null;
   estimatedArrivalAt: Date | null;
   assignedAt: Date;
+  /** HD-6 #20: restarted clock of the successful attempt; null = `assignedAt` is the start. */
+  slaStartedAt: Date | null;
+  /** HD-6 #19: stored at completion; all three null on rows completed before it shipped. */
+  slaThresholdMinutes: number | null;
+  slaOnTime: boolean | null;
   pickedUpAt: Date | null;
   startedAt: Date | null;
   deliveredAt: Date | null;
@@ -142,6 +147,13 @@ export interface DeliveryQuery {
 }
 
 /** Reporting window. Both bounds optional; open-ended when absent. */
+/** The on-time verdict stored on a delivery at completion (HD-6 #19/#20). */
+export interface StoredSla {
+  startedAt: Date;
+  thresholdMinutes: number;
+  onTime: boolean;
+}
+
 export interface ReportRange {
   from?: Date;
   to?: Date;
@@ -152,6 +164,9 @@ export interface DeliveredRow {
   orderId: string;
   assignedAt: Date;
   deliveredAt: Date;
+  /** HD-6: the stored verdict; null = completed before it was stored (compute it). */
+  slaOnTime: boolean | null;
+  slaStartedAt: Date | null;
 }
 
 /** One depot-leaderboard row: a driver and their delivered count in the window (4c). */
@@ -428,6 +443,8 @@ export interface DeliveryRepository {
      * cannot leave a completed delivery whose event was never written. Absent = none owed.
      */
     event?: { event: string; eventId: string; payload: Record<string, unknown> },
+    /** HD-6: the verdict, written in the same update as the handover. */
+    sla?: StoredSla,
   ): Promise<DeliveryRecord>;
   /**
    * UU PDP retention: delete proof-of-delivery rows (photo/signature URL, recipient name,

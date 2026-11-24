@@ -21,6 +21,7 @@ import {
   DepotCourierActivity,
   DepotDeliveredCount,
   DepotSlaStats,
+  StoredSla,
   ProofRecord,
   ReportRange,
   SlaCandidate,
@@ -95,6 +96,9 @@ interface DeliveryRow {
   lastLocationAt: Date | null;
   estimatedArrivalAt: Date | null;
   assignedAt: Date;
+  slaStartedAt: Date | null;
+  slaThresholdMinutes: number | null;
+  slaOnTime: boolean | null;
   pickedUpAt: Date | null;
   startedAt: Date | null;
   deliveredAt: Date | null;
@@ -157,6 +161,9 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       lastLocationAt: row.lastLocationAt,
       estimatedArrivalAt: row.estimatedArrivalAt,
       assignedAt: row.assignedAt,
+      slaStartedAt: row.slaStartedAt,
+      slaThresholdMinutes: row.slaThresholdMinutes,
+      slaOnTime: row.slaOnTime,
       pickedUpAt: row.pickedUpAt,
       startedAt: row.startedAt,
       deliveredAt: row.deliveredAt,
@@ -231,6 +238,8 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
           pickedUpAt: null,
           startedAt: null,
           estimatedArrivalAt: null,
+          // HD-6 #20: a re-opened row is a new attempt after a customer reschedule.
+          slaStartedAt: new Date(),
         },
       });
       if (count === 0) throw new DeliveryAlreadyExistsError();
@@ -445,7 +454,13 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
 
   async codHeldByCourier(since: Date, until: Date, limit: number): Promise<CodHeldRow[]> {
     const rows = await this.prisma.$queryRaw<
-      { driverId: string; depotId: string | null; deliveries: bigint; amount: bigint; oldest: Date }[]
+      {
+        driverId: string;
+        depotId: string | null;
+        deliveries: bigint;
+        amount: bigint;
+        oldest: Date;
+      }[]
     >(Prisma.sql`
       SELECT d."driverId", d."depotId",
              COUNT(*)::bigint AS "deliveries",
@@ -519,12 +534,20 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
   async driverDeliveredInWindow(driverId: string, from: Date, to: Date): Promise<DeliveredRow[]> {
     const rows = await this.prisma.delivery.findMany({
       where: { driverId, status: DeliveryStatus.DELIVERED, deliveredAt: { gte: from, lt: to } },
-      select: { orderId: true, assignedAt: true, deliveredAt: true },
+      select: {
+        orderId: true,
+        assignedAt: true,
+        deliveredAt: true,
+        slaOnTime: true,
+        slaStartedAt: true,
+      },
     });
     return rows.map((r) => ({
       orderId: r.orderId,
       assignedAt: r.assignedAt,
       deliveredAt: r.deliveredAt!,
+      slaOnTime: r.slaOnTime,
+      slaStartedAt: r.slaStartedAt,
     }));
   }
 
@@ -581,6 +604,8 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
             assignedAt: true,
             deliveredAt: true,
             failedAt: true,
+            slaOnTime: true,
+            slaStartedAt: true,
           },
           orderBy: [{ id: 'asc' }],
           take,
@@ -607,6 +632,8 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
           orderId: row.orderId,
           assignedAt: row.assignedAt,
           deliveredAt: row.deliveredAt,
+          slaOnTime: row.slaOnTime,
+          slaStartedAt: row.slaStartedAt,
         });
       }
       if (row.failedAt) activity.failed += 1;
@@ -690,6 +717,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
         pickedUpAt: null,
         startedAt: null,
         estimatedArrivalAt: null,
+        slaStartedAt: new Date(),
         history: { create: { status: DeliveryStatus.ASSIGNED, changedBy, note } },
       },
       include: INCLUDE,
@@ -704,12 +732,20 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     changedBy: string,
     capturedAt: Date,
     event?: { event: string; eventId: string; payload: Record<string, unknown> },
+    sla?: StoredSla,
   ): Promise<DeliveryRecord> {
     const update = this.prisma.delivery.update({
       where: { id, status: from },
       data: {
         status: DeliveryStatus.DELIVERED,
         deliveredAt: capturedAt,
+        ...(sla
+          ? {
+              slaStartedAt: sla.startedAt,
+              slaThresholdMinutes: sla.thresholdMinutes,
+              slaOnTime: sla.onTime,
+            }
+          : {}),
         proof: { create: { ...proof, capturedAt } },
         history: { create: { status: DeliveryStatus.DELIVERED, changedBy } },
       },
@@ -820,7 +856,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     >(Prisma.sql`
       SELECT COUNT(*)::bigint AS total,
              COALESCE(SUM(
-               CASE WHEN EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60 <= ${thresholdMinutes}
+               CASE WHEN COALESCE("slaOnTime", EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60 <= ${thresholdMinutes})
                     THEN 1 ELSE 0 END
              ), 0)::bigint AS ontime,
              COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60), 0) AS summinutes,
@@ -865,12 +901,18 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     if (range.from) conds.push(Prisma.sql`"deliveredAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"deliveredAt" < ${range.to}`);
     const rows = await this.prisma.$queryRaw<
-      { depotid: string; total: bigint; ontime: bigint; summinutes: number | null; medianminutes: number | null }[]
+      {
+        depotid: string;
+        total: bigint;
+        ontime: bigint;
+        summinutes: number | null;
+        medianminutes: number | null;
+      }[]
     >(Prisma.sql`
       SELECT "depotId" AS depotid,
              COUNT(*)::bigint AS total,
              COALESCE(SUM(
-               CASE WHEN EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60 <= ${thresholdMinutes}
+               CASE WHEN COALESCE("slaOnTime", EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60 <= ${thresholdMinutes})
                     THEN 1 ELSE 0 END
              ), 0)::bigint AS ontime,
              COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60), 0) AS summinutes,

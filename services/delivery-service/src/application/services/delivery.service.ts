@@ -52,6 +52,8 @@ import { OrderPaymentPort } from '../ports/order-payment.port';
 import { OrderLookupPort } from '../ports/order-lookup.port';
 import { haversineMeters } from '../../domain/geo';
 import { clampCapturedAt } from '../../domain/offline';
+import { isOnTime, slaClockStart } from '../../domain/sla';
+import { NetworkSlaPort } from '../ports/network-sla.port';
 import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
 import { StoragePort } from '../ports/storage.port';
@@ -207,7 +209,24 @@ export class DeliveryService {
     @Optional()
     @Inject(DELIVERY_TOKENS.CustomerNotification)
     private readonly customerNotifications?: CustomerNotificationPort,
+    // Optional: without it the threshold falls back to this service's own setting.
+    @Optional()
+    @Inject(DELIVERY_TOKENS.NetworkSla)
+    private readonly networkSla?: NetworkSlaPort,
   ) {}
+
+  /**
+   * HD-6 #19: the one threshold a delivery is graded against. The depot's own setting wins;
+   * else the network policy (admin-service); else this service's global setting / env
+   * default, so a completion never waits on, or fails because of, admin being down.
+   */
+  private async slaThreshold(depotId: string | null): Promise<number> {
+    return (
+      this.config.slaDepotOverride(depotId) ??
+      (await this.networkSla?.thresholdMinutes().catch(() => null)) ??
+      this.config.slaMinutes(depotId)
+    );
+  }
 
   /**
    * S1 — a courier takes an unclaimed order themselves.
@@ -421,7 +440,9 @@ export class DeliveryService {
         { orderNumber: delivery.orderNumber, deliveryId: delivery.id },
         driverId,
       )
-      .catch((e: Error) => this.logger.warn(`Courier push for ${delivery.id} failed: ${e.message}`));
+      .catch((e: Error) =>
+        this.logger.warn(`Courier push for ${delivery.id} failed: ${e.message}`),
+      );
   }
 
   async pickup(driverId: string, id: string, authorization: string): Promise<DeliveryRecord> {
@@ -478,7 +499,7 @@ export class DeliveryService {
       proof.capturedAt,
       new Date(),
       this.config.offlineMaxAgeHours(delivery.depotId),
-      delivery.assignedAt,
+      slaClockStart(delivery),
     );
     /*
      * DLV-4 — is the courier where the order was going?
@@ -510,6 +531,10 @@ export class DeliveryService {
     //
     // The status guard rides along: a re-tapped Selesai matches no row and raises rather
     // than paying the courier twice for one handover (H-5).
+    // HD-6 #19/#20: graded once, here, on the clock of THIS attempt; everything downstream
+    // (reports, courier pay) reads what is stored.
+    const startedAt = slaClockStart(delivery);
+    const thresholdMinutes = await this.slaThreshold(delivery.depotId);
     const completed = await this.deliveries.completeWithProof(
       id,
       delivery.status,
@@ -519,6 +544,7 @@ export class DeliveryService {
       // AAS-11: recorded in the same transaction as the handover. Only when a fan-out is
       // bound at all; without one nothing is owed to anybody.
       this.events ? this.deliveredEvent(delivery, capturedAt, proof.recipientName) : undefined,
+      { startedAt, thresholdMinutes, onTime: isOnTime(startedAt, capturedAt, thresholdMinutes) },
     );
     this.logger.log(`Delivery ${id} completed by driver ${driverId}`);
     // Proof of delivery is the real-world close of the order: nothing downstream of it is
@@ -592,13 +618,18 @@ export class DeliveryService {
   /** Reports a completed delivery to payout-service. On-time = beat the SLA window. */
   private async pushEarning(delivery: DeliveryRecord): Promise<void> {
     if (!delivery.deliveredAt) return;
-    const minutes = (delivery.deliveredAt.getTime() - delivery.assignedAt.getTime()) / 60000;
+    // FORWARD-ONLY for money: a delivery completed now always carries its stored verdict. A
+    // row without one (completed before HD-6) is graded as it always was, so no earning that
+    // was approved or paid can change.
+    const onTime =
+      delivery.slaOnTime ??
+      isOnTime(delivery.assignedAt, delivery.deliveredAt, this.config.slaMinutes(delivery.depotId));
     await this.payout.deliveryCompleted({
       courierId: delivery.driverId,
       depotId: delivery.depotId,
       deliveryId: delivery.id,
       deliveredAt: delivery.deliveredAt.toISOString(),
-      onTime: minutes <= this.config.slaMinutes(delivery.depotId),
+      onTime,
     });
   }
 
@@ -970,7 +1001,12 @@ export class DeliveryService {
       throw error;
     }
     try {
-      await this.settleHeldCash(delivery, driverId, input.cashReturned ?? false, 'dijadwalkan ulang');
+      await this.settleHeldCash(
+        delivery,
+        driverId,
+        input.cashReturned ?? false,
+        'dijadwalkan ulang',
+      );
     } catch (error) {
       await this.deliveries
         .applyStatus(
@@ -1215,7 +1251,12 @@ export class DeliveryService {
   ): number | null {
     if (delivery.destinationLat === null || delivery.destinationLng === null) return null;
     return Math.round(
-      haversineMeters(proof.latitude, proof.longitude, delivery.destinationLat, delivery.destinationLng),
+      haversineMeters(
+        proof.latitude,
+        proof.longitude,
+        delivery.destinationLat,
+        delivery.destinationLng,
+      ),
     );
   }
 

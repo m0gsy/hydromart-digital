@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
+import { onTimeOf } from '../../domain/sla';
 import { DeliveryRepository, ReportRange } from '../ports/delivery.repository';
 import { RatingPort } from '../ports/rating.port';
 import { SettlementRepository } from '../ports/settlement.repository';
@@ -133,10 +134,7 @@ export class ReportService {
         const rating = await this.rating.avgRating(
           row.delivered.map((delivery) => delivery.orderId),
         );
-        const onTime = row.delivered.filter(
-          (delivery) =>
-            (delivery.deliveredAt.getTime() - delivery.assignedAt.getTime()) / 60_000 <= threshold,
-        ).length;
+        const onTime = row.delivered.filter((delivery) => onTimeOf(delivery, threshold)).length;
         return {
           driverId: row.driverId,
           delivered: row.delivered.length,

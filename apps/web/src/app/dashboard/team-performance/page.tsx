@@ -4,6 +4,7 @@ import { ChartBar, Lock, Star } from '@phosphor-icons/react';
 
 import { RequireAuth } from '@/components/require-auth';
 import { Card, CenterState, Chip, ErrorState, Skeleton } from '@/components/ui';
+import { isSlaCritical } from '@/lib/sla-bands';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -168,7 +169,7 @@ function TeamPerformanceBody() {
                               {name}
                             </EntityLink>
                           </p>
-                          {(sla < 90 || courier.failed >= 5) && (
+                          {(isSlaCritical(sla) || courier.failed >= 5) && (
                             <Chip tone="amber">{t('mgrFix.teamPerf.needsAttention')}</Chip>
                           )}
                         </div>

@@ -8,6 +8,7 @@ import { Buildings, CaretRight, ChartLineUp, Gavel, Lock, Package, Truck, UsersT
 import { RequireAuth } from '@/components/require-auth';
 import { OperatorRingkasan } from '@/components/operator/operator-ringkasan';
 import { Card, CenterState, ErrorState, Money, Skeleton, Spinner } from '@/components/ui';
+import { SLA_HEALTHY_PCT } from '@/lib/sla-bands';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -309,7 +310,7 @@ function DashboardBody({ view }: { view: 'manager' | 'executive' }) {
             <Stat
               label={t('mgrFix.dash.slaOnTime')}
               value={deliverySla?.slaRate != null ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
-              hint={deliverySla ? t('mgrFix.dash.slaTarget', { n: 96 }) : undefined}
+              hint={deliverySla ? t('mgrFix.dash.slaTarget', { n: SLA_HEALTHY_PCT }) : undefined}
             />
           </>
         ) : (

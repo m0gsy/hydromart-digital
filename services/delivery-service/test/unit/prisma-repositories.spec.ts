@@ -141,6 +141,8 @@ describe('DeliveryPrismaRepository', () => {
     delivery.update.mockResolvedValue(deliveryRow({ status: 'ASSIGNED', driverId: 'drv-2' }));
     const rec = await repo.reassign('del-1', 'drv-2', 'sup-1', 'kurir sakit');
     expect(delivery.update.mock.calls[0][0].data).toMatchObject({ driverId: 'drv-2' });
+    // HD-6 #20: a re-opened row is a new attempt, so its SLA clock restarts.
+    expect(delivery.update.mock.calls[0][0].data.slaStartedAt).toBeInstanceOf(Date);
     expect(rec.status).toBe('ASSIGNED');
   });
 
@@ -405,7 +407,9 @@ describe('DeliveryPrismaRepository', () => {
     const text = q.sql.replace(/\s+/g, ' ');
     expect(text).toContain('d."depotId" = ?::uuid');
     expect(text).toContain('d."codAmount" > 0');
-    expect(text).toContain('NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )');
+    expect(text).toContain(
+      'NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )',
+    );
     expect(q.values).toEqual(expect.arrayContaining(['depot-1', since]));
   });
 
@@ -417,20 +421,35 @@ describe('DeliveryPrismaRepository', () => {
       { driverId: 'drv-1', depotId: 'dep-1', deliveries: 2n, amount: 80000n, oldest },
     ]);
     expect(await repo.codHeldByCourier(since, until, 5001)).toEqual([
-      { driverId: 'drv-1', depotId: 'dep-1', deliveries: 2, amountIdr: 80000, oldestDeliveredAt: oldest },
+      {
+        driverId: 'drv-1',
+        depotId: 'dep-1',
+        deliveries: 2,
+        amountIdr: 80000,
+        oldestDeliveredAt: oldest,
+      },
     ]);
     const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
     const text = q.sql.replace(/\s+/g, ' ');
     expect(text).toContain('GROUP BY d."driverId", d."depotId"');
     expect(text).toContain('d."deliveredAt" < ?');
-    expect(text).toContain('NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )');
+    expect(text).toContain(
+      'NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )',
+    );
     expect(q.values).toEqual(expect.arrayContaining([since, until, 5001]));
   });
 
   it('failedInWindow reads FAILED and RESCHEDULED in [from, to), newest first, bounded', async () => {
     const from = new Date('2026-10-25T00:00:00Z');
     const to = new Date('2026-10-26T00:00:00Z');
-    const row = { orderNumber: 'HM-1', driverId: 'drv-1', depotId: null, status: 'FAILED', at: from, reason: 'x' };
+    const row = {
+      orderNumber: 'HM-1',
+      driverId: 'drv-1',
+      depotId: null,
+      status: 'FAILED',
+      at: from,
+      reason: 'x',
+    };
     $queryRaw.mockResolvedValue([row]);
     expect(await repo.failedInWindow(from, to, 5001)).toEqual([row]);
     const q = $queryRaw.mock.calls.at(-1)![0] as { sql: string; values: unknown[] };
@@ -451,10 +470,14 @@ describe('DeliveryPrismaRepository', () => {
     const text = q.sql.replace(/\s+/g, ' ');
     expect(text).toContain('d."depotId" = ?::uuid');
     expect(text).toContain('d."status" IN (?::"DeliveryStatus", ?::"DeliveryStatus")');
-    expect(text).toContain('NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )');
+    expect(text).toContain(
+      'NOT EXISTS ( SELECT 1 FROM "cash_settlements" s WHERE d."orderId" = ANY (s."orderIds") )',
+    );
     expect(text).toContain('ORDER BY d."updatedAt" DESC');
     expect(text).toContain('LIMIT ?');
-    expect(q.values).toEqual(expect.arrayContaining(['depot-1', 'FAILED', 'RESCHEDULED', since, 500]));
+    expect(q.values).toEqual(
+      expect.arrayContaining(['depot-1', 'FAILED', 'RESCHEDULED', since, 500]),
+    );
   });
 
   it('codBearingInWindow maps to order ids with their COD and how they ended', async () => {
@@ -510,9 +533,11 @@ describe('DeliveryPrismaRepository', () => {
     const to = new Date('2026-01-31');
     const assignedAt = new Date('2026-01-02T08:00:00Z');
     const deliveredAt = new Date('2026-01-02T08:20:00Z');
-    delivery.findMany.mockResolvedValue([{ orderId: 'ord-1', assignedAt, deliveredAt }]);
+    delivery.findMany.mockResolvedValue([
+      { orderId: 'ord-1', assignedAt, deliveredAt, slaOnTime: true, slaStartedAt: assignedAt },
+    ]);
     expect(await repo.driverDeliveredInWindow('drv-1', from, to)).toEqual([
-      { orderId: 'ord-1', assignedAt, deliveredAt },
+      { orderId: 'ord-1', assignedAt, deliveredAt, slaOnTime: true, slaStartedAt: assignedAt },
     ]);
     expect(delivery.findMany).toHaveBeenCalledWith({
       where: {
@@ -520,7 +545,13 @@ describe('DeliveryPrismaRepository', () => {
         status: DeliveryStatus.DELIVERED,
         deliveredAt: { gte: from, lt: to },
       },
-      select: { orderId: true, assignedAt: true, deliveredAt: true },
+      select: {
+        orderId: true,
+        assignedAt: true,
+        deliveredAt: true,
+        slaOnTime: true,
+        slaStartedAt: true,
+      },
     });
   });
 
@@ -619,20 +650,48 @@ describe('DeliveryPrismaRepository', () => {
     const deliveredAt = new Date('2026-01-02T08:30:00Z');
     const failedAt = new Date('2026-01-03T08:00:00Z');
     delivery.findMany.mockResolvedValue([
-      { driverId: 'drv-1', orderId: 'ord-1', assignedAt, deliveredAt, failedAt: null },
-      { driverId: 'drv-1', orderId: 'ord-2', assignedAt, deliveredAt: null, failedAt },
-      { driverId: 'drv-2', orderId: 'ord-3', assignedAt, deliveredAt, failedAt: null },
+      {
+        driverId: 'drv-1',
+        orderId: 'ord-1',
+        assignedAt,
+        deliveredAt,
+        failedAt: null,
+        slaOnTime: false,
+        slaStartedAt: null,
+      },
+      {
+        driverId: 'drv-1',
+        orderId: 'ord-2',
+        assignedAt,
+        deliveredAt: null,
+        failedAt,
+        slaOnTime: null,
+        slaStartedAt: null,
+      },
+      {
+        driverId: 'drv-2',
+        orderId: 'ord-3',
+        assignedAt,
+        deliveredAt,
+        failedAt: null,
+        slaOnTime: null,
+        slaStartedAt: null,
+      },
     ]);
 
     expect(await repo.depotCourierActivityInWindow('dep-1', from, to)).toEqual([
       {
         driverId: 'drv-1',
-        delivered: [{ orderId: 'ord-1', assignedAt, deliveredAt }],
+        delivered: [
+          { orderId: 'ord-1', assignedAt, deliveredAt, slaOnTime: false, slaStartedAt: null },
+        ],
         failed: 1,
       },
       {
         driverId: 'drv-2',
-        delivered: [{ orderId: 'ord-3', assignedAt, deliveredAt }],
+        delivered: [
+          { orderId: 'ord-3', assignedAt, deliveredAt, slaOnTime: null, slaStartedAt: null },
+        ],
         failed: 0,
       },
     ]);
@@ -654,6 +713,8 @@ describe('DeliveryPrismaRepository', () => {
         assignedAt: true,
         deliveredAt: true,
         failedAt: true,
+        slaOnTime: true,
+        slaStartedAt: true,
       },
     });
   });
@@ -744,6 +805,27 @@ describe('DeliveryPrismaRepository', () => {
     expect(call.data.history).toEqual({
       create: { status: DeliveryStatus.DELIVERED, changedBy: 'drv-1' },
     });
+    // No verdict given (a caller from before HD-6): nothing is stored, the row stays "not stored".
+    expect(call.data).not.toHaveProperty('slaOnTime');
+  });
+
+  it('completeWithProof stores the SLA verdict in the same update as the handover', async () => {
+    delivery.update.mockResolvedValue(deliveryRow({ status: 'DELIVERED', proof: proofRow }));
+    const startedAt = new Date('2026-07-29T07:00:00.000Z');
+    await repo.completeWithProof(
+      'del-1',
+      DeliveryStatus.ON_DELIVERY,
+      {} as never,
+      'drv-1',
+      new Date('2026-07-29T08:15:00.000Z'),
+      undefined,
+      { startedAt, thresholdMinutes: 90, onTime: true },
+    );
+    expect(delivery.update.mock.calls[0][0].data).toMatchObject({
+      slaStartedAt: startedAt,
+      slaThresholdMinutes: 90,
+      slaOnTime: true,
+    });
   });
 
   // AAS-11: the partner event is recorded in the SAME transaction as the handover, so a crash
@@ -764,7 +846,11 @@ describe('DeliveryPrismaRepository', () => {
       { sealIntact: true, recipientName: 'Budi' } as never,
       'drv-1',
       capturedAt,
-      { event: 'delivery.delivered', eventId: 'delivery.delivered:del-1', payload: { deliveryId: 'del-1' } },
+      {
+        event: 'delivery.delivered',
+        eventId: 'delivery.delivered:del-1',
+        payload: { deliveryId: 'del-1' },
+      },
     );
     expect($tx).toHaveBeenCalledTimes(1);
     expect(createMany).toHaveBeenCalledWith({
@@ -788,11 +874,18 @@ describe('DeliveryPrismaRepository', () => {
       $transaction: async (ops: Promise<unknown>[]) => Promise.all(ops),
     } as unknown as PrismaService);
     await expect(
-      txRepo.completeWithProof('del-1', DeliveryStatus.ON_DELIVERY, {} as never, 'drv-1', new Date(), {
-        event: 'e.x',
-        eventId: 'k',
-        payload: {},
-      }),
+      txRepo.completeWithProof(
+        'del-1',
+        DeliveryStatus.ON_DELIVERY,
+        {} as never,
+        'drv-1',
+        new Date(),
+        {
+          event: 'e.x',
+          eventId: 'k',
+          payload: {},
+        },
+      ),
     ).rejects.toThrow();
   });
 
@@ -877,8 +970,22 @@ describe('DeliveryPrismaRepository', () => {
       30,
     );
     expect(rows).toEqual([
-      { depotId: 'dep-1', totalDelivered: 4, onTime: 3, breached: 1, sumMinutes: 90, medianMinutes: 20 },
-      { depotId: 'dep-2', totalDelivered: 2, onTime: 2, breached: 0, sumMinutes: 0, medianMinutes: null },
+      {
+        depotId: 'dep-1',
+        totalDelivered: 4,
+        onTime: 3,
+        breached: 1,
+        sumMinutes: 90,
+        medianMinutes: 20,
+      },
+      {
+        depotId: 'dep-2',
+        totalDelivered: 2,
+        onTime: 2,
+        breached: 0,
+        sumMinutes: 0,
+        medianMinutes: null,
+      },
     ]);
     expect($queryRaw).toHaveBeenCalledTimes(1);
   });
@@ -1611,19 +1718,22 @@ describe('DeliveryPrismaRepository assignment under the courier cap', () => {
       expect.objectContaining({ where: { id: 'del-1', status: 'RESCHEDULED' } }),
     );
     expect(tx.deliveryStatusHistory.create).toHaveBeenCalled();
+    expect(tx.delivery.updateMany.mock.calls[0][0].data.slaStartedAt).toBeInstanceOf(Date);
   });
 
   it('conflicts when the row is no longer RESCHEDULED', async () => {
     tx.delivery.count.mockResolvedValue(0);
     tx.delivery.updateMany.mockResolvedValue({ count: 0 });
-    await expect(repo.reassignIfUnderCap('del-1', 'drv-2', 'staff', null, 1)).rejects.toBeInstanceOf(
-      DeliveryAlreadyExistsError,
-    );
+    await expect(
+      repo.reassignIfUnderCap('del-1', 'drv-2', 'staff', null, 1),
+    ).rejects.toBeInstanceOf(DeliveryAlreadyExistsError);
   });
 
   it('undoes a fresh assignment by deleting it, a re-opened one by rescheduling it back', async () => {
     await repo.undoAssignment('del-1', null);
-    expect(delivery.deleteMany).toHaveBeenCalledWith({ where: { id: 'del-1', status: 'ASSIGNED' } });
+    expect(delivery.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'del-1', status: 'ASSIGNED' },
+    });
     await repo.undoAssignment('del-1', 'drv-0');
     expect(delivery.updateMany).toHaveBeenCalledWith({
       where: { id: 'del-1', status: 'ASSIGNED' },

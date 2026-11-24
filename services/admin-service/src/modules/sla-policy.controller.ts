@@ -7,8 +7,8 @@ import { SlaPolicyService } from '../application/services/sla-policy.service';
 import { SaveSlaPolicyDto, SlaPolicyDto } from './dto/sla-policy.dto';
 
 // Design 19d — on-time SLA policy (singleton). HEAD_OFFICE + SUPER_ADMIN, read and write.
-// NOTE: delivery-service still grades on-time delivery with its OWN threshold; it does not
-// yet read this policy (cross-service wiring is a later change, not done here).
+// HD-6: delivery-service reads the threshold from here (internal key) when a depot has no
+// threshold of its own, and stores the on-time verdict when a delivery completes.
 @ApiTags('SLA policy')
 @ApiBearerAuth()
 @Can('hqBackOffice')

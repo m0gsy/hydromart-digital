@@ -8,6 +8,7 @@ import { ChartLineUp, Warning } from '@phosphor-icons/react';
 
 import { BarTrend, RankBar, Sparkline } from '@/components/hq/charts';
 import { Card, ErrorState, LoadError, Money, Skeleton } from '@/components/ui';
+import { isSlaCritical } from '@/lib/sla-bands';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
@@ -125,7 +126,7 @@ export default function HqOverviewPage() {
 
   // "Needs attention": depots with a real SLA below the healthy band + any down source.
   const lowSla = rows
-    .filter((r): r is typeof r & { sla: number } => r.sla != null && r.sla < 0.88)
+    .filter((r): r is typeof r & { sla: number } => r.sla != null && isSlaCritical(r.sla * 100))
     .sort((a, b) => a.sla - b.sla);
 
   return (
