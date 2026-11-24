@@ -201,6 +201,7 @@ export class OutboxService {
       message.topic !== 'VOUCHER_RELEASE' &&
       message.topic !== 'FRANCHISE_REVENUE_VOID' &&
       message.topic !== 'REFERRAL_REVERSE' &&
+      message.topic !== 'GALLON_ISSUE_VOID' &&
       (order.status === OrderStatus.VOIDED || order.status === OrderStatus.CANCELLED)
     ) {
       return;

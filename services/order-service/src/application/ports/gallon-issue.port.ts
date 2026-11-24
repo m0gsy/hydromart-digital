@@ -14,6 +14,19 @@ export interface GallonIssueEvent {
   customerId: string | null;
   /** Gallons that left the depot on this order. Always > 0; the caller checks. */
   quantity: number;
+  /**
+   * HD-6 (#24-A): empties the buyer handed back at the counter on this same sale (a refill).
+   * Depot-service books them as a return right after the issue, so a refill nets to zero
+   * gallons at the customer. Absent for a new-gallon sale and for every delivery — a courier
+   * records a delivery's empties herself, at the door.
+   */
+  emptiesReturned?: number;
+}
+
+/** HD-6 (#24-A): a counter sale was voided, so the gallons it booked go back. */
+export interface GallonVoidEvent {
+  depotId: string;
+  orderId: string;
 }
 
 /**
@@ -24,4 +37,10 @@ export interface GallonIssueEvent {
  */
 export interface GallonIssuePort {
   orderDelivered(event: GallonIssueEvent): Promise<void>;
+  /**
+   * Reverses what `orderDelivered` booked for a voided counter sale (the issue and, for a
+   * refill, the return). Same contract: throws on failure, idempotent on the depot side, a
+   * no-op when nothing was ever booked for the order.
+   */
+  orderVoided(event: GallonVoidEvent): Promise<void>;
 }

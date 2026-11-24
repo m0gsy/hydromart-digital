@@ -1,8 +1,9 @@
 import { Logger } from '@nestjs/common';
 
+import { GallonIssueService } from '../../src/application/services/gallon-issue.service';
 import { GallonReturnService } from '../../src/application/services/gallon-return.service';
 import { GallonCondition } from '../../src/domain/gallon-return';
-import { OwnershipType } from '../../src/domain/inventory';
+import { InventoryItemType, OwnershipType } from '../../src/domain/inventory';
 import { DepotNotFoundError, GallonOverReturnError } from '../../src/domain/errors';
 import {
   CreateGallonReturnData,
@@ -62,6 +63,9 @@ class InMemoryGallonReturnRepository implements GallonReturnRepository {
     const existing = this.rows.find((r) => r.orderId === data.orderId);
     if (existing) return { record: existing, created: false };
     return { record: await this.create(data), created: true };
+  }
+  async findByOrderId(orderId: string): Promise<GallonReturnRecord | null> {
+    return this.rows.find((r) => r.orderId === orderId) ?? null;
   }
   /** Every row written, so a test can count them instead of trusting a summary. */
   all(): GallonReturnRecord[] {
@@ -829,5 +833,148 @@ describe('GallonReturnService', () => {
         'courier-1',
       ),
     ).rejects.toBeInstanceOf(DepotNotFoundError);
+  });
+
+  /**
+   * HD-6 (#24-A). A counter refill used to book the full gallon out and keep the empty only
+   * on the order, so "galon di pelanggan" and the deposit the depot holds could only rise for
+   * counter sales. The empty now comes back through the same ledger a courier handover uses.
+   */
+  describe('HD-6 · counter refill and counter void', () => {
+    const ANI = '44444444-4444-4444-8444-444444444444';
+    const O1 = '00000000-0000-4000-8000-0000000000a1';
+    let issueSvc: GallonIssueService;
+    const stock = async (): Promise<number> =>
+      (await invRepo.findLine(depotId, InventoryItemType.GALON, null))?.quantity ?? -1;
+    const net = async (customerId: string) => {
+      const out = await issues.summaryForCustomerAtDepot(depotId, customerId);
+      const back = await returns.summaryForCustomerAtDepot(depotId, customerId);
+      return { gallons: out.gallons - back.gallons, deposit: out.amountIdr - back.amountIdr };
+    };
+
+    beforeEach(async () => {
+      await invRepo.create({
+        depotId,
+        itemType: InventoryItemType.GALON,
+        productId: null,
+        label: 'Galon kosong',
+        unit: 'galon',
+        quantity: 10,
+        minimumStock: 0,
+        sellPrice: null,
+      });
+      issueSvc = new GallonIssueService(
+        issues,
+        depots,
+        configStub,
+        makeInventory(),
+        approvals as unknown as ApprovalService,
+      );
+    });
+
+    const sell = async (quantity: number, empties: number, customerId: string | null = ANI) => {
+      await issueSvc.recordFromOrder(depotId, { orderId: O1, customerId, quantity }, 'os');
+      if (empties > 0) {
+        await service.recordFromCounter(depotId, { orderId: O1, customerId, quantity: empties }, 'os');
+      }
+    };
+
+    it('a refill nets to zero gallons, zero deposit and an unchanged shelf', async () => {
+      await sell(2, 2);
+      expect(await net(ANI)).toEqual({ gallons: 0, deposit: 0 });
+      expect(await stock()).toBe(10);
+      expect(approvals.created).toHaveLength(0);
+    });
+
+    it('a new gallon (no empty back) still leaves one more out, with its deposit', async () => {
+      await sell(1, 0);
+      expect(await net(ANI)).toEqual({ gallons: 1, deposit: GALLON_DEPOSIT_IDR });
+      expect(await stock()).toBe(9);
+    });
+
+    it('a partial exchange leaves only the gallons not exchanged out', async () => {
+      await sell(3, 1);
+      expect(await net(ANI)).toEqual({ gallons: 2, deposit: 2 * GALLON_DEPOSIT_IDR });
+    });
+
+    it('an anonymous refill nets zero on the depot pool and raises no approval', async () => {
+      const before = await issues.summaryForDepot(depotId);
+      const beforeBack = await returns.summaryForDepot(depotId);
+      await sell(1, 1, null);
+      const after = await issues.summaryForDepot(depotId);
+      const afterBack = await returns.summaryForDepot(depotId);
+      expect(after.gallons - before.gallons).toBe(afterBack.gallons - beforeBack.gallons);
+      expect(after.depositHeld - before.depositHeld).toBe(
+        afterBack.depositRefunded - beforeBack.depositRefunded,
+      );
+      expect(approvals.created).toHaveLength(0);
+    });
+
+    it('a replayed counter return is one row and one stock move', async () => {
+      await sell(2, 2);
+      const again = await service.recordFromCounter(
+        depotId,
+        { orderId: O1, customerId: ANI, quantity: 2 },
+        'os',
+      );
+      expect(again.alreadyRecorded).toBe(true);
+      expect(returns.all().filter((r) => r.orderId === O1)).toHaveLength(1);
+      expect(await stock()).toBe(10);
+    });
+
+    it('voiding a refill reverses both halves exactly once', async () => {
+      await sell(2, 2);
+      const first = await service.reverseOrder(depotId, O1, 'os');
+      expect(first).toEqual({ reversedIssue: true, reversedReturn: true });
+      expect(await net(ANI)).toEqual({ gallons: 0, deposit: 0 });
+      expect((await issues.summaryForCustomerAtDepot(depotId, ANI)).gallons).toBe(0);
+      expect((await returns.summaryForCustomerAtDepot(depotId, ANI)).gallons).toBe(0);
+      expect(await stock()).toBe(10);
+
+      const retry = await service.reverseOrder(depotId, O1, 'os');
+      expect(retry).toEqual({ reversedIssue: false, reversedReturn: false });
+      expect((await issues.summaryForCustomerAtDepot(depotId, ANI)).gallons).toBe(0);
+      expect(await stock()).toBe(10);
+    });
+
+    it('voiding a new-gallon sale takes the gallon back off the customer', async () => {
+      await sell(1, 0);
+      const r = await service.reverseOrder(depotId, O1, 'os');
+      expect(r).toEqual({ reversedIssue: true, reversedReturn: false });
+      expect(await net(ANI)).toEqual({ gallons: 0, deposit: 0 });
+      expect(await stock()).toBe(10);
+    });
+
+    it('voiding an order that never booked changes nothing', async () => {
+      expect(await service.reverseOrder(depotId, O1, 'os')).toEqual({
+        reversedIssue: false,
+        reversedReturn: false,
+      });
+    });
+
+    it("leaves another depot's rows alone and a damaged return off the shelf", async () => {
+      await sell(1, 0);
+      const other = (await depots.create({ ...DEPOT, code: 'JKT-02', name: 'Other' } as never)).id;
+      expect(await service.reverseOrder(other, O1, 'os')).toEqual({
+        reversedIssue: false,
+        reversedReturn: false,
+      });
+      // A courier return on the same order that was DAMAGED never raised the shelf, so
+      // reversing it must not lower it either.
+      await service.recordFromCourier(
+        depotId,
+        { orderId: O1, customerId: ANI, quantity: 1, condition: GallonCondition.DAMAGED },
+        'c1',
+      );
+      const before = await stock();
+      await service.reverseOrder(depotId, O1, 'os');
+      expect(await stock()).toBe(before + 1);
+    });
+
+    it('rejects a reversal against an unknown depot', async () => {
+      await expect(
+        service.reverseOrder('00000000-0000-4000-8000-000000000000', O1, 'os'),
+      ).rejects.toBeInstanceOf(DepotNotFoundError);
+    });
   });
 });

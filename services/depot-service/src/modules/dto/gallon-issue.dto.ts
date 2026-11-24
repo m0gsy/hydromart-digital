@@ -81,6 +81,25 @@ export class CreateGallonIssueFromOrderDto {
   @IsPositive()
   @Max(INT4_MAX)
   quantity!: number;
+
+  @ApiPropertyOptional({
+    example: 1,
+    description:
+      'HD-6: empties the buyer handed back at the counter on this same sale (a refill). ' +
+      'Booked as a return right after the issue, so the refill nets to zero. Never above quantity.',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(INT4_MAX)
+  emptiesReturned?: number;
+}
+
+export class VoidGallonOrderDto {
+  @ApiProperty({ format: 'uuid', description: 'The voided counter sale whose gallons go back.' })
+  @IsUUID()
+  orderId!: string;
 }
 
 export class ListIssuesQueryDto {

@@ -204,7 +204,11 @@ describe('a voided counter sale owes nothing (C3)', () => {
     await service.voidCounterSale(operator, order.id, 'Salah ukuran', now, 'Bearer t');
 
     const owed = outboxRepo.rows.filter((r) => r.status === 'PENDING');
-    expect(owed.map((r) => r.topic)).toEqual(['FRANCHISE_REVENUE_VOID', 'REFERRAL_REVERSE']);
+    expect(owed.map((r) => r.topic)).toEqual([
+      'FRANCHISE_REVENUE_VOID',
+      'REFERRAL_REVERSE',
+      'GALLON_ISSUE_VOID',
+    ]);
     expect(franchiseRevenue.voided).toHaveLength(0);
 
     franchiseRevenue.voidError = null;

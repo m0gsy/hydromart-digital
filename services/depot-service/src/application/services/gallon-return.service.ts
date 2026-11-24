@@ -37,6 +37,17 @@ export interface CourierReturnInput {
 }
 
 /**
+ * HD-6 (#24-A): the empties a customer handed over at the counter while buying a refill,
+ * booked from the sale that took them. Same shape as a courier handover; no condition (a
+ * counter empty is accepted as it is) and no courier.
+ */
+export interface CounterReturnInput {
+  orderId: string;
+  customerId?: string | null;
+  quantity: number;
+}
+
+/**
  * Empty-gallon returns / deposit refunds (PRD Module 11 retur galon). A depot-scoped
  * append-only ledger of empties handed back and the deposit refunded. Standalone —
  * it does not yet increment the depot's GALON stock line.
@@ -383,6 +394,37 @@ export class GallonReturnService {
     input: CourierReturnInput,
     courierId: string,
   ): Promise<GallonReturnRecord & { alreadyRecorded: boolean }> {
+    return this.bookHandover(depotId, input, courierId, false);
+  }
+
+  /**
+   * HD-6 (#24-A): a counter refill takes the empty back at the till, the moment it hands
+   * the full gallon out. Booked through the SAME path a courier handover uses (one ledger,
+   * one idempotency on the order, one stock move), with the three differences an exchange
+   * at the counter has:
+   *
+   * - the refund is derived for an anonymous buyer too. The matching issue already put the
+   *   deposit on the depot's pool, and no cash moves at an exchange, so leaving it unrefunded
+   *   would grow the pool by one deposit per anonymous refill and queue a manager approval
+   *   for every one of them;
+   * - the stock move carries no order id: `moveRawLine` dedups on (line, order) regardless of
+   *   direction, and this order's issue already moved that line;
+   * - GOOD only: a counter empty is taken in as it is.
+   */
+  recordFromCounter(
+    depotId: string,
+    input: CounterReturnInput,
+    actorId: string,
+  ): Promise<GallonReturnRecord & { alreadyRecorded: boolean }> {
+    return this.bookHandover(depotId, input, actorId, true);
+  }
+
+  private async bookHandover(
+    depotId: string,
+    input: CourierReturnInput,
+    courierId: string,
+    exchange: boolean,
+  ): Promise<GallonReturnRecord & { alreadyRecorded: boolean }> {
     await this.requireDepot(depotId);
     const condition = input.condition ?? GallonCondition.GOOD;
     /*
@@ -422,7 +464,7 @@ export class GallonReturnService {
           input.customerId ?? null,
         );
         const depositRefunded =
-          condition === GallonCondition.GOOD && identified
+          condition === GallonCondition.GOOD && (identified || exchange)
             ? Math.min(this.config.gallonDepositIdr(depotId) * input.quantity, depositLeft)
             : 0;
         const booked = await this.returns.createFromOrder({
@@ -455,7 +497,7 @@ export class GallonReturnService {
     if (!created) return { ...record, alreadyRecorded: true };
     // Only on a genuinely new record: `created === false` is the offline queue replaying one
     // handover, and stock must not move twice for empties that came back once.
-    await this.moveStockIn(depotId, record, condition, courierId, input.orderId);
+    await this.moveStockIn(depotId, record, condition, courierId, exchange ? undefined : input.orderId);
     if (excessGallons > 0) {
       await this.queueBestEffort(`variance approval for return ${record.id}`, () =>
         this.queueVariance(depotId, excessGallons, record.id, courierId),
@@ -466,7 +508,7 @@ export class GallonReturnService {
      * trace of it. Queued for a manager so the money is a decision with a name on it
      * rather than a silence — the same treatment a damaged return already gets.
      */
-    if (condition === GallonCondition.GOOD && !identified) {
+    if (condition === GallonCondition.GOOD && !identified && !exchange) {
       await this.queueBestEffort(`unidentified-refund approval for return ${record.id}`, () =>
         this.queueUnidentifiedRefund(depotId, record, input.note ?? null, courierId),
       );
@@ -477,6 +519,84 @@ export class GallonReturnService {
       );
     }
     return { ...record, alreadyRecorded: false };
+  }
+
+  /**
+   * HD-6 (#24-A): a voided counter sale never happened, so the gallons it moved go back.
+   * Both ledgers are append-only, so the reversal is a pair of NEGATIVE rows (the issue and,
+   * for a refill, the return) rather than a delete; every sum, balance and deposit total
+   * reads them without change, and the list shows why the numbers moved.
+   *
+   * Idempotent on `void:<orderId>`, the key the reversal rows carry: a retried void finds
+   * the rows and moves nothing twice. An order that never booked (its outbox row was
+   * cancelled before it ran) has nothing to reverse and reports so.
+   */
+  async reverseOrder(
+    depotId: string,
+    orderId: string,
+    actorId: string,
+  ): Promise<{ reversedIssue: boolean; reversedReturn: boolean }> {
+    await this.requireDepot(depotId);
+    const key = `void:${orderId}`;
+    const note = 'Pembatalan penjualan kasir';
+    let reversedIssue = false;
+    const issue = await this.issues.findByOrderId(orderId);
+    if (issue && issue.depotId === depotId) {
+      const { record, created } = await this.issues.createKeyed({
+        depotId,
+        customerId: issue.customerId,
+        quantity: -issue.quantity,
+        depositHeld: -issue.depositHeld,
+        note,
+        actorId,
+        idempotencyKey: key,
+      });
+      if (created) {
+        await this.inventory.moveRawLine(
+          depotId,
+          InventoryItemType.GALON,
+          issue.quantity,
+          actorId,
+          `Galon kembali (pembatalan kasir) ${record.id}`,
+        );
+      }
+      reversedIssue = created;
+    }
+    let reversedReturn = false;
+    const ret = await this.returns.findByOrderId(orderId);
+    if (ret && ret.depotId === depotId) {
+      const { record, created } = await this.returns.serialized(
+        this.balanceKey(depotId, ret.customerId),
+        async () => {
+          const already = await this.returns.findByIdempotencyKey(depotId, key);
+          if (already) return { record: already, created: false };
+          const row = await this.returns.create({
+            depotId,
+            customerId: ret.customerId,
+            orderId: null,
+            quantity: -ret.quantity,
+            condition: ret.condition,
+            depositRefunded: -ret.depositRefunded,
+            note,
+            actorId,
+            idempotencyKey: key,
+          });
+          return { record: row, created: true };
+        },
+      );
+      if (created && ret.condition === GallonCondition.GOOD) {
+        // The empty went back to the buyer, so the shelf count drops by what the return added.
+        await this.inventory.moveRawLine(
+          depotId,
+          InventoryItemType.GALON,
+          -ret.quantity,
+          actorId,
+          `Galon keluar (pembatalan kasir) ${record.id}`,
+        );
+      }
+      reversedReturn = created;
+    }
+    return { reversedIssue, reversedReturn };
   }
 
   async list(depotId: string, page: number, limit: number): Promise<Page<GallonReturnRecord>> {

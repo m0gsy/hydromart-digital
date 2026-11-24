@@ -18,6 +18,13 @@ export type OutboxTopic =
    */
   | 'GALLON_ISSUE'
   /**
+   * HD-6 (#24-A): a voided counter sale gives its gallons back — the issue and, for a refill,
+   * the empty it took. Written with the VOIDED status, so a void cannot exist without the
+   * reversal being owed. Owed BY a voided order, so exempt from the skip guard and from
+   * `cancelForOrder`, like FRANCHISE_REVENUE_VOID.
+   */
+  | 'GALLON_ISSUE_VOID'
+  /**
    * A cancelled order owes its customer the money back.
    *
    * Written in the SAME transaction as the CANCELLED status, so a cancellation cannot exist

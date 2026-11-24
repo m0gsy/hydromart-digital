@@ -52,6 +52,22 @@ describe('OutboxPrismaRepository', () => {
     });
   });
 
+  // HD-6: a void cancels what the sale still owed, but never the rows the VOID itself owes.
+  it('cancels a voided sale pending rows except the ones the void owes', async () => {
+    model.updateMany.mockResolvedValue({ count: 2 });
+    await expect(repo.cancelForOrder('ord-1', 'Salah')).resolves.toBe(2);
+    expect(model.updateMany).toHaveBeenCalledWith({
+      where: {
+        orderId: 'ord-1',
+        status: 'PENDING',
+        topic: {
+          notIn: ['PAYMENT_REVERSAL', 'FRANCHISE_REVENUE_VOID', 'REFERRAL_REVERSE', 'GALLON_ISSUE_VOID'],
+        },
+      },
+      data: { status: 'CANCELLED', lastError: 'Salah' },
+    });
+  });
+
   it('closes a delivered row and clears the last error', async () => {
     await repo.markDone('ob-1');
     expect(model.updateMany).toHaveBeenCalledWith({

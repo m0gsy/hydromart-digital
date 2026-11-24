@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { OrderConfigService } from '../../config/order-config.service';
-import { GallonIssueEvent, GallonIssuePort } from '../../application/ports/gallon-issue.port';
+import {
+  GallonIssueEvent,
+  GallonIssuePort,
+  GallonVoidEvent,
+} from '../../application/ports/gallon-issue.port';
 
 /**
  * Books a completed delivery's empties into depot-service's gallon-issue ledger (I1),
@@ -41,7 +45,29 @@ export class GallonIssueHttpAdapter implements GallonIssuePort {
           orderId: event.orderId,
           customerId: event.customerId ?? undefined,
           quantity: event.quantity,
+          emptiesReturned: event.emptiesReturned,
         }),
+        signal: AbortSignal.timeout(GallonIssueHttpAdapter.TIMEOUT_MS),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(`depot-service responded ${res.status}`);
+    }
+  }
+
+  /** HD-6: same fail-closed contract as `orderDelivered`; depot-service is idempotent per order. */
+  async orderVoided(event: GallonVoidEvent): Promise<void> {
+    const { depotServiceUrl, internalServiceKey } = this.config;
+    if (!depotServiceUrl || !internalServiceKey) {
+      this.logger.debug(`Gallon void skipped (depot integration disabled): ${event.orderId}`);
+      return;
+    }
+    const res = await fetch(
+      `${depotServiceUrl}/api/v1/depots/${event.depotId}/gallon-issues/internal/void-order`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-key': internalServiceKey },
+        body: JSON.stringify({ orderId: event.orderId }),
         signal: AbortSignal.timeout(GallonIssueHttpAdapter.TIMEOUT_MS),
       },
     );

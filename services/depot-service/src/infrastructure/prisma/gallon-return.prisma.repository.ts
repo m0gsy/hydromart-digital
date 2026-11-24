@@ -93,6 +93,11 @@ export class GallonReturnPrismaRepository implements GallonReturnRepository {
     return row ? this.toRecord(row as ReturnRow) : null;
   }
 
+  async findByOrderId(orderId: string): Promise<GallonReturnRecord | null> {
+    const row = await this.prisma.gallonReturn.findUnique({ where: { orderId } });
+    return row ? this.toRecord(row as ReturnRow) : null;
+  }
+
   async create(data: CreateGallonReturnData): Promise<GallonReturnRecord> {
     const row = await this.prisma.gallonReturn.create({ data });
     return this.toRecord(row);

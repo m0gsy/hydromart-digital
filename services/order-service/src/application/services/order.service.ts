@@ -344,6 +344,7 @@ export class OrderService {
       this.postFranchiseRevenue(id, auth),
     );
     this.outboxService.register('GALLON_ISSUE', (id) => this.bookGallonIssue(id));
+    this.outboxService.register('GALLON_ISSUE_VOID', (id) => this.reverseGallonIssue(id));
     this.outboxService.register('PAYMENT_REVERSAL', (id) => this.reversePayment(id));
     this.outboxService.register('FRANCHISE_REVENUE_VOID', (id) => this.voidFranchiseRevenue(id));
     this.outboxService.register('REFERRAL_REVERSE', (id) => this.reverseReferralForVoid(id));
@@ -477,12 +478,28 @@ export class OrderService {
     const order = await this.getAny(orderId);
     const quantity = galonQuantity(order.items);
     if (!order.depotId || quantity <= 0) return;
+    // HD-6 (#24-A): a refill at the counter takes the empty back as it hands the full one
+    // out. Only a PICK-UP does: its first status is COMPLETED. A delivery rung up at the till
+    // starts CONFIRMED, and its empties are collected by the courier at the door.
+    const pickup = order.isWalkIn && order.history[0]?.status === OrderStatus.COMPLETED;
+    const empties = pickup ? await this.orders.emptiesReturnedFor(order.id) : null;
     await this.gallonIssue.orderDelivered({
       depotId: order.depotId,
       orderId: order.id,
       customerId: order.customerId === ANONYMOUS_CUSTOMER_ID ? null : order.customerId,
       quantity,
+      ...(empties && empties > 0 ? { emptiesReturned: Math.min(empties, quantity) } : {}),
     });
+  }
+
+  /**
+   * HD-6 (#24-A): a voided counter sale gives its gallons back. Throws so the outbox retries;
+   * depot-service reverses once per order and does nothing when the sale never booked.
+   */
+  private async reverseGallonIssue(orderId: string): Promise<void> {
+    const order = await this.getAny(orderId);
+    if (!order.depotId) return;
+    await this.gallonIssue.orderVoided({ depotId: order.depotId, orderId: order.id });
   }
 
   /**
@@ -1435,6 +1452,10 @@ export class OrderService {
     const voided = await this.orders.voidWalkIn(orderId, reason, user.sub, now, [
       { topic: 'FRANCHISE_REVENUE_VOID', orderId },
       { topic: 'REFERRAL_REVERSE', orderId },
+      // HD-6: the gallons this sale put out (and, for a refill, took back) go back with it.
+      ...(order.depotId && galonQuantity(order.items) > 0
+        ? [{ topic: 'GALLON_ISSUE_VOID' as const, orderId }]
+        : []),
     ]);
 
     /*

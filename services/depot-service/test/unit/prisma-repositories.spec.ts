@@ -1025,6 +1025,7 @@ describe('GallonReminderPrismaRepository', () => {
 describe('GallonIssuePrismaRepository', () => {
   const model = {
     create: jest.fn(),
+    findUnique: jest.fn(),
     upsert: jest.fn(),
     findMany: jest.fn(),
     findFirst: jest.fn(),
@@ -1110,6 +1111,15 @@ describe('GallonIssuePrismaRepository', () => {
     });
   });
 
+  // HD-6: the void reversal reads the issue a counter sale booked, by its order.
+  it('finds the issue booked from an order, or null', async () => {
+    model.findUnique.mockResolvedValueOnce(row);
+    expect(await repo.findByOrderId('o-1')).toEqual({ ...row, depositHeld: 100000 });
+    expect(model.findUnique).toHaveBeenCalledWith({ where: { orderId: 'o-1' } });
+    model.findUnique.mockResolvedValueOnce(null);
+    expect(await repo.findByOrderId('o-2')).toBeNull();
+  });
+
   // Aging needs dates the totals do not carry. Newest first, bounded, and never a query at
   // all for an empty set of customers.
   it('reads the newest issues for the named customers, bounded, newest first', async () => {
@@ -1119,7 +1129,7 @@ describe('GallonIssuePrismaRepository', () => {
       { customerId: 'c1', quantity: 2, createdAt: at },
     ]);
     expect(model.findMany).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', customerId: { in: ['c1', 'c2'] } },
+      where: { depotId: 'depot-1', customerId: { in: ['c1', 'c2'] }, quantity: { gt: 0 } },
       select: { customerId: true, quantity: true, createdAt: true },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 500,
@@ -1299,6 +1309,24 @@ describe('GallonReturnPrismaRepository', () => {
     });
     model.findFirst.mockResolvedValueOnce(null);
     await expect(repo.findByIdempotencyKey('d1', 'none')).resolves.toBeNull();
+  });
+
+  it('finds the return booked from an order, or null (HD-6)', async () => {
+    model.findUnique.mockReset();
+    const r = {
+      id: 'r1',
+      depotId: 'd1',
+      orderId: 'o1',
+      quantity: 1,
+      condition: 'GOOD',
+      depositRefunded: '15000',
+      createdAt: new Date(),
+    };
+    model.findUnique.mockResolvedValueOnce(r);
+    await expect(repo.findByOrderId('o1')).resolves.toMatchObject({ id: 'r1', depositRefunded: 15000 });
+    expect(model.findUnique).toHaveBeenCalledWith({ where: { orderId: 'o1' } });
+    model.findUnique.mockResolvedValueOnce(null);
+    await expect(repo.findByOrderId('o2')).resolves.toBeNull();
   });
 
   // MONEY-04. The courier handover arrives through the offline queue, which is

@@ -101,6 +101,8 @@ export interface GallonReturnRepository {
   createFromOrder(
     data: CreateGallonReturnFromOrderData,
   ): Promise<{ record: GallonReturnRecord; created: boolean }>;
+  /** HD-6: the return booked from this order (courier handover or counter refill), if any. */
+  findByOrderId(orderId: string): Promise<GallonReturnRecord | null>;
   listForDepot(
     depotId: string,
     page: number,

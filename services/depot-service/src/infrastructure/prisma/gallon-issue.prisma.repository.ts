@@ -85,6 +85,11 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
     );
   }
 
+  async findByOrderId(orderId: string): Promise<GallonIssueRecord | null> {
+    const row = await this.prisma.gallonIssue.findUnique({ where: { orderId } });
+    return row ? this.toRecord(row) : null;
+  }
+
   async listForDepot(
     depotId: string,
     page: number,
@@ -165,7 +170,9 @@ export class GallonIssuePrismaRepository implements GallonIssueRepository {
     // Not asked at all for an empty set: `in: []` matches nothing, but it is still a round trip.
     if (customerIds.length === 0) return [];
     const rows = await this.prisma.gallonIssue.findMany({
-      where: { depotId, customerId: { in: [...customerIds] } },
+      // HD-6: a void's reversal row is negative; it is not a handover and would be walked
+      // as one, adding gallons to what the aging thinks is still out.
+      where: { depotId, customerId: { in: [...customerIds] }, quantity: { gt: 0 } },
       select: { customerId: true, quantity: true, createdAt: true },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,

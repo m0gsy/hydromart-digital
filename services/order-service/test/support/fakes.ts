@@ -68,7 +68,11 @@ import {
   OrderRevenueEvent,
   RevenuePostResult,
 } from '../../src/application/ports/franchise-revenue.port';
-import { GallonIssueEvent, GallonIssuePort } from '../../src/application/ports/gallon-issue.port';
+import {
+  GallonIssueEvent,
+  GallonIssuePort,
+  GallonVoidEvent,
+} from '../../src/application/ports/gallon-issue.port';
 import { DepotPrice, DepotPricingPort } from '../../src/application/ports/depot-pricing.port';
 import { CashierShiftPort, OpenShift } from '../../src/application/ports/cashier-shift.port';
 import { PaymentReversalPort } from '../../src/application/ports/payment-reversal.port';
@@ -974,6 +978,13 @@ export class InMemoryOrderRepository implements OrderRepository {
     return out;
   }
 
+  async emptiesReturnedFor(orderId: string): Promise<number | null> {
+    const row = this.rows.find((r) => r.id === orderId) as
+      | { emptiesReturned?: number | null }
+      | undefined;
+    return row?.emptiesReturned ?? null;
+  }
+
   async firstTimeBuyersByCashier(
     depotId: string,
     range: ReportRange,
@@ -1376,10 +1387,16 @@ export class FakeFranchiseRevenue implements FranchiseRevenuePort {
  */
 export class FakeGallonIssue implements GallonIssuePort {
   booked: GallonIssueEvent[] = [];
+  /** HD-6: the void reversals sent to depot-service. */
+  voided: GallonVoidEvent[] = [];
   error: Error | null = null;
   async orderDelivered(event: GallonIssueEvent): Promise<void> {
     if (this.error) throw this.error;
     this.booked.push(event);
+  }
+  async orderVoided(event: GallonVoidEvent): Promise<void> {
+    if (this.error) throw this.error;
+    this.voided.push(event);
   }
 }
 
@@ -2016,7 +2033,8 @@ export class InMemoryOutboxRepository implements OutboxRepository {
         r.status === 'PENDING' &&
         r.topic !== 'PAYMENT_REVERSAL' &&
         r.topic !== 'FRANCHISE_REVENUE_VOID' &&
-        r.topic !== 'REFERRAL_REVERSE',
+        r.topic !== 'REFERRAL_REVERSE' &&
+        r.topic !== 'GALLON_ISSUE_VOID',
     );
     for (const row of owed) {
       row.status = 'CANCELLED';

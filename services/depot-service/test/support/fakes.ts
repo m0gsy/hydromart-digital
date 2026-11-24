@@ -941,6 +941,9 @@ export class InMemoryGallonIssueRepository implements GallonIssueRepository {
     this.rows.push(row);
     return row;
   }
+  async findByOrderId(orderId: string): Promise<GallonIssueRecord | null> {
+    return this.rows.find((r) => r.orderId === orderId) ?? null;
+  }
   async listForDepot(depotId: string, page: number, limit: number) {
     const all = this.rows.filter((r) => r.depotId === depotId).reverse();
     return { items: all.slice((page - 1) * limit, page * limit), total: all.length };
