@@ -191,6 +191,26 @@ export default function ReportsPage() {
         </Card>
       )}
 
+      {canRunPayroll(customer?.role) && (
+        <Card className="space-y-3 p-4">
+          <div>
+            <p className="font-semibold">{t('hrFix.reports.salesShortfall')}</p>
+            <p className="text-xs text-muted">{t('hrFix.reports.salesShortfallBody')}</p>
+          </div>
+          <Formats
+            busy={busy}
+            prefix="ssf"
+            onPick={(f) =>
+              run(
+                `ssf-${f}`,
+                endpoints.hr.reportSalesBonusShortfall(period, f),
+                `selisih-bonus-penjualan-${period}.${f}`,
+              )
+            }
+          />
+        </Card>
+      )}
+
       <Card className="space-y-3 p-4">
         <div>
           <p className="font-semibold">{t('hrFix.reports.performance')}</p>

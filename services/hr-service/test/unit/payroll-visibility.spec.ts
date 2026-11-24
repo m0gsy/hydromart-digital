@@ -29,7 +29,7 @@ describe('pay figures by role', () => {
   const allowances = { list: jest.fn().mockResolvedValue([]) };
   const ac = new AllowanceController(allowances as never);
   const analytics = { payrollReport: jest.fn().mockResolvedValue({ columns: [], rows: [] }) };
-  const rc = new ReportsController(analytics as never);
+  const rc = new ReportsController(analytics as never, {} as never);
   const res = { setHeader: jest.fn(), send: jest.fn() } as unknown as Response;
   beforeEach(() => jest.clearAllMocks());
 

@@ -574,7 +574,7 @@ export class OrderPrismaRepository implements OrderRepository {
       where: {
         depotId,
         status: { in: ['DELIVERED', 'COMPLETED'] },
-        createdAt: { gte: from, lte: to },
+        createdAt: { gte: from, lt: to }, // [from, to): `to` is the next window's start
       },
     });
     return agg._sum.total ? Math.round(agg._sum.total.toNumber()) : 0;

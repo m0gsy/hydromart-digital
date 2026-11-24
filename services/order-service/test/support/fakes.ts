@@ -390,7 +390,7 @@ export class InMemoryOrderRepository implements OrderRepository {
       .filter(
         (r) => r.depotId === depotId && (r.status === 'DELIVERED' || r.status === 'COMPLETED'),
       )
-      .filter((r) => r.createdAt >= from && r.createdAt <= to)
+      .filter((r) => r.createdAt >= from && r.createdAt < to)
       .reduce((t, r) => t + Math.round(r.total), 0);
   }
   async depotDailyGallons(

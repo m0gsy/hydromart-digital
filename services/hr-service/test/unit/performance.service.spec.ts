@@ -260,6 +260,12 @@ describe('PerformanceService — computed score (C2)', () => {
     expect(attendance.summary).not.toHaveBeenCalled();
     expect(holidays?.listDates).toHaveBeenCalledTimes(1);
     expect(sales?.depotSales).toHaveBeenCalledTimes(1);
+    // HD-6 A2: the sales window is the whole WIB month, [Jul 1 00:00 WIB, Aug 1 00:00 WIB).
+    expect(sales?.depotSales).toHaveBeenCalledWith(
+      'd1',
+      new Date('2026-06-30T17:00:00.000Z'),
+      new Date('2026-07-31T17:00:00.000Z'),
+    );
   });
 
   it('resolves holidays and sales once per depot, not once per roster', async () => {

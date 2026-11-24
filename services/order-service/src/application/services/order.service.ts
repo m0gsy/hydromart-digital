@@ -1758,7 +1758,7 @@ export class OrderService {
     return this.orders.findCompletedPage(cursor, clamped);
   }
 
-  /** Total fulfilled sales for a depot in [from, to] — feeds hr-service SALES_TOTAL bonus rules. */
+  /** Total fulfilled sales for a depot in [from, to) — feeds hr-service SALES_TOTAL bonus rules. */
   sumDepotSales(depotId: string, from: Date, to: Date): Promise<number> {
     return this.orders.sumDepotSales(depotId, from, to);
   }

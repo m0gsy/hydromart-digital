@@ -732,7 +732,7 @@ describe('ReportsController', () => {
       depotSummaryMany: jest.fn().mockResolvedValue([]),
       csv: jest.fn().mockReturnValue('a,b\n1,2'),
     };
-    return { analytics, c: new ReportsController(analytics as never) };
+    return { analytics, c: new ReportsController(analytics as never, {} as never) };
   }
 
   it('dashboard + internal depot-summary delegate', () => {

@@ -5,6 +5,7 @@ import { Response } from 'express';
 import { Can, AuthenticatedUser, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import { AnalyticsService, ReportData } from '../application/services/analytics.service';
+import { PayrollService, SALES_SHORTFALL_NOTE } from '../application/services/payroll.service';
 import { tableReportPdf } from '../domain/payroll-pdf';
 import { toXlsx } from '../domain/xlsx';
 import {
@@ -23,7 +24,10 @@ import { assertMayReadPay } from '../domain/pay-visibility';
 @ApiBearerAuth()
 @Controller({ path: 'hr-reports', version: '1' })
 export class ReportsController {
-  constructor(private readonly analytics: AnalyticsService) {}
+  constructor(
+    private readonly analytics: AnalyticsService,
+    private readonly payrolls: PayrollService,
+  ) {}
 
   @ApiOkResponse({ type: HrDashboardResponseDto })
   @Get('dashboard')
@@ -132,6 +136,31 @@ export class ReportsController {
       q.format,
       'Beban BPJS perusahaan',
       q.periodMonth,
+    );
+  }
+
+  @ApiOkResponse({
+    description: 'The report as a CSV, xlsx or PDF file.',
+    content: { 'text/csv': { schema: { type: 'string', format: 'binary' } } },
+  })
+  @Get('payroll-sales-bonus-shortfall')
+  @Can('hrPayroll')
+  @ApiOperation({
+    summary:
+      'SALES_TOTAL bonus paid on APPROVED/PAID slips vs the whole WIB month, per employee (read-only; CSV, xlsx, pdf)',
+  })
+  async payrollSalesBonusShortfall(
+    @Query() q: PayrollReportQueryDto,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    await this.deliver(
+      res,
+      `selisih-bonus-penjualan-${q.periodMonth}`,
+      await this.payrolls.salesBonusShortfallReport(user, q.periodMonth),
+      q.format,
+      'Selisih bonus penjualan',
+      `${q.periodMonth} - ${SALES_SHORTFALL_NOTE}`,
     );
   }
 
