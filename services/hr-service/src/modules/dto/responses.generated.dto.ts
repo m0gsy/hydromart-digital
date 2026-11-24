@@ -240,6 +240,10 @@ export class HrDepotResponseDto {
     description: 'HD-6 H2: payslips of the month not yet APPROVED or PAID (batch route only).',
   })
   payrollDraftCount!: number;
+  @ApiProperty({ type: Number, description: 'HD-6 H2: employees with an APPROVED or PAID slip for the month (batch route only).' })
+  payrollFinalCount!: number;
+  @ApiProperty({ type: Number, description: 'HD-6 H2: employees employed at any time in the month (batch route only).' })
+  payrollExpectedCount!: number;
   @ApiProperty({ type: Number })
   activeHeadcount!: number;
 }

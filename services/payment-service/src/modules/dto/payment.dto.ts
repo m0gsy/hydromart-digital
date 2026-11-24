@@ -372,8 +372,10 @@ export class DepotMoneyQueryDto {
   @IsDateString()
   from!: string;
 
-  @ApiProperty({ format: 'date-time', description: 'Exclusive end of the window.' })
+  @ApiProperty({ format: 'date-time', description: 'Exclusive end of the window, after `from`, at most 400 days later.' })
   @IsDateString()
+  @IsNotBefore('from')
+  @IsWithinDays('from', 400)
   to!: string;
 }
 

@@ -1,9 +1,13 @@
 import { randomUUID } from 'node:crypto';
 
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+
 import { SettlementService } from '../../src/application/services/settlement.service';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
 import { SettlementPrismaRepository } from '../../src/infrastructure/prisma/settlement.prisma.repository';
 import { DeliveryPrismaRepository } from '../../src/infrastructure/prisma/delivery.prisma.repository';
+import { DepositedCodQueryDto } from '../../src/modules/dto/settlement.dto';
 import { SettlementController } from '../../src/modules/settlement.controller';
 import {
   FakeCashCollection,
@@ -87,8 +91,22 @@ describe('the COD period readers (prisma)', () => {
     await expect(repo.undepositedCodInWindow(DEPOT, FROM, TO)).resolves.toEqual({ deliveries: 2, amountIdr: 70_000 });
     const q = $queryRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
     expect(q.sql).toContain('NOT EXISTS');
+    // A settlement belongs to the COURIER's shift depot and may list an order of another depot, so
+    // "listed by a settlement" must not be limited to the delivery's depot; and it must use the
+    // operator the GIN index serves.
+    expect(q.sql).toContain('s."orderIds" @> ARRAY[d."orderId"]');
+    expect(q.sql).not.toContain('s."depotId"');
     expect(q.values).toEqual(expect.arrayContaining([FROM, TO]));
     $queryRaw.mockResolvedValue([]);
     await expect(repo.undepositedCodInWindow(DEPOT, FROM, TO)).resolves.toEqual({ deliveries: 0, amountIdr: 0 });
+  });
+});
+
+describe('DepositedCodQueryDto', () => {
+  const check = (o: object) => validate(plainToInstance(DepositedCodQueryDto, { depotId: DEPOT, ...o }));
+  it('wants from before to, and a window of at most 400 days', async () => {
+    expect(await check({ from: FROM.toISOString(), to: TO.toISOString() })).toHaveLength(0);
+    expect(await check({ from: TO.toISOString(), to: FROM.toISOString() })).not.toHaveLength(0);
+    expect(await check({ from: '2025-01-01T00:00:00.000Z', to: TO.toISOString() })).not.toHaveLength(0);
   });
 });

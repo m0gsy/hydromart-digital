@@ -159,6 +159,9 @@ export interface HrDepotSummary {
    * answers belum_ada.
    */
   payrollDraftCount?: number;
+  /** HD-6 H2: employees with an APPROVED/PAID slip for the month, and employees the month waits for. */
+  payrollFinalCount?: number;
+  payrollExpectedCount?: number;
   activeHeadcount: number;
 }
 

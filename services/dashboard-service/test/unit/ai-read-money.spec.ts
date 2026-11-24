@@ -103,7 +103,7 @@ function build(scope: ReadScope = WHOLE) {
   const sourcesPort = sources as unknown as AiMoneySourcesPort;
   const depots = {
     // every depot's month is finished: slips exist and none is DRAFT
-    hrSummaryMany: jest.fn(async (ids: string[]) => ids.map((depotId) => ({ depotId, payrollCount: 3, payrollDraftCount: 0, activeHeadcount: 3 }))),
+    hrSummaryMany: jest.fn(async (ids: string[]) => ids.map((depotId) => ({ depotId, payrollCount: 3, payrollDraftCount: 0, payrollFinalCount: 3, payrollExpectedCount: 3, activeHeadcount: 3 }))),
     payoutCosts: jest.fn(async (ids: string[]) => new Map(ids.map((d) => [d, { commissionIdr: 1_000, expenseClaimIdr: 200 }]))),
   };
   const row = (depotId: string) => ({ depotId });
@@ -333,6 +333,9 @@ describe('MoneyMetricsService: cash and COD (3.3)', () => {
       surplusIdr: 10_000,
     });
     expect((await ask('P-02')).label).toContain('batal dan void');
+    // each COD figure says which depot it follows
+    expect((await ask('U-04')).label).toContain('depot PESANAN');
+    expect((await ask('U-04')).label).toContain('depot SHIFT kurir');
   });
 
   it('U-05 says a till-shift variance it cannot read is belum_ada inside the answer, not left out', async () => {
@@ -456,13 +459,18 @@ describe('MoneyMetricsService: profit and loss (3.4)', () => {
     expect(dashboard.networkPnl).toHaveBeenCalledWith('2026-11', '', [D1, D2], false);
   });
 
-  it('answers belum_ada for every payroll-bearing figure while a depot-month has DRAFT slips or none yet (choice 10A)', async () => {
+  it('answers belum_ada for every payroll-bearing figure while a depot-month is not finished (choice 10A)', async () => {
     const { ask, depots, dashboard, sources } = build();
     const state = (rows: Record<string, unknown>[]) =>
-      depots.hrSummaryMany.mockImplementation((async (ids: string[]) => ids.map((depotId, i) => ({ depotId, activeHeadcount: 3, ...rows[i % rows.length] }))) as never);
+      depots.hrSummaryMany.mockImplementation((async (ids: string[]) => ids.map((depotId, i) => ({ depotId, ...rows[i % rows.length] }))) as never);
+    const done = { payrollCount: 3, payrollDraftCount: 0, payrollFinalCount: 3, payrollExpectedCount: 3 };
     for (const unfinished of [
-      [{ payrollCount: 3, payrollDraftCount: 1 }, { payrollCount: 3, payrollDraftCount: 0 }],
-      [{ payrollCount: 0, payrollDraftCount: 0 }],
+      // a DRAFT slip in one depot
+      [{ ...done, payrollDraftCount: 1, payrollFinalCount: 2 }, done],
+      // nothing run yet for staff who are waiting
+      [{ payrollCount: 0, payrollDraftCount: 0, payrollFinalCount: 0, payrollExpectedCount: 3 }],
+      // 5 people employed in the month, 3 APPROVED slips and no DRAFT: two people are still missing
+      [{ payrollCount: 3, payrollDraftCount: 0, payrollFinalCount: 3, payrollExpectedCount: 5 }],
     ]) {
       state(unfinished);
       for (const id of ['L-03', 'L-07', 'L-08', 'L-09']) {
@@ -475,15 +483,41 @@ describe('MoneyMetricsService: profit and loss (3.4)', () => {
     expect(sources.cashFlow).not.toHaveBeenCalled();
     // HPP and gross profit carry no salary: still answered
     expect((await ask('L-01')).status).toBe('ok');
-    // finished: slips and none DRAFT, and a depot with no staff at all has nothing to pay
-    depots.hrSummaryMany.mockImplementation((async (ids: string[]) => ids.map((depotId, i) => (i === 0 ? { depotId, payrollCount: 2, payrollDraftCount: 0, activeHeadcount: 2 } : { depotId, payrollCount: 0, payrollDraftCount: 0, activeHeadcount: 0 }))) as never);
+    // finished: everyone expected has an approved or paid slip. A mid-month joiner and a mid-month leaver
+    // are both in `expected` (employed at some time in the month) and both have their slip; a leaver who
+    // left before the month is not expected. A depot with nobody to pay is finished.
+    state([
+      { payrollCount: 5, payrollDraftCount: 0, payrollFinalCount: 5, payrollExpectedCount: 5 },
+      { payrollCount: 0, payrollDraftCount: 0, payrollFinalCount: 0, payrollExpectedCount: 0 },
+    ]);
     expect((await ask('L-07')).status).toBe('ok');
     expect((await ask('L-09')).status).toBe('ok');
+    // more finished slips than the month expected (a lent-out person paid here) is still finished
+    state([{ payrollCount: 4, payrollDraftCount: 0, payrollFinalCount: 4, payrollExpectedCount: 3 }]);
+    expect((await ask('L-07')).status).toBe('ok');
     // an old hr-service that does not say, or one that cannot answer, is not "finished"
-    depots.hrSummaryMany.mockImplementation((async (ids: string[]) => ids.map((depotId) => ({ depotId, payrollCount: 3, activeHeadcount: 3 }))) as never);
+    depots.hrSummaryMany.mockImplementation((async (ids: string[]) => ids.map((depotId) => ({ depotId, payrollCount: 3, payrollDraftCount: 0, activeHeadcount: 3 }))) as never);
     expect(await ask('L-07')).toMatchObject({ status: 'belum_ada' });
     depots.hrSummaryMany.mockImplementation((async (ids: string[]) => ids.map(() => null)) as never);
     expect(await ask('L-03')).toMatchObject({ status: 'belum_ada' });
+  });
+
+  it('says HPP and gross profit of the running month are only as far as today, and a past month is not', async () => {
+    const { ask } = build();
+    for (const id of ['L-01', 'L-06']) {
+      expect((await ask(id)).label).toContain('bulan berjalan, sampai 2026-11-25 (WIB)');
+      const past = build(scopeOf([span(D1, '2026-10-01', '2026-10-31')]));
+      expect((await past.ask(id, 'SUPER_ADMIN', { period: 'month', date: '2026-10-10' })).label).not.toContain('bulan berjalan');
+    }
+  });
+
+  it('counts a depot covered all month by two contiguous rows as a whole month, but not one with a gap', async () => {
+    const contiguous = scopeOf([span(D1, '2026-11-01', '2026-11-15'), span(D1, '2026-11-16', '2026-11-30')]);
+    const a = build(contiguous);
+    expect((await a.ask('L-07')).scope.depotIds).toEqual([D1]);
+    expect(a.dashboard.networkPnl).toHaveBeenCalledWith('2026-11', '', [D1], true);
+    const gap = build(scopeOf([span(D1, '2026-11-01', '2026-11-14'), span(D1, '2026-11-16', '2026-11-30')]));
+    expect(await gap.ask('L-07')).toMatchObject({ status: 'belum_ada' });
   });
 
   it('L-09 cash flow per depot for the month, belum_ada if one cost term is unreadable', async () => {

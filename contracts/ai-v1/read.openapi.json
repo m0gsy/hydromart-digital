@@ -175,7 +175,7 @@
     "/dashboard/api/v1/ai/read/money": {
       "get": {
         "summary": "One money metric (sales P-, cash and COD U-, profit and loss L-) for a period.",
-        "description": "The money group of the metric dictionary (sections 3.1, 3.3, 3.4). The metric is the `metric` query parameter; the answer is the AnswerEnvelope, with metricId, unit and the value shape fixed per metric in x-metrics. Amounts are whole rupiah as JSON numbers; percentages have one decimal. The period is WIB. Where a metric says \"month only\", an explicit from/to must be exactly one whole calendar month (400 otherwise).\n\nScope: every fact counts only for the days its depot was readable by the caller (a depot that changed legal entity in the period is read per stretch of days). The money metrics that are monthly profit-and-loss figures (L-01, L-03, L-06, L-07, L-08, L-09) are not cut in the middle of a month: a depot that was readable for only part of the month is left out of them, and scope lists the depots that WERE counted. When no depot is readable the answer is belum_ada.\n\nlabel (optional, on the envelope): what the number is, where its name alone would mislead (for example L-03 says it is base pay and allowances only). Quote it beside the number.\n\nPeople: none of these metrics counts people, so none is group-masked; the personal-data guard still runs on every answer.\n\nSources of truth: the numbers come from order-service, payment-service, delivery-service, depot-service and the same monthly profit-and-loss as /dashboard/network-pnl; a source that cannot answer makes the metric belum_ada (never 0). A single answer that would need more than 300 one-depot reads is belum_ada (\"persempit cakupan\").",
+        "description": "The money group of the metric dictionary (sections 3.1, 3.3, 3.4). The metric is the `metric` query parameter; the answer is the AnswerEnvelope, with metricId, unit and the value shape fixed per metric in x-metrics. Amounts are whole rupiah as JSON numbers; percentages have one decimal. The period is WIB. Where a metric says \"month only\", an explicit from/to must be exactly one whole calendar month (400 otherwise).\n\nScope: every fact counts only for the days its depot was readable by the caller (a depot that changed legal entity in the period is read per stretch of days). The money metrics that are monthly profit-and-loss figures (L-01, L-03, L-06, L-07, L-08, L-09) are not cut in the middle of a month: a depot that was readable for only part of the month is left out of them, and scope lists the depots that WERE counted. When no depot is readable the answer is belum_ada.\n\nlabel (optional, on the envelope): what the number is, where its name alone would mislead (for example L-03 says it is base pay and allowances only). Quote it beside the number.\n\nPeople: none of these metrics counts people, so none is group-masked; the personal-data guard still runs on every answer.\n\nSources of truth: the numbers come from order-service, payment-service, delivery-service, depot-service and the same monthly profit-and-loss as /dashboard/network-pnl; a source that cannot answer makes the metric belum_ada (never 0). Money by payment (P-02, P-03, U-01, U-02, U-04, U-05): a delivery payment has no depot of its own, so it is placed by order-service. If order-service cannot place every delivery payment of the window, the metric is belum_ada, never a counter-only number. The 20000-order-row cap of one window is NETWORK-WIDE for delivery payments (counter payments are filtered by the depots asked); the upgrade path is an order-depot column on payments. A single answer that would need more than 300 one-depot reads is belum_ada (\"persempit cakupan\").",
         "security": [
           {
             "aiToken": []
@@ -483,7 +483,7 @@
             "unit": "Rp",
             "wholeMonthOnly": false,
             "value": "{ collectedIdr, depositedIdr, undepositedIdr, expectedIdr, shortfallIdr, surplusIdr }",
-            "rules": "Three numbers: collectedIdr = cash settled on delivery orders by paid date; depositedIdr = courier deposits verified, by verification date; undepositedIdr = COD of orders delivered in the period that no deposit lists yet. expectedIdr = what the verified deposits were expected to be; shortfallIdr and surplusIdr are the short and the over of those deposits, each summed on its own (positive rupiah). belum_ada when a source cannot be read."
+            "rules": "Three numbers: collectedIdr = cash settled on delivery orders by paid date; depositedIdr = courier deposits verified, by verification date; undepositedIdr = COD of orders delivered in the period that no deposit lists yet. expectedIdr = what the verified deposits were expected to be; shortfallIdr and surplusIdr are the short and the over of those deposits, each summed on its own (positive rupiah). belum_ada when a source cannot be read. Each figure follows its own depot, and the label says so: collectedIdr follows the depot of the ORDER; deposited, expected, shortfall and surplus follow the depot of the courier SHIFT that handed the cash in (one deposit can list orders of another depot, and deposits are lump sums, so they cannot be split per order); undepositedIdr follows the delivery depot."
           },
           "U-05": {
             "unit": "Rp",
@@ -507,7 +507,7 @@
             "unit": "Rp",
             "wholeMonthOnly": true,
             "value": "number",
-            "rules": "HPP: units sold x the latest received PO buy price, no PO shipping. belum_ada when some unit sold has no buy price."
+            "rules": "HPP: units sold x the latest received PO buy price, no PO shipping. belum_ada when some unit sold has no buy price. For the running month the label says \"bulan berjalan, sampai <today WIB>\"."
           },
           "L-02": {
             "unit": "Rp",
@@ -519,7 +519,7 @@
             "unit": "Rp",
             "wholeMonthOnly": true,
             "value": "number",
-            "rules": "Labour cost, for now BASE PAY AND ALLOWANCES ONLY (label: \"gaji pokok dan tunjangan, belum termasuk bonus, lembur, THR dan BPJS perusahaan\"). Only APPROVED or PAID slips count: a depot-month is finished when it has at least one slip and none is DRAFT (a depot with no staff has nothing to pay); any unfinished depot in scope makes the answer belum_ada, never 0. ditahan for a role without payrollRead."
+            "rules": "Labour cost, for now BASE PAY AND ALLOWANCES ONLY (label: \"gaji pokok dan tunjangan, belum termasuk bonus, lembur, THR dan BPJS perusahaan\"). Only APPROVED or PAID slips count: a depot-month is finished when no slip is DRAFT and as many employees have an APPROVED or PAID slip as the month waits for (employed at any time in it: joined on or before its last day, not left before its first day; nobody expected = nothing to pay); any unfinished depot in scope makes the answer belum_ada, never 0. ditahan for a role without payrollRead."
           },
           "L-04": {
             "unit": "Rp",
@@ -537,13 +537,13 @@
             "unit": "Rp",
             "wholeMonthOnly": true,
             "value": "number",
-            "rules": "Gross profit: revenue - HPP (L-01). belum_ada when HPP is."
+            "rules": "Gross profit: revenue - HPP (L-01). belum_ada when HPP is. For the running month the label says \"bulan berjalan, sampai <today WIB>\"."
           },
           "L-07": {
             "unit": "Rp",
             "wholeMonthOnly": true,
             "value": "number",
-            "rules": "Net profit by the 17 Nov 2026 formula only: revenue - HPP - base pay and allowances (not bonus, overtime, THR, employer BPJS) - courier commission - expense claims - cashier refunds. Cashbook outflow is outside it; rent and electricity are not recorded. belum_ada when any element is unreadable or any depot-month payroll is not finished (as L-03); ditahan for a role without payrollRead. The same numbers as /dashboard/network-pnl once the month is finished."
+            "rules": "Net profit by the 17 Nov 2026 formula only: revenue - HPP - base pay and allowances (not bonus, overtime, THR, employer BPJS) - courier commission - expense claims - cashier refunds. Cashbook outflow is outside it; rent and electricity are not recorded. belum_ada when any element is unreadable or any depot-month payroll is not finished (as L-03: every employee of the month must have an approved or paid slip); ditahan for a role without payrollRead. The same numbers as /dashboard/network-pnl once the month is finished."
           },
           "L-08": {
             "unit": "persen",

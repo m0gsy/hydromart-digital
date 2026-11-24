@@ -316,12 +316,16 @@ export interface PaymentRepository {
    *  - collected: PAID and part-refunded payments by `paidAt`, at what was kept (KEPT_AMOUNT).
    *  - pending: PENDING payments by `createdAt`, aged in WIB days at `aging.asOf` into `aging` buckets.
    *  - refunded: SETTLED refunds by `refundedAt`, at the refunded part.
+   * Counter payments are read only for `depotIds`; delivery payments (no depot of their own on this
+   * table) are read NETWORK-WIDE and placed by order-service afterwards, so `limit` counts them all.
+   * Upgrade path: an order-depot column on `payments` would let those be filtered here too.
    */
   moneyByOrder(
     kind: MoneyKind,
     window: { from: Date; to: Date },
     limit: number,
     aging: { asOf: Date; tz: string; maxDays: readonly number[] },
+    depotIds: readonly string[],
   ): Promise<MoneyOrderRow[]>;
   update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord>;
 

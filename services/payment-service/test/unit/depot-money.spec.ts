@@ -1,8 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { UnprocessableEntityException } from '@nestjs/common';
+import { ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 
 import { PaymentService } from '../../src/application/services/payment.service';
+import { OrderCoordinationHttpAdapter } from '../../src/infrastructure/http/order-coordination.http.adapter';
+import { DepotMoneyQueryDto } from '../../src/modules/dto/payment.dto';
 import { PaymentPrismaRepository } from '../../src/infrastructure/prisma/payment.prisma.repository';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { PaymentMethod, PaymentStatus } from '../../src/domain/payment';
@@ -66,11 +70,38 @@ describe('PaymentService.moneyByDepot', () => {
     expect(rows.every((r) => r.depotId === D1)).toBe(true);
   });
 
-  it('collected: a delivery payment whose order depot is unknown or out of scope is left out', async () => {
-    add({});
+  it('collected: a delivery payment on an order with no depot, or in another depot, is left out', async () => {
+    const none = add({});
+    orders.depotlessOrders.add(none.orderId);
     const other = add({});
     orders.orderDepots.set(other.orderId, D2);
     expect((await service.moneyByDepot('collected', [D1], from, to)).rows).toEqual([]);
+  });
+
+  it('is 503, never counter-only numbers, when the order depots cannot be read in full', async () => {
+    const delivery = add({ amount: 50_000 });
+    orders.orderDepots.set(delivery.orderId, D1);
+    add({ depotId: D1, amount: 30_000 });
+    // down
+    orders.strictFails = true;
+    await expect(service.moneyByDepot('collected', [D1], from, to)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    // an order id order-service does not know (partial answer)
+    orders.strictFails = false;
+    add({});
+    await expect(service.moneyByDepot('collected', [D1], from, to)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    // counter-only windows need no lookup at all
+    repo.rows.length = 0;
+    add({ depotId: D1, amount: 30_000 });
+    orders.strictFails = true;
+    expect((await service.moneyByDepot('collected', [D1], from, to)).rows).toHaveLength(1);
+  });
+
+  it('reads counter payments only for the depots asked', async () => {
+    add({ depotId: D1 });
+    add({ depotId: D2 });
+    const spy = jest.spyOn(repo, 'moneyByOrder');
+    await service.moneyByDepot('collected', [D1], from, to);
+    expect(spy.mock.calls[0][4]).toEqual([D1]);
   });
 
   it('pending: ages in WIB calendar days into the shared buckets', async () => {
@@ -124,11 +155,53 @@ describe('PaymentService.moneyByDepot', () => {
     );
   });
 
-  it('looks up delivery orders in batches', async () => {
-    const spy = jest.spyOn(orders, 'getOrderDepots');
-    for (let i = 0; i < 1001; i += 1) add({});
-    await service.moneyByDepot('collected', [D1], from, to);
-    expect(spy.mock.calls.map((c) => c[0].length)).toEqual([1000, 1]);
+  it('says in the 422 that the cap is network-wide for delivery payments', async () => {
+    jest.spyOn(repo, 'moneyByOrder').mockResolvedValue(
+      Array.from({ length: 20_001 }, (_, i) => ({ orderId: `o${i}`, counterDepotId: D1, method: PaymentMethod.CASH, bucket: 0, amountIdr: 1, count: 1 })),
+    );
+    await expect(service.moneyByDepot('collected', [D1], from, to)).rejects.toThrow('seluruh jaringan');
+  });
+});
+
+describe('OrderCoordinationHttpAdapter.getOrderDepotsStrict', () => {
+  const adapter = (url = 'http://order.test') =>
+    new OrderCoordinationHttpAdapter({ orderServiceUrl: url, internalServiceKey: 'k' } as never);
+  afterEach(() => jest.restoreAllMocks());
+  const answer = (rowsFor: (ids: string[]) => unknown[], ok = true) =>
+    jest.spyOn(global, 'fetch').mockImplementation(async (_u, init) => {
+      const ids = JSON.parse(String(init?.body)).orderIds as string[];
+      return { ok, status: ok ? 200 : 503, json: async () => rowsFor(ids) } as unknown as Response;
+    });
+
+  it('asks in batches of 500 and returns null for an order with no depot', async () => {
+    const ids = Array.from({ length: 501 }, (_, i) => `o${i}`);
+    const spy = answer((batch) => batch.map((orderId) => ({ orderId, depotId: orderId === 'o0' ? null : D1 })));
+    const out = await adapter().getOrderDepotsStrict(ids);
+    expect(spy.mock.calls.map((c) => JSON.parse(String(c[1]?.body)).orderIds.length)).toEqual([500, 1]);
+    expect(out.get('o0')).toBeNull();
+    expect(out.get('o500')).toBe(D1);
+    expect(out.size).toBe(501);
+  });
+
+  it('throws on a non-2xx, on an id left out of the answer, and when unwired', async () => {
+    answer(() => [], false);
+    await expect(adapter().getOrderDepotsStrict(['a'])).rejects.toThrow('503');
+    answer(() => []);
+    await expect(adapter().getOrderDepotsStrict(['a'])).rejects.toThrow('did not know 1');
+    await expect(adapter('').getOrderDepotsStrict(['a'])).rejects.toThrow('not wired');
+    answer(() => []);
+    await expect(adapter().getOrderDepotsStrict([])).resolves.toEqual(new Map());
+  });
+});
+
+describe('DepotMoneyQueryDto', () => {
+  const check = async (o: object) =>
+    validate(plainToInstance(DepotMoneyQueryDto, { kind: 'collected', depotIds: D1, ...o }));
+
+  it('wants from before to, and a window of at most 400 days', async () => {
+    expect(await check({ from: '2026-10-31T17:00:00.000Z', to: '2026-11-30T17:00:00.000Z' })).toHaveLength(0);
+    expect(await check({ from: '2026-11-30T17:00:00.000Z', to: '2026-10-31T17:00:00.000Z' })).not.toHaveLength(0);
+    expect(await check({ from: '2025-01-01T00:00:00.000Z', to: '2026-11-30T17:00:00.000Z' })).not.toHaveLength(0);
   });
 });
 
@@ -148,12 +221,17 @@ describe('PaymentPrismaRepository.moneyByOrder', () => {
   it.each(['collected', 'pending', 'refunded'] as const)('%s: maps rows and bounds the read', async (kind) => {
     const q = jest.fn().mockResolvedValue([raw({ amount: '12500.4', count: BigInt(2), bucket: BigInt(1) }), raw({})]);
     const repo = new PaymentPrismaRepository({ $queryRaw: q } as unknown as PrismaService);
-    const out = await repo.moneyByOrder(kind, window, 5, aging);
+    const out = await repo.moneyByOrder(kind, window, 5, aging, [D1]);
     expect(out[0]).toMatchObject({ orderId: 'o1', method: PaymentMethod.CASH, amountIdr: 12500, count: 2, bucket: 1 });
     expect(out[1].amountIdr).toBe(0);
     const sql = q.mock.calls[0][0];
     expect(sql.sql).toContain('LIMIT');
     expect(sql.values).toContain(5);
+    // the column stays bare so its index can be used; the parameter is the one converted
+    expect(sql.sql).toMatch(/"(paidAt|createdAt|refundedAt)" >= \(\?::timestamptz AT TIME ZONE 'UTC'\)/);
+    // counter payments only for the depots asked; delivery ones (no depot) network-wide
+    expect(sql.sql).toContain('"depotId" IS NULL OR "depotId" = ANY(');
+    expect(sql.values).toContain(D1);
     expect(sql.values).toEqual(expect.arrayContaining([window.from, window.to]));
     if (kind === 'refunded') expect(sql.sql).toContain('refundSettledAt');
     if (kind === 'pending') expect(sql.values).toEqual(expect.arrayContaining([1, 3, 7]));

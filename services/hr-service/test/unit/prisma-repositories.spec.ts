@@ -1272,10 +1272,16 @@ describe('AnalyticsPrismaRepository', () => {
       // A punch with no depot on it cannot be attributed and must not crash the roll-up.
       { depotId: null, status: 'PRESENT', _count: { _all: 5 } },
     ]);
-    m(p, 'employee').groupBy.mockResolvedValue([
-      { depotId: 'd1', _count: { _all: 9 } },
-      { depotId: null, _count: { _all: 3 } },
-    ]);
+    m(p, 'employee').groupBy
+      .mockResolvedValueOnce([
+        { depotId: 'd1', _count: { _all: 9 } },
+        { depotId: null, _count: { _all: 3 } },
+      ])
+      // HD-6 H2: the second read is who the month is waiting for.
+      .mockResolvedValueOnce([
+        { depotId: 'd1', _count: { _all: 8 } },
+        { depotId: null, _count: { _all: 1 } },
+      ]);
     // Prisma hands back a Decimal from a raw SUM; Number() reads it through toString.
     (p.$queryRaw as jest.Mock).mockResolvedValue([
       {
@@ -1285,6 +1291,7 @@ describe('AnalyticsPrismaRepository', () => {
         // COUNT comes back from a raw query as a bigint.
         count: BigInt(9),
         draft: BigInt(3),
+        final: BigInt(6),
       },
     ]);
 
@@ -1301,7 +1308,18 @@ describe('AnalyticsPrismaRepository', () => {
       // Flow 5a: and how many payslips stand behind it, so 0 can mean "not run yet".
       payrollCount: 9,
       payrollDraftCount: 3,
+      // HD-6 H2: 6 employees finished, 8 expected: the month is not finished, whatever the slip count.
+      payrollFinalCount: 6,
+      payrollExpectedCount: 8,
       activeHeadcount: 9,
+    });
+    // Employed at any time in July: joined on or before the 31st (a mid-month joiner), and either
+    // still active or left on or after the 1st (a mid-month leaver counts; one who left in June does not).
+    const expectedWhere = m(p, 'employee').groupBy.mock.calls.at(-1)![0].where;
+    expect(expectedWhere).toEqual({
+      depotId: { in: ['d1', 'd2', 'd3'] },
+      joinDate: { lte: new Date('2026-07-31T00:00:00.000Z') },
+      OR: [{ exitDate: { gte: new Date('2026-07-01T00:00:00.000Z') } }, { exitDate: null, status: 'ACTIVE' }],
     });
     expect(facts.get('d2')?.absentToday).toBe(1);
     // A depot with nothing at all is simply absent — the service decides what that means.

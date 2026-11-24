@@ -284,6 +284,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     window: { from: Date; to: Date },
     limit: number,
     aging: { asOf: Date; tz: string; maxDays: readonly number[] },
+    depotIds: readonly string[] = [],
   ): Promise<MoneyOrderRow[]> {
     const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: aging.tz }).format(d);
     const within = (d: Date | null) => !!d && d >= window.from && d < window.to;
@@ -306,6 +307,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
         at = r.refundedAt;
       }
       if (!within(at) || (kind === 'collected' && amount <= 0)) continue;
+      if (r.depotId && !depotIds.includes(r.depotId)) continue;
       const key = `${r.orderId}#${r.depotId}#${r.method}#${bucket}`;
       const row = out.get(key) ?? { orderId: r.orderId, counterDepotId: r.depotId, method: r.method, bucket, amountIdr: 0, count: 0 };
       row.amountIdr += Math.round(amount);
@@ -498,6 +500,19 @@ export class FakeOrderCoordination implements OrderCoordinationPort {
   orderDepots = new Map<string, string>();
   async getOrderDepot(orderId: string): Promise<string | null> {
     return this.orderDepots.get(orderId) ?? null;
+  }
+  /** Orders the fake answers as existing without a depot; ids it has never heard of are missing. */
+  depotlessOrders = new Set<string>();
+  strictFails = false;
+  async getOrderDepotsStrict(orderIds: string[]): Promise<Map<string, string | null>> {
+    if (this.strictFails) throw new Error('order-service down');
+    const out = new Map<string, string | null>();
+    for (const id of orderIds) {
+      if (this.orderDepots.has(id)) out.set(id, this.orderDepots.get(id)!);
+      else if (this.depotlessOrders.has(id)) out.set(id, null);
+      else throw new Error('order-service did not know 1 order(s)');
+    }
+    return out;
   }
   async getOrderDepots(orderIds: string[]): Promise<Map<string, string>> {
     return new Map(

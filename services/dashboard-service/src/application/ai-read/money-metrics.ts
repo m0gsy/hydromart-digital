@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { can } from '@hydromart/access';
-import { AuthenticatedUser, addLocalDays, dayStartUtc } from '@hydromart/platform';
+import { AuthenticatedUser, addLocalDays, dayStartUtc, localDayKey } from '@hydromart/platform';
 
 import { AiMoneySourcesPort, DepotMoneyRow, InstantRange } from '../ports/ai-money-sources.port';
 import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
@@ -63,9 +63,28 @@ interface Ctx {
   period: ResolvedPeriod;
   scope: ReadScope;
   stretches: Stretch[];
+  /** Today in WIB, `YYYY-MM-DD`. */
+  today: string;
   ok: <V>(value: V, label?: string) => AnswerEnvelope<V>;
   none: (reason: string) => AnswerEnvelope<never>;
   held: (reason: string) => AnswerEnvelope<never>;
+}
+
+/** Whether the stretches, joined where one starts the day after the previous ends, cover `[from, to]` whole. */
+function coversWhole(ranges: readonly { from: string; to: string; legalEntityId: string | null }[], from: string, to: string): boolean {
+  // A depot that changed legal entity mid-month is two P&Ls, not one: only stretches of ONE entity join up.
+  if (new Set(ranges.map((r) => r.legalEntityId)).size > 1) return false;
+  const next = (day: string): string => {
+    // tz-ok: calendar days held as UTC midnights; the UTC slice IS the calendar day.
+    return new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10); // tz-ok: calendar day
+  };
+  let reach = from;
+  for (const r of [...ranges].sort((a, b) => a.from.localeCompare(b.from))) {
+    if (r.from > reach) return false;
+    if (r.to >= reach) reach = next(r.to);
+    if (reach > to) return true;
+  }
+  return reach > to;
 }
 
 const DEPOTS_PER_READ = 100;
@@ -124,7 +143,7 @@ export class MoneyMetricsService {
         held: (reason: string) => ditahan(base, reason),
       };
     };
-    const ctx: Ctx = { user, period, scope, stretches: this.stretches(scope, period), ...make(scope) };
+    const ctx: Ctx = { user, period, scope, stretches: this.stretches(scope, period), today: localDayKey(now, period.timeZone), ...make(scope) };
     if (scope.spans.length === 0) return ctx.none('Tidak ada depot yang boleh Anda baca pada periode ini.');
     try {
       return await this.compute(id, ctx, make);
@@ -389,7 +408,7 @@ export class MoneyMetricsService {
         shortfallIdr: rp(sum(dep, (r) => r.shortfallIdr)),
         surplusIdr: rp(sum(dep, (r) => r.surplusIdr)),
       },
-      'COD: tertagih = tunai lunas pada pesanan antar menurut tanggal lunas; disetor = setoran kurir terverifikasi menurut tanggal verifikasi; belum disetor = COD pesanan terkirim pada periode yang belum masuk setoran mana pun; seharusnya disetor dengan kurang dan lebih dijumlah terpisah (shortfallIdr, surplusIdr)',
+      'COD: tertagih = tunai lunas pada pesanan antar menurut tanggal lunas; disetor = setoran kurir terverifikasi menurut tanggal verifikasi; belum disetor = COD pesanan terkirim pada periode yang belum masuk setoran mana pun; seharusnya disetor dengan kurang dan lebih dijumlah terpisah (shortfallIdr, surplusIdr). Tertagih mengikuti depot PESANAN; setoran, seharusnya, kurang dan lebih mengikuti depot SHIFT kurir yang menyetor (satu setoran bisa memuat pesanan depot lain); belum disetor mengikuti depot pengiriman',
     );
   }
 
@@ -420,10 +439,7 @@ export class MoneyMetricsService {
   /** The depots granted for the WHOLE month (a depot that changed entity mid-month is not one P&L), and the narrowed scope. */
   private wholeMonth(c: Ctx, make: (s: ReadScope) => Pick<Ctx, 'ok' | 'none' | 'held'>): { ids: string[]; c: Ctx } {
     const ids = [...new Set(c.scope.spans.map((s) => s.depotId))]
-      .filter((d) => {
-        const r = grantedRanges(c.scope, d);
-        return r.length === 1 && r[0].from <= c.period.from && r[0].to >= c.period.to;
-      })
+      .filter((d) => coversWhole(grantedRanges(c.scope, d), c.period.from, c.period.to))
       .sort();
     const spans = c.scope.spans.filter((s) => ids.includes(s.depotId));
     const narrowed: ReadScope = {
@@ -447,17 +463,20 @@ export class MoneyMetricsService {
   }
 
   /**
-   * Owner choice 10A: only APPROVED or PAID payslips count. A depot-month is finished when it has at
-   * least one slip and none is still DRAFT (a depot with no staff has nothing to pay). Any depot not
-   * finished makes every payroll-bearing number belum_ada. Returns the reason, or null when finished.
+   * Owner choice 10A: only APPROVED or PAID payslips count. A depot-month is finished when no slip is
+   * DRAFT and as many employees have an APPROVED/PAID slip as the month waits for (employed at any time
+   * in it; none expected = nothing to pay). Any depot not finished makes every payroll-bearing number
+   * belum_ada. Returns the reason, or null when finished.
    */
   private async payrollUnfinished(ids: readonly string[], month: string): Promise<string | null> {
     const rows = await this.depots.hrSummaryMany([...ids], month);
-    if (rows.some((r) => r === null || r.payrollCount === undefined || r.payrollDraftCount === undefined)) return DOWN;
-    const open = rows.filter((r) => r !== null && (r.payrollDraftCount! > 0 || (r.payrollCount === 0 && r.activeHeadcount > 0)));
+    if (rows.some((r) => r === null || [r.payrollDraftCount, r.payrollFinalCount, r.payrollExpectedCount].includes(undefined))) {
+      return DOWN;
+    }
+    const open = rows.filter((r) => r!.payrollDraftCount! > 0 || r!.payrollFinalCount! < r!.payrollExpectedCount!);
     return open.length === 0
       ? null
-      : `Gaji bulan ini belum selesai: ${open.length} depot masih punya slip DRAFT atau belum digaji, jadi angka yang memuat gaji belum bisa dijawab.`;
+      : `Gaji bulan ini belum selesai: ${open.length} depot masih punya slip DRAFT atau karyawan yang belum punya slip disetujui/dibayar, jadi angka yang memuat gaji belum bisa dijawab.`;
   }
 
   /** L-01, L-03, L-06, L-07, L-08: the monthly P&L that /hq/pnl already serves, not a second formula. */
@@ -477,11 +496,13 @@ export class MoneyMetricsService {
     const read = new Set(pnl.depots.map((d) => d.depotId));
     if (pnl.sources.depot !== 'ok' || ids.some((d) => !read.has(d))) return c.none(DOWN);
     const t = pnl.totals;
+    // The month is still running: HPP and gross profit are answered, but only as far as today.
+    const running = c.period.to >= c.today ? `; bulan berjalan, sampai ${c.today} (WIB)` : '';
     switch (id) {
       case 'L-01':
-        return t.cogsIdr === null ? c.none('HPP belum lengkap: ada produk terjual tanpa harga beli dari PO yang diterima.') : c.ok(rp(t.cogsIdr), 'HPP: unit terjual dikali harga beli terakhir dari PO yang diterima, tanpa ongkir PO');
+        return t.cogsIdr === null ? c.none('HPP belum lengkap: ada produk terjual tanpa harga beli dari PO yang diterima.') : c.ok(rp(t.cogsIdr), 'HPP: unit terjual dikali harga beli terakhir dari PO yang diterima, tanpa ongkir PO' + running);
       case 'L-06':
-        return t.revenueIdr === null || t.cogsIdr === null ? c.none('Laba kotor belum lengkap: omzet atau HPP belum terbaca penuh.') : c.ok(rp(t.revenueIdr - t.cogsIdr), 'laba kotor: omzet dikurangi HPP');
+        return t.revenueIdr === null || t.cogsIdr === null ? c.none('Laba kotor belum lengkap: omzet atau HPP belum terbaca penuh.') : c.ok(rp(t.revenueIdr - t.cogsIdr), 'laba kotor: omzet dikurangi HPP' + running);
       case 'L-03':
         return t.payrollIdr === null
           ? c.none('Gaji bulan ini belum selesai digaji, atau data gaji tidak terbaca.')

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-import { Inject, Injectable, Logger, Optional, UnprocessableEntityException } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import {
   AuthenticatedUser,
   FeatureFlagReader,
@@ -535,24 +535,32 @@ export class PaymentService {
   ): Promise<{ rows: MoneyDepotRow[] }> {
     const cap = PaymentService.MONEY_ORDER_CAP;
     const maxDays = AGING_BUCKETS.slice(0, -1).map((b) => b.maxDays);
-    const raw = await this.payments.moneyByOrder(kind, { from, to }, cap + 1, {
-      asOf: new Date(),
-      tz: BUSINESS_TZ,
-      maxDays,
-    });
+    const raw = await this.payments.moneyByOrder(
+      kind,
+      { from, to },
+      cap + 1,
+      { asOf: new Date(), tz: BUSINESS_TZ, maxDays },
+      depotIds,
+    );
     if (raw.length > cap) {
-      throw new UnprocessableEntityException('Terlalu banyak transaksi pada rentang ini; persempit periode.');
+      throw new UnprocessableEntityException(
+        'Terlalu banyak transaksi pada rentang ini (batas ini berlaku untuk seluruh jaringan pada pembayaran antar); persempit periode.',
+      );
     }
     const wanted = new Set(depotIds);
-    const orderDepot = new Map<string, string>();
+    let orderDepot = new Map<string, string | null>();
     const lookups = [...new Set(raw.filter((r) => !r.counterDepotId).map((r) => r.orderId))];
-    for (let i = 0; i < lookups.length; i += 1000) {
-      for (const [id, depot] of await this.orderCoordination.getOrderDepots(lookups.slice(i, i + 1000))) {
-        orderDepot.set(id, depot);
-      }
+    try {
+      if (lookups.length > 0) orderDepot = await this.orderCoordination.getOrderDepotsStrict(lookups);
+    } catch (error) {
+      // A delivery payment is placed in a depot only by order-service. A partial or failed read
+      // must not turn into counter-only numbers that look complete: refuse, so the caller says belum_ada.
+      this.logger.warn(`Order depots unavailable for the money report: ${(error as Error).message}`);
+      throw new ServiceUnavailableException('Depot pesanan belum bisa dipastikan sekarang; coba lagi nanti.');
     }
     const rows = new Map<string, MoneyDepotRow>();
     for (const r of raw) {
+      // null = the order exists and has no depot: it belongs to no depot's report, on purpose.
       const depotId = r.counterDepotId ?? orderDepot.get(r.orderId);
       if (!depotId || !wanted.has(depotId)) continue;
       const channel = r.counterDepotId ? 'counter' : 'delivery';

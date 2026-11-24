@@ -1,3 +1,6 @@
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
+import { ShiftVarianceQueryDto } from '../../src/modules/dto/cashier-shift.dto';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { CashierShiftPrismaRepository } from '../../src/infrastructure/prisma/cashier-shift.prisma.repository';
 import { CashierShiftStatus } from '../../src/domain/cashier-shift';
@@ -220,5 +223,15 @@ describe('CashierShiftPrismaRepository.varianceInWindow (HD-6 H2)', () => {
     const count = jest.fn().mockResolvedValue(0);
     const aggregate = jest.fn().mockResolvedValue({ _sum: { variance: null } });
     await expect(repoWith({ count, aggregate }).varianceInWindow('d', from, to)).resolves.toEqual({ shifts: 0, shortfallIdr: 0, surplusIdr: 0 });
+  });
+});
+
+describe('ShiftVarianceQueryDto (HD-6 H2)', () => {
+  const check = (o: object) =>
+    validate(plainToInstance(ShiftVarianceQueryDto, { depotId: '11111111-1111-4111-8111-111111111111', ...o }));
+  it('wants from before to, and a window of at most 400 days', async () => {
+    expect(await check({ from: '2026-10-31T17:00:00.000Z', to: '2026-11-30T17:00:00.000Z' })).toHaveLength(0);
+    expect(await check({ from: '2026-11-30T17:00:00.000Z', to: '2026-10-31T17:00:00.000Z' })).not.toHaveLength(0);
+    expect(await check({ from: '2025-01-01T00:00:00.000Z', to: '2026-11-30T17:00:00.000Z' })).not.toHaveLength(0);
   });
 });
