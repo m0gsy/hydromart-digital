@@ -76,13 +76,7 @@ describe('DeliveryService.claimByDriver (S1)', () => {
       status: DeliveryStatus.ASSIGNED,
     });
     // It writes nothing of its own — the order was advanced by `assign`, once.
-    expect(orders.calls).toEqual([
-      {
-        orderId: ORDER,
-        status: 'DRIVER_ASSIGNED',
-        meta: { driverId: 'driver-1', driverName: undefined, driverPhone: undefined },
-      },
-    ]);
+    expect(orders.calls).toEqual([{ orderId: ORDER, status: 'DRIVER_ASSIGNED' }]);
     // …and the delivery carries what the courier hands over, not the catalogue row.
     expect(delivery.items).toEqual([{ name: 'Galon 19L', qty: 2 }]);
     // The city too, as a console dispatch carries it — the street alone was all a claim got.

@@ -4,8 +4,6 @@ import { OrderFulfilmentStatus } from '../../domain/delivery-status';
 export interface OrderAdvanceMeta {
   /** Courier display name, snapshotted at DRIVER_ASSIGNED. */
   driverName?: string;
-  /** Courier user id, so the order names who carried it (HD-6 A5). */
-  driverId?: string;
   /** Courier phone, snapshotted at DRIVER_ASSIGNED so the customer can call. */
   driverPhone?: string;
   /** Customer-facing ETA, set at ON_DELIVERY. */

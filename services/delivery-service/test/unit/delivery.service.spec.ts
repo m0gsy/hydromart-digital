@@ -481,13 +481,7 @@ describe('DeliveryService', () => {
   it('assigns a driver and advances the order to DRIVER_ASSIGNED', async () => {
     const d = await assign();
     expect(d.status).toBe(DeliveryStatus.ASSIGNED);
-    expect(orders.calls).toEqual([
-      {
-        orderId: d.orderId,
-        status: 'DRIVER_ASSIGNED',
-        meta: { driverId: driver, driverName: undefined, driverPhone: undefined },
-      },
-    ]);
+    expect(orders.calls).toEqual([{ orderId: d.orderId, status: 'DRIVER_ASSIGNED' }]);
   });
 
   it('snapshots recipient phone, line-items and COD amount onto the delivery', async () => {
@@ -520,7 +514,7 @@ describe('DeliveryService', () => {
     expect(d.codAmount).toBeNull();
   });
 
-  it('forwards the courier id, name + phone to order-service at DRIVER_ASSIGNED', async () => {
+  it('forwards the courier name + phone to order-service at DRIVER_ASSIGNED', async () => {
     await service.assign(
       staff,
       {
@@ -535,7 +529,7 @@ describe('DeliveryService', () => {
     );
     expect(orders.calls[0]).toMatchObject({
       status: 'DRIVER_ASSIGNED',
-      meta: { driverId: driver, driverName: 'Budi', driverPhone: '081298765432' },
+      meta: { driverName: 'Budi', driverPhone: '081298765432' },
     });
   });
 

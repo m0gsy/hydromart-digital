@@ -41,7 +41,6 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
         body: JSON.stringify({
           status,
           ...(meta?.driverName ? { driverName: meta.driverName } : {}),
-          ...(meta?.driverId ? { driverId: meta.driverId } : {}),
           ...(meta?.driverPhone ? { driverPhone: meta.driverPhone } : {}),
           ...(meta?.estimatedArrivalAt
             ? { estimatedArrivalAt: meta.estimatedArrivalAt.toISOString() }
