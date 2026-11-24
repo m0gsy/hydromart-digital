@@ -387,9 +387,12 @@ loopback only.
   press Deploy (mode `deploy`).
 - **Scopes** (AI-9): the release carries a second capability, `morningSummaryNotify`, for n8n's
   trigger of the Direksi morning summary (`POST crm/api/v1/notifications/external/morning-summary`,
-  contracts/ai-v1/notifications.openapi.json). Until `aiweb-secrets.sh` writes it into n8n's
-  `MACHINE_ACCOUNTS` entry beside `franchiseApplicationNotify` (its `SCOPE` is one capability today:
-  a follow-up before the hydromart-ai workflow goes live), that route answers 403 to n8n. crm also
+  contracts/ai-v1/notifications.openapi.json). `aiweb-secrets.sh` writes it into n8n's
+  `MACHINE_ACCOUNTS` entry beside `franchiseApplicationNotify` once the release holding it is the
+  last good one (on the box since the deploy of cecff4b2d, 25 Nov 2026); without it the route
+  answers 403 to n8n. The n8n workflow (hydromart-ai 0e51d9c, `hd-morning-summary`) calls it every
+  day at 07.00 WIB; a run missed while n8n is down is not caught up: run it once from the n8n
+  editor the same day. crm also
   needs `DASHBOARD_SERVICE_URL` (set in the compose files) to ask each recipient's queues.
   A 503 from the route means some recipient was not reached (their queues could not be read at all):
   rerun the same body the SAME WIB day; after midnight WIB the date is no longer today (400) and the
