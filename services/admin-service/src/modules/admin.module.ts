@@ -35,6 +35,7 @@ import { RetentionService } from '../application/services/retention.service';
 import { PolicyChangeService } from '../application/services/policy-change.service';
 import { SecurityPolicyService } from '../application/services/security-policy.service';
 import { AdminNotificationPrefService } from '../application/services/admin-notification-pref.service';
+import { StaffEmailService } from '../application/services/staff-email.service';
 import { OnboardingStateService } from '../application/services/onboarding-state.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { FeatureFlagPrismaRepository } from '../infrastructure/prisma/feature-flag.prisma.repository';
@@ -55,7 +56,8 @@ import { PolicyChangePrismaRepository } from '../infrastructure/prisma/policy-ch
 import { SecurityPolicyPrismaRepository } from '../infrastructure/prisma/security-policy.prisma.repository';
 import { AdminNotificationPrefPrismaRepository } from '../infrastructure/prisma/admin-notification-pref.prisma.repository';
 import { OnboardingStatePrismaRepository } from '../infrastructure/prisma/onboarding-state.prisma.repository';
-import { SmtpReportMailer } from '../infrastructure/mail/smtp-report-mailer';
+import { SmtpReportMailer, SmtpStaffMailer } from '../infrastructure/mail/smtp-report-mailer';
+import { StaffDirectoryHttpAdapter } from '../infrastructure/http/staff-directory.http.adapter';
 import { HealthProbeHttpAdapter } from '../infrastructure/http/health-probe.http.adapter';
 import { FeatureFlagsController } from './feature-flags.controller';
 import { SystemSettingsController } from './system-settings.controller';
@@ -105,6 +107,8 @@ const providers: Provider[] = [
   SecurityPolicyService,
   PolicyChangeService,
   AdminNotificationPrefService,
+  // The email channel of staff notifications crm raises (owner rule 24 Nov 2026).
+  StaffEmailService,
   OnboardingStateService,
   { provide: ADMIN_TOKENS.FeatureFlagRepository, useClass: FeatureFlagPrismaRepository },
   { provide: ADMIN_TOKENS.SystemSettingsRepository, useClass: SystemSettingsPrismaRepository },
@@ -119,6 +123,8 @@ const providers: Provider[] = [
   { provide: ADMIN_TOKENS.ScheduledReportRepository, useClass: ScheduledReportPrismaRepository },
   { provide: ADMIN_TOKENS.ReportSource, useClass: ReportSourceHttpAdapter },
   { provide: ADMIN_TOKENS.ReportMailer, useClass: SmtpReportMailer },
+  { provide: ADMIN_TOKENS.StaffMailer, useClass: SmtpStaffMailer },
+  { provide: ADMIN_TOKENS.StaffDirectory, useClass: StaffDirectoryHttpAdapter },
   { provide: ADMIN_TOKENS.SupportTicketRepository, useClass: SupportTicketPrismaRepository },
   { provide: ADMIN_TOKENS.FraudFlagRepository, useClass: FraudFlagPrismaRepository },
   { provide: ADMIN_TOKENS.FraudSignals, useClass: FraudSignalsHttpAdapter },

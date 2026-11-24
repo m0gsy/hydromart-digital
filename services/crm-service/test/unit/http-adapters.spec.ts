@@ -5,6 +5,7 @@ import { ActivitySegmentHttpAdapter } from '../../src/infrastructure/http/activi
 import { NotificationPreferenceHttpAdapter } from '../../src/infrastructure/http/notification-preference.http.adapter';
 import { DepotStaffHttpAdapter } from '../../src/infrastructure/http/depot-staff.http.adapter';
 import { StaffPrefsHttpAdapter } from '../../src/infrastructure/http/staff-prefs.http.adapter';
+import { StaffEmailHttpAdapter } from '../../src/infrastructure/http/staff-email.http.adapter';
 import { DepotOverseersHttpAdapter } from '../../src/infrastructure/http/depot-overseers.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, query-string segment, authorization
@@ -469,5 +470,44 @@ describe('DepotOverseersHttpAdapter', () => {
     expect(await new DepotOverseersHttpAdapter(cfg()).overseersOfDepot('d-1')).toEqual(['a']);
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) } as never);
     expect(await new DepotOverseersHttpAdapter(cfg()).overseersOfDepot('d-1')).toEqual([]);
+  });
+});
+
+/**
+ * The email channel. admin-service applies the switches and sends; this only hands it over,
+ * and THROWS on a refusal so the caller can log it (the notification is filed either way).
+ */
+describe('StaffEmailHttpAdapter', () => {
+  const cfg = (over: Record<string, unknown> = {}) =>
+    ({ adminServiceUrl: 'http://admin.test', internalServiceKey: 'k', ...over }) as never;
+  const email = {
+    accountIds: ['s-1', 's-2'],
+    toggle: 'newFranchiseApp',
+    subject: 'Lamaran waralaba baru: calon mitra di Bekasi, Jawa Barat',
+    text: 'Lamaran waralaba baru dari calon mitra di Bekasi, Jawa Barat.',
+    path: '/hq/applications/detail?id=app-1',
+  };
+
+  it('hands the email to admin-service with the internal key, exactly as given', async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ sent: 2, failed: 0, skipped: 0 }) } as never);
+    await new StaffEmailHttpAdapter(cfg()).send(email);
+    const [url, init] = fetchMock.mock.calls.at(-1)!;
+    expect(String(url)).toBe('http://admin.test/api/v1/notification-prefs/internal/email');
+    expect((init as RequestInit).method).toBe('POST');
+    expect((init as RequestInit).headers).toMatchObject({ 'x-internal-key': 'k' });
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual(email);
+  });
+
+  it('is a quiet no-op when admin-service is not configured', async () => {
+    await new StaffEmailHttpAdapter(cfg({ adminServiceUrl: '' })).send(email);
+    await new StaffEmailHttpAdapter(cfg({ internalServiceKey: '' })).send(email);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('throws on a refusal and on an unreachable service', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 400 } as never);
+    await expect(new StaffEmailHttpAdapter(cfg()).send(email)).rejects.toThrow('400');
+    fetchMock.mockRejectedValue(new Error('timeout'));
+    await expect(new StaffEmailHttpAdapter(cfg()).send(email)).rejects.toThrow('timeout');
   });
 });

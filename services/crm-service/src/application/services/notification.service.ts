@@ -7,6 +7,8 @@ import {
 } from '../../domain/notification-destination';
 import { DestinationBrakesPort } from '../ports/destination-brakes.port';
 import { ApproverDirectoryPort } from '../ports/approver-directory.port';
+import { StaffEmailPort } from '../ports/staff-email.port';
+import { STAFF_EMAIL_TEMPLATES } from '../../domain/staff-email';
 import { can, rolesFor, type Capability } from '@hydromart/access';
 import { effectiveScope } from '@hydromart/platform';
 import {
@@ -72,6 +74,10 @@ export class NotificationService {
     @Optional()
     @Inject(CRM_TOKENS.ApproverDirectory)
     private readonly approvers?: ApproverDirectoryPort,
+    // Owner rule 24 Nov 2026, the email channel. Optional: without it the bell and push go out as before.
+    @Optional()
+    @Inject(CRM_TOKENS.StaffEmail)
+    private readonly staffEmail?: StaffEmailPort,
   ) {}
 
   /**
@@ -236,6 +242,7 @@ export class NotificationService {
           this.logger.warn(`${event} for depot ${depotId}: no staff to push to`);
           return;
         }
+        this.emailStaff(event, ids, vars, url);
         const wanted = await this.withoutOptedOut(ids, event);
         const optedOut = ids.length - wanted.length;
         const results = await Promise.allSettled(
@@ -262,6 +269,29 @@ export class NotificationService {
         );
       })
       .catch((e) => this.logger.warn(`Ops push for ${event} failed: ${(e as Error).message}`));
+  }
+
+  /**
+   * The email channel. Owner rule 24 Nov 2026: every staff notification an n8n workflow raises
+   * goes out on the bell and push, email, and (once Meta is ready) WhatsApp. A kind with an email
+   * template (STAFF_EMAIL_TEMPLATES) is emailed to the same accounts as its push, before anyone's
+   * push switch applies: admin-service keeps to each one's EMAIL switch for the same toggle.
+   * Reached only for a newly filed row, like the push, so a retry or a replay of the event emails
+   * nobody twice. Fire-and-forget: the row is the record, and a refusal costs the email only.
+   */
+  private emailStaff(event: NotificationEvent, ids: string[], vars: Record<string, string>, path: string): void {
+    const template = STAFF_EMAIL_TEMPLATES[event];
+    const toggle = STAFF_TOGGLE_FOR_EVENT[event];
+    if (!template || !toggle || !this.staffEmail) return;
+    void this.staffEmail
+      .send({
+        accountIds: ids,
+        toggle,
+        subject: renderMessage(template.subject, vars),
+        text: renderMessage(template.body, vars),
+        path,
+      })
+      .catch((e) => this.logger.warn(`Email for ${event} failed: ${(e as Error).message}`));
   }
 
   /**

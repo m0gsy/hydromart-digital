@@ -91,7 +91,20 @@ export class AdminConfigService {
     };
   }
 
-  /** Generic SMTP for scheduled-report email. null = not configured (mail is skipped). */
+  /**
+   * The web app's public origin, for links in staff email: https://<WEB_DOMAIN>, the host Caddy
+   * serves the web on. '' when WEB_DOMAIN is blank (a bare-IP or local stack): the email then
+   * carries the screen's path without a host.
+   */
+  get webOrigin(): string {
+    const host = this.config.get<string>('WEB_DOMAIN', '').trim();
+    return host ? `https://${host}` : '';
+  }
+
+  /**
+   * Generic SMTP for scheduled-report email and the staff email (the "Lamaran waralaba baru"
+   * notification). null = not configured (mail is skipped).
+   */
   get smtp(): { host: string; port: number; user: string; pass: string; from: string } | null {
     const host = this.config.get<string>('SMTP_HOST', '').trim();
     const from = this.config.get<string>('SMTP_FROM', '').trim();

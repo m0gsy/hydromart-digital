@@ -61,7 +61,10 @@ export class CrmConfigService {
   get depotServiceUrl(): string {
     return this.config.get<string>('DEPOT_SERVICE_URL', '').trim();
   }
-  /** admin-service base URL, for staff push-toggle preferences. Blank = every toggle reads as on. */
+  /**
+   * admin-service base URL, for staff push-toggle preferences and the staff email channel. Blank =
+   * every toggle reads as on, and no notification is emailed.
+   */
   get adminServiceUrl(): string {
     return this.config.get<string>('ADMIN_SERVICE_URL', '').trim();
   }

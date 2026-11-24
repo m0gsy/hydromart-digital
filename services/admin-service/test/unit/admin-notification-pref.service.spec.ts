@@ -165,4 +165,32 @@ describe('AdminNotificationPrefService', () => {
       expect(spy).toHaveBeenCalledWith([]);
     });
   });
+
+  /*
+   * The email channel (owner rule 24 Nov 2026) asks this before writing to anyone. Saving the
+   * /hq/profile checkbox is the same PUT as before; what changed is that something reads it.
+   */
+  describe('emailOnFor', () => {
+    it('has "Lamaran waralaba baru" email on by default, and off once the person saves it off', async () => {
+      expect(await service.emailOnFor(['acc-1', 'acc-2'], 'newFranchiseApp')).toEqual(['acc-1', 'acc-2']);
+      await service.save('acc-1', [{ id: 'newFranchiseApp', push: true, email: false, wa: false }]);
+      expect((await service.get('acc-1')).channels.find((c) => c.id === 'newFranchiseApp')).toMatchObject({
+        push: true,
+        email: false,
+      });
+      expect(await service.emailOnFor(['acc-1', 'acc-2'], 'newFranchiseApp')).toEqual(['acc-2']);
+    });
+
+    it('reads the email column, not the push one', async () => {
+      await service.save('acc-1', [{ id: 'newFranchiseApp', push: false, email: true, wa: false }]);
+      expect(await service.emailOnFor(['acc-1'], 'newFranchiseApp')).toEqual(['acc-1']);
+      expect(await service.pushDisabledFor(['acc-1'], 'newFranchiseApp')).toEqual(['acc-1']);
+    });
+
+    it("follows each switch's own default, and answers nobody for an unknown one", async () => {
+      // A depot day defaults to push only.
+      expect(await service.emailOnFor(['acc-1'], 'newOrder')).toEqual([]);
+      expect(await service.emailOnFor(['acc-1'], 'nonsense')).toEqual([]);
+    });
+  });
 });
