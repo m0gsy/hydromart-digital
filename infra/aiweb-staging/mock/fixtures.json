@@ -1,0 +1,103 @@
+{
+  "_note": "Synthetic people for the staging AI web. Made up: no real name, phone or email.",
+  "totpRoles": [
+    "DIREKTUR",
+    "HEAD_OFFICE",
+    "FINANCE",
+    "SUPER_ADMIN"
+  ],
+  "users": [
+    {
+      "id": "00000000-0000-4000-8000-000000000001",
+      "name": "Staging Staf Depot",
+      "role": "STAFF_DEPOT",
+      "depotId": "00000000-0000-4000-9000-000000000001"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000002",
+      "name": "Staging Kepala Depot",
+      "role": "KEPALA_DEPOT",
+      "depotId": "00000000-0000-4000-9000-000000000001"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000003",
+      "name": "Staging Asisten Supervisor",
+      "role": "ASSISTANT_SUPERVISOR",
+      "depotId": "00000000-0000-4000-9000-000000000001"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "name": "Staging Supervisor",
+      "role": "SUPERVISOR",
+      "depotId": "00000000-0000-4000-9000-000000000001"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "name": "Staging Manajer",
+      "role": "MANAGER",
+      "depotId": "00000000-0000-4000-9000-000000000001"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000006",
+      "name": "Staging Direktur",
+      "role": "DIREKTUR",
+      "depotId": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000007",
+      "name": "Staging Pemilik Waralaba",
+      "role": "FRANCHISE_OWNER",
+      "depotId": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000008",
+      "name": "Staging Kantor Pusat",
+      "role": "HEAD_OFFICE",
+      "depotId": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000009",
+      "name": "Staging Keuangan",
+      "role": "FINANCE",
+      "depotId": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "name": "Staging HR",
+      "role": "HR",
+      "depotId": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "name": "Staging Pemasaran",
+      "role": "MARKETING",
+      "depotId": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "name": "Staging Super Admin",
+      "role": "SUPER_ADMIN",
+      "depotId": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000020",
+      "name": "Staging Keuangan (belum pasang autentikator)",
+      "role": "FINANCE",
+      "depotId": null,
+      "enrolmentRequired": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000021",
+      "name": "Staging Pelanggan (bukan staf)",
+      "role": "CUSTOMER",
+      "depotId": null
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000022",
+      "name": "Staging Staf Dinonaktifkan",
+      "role": "STAFF_DEPOT",
+      "depotId": "00000000-0000-4000-9000-000000000001",
+      "suspended": true
+    }
+  ]
+}

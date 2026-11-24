@@ -375,6 +375,11 @@ jobs:
       - name: Caddy config validates (pinned image)
         run: bash scripts/check-caddy-validate.sh
 
+      # D3 staging, part A: the fake hydromart the staging AI web signs in to. Held against
+      # contracts/ai-v1 (routes, patterns, shapes); it holds no secret and runs on stdlib only.
+      - name: Staging AI web fake hydromart self-check
+        run: node scripts/aiweb-staging-mock.test.mjs
+
       # env-doctor --fix rewrites the live .env, so every branch of it is pinned by tests:
       # what it joins, what it refuses, and that it never prints the key.
       - name: .env doctor self-check
