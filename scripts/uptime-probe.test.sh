@@ -87,17 +87,37 @@ run
   ok "RED when the AI web cannot reach its database (503), named" || bad "a down AI web must fail (rc=$RC): $OUT"
 
 healthy
-CERT_END="$(date -u -d '+5 days' '+%b %d %H:%M:%S %Y GMT')" run
+SOON="$(date -u -d '+5 days' '+%b %d %H:%M:%S %Y GMT')"
+CERT_END="$SOON" PROBE_NOW_HHMM=0105 run
 [ "$RC" = 1 ] && case "$OUT" in *"certificate of api.example"*"days left"*) true ;; *) false ;; esac &&
-  ok "RED when a certificate has fewer than 14 days left (renewal failing), naming the host" || bad "an expiring certificate must fail (rc=$RC): $OUT"
-CERT_END="$(date -u -d '+30 days' '+%b %d %H:%M:%S %Y GMT')" run
+  ok "RED when a certificate has fewer than 14 days left (renewal failing), naming the host, in the daily window" || bad "an expiring certificate must fail at 01:05 UTC (rc=$RC): $OUT"
+CERT_END="$SOON" PROBE_NOW_HHMM=1200 ALERT_WEBHOOK_URL="http://hook.invalid/x" run
+[ "$RC" = 0 ] && [ ! -f "$POSTS" ] && case "$OUT" in *"::warning::TLS certificate renewal is failing"*) true ;; *) false ;; esac &&
+  ok "  ...outside the daily window: a warning, no post, the run stays green (no 2000 messages)" || bad "outside the window (rc=$RC): $OUT $(cat "$POSTS" 2>/dev/null)"
+CERT_END="$(date -u -d '+30 days' '+%b %d %H:%M:%S %Y GMT')" PROBE_NOW_HHMM=0105 run
 [ "$RC" = 0 ] && ok "  ...30 days left is fine" || bad "30 days must pass: $OUT"
-CERT_UNREADABLE=1 run
+CERT_UNREADABLE=1 PROBE_NOW_HHMM=0105 ALERT_WEBHOOK_URL="http://hook.invalid/x" run
 [ "$RC" = 1 ] && case "$OUT" in *"could not be read"*) true ;; *) false ;; esac &&
-  ok "RED when a certificate cannot be read at all" || bad "an unreadable certificate must fail (rc=$RC): $OUT"
-CERT_END="$(date -u -d '+5 days' '+%b %d %H:%M:%S %Y GMT')" ALERT_WEBHOOK_URL="http://hook.invalid/x" run
+  grep -q "certificate could not be read" "$POSTS" && ! grep -q "renewal is failing" "$POSTS" &&
+  ok "RED when a certificate cannot be read at all, said as unreadable (not as a failing renewal)" || bad "an unreadable certificate (rc=$RC): $OUT $(cat "$POSTS" 2>/dev/null)"
+CERT_END="$SOON" PROBE_NOW_HHMM=0105 ALERT_WEBHOOK_URL="http://hook.invalid/x" run
 [ -f "$POSTS" ] && grep -q "certificate renewal is failing" "$POSTS" && ! grep -q "DOWN" "$POSTS" &&
   ok "  ...and the ops channel hears a certificate warning, not an outage" || bad "certificate alert text: $(cat "$POSTS" 2>/dev/null)"
+healthy
+sed -i 's#^/health|200#/health|500#' "$TABLE"
+CERT_END="$SOON" PROBE_NOW_HHMM=1200 ALERT_WEBHOOK_URL="http://hook.invalid/x" run
+[ "$RC" = 1 ] && grep -q "DOWN" "$POSTS" && grep -q "renewal is failing" "$POSTS" &&
+  ok "an outage with an expiring certificate posts at once and names both" || bad "outage + certificate (rc=$RC): $(cat "$POSTS" 2>/dev/null)"
+# Every check at once: with each of the 7 failing after 3 tries and 2 s pauses, one after another
+# would take 7 x 4 s = 28 s (and, live, 7 x 80 s: past the job's 5 minutes); together about 4 s.
+cat > "$TABLE" <<'T'
+WEB|500|down
+T
+start=$SECONDS
+CERT_UNREADABLE=1 PROBE_PAUSE=2 run
+elapsed=$((SECONDS - start))
+[ "$RC" = 1 ] && [ "$elapsed" -lt 15 ] && ok "the checks run at the same time: a total outage is reported in ${elapsed}s, not 28s" ||
+  bad "a total outage took ${elapsed}s (rc=$RC)"
 
 healthy
 sed -i 's#^/health|200#/health|500#' "$TABLE"
