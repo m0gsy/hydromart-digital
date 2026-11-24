@@ -122,6 +122,14 @@ AIWEB_DRILL_LOG=$AIWEB_DRILL_LOG_PATH
 # Converge anything that stopped between deploys, and record why it stopped.
 */5 * * * * cd $REPO && . ./scripts/load-env.sh && bash scripts/watchdog.sh >> /var/log/hydromart-watchdog.log 2>&1
 
+# The host's ssh, closed to the AI web's docker networks (owner decision 2026-11-24). A reboot
+# forgets the rule and a network made again gets a new bridge, so it is checked here as well as by
+# every AI web deploy: at boot, from the bridges the last run saved when docker is not up yet
+# (docker starts the AI web's containers again on its own), and every 5 minutes. Silent unless
+# it wrote; a failing run says so every time and alerts once.
+@reboot cd $REPO && bash scripts/aiweb-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1
+*/5 * * * * cd $REPO && bash scripts/aiweb-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1
+
 # N13 — TLS expiry. Renewal is automatic, which is exactly why nobody watches it: the
 # failure is not a loud renewal error, it is renewal quietly stopping and every browser
 # refusing the site three weeks later. Weekly is enough for a 21-day window.

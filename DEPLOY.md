@@ -295,7 +295,11 @@ answers 404 for `/api/internal/*` (n8n's alarm route is the app's alone).
   `TOTP_ENCRYPTION_KEY` is made only while `hydromart_auth.totp_credentials` is empty (a
   read-only count): over sealed secrets a new key would be data loss, so it writes nothing,
   alerts, and the old key comes back from the `.env` backup. The second pulls any missing image
-  by digest (logged in with the Deploy job's own token, logged out at once), starts the
+  by digest (logged in with the Deploy job's own token, logged out at once), makes every network
+  the release uses without starting anything (`up --no-start --no-recreate`, the app and n8n held
+  at the containers they have), closes the host's ssh to those networks
+  ([below](#the-hosts-ssh-closed-to-the-ai-web)) before any container of the project starts on
+  them, starts the
   database, applies [`infra/aiweb/roles.sql`](infra/aiweb/roles.sql) (`ai_owner` owns database
   `ai` and migrates; `ai_app` exists; `n8n` owns database `n8n`; each role may connect to its own
   database only), migrates as `ai_owner` (15 minutes at most), removes n8n and runs `n8n-setup`
@@ -307,7 +311,9 @@ answers 404 for `/api/internal/*` (n8n's alarm route is the app's alone).
   connection or a refusal is a breach, and each one's own database must open or the probe counts
   itself blind. It also checks that only Caddy and `aiweb` sit on `edge` and only n8n on its
   `egress` network, that nothing publishes a host port but n8n's editor on `127.0.0.1:5678`, that
-  no host port hydromart publishes opens, that the public URL answers, that the app and n8n both
+  no host port hydromart publishes opens, that the host's ssh answers neither at any gateway of
+  their networks nor at the public address ([below](#the-hosts-ssh-closed-to-the-ai-web)), that
+  the public URL answers, that the app and n8n both
   reach hydromart's API and the app reaches n8n, that n8n holds exactly what git holds
   (hydromart-ai's `drift.mjs`), and that `ai_app` holds exactly `INSERT, SELECT` on its two
   record tables and `INSERT, SELECT, UPDATE` on `hd_events`. Every target is printed with its
@@ -336,6 +342,7 @@ alias dca='docker compose -f infra/aiweb/docker-compose.yml --env-file .env'
 dca ps; dca logs -f aiweb
 bash scripts/aiweb-deploy.sh --probe   # the isolation probe, against what runs now
 bash scripts/aiweb-deploy.sh           # a full run; a missing image needs the Deploy workflow's token
+bash scripts/aiweb-firewall.sh         # close the host's ssh to the AI web now (cron: every 5 minutes)
 bash scripts/backup-aiweb-db.sh         # dump databases ai and n8n now (the 03:05 job)
 bash scripts/backup-aiweb-db.sh --drill # restore the newest AI web dump into a scratch container
 bash scripts/aiweb-n8n-check.sh         # n8n's drift check and its machine secret's day (the 04:40 job)
@@ -486,11 +493,57 @@ hide the other:
   uses, and removes the rest of that project's images. It leaves them all alone when the compose
   file pins no digest, and skips them (until next week) while a deploy holds the stack lock.
 
+#### The host's ssh, closed to the AI web
+
+The owner's decision of 24 November 2026: the box's ssh (TCP 22) answers nothing that comes from
+the AI web's docker networks: `edge` (Caddy and the app), `hydromart-ai_private` (internal, but its
+gateway is the host) and `hydromart-ai_egress` (n8n). SSH from anywhere else, the internet and the
+Deploy workflow included, is exactly as it was.
+
+- **What is closed.** [`scripts/aiweb-firewall.sh`](scripts/aiweb-firewall.sh) keeps a chain of
+  its own, `AIWEB-NO-SSH`, holding `-i br-<first 12 of the network's id> -j DROP` for each of those
+  networks, and one rule first in `INPUT`: `-p tcp --dport 22 -j AIWEB-NO-SSH`. No other `INPUT`
+  rule and none of Docker's chains is touched. Matched by the bridge a packet comes in on, it
+  closes every address of the host at once: each gateway, and the public address the AI web
+  reaches hydromart by (the box holds its public address on `eth0`, no 1:1 NAT: checked on
+  24 November 2026, so no packet to it leaves the box). When the jump is not rule 1 of `INPUT`,
+  or is there twice, every copy goes and it goes
+  back in first. IPv4 only: those networks are IPv4-only, and Docker leaves a container on one no
+  IPv6 at all; a network with IPv6 on is still closed over IPv4, then reported (`!!`, an alert).
+- **Kept.** A reboot forgets the rules and a network made again gets a new bridge. Host cron runs
+  the script at boot (`@reboot`) and every 5 minutes; every AI web deploy runs it once it has made
+  the release's networks and before any container of the project starts on them. A run that has
+  docker's answer saves the bridges it wrote in `.deploy/aiweb-firewall.bridges`; at boot, before
+  docker answers, the saved ones are written (a network keeps its id, so its bridge's name,
+  across a reboot), so port 22 is closed before docker starts the containers again. One run at a
+  time (`flock` on `.deploy/aiweb-firewall.lock`). It runs as the deploy user and gets root
+  through `sudo -n`. Log `/var/log/hydromart-watchdog.log`: silent unless it wrote; a failing run
+  (no passwordless sudo, no docker answer and nothing saved, a bad project name) writes nothing,
+  prints its `!!` line on every run, and alerts once.
+- **Proved.** The probe asks port 22 at the gateway of every network the app and n8n are on and at
+  `api.hydromart-digital.com:22`, from inside both containers. A connection is a breach and fails
+  the AI web step; no answer, or a refusal, is closed; a name that does not resolve proves nothing
+  and fails it too, as does a network whose gateway it cannot read.
+- **Check it**, on the box: `bash scripts/aiweb-deploy.sh --probe` prints one
+  `host-ssh <address>:22 ... -> closed` line per address, from the app (`probe:`) and from n8n
+  (`probe(n8n):`); `sudo iptables -S AIWEB-NO-SSH` lists one bridge per network
+  (`docker network ls` shows each id) and `sudo iptables -S INPUT | head -2` the one jump, first.
+- **Undo it**: revert the PR that brought `aiweb-firewall.sh` (its cron lines, the deploy's call
+  and the probe's verdict go with it) and deploy. The rules then stay until a reboot, or go at once
+  with, on the box:
+
+  ```bash
+  sudo iptables -D INPUT -p tcp --dport 22 -j AIWEB-NO-SSH
+  sudo iptables -F AIWEB-NO-SSH && sudo iptables -X AIWEB-NO-SSH
+  ```
+
+  Without the revert those two lines last 5 minutes at most: cron puts the rules back.
+
 Not covered yet:
 
-- **What the AI web may reach on the host and the network is not decided.** The probe prints
-  whether it reaches the host's ssh (port 22 on the edge gateway) and the cloud metadata address
-  (`169.254.169.254:80`), and never fails on either: the owner decides whether to block them.
+- **What the AI web may reach on the network is not all decided.** The probe prints whether it
+  reaches the cloud metadata address (`169.254.169.254:80`) and never fails on it: the owner
+  decides whether to block it. The host's ssh is decided, and closed (above).
 - **The AI web's dumps are not encrypted**, exactly like hydromart's (D8 is still open): when D8
   lands it has to cover `aiweb-*.sql.gz` too.
 

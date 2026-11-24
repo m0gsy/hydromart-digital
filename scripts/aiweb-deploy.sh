@@ -9,26 +9,32 @@
 #   1. Every image it names present. A missing one is pulled BY DIGEST, logged in with the deploy
 #      job's own GITHUB_TOKEN (packages: read) inside a throwaway docker config, logged out and
 #      deleted straight after. Nothing long-lived is left on the box.
-#   2. Its database up and healthy, then infra/aiweb/roles.sql: the roles exist, the owner's, n8n's
+#   2. Every network the release uses made, and nothing started: `up --no-start --no-recreate`, the
+#      app and n8n held at the containers they have (none made, none recreated; n8n switched off
+#      is removed), the one-shot jobs left out by their profiles.
+#   3. The host's ssh closed to those networks (scripts/aiweb-firewall.sh) before any container of
+#      this project starts on them. A failure is said; the probe decides.
+#   4. Its database up and healthy, then infra/aiweb/roles.sql: the roles exist, the owner's, n8n's
 #      and the superuser's passwords match .env, databases ai and n8n and their privileges.
-#   3. The migration job, as the owning role, for at most AIWEB_MIGRATE_TIMEOUT (900) seconds. A
+#   5. The migration job, as the owning role, for at most AIWEB_MIGRATE_TIMEOUT (900) seconds. A
 #      failure stops here: the app is not swapped and ai_app's password is not touched.
-#   4. AI-5, n8n: removed (not merely stopped: a stopped container is one the watchdog starts
+#   6. AI-5, n8n: removed (not merely stopped: a stopped container is one the watchdog starts
 #      again), then the n8n-setup job, for at most AIWEB_N8N_SETUP_TIMEOUT (300) seconds, puts the
 #      credentials and the workflows git holds into n8n's database. A failure stops here and
 #      leaves n8n off: hydromart's events wait in the AI web's hd_events, which it retries without
 #      giving up, until a deploy sets n8n up. A blank AIWEB_N8N_MACHINE_SECRET is n8n's kill switch:
 #      no setup, and n8n stays removed.
-#   5. infra/aiweb/app-role.sql: ai_app's password, set only now. Until a release gets this far,
+#   7. infra/aiweb/app-role.sql: ai_app's password, set only now. Until a release gets this far,
 #      the database keeps the password the running app was started with, so a failed release
 #      never locks the running app out, even when it recreated the database container. Last before
 #      the swap, n8n's setup included, so that stays true whichever step fails.
-#   6. The app and n8n up and healthy. /api/health answers 503 for a role that gets past row level
+#   8. The app and n8n up and healthy. /api/health answers 503 for a role that gets past row level
 #      security, so a wrong DATABASE_URL fails here rather than serving.
-#   7. The probe: what the containers are attached to and publish, what the app and n8n can open
+#   9. The probe: what the containers are attached to and publish, what the app and n8n can open
 #      from inside their own containers (their database must open; no address of any hydromart
-#      container may answer at all), Caddy's way in, the public URL, the sign-in path from both,
-#      the app's way to n8n, ai_app's privileges, and n8n holding exactly what git holds.
+#      container may answer at all; the host's ssh must not open, at any gateway of theirs or at
+#      the public address), Caddy's way in, the public URL, the sign-in path from both, the app's
+#      way to n8n, ai_app's privileges, and n8n holding exactly what git holds.
 #
 # Hydromart is never touched: every compose call here names infra/aiweb/ and nothing else. Every
 # failure ends with exit 1, a `!!` line naming the step, and one alert (alert_once aiweb, again
@@ -167,8 +173,9 @@ hydromart_container() {
 #   name       one of hydromart's service names: not resolving is said, never counted as a pass
 #   front      Caddy's address on edge, where the AI web is MEANT to reach it: 80 and 443 may
 #              open; any other port of it (the admin API on 2019) must not
-#   host       the host, through the edge gateway, on a port hydromart publishes: must not open
-#   info       printed, never judged (the host's ssh, the cloud metadata address)
+#   host       the host, through the edge gateway, on a port hydromart publishes, and its ssh (22) at
+#              the gateway of every AI web network and at the public address: must not open
+#   info       printed, never judged (the cloud metadata address)
 judge() { # <kind> <outcome> <port>
   case "$1:$2" in
     control:open) echo ok ;;
@@ -203,12 +210,13 @@ only_members() { # <network> <who> <project/service allowed>...
 }
 
 # Every address of every running hydromart container on every TCP port it exposes, read off docker
-# rather than listed here, so a container added tomorrow is tried tomorrow. Sets PLAN, one line per
-# target, `<kind> <host:port> <label>`, and COUNT, the hydromart containers found.
+# rather than listed here, so a container added tomorrow is tried tomorrow, and the host's ssh
+# through each network given (the AI web's). Sets PLAN, one line per target,
+# `<kind> <host:port> <label>`, and COUNT, the hydromart containers found.
 PLAN=''
 COUNT=0
-build_plan() {
-  local t id line name pairs ports tcp p pair net ip kind edge_gw host_ports
+build_plan() { # <network>...
+  local t id line name pairs ports tcp p pair net ip kind edge_gw host_ports gw api_host
   PLAN="control db:5432 own-database"$'\n'
   for t in postgres:5432 hydromart-postgres:5432 gateway:8080 auth:3001 web:3000; do
     PLAN+="name $t service-name"$'\n'
@@ -246,8 +254,22 @@ build_plan() {
     note "probe: the edge network has no gateway address, so the host's ports were not tried"
   else
     for p in $host_ports; do PLAN+="host $edge_gw:$p host"$'\n'; done
-    PLAN+="info $edge_gw:22 host-ssh"$'\n'
   fi
+  # The host's ssh, closed to the AI web by scripts/aiweb-firewall.sh (the owner's decision of
+  # 24 November 2026): at the gateway of every network an AI web container is on (an internal
+  # network's too: its gateway is the host), and at the public address the AI web reaches
+  # hydromart by, the API's name resolved inside the container, as its own requests resolve it.
+  # A gateway it cannot read is a way to the host it did not try: counted, like edge's above.
+  for net in "$@"; do
+    gw="$(docker network inspect "$net" --format '{{range .IPAM.Config}}{{.Gateway}} {{end}}' 2>/dev/null | awk '{print $1}' || true)"
+    if [ -n "$gw" ]; then
+      PLAN+="host $gw:22 host-ssh"$'\n'
+    else
+      note "probe: could not read the gateway of the $net network, so the host's ssh was not tried through it"
+    fi
+  done
+  api_host="${HYDROMART_API_URL#*://}"
+  PLAN+="host ${api_host%%[:/]*}:22 host-ssh"$'\n'
   PLAN+="info 169.254.169.254:80 cloud-metadata"$'\n'
 }
 
@@ -287,7 +309,7 @@ jwks_from() {
 }
 
 probe() {
-  local app n8n id line who nets binds n allowed caddy code jwks grants t out rc
+  local app n8n id line who nets binds n allowed caddy code jwks grants t out rc ai_nets=''
   PROBLEMS=''
   app="$($AIWEB_COMPOSE ps -q aiweb 2>/dev/null | head -1 || true)"
   if [ -z "$app" ]; then
@@ -311,6 +333,7 @@ probe() {
   for id in $(docker ps -aq --filter "label=com.docker.compose.project=$AI_PROJECT"); do
     line="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}|{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}|{{range $k, $v := .HostConfig.PortBindings}}{{range $v}}{{.HostIp}}:{{.HostPort}}->{{$k}} {{end}}{{end}}' "$id")"
     IFS='|' read -r who nets binds <<<"$line"
+    ai_nets+=" $nets"
     case "$who" in
       aiweb) allowed=" edge ${AI_PROJECT}_private " ;;
       n8n) allowed=" ${AI_PROJECT}_private ${AI_PROJECT}_egress " ;;
@@ -331,8 +354,11 @@ probe() {
   only_members edge "the AI web" "$HYDROMART_PROJECT/caddy" "$AI_PROJECT/aiweb"
   if [ -n "$n8n" ]; then only_members "${AI_PROJECT}_egress" n8n "$AI_PROJECT/n8n"; fi
 
-  # 3. From INSIDE the app's container, then n8n's: no hydromart address may answer either.
-  build_plan
+  # 3. From INSIDE the app's container, then n8n's: no hydromart address may answer either, nor
+  # the host's ssh through any network the AI web's containers are on (read off them in 1, not
+  # off scripts/aiweb-firewall.sh's own list, so the proof does not lean on what it proves).
+  # shellcheck disable=SC2046,SC2086 # one argument per network
+  build_plan $(printf '%s\n' $ai_nets | sort -u)
   reach_from "$app" "the AI web" probe
   if [ -n "$n8n" ]; then reach_from "$n8n" n8n "probe(n8n)"; fi
 
@@ -424,7 +450,7 @@ probe() {
 
 # ------------------------------------------------------------------------------------ deploy
 deploy() {
-  local key missing='' ref images=() absent=() rc scale=''
+  local key missing='' ref images=() absent=() rc scale='' ids hold
   for key in AIWEB_POSTGRES_PASSWORD AIWEB_DB_OWNER_PASSWORD AIWEB_DB_APP_PASSWORD \
     AIWEB_N8N_DB_PASSWORD AIWEB_N8N_ENCRYPTION_KEY AIWEB_N8N_TOKEN AIWEB_N8N_MACHINE_ID; do
     has_value "$key" || missing+=" $key"
@@ -444,14 +470,41 @@ deploy() {
   if [ "${#absent[@]}" -gt 0 ]; then pull "${absent[@]}"; fi
   say "images: release $RELEASE, all ${#images[@]} present"
 
-  # 2. Database, and what the migration and n8n need from it. ai_app's password is left alone here.
+  # 2. Every network the release uses, before any container of it starts on one, so 3 can close
+  # them first. `up --no-start` makes the networks (and db's container, when it has none; 4 starts
+  # it) and starts nothing; migrate and n8n-setup sit behind their profiles and are not made.
+  # --no-recreate and the scales hold the app and n8n at the containers they have: a running one
+  # is left exactly as it is, and none is made, because a container made and never started is one
+  # the watchdog starts should a later step fail. n8n switched off is held at none: removed here,
+  # as 8 would. (Measured on compose v5.3.1: egress is made with n8n held at none.)
+  ids="$(docker ps -aq --filter "label=com.docker.compose.project=$AI_PROJECT" --filter label=com.docker.compose.service=aiweb)" ||
+    fail "could not count the app's containers, so nothing was made or started"
+  hold="--scale aiweb=$(wc -w <<<"$ids")"
+  ids="$(docker ps -aq --filter "label=com.docker.compose.project=$AI_PROJECT" --filter label=com.docker.compose.service=n8n)" ||
+    fail "could not count n8n's containers, so nothing was made or started"
+  if n8n_off; then hold+=" --scale n8n=0"; else hold+=" --scale n8n=$(wc -w <<<"$ids")"; fi
+  # shellcheck disable=SC2086 # $hold is two flags and their values
+  $AIWEB_COMPOSE up --no-start --no-recreate $hold ||
+    fail "could not make the release's networks (up --no-start), so nothing was started"
+
+  # 3. The host's ssh, closed to the AI web's networks (the owner's decision of 24 November 2026),
+  # now that each one exists and before any container of this project starts on it. Host cron
+  # keeps it closed between deploys and across a reboot. A failure is said and alerted by the
+  # script itself, and decided by the probe: port 22 answering fails it.
+  if bash scripts/aiweb-firewall.sh; then
+    say "host ssh: TCP 22 is closed to the AI web's networks (scripts/aiweb-firewall.sh)"
+  else
+    say "!! scripts/aiweb-firewall.sh could not close the host's ssh to the AI web; the probe says whether it is closed"
+  fi
+
+  # 4. Database, and what the migration and n8n need from it. ai_app's password is left alone here.
   $AIWEB_COMPOSE up -d --wait --wait-timeout 180 db || fail "its database did not come up healthy"
   $AIWEB_COMPOSE exec -T db psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres -f - \
     < infra/aiweb/roles.sql >/dev/null ||
     fail "infra/aiweb/roles.sql failed, so the roles and databases are not as the migration and n8n need them"
   say "database: up; ai_owner owns ai, n8n owns n8n, ai_app exists, default privileges in place"
 
-  # 3. Migrations, as the owner, before the app, and bounded: a hung job must not hold the deploy.
+  # 5. Migrations, as the owner, before the app, and bounded: a hung job must not hold the deploy.
   # --foreground keeps the compose client in this script's process group, so deploy.sh's own
   # timeout reaches it as well.
   rc=0
@@ -464,7 +517,7 @@ deploy() {
     fail "the migration job failed as ai_owner (exit $rc); the app and ai_app's password were left as they were"
   fi
 
-  # 4. n8n (AI-5). setup.mjs rewrites n8n's database while n8n is down: n8n is removed, not only
+  # 6. n8n (AI-5). setup.mjs rewrites n8n's database while n8n is down: n8n is removed, not only
   # stopped, because a stopped container is one the watchdog starts again, half set up, should the
   # job fail. `up` below creates it again from this release's compose file.
   if n8n_off; then
@@ -482,13 +535,13 @@ deploy() {
     say "n8n: set up from the image's copy of git (credentials stored, workflows published)"
   fi
 
-  # 5. ai_app's password, only now that the release has migrated and n8n is set up.
+  # 7. ai_app's password, only now that the release has migrated and n8n is set up.
   $AIWEB_COMPOSE exec -T db psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres -f - \
     < infra/aiweb/app-role.sql >/dev/null ||
     fail "infra/aiweb/app-role.sql failed, so ai_app is not as the app needs it; the app was left as it was"
   say "database: ai_app (rows only) carries the password .env gives the app"
 
-  # 6. The app and n8n (or, switched off, n8n's container removed).
+  # 8. The app and n8n (or, switched off, n8n's container removed).
   # shellcheck disable=SC2086 # $scale is one flag and its value, or nothing
   if ! $AIWEB_COMPOSE up -d --remove-orphans --wait --wait-timeout 180 $scale; then
     $AIWEB_COMPOSE logs --tail 20 aiweb n8n 2>&1 | sed 's/^/   /' || true
@@ -496,7 +549,7 @@ deploy() {
   fi
   if n8n_off; then say "app: healthy; n8n: off"; else say "app and n8n: healthy"; fi
 
-  # 7. The probe.
+  # 9. The probe.
   probe || fail "probe: ${PROBLEMS%; }"
   alert_clear aiweb
   say "AI web OK: release $RELEASE serves $AI_WEB_URL and cannot reach hydromart"
