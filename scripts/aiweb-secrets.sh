@@ -249,7 +249,7 @@ if scope_capable "$SCOPE"; then
 elif [ "$have_prev" = 1 ] && has_scope "$SCOPE" "$tree_block"; then
   echo "aiweb-secrets: $why_not: a rollback to it would not boot auth-service with n8n's entry" >&2
 fi
-scopes_csv="$(IFS=,; echo "${scopes[*]}")"
+scopes_csv="$(IFS=,; echo "${scopes[*]:-}")"
 rc=0
 accounts="$(MA_RAW="$(value MACHINE_ACCOUNTS)" MA_ID="$id" MA_MODE="$mode" MA_SECRET="$secret" \
   MA_NOT_AFTER="$not_after" MA_SCOPES="$scopes_csv" MA_CAPABLE="$capable" "$node_bin" -e '

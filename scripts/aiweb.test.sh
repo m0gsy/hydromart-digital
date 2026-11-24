@@ -676,8 +676,38 @@ printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
 sed -i -e '/^AIWEB_N8N_MACHINE_SECRET=/d' -e '/^AIWEB_N8N_DB_PASSWORD=/d' "$BOX/.env"
 cp "$BOX/.env" "$W/before"
 secrets
-ma_refused "the base scope missing from the last good release" 'last good release'
+ma_refused "the base scope missing from the last good release" 'last good one'
+[ "$RC" = 1 ] && ok "  ...with the refusal itself (exit 1), not only the rollback warning" || bad "refusal exit code $RC: $OUT"
 rm -rf "$BOX/.deploy" "$BOX/.git"
+cp "$W/good.env" "$BOX/.env"
+# Rotation with an older live entry that is still base-only: all three n8n entries end with both
+# scopes; the two old ones keep id, secret hash, day and place.
+soon="$(date -u -d '+10 days' +%F)"
+cur_na="$(sed -n 's/^AIWEB_N8N_MACHINE_NOT_AFTER=//p' "$BASE_ENV")"
+sed -e "s/^AIWEB_N8N_MACHINE_NOT_AFTER=.*/AIWEB_N8N_MACHINE_NOT_AFTER=$soon/" -e "s/\"notAfter\":\"$cur_na\"/\"notAfter\":\"$soon\"/" "$BASE_ENV" > "$BOX/.env"
+ids_before="$(ids)"
+secrets
+IDS_BEFORE="$ids_before" IDS_AFTER="$(ids)" SC="$(val MACHINE_ACCOUNTS)" ID="$(val AIWEB_N8N_MACHINE_ID)" BOTH="$BOTH" node -e '
+  const e = process.env;
+  const a = JSON.parse(e.IDS_BEFORE), b = JSON.parse(e.IDS_AFTER);
+  if (b.length !== a.length + 1 || JSON.stringify(b.slice(0, a.length)) !== e.IDS_BEFORE) throw new Error("old entries moved");
+  const mine = JSON.parse(e.SC.slice(1, -1)).filter((x) => x.id === e.ID);
+  if (mine.length !== 3 || mine.some((x) => JSON.stringify(x.scopes) !== e.BOTH)) throw new Error("scopes " + mine.map((x) => x.scopes));
+' && [ "$RC" = 0 ] && ok "rotation: the older base-only entry and the new one all carry both scopes, the old ones unmoved" ||
+  bad "rotation with an older base-only entry: rc=$RC $OUT"
+# The kill switch on an entry with drifted scopes: every n8n entry leaves, the other account stays.
+cp "$BASE_ENV" "$BOX/.env"
+sed -i 's/^AIWEB_N8N_MACHINE_SECRET=.*/AIWEB_N8N_MACHINE_SECRET=/' "$BOX/.env"
+secrets
+why="$(accounts_ok 0)" && [ "$RC" = 0 ] && grep -qx 'AIWEB_N8N_MACHINE_SECRET=' "$BOX/.env" && printf '%s' "$OUT" | grep -qF "n8n's kill switch" &&
+  ok "off with base-only entries: every n8n entry removed, the other account untouched" || bad "off with drifted scopes: rc=$RC $why $OUT"
+# A capability that merely starts with the scope's name is not the scope.
+cp "$BASE_ENV" "$BOX/.env"
+printf '%s\n' "$CAPS" | sed 's/^  morningSummaryNotify:/  morningSummaryNotifyX:/' > "$BOX/packages/access/src/index.ts"
+secrets
+why="$(accounts_ok 2 "$BASE")" && [ "$RC" = 0 ] && cmp -s "$BOX/.env" "$BASE_ENV" && printf '%s' "$OUT" | grep -q 'no capability morningSummaryNotify yet' &&
+  ok "morningSummaryNotifyX does not make morningSummaryNotify capable" || bad "prefix capability: rc=$RC $why $OUT"
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
 cp "$W/good.env" "$BOX/.env"
 # The real packages/access declares CAPABILITIES the way the lookup above reads it.
 sed -n '/^export const CAPABILITIES = {/,/^}/p' packages/access/src/index.ts | grep -qE '^  dashboard:' &&
