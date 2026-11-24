@@ -28,6 +28,8 @@ export const DEPOT_TOKENS = {
   PriceOverrideProposalRepository: Symbol('PriceOverrideProposalRepository'),
   IncidentRepository: Symbol('IncidentRepository'),
   ApprovalRepository: Symbol('ApprovalRepository'),
+  /** HD-11: the counts behind the AI web's "waiting for your decision". */
+  PendingApprovalsReader: Symbol('PendingApprovalsReader'),
   SupplierRepository: Symbol('SupplierRepository'),
   /** HD-5: legal entities, their dated depots and the AI-web matrix. */
   LegalEntityRepository: Symbol('LegalEntityRepository'),

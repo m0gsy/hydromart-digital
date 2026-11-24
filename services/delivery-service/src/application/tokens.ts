@@ -17,4 +17,6 @@ export const DELIVERY_TOKENS = {
   EventTransport: Symbol('EventTransport'),
   EventOutbox: Symbol('EventOutbox'),
   Storage: Symbol('Storage'),
+  /** HD-11: the count behind the AI web's "waiting for your decision". */
+  PendingApprovalsReader: Symbol('PendingApprovalsReader'),
 } as const;

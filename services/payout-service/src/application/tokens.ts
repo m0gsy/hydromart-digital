@@ -10,4 +10,6 @@ export const PAYOUT_TOKENS = {
   ExpenseClaimAlert: Symbol('ExpenseClaimAlert'),
   ReleaseRequestRepository: Symbol('ReleaseRequestRepository'),
   BankAccountRepository: Symbol('BankAccountRepository'),
+  /** HD-11: the count behind the AI web's "waiting for your decision". */
+  PendingApprovalsReader: Symbol('PendingApprovalsReader'),
 } as const;

@@ -2753,19 +2753,26 @@ describe('LoanRequestPrismaRepository', () => {
 
   it('pendingCountsByDepot groups PENDING by depot, scoped, without one employee', async () => {
     const p = makePrisma();
-    m(p, 'loanRequest').groupBy.mockResolvedValue([{ depotId: 'd1', _count: { _all: 3 } }]);
+    const oldest = new Date('2026-11-20T01:02:03.000Z');
+    m(p, 'loanRequest').groupBy.mockResolvedValue([
+      { depotId: 'd1', _count: { _all: 3 }, _min: { createdAt: oldest } },
+    ]);
     const repo = new LoanRequestPrismaRepository(asService(p));
-    await expect(repo.pendingCountsByDepot(['d1', 'd2'], 'e9')).resolves.toEqual([{ depotId: 'd1', count: 3 }]);
+    await expect(repo.pendingCountsByDepot(['d1', 'd2'], 'e9')).resolves.toEqual([
+      { depotId: 'd1', count: 3, oldestAt: oldest },
+    ]);
     expect(m(p, 'loanRequest').groupBy).toHaveBeenCalledWith({
       by: ['depotId'],
       where: { status: 'PENDING', depotId: { in: ['d1', 'd2'] }, employeeId: { not: 'e9' } },
       _count: { _all: true },
+      _min: { createdAt: true },
     });
     await repo.pendingCountsByDepot(undefined, null);
     expect(m(p, 'loanRequest').groupBy).toHaveBeenLastCalledWith({
       by: ['depotId'],
       where: { status: 'PENDING' },
       _count: { _all: true },
+      _min: { createdAt: true },
     });
   });
 

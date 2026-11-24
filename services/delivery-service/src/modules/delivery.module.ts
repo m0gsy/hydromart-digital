@@ -47,6 +47,8 @@ import { DriverSettlementController } from './driver-settlement.controller';
 import { DriverPerformanceController } from './driver-performance.controller';
 import { ShiftController } from './shift.controller';
 import { SettlementController } from './settlement.controller';
+import { PendingApprovalsController } from './pending-approvals.controller';
+import { PendingApprovalsPrismaReader } from '../infrastructure/prisma/pending-approvals.prisma.reader';
 import { CommissionController } from './commission.controller';
 import { ReportController } from './report.controller';
 import { UploadController } from './upload.controller';
@@ -76,6 +78,7 @@ const providers: Provider[] = [
   { provide: DELIVERY_TOKENS.ShiftRepository, useClass: ShiftPrismaRepository },
   { provide: DELIVERY_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },
   { provide: DELIVERY_TOKENS.SettlementRepository, useClass: SettlementPrismaRepository },
+  { provide: DELIVERY_TOKENS.PendingApprovalsReader, useClass: PendingApprovalsPrismaReader },
   { provide: DELIVERY_TOKENS.OrderCoordination, useClass: OrderCoordinationHttpAdapter },
   { provide: DELIVERY_TOKENS.CashCollection, useClass: CashCollectionHttpAdapter },
   { provide: DELIVERY_TOKENS.CourierPayout, useClass: CourierPayoutHttpAdapter },
@@ -116,6 +119,7 @@ const providers: Provider[] = [
     DriverPerformanceController,
     ShiftController,
     SettlementController,
+    PendingApprovalsController,
     CommissionController,
     ReportController,
     UploadController,

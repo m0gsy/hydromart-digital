@@ -133,6 +133,9 @@ import { ShiftReminderController } from './shift-reminder.controller';
 import { ShiftReminderService } from '../application/services/shift-reminder.service';
 import { LoanRequestController, SelfLoanRequestController } from './loan-request.controller';
 import { LoanRequestInternalController } from './loan-request-internal.controller';
+import { PendingApprovalsController } from './pending-approvals.controller';
+import { PENDING_APPROVALS_READER } from '../application/ports/pending-approvals.reader';
+import { PendingApprovalsPrismaReader } from '../infrastructure/prisma/pending-approvals.prisma.reader';
 import { PerformanceController } from './performance.controller';
 import { AuditController } from './audit.controller';
 import { ReportsController } from './reports.controller';
@@ -243,6 +246,7 @@ const providers: Provider[] = [
   { provide: DEPARTMENT_REPOSITORY, useClass: DepartmentPrismaRepository },
   DepartmentService,
   { provide: LEAVE_REPOSITORY, useClass: LeavePrismaRepository },
+  { provide: PENDING_APPROVALS_READER, useClass: PendingApprovalsPrismaReader },
   LeaveService,
   { provide: ASSET_REPOSITORY, useClass: AssetPrismaRepository },
   AssetService,
@@ -275,6 +279,7 @@ const providers: Provider[] = [
     SelfLoanRequestController,
     LoanRequestController,
     LoanRequestInternalController,
+    PendingApprovalsController,
     DepotAssignmentController,
     DepotMovesInternalController,
     ShiftReminderController,

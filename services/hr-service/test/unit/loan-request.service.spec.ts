@@ -98,16 +98,21 @@ class FakeRepo implements LoanRequestRepository {
   async pendingCountsByDepot(
     depotIds: readonly string[] | undefined,
     excludeEmployeeId: string | null,
-  ): Promise<Array<{ depotId: string; count: number }>> {
-    const by = new Map<string, number>();
+  ): Promise<Array<{ depotId: string; count: number; oldestAt: Date }>> {
+    const by = new Map<string, { count: number; oldestAt: Date }>();
     for (const r of this.rows)
       if (
         r.status === 'PENDING' &&
         (!depotIds || depotIds.includes(r.depotId)) &&
         r.employeeId !== excludeEmployeeId
-      )
-        by.set(r.depotId, (by.get(r.depotId) ?? 0) + 1);
-    return [...by].map(([depotId, count]) => ({ depotId, count }));
+      ) {
+        const g = by.get(r.depotId);
+        by.set(r.depotId, {
+          count: (g?.count ?? 0) + 1,
+          oldestAt: g && g.oldestAt < r.createdAt ? g.oldestAt : r.createdAt,
+        });
+      }
+    return [...by].map(([depotId, g]) => ({ depotId, ...g }));
   }
 
   async listAll(
@@ -239,10 +244,14 @@ function make(
     },
   } as unknown as LoanService;
   const assistant = 'assistant' in overrides ? overrides.assistant : ASV;
+  const lookups = { inflight: 0, peak: 0 };
   const supervision = {
     superiorOf: async () => null,
     setSuperior: async () => {},
     assistantOfDepot: async () => {
+      lookups.peak = Math.max(lookups.peak, ++lookups.inflight);
+      await new Promise((resolve) => setImmediate(resolve));
+      lookups.inflight -= 1;
       if (assistant === 'THROW') throw new ServiceUnavailableException('depot-service');
       return assistant ?? null;
     },
@@ -255,6 +264,7 @@ function make(
   };
   return {
     repo,
+    lookups,
     created,
     sent,
     employee,
@@ -739,5 +749,38 @@ describe('LoanRequestService.decidableCount', () => {
     const done = await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 1, reason: 'x' });
     repo.rows.find((r) => r.id === done.id)!.status = 'REJECTED' as never;
     await expect(svc.decidableCount(asv)).resolves.toEqual({ total: 0 });
+  });
+});
+
+/** HD-11: the same rule for the AI web's Command Center, with the oldest request's time. */
+describe('LoanRequestService.decidableSummary', () => {
+  const DEPOT_C = '33333333-3333-3333-3333-333333333333';
+  const OLD = new Date('2026-11-01T00:00:00.000Z');
+
+  it('reads the oldest decidable request across every depot it counts', async () => {
+    const { svc, repo } = make({ assistant: ASV });
+    await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 1, reason: 'a' });
+    await repo.create({ employeeId: 'emp-2', depotId: DEPOT_B, amount: 1, reason: 'b' });
+    await repo.create({ employeeId: 'emp-3', depotId: DEPOT_C, amount: 1, reason: 'c' });
+    await repo.create({ employeeId: 'emp-asv', depotId: DEPOT_C, amount: 1, reason: 'mine' });
+    // The second depot's request is the oldest; the first and third are recent.
+    repo.rows[1]!.createdAt = OLD;
+    await expect(svc.decidableSummary(ASV, undefined)).resolves.toEqual({ count: 3, oldestAt: OLD });
+  });
+
+  it('asks about every depot at once, not one after another', async () => {
+    const { svc, repo, lookups } = make({ assistant: ASV });
+    await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 1, reason: 'a' });
+    await repo.create({ employeeId: 'emp-2', depotId: DEPOT_B, amount: 1, reason: 'b' });
+    await repo.create({ employeeId: 'emp-3', depotId: DEPOT_C, amount: 1, reason: 'c' });
+    await svc.decidableSummary(ASV, undefined);
+    expect(lookups.peak).toBe(3);
+  });
+
+  it('answers nothing for depots another assistant decides, held to the depots given', async () => {
+    const { svc, repo } = make({ assistant: 'someone-else' });
+    await repo.create({ employeeId: 'emp-1', depotId: DEPOT_A, amount: 1, reason: 'a' });
+    await repo.create({ employeeId: 'emp-2', depotId: DEPOT_B, amount: 1, reason: 'b' });
+    await expect(svc.decidableSummary(ASV, [DEPOT_A])).resolves.toEqual({ count: 0, oldestAt: null });
   });
 });

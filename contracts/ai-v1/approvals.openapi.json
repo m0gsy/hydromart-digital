@@ -1,0 +1,301 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hydromart-digital approvals waiting for the signed-in person",
+    "version": "1.0.0",
+    "description": "HD-11. How many items wait for the signed-in person's decision in each approval queue they decide, for the AI web's Command Center (\"jumlah persetujuan yang menunggu\"). Eight queues, owner decision 24 Nov 2026; x-hydromart-queues says what each one counts and who decides it.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. hydromart-digital applies that person's own role and depots, exactly as its own screens do. A machine token (aud hydromart-machine) is refused with 403 whatever its scopes. The door is the pendingApprovals capability: every staff role by default, franchise owners not; a role that decides none of the queues gets an empty list.\n\nWhat the answer shows: only the queues the person decides. A queue they may not decide is absent, never 0, so its size is never shown to someone who cannot act on it. Depot queues are counted at the depots the person oversees (their own depot, or the depots their supervision chain gives them) and decides at (a depot where an administrator denied their role the decision is left out; one where it was granted is added), the same depots hydromart-digital holds their staff screens and their decisions to; head office, finance and the other network-wide roles see the whole network. Refunds and franchise applications are network queues, counted network-wide for whoever decides them. No names, phone numbers or amounts are returned.\n\nA queue that cannot be read: when the service holding it does not answer within 5 seconds, refuses, or answers something malformed, that queue comes back with count null and error unavailable, and the other queues still answer. Show it as \"belum lengkap\", never as 0.\n\nRead-only: nothing is written and nothing is recorded in the audit trail. Rate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field, or a queue key, may be added within version 1, so ignore a key you do not know; removing or renaming one is a new contract version."
+  },
+  "servers": [
+    {
+      "url": "https://api.hydromart-digital.com"
+    }
+  ],
+  "x-hydromart-queues": [
+    {
+      "key": "priceOverrides",
+      "label": "Usulan harga depot",
+      "href": "/hq/pricing",
+      "decidedWith": [
+        "priceOverrideDecide"
+      ],
+      "depotBound": true,
+      "waiting": "Price changes a depot proposed that are still PENDING, at the depots the person decides them (a depot where their role is denied the capability is left out). The person's own proposal is counted too: they may still reject it (approving their own above the depot's auto-pass limit is refused). oldestAt: when the proposal was made. A depot-level DENY removes that depot from this count, which is stricter than the decide route: approving or rejecting a proposal does not apply depot overrides (only the person's depot scope), so a denied person could still act on it."
+    },
+    {
+      "key": "refunds",
+      "label": "Refund di atas ambang",
+      "href": "/hq/refunds",
+      "decidedWith": [
+        "refundQueue"
+      ],
+      "depotBound": false,
+      "waiting": "Refunds parked above the HQ threshold (PENDING), network-wide: the queue has no depot and is decided network-wide. Leaves out the refunds the person raised themselves: only someone else can release them (a SUPER_ADMIN may release their own, so it is counted for them). oldestAt: the last write of the payment row, because no column records when a refund parked; that is the time it was requested, or raised again for a larger sum, and it is how the HQ queue orders itself."
+    },
+    {
+      "key": "expenses",
+      "label": "Klaim biaya kurir",
+      "href": "/dashboard/expense-claims",
+      "decidedWith": [
+        "expenseApprove"
+      ],
+      "depotBound": true,
+      "waiting": "Courier expense claims PENDING review at the depots the person decides them (a claim with no depot only for a network-wide reviewer). Every amount counts for a MANAGER too: above the manager's approval ceiling they cannot approve, but they can still reject, so it waits for their decision (and for finance's). oldestAt: when the claim was filed. A claim with no depot is counted only while the person is asked network-wide; for a person whose depots an administrator override narrowed, it is not counted."
+    },
+    {
+      "key": "settlements",
+      "label": "Setoran kurir",
+      "href": "/dashboard/settlements",
+      "decidedWith": [
+        "courierSettle"
+      ],
+      "depotBound": true,
+      "waiting": "Courier cash deposits SUBMITTED, or DISPUTED and not yet ruled on again (a dispute only parks a deposit; a cashier closes it later), at the depots the person decides them. One with a shortfall charge raised waits for a second signature, so it is counted only for a person whose role holds approvals and who did not raise the charge. oldestAt: when the courier submitted it."
+    },
+    {
+      "key": "leave",
+      "label": "Cuti",
+      "href": "/hr/leave",
+      "decidedWith": [
+        "leaveApprove",
+        "hrAdmin"
+      ],
+      "depotBound": true,
+      "waiting": "Leave applications at each stage the person may decide, at the depots they decide them: stage 1 (PENDING_MANAGER) for a holder of leaveApprove, stage 2 (PENDING_HR) for a holder of hrAdmin; HR holds both, so both count for HR, while head office (hrAdmin only) counts stage 2 only. Never their own application, and at stage 2 never one they signed at stage 1. oldestAt: when the application was filed. A leave application with no depot is counted only while the person is asked network-wide; for a person whose depots an administrator override narrowed, it is not counted."
+    },
+    {
+      "key": "kasbon",
+      "label": "Kasbon",
+      "href": "/hr/loans/requests",
+      "decidedWith": [
+        "kasbonApprove"
+      ],
+      "depotBound": true,
+      "waiting": "Kasbon requests PENDING at the depots the person decides them: the depot's own assistant supervisor decides, or, where the depot has none recorded, whoever's depots include it. Never their own. A request past its three-working-day window is still counted (the screen shows it overdue). oldestAt: when the request was raised."
+    },
+    {
+      "key": "franchiseApplications",
+      "label": "Lamaran waralaba",
+      "href": "/hq/applications",
+      "decidedWith": [
+        "franchiseApplications"
+      ],
+      "depotBound": false,
+      "waiting": "Franchise applications not yet approved or rejected (PENDING, DOC_VERIFICATION or SURVEY), network-wide: an application has no depot. oldestAt: when the application was submitted."
+    },
+    {
+      "key": "approvals",
+      "label": "Persetujuan atasan depot",
+      "href": "/dashboard/approvals",
+      "decidedWith": [
+        "approvals"
+      ],
+      "depotBound": true,
+      "waiting": "Depot approval items above the depot's auto-pass limit (stock-count losses, deposit refunds, COD and gallon variances), PENDING or HELD, at the depots the person decides them. Never one the person raised themselves: nobody decides what they raised. oldestAt: when the item was raised. A depot-level DENY removes that depot from this count, which is stricter than the decide route: deciding an approval item does not apply depot overrides (only the person's depot scope), so a denied person could still act on it."
+    }
+  ],
+  "paths": {
+    "/dashboard/api/v1/dashboard/pending-approvals": {
+      "get": {
+        "summary": "How many items wait for my decision, per queue I decide.",
+        "description": "The queues the person decides, in the fixed order of x-hydromart-queues. Each has key, count, oldestAt (the UTC time the oldest counted item was raised; null when none waits), href (the hydromart-digital web path where the person acts on it, to be opened on the hydromart-digital web origin) and, only when the queue could not be read, error.\n\nThe number means items waiting for THIS person's decision, not the rows on their screen, so it can be lower than the screen's list: it leaves out what they raised themselves, what only a higher approver can release, and the depots where their role is denied the decision. A depot-level DENY can make it stricter than the decide route of two queues (price overrides, approvals). x-hydromart-queues gives the rule for each queue (waiting).",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The queues the person decides. An empty list: they decide none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingApprovals"
+                },
+                "example": {
+                  "queues": [
+                    {
+                      "key": "priceOverrides",
+                      "count": 3,
+                      "oldestAt": "2026-11-20T01:02:03.000Z",
+                      "href": "/hq/pricing"
+                    },
+                    {
+                      "key": "leave",
+                      "count": 0,
+                      "oldestAt": null,
+                      "href": "/hr/leave"
+                    },
+                    {
+                      "key": "franchiseApplications",
+                      "count": null,
+                      "oldestAt": null,
+                      "href": "/hq/applications",
+                      "error": "unavailable"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI access was switched off (the published key set is empty). Hand off again for a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, or a person whose role does not hold pendingApprovals (a franchise owner, by default). Not worth retrying until their role changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: hydromart-digital could not work out which depots a multi-depot person oversees, and they have no depot of their own to fall back on. Retry later. (One queue failing is not a 503: it is that queue with error unavailable.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "aiToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Authorization: Bearer <accessToken> from POST /auth/api/v1/auth/handoff/token. ES256, aud hydromart-ai; carries the person's own role and depot."
+      }
+    },
+    "schemas": {
+      "PendingApprovals": {
+        "type": "object",
+        "required": [
+          "queues"
+        ],
+        "properties": {
+          "queues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PendingQueue"
+            },
+            "description": "The queues the person decides, in the fixed order of x-hydromart-queues."
+          }
+        }
+      },
+      "PendingQueue": {
+        "type": "object",
+        "required": [
+          "key",
+          "count",
+          "oldestAt",
+          "href"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "priceOverrides",
+              "refunds",
+              "expenses",
+              "settlements",
+              "leave",
+              "kasbon",
+              "franchiseApplications",
+              "approvals"
+            ]
+          },
+          "count": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Items waiting for this person. Null only together with error: never read it as 0."
+          },
+          "oldestAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "UTC time the oldest counted item was raised. Null when none waits, or when unavailable."
+          },
+          "href": {
+            "type": "string",
+            "description": "Path on the hydromart-digital web where the person acts on this queue."
+          },
+          "error": {
+            "type": "string",
+            "enum": [
+              "unavailable"
+            ],
+            "description": "Present only when the queue could not be read: show \"belum lengkap\"."
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "statusCode",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "description": "UNAUTHORIZED, FORBIDDEN, RATE_LIMITED or SERVICE_UNAVAILABLE."
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "For people reading logs. Route on statusCode and code."
+          }
+        }
+      }
+    }
+  }
+}

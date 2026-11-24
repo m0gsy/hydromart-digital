@@ -75,6 +75,7 @@ import { EventPublisherHttpAdapter } from '../infrastructure/http/event-publishe
 import { PriceOverrideProposalPrismaRepository } from '../infrastructure/prisma/price-override-proposal.prisma.repository';
 import { IncidentPrismaRepository } from '../infrastructure/prisma/incident.prisma.repository';
 import { ApprovalPrismaRepository } from '../infrastructure/prisma/approval.prisma.repository';
+import { PendingApprovalsPrismaReader } from '../infrastructure/prisma/pending-approvals.prisma.reader';
 import { SupplierPrismaRepository } from '../infrastructure/prisma/supplier.prisma.repository';
 import { LegalEntityPrismaRepository } from '../infrastructure/prisma/legal-entity.prisma.repository';
 import { PurchaseOrderPrismaRepository } from '../infrastructure/prisma/purchase-order.prisma.repository';
@@ -116,6 +117,7 @@ import { EventOutboxController } from './event-outbox.controller';
 import { DepotPriceOverrideController, PriceOverrideController } from './price-override.controller';
 import { IncidentController } from './incident.controller';
 import { ApprovalController } from './approval.controller';
+import { PendingApprovalsController } from './pending-approvals.controller';
 import { SupplierController } from './supplier.controller';
 import { LegalEntityController } from './legal-entity.controller';
 import { PurchaseOrderController } from './purchase-order.controller';
@@ -214,6 +216,7 @@ const providers: Provider[] = [
   },
   { provide: DEPOT_TOKENS.IncidentRepository, useClass: IncidentPrismaRepository },
   { provide: DEPOT_TOKENS.ApprovalRepository, useClass: ApprovalPrismaRepository },
+  { provide: DEPOT_TOKENS.PendingApprovalsReader, useClass: PendingApprovalsPrismaReader },
   { provide: DEPOT_TOKENS.SupplierRepository, useClass: SupplierPrismaRepository },
   { provide: DEPOT_TOKENS.LegalEntityRepository, useClass: LegalEntityPrismaRepository },
   { provide: DEPOT_TOKENS.PurchaseOrderRepository, useClass: PurchaseOrderPrismaRepository },
@@ -275,6 +278,7 @@ const providers: Provider[] = [
     PriceOverrideController,
     IncidentController,
     ApprovalController,
+    PendingApprovalsController,
     SupplierController,
     LegalEntityController,
     PurchaseOrderController,

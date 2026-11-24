@@ -153,6 +153,16 @@ describe('CAPABILITIES', () => {
     expect(CAPABILITIES.franchiseApplications).toEqual(['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);
   });
 
+  // HD-11: the door to "what waits for my decision" is every staff role; the answer itself only
+  // names the queues the caller decides. Owners are fenced by ownership, not by depot scope.
+  it('opens the pending-approval counts to every staff role, not owners or customers', () => {
+    for (const role of ['STAFF_DEPOT', 'SUPERVISOR', 'MARKETING', 'HEAD_OFFICE', 'FINANCE', 'HR', 'MANAGER']) {
+      expect(can('pendingApprovals', role)).toBe(true);
+    }
+    expect(can('pendingApprovals', 'FRANCHISE_OWNER')).toBe(false);
+    expect(can('pendingApprovals', 'CUSTOMER')).toBe(false);
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);
