@@ -285,8 +285,8 @@ export class MoneyMetricsService {
     const t = await this.refundTotals(c);
     if (!t) return c.none(DOWN);
     return c.ok(
-      { refundIdr: t.counted, refundOfCancelledOrdersIdr: t.notCounted },
-      'refund yang benar-benar dikembalikan menurut tanggal refund, pesanan antar dan kasir, hanya pesanan yang masih dihitung omzet; refund pesanan batal atau void dipisah',
+      { refundIdr: t.counted, refundOfCancelledAndVoidOrdersIdr: t.notCounted },
+      'refund yang benar-benar dikembalikan menurut tanggal refund, pesanan antar dan kasir, hanya pesanan yang masih dihitung omzet; refund pesanan batal dan void dipisah',
     );
   }
 
@@ -365,16 +365,31 @@ export class MoneyMetricsService {
     }
     if (id === 'U-05') {
       const cash = rows.filter((r) => r.channel === 'counter' && r.method === 'CASH');
-      return c.ok(rp(sum(cash, (r) => r.amountIdr)), 'kas konter: tunai lunas di kasir menurut tanggal lunas, tanpa modal awal; selisih shift belum ada');
+      const shifts = await this.perDepot(c, (d, r) => this.sources.shiftVariance(d, r));
+      return c.ok(
+        {
+          cashIdr: rp(sum(cash, (r) => r.amountIdr)),
+          // A sub-number whose source cannot answer says so inside the answer; it is never left out or 0.
+          shiftVariance: shifts
+            ? { shifts: sum(shifts, (s) => s.shifts), shortfallIdr: rp(sum(shifts, (s) => s.shortfallIdr)), surplusIdr: rp(sum(shifts, (s) => s.surplusIdr)) }
+            : { status: 'belum_ada', reason: DOWN },
+        },
+        'kas konter: tunai lunas di kasir menurut tanggal lunas, tanpa modal awal; selisih shift = uang dihitung dikurangi seharusnya pada shift yang ditutup dalam periode, kurang dan lebih terpisah',
+      );
     }
     const collected = rp(sum(rows.filter((r) => r.channel === 'delivery' && r.method === 'CASH'), (r) => r.amountIdr));
-    const dep = await this.perDepot(c, (d, r) => this.sources.codDeposited(d, r));
+    const dep = await this.perDepot(c, (d, r) => this.sources.codPeriod(d, r));
     if (!dep) return c.none(DOWN);
-    const deposited = rp(sum(dep, (r) => r.depositedIdr));
-    const expected = rp(sum(dep, (r) => r.expectedIdr));
     return c.ok(
-      { collectedIdr: collected, expectedIdr: expected, depositedIdr: deposited, netVarianceIdr: deposited - expected },
-      'COD: tertagih = tunai lunas pada pesanan antar menurut tanggal lunas; disetor = setoran kurir yang diterima; selisih = disetor dikurangi seharusnya (bersih, kurang dan lebih tidak dipisah); belum disetor belum ada per periode',
+      {
+        collectedIdr: collected,
+        depositedIdr: rp(sum(dep, (r) => r.depositedIdr)),
+        undepositedIdr: rp(sum(dep, (r) => r.undepositedIdr)),
+        expectedIdr: rp(sum(dep, (r) => r.expectedIdr)),
+        shortfallIdr: rp(sum(dep, (r) => r.shortfallIdr)),
+        surplusIdr: rp(sum(dep, (r) => r.surplusIdr)),
+      },
+      'COD: tertagih = tunai lunas pada pesanan antar menurut tanggal lunas; disetor = setoran kurir terverifikasi menurut tanggal verifikasi; belum disetor = COD pesanan terkirim pada periode yang belum masuk setoran mana pun; seharusnya disetor dengan kurang dan lebih dijumlah terpisah (shortfallIdr, surplusIdr)',
     );
   }
 
@@ -423,10 +438,26 @@ export class MoneyMetricsService {
     if (ids.length === 0) return c.none('Tidak ada depot yang tercakup penuh dalam bulan ini (ada yang pindah badan hukum di tengah bulan).');
     if (!can('payrollRead', c.user.role, ids)) return c.held('Arus kas memuat gaji; hanya peran yang boleh membaca penggajian.');
     const month = c.period.from.slice(0, 7);
+    const unfinished = await this.payrollUnfinished(ids, month);
+    if (unfinished) return c.none(unfinished);
     const rows = await this.perDepot(c, (d) => this.sources.cashFlow(d, month));
     if (!rows) return c.none(DOWN);
     if (rows.some((r) => r.netCashFlowIdr === null)) return c.none('Arus kas belum lengkap: ada unsur biaya yang belum terbaca (gaji belum digaji atau sumber tidak menjawab).');
-    return c.ok(rp(sum(rows, (r) => r.netCashFlowIdr as number)), 'arus kas bersih: (omzet dikurangi refund) dikurangi pembelian diterima, gaji dibayar dan kas keluar; bukan laba');
+    return c.ok(rp(sum(rows, (r) => r.netCashFlowIdr as number)), 'arus kas bersih: (omzet dikurangi refund) dikurangi pembelian diterima, gaji dibayar (hanya bulan yang slipnya sudah disetujui atau dibayar) dan kas keluar; bukan laba');
+  }
+
+  /**
+   * Owner choice 10A: only APPROVED or PAID payslips count. A depot-month is finished when it has at
+   * least one slip and none is still DRAFT (a depot with no staff has nothing to pay). Any depot not
+   * finished makes every payroll-bearing number belum_ada. Returns the reason, or null when finished.
+   */
+  private async payrollUnfinished(ids: readonly string[], month: string): Promise<string | null> {
+    const rows = await this.depots.hrSummaryMany([...ids], month);
+    if (rows.some((r) => r === null || r.payrollCount === undefined || r.payrollDraftCount === undefined)) return DOWN;
+    const open = rows.filter((r) => r !== null && (r.payrollDraftCount! > 0 || (r.payrollCount === 0 && r.activeHeadcount > 0)));
+    return open.length === 0
+      ? null
+      : `Gaji bulan ini belum selesai: ${open.length} depot masih punya slip DRAFT atau belum digaji, jadi angka yang memuat gaji belum bisa dijawab.`;
   }
 
   /** L-01, L-03, L-06, L-07, L-08: the monthly P&L that /hq/pnl already serves, not a second formula. */
@@ -437,6 +468,10 @@ export class MoneyMetricsService {
     // Payroll in a depot of a few people is each person's pay: the roles that may not read it get no figure that carries it.
     if ((id === 'L-03' || id === 'L-07' || id === 'L-08') && !payVisible) {
       return c.held('Gaji dan laba bersih hanya untuk peran yang boleh membaca penggajian.');
+    }
+    if (id === 'L-03' || id === 'L-07' || id === 'L-08') {
+      const unfinished = await this.payrollUnfinished(ids, c.period.from.slice(0, 7));
+      if (unfinished) return c.none(unfinished);
     }
     const pnl = await this.dashboard.networkPnl(c.period.from.slice(0, 7), '', ids, payVisible);
     const read = new Set(pnl.depots.map((d) => d.depotId));
@@ -450,15 +485,15 @@ export class MoneyMetricsService {
       case 'L-03':
         return t.payrollIdr === null
           ? c.none('Gaji bulan ini belum selesai digaji, atau data gaji tidak terbaca.')
-          : c.ok(rp(t.payrollIdr), 'gaji pokok dan tunjangan; biaya tenaga kerja lengkap (bonus, THR, lembur, BPJS perusahaan) belum ada');
+          : c.ok(rp(t.payrollIdr), 'gaji pokok dan tunjangan, belum termasuk bonus, lembur, THR dan BPJS perusahaan');
       case 'L-07':
         return t.netProfitIdr === null
           ? c.none('Laba bersih kosong: satu unsur (omzet, HPP, gaji, komisi, klaim atau refund) belum terbaca, termasuk bulan yang belum digaji.')
-          : c.ok(rp(t.netProfitIdr), 'laba bersih rumus 17 Nov 2026: omzet - HPP - gaji pokok dan tunjangan - komisi kurir - klaim biaya - refund kasir; kas keluar di luar rumus; sewa dan listrik tidak termasuk');
+          : c.ok(rp(t.netProfitIdr), 'laba bersih rumus 17 Nov 2026: omzet - HPP - gaji pokok dan tunjangan (belum termasuk bonus, lembur, THR dan BPJS perusahaan) - komisi kurir - klaim biaya - refund kasir; kas keluar di luar rumus; sewa dan listrik tidak termasuk');
       default: {
         if (t.netProfitIdr === null) return c.none('Margin kosong: laba bersih belum terbaca.');
         if (t.revenueIdr === null || t.revenueIdr === 0) return c.none('Margin kosong: tidak ada omzet pada bulan ini.');
-        return c.ok(pct(t.netProfitIdr, t.revenueIdr), 'margin bersih: laba bersih dibagi omzet');
+        return c.ok(pct(t.netProfitIdr, t.revenueIdr), 'margin bersih: laba bersih dibagi omzet; unsur gaji di laba bersih adalah gaji pokok dan tunjangan, belum termasuk bonus, lembur, THR dan BPJS perusahaan');
       }
     }
   }

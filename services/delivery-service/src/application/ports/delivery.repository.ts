@@ -324,6 +324,16 @@ export interface DeliveryRepository {
    */
   unsettledCod(depotId: string, since: Date): Promise<UnsettledCod[]>;
   /**
+   * HD-6 H2: the same "no settlement lists the order yet" test over a delivered-at window
+   * `[from, to)` instead of a rolling 30 days: COD that should have been handed in for the period
+   * and is not in any deposit. Whole depot, not per courier.
+   */
+  undepositedCodInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ deliveries: number; amountIdr: number }>;
+  /**
    * FAILED and RESCHEDULED deliveries of a depot touched since `since` that no settlement lists:
    * the orders a courier handed back without finishing. They carry no COD of their own to
    * settle, but a courier may still be holding cash taken at the door, which only

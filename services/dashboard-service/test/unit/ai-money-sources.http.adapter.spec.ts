@@ -122,11 +122,18 @@ describe('AiMoneySourcesHttpAdapter (HD-6 H2)', () => {
     answer({});
     await expect(adapter().daysClosed(D1, RANGE)).resolves.toBeNull();
 
-    const calls = answer({ depositedIdr: 5, expectedIdr: 6, settlements: 2 });
-    await expect(adapter().codDeposited(D1, RANGE)).resolves.toEqual({ depositedIdr: 5, expectedIdr: 6 });
-    expect(calls[0].url.pathname).toBe('/api/v1/settlements/internal/deposited');
+    const period = { depositedIdr: 5, expectedIdr: 6, shortfallIdr: 2, surplusIdr: 1, undepositedIdr: 4 };
+    const calls = answer({ ...period, undepositedDeliveries: 2 });
+    await expect(adapter().codPeriod(D1, RANGE)).resolves.toEqual(period);
+    expect(calls[0].url.pathname).toBe('/api/v1/settlements/internal/cod-period');
     answer({ depositedIdr: 5 });
-    await expect(adapter().codDeposited(D1, RANGE)).resolves.toBeNull();
+    await expect(adapter().codPeriod(D1, RANGE)).resolves.toBeNull();
+
+    const shifts = answer({ shifts: 3, shortfallIdr: 2, surplusIdr: 1 });
+    await expect(adapter().shiftVariance(D1, RANGE)).resolves.toEqual({ shifts: 3, shortfallIdr: 2, surplusIdr: 1 });
+    expect(shifts[0].url.pathname).toBe('/api/v1/cashier-shifts/internal/variance');
+    answer({ shifts: 3 });
+    await expect(adapter().shiftVariance(D1, RANGE)).resolves.toBeNull();
 
     answer({ netCashFlowIdr: 9 });
     await expect(adapter().cashFlow(D1, '2026-11')).resolves.toEqual({ netCashFlowIdr: 9 });

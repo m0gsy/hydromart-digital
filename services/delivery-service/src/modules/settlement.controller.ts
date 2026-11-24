@@ -71,6 +71,17 @@ export class SettlementController {
     );
   }
 
+  /** HD-6 H2: the period's three COD numbers for the AI read API (internal key). */
+  @ApiOkResponse({ description: '`{ depositedIdr, expectedIdr, shortfallIdr, surplusIdr, undepositedIdr, undepositedDeliveries }`' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/cod-period')
+  @ApiOperation({ summary: 'COD deposited, short, over and still undeposited in [from, to) (internal service auth)' })
+  codPeriod(@Query() query: DepositedCodQueryDto) {
+    return this.settlements.codPeriod(query.depotId, new Date(query.from), new Date(query.to));
+  }
+
   /**
    * The rows behind a scheduled report, for admin-service's report sweep (15c). Internal key: the
    * caller is cron and holds no bearer. Static segment, so it is declared before any `:id`.

@@ -41,6 +41,15 @@ export interface CashierShiftRepository {
   settleLiability(id: string, by: string, note: string): Promise<boolean>;
   /** Closed shifts at the depot whose liability is still owed, oldest first (bounded). */
   listOutstandingLiabilities(depotId: string): Promise<CashierShift[]>;
+  /**
+   * HD-6 H2: shifts CLOSED in [from, to) at the depot: how many, and the counted-minus-expected
+   * variance of those that are short and of those that are over, each as a positive amount.
+   */
+  varianceInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ shifts: number; shortfallIdr: number; surplusIdr: number }>;
   /** Sum of liabilities on this cashier's CLOSED shifts at the depot, other than `exceptShiftId`. */
   outstandingLiability(depotId: string, cashierId: string, exceptShiftId?: string): Promise<number>;
 }

@@ -18,6 +18,20 @@ export interface DepotSalesRow {
   deliveredOrders: number;
 }
 
+export interface CodPeriod {
+  depositedIdr: number;
+  expectedIdr: number;
+  shortfallIdr: number;
+  surplusIdr: number;
+  undepositedIdr: number;
+}
+
+export interface ShiftVariance {
+  shifts: number;
+  shortfallIdr: number;
+  surplusIdr: number;
+}
+
 export type MoneyKind = 'collected' | 'pending' | 'refunded';
 
 /** payment-service `payments/internal/depot-money`: money by the depot of the order. */
@@ -65,8 +79,10 @@ export interface AiMoneySourcesPort {
   cashbookCosts(depotId: string, range: InstantRange): Promise<{ cogsIdr: number; opexIdr: number } | null>;
   /** One depot: days of the window the depot closed its books. */
   daysClosed(depotId: string, range: InstantRange): Promise<number | null>;
-  /** One depot: courier COD handed in and accepted, and what was expected, over a window. */
-  codDeposited(depotId: string, range: InstantRange): Promise<{ depositedIdr: number; expectedIdr: number } | null>;
+  /** One depot: the period's COD (deposits verified in it, what was expected, short and over apart, delivered COD no deposit lists yet). */
+  codPeriod(depotId: string, range: InstantRange): Promise<CodPeriod | null>;
+  /** One depot: the cash variance of the till shifts closed in the window. */
+  shiftVariance(depotId: string, range: InstantRange): Promise<ShiftVariance | null>;
   /** One depot, one WIB month (`YYYY-MM`): net cash flow (arus kas), null inside when a cost term is unreadable. */
   cashFlow(depotId: string, month: string): Promise<{ netCashFlowIdr: number | null } | null>;
 }

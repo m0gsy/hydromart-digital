@@ -79,3 +79,30 @@ describe('ReportService.depotSalesSummary (fake repository)', () => {
     expect(items).toEqual([expect.objectContaining({ depotId: D1, orders: 1, revenueIdr: 100, shippingIdr: 10, cancelledOrders: 1, deliveredOrders: 1 })]);
   });
 });
+
+describe('ReportService full per-product and per-city reads (HD-6 H2)', () => {
+  const range2 = { from: new Date('2026-10-31T17:00:00.000Z'), to: new Date('2026-11-30T17:00:00.000Z') };
+  const items = (n: number) => Array.from({ length: n }, (_, i) => ({ productId: `p${i}`, productName: `P${i}`, orderCount: 1, revenue: 1 }));
+  const svcWith = (orders: Record<string, unknown>) =>
+    new ReportService(orders as never, { businessTimeZone: 'Asia/Jakarta' } as never);
+
+  it('asks for one row more than the cap and answers every product, past the top-N a report would cut at', async () => {
+    const revenueByProduct = jest.fn().mockResolvedValue(items(150));
+    await expect(svcWith({ revenueByProduct }).productRevenueAll(range2, [D1])).resolves.toEqual({ items: items(150) });
+    expect(revenueByProduct).toHaveBeenCalledWith(range2, 2001, [D1]);
+  });
+
+  it('refuses, rather than cuts, past 2000 products or cities', async () => {
+    await expect(svcWith({ revenueByProduct: async () => items(2001) }).productRevenueAll(range2, [D1])).rejects.toThrow('Terlalu banyak produk');
+    const areas = Array.from({ length: 2001 }, (_, i) => ({ area: `K${i}`, orders: 1, revenue: 1 }));
+    await expect(svcWith({ timeArea: async () => ({ heat: [], areas }) }).timeAreaAll(range2, [D1])).rejects.toThrow('Terlalu banyak kota');
+  });
+
+  it('gives every city, not the top ten', async () => {
+    const areas = Array.from({ length: 25 }, (_, i) => ({ area: `K${i}`, orders: 25 - i, revenue: 1 }));
+    const report = await svcWith({ timeArea: async () => ({ heat: [{ weekday: 1, hour: 3, orders: 2, revenue: 5 }], areas }) }).timeAreaAll(range2, [D1]);
+    expect(report.byArea).toHaveLength(25);
+    expect(report.otherAreas).toBeNull();
+    expect(report.heat[0][3]).toBe(2);
+  });
+});

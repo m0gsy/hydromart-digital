@@ -235,6 +235,11 @@ export class HrDepotResponseDto {
     description: 'Payslips generated for the period month; 0 with staff = payroll not run yet.',
   })
   payrollCount!: number;
+  @ApiProperty({
+    type: Number,
+    description: 'HD-6 H2: payslips of the month not yet APPROVED or PAID (batch route only).',
+  })
+  payrollDraftCount!: number;
   @ApiProperty({ type: Number })
   activeHeadcount!: number;
 }

@@ -31,6 +31,8 @@ countingOrderIds: jest.fn().mockResolvedValue(['o1']),
     reportsDepotCompare: jest.fn().mockResolvedValue('compare'),
     reportsDepotMonthly: jest.fn().mockResolvedValue('monthly'),
     depotSalesSummary: jest.fn().mockResolvedValue({ items: [] }),
+    productRevenueAll: jest.fn().mockResolvedValue({ items: [] }),
+    timeAreaAll: jest.fn().mockResolvedValue({ byArea: [] }),
     audienceReach: jest.fn().mockResolvedValue('reach'),
     segmentEstimate: jest.fn().mockResolvedValue('segment'),
     segmentCustomers: jest.fn().mockResolvedValue({ customerIds: ['c1'], truncated: false }),
@@ -442,6 +444,15 @@ describe('ReportController', () => {
       { from: new Date('2026-10-31T17:00:00.000Z'), to: new Date('2026-11-30T17:00:00.000Z') },
       ['d1', 'd2'],
     );
+  });
+
+  it('internalProductRevenueAll / internalTimeAreaAll: pass the whole window and the depot list', async () => {
+    const q = { depotIds: 'd1,d2', from: '2026-10-31T17:00:00.000Z', to: '2026-11-30T17:00:00.000Z' } as never;
+    const range = { from: new Date('2026-10-31T17:00:00.000Z'), to: new Date('2026-11-30T17:00:00.000Z') };
+    await controller.internalProductRevenueAll(q);
+    await controller.internalTimeAreaAll(q);
+    expect(service.productRevenueAll).toHaveBeenCalledWith(range, ['d1', 'd2']);
+    expect(service.timeAreaAll).toHaveBeenCalledWith(range, ['d1', 'd2']);
   });
 
   it('internalDepotCashFlow: asks for the payroll-inclusive month and returns the two figures', async () => {

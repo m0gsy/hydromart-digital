@@ -86,6 +86,15 @@ export interface SettlementRepository {
    * money the depot has not accepted yet is not money the depot can close its books on.
    */
   depositedInWindow(depotId: string, from: Date, to: Date): Promise<DepositedCod>;
+  /**
+   * HD-6 H2: the shortfalls and the surpluses of the settlements verified in [from, to), each
+   * summed on its own (positive rupiah) so a shortfall never cancels a surplus.
+   */
+  varianceInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ shortfallIdr: number; surplusIdr: number }>;
   /** Verified settlements handled per operator at one depot in [from,to). */
   verifiedByOperatorInWindow(
     depotId: string,

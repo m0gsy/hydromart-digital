@@ -468,6 +468,34 @@ export class ReportController {
     );
   }
 
+  /** HD-6 H2: every product's line value for the window (no top-N), for merging across stretches. */
+  @ApiOkResponse({ description: '`{ items: ProductRevenue[] }`; 422 past 2000 products.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/product-revenue-all')
+  @ApiOperation({ summary: 'All products by line value for a window (internal service auth)' })
+  internalProductRevenueAll(@Query() q: DepotSalesSummaryQueryDto) {
+    return this.reports.productRevenueAll(
+      { from: new Date(q.from), to: new Date(q.to) },
+      q.depotIds.split(','),
+    );
+  }
+
+  /** HD-6 H2: weekday x hour and EVERY delivery city for the window (no top-10), for merging across stretches. */
+  @ApiOkResponse({ description: 'The time-area report with byArea holding every city; 422 past 2000 cities.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/time-area-all')
+  @ApiOperation({ summary: 'Orders by weekday, hour and every city for a window (internal service auth)' })
+  internalTimeAreaAll(@Query() q: DepotSalesSummaryQueryDto) {
+    return this.reports.timeAreaAll(
+      { from: new Date(q.from), to: new Date(q.to) },
+      q.depotIds.split(','),
+    );
+  }
+
   /**
    * HD-6 H2: one depot's month as arus kas (F2): the same figure the monthly review prints, with
    * the payroll term included. Internal key only, because the caller decides who may see payroll

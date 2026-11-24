@@ -108,6 +108,28 @@ export class CashierShiftPrismaRepository implements CashierShiftRepository {
     return count === 1;
   }
 
+  async varianceInWindow(
+    depotId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ shifts: number; shortfallIdr: number; surplusIdr: number }> {
+    const where = {
+      depotId,
+      status: CashierShiftStatus.CLOSED,
+      closedAt: { gte: from, lt: to },
+    };
+    const [count, short, over] = await Promise.all([
+      this.prisma.cashierShift.count({ where: { ...where, variance: { not: null } } }),
+      this.prisma.cashierShift.aggregate({ where: { ...where, variance: { lt: 0 } }, _sum: { variance: true } }),
+      this.prisma.cashierShift.aggregate({ where: { ...where, variance: { gt: 0 } }, _sum: { variance: true } }),
+    ]);
+    return {
+      shifts: count,
+      shortfallIdr: Math.abs(short._sum.variance ?? 0),
+      surplusIdr: over._sum.variance ?? 0,
+    };
+  }
+
   async listOutstandingLiabilities(depotId: string): Promise<CashierShift[]> {
     const rows = await this.prisma.cashierShift.findMany({
       where: {

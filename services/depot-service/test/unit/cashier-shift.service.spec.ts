@@ -91,6 +91,16 @@ class InMemoryShifts implements CashierShiftRepository {
     row.liabilityNote = note;
     return true;
   }
+  async varianceInWindow(depotId: string, from: Date, to: Date) {
+    const rows = this.rows.filter(
+      (r) => r.depotId === depotId && r.status === CashierShiftStatus.CLOSED && r.variance !== null && r.closedAt! >= from && r.closedAt! < to,
+    );
+    return {
+      shifts: rows.length,
+      shortfallIdr: rows.filter((r) => r.variance! < 0).reduce((s, r) => s - r.variance!, 0),
+      surplusIdr: rows.filter((r) => r.variance! > 0).reduce((s, r) => s + r.variance!, 0),
+    };
+  }
   async listOutstandingLiabilities(depotId: string): Promise<CashierShift[]> {
     return this.rows.filter(
       (r) =>
@@ -525,5 +535,16 @@ describe('CashierShiftService', () => {
     const view = await service.list(DEPOT);
     expect(view.open.map((s) => s.id)).toEqual([second.id]);
     expect(view.closed.map((s) => s.id)).toEqual([opened.id]);
+  });
+});
+
+describe('CashierShiftService.varianceInWindow (HD-6 H2)', () => {
+  it('passes the window to the repository and answers its figures', async () => {
+    const varianceInWindow = jest.fn().mockResolvedValue({ shifts: 2, shortfallIdr: 5, surplusIdr: 1 });
+    const service = new CashierShiftService({ varianceInWindow } as never, {} as never, {} as never, {} as never);
+    const from = new Date('2026-10-31T17:00:00.000Z');
+    const to = new Date('2026-11-30T17:00:00.000Z');
+    await expect(service.varianceInWindow('d1', from, to)).resolves.toEqual({ shifts: 2, shortfallIdr: 5, surplusIdr: 1 });
+    expect(varianceInWindow).toHaveBeenCalledWith('d1', from, to);
   });
 });

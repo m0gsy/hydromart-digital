@@ -392,8 +392,8 @@
           "P-02": {
             "unit": "Rp",
             "wholeMonthOnly": false,
-            "value": "{ refundIdr, refundOfCancelledOrdersIdr }",
-            "rules": "Refunds actually paid back, by refund date, delivery and counter orders. refundIdr counts only orders that still count as sales; refunds of cancelled or void orders are given apart. belum_ada when payment-service or order-service cannot be read."
+            "value": "{ refundIdr, refundOfCancelledAndVoidOrdersIdr }",
+            "rules": "Refunds actually paid back, by refund date, delivery and counter orders. refundIdr counts only orders that still count as sales; refunds of cancelled (batal) and void orders are given apart in refundOfCancelledAndVoidOrdersIdr. belum_ada when payment-service or order-service cannot be read."
           },
           "P-03": {
             "unit": "Rp",
@@ -435,7 +435,7 @@
             "unit": "Rp",
             "wholeMonthOnly": false,
             "value": "[{ label, orders, revenueIdr }]",
-            "rules": "Top 10 products by line value (no shipping, no order-level discount), so the sum is below P-01. label is the product name. belum_ada with no sales. Each readable stretch is read as its own top 50 before the merge, so a product that is small in every stretch can be missed."
+            "rules": "Top 10 products by line value (no shipping, no order-level discount), so the sum is below P-01. label is the product name. Exact: every product of every readable stretch is read, merged, and only then ranked. belum_ada with no sales, or when a stretch has more than 2000 products."
           },
           "P-10": {
             "unit": "Rp",
@@ -453,7 +453,7 @@
             "unit": "pesanan, Rp",
             "wholeMonthOnly": false,
             "value": "{ heat, byWeekday, byArea, otherAreas }",
-            "rules": "Orders by weekday x hour (WIB) and the top 10 destination cities; otherAreas holds the rest. belum_ada with no orders."
+            "rules": "Orders by weekday x hour (WIB) and the top 10 destination cities; otherAreas holds the rest. Exact: every city of every readable stretch is merged before the top 10 is cut. belum_ada with no orders, or when a stretch has more than 2000 cities."
           },
           "P-14": {
             "unit": "Rp",
@@ -482,14 +482,14 @@
           "U-04": {
             "unit": "Rp",
             "wholeMonthOnly": false,
-            "value": "{ collectedIdr, expectedIdr, depositedIdr, netVarianceIdr }",
-            "rules": "collectedIdr = cash settled on delivery orders by paid date; depositedIdr = courier deposits accepted; expectedIdr = what the couriers were expected to hand in; netVarianceIdr = deposited - expected (shortfalls and surpluses are NOT given apart). Not given: \"belum disetor\" per period (its source is a rolling 30 days)."
+            "value": "{ collectedIdr, depositedIdr, undepositedIdr, expectedIdr, shortfallIdr, surplusIdr }",
+            "rules": "Three numbers: collectedIdr = cash settled on delivery orders by paid date; depositedIdr = courier deposits verified, by verification date; undepositedIdr = COD of orders delivered in the period that no deposit lists yet. expectedIdr = what the verified deposits were expected to be; shortfallIdr and surplusIdr are the short and the over of those deposits, each summed on its own (positive rupiah). belum_ada when a source cannot be read."
           },
           "U-05": {
             "unit": "Rp",
             "wholeMonthOnly": false,
-            "value": "number",
-            "rules": "Counter cash: CASH settled at the counter by paid date, no opening float. Not given: the shift variance (no per-period source)."
+            "value": "{ cashIdr, shiftVariance: { shifts, shortfallIdr, surplusIdr } | { status: \"belum_ada\", reason } }",
+            "rules": "Counter cash: CASH settled at the counter by paid date, no opening float. shiftVariance = counted minus expected cash of the till shifts closed in the period, short and over apart; if the shift source cannot be read that sub-number is {status: belum_ada, reason} inside the answer, never omitted and never 0."
           },
           "U-06": {
             "unit": "Rp",
@@ -519,7 +519,7 @@
             "unit": "Rp",
             "wholeMonthOnly": true,
             "value": "number",
-            "rules": "Labour cost, for now BASE PAY AND ALLOWANCES ONLY (label says \"gaji pokok dan tunjangan\"); bonuses, THR, overtime and employer BPJS are not in it yet. belum_ada when the month is not paid yet; ditahan for a role without payrollRead."
+            "rules": "Labour cost, for now BASE PAY AND ALLOWANCES ONLY (label: \"gaji pokok dan tunjangan, belum termasuk bonus, lembur, THR dan BPJS perusahaan\"). Only APPROVED or PAID slips count: a depot-month is finished when it has at least one slip and none is DRAFT (a depot with no staff has nothing to pay); any unfinished depot in scope makes the answer belum_ada, never 0. ditahan for a role without payrollRead."
           },
           "L-04": {
             "unit": "Rp",
@@ -543,19 +543,19 @@
             "unit": "Rp",
             "wholeMonthOnly": true,
             "value": "number",
-            "rules": "Net profit by the 17 Nov 2026 formula only: revenue - HPP - base pay and allowances - courier commission - expense claims - cashier refunds. Cashbook outflow is outside it; rent and electricity are not recorded. belum_ada when any element is unreadable, including a month not yet paid; ditahan for a role without payrollRead. The same numbers as /dashboard/network-pnl."
+            "rules": "Net profit by the 17 Nov 2026 formula only: revenue - HPP - base pay and allowances (not bonus, overtime, THR, employer BPJS) - courier commission - expense claims - cashier refunds. Cashbook outflow is outside it; rent and electricity are not recorded. belum_ada when any element is unreadable or any depot-month payroll is not finished (as L-03); ditahan for a role without payrollRead. The same numbers as /dashboard/network-pnl once the month is finished."
           },
           "L-08": {
             "unit": "persen",
             "wholeMonthOnly": true,
             "value": "number",
-            "rules": "L-07 / revenue, one decimal. belum_ada without profit or without revenue; ditahan like L-07."
+            "rules": "L-07 / revenue, one decimal. belum_ada without profit or without revenue, or while payroll is not finished; ditahan like L-07."
           },
           "L-09": {
             "unit": "Rp",
             "wholeMonthOnly": true,
             "value": "number",
-            "rules": "Net cash flow (arus kas, never \"laba\"): (revenue - refunds) - purchases received - salary paid - cashbook outflow. belum_ada while a term is unreadable; ditahan for a role without payrollRead."
+            "rules": "Net cash flow (arus kas, never \"laba\"): (revenue - refunds) - purchases received - salary paid - cashbook outflow. Its salary term takes every slip of the month, so it is belum_ada unless every depot-month payroll is finished (as L-03); ditahan for a role without payrollRead."
           }
         }
       }

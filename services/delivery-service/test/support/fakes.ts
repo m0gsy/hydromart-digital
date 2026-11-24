@@ -297,6 +297,20 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
   }
   /** Order ids a settlement already lists; tests set it (the fake has no settlement table). */
   settledOrderIds = new Set<string>();
+  async undepositedCodInWindow(depotId: string, from: Date, to: Date) {
+    const rows = this.rows.filter(
+      (r) =>
+        r.depotId === depotId &&
+        r.status === DeliveryStatus.DELIVERED &&
+        !!r.codAmount &&
+        r.codAmount > 0 &&
+        !!r.deliveredAt &&
+        r.deliveredAt >= from &&
+        r.deliveredAt < to &&
+        !this.settledOrderIds.has(r.orderId),
+    );
+    return { deliveries: rows.length, amountIdr: rows.reduce((s, r) => s + (r.codAmount ?? 0), 0) };
+  }
   async unsettledCod(depotId: string, since: Date): Promise<UnsettledCod[]> {
     const byDriver = new Map<string, UnsettledCod>();
     for (const r of this.rows) {
@@ -921,6 +935,21 @@ export class InMemorySettlementRepository implements SettlementRepository {
       .filter((r) => !query.status || r.status === query.status)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((r) => clone(r));
+  }
+  async varianceInWindow(depotId: string, from: Date, to: Date) {
+    const rows = this.rows.filter(
+      (r) =>
+        r.depotId === depotId &&
+        r.status === 'VERIFIED' &&
+        r.verifiedAt != null &&
+        r.verifiedAt >= from &&
+        r.verifiedAt < to,
+    );
+    const v = (r: (typeof rows)[number]) => r.depositedAmount - r.expectedAmount;
+    return {
+      shortfallIdr: rows.filter((r) => v(r) < 0).reduce((s, r) => s - v(r), 0),
+      surplusIdr: rows.filter((r) => v(r) > 0).reduce((s, r) => s + v(r), 0),
+    };
   }
   /** COD the cashier accepted in the window — what a depot's daily close counts. */
   async depositedInWindow(depotId: string, from: Date, to: Date) {

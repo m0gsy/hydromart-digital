@@ -563,6 +563,27 @@ export class SettlementService {
    * books: counter cash posts itself into the cashbook, courier COD does not, so without
    * this the day's takings are only half the money.
    */
+  /**
+   * HD-6 H2: the three COD numbers of a period for the AI read API. Deposited and expected are the
+   * verified settlements by verification day; shortfall and surplus are their variances apart;
+   * undeposited is delivered COD in the window that no settlement lists yet.
+   */
+  async codPeriod(depotId: string, from: Date, to: Date) {
+    const [deposited, variance, undeposited] = await Promise.all([
+      this.settlements.depositedInWindow(depotId, from, to),
+      this.settlements.varianceInWindow(depotId, from, to),
+      this.deliveries.undepositedCodInWindow(depotId, from, to),
+    ]);
+    return {
+      depositedIdr: deposited.depositedIdr,
+      expectedIdr: deposited.expectedIdr,
+      shortfallIdr: variance.shortfallIdr,
+      surplusIdr: variance.surplusIdr,
+      undepositedIdr: undeposited.amountIdr,
+      undepositedDeliveries: undeposited.deliveries,
+    };
+  }
+
   async depositedForDepot(depotId: string, from: Date, to: Date): Promise<DepositedCod> {
     return this.settlements.depositedInWindow(depotId, from, to);
   }

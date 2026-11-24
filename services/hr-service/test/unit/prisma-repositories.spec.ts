@@ -1284,6 +1284,7 @@ describe('AnalyticsPrismaRepository', () => {
         gross: { toString: () => '11000000' },
         // COUNT comes back from a raw query as a bigint.
         count: BigInt(9),
+        draft: BigInt(3),
       },
     ]);
 
@@ -1299,6 +1300,7 @@ describe('AnalyticsPrismaRepository', () => {
       payrollMtdGross: 11_000_000,
       // Flow 5a: and how many payslips stand behind it, so 0 can mean "not run yet".
       payrollCount: 9,
+      payrollDraftCount: 3,
       activeHeadcount: 9,
     });
     expect(facts.get('d2')?.absentToday).toBe(1);

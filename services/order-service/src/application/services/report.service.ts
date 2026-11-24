@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, UnprocessableEntityException } from '@nestjs/common';
 import {
   addLocalDays,
   addLocalMonths,
@@ -660,7 +660,11 @@ export class ReportService {
   }
 
   /** When orders come in and where they go; see {@link TimeAreaReport} for the definitions. */
-  async timeArea(range: ReportRange, depotIds?: readonly string[]): Promise<TimeAreaReport> {
+  async timeArea(
+    range: ReportRange,
+    depotIds?: readonly string[],
+    topAreas: number = TOP_AREAS,
+  ): Promise<TimeAreaReport> {
     const raw = await this.orders.timeArea(range, this.config.businessTimeZone, depotIds);
     const heat = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
     const byWeekday = Array.from({ length: 7 }, (_, weekday) => ({
@@ -677,14 +681,14 @@ export class ReportService {
     }
     const orders = byWeekday.reduce((n, d) => n + d.orders, 0);
     const revenue = byWeekday.reduce((n, d) => n + d.revenue, 0);
-    const rest = raw.areas.slice(TOP_AREAS);
+    const rest = raw.areas.slice(topAreas);
     return {
       ...ReportService.rangeView(range),
       orders,
       revenue,
       heat,
       byWeekday,
-      byArea: raw.areas.slice(0, TOP_AREAS),
+      byArea: raw.areas.slice(0, topAreas),
       otherAreas:
         rest.length === 0
           ? null
@@ -694,6 +698,25 @@ export class ReportService {
               revenue: rest.reduce((n, a) => n + a.revenue, 0),
             },
     };
+  }
+
+  /**
+   * HD-6 H2: the whole per-product and per-city breakdowns of a window, for the AI read API, which
+   * merges several windows before it ranks, so a top-N cut here would drop items the merge needs.
+   * Refused (422) past MAX_FULL_ROWS rows rather than cut short.
+   */
+  static readonly MAX_FULL_ROWS = 2000;
+
+  async productRevenueAll(range: ReportRange, depotIds: readonly string[]): Promise<{ items: ProductRevenue[] }> {
+    const items = await this.orders.revenueByProduct(range, ReportService.MAX_FULL_ROWS + 1, depotIds);
+    if (items.length > ReportService.MAX_FULL_ROWS) throw new UnprocessableEntityException('Terlalu banyak produk pada rentang ini.');
+    return { items };
+  }
+
+  async timeAreaAll(range: ReportRange, depotIds: readonly string[]): Promise<TimeAreaReport> {
+    const report = await this.timeArea(range, depotIds, Number.POSITIVE_INFINITY);
+    if (report.byArea.length > ReportService.MAX_FULL_ROWS) throw new UnprocessableEntityException('Terlalu banyak kota pada rentang ini.');
+    return report;
   }
 
   /** The orders touched most recently, for the dashboard's feed. */

@@ -195,3 +195,30 @@ describe('CashierShiftPrismaRepository', () => {
     });
   });
 });
+
+describe('CashierShiftPrismaRepository.varianceInWindow (HD-6 H2)', () => {
+  const from = new Date('2026-10-31T17:00:00.000Z');
+  const to = new Date('2026-11-30T17:00:00.000Z');
+
+  it('counts the shifts closed in the window and keeps short and over apart, as positive amounts', async () => {
+    const count = jest.fn().mockResolvedValue(4);
+    const aggregate = jest
+      .fn()
+      .mockResolvedValueOnce({ _sum: { variance: -30_000 } })
+      .mockResolvedValueOnce({ _sum: { variance: 5_000 } });
+    await expect(repoWith({ count, aggregate }).varianceInWindow('depot-1', from, to)).resolves.toEqual({
+      shifts: 4,
+      shortfallIdr: 30_000,
+      surplusIdr: 5_000,
+    });
+    expect(count.mock.calls[0][0].where).toMatchObject({ depotId: 'depot-1', status: 'CLOSED', closedAt: { gte: from, lt: to } });
+    expect(aggregate.mock.calls[0][0].where.variance).toEqual({ lt: 0 });
+    expect(aggregate.mock.calls[1][0].where.variance).toEqual({ gt: 0 });
+  });
+
+  it('reads nothing short or over as zero', async () => {
+    const count = jest.fn().mockResolvedValue(0);
+    const aggregate = jest.fn().mockResolvedValue({ _sum: { variance: null } });
+    await expect(repoWith({ count, aggregate }).varianceInWindow('d', from, to)).resolves.toEqual({ shifts: 0, shortfallIdr: 0, surplusIdr: 0 });
+  });
+});

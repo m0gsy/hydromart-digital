@@ -9,6 +9,7 @@ import {
   DepotMoneyRow,
   DepotSalesRow,
   ProductRow,
+  ShiftVariance,
   TimeAreaRows,
 } from '../../src/application/ports/ai-money-sources.port';
 import { DashboardSourcesPort } from '../../src/application/ports/dashboard-sources.port';
@@ -95,11 +96,14 @@ function build(scope: ReadScope = WHOLE) {
     countingOrders: jest.fn(async () => new Set(['o1'])),
     cashbookCosts: jest.fn(async () => ({ cogsIdr: 1_000, opexIdr: 300 })),
     daysClosed: jest.fn(async () => 20),
-    codDeposited: jest.fn(async () => ({ depositedIdr: 90_000, expectedIdr: 100_000 })),
+    codPeriod: jest.fn(async () => ({ depositedIdr: 90_000, expectedIdr: 100_000, shortfallIdr: 15_000, surplusIdr: 5_000, undepositedIdr: 30_000 })),
+    shiftVariance: jest.fn(async (): Promise<ShiftVariance | null> => ({ shifts: 3, shortfallIdr: 8_000, surplusIdr: 2_000 })),
     cashFlow: jest.fn(async (): Promise<{ netCashFlowIdr: number | null } | null> => ({ netCashFlowIdr: 500 })),
   };
   const sourcesPort = sources as unknown as AiMoneySourcesPort;
   const depots = {
+    // every depot's month is finished: slips exist and none is DRAFT
+    hrSummaryMany: jest.fn(async (ids: string[]) => ids.map((depotId) => ({ depotId, payrollCount: 3, payrollDraftCount: 0, activeHeadcount: 3 }))),
     payoutCosts: jest.fn(async (ids: string[]) => new Map(ids.map((d) => [d, { commissionIdr: 1_000, expenseClaimIdr: 200 }]))),
   };
   const row = (depotId: string) => ({ depotId });
@@ -142,7 +146,7 @@ describe('MoneyMetricsService: sales (3.1)', () => {
 
   it('counts only refunds of orders that still count, and sets the rest apart (P-02), then nets it off P-01 (P-03)', async () => {
     const { ask, sources } = build();
-    expect((await ask('P-02')).value).toEqual({ refundIdr: 15_000, refundOfCancelledOrdersIdr: 7_000 });
+    expect((await ask('P-02')).value).toEqual({ refundIdr: 15_000, refundOfCancelledAndVoidOrdersIdr: 7_000 });
     expect(sources.countingOrders).toHaveBeenCalledWith(['o1', 'o2']);
     expect((await ask('P-03')).value).toBe(985_000);
   });
@@ -157,6 +161,38 @@ describe('MoneyMetricsService: sales (3.1)', () => {
       { label: 'Galon isi ulang', orders: 18, revenueIdr: 1_800_000 },
       { label: 'Air kemasan', orders: 6, revenueIdr: 300_000 },
     ]);
+  });
+
+  it('ranks products only AFTER merging the stretches: an item small in each stretch can still make the top ten', async () => {
+    const two = scopeOf([span(D1, '2026-11-01', '2026-11-15'), span(D2, '2026-11-01', '2026-11-30')]);
+    const { ask, sources } = build(two);
+    // 'Kecil' is 11th in each stretch (a per-stretch top ten would drop it twice) but adds up to the
+    // biggest once both stretches are merged.
+    const stretch = (big: number) => [
+      ...Array.from({ length: 10 }, (_, i) => ({ productId: `b${i}`, productName: `Besar ${i}`, orders: 1, revenueIdr: big + i })),
+      { productId: 'k', productName: 'Kecil', orders: 1, revenueIdr: 99 },
+    ];
+    sources.productRevenue.mockResolvedValueOnce(stretch(100)).mockResolvedValueOnce(stretch(1));
+    const top = (await ask('P-09')).value as { label: string; revenueIdr: number }[];
+    expect(top).toHaveLength(10);
+    expect(top.find((p) => p.label === 'Kecil')?.revenueIdr).toBe(198);
+    expect(top[0].label).toBe('Kecil');
+  });
+
+  it('ranks cities only after merging too: a city small in each stretch survives into the top ten', async () => {
+    const two = scopeOf([span(D1, '2026-11-01', '2026-11-15'), span(D2, '2026-11-01', '2026-11-30')]);
+    const { ask, sources } = build(two);
+    const cities = (n: number) => [
+      ...Array.from({ length: 10 }, (_, i) => ({ area: `Kota ${i}`, orders: n + i, revenueIdr: 1 })),
+      { area: 'Kecil', orders: n + 9, revenueIdr: 1 },
+    ];
+    const mk = (n: number) => ({ heat: [], byWeekday: [{ weekday: 1, orders: 1, revenueIdr: 1 }], byArea: cities(n), otherAreas: null });
+    sources.timeArea.mockResolvedValueOnce(mk(1)).mockResolvedValueOnce(mk(1));
+    const v = (await ask('P-13')).value as { byArea: { label: string; orders: number }[]; otherAreas: { orders: number } };
+    expect(v.byArea).toHaveLength(10);
+    expect(v.byArea.find((a) => a.label === 'Kecil')?.orders).toBe(20);
+    // the one city that fell out is counted in otherAreas, not lost
+    expect(v.otherAreas.orders).toBe(2);
   });
 
   it('merges time and area across stretches, with the other cities counted apart', async () => {
@@ -283,14 +319,28 @@ describe('MoneyMetricsService: cash and COD (3.3)', () => {
       totalIdr: 200_000,
       byMethod: { CASH: { amountIdr: 160_000, count: 5 }, QRIS: { amountIdr: 40_000, count: 1 } },
     });
-    expect((await ask('U-05')).value).toBe(60_000);
+    expect((await ask('U-05')).value).toEqual({
+      cashIdr: 60_000,
+      shiftVariance: { shifts: 6, shortfallIdr: 16_000, surplusIdr: 4_000 },
+    });
     // two depots, one stretch: deposited and expected are summed over both depots
     expect((await ask('U-04')).value).toEqual({
       collectedIdr: 100_000,
-      expectedIdr: 200_000,
       depositedIdr: 180_000,
-      netVarianceIdr: -20_000,
+      undepositedIdr: 60_000,
+      expectedIdr: 200_000,
+      shortfallIdr: 30_000,
+      surplusIdr: 10_000,
     });
+    expect((await ask('P-02')).label).toContain('batal dan void');
+  });
+
+  it('U-05 says a till-shift variance it cannot read is belum_ada inside the answer, not left out', async () => {
+    const { ask, sources } = build();
+    sources.shiftVariance.mockResolvedValue(null);
+    const v = (await ask('U-05')).value as { cashIdr: number; shiftVariance: { status: string } };
+    expect(v.cashIdr).toBe(60_000);
+    expect(v.shiftVariance.status).toBe('belum_ada');
   });
 
   it('U-02 pending money by method and age', async () => {
@@ -315,7 +365,7 @@ describe('MoneyMetricsService: cash and COD (3.3)', () => {
     sources.money.mockResolvedValue(null);
     for (const id of ['U-01', 'U-02', 'U-04', 'U-05']) expect(await ask(id)).toMatchObject({ status: 'belum_ada' });
     sources.money.mockResolvedValue([money({ channel: 'delivery', amountIdr: 1 })]);
-    sources.codDeposited.mockResolvedValue(null as never);
+    sources.codPeriod.mockResolvedValue(null as never);
     expect(await ask('U-04')).toMatchObject({ status: 'belum_ada' });
     sources.cashbookCosts.mockResolvedValue(null as never);
     sources.daysClosed.mockResolvedValue(null as never);
@@ -342,7 +392,8 @@ describe('MoneyMetricsService: profit and loss (3.4)', () => {
 
   it('labels the payroll as base pay and allowances, and the profit as the 17 Nov formula', async () => {
     const { ask } = build();
-    expect((await ask('L-03')).label).toContain('gaji pokok dan tunjangan');
+    expect((await ask('L-03')).label).toBe('gaji pokok dan tunjangan, belum termasuk bonus, lembur, THR dan BPJS perusahaan');
+    expect((await ask('L-08')).label).toContain('belum termasuk bonus, lembur, THR dan BPJS perusahaan');
     expect((await ask('L-07')).label).toContain('17 Nov');
     expect((await ask('L-07')).label).toContain('kas keluar di luar rumus');
   });
@@ -403,6 +454,36 @@ describe('MoneyMetricsService: profit and loss (3.4)', () => {
     dashboard.networkPnl.mockClear();
     expect((await ask('L-01', 'FINANCE_STAFF_WITHOUT_PAYROLL')).status).toBe('ok');
     expect(dashboard.networkPnl).toHaveBeenCalledWith('2026-11', '', [D1, D2], false);
+  });
+
+  it('answers belum_ada for every payroll-bearing figure while a depot-month has DRAFT slips or none yet (choice 10A)', async () => {
+    const { ask, depots, dashboard, sources } = build();
+    const state = (rows: Record<string, unknown>[]) =>
+      depots.hrSummaryMany.mockImplementation((async (ids: string[]) => ids.map((depotId, i) => ({ depotId, activeHeadcount: 3, ...rows[i % rows.length] }))) as never);
+    for (const unfinished of [
+      [{ payrollCount: 3, payrollDraftCount: 1 }, { payrollCount: 3, payrollDraftCount: 0 }],
+      [{ payrollCount: 0, payrollDraftCount: 0 }],
+    ]) {
+      state(unfinished);
+      for (const id of ['L-03', 'L-07', 'L-08', 'L-09']) {
+        const a = await ask(id);
+        expect(a).toMatchObject({ status: 'belum_ada', value: null });
+        expect(a.reason).toContain('belum selesai');
+      }
+    }
+    expect(dashboard.networkPnl).not.toHaveBeenCalled();
+    expect(sources.cashFlow).not.toHaveBeenCalled();
+    // HPP and gross profit carry no salary: still answered
+    expect((await ask('L-01')).status).toBe('ok');
+    // finished: slips and none DRAFT, and a depot with no staff at all has nothing to pay
+    depots.hrSummaryMany.mockImplementation((async (ids: string[]) => ids.map((depotId, i) => (i === 0 ? { depotId, payrollCount: 2, payrollDraftCount: 0, activeHeadcount: 2 } : { depotId, payrollCount: 0, payrollDraftCount: 0, activeHeadcount: 0 }))) as never);
+    expect((await ask('L-07')).status).toBe('ok');
+    expect((await ask('L-09')).status).toBe('ok');
+    // an old hr-service that does not say, or one that cannot answer, is not "finished"
+    depots.hrSummaryMany.mockImplementation((async (ids: string[]) => ids.map((depotId) => ({ depotId, payrollCount: 3, activeHeadcount: 3 }))) as never);
+    expect(await ask('L-07')).toMatchObject({ status: 'belum_ada' });
+    depots.hrSummaryMany.mockImplementation((async (ids: string[]) => ids.map(() => null)) as never);
+    expect(await ask('L-03')).toMatchObject({ status: 'belum_ada' });
   });
 
   it('L-09 cash flow per depot for the month, belum_ada if one cost term is unreadable', async () => {

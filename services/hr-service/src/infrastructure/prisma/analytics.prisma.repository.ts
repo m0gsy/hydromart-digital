@@ -178,6 +178,7 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       payrollMtdNet: 0,
       payrollMtdGross: 0,
       payrollCount: 0,
+      payrollDraftCount: 0,
       activeHeadcount: 0,
     });
     const at = (depotId: string): DepotSummaryFacts => {
@@ -200,12 +201,13 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       }),
       this.byShare
         ? this.prisma.$queryRaw<
-            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null; count: bigint }[]
+            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null; count: bigint; draft?: bigint }[]
           >`
             SELECT COALESCE(s."depotId", e."depotId") AS "depotId",
                    SUM(COALESCE(s."net", p."net")) AS "net",
                    SUM(COALESCE(s."gross", p."gross")) AS "gross",
-                   COUNT(DISTINCT p."id") AS "count"
+                   COUNT(DISTINCT p."id") AS "count",
+                   COUNT(DISTINCT p."id") FILTER (WHERE p."status" = 'DRAFT') AS "draft"
             FROM "payrolls" p
             JOIN "employees" e ON e."id" = p."employeeId"
             ${shareJoin(ids)}
@@ -213,10 +215,10 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
             GROUP BY COALESCE(s."depotId", e."depotId")
           `
         : this.prisma.$queryRaw<
-            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null; count: bigint }[]
+            { depotId: string; net: Prisma.Decimal | null; gross: Prisma.Decimal | null; count: bigint; draft?: bigint }[]
           >`
         SELECT e."depotId" AS "depotId", SUM(p."net") AS "net", SUM(p."gross") AS "gross",
-               COUNT(*) AS "count"
+               COUNT(*) AS "count", COUNT(*) FILTER (WHERE p."status" = 'DRAFT') AS "draft"
         FROM "payrolls" p
         JOIN "employees" e ON e."id" = p."employeeId"
         WHERE p."periodMonth" = ${periodMonth}
@@ -242,6 +244,7 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       // what the employer spends, the dashboard card wants what was paid out.
       at(row.depotId).payrollMtdGross = row.gross ? Number(row.gross) : 0;
       at(row.depotId).payrollCount = Number(row.count ?? 0);
+      at(row.depotId).payrollDraftCount = Number(row.draft ?? 0);
     }
     return out;
   }

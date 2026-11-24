@@ -2,11 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import {
   AiMoneySourcesPort,
+  CodPeriod,
   DepotMoneyRow,
   DepotSalesRow,
   InstantRange,
   MoneyKind,
   ProductRow,
+  ShiftVariance,
   TimeAreaRows,
 } from '../../application/ports/ai-money-sources.port';
 import { DashboardConfigService } from '../../config/dashboard-config.service';
@@ -68,7 +70,7 @@ export class AiMoneySourcesHttpAdapter implements AiMoneySourcesPort {
 
   async productRevenue(depotIds: readonly string[], range: InstantRange): Promise<ProductRow[] | null> {
     const body = (await this.call(
-      `${this.config.orderServiceUrl}/api/v1/reports/revenue-by-category?${this.q({ depotIds: depotIds.join(','), limit: '50', ...range })}`,
+      `${this.config.orderServiceUrl}/api/v1/reports/internal/product-revenue-all?${this.q({ depotIds: depotIds.join(','), ...range })}`,
     )) as { items?: unknown } | null;
     const items = body?.items;
     if (!isList(items)) return null;
@@ -83,7 +85,7 @@ export class AiMoneySourcesHttpAdapter implements AiMoneySourcesPort {
 
   async timeArea(depotIds: readonly string[], range: InstantRange): Promise<TimeAreaRows | null> {
     const body = (await this.call(
-      `${this.config.orderServiceUrl}/api/v1/reports/time-area?${this.q({ depotIds: depotIds.join(','), ...range })}`,
+      `${this.config.orderServiceUrl}/api/v1/reports/internal/time-area-all?${this.q({ depotIds: depotIds.join(','), ...range })}`,
     )) as { heat?: unknown; byWeekday?: unknown; byArea?: unknown; otherAreas?: { orders?: unknown; revenue?: unknown } | null } | null;
     if (!body || !Array.isArray(body.heat) || !body.heat.every((row) => Array.isArray(row) && row.every(isNum))) return null;
     if (!isList(body.byWeekday) || !isList(body.byArea)) return null;
@@ -144,13 +146,22 @@ export class AiMoneySourcesHttpAdapter implements AiMoneySourcesPort {
     return body && isNum(body.daysClosed) ? body.daysClosed : null;
   }
 
-  async codDeposited(depotId: string, range: InstantRange): Promise<{ depositedIdr: number; expectedIdr: number } | null> {
+  async codPeriod(depotId: string, range: InstantRange): Promise<CodPeriod | null> {
     const body = (await this.call(
-      `${this.config.deliveryServiceUrl}/api/v1/settlements/internal/deposited?${this.q({ depotId, ...range })}`,
-    )) as { depositedIdr?: unknown; expectedIdr?: unknown } | null;
-    return body && isNum(body.depositedIdr) && isNum(body.expectedIdr)
-      ? { depositedIdr: body.depositedIdr, expectedIdr: body.expectedIdr }
-      : null;
+      `${this.config.deliveryServiceUrl}/api/v1/settlements/internal/cod-period?${this.q({ depotId, ...range })}`,
+    )) as Record<string, unknown> | null;
+    const keys = ['depositedIdr', 'expectedIdr', 'shortfallIdr', 'surplusIdr', 'undepositedIdr'] as const;
+    if (!body || !keys.every((k) => isNum(body[k]))) return null;
+    return Object.fromEntries(keys.map((k) => [k, body[k]])) as unknown as CodPeriod;
+  }
+
+  async shiftVariance(depotId: string, range: InstantRange): Promise<ShiftVariance | null> {
+    const body = (await this.call(
+      `${this.config.depotServiceUrl}/api/v1/cashier-shifts/internal/variance?${this.q({ depotId, ...range })}`,
+    )) as Record<string, unknown> | null;
+    const keys = ['shifts', 'shortfallIdr', 'surplusIdr'] as const;
+    if (!body || !keys.every((k) => isNum(body[k]))) return null;
+    return { shifts: body.shifts as number, shortfallIdr: body.shortfallIdr as number, surplusIdr: body.surplusIdr as number };
   }
 
   async cashFlow(depotId: string, month: string): Promise<{ netCashFlowIdr: number | null } | null> {

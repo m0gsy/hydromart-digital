@@ -78,6 +78,11 @@ export interface DepotSummaryFacts {
    * the month's payroll has not been run yet, so its wages are UNKNOWN, not zero (flow 5a).
    */
   payrollCount: number;
+  /**
+   * HD-6 H2: payslips of the month NOT yet APPROVED or PAID (DRAFT). A month is finished only
+   * when `payrollCount > 0` and this is 0; the AI read API answers belum_ada for any other month.
+   */
+  payrollDraftCount: number;
   activeHeadcount: number;
 }
 

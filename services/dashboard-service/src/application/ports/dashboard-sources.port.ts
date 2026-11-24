@@ -153,6 +153,12 @@ export interface HrDepotSummary {
    * same reason as gross: an older hr-service reads as unknown, never as a month of free labour.
    */
   payrollCount?: number;
+  /**
+   * HD-6 H2: payslips of the month not yet APPROVED or PAID. The AI read API calls a month finished
+   * only when `payrollCount > 0` and this is 0; absent (an older hr-service) it cannot say, so it
+   * answers belum_ada.
+   */
+  payrollDraftCount?: number;
   activeHeadcount: number;
 }
 
