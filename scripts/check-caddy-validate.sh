@@ -38,7 +38,7 @@ cp -r infra/caddy "$work/as-in-git"
 validate "as in git (no staging password)" "$work/as-in-git"
 
 cp -r infra/caddy "$work/with-hash"
-hash="$(printf 'check-caddy-validate-password\n' | docker run --rm -i "$image" caddy hash-password)"
+hash="$(printf 'check-caddy-validate-password\n' | docker run --rm -i "$image" caddy hash-password --algorithm bcrypt --bcrypt-cost 10)"
 case "$hash" in '$2a$'*) ;; *) echo "check-caddy-validate: hash-password did not print a bcrypt hash" >&2; exit 1 ;; esac
 printf 'staging %s\n' "$hash" >"$work/with-hash/staging-auth/10-staging.caddy"
 validate "with a staging login hash" "$work/with-hash"

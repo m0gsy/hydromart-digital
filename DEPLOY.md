@@ -564,7 +564,9 @@ by the next part) has its front door ready before it exists:
 - `infra/caddy/sites/staging-ai.caddy` is the login-walled site. Its users are every file in
   `infra/caddy/staging-auth/`: the tracked `00-locked.caddy` (a login nobody can use) and
   `10-staging.caddy`, which the deploy writes from the `STAGING_AI_PASSWORD` secret (a bcrypt hash,
-  not in git). With no password every request is 401; with the password but no staging stack the
+  not in git; bcrypt cost 10, about 60 ms, because anyone can send credentials and each guess costs
+  this shared box one hash: the deploy must hash the password with `--algorithm bcrypt
+  --bcrypt-cost 10`, never Caddy's default of 14). With no password every request is 401; with the password but no staging stack the
   upstream is missing and the answer is 502 behind the wall.
 - `scripts/aiweb-firewall.sh` also drops TCP 22 from `edge-staging` and every network of the
   `hydromart-ai-staging` project; `scripts/docker-gc.sh` keeps the images

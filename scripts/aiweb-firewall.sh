@@ -78,6 +78,10 @@ STAGING_PROJECT="${STAGING_PROJECT:-$(sed -n 's/^name: *//p' infra/aiweb-staging
 STAGING_PROJECT="${STAGING_PROJECT:-hydromart-ai-staging}"
 [[ "$STAGING_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]] ||
   fail "'$STAGING_PROJECT' (the staging project's name) is not a compose project name, so the staging AI web's networks are unknown"
+# Never hydromart's own project or the AI web's: a wrong name here would put their bridges in the chain.
+case "$STAGING_PROJECT" in
+  hydromart | "$AI_PROJECT") fail "the staging project's name is '$STAGING_PROJECT', which is a production project; refused, so no production bridge is added to the chain" ;;
+esac
 
 # The bridges. Docker's answer is what gets written, even one naming none of these networks (then
 # there is nothing to close, and the chain is emptied). With no answer at all (the daemon down,

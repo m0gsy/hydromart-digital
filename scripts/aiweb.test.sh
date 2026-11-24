@@ -1228,6 +1228,13 @@ fw
 fw STAGING_PROJECT='x # y'
 [ "$RC" = 1 ] && grep -qF "'x # y' (the staging project's name) is not a compose project name" <<<"$OUT" &&
   ok "a staging project name that is not one is refused before iptables" || bad "a bad staging name ($RC): $OUT"
+for prod in hydromart hydromart-ai; do
+  : > "$W/log"
+  fw "STAGING_PROJECT=$prod"
+  [ "$RC" = 1 ] && grep -qF "is a production project; refused" <<<"$OUT" && ! grep -q '^iptables' "$W/log" &&
+    ok "a staging project named '$prod' (a production project) is refused before iptables is touched" ||
+    bad "staging project '$prod' ($RC): $OUT"
+done
 rm -f "$T/.deploy/alerted/aiweb-firewall"
 reset_fakes
 fw
