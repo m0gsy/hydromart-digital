@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsIn, IsUUID } from 'class-validator';
+
+import { Role } from '@hydromart/platform';
 
 import { PENDING_QUEUE_KEYS } from '../../application/ports/pending-approval-sources.port';
 
@@ -44,8 +46,8 @@ export class PendingForAccountQueryDto {
   @IsUUID()
   accountId!: string;
 
-  @ApiProperty({ example: 'DIREKTUR' })
-  @IsString()
-  @IsNotEmpty()
+  // Internal-key only, and answered only for a network-wide role (PendingApprovalsService.forAccount).
+  @ApiProperty({ example: 'DIREKTUR', enum: Object.values(Role) })
+  @IsIn(Object.values(Role))
   role!: string;
 }

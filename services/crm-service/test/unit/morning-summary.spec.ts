@@ -51,14 +51,13 @@ describe('summaryOf', () => {
     expect(summaryOf([q('leave', 0, null, '/hr/leave')])).toBeNull();
   });
 
-  it('says an unreadable queue as unreadable, never as 0, and still speaks when it is all there is', () => {
+  it('says an unreadable queue as unreadable, never as 0, beside the ones that could be read', () => {
     expect(summaryOf([q('leave', 3, '2026-11-20T01:00:00.000Z', '/hr/leave'), q('refunds', null, null, '/hq/refunds', 'unavailable')]))
       .toMatchObject({ summary: 'Cuti 3, Refund belum terbaca', href: '/hr/leave' });
-    expect(summaryOf([q('refunds', null, null, '/hq/refunds', 'unavailable')])).toEqual({
-      summary: 'Refund belum terbaca',
-      oldest: '',
-      href: null,
-    });
+    // Nothing readable waits: nothing real to say yet, so it is a failure to retry, not a row.
+    expect(() => summaryOf([q('refunds', null, null, '/hq/refunds', 'unavailable'), q('leave', 0, null, '/hr/leave')])).toThrow(
+      /no queue could be read/,
+    );
   });
 
   it('opens the queue with the most waiting, the first on a tie, and names an unknown queue as it came', () => {
@@ -212,14 +211,18 @@ describe('MorningSummaryService', () => {
     expect(repo.records.map((r) => r.customerId).sort()).toEqual(['di-1', 'di-2']);
   });
 
-  it('still files a summary that has only unreadable queues to say, opening the inbox', async () => {
-    const { service, repo } = build({ 'di-1': [q('refunds', null, null, '/hq/refunds', 'unavailable')] });
-    await service.run(EVENT, '2026-11-25');
-    expect(repo.records[0]).toMatchObject({
-      customerId: 'di-1',
-      message: 'Persetujuan yang menunggu Anda: Refund belum terbaca.',
-    });
-    expect(repo.records[0]!.destination).toBeNull();
+  it('files nothing for a recipient none of whose queues could be read, so the retry can file the real one', async () => {
+    const answers: Record<string, PendingQueueAnswer[]> = {
+      'di-1': [q('refunds', null, null, '/hq/refunds', 'unavailable'), q('leave', 0, null, '/hr/leave')],
+      'di-2': QUEUES,
+    };
+    const { service, repo, forAccount } = build(answers);
+    await expect(service.run(EVENT, '2026-11-25')).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(repo.records.map((r) => r.customerId)).toEqual(['di-2']);
+    answers['di-1'] = [q('leave', 2, '2026-11-20T01:00:00.000Z', '/hr/leave')];
+    forAccount.mockImplementation(async (id: string) => answers[id]!);
+    await expect(service.run(EVENT, '2026-11-25')).resolves.toMatchObject({ notified: 2 });
+    expect(repo.records.find((r) => r.customerId === 'di-1')!.message).toContain('Cuti 2');
   });
 
   it('skips an account whose role the directory cannot tell', async () => {
@@ -297,6 +300,23 @@ describe('PendingApprovalsHttpAdapter', () => {
       // A count that is not a number is never read as 0.
       { key: 'kasbon', count: null, oldestAt: null, href: '/hr/loans/requests', error: 'unavailable' },
     ]);
+  });
+
+  it.each([
+    ['a key that is not a plain name', { key: 'Cuti 99: klik', count: 1, oldestAt: null, href: '/hr/leave' }],
+    ['a key that is not text', { key: 7, count: 1, oldestAt: null, href: '/hr/leave' }],
+    ['an href that is not an app path', { key: 'leave', count: 1, oldestAt: null, href: 'https://evil.test' }],
+  ])('throws on %s, so that recipient fails rather than a made-up line being sent', async (_label, queue) => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ queues: [queue] }) } as never);
+    await expect(new PendingApprovalsHttpAdapter(cfg()).forAccount('a', 'r')).rejects.toThrow('malformed');
+  });
+
+  it('says a queue it has no label for by its key, not dropped', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ queues: [{ key: 'newQueue', count: 1, oldestAt: null, href: '/x' }] }),
+    } as never);
+    await expect(new PendingApprovalsHttpAdapter(cfg()).forAccount('a', 'r')).resolves.toHaveLength(1);
   });
 
   it('throws when it is not configured, refused, or answered something malformed', async () => {

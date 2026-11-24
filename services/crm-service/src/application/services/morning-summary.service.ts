@@ -35,7 +35,7 @@ export class MorningSummaryService {
   /**
    * `eventId` is the dedupe base: a recipient who already has the day's row is not sent it again,
    * so a retry or a replay of the trigger sends nothing twice. THROWS 503 when the recipients or
-   * anybody's queues could not be read; the rows already filed stay, and the same retry finishes the rest.
+   * anybody's queues could not be read (a recipient none of whose queues could be read counts as failed and gets no row); the rows already filed stay, and the same retry finishes the rest.
    */
   async run(eventId: string, date: string): Promise<MorningSummaryResult> {
     const recipients = await this.recipients().catch((e: Error) => {
@@ -55,7 +55,7 @@ export class MorningSummaryService {
         await this.notifications.notify(
           NotificationEvent.MORNING_SUMMARY,
           '',
-          { summary: text.summary, oldest: text.oldest, ...(text.href ? { href: text.href } : {}) },
+          { summary: text.summary, oldest: text.oldest, href: text.href },
           id,
           null,
           `${eventId}:${id}`,

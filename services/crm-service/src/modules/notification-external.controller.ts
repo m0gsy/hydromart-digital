@@ -34,9 +34,10 @@ const oneLine = (value: string): string =>
 
 /*
  * AI-5 — notifications a machine account (n8n) raises in hydromart's own staff feed and push.
- * Only a `machine` ES256 token is admitted, and only with the route's capability in its scopes
- * (a staff token needs the capability itself, which no role but SUPER_ADMIN holds). Each call is
- * written to the audit trail before it runs and refused with 503 when it cannot be.
+ * Only a `machine` ES256 token is admitted, and only with the route's capability in its scopes.
+ * An ES256 token that is not a machine's (the AI web's, whatever the person's role) is refused. A
+ * staff session token is checked by @Can alone: only SUPER_ADMIN holds these capabilities, so only
+ * a superuser session (audited as that person) gets in besides n8n. Each call is written to the audit trail before it runs and refused with 503 when it cannot be.
  *
  * Owner rule 24 Nov 2026: every kind raised here also goes out by email (and by WhatsApp once
  * Meta is ready). A new kind needs its entry in STAFF_EMAIL_TEMPLATES and a switch in

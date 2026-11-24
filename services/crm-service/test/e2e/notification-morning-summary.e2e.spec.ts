@@ -63,6 +63,7 @@ describe('POST notifications/external/morning-summary (AI-9)', () => {
   let app: INestApplication;
   let repo: InMemoryNotificationRepository;
   let direktur: string;
+  let superAdmin: string;
   const before: AuditEvent[] = [];
   const pushed: string[] = [];
   const emailed: StaffEmail[] = [];
@@ -139,6 +140,12 @@ describe('POST notifications/external/morning-summary (AI-9)', () => {
         { sub: 'di-1', role: 'DIREKTUR', phone: '+62811' },
         { secret: SECRET, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
       );
+    superAdmin = app
+      .get(JwtService)
+      .sign(
+        { sub: 'sa-1', role: 'SUPER_ADMIN', phone: '+62812' },
+        { secret: SECRET, issuer: TOKEN_ISSUER, audience: TOKEN_AUDIENCE },
+      );
   });
 
   afterAll(async () => {
@@ -183,13 +190,27 @@ describe('POST notifications/external/morning-summary (AI-9)', () => {
 
   it.each([
     ['a machine token without the scope', () => machineToken(['franchiseApplicationNotify'])],
+    ['a machine token with no scopes at all', () => machineToken([])],
     ["a director's own session token", () => direktur],
+    // SUPER_ADMIN holds every capability, yet through the AI web a person is not a machine:
+    // only @ExternalAccess('machine') refuses this one.
+    [
+      'the AI web token of a SUPER_ADMIN',
+      () => es256({ iss: 'hydromart-auth', aud: 'hydromart-ai', sub: 'sa-1', role: 'SUPER_ADMIN', exp: exp() }),
+    ],
     [
       'a director through the AI web',
       () => es256({ iss: 'hydromart-auth', aud: 'hydromart-ai', sub: 'di-1', role: 'DIREKTUR', exp: exp() }),
     ],
   ])('refuses %s with 403', async (_label, token) => {
     await post(token()).expect(403);
+    expect(repo.records).toHaveLength(1);
+    expect(emailed).toHaveLength(1);
+  });
+
+  it('lets a superuser session in, as a person, since SUPER_ADMIN holds every capability; the dedupe still holds', async () => {
+    const res = await post(superAdmin).expect(200);
+    expect(res.body).toMatchObject({ recipients: 2, notified: 1 });
     expect(repo.records).toHaveLength(1);
   });
 

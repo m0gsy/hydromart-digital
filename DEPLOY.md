@@ -384,6 +384,9 @@ loopback only.
   `MACHINE_ACCOUNTS` entry beside `franchiseApplicationNotify` (its `SCOPE` is one capability today:
   a follow-up before the hydromart-ai workflow goes live), that route answers 403 to n8n. crm also
   needs `DASHBOARD_SERVICE_URL` (set in the compose files) to ask each recipient's queues.
+  A 503 from the route means some recipient was not reached (their queues could not be read at all):
+  rerun the same body the SAME WIB day; after midnight WIB the date is no longer today (400) and the
+  unfinished recipients get nothing for that day.
 - **Nightly** at 04:40 [`scripts/aiweb-n8n-check.sh`](scripts/aiweb-n8n-check.sh) (log
   `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is
   published, and the credentials n8n holds, must be what the image's copy of git holds. A drift

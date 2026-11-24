@@ -25,13 +25,26 @@ export class PendingApprovalsHttpAdapter implements PendingApprovalsPort {
     });
     if (!res.ok) throw new Error(`dashboard-service responded ${res.status}`);
     const body = (await res.json()) as { queues?: unknown };
-    if (!Array.isArray(body.queues)) throw new Error('dashboard-service answered something malformed');
-    return body.queues.map((q: Record<string, unknown>) => ({
-      key: String(q.key),
-      count: typeof q.count === 'number' ? q.count : null,
-      oldestAt: typeof q.oldestAt === 'string' ? q.oldestAt : null,
-      href: String(q.href),
-      ...(q.error === 'unavailable' || typeof q.count !== 'number' ? { error: 'unavailable' as const } : {}),
-    }));
+    if (!Array.isArray(body.queues))
+      throw new Error('dashboard-service answered something malformed');
+    return body.queues.map((q: Record<string, unknown>) => {
+      // A key goes into the notification text and an href into its tap: neither is taken
+      // verbatim. A queue this service has no label for is still said, by its (valid) key.
+      if (typeof q.key !== 'string' || !/^[A-Za-z][A-Za-z0-9]{0,39}$/.test(q.key)) {
+        throw new Error('dashboard-service answered a queue with a malformed key');
+      }
+      if (typeof q.href !== 'string' || !/^\/[a-z0-9/-]+$/.test(q.href)) {
+        throw new Error('dashboard-service answered a queue with a malformed href');
+      }
+      return {
+        key: q.key,
+        count: typeof q.count === 'number' ? q.count : null,
+        oldestAt: typeof q.oldestAt === 'string' ? q.oldestAt : null,
+        href: q.href,
+        ...(q.error === 'unavailable' || typeof q.count !== 'number'
+          ? { error: 'unavailable' as const }
+          : {}),
+      };
+    });
   }
 }

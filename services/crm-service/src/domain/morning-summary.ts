@@ -37,18 +37,23 @@ export interface MorningSummaryText {
   summary: string;
   /** " Tertua sejak 12 Nov." or empty. */
   oldest: string;
-  /** The queue with the most waiting: where the tap goes. Null when only unreadable queues speak. */
-  href: string | null;
+  /** The queue with the most waiting: where the tap goes. */
+  href: string;
 }
 
 /**
  * What one person's queues say, or null when nothing waits for them (no row, no push, no email:
  * no noise). A queue that could not be read is said as such, never as 0, and is not "nothing".
+ * THROWS when nothing readable waits and some queue could not be read: there is nothing real to
+ * say yet, and filing "X belum terbaca" would dedupe away the complete summary on the retry.
  */
 export function summaryOf(queues: readonly PendingQueueAnswer[]): MorningSummaryText | null {
   const waiting = queues.filter((q) => q.error === undefined && Number(q.count) > 0);
   const unreadable = queues.filter((q) => q.error !== undefined);
-  if (waiting.length === 0 && unreadable.length === 0) return null;
+  if (waiting.length === 0) {
+    if (unreadable.length === 0) return null;
+    throw new Error('no queue could be read for this recipient');
+  }
   const label = (q: PendingQueueAnswer) => QUEUE_LABEL[q.key] ?? q.key;
   const summary = [
     ...waiting.map((q) => `${label(q)} ${q.count}`),
@@ -65,6 +70,6 @@ export function summaryOf(queues: readonly PendingQueueAnswer[]): MorningSummary
   return {
     summary,
     oldest: since ? ` Tertua sejak ${wibDayMonth(since)}.` : '',
-    href: biggest?.href ?? null,
+    href: biggest!.href,
   };
 }
