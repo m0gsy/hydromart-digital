@@ -57,6 +57,7 @@ export interface PaymentStatusPatch {
   paidAt?: Date | null;
   failedAt?: Date | null;
   refundedAt?: Date | null;
+  refundSettledAt?: Date | null;
   refundReason?: string | null;
   refundRequestedBy?: string | null;
   refundDueAt?: Date | null;

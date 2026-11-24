@@ -40,7 +40,8 @@ describeRace('payment readers after a part-refund (real Postgres)', () => {
         paidAt: at,
         createdAt: at,
         refundedAmount,
-        refundedAt: refundedAmount === null ? null : at,
+        refundedAt: refundedAmount === null && status !== PaymentStatus.REFUNDED ? null : at,
+        refundSettledAt: status === PaymentStatus.REFUNDED ? at : null,
         depotId: depot,
         ...extra,
       } as never,
@@ -80,7 +81,16 @@ describeRace('payment readers after a part-refund (real Postgres)', () => {
     const byMethod = await repo.aggregateRevenueByMethod({});
     expect(byMethod).toEqual([{ method: PaymentMethod.CASH, amount: kept, count: 5 }]);
 
+    // refundedTotalForOrder: only settled rows; a stated part counts as stated.
     expect(await repo.refundedTotalForOrder(o1)).toBe(20_000);
     expect(await repo.refundedTotalForOrder(o2)).toBe(15_000);
+    // A NULL part is a FULL refund here too, the same as in the readers above.
+    expect(await repo.refundedTotalForOrder(o3)).toBe(50_000 + 8_000);
+    // A row claimed but not yet settled (gateway pending) is not counted.
+    const o5 = randomUUID();
+    await add(o5, 40_000, PaymentStatus.REFUNDED, 9_000, { refundSettledAt: null });
+    expect(await repo.refundedTotalForOrder(o5)).toBe(0);
+    await db.payment.updateMany({ where: { orderId: o5 }, data: { refundSettledAt: at } });
+    expect(await repo.refundedTotalForOrder(o5)).toBe(9_000);
   });
 });

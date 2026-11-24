@@ -103,6 +103,9 @@ model Payment {
   /// parks; the HQ queue flags it OVERDUE once past, the customer sees it on their order.
   refundDueAt DateTime?
   refundedAmount Decimal?  @db.Decimal(12, 2)
+  /// When the refund actually SETTLED (gateway answered). `refundedAt` is stamped by the claim,
+  /// before the gateway call, and can be handed back; only this marks money that really moved.
+  refundSettledAt DateTime?
   /// HQ refund-approval state. High-value refunds park at PENDING until decided.
   refundApproval RefundApproval @default(NONE)
 

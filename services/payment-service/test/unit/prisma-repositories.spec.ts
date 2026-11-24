@@ -464,10 +464,14 @@ describe('PaymentPrismaRepository', () => {
   });
 
   it('refundedTotalForOrder sums the order refunded payments', async () => {
-    model.aggregate.mockResolvedValueOnce({ _sum: { refundedAmount: 12000.4 } });
-    expect(await repo.refundedTotalForOrder('o1')).toBe(12000);
-    model.aggregate.mockResolvedValueOnce({ _sum: { refundedAmount: null } });
-    expect(await repo.refundedTotalForOrder('o1')).toBe(0);
+    const raw = jest.fn().mockResolvedValueOnce([{ total: 12000.4 }]).mockResolvedValueOnce([{ total: null }]).mockResolvedValueOnce([]);
+    const r = new PaymentPrismaRepository({ $queryRaw: raw } as unknown as PrismaService);
+    expect(await r.refundedTotalForOrder('o1')).toBe(12000);
+    expect(await r.refundedTotalForOrder('o1')).toBe(0);
+    expect(await r.refundedTotalForOrder('o1')).toBe(0);
+    const text = (raw.mock.calls[0]![0] as { strings: string[] }).strings.join('?');
+    expect(text).toContain('refundSettledAt" IS NOT NULL');
+    expect(text).toContain('COALESCE("refundedAmount", "amount")');
   });
 
   it('update applies the patch and returns the mapped row', async () => {

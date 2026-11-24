@@ -491,11 +491,17 @@ export class PaymentPrismaRepository implements PaymentRepository {
   }
 
   async refundedTotalForOrder(orderId: string): Promise<number> {
-    const agg = await this.prisma.payment.aggregate({
-      where: { orderId, status: PaymentStatus.REFUNDED },
-      _sum: { refundedAmount: true },
-    });
-    return agg._sum.refundedAmount ? Math.round(Number(agg._sum.refundedAmount)) : 0;
+    // Only SETTLED refunds: a row claimed by a refund still waiting on the gateway is REFUNDED
+    // too, and may yet be handed back. A row with no stated part is a full refund (same rule as
+    // KEPT_AMOUNT), so the two readers cannot disagree.
+    const [row] = await this.prisma.$queryRaw<{ total: Prisma.Decimal | null }[]>(Prisma.sql`
+      SELECT SUM(COALESCE("refundedAmount", "amount")) AS total
+      FROM "payments"
+      WHERE "orderId" = ${orderId}::uuid
+        AND "status" = ${PaymentStatus.REFUNDED}::"PaymentStatus"
+        AND "refundSettledAt" IS NOT NULL
+    `);
+    return row?.total ? Math.round(Number(row.total)) : 0;
   }
 
   async attachProofIfFirst(

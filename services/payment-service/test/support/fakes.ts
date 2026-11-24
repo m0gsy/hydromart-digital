@@ -203,8 +203,13 @@ export class InMemoryPaymentRepository implements PaymentRepository {
   // exercised against real numbers rather than a stub that always answers zero.
   async refundedTotalForOrder(orderId: string): Promise<number> {
     return this.rows
-      .filter((r) => r.orderId === orderId && r.status === PaymentStatus.REFUNDED)
-      .reduce((s, r) => s + Math.round(r.refundedAmount ?? 0), 0);
+      .filter(
+        (r) =>
+          r.orderId === orderId &&
+          r.status === PaymentStatus.REFUNDED &&
+          (r as unknown as { refundSettledAt?: Date | null }).refundSettledAt,
+      )
+      .reduce((s, r) => s + Math.round(r.refundedAmount ?? r.amount), 0);
   }
   /** HD-6 A3 mirror of the real readers: PAID whole, REFUNDED = amount - refunded part, >= 0. */
   private kept(r: PaymentRecord): number {

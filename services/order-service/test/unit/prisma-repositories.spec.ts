@@ -2025,15 +2025,16 @@ describe('OrderPrismaRepository', () => {
   });
 
   it('records a refund amount on an order', async () => {
-    order.findUnique.mockResolvedValue({ refundedAmount: { toNumber: () => 5000 } });
-    order.updateMany.mockResolvedValue({ count: 1 });
+    // One statement, no separate read: the previous total comes back from the UPDATE itself.
+    $queryRaw.mockResolvedValueOnce([{ before: 5000 }]);
     await expect(repo.recordRefund('ord-1', 20000)).resolves.toBe(5000);
-    expect(order.updateMany).toHaveBeenCalledWith({
-      where: { id: 'ord-1', OR: [{ refundedAmount: null }, { refundedAmount: { lt: 20000 } }] },
-      data: { refundedAmount: 20000 },
-    });
-    order.findUnique.mockResolvedValue(null);
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    expect(order.findUnique).not.toHaveBeenCalled();
+    $queryRaw.mockResolvedValueOnce([{ before: null }]);
     await expect(repo.recordRefund('ord-1', 20000)).resolves.toBe(0);
+    // Total did not rise: no row comes back, and "nothing new" is reported.
+    $queryRaw.mockResolvedValueOnce([]);
+    await expect(repo.recordRefund('ord-1', 20000)).resolves.toBe(20000);
   });
 
   it('computes average rating per depot from raw rows', async () => {

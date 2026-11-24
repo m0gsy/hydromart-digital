@@ -1468,8 +1468,13 @@ export class PaymentService {
     this.logger.log(`Payment ${payment.id} refunded by ${changedBy}`);
     // Still conditional on the row being the one we claimed; falls back to the claim's own
     // result (which already carries every field but the gateway's raw payload).
+    // `refundSettledAt` is stamped only here, after the gateway answered: the order's refunded
+    // total counts rows that carry it, so a claim handed back above never inflates the total.
     const updated =
-      (await this.payments.updateIfStatus(payment.id, [PaymentStatus.REFUNDED], patch)) ?? claimed;
+      (await this.payments.updateIfStatus(payment.id, [PaymentStatus.REFUNDED], {
+        ...patch,
+        refundSettledAt: new Date(),
+      })) ?? claimed;
     // H-29: recorded AFTER the money moved, so the trail never claims a refund that the
     // gateway refused. `approval` distinguishes an HQ-approved settlement from one under
     // the threshold that needed nobody — that difference is the whole point of the queue.
@@ -1484,10 +1489,18 @@ export class PaymentService {
     // HD-6 A3: the ORDER'S refunded total, not just this payment's part. The order sets the value
     // it is given, so sending a lone amount let a second part-refund overwrite the first; the sum
     // over the order's refunded payments is the same on a retry, so it cannot double either.
-    await this.orderCoordination.notifyRefunded(
-      payment.orderId,
-      await this.payments.refundedTotalForOrder(payment.orderId),
-    );
+    // The total is read inside the guard too: a database blip after the money moved must not turn
+    // a settled refund into an error (a retry would then meet PaymentNotRefundableError).
+    try {
+      await this.orderCoordination.notifyRefunded(
+        payment.orderId,
+        await this.payments.refundedTotalForOrder(payment.orderId),
+      );
+    } catch (error) {
+      this.logger.error(
+        `Refund of payment ${payment.id} settled but the order was not told: ${(error as Error).message}`,
+      );
+    }
     return updated;
   }
 

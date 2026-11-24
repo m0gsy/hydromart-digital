@@ -1165,16 +1165,17 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async recordRefund(orderId: string, amount: number): Promise<number> {
-    const before = await this.prisma.order.findUnique({
-      where: { id: orderId },
-      select: { refundedAmount: true },
-    });
-    // Only raises: the total is a running sum, so a late or retried notice must not lower it.
-    await this.prisma.order.updateMany({
-      where: { id: orderId, OR: [{ refundedAmount: null }, { refundedAmount: { lt: amount } }] },
-      data: { refundedAmount: amount },
-    });
-    return before?.refundedAmount ? before.refundedAmount.toNumber() : 0;
+    // ONE statement: the old total is read under the row lock and replaced in the same step, so two
+    // identical concurrent notices cannot both see "before = 0" and both tell the customer. Only
+    // raises: a late or retried notice matches no row and changes nothing.
+    const rows = await this.prisma.$queryRaw<{ before: Prisma.Decimal | null }[]>(Prisma.sql`
+      UPDATE "orders" o SET "refundedAmount" = ${amount}
+      FROM (SELECT "id", "refundedAmount" AS before FROM "orders" WHERE "id" = ${orderId}::uuid FOR UPDATE) old
+      WHERE o."id" = old."id" AND COALESCE(old.before, 0) < ${amount}
+      RETURNING old.before AS before
+    `);
+    // No row: the total did not rise (already at least this much), so nothing is new.
+    return rows.length === 0 ? amount : Number(rows[0]!.before ?? 0);
   }
 
   async ratingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRating[]> {
