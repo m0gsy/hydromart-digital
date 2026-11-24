@@ -9,11 +9,12 @@ import { createHash, createPublicKey, randomBytes, randomUUID, verify } from 'no
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { PATTERNS, RECOVERY_CODE, TOTP_CODE, createMock } from '../infra/aiweb-staging/mock/server.mjs';
+import { PATTERNS, RECOVERY_CODE, TOTP_CODE, createMock, signEvent } from '../infra/aiweb-staging/mock/server.mjs';
 
 const contract = (name) => JSON.parse(readFileSync(new URL(`../contracts/ai-v1/${name}.openapi.json`, import.meta.url), 'utf8'));
 const auth = contract('auth');
 const notifications = contract('notifications');
+const events = contract('events');
 const fixtures = JSON.parse(readFileSync(new URL('../infra/aiweb-staging/mock/fixtures.json', import.meta.url), 'utf8'));
 
 const AI_WEB = 'https://staging-ai.example.test';
@@ -376,5 +377,70 @@ test('a key from the environment survives a restart, and no secret is in the rep
     const text = readFileSync(new URL(`../infra/aiweb-staging/mock/${f}`, import.meta.url), 'utf8');
     assert.ok(!/BEGIN [A-Z ]*PRIVATE KEY/.test(text), `${f} holds no private key`);
     assert.ok(!/investor/i.test(text), `${f}: say calon mitra`);
+  }
+});
+
+test('the event signature matches the contract test vector', () => {
+  const v = events.info['x-hydromart-signature-test-vector'] ?? events['x-hydromart-signature-test-vector'];
+  assert.ok(v, 'events.openapi.json carries the vector');
+  assert.equal(signEvent(v.secret, v.timestamp, v.body), v.signature);
+});
+
+test('the console refuses cross-site posts, changes nothing on GET, and cannot be framed', async () => {
+  const mock = await boot();
+  const post = (path, headers) => fetch(`${mock.base}${path}`, { method: 'POST', redirect: 'manual', headers });
+  try {
+    for (const path of ['/_mock/kill', '/_mock/reset', '/_mock/event']) {
+      assert.equal((await post(path, { 'sec-fetch-site': 'cross-site' })).status, 403, `${path} cross-site`);
+      assert.equal((await post(path, { 'sec-fetch-site': 'same-site' })).status, 403, `${path} same-site`);
+      assert.equal((await post(path, { origin: 'https://evil.example' })).status, 403, `${path} other origin`);
+      assert.equal((await post(path, { origin: 'null' })).status, 403, `${path} null origin`);
+    }
+    assert.equal(mock.state.killed, false);
+    // A same-origin browser post and a plain client both work.
+    const host = new URL(mock.base).host;
+    assert.equal((await post('/_mock/kill', { 'sec-fetch-site': 'same-origin', origin: `http://${host}` })).status, 303);
+    assert.equal(mock.state.killed, true);
+    assert.equal((await post('/_mock/kill', {})).status, 303);
+    assert.equal(mock.state.killed, false);
+    // The picker's post is guarded the same way.
+    assert.equal((await post('/ai/masuk', { 'sec-fetch-site': 'cross-site' })).status, 403);
+    // No GET changes state.
+    for (const path of ['/_mock/kill', '/_mock/reset', '/_mock/event']) {
+      assert.equal((await fetch(`${mock.base}${path}`)).status, 404);
+    }
+    assert.equal(mock.state.killed, false);
+    const page = await fetch(`${mock.base}/_mock/`);
+    assert.equal(page.headers.get('content-security-policy'), "frame-ancestors 'none'");
+    assert.equal(page.headers.get('x-frame-options'), 'DENY');
+  } finally {
+    await mock.close();
+  }
+});
+
+test('logs and maps stay bounded, and an oversize body is answered', async () => {
+  const mock = await boot();
+  try {
+    for (let i = 0; i < 260; i += 1) await json('POST', mock.base, '/alert', { text: 'x'.repeat(50_000) });
+    assert.equal(mock.state.calls.alerts.length, 200);
+    assert.ok(JSON.stringify(mock.state.calls.alerts[0]).length < 200, 'a summary, not the body');
+
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    const note = () => {
+      const id = randomUUID();
+      return json('POST', mock.base, '/crm/api/v1/notifications/external/franchise-application-submitted',
+        { eventId: `franchise.application_submitted:${id}`, applicationId: id, city: 'Bekasi', province: 'Jawa Barat' }, { authorization: `Bearer ${accessToken}` });
+    };
+    for (let i = 0; i < 10_100; i += 100) await Promise.all(Array.from({ length: 100 }, note));
+    assert.equal(mock.state.calls.notifications.length, 200);
+    assert.equal(mock.state.notified.size, 10_000);
+
+    const big = await fetch(`${mock.base}/alert`, { method: 'POST', body: 'x'.repeat(70_000) });
+    assert.equal(big.status, 413);
+    assert.equal((await fetch(`${mock.base}/health`)).status, 200, 'still serving');
+    assert.equal(mock.server.requestTimeout, 15_000);
+    assert.ok(mock.server.headersTimeout <= 15_000);
+  } finally {
+    await mock.close();
   }
 });

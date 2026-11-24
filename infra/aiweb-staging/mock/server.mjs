@@ -54,6 +54,23 @@ const TICKET_TTL_S = 43_200;
 const LOCK_AFTER = 5;
 const LOCK_S = 300;
 const MAX_BODY = 64 * 1024;
+// Memory stays flat however long it runs: logs keep the newest entries, maps their newest keys.
+const MAX_LOG = 200;
+const MAX_KEYS = 10_000;
+const MAX_CODES = 1_000;
+
+/** hydromart's delivery signature (events.openapi.json): sha256= and the HMAC of "<ts>.<raw body>". */
+export const signEvent = (secret, timestamp, raw) =>
+  'sha256=' + createHmac('sha256', secret).update(`${timestamp}.${raw}`).digest('hex');
+function keep(list, entry) {
+  list.push(entry);
+  if (list.length > MAX_LOG) list.splice(0, list.length - MAX_LOG);
+}
+function setBounded(map, key, value, max = MAX_KEYS) {
+  map.delete(key);
+  map.set(key, value);
+  while (map.size > max) map.delete(map.keys().next().value);
+}
 
 // Copied from the contracts (the test compares them with the files, so they cannot drift).
 export const PATTERNS = {
@@ -155,8 +172,8 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
 
   function issueCode(user, challenge) {
     const code = randomBytes(32).toString('base64url');
-    state.codes.set(code, { challenge, user, exp: now() + CODE_TTL_MS, kept: false });
     for (const [c, v] of state.codes) if (v.exp < now()) state.codes.delete(c);
+    setBounded(state.codes, code, { challenge, user, exp: now() + CODE_TTL_MS, kept: false }, MAX_CODES);
     return code;
   }
 
@@ -223,7 +240,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
             fail.n = 0;
             fail.lockedUntil = now() + LOCK_S * 1000;
           }
-          state.fails.set(user.id, fail);
+          setBounded(state.fails, user.id, fail);
           return [422, errorBody(422, 'AUTH_TOTP_INVALID', 'Wrong or used authenticator code')];
         }
       }
@@ -281,8 +298,11 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     let id = state.notified.get(key);
     if (!id) {
       id = randomUUID();
-      state.notified.set(key, id);
-      state.calls.notifications.push({ workflow: req.headers['x-workflow'] ?? null, body: b });
+      setBounded(state.notified, key, id);
+      keep(state.calls.notifications, {
+        workflow: String(req.headers['x-workflow'] ?? '').slice(0, 120) || null,
+        eventId: b.eventId, city: b.city, province: b.province,
+      });
     }
     return [200, { id }];
   }
@@ -356,7 +376,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     const ts = String(Math.floor(now() / 1000));
     const secret = env.MOCK_HD_EVENT_SECRET;
     if (!secret) return { sent: false, why: 'MOCK_HD_EVENT_SECRET is not set' };
-    const signature = 'sha256=' + createHmac('sha256', secret).update(`${ts}.${raw}`).digest('hex');
+    const signature = signEvent(secret, ts, raw);
     try {
       const r = await fetch(ingressUrl, {
         method: 'POST',
@@ -379,7 +399,8 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
   // ------------------------------------------------------------------------ server
   function send(res, status, body, type = 'application/json') {
     const text = body === undefined ? '' : typeof body === 'string' ? body : JSON.stringify(body);
-    res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+    const html = type.startsWith('text/html') ? { 'content-security-policy': "frame-ancestors 'none'", 'x-frame-options': 'DENY' } : {};
+    res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', ...html });
     res.end(text);
   }
   const readBody = (req) =>
@@ -388,10 +409,8 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       let size = 0;
       req.on('data', (c) => {
         size += c.length;
-        if (size > MAX_BODY) {
-          req.destroy();
-          resolve(null);
-        } else chunks.push(c);
+        if (size > MAX_BODY) resolve(null);
+        else chunks.push(c);
       });
       req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
       req.on('error', () => resolve(null));
@@ -405,12 +424,33 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
   };
   const cookieOf = (req, name) => new RegExp(`(?:^|; )${name}=([^;]*)`).exec(req.headers.cookie ?? '')?.[1];
 
-  const server = createServer(async (req, res) => {
+  // Browsers send the login wall's credentials by themselves, so a page on any other site could
+  // post to the console. Refused when the browser says the request is cross-site (Sec-Fetch-Site)
+  // or names another origin; a request with neither header (curl, the servers) is not a browser.
+  function crossSite(req) {
+    const site = req.headers['sec-fetch-site'];
+    if (site !== undefined && site !== 'same-origin' && site !== 'none') return true;
+    const origin = req.headers.origin;
+    if (origin === undefined) return false;
+    try {
+      return new URL(origin).host !== req.headers.host;
+    } catch {
+      return true;
+    }
+  }
+
+  const server = createServer({ requestTimeout: 15_000, headersTimeout: 10_000 }, async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://mock');
     const path = url.pathname;
     const post = req.method === 'POST';
     const raw = post ? await readBody(req) : '';
-    if (raw === null) return send(res, 413, errorBody(413, 'PAYLOAD_TOO_LARGE', 'Too large'));
+    if (raw === null) {
+      res.writeHead(413, { 'content-type': 'application/json', connection: 'close' });
+      return res.end(JSON.stringify(errorBody(413, 'PAYLOAD_TOO_LARGE', 'Too large')), () => req.destroy());
+    }
+    if (post && (path.startsWith('/_mock/') || path === '/ai/masuk') && crossSite(req)) {
+      return send(res, 403, errorBody(403, 'FORBIDDEN', 'Cross-site request refused'));
+    }
     try {
       if (req.method === 'GET' && path === '/health') return send(res, 200, { ok: true });
 
@@ -430,7 +470,8 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
         return send(res, status, body);
       }
       if (post && path === '/alert') {
-        state.calls.alerts.push(parseJson(raw));
+        const alert = parseJson(raw);
+        keep(state.calls.alerts, { size: raw.length, keys: alert && typeof alert === 'object' ? Object.keys(alert).slice(0, 5) : [] });
         return send(res, 204);
       }
 
