@@ -25,7 +25,6 @@ import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.pris
 import { OrderCoordinationHttpAdapter } from '../infrastructure/http/order-coordination.http.adapter';
 import { CashCollectionHttpAdapter } from '../infrastructure/http/cash-collection.http.adapter';
 import { CourierPayoutHttpAdapter } from '../infrastructure/http/courier-payout.http.adapter';
-import { NetworkSlaHttpAdapter } from '../infrastructure/http/network-sla.http.adapter';
 import { RatingHttpAdapter } from '../infrastructure/http/rating.http.adapter';
 import { OrderPaymentHttpAdapter } from '../infrastructure/http/order-payment.http.adapter';
 import { OrderLookupHttpAdapter } from '../infrastructure/http/order-lookup.http.adapter';
@@ -84,7 +83,6 @@ const providers: Provider[] = [
   { provide: DELIVERY_TOKENS.CashCollection, useClass: CashCollectionHttpAdapter },
   { provide: DELIVERY_TOKENS.CourierPayout, useClass: CourierPayoutHttpAdapter },
   { provide: DELIVERY_TOKENS.Rating, useClass: RatingHttpAdapter },
-  { provide: DELIVERY_TOKENS.NetworkSla, useClass: NetworkSlaHttpAdapter },
   { provide: DELIVERY_TOKENS.DepotLocation, useClass: DepotLocationHttpAdapter },
   { provide: DELIVERY_TOKENS.OrderPayment, useClass: OrderPaymentHttpAdapter },
   { provide: DELIVERY_TOKENS.OrderLookup, useClass: OrderLookupHttpAdapter },

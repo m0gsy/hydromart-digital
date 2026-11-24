@@ -177,6 +177,10 @@ model Delivery {
   /// shipped = "not stored", and readers fall back to the old computation for those.
   slaThresholdMinutes Int?
   slaOnTime           Boolean?
+  /// HD-6 #20: who asked for the reschedule - CUSTOMER (the courier agreed a new time with them)
+  /// or DEPOT (staff released it, e.g. to swap the courier). Only CUSTOMER restarts the SLA
+  /// clock on re-open. NULL on rows rescheduled before this existed = clock is not restarted.
+  rescheduleInitiator String?
 
   proof           ProofOfDelivery?
   history         DeliveryStatusHistory[]

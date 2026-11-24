@@ -18,7 +18,9 @@ export class SlaReportQueryDto {
   to?: string;
 
   @ApiPropertyOptional({
-    description: 'On-time threshold in minutes; defaults to DELIVERY_SLA_MINUTES.',
+    description:
+      'On-time threshold in minutes for deliveries completed before the on-time status was stored ' +
+      '(a stored status is never re-graded); defaults to the global slaMinutes setting.',
     minimum: 1,
   })
   @IsOptional()

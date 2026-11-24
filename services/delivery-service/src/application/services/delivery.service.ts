@@ -52,8 +52,7 @@ import { OrderPaymentPort } from '../ports/order-payment.port';
 import { OrderLookupPort } from '../ports/order-lookup.port';
 import { haversineMeters } from '../../domain/geo';
 import { clampCapturedAt } from '../../domain/offline';
-import { isOnTime, slaClockStart } from '../../domain/sla';
-import { NetworkSlaPort } from '../ports/network-sla.port';
+import { isOnTime, RescheduleInitiator, slaClockStart } from '../../domain/sla';
 import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
 import { StoragePort } from '../ports/storage.port';
@@ -174,6 +173,8 @@ export interface RescheduleInput {
    * the money visible in the shift deposit rather than writing it off. See `settleHeldCash`.
    */
   cashReturned?: boolean;
+  /** Who asked (HD-6 #20). Defaults to CUSTOMER: the courier's reschedule is the customer's new time. */
+  initiator?: RescheduleInitiator;
 }
 
 const NO_SHOW_REASON = 'Pelanggan tidak di tempat (no-show).';
@@ -209,24 +210,7 @@ export class DeliveryService {
     @Optional()
     @Inject(DELIVERY_TOKENS.CustomerNotification)
     private readonly customerNotifications?: CustomerNotificationPort,
-    // Optional: without it the threshold falls back to this service's own setting.
-    @Optional()
-    @Inject(DELIVERY_TOKENS.NetworkSla)
-    private readonly networkSla?: NetworkSlaPort,
   ) {}
-
-  /**
-   * HD-6 #19: the one threshold a delivery is graded against. The depot's own setting wins;
-   * else the network policy (admin-service); else this service's global setting / env
-   * default, so a completion never waits on, or fails because of, admin being down.
-   */
-  private async slaThreshold(depotId: string | null): Promise<number> {
-    return (
-      this.config.slaDepotOverride(depotId) ??
-      (await this.networkSla?.thresholdMinutes().catch(() => null)) ??
-      this.config.slaMinutes(depotId)
-    );
-  }
 
   /**
    * S1 — a courier takes an unclaimed order themselves.
@@ -440,9 +424,7 @@ export class DeliveryService {
         { orderNumber: delivery.orderNumber, deliveryId: delivery.id },
         driverId,
       )
-      .catch((e: Error) =>
-        this.logger.warn(`Courier push for ${delivery.id} failed: ${e.message}`),
-      );
+      .catch((e: Error) => this.logger.warn(`Courier push for ${delivery.id} failed: ${e.message}`));
   }
 
   async pickup(driverId: string, id: string, authorization: string): Promise<DeliveryRecord> {
@@ -534,7 +516,9 @@ export class DeliveryService {
     // HD-6 #19/#20: graded once, here, on the clock of THIS attempt; everything downstream
     // (reports, courier pay) reads what is stored.
     const startedAt = slaClockStart(delivery);
-    const thresholdMinutes = await this.slaThreshold(delivery.depotId);
+    // One chain for every reader: the depot's own setting, else the global one /hq/sla-policy
+    // saves, else the env default (all of it is `slaMinutes`).
+    const thresholdMinutes = this.config.slaMinutes(delivery.depotId);
     const completed = await this.deliveries.completeWithProof(
       id,
       delivery.status,
@@ -985,6 +969,8 @@ export class DeliveryService {
           rescheduledFor: input.rescheduledFor,
           rescheduleSlot: input.slot ?? null,
           rescheduleNote: input.note ?? null,
+          // The courier endpoint is "the new time agreed with the customer" (design 3c).
+          rescheduleInitiator: input.initiator ?? 'CUSTOMER',
         },
         driverId,
         input.note ?? null,
@@ -1001,19 +987,19 @@ export class DeliveryService {
       throw error;
     }
     try {
-      await this.settleHeldCash(
-        delivery,
-        driverId,
-        input.cashReturned ?? false,
-        'dijadwalkan ulang',
-      );
+      await this.settleHeldCash(delivery, driverId, input.cashReturned ?? false, 'dijadwalkan ulang');
     } catch (error) {
       await this.deliveries
         .applyStatus(
           id,
           DeliveryStatus.RESCHEDULED,
           delivery.status,
-          { rescheduledFor: null, rescheduleSlot: null, rescheduleNote: null },
+          {
+            rescheduledFor: null,
+            rescheduleSlot: null,
+            rescheduleNote: null,
+            rescheduleInitiator: null,
+          },
           driverId,
           'Pengembalian tunai gagal dikonfirmasi; status dikembalikan.',
         )
@@ -1251,12 +1237,7 @@ export class DeliveryService {
   ): number | null {
     if (delivery.destinationLat === null || delivery.destinationLng === null) return null;
     return Math.round(
-      haversineMeters(
-        proof.latitude,
-        proof.longitude,
-        delivery.destinationLat,
-        delivery.destinationLng,
-      ),
+      haversineMeters(proof.latitude, proof.longitude, delivery.destinationLat, delivery.destinationLng),
     );
   }
 
@@ -1393,7 +1374,8 @@ export class DeliveryService {
       id,
       delivery.status,
       DeliveryStatus.RESCHEDULED,
-      { rescheduleNote: reason },
+      // A depot release is how the courier is swapped: it must NOT restart the SLA clock.
+      { rescheduleNote: reason, rescheduleInitiator: 'DEPOT' },
       user.sub,
       reason,
     );

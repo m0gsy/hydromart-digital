@@ -60,7 +60,7 @@ export class SlaAlertService {
     let alerted = 0;
     for (const candidate of candidates) {
       const thresholdMinutes = this.config.slaMinutes(candidate.depotId);
-      const minutes = Math.floor((now.getTime() - candidate.assignedAt.getTime()) / 60_000);
+      const minutes = Math.floor((now.getTime() - candidate.clockStartedAt.getTime()) / 60_000);
       if (minutes <= thresholdMinutes) continue;
       breached++;
       if (await this.alert(candidate, minutes, thresholdMinutes)) {

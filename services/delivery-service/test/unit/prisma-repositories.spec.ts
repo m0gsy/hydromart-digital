@@ -137,15 +137,6 @@ describe('DeliveryPrismaRepository', () => {
     expect(delivery.update.mock.calls[0][0].data).not.toHaveProperty('estimatedArrivalAt');
   });
 
-  it('reassign puts the delivery back to ASSIGNED and clears the abandoned attempt', async () => {
-    delivery.update.mockResolvedValue(deliveryRow({ status: 'ASSIGNED', driverId: 'drv-2' }));
-    const rec = await repo.reassign('del-1', 'drv-2', 'sup-1', 'kurir sakit');
-    expect(delivery.update.mock.calls[0][0].data).toMatchObject({ driverId: 'drv-2' });
-    // HD-6 #20: a re-opened row is a new attempt, so its SLA clock restarts.
-    expect(delivery.update.mock.calls[0][0].data.slaStartedAt).toBeInstanceOf(Date);
-    expect(rec.status).toBe('ASSIGNED');
-  });
-
   it('create passes ASSIGNED status + seed history and maps the row', async () => {
     delivery.create.mockResolvedValue(deliveryRow({ proof: proofRow }));
     const rec = await repo.create({
@@ -908,7 +899,9 @@ describe('DeliveryPrismaRepository', () => {
   });
 
   it('slaStats aggregates a scoped range and derives breached', async () => {
-    $queryRaw.mockResolvedValue([{ total: 10n, ontime: 8n, summinutes: 240, medianminutes: 22.5 }]);
+    $queryRaw.mockResolvedValue([
+      { total: 10n, ontime: 8n, stored: 6n, summinutes: 240, medianminutes: 22.5 },
+    ]);
     delivery.count.mockResolvedValue(2);
     const stats = await repo.slaStats(
       { from: new Date('2026-01-01'), to: new Date('2026-02-01') },
@@ -922,6 +915,7 @@ describe('DeliveryPrismaRepository', () => {
       sumMinutes: 240,
       medianMinutes: 22.5,
       failedCount: 2,
+      storedVerdicts: 6,
     });
     expect($queryRaw).toHaveBeenCalledTimes(1);
     expect(delivery.count).toHaveBeenCalledWith({
@@ -933,7 +927,9 @@ describe('DeliveryPrismaRepository', () => {
   });
 
   it('slaStats handles an unscoped, unbounded range with null summinutes', async () => {
-    $queryRaw.mockResolvedValue([{ total: 0n, ontime: 0n, summinutes: null, medianminutes: null }]);
+    $queryRaw.mockResolvedValue([
+      { total: 0n, ontime: 0n, stored: 0n, summinutes: null, medianminutes: null },
+    ]);
     delivery.count.mockResolvedValue(0);
     const stats = await repo.slaStats({}, 30);
     expect(stats).toEqual({
@@ -943,6 +939,7 @@ describe('DeliveryPrismaRepository', () => {
       sumMinutes: 0,
       medianMinutes: null,
       failedCount: 0,
+      storedVerdicts: 0,
     });
     expect(delivery.count).toHaveBeenCalledWith({
       where: { failedAt: { not: null }, depotId: { not: null } },
@@ -952,7 +949,7 @@ describe('DeliveryPrismaRepository', () => {
   });
 
   it('slaStats treats an empty depotIds array as unscoped', async () => {
-    $queryRaw.mockResolvedValue([{ total: 1n, ontime: 1n, summinutes: 5 }]);
+    $queryRaw.mockResolvedValue([{ total: 1n, ontime: 1n, stored: 1n, summinutes: 5 }]);
     delivery.count.mockResolvedValue(0);
     await repo.slaStats({ from: new Date('2026-01-01') }, 30, []);
     expect(delivery.count).toHaveBeenCalledWith({
@@ -962,8 +959,15 @@ describe('DeliveryPrismaRepository', () => {
 
   it('slaStatsByDepot maps per-depot aggregate rows', async () => {
     $queryRaw.mockResolvedValue([
-      { depotid: 'dep-1', total: 4n, ontime: 3n, summinutes: 90, medianminutes: 20 },
-      { depotid: 'dep-2', total: 2n, ontime: 2n, summinutes: null, medianminutes: null },
+      { depotid: 'dep-1', total: 4n, ontime: 3n, stored: 2n, summinutes: 90, medianminutes: 20 },
+      {
+        depotid: 'dep-2',
+        total: 2n,
+        ontime: 2n,
+        stored: 0n,
+        summinutes: null,
+        medianminutes: null,
+      },
     ]);
     const rows = await repo.slaStatsByDepot(
       { from: new Date('2026-01-01'), to: new Date('2026-02-01') },
@@ -977,6 +981,7 @@ describe('DeliveryPrismaRepository', () => {
         breached: 1,
         sumMinutes: 90,
         medianMinutes: 20,
+        storedVerdicts: 2,
       },
       {
         depotId: 'dep-2',
@@ -985,6 +990,7 @@ describe('DeliveryPrismaRepository', () => {
         breached: 0,
         sumMinutes: 0,
         medianMinutes: null,
+        storedVerdicts: 0,
       },
     ]);
     expect($queryRaw).toHaveBeenCalledTimes(1);
@@ -998,22 +1004,16 @@ describe('DeliveryPrismaRepository', () => {
   // J8. The sweep's query is the only thing standing between a ten-minute cron and a
   // sequential scan of the whole delivery book, so its shape is asserted rather than
   // assumed: in-flight only, never-alerted only, oldest first, bounded.
-  it('findUnalertedInFlight asks for in-flight, unalerted deliveries, oldest first', async () => {
-    delivery.findMany.mockResolvedValue([]);
-    const before = new Date('2026-08-25T09:45:00.000Z');
+  it('findUnalertedInFlight reads the restarted clock and hands the rows back', async () => {
+    const clockStartedAt = new Date('2026-08-25T09:00:00.000Z');
+    const row = { id: 'd1', orderId: 'o1', orderNumber: 'HM-1', depotId: 'dep-1', clockStartedAt };
+    $queryRaw.mockResolvedValue([row]);
 
-    await repo.findUnalertedInFlight(before, 200);
+    const out = await repo.findUnalertedInFlight(new Date('2026-08-25T09:45:00.000Z'), 200);
 
-    expect(delivery.findMany).toHaveBeenCalledWith({
-      where: {
-        status: { in: ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'] },
-        slaAlertedAt: null,
-        assignedAt: { lt: before },
-      },
-      orderBy: { assignedAt: 'asc' },
-      take: 200,
-      select: { id: true, orderId: true, orderNumber: true, depotId: true, assignedAt: true },
-    });
+    expect(out).toEqual([row]);
+    expect($queryRaw).toHaveBeenCalledTimes(1);
+    // The statement itself is exercised against real Postgres in test/race/sla.race.ts.
   });
 
   it('markSlaAlerted stamps the one delivery it was given', async () => {
@@ -1655,6 +1655,7 @@ describe('DeliveryPrismaRepository assignment under the courier cap', () => {
       count: jest.fn(),
       create: jest.fn(),
       updateMany: jest.fn(),
+      findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
     },
     deliveryStatusHistory: { create: jest.fn() },
@@ -1712,13 +1713,25 @@ describe('DeliveryPrismaRepository assignment under the courier cap', () => {
   it('re-opens only a RESCHEDULED row, and writes the history entry', async () => {
     tx.delivery.count.mockResolvedValue(0);
     tx.delivery.updateMany.mockResolvedValue({ count: 1 });
+    tx.delivery.findUnique.mockResolvedValue({ rescheduleInitiator: 'CUSTOMER' });
     tx.delivery.findUniqueOrThrow.mockResolvedValue(row);
     await repo.reassignIfUnderCap('del-1', 'drv-2', 'staff', 'note', 1);
     expect(tx.delivery.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'del-1', status: 'RESCHEDULED' } }),
     );
     expect(tx.deliveryStatusHistory.create).toHaveBeenCalled();
-    expect(tx.delivery.updateMany.mock.calls[0][0].data.slaStartedAt).toBeInstanceOf(Date);
+    const data = tx.delivery.updateMany.mock.calls[0][0].data;
+    expect(data.slaStartedAt).toBeInstanceOf(Date); // a customer reschedule restarts the clock
+    expect(data.slaAlertedAt).toBeNull(); // and the new attempt is judged afresh
+  });
+
+  it.each(['DEPOT', null])('a %s re-open keeps the clock it had', async (initiator) => {
+    tx.delivery.count.mockResolvedValue(0);
+    tx.delivery.updateMany.mockResolvedValue({ count: 1 });
+    tx.delivery.findUnique.mockResolvedValue(initiator ? { rescheduleInitiator: initiator } : null);
+    tx.delivery.findUniqueOrThrow.mockResolvedValue(row);
+    await repo.reassignIfUnderCap('del-1', 'drv-2', 'staff', 'note', 1);
+    expect(tx.delivery.updateMany.mock.calls.at(-1)[0].data).not.toHaveProperty('slaStartedAt');
   });
 
   it('conflicts when the row is no longer RESCHEDULED', async () => {

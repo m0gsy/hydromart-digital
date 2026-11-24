@@ -9,7 +9,6 @@ import { CashCollectionHttpAdapter } from '../../src/infrastructure/http/cash-co
 import { OrderPaymentHttpAdapter } from '../../src/infrastructure/http/order-payment.http.adapter';
 import { OrderLookupHttpAdapter } from '../../src/infrastructure/http/order-lookup.http.adapter';
 import { CourierPayoutHttpAdapter } from '../../src/infrastructure/http/courier-payout.http.adapter';
-import { NetworkSlaHttpAdapter } from '../../src/infrastructure/http/network-sla.http.adapter';
 import { RatingHttpAdapter } from '../../src/infrastructure/http/rating.http.adapter';
 import type { OpsIncidentAlert } from '../../src/application/ports/ops-notifier.port';
 import type {
@@ -206,13 +205,7 @@ describe('OpsNotifierHttpAdapter', () => {
 
   // J8. Same channel, but this one has to answer whether it landed — the sweep decides
   // whether to stamp the delivery on that answer, and a wrong `true` loses the breach.
-  const breach = {
-    orderId: 'ord-9',
-    orderNumber: 'HM-9',
-    minutes: 200,
-    thresholdMinutes: 120,
-    depotId: 'dep-1',
-  };
+  const breach = { orderId: 'ord-9', orderNumber: 'HM-9', minutes: 200, thresholdMinutes: 120, depotId: 'dep-1' };
 
   it('POSTs a DELIVERY_SLA_BREACHED and reports success', async () => {
     fetchMock.mockResolvedValue(res({ ok: true }));
@@ -264,11 +257,7 @@ describe('OpsNotifierHttpAdapter', () => {
     });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body).toMatchObject({ event: 'COURIER_SETTLEMENT_SUBMITTED', depotId: 'dep-1' });
-    expect(body.vars).toEqual({
-      settlementId: 'st-1',
-      amount: 'Rp 1.500.000',
-      variance: '-Rp 5.000',
-    });
+    expect(body.vars).toEqual({ settlementId: 'st-1', amount: 'Rp 1.500.000', variance: '-Rp 5.000' });
   });
 });
 
@@ -1008,46 +997,5 @@ describe('OpsNotifierHttpAdapter — F8 depot routing', () => {
     });
     const body = JSON.parse(String((fetchMock.mock.calls.at(-1)![1] as RequestInit).body));
     expect(body).not.toHaveProperty('depotId');
-  });
-});
-
-describe('NetworkSlaHttpAdapter', () => {
-  const policy = (onTimeThresholdMinutes: unknown): Response =>
-    res({ ok: true, body: { onTimeThresholdMinutes } });
-
-  it('is null without an admin URL or an internal key, and never calls out', async () => {
-    expect(
-      await new NetworkSlaHttpAdapter(makeConfig({ adminServiceUrl: '' })).thresholdMinutes(),
-    ).toBeNull();
-    expect(
-      await new NetworkSlaHttpAdapter(makeConfig({ internalServiceKey: '' })).thresholdMinutes(),
-    ).toBeNull();
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('reads the policy with the internal key and caches it for a minute', async () => {
-    fetchMock.mockResolvedValue(policy(75));
-    const adapter = new NetworkSlaHttpAdapter(makeConfig());
-    expect(await adapter.thresholdMinutes()).toBe(75);
-    expect(await adapter.thresholdMinutes()).toBe(75);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://admin:3017/api/v1/sla-policy',
-      expect.objectContaining({ headers: { 'x-internal-key': KEY } }),
-    );
-  });
-
-  it.each([
-    ['a refusal', res({ ok: false, status: 403 })],
-    ['a non-number', policy('90')],
-    ['zero', policy(0)],
-  ])('answers null on %s', async (_name, response) => {
-    fetchMock.mockResolvedValue(response);
-    expect(await new NetworkSlaHttpAdapter(makeConfig()).thresholdMinutes()).toBeNull();
-  });
-
-  it('answers null when admin is unreachable', async () => {
-    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    expect(await new NetworkSlaHttpAdapter(makeConfig()).thresholdMinutes()).toBeNull();
   });
 });

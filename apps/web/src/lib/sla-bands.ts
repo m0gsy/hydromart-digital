@@ -1,12 +1,66 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+import { api } from '@/lib/api';
+import { endpoints } from '@/lib/endpoints';
+
 /**
- * HD-6 #19: the one SLA colour band every screen shares. These are the admin /hq/sla-policy
- * defaults (healthy from 95%, critical below 85%); a screen that colours an SLA percentage
- * imports them instead of carrying its own cut-off (it used to be 88, 90 and 96).
- * // ponytail: constants, not the saved policy; read healthyBandPct/criticalBandPct from
- * // /hq/sla-policy here if the owner wants the bands editable per network.
+ * HD-6 #19: the one SLA colour band every screen shares - the policy HQ saves at
+ * /hq/sla-policy (healthy from `healthy`%, critical below `critical`%). Falls back to the
+ * policy defaults (95 / 85) until it loads and whenever it cannot be read.
  */
-export const SLA_HEALTHY_PCT = 95;
-export const SLA_CRITICAL_PCT = 85;
+export interface SlaBands {
+  healthy: number;
+  critical: number;
+}
+
+export const DEFAULT_SLA_BANDS: SlaBands = { healthy: 95, critical: 85 };
 
 /** `pct` is 0-100. Anything under the critical band needs attention. */
-export const isSlaCritical = (pct: number): boolean => pct < SLA_CRITICAL_PCT;
+export const isSlaCritical = (pct: number, bands: SlaBands = DEFAULT_SLA_BANDS): boolean =>
+  pct < bands.critical;
+
+const TTL_MS = 5 * 60_000;
+let cache: { bands: SlaBands; at: number } | null = null;
+let inflight: Promise<SlaBands> | null = null;
+
+/** One read per five minutes for the whole app; never throws. */
+export function loadSlaBands(): Promise<SlaBands> {
+  if (cache && Date.now() - cache.at < TTL_MS) return Promise.resolve(cache.bands);
+  inflight ??= api
+    .get<{ healthyBandPct: number; criticalBandPct: number }>(endpoints.admin.slaBands, true)
+    .then((r) => {
+      const ok =
+        Number.isFinite(r.healthyBandPct) &&
+        Number.isFinite(r.criticalBandPct) &&
+        r.criticalBandPct <= r.healthyBandPct;
+      const bands = ok
+        ? { healthy: r.healthyBandPct, critical: r.criticalBandPct }
+        : DEFAULT_SLA_BANDS;
+      cache = { bands, at: Date.now() };
+      return bands;
+    })
+    .catch(() => DEFAULT_SLA_BANDS)
+    .finally(() => {
+      inflight = null;
+    });
+  return inflight;
+}
+
+export function resetSlaBandsCache(): void {
+  cache = null;
+  inflight = null;
+}
+
+export function useSlaBands(): SlaBands {
+  const [bands, setBands] = useState<SlaBands>(cache?.bands ?? DEFAULT_SLA_BANDS);
+  useEffect(() => {
+    let alive = true;
+    void loadSlaBands().then((b) => alive && setBands(b));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return bands;
+}

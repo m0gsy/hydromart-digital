@@ -87,44 +87,26 @@ describe('DashboardSourcesHttpAdapter', () => {
     await expect(promise).resolves.toEqual({ buckets: [] });
   });
 
-  it('deliverySla applies depotIds + admin SLA threshold when admin-service is wired', async () => {
-    // First fetch = sla-policy lookup, second = the sla report.
-    fetchMock
-      .mockResolvedValueOnce(okResponse({ onTimeThresholdMinutes: 90 }))
-      .mockResolvedValueOnce(okResponse({ slaRate: 0.9 }));
+  it('deliverySla forwards depotIds and never a threshold of its own', async () => {
+    fetchMock.mockResolvedValueOnce(okResponse({ slaRate: 0.9 }));
     const adapter = makeAdapter({ adminServiceUrl: 'http://admin' });
 
     const result = await adapter.deliverySla({ from: '2026-06-01' }, 't', ['d1', 'd2']);
 
     expect(result).toEqual({ slaRate: 0.9 });
-    expect(fetchMock.mock.calls[0][0]).toContain('http://admin/api/v1/sla-policy');
-    const slaUrl = fetchMock.mock.calls[1][0];
+    // One fetch only: admin's policy copy is not asked, delivery grades by its own chain.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const slaUrl = fetchMock.mock.calls[0][0];
     expect(slaUrl).toContain('http://delivery/api/v1/reports/sla?');
     expect(slaUrl).toContain('depotIds=d1%2Cd2');
-    expect(slaUrl).toContain('thresholdMinutes=90');
+    expect(slaUrl).not.toContain('thresholdMinutes');
   });
 
-  it('deliverySla omits threshold + query string when admin unset and range empty', async () => {
+  it('deliverySla has no query string when the range is empty', async () => {
     fetchMock.mockResolvedValueOnce(okResponse({ slaRate: 1 }));
-    const adapter = makeAdapter(); // no adminServiceUrl → slaThresholdMinutes returns null
-
-    const result = await adapter.deliverySla({}, 't');
-
+    const result = await makeAdapter().deliverySla({}, 't');
     expect(result).toEqual({ slaRate: 1 });
-    // Only one fetch (no sla-policy lookup) and no trailing query string.
-    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe('http://delivery/api/v1/reports/sla');
-  });
-
-  it('slaThresholdMinutes returns null when admin policy lookup fails', async () => {
-    fetchMock
-      .mockResolvedValueOnce(errResponse(500)) // policy lookup null
-      .mockResolvedValueOnce(okResponse({ slaRate: 0.5 }));
-    const adapter = makeAdapter({ adminServiceUrl: 'http://admin' });
-
-    await adapter.deliverySla({}, 't');
-    // Threshold null → sla url carries no thresholdMinutes.
-    expect(fetchMock.mock.calls[1][0]).not.toContain('thresholdMinutes');
   });
 
   it('myDepots forwards the caller JWT as authorization header', async () => {
@@ -182,18 +164,15 @@ describe('DashboardSourcesHttpAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('slaByDepot adds thresholdMinutes when admin wired, and no query when not', async () => {
-    const withAdmin = makeAdapter({ adminServiceUrl: 'http://admin' });
-    fetchMock
-      .mockResolvedValueOnce(okResponse({ onTimeThresholdMinutes: 45 }))
-      .mockResolvedValueOnce(okResponse({ depots: [] }));
-    await withAdmin.slaByDepot({ to: '2026-06-30' }, 't');
-    expect(fetchMock.mock.calls[1][0]).toContain('thresholdMinutes=45');
+  it('slaByDepot forwards the range and never a threshold', async () => {
+    fetchMock.mockResolvedValueOnce(okResponse({ depots: [] }));
+    await makeAdapter({ adminServiceUrl: 'http://admin' }).slaByDepot({ to: '2026-06-30' }, 't');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).not.toContain('thresholdMinutes');
 
     fetchMock.mockReset();
-    const noAdmin = makeAdapter();
     fetchMock.mockResolvedValueOnce(okResponse({ depots: [] }));
-    await noAdmin.slaByDepot({}, 't');
+    await makeAdapter().slaByDepot({}, 't');
     expect(fetchMock.mock.calls[0][0]).toBe('http://delivery/api/v1/reports/sla-by-depot');
   });
 

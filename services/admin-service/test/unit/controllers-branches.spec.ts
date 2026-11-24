@@ -608,6 +608,11 @@ describe('SlaPolicyController', () => {
     await controller.save(dto);
     expect(policy.save).toHaveBeenCalledWith(dto, now.toISOString());
   });
+
+  it('bands answers only the two colour bands', async () => {
+    policy.get.mockResolvedValue(record);
+    expect(await controller.bands()).toEqual({ healthyBandPct: 90, criticalBandPct: 70 });
+  });
 });
 
 describe('SupportTicketsController', () => {

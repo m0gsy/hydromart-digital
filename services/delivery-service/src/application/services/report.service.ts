@@ -7,10 +7,17 @@ import { RatingPort } from '../ports/rating.port';
 import { SettlementRepository } from '../ports/settlement.repository';
 import { DELIVERY_TOKENS } from '../tokens';
 
+export const THRESHOLD_NOTE =
+  'thresholdMinutes grades only deliveries completed before the on-time status was stored; ' +
+  'a stored status is never re-graded.';
+
 export interface SlaReport {
   from: string | null;
   to: string | null;
   thresholdMinutes: number;
+  /** Delivered rows whose stored on-time status was used as is (threshold ignored for them). */
+  storedVerdicts: number;
+  thresholdNote: string;
   totalDelivered: number;
   onTime: number;
   breached: number;
@@ -32,12 +39,14 @@ export interface DepotSlaRow {
   slaRate: number | null;
   avgMinutes: number | null;
   medianMinutes: number | null;
+  storedVerdicts: number;
 }
 
 export interface DepotSlaReport {
   from: string | null;
   to: string | null;
   thresholdMinutes: number;
+  thresholdNote: string;
   depots: DepotSlaRow[];
 }
 
@@ -83,6 +92,8 @@ export class ReportService {
       from: range.from ? range.from.toISOString() : null,
       to: range.to ? range.to.toISOString() : null,
       thresholdMinutes: threshold,
+      storedVerdicts: s.storedVerdicts,
+      thresholdNote: THRESHOLD_NOTE,
       totalDelivered: s.totalDelivered,
       onTime: s.onTime,
       breached: s.breached,
@@ -108,8 +119,10 @@ export class ReportService {
       from: range.from ? range.from.toISOString() : null,
       to: range.to ? range.to.toISOString() : null,
       thresholdMinutes: threshold,
+      thresholdNote: THRESHOLD_NOTE,
       depots: stats.map((s) => ({
         depotId: s.depotId,
+        storedVerdicts: s.storedVerdicts,
         totalDelivered: s.totalDelivered,
         onTime: s.onTime,
         breached: s.breached,

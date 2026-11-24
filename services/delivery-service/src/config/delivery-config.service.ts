@@ -144,19 +144,6 @@ export class DeliveryConfigService {
   settlementExpectFromCod(depotId: string | null = null): boolean {
     return this.tunable('settlementExpectFromCod', 1, depotId) === 1;
   }
-  /**
-   * HD-6 #19: the threshold a DEPOT set for itself, or null when it has not. Not the same as
-   * `slaMinutes(depotId)`, which also falls through to the global row and the env default —
-   * the network policy (admin-service) has to slot in between the two.
-   */
-  slaDepotOverride(depotId: string | null): number | null {
-    if (depotId == null) return null;
-    const row = this.settings
-      .depotRows()
-      .find((r) => r.key === 'slaMinutes' && r.depotId === depotId);
-    const n = row ? Number(row.value) : NaN;
-    return Number.isNaN(n) ? null : n;
-  }
   slaMinutes(depotId: string | null = null): number {
     return this.tunable('slaMinutes', this.num('DELIVERY_SLA_MINUTES'), depotId);
   }

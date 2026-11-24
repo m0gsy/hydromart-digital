@@ -99,6 +99,7 @@ interface DeliveryRow {
   slaStartedAt: Date | null;
   slaThresholdMinutes: number | null;
   slaOnTime: boolean | null;
+  rescheduleInitiator: string | null;
   pickedUpAt: Date | null;
   startedAt: Date | null;
   deliveredAt: Date | null;
@@ -164,6 +165,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       slaStartedAt: row.slaStartedAt,
       slaThresholdMinutes: row.slaThresholdMinutes,
       slaOnTime: row.slaOnTime,
+      rescheduleInitiator: row.rescheduleInitiator,
       pickedUpAt: row.pickedUpAt,
       startedAt: row.startedAt,
       deliveredAt: row.deliveredAt,
@@ -230,6 +232,12 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.underCap(driverId, max, async (tx) => {
       // Only a RESCHEDULED row may be re-opened; two dispatchers re-opening the same one is a
       // conflict, not two assignments.
+      // HD-6 #20: only a CUSTOMER reschedule restarts the SLA clock. A depot taking the
+      // delivery off a courier (to swap them) keeps the start it had.
+      const prev = await tx.delivery.findUnique({
+        where: { id },
+        select: { rescheduleInitiator: true },
+      });
       const { count } = await tx.delivery.updateMany({
         where: { id, status: DeliveryStatus.RESCHEDULED },
         data: {
@@ -238,8 +246,9 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
           pickedUpAt: null,
           startedAt: null,
           estimatedArrivalAt: null,
-          // HD-6 #20: a re-opened row is a new attempt after a customer reschedule.
-          slaStartedAt: new Date(),
+          ...(prev?.rescheduleInitiator === 'CUSTOMER' ? { slaStartedAt: new Date() } : {}),
+          // Judged afresh on the clock now running: an alert for the old attempt is spent.
+          slaAlertedAt: null,
         },
       });
       if (count === 0) throw new DeliveryAlreadyExistsError();
@@ -454,13 +463,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
 
   async codHeldByCourier(since: Date, until: Date, limit: number): Promise<CodHeldRow[]> {
     const rows = await this.prisma.$queryRaw<
-      {
-        driverId: string;
-        depotId: string | null;
-        deliveries: bigint;
-        amount: bigint;
-        oldest: Date;
-      }[]
+      { driverId: string; depotId: string | null; deliveries: bigint; amount: bigint; oldest: Date }[]
     >(Prisma.sql`
       SELECT d."driverId", d."depotId",
              COUNT(*)::bigint AS "deliveries",
@@ -701,30 +704,6 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.toRecord(row);
   }
 
-  async reassign(
-    id: string,
-    driverId: string,
-    changedBy: string,
-    note: string | null,
-  ): Promise<DeliveryRecord> {
-    // Second attempt on the same row: back to ASSIGNED under (possibly) a new driver, with
-    // the previous attempt's progress timestamps cleared so the app shows a fresh run.
-    const row = await this.prisma.delivery.update({
-      where: { id },
-      data: {
-        driverId,
-        status: DeliveryStatus.ASSIGNED,
-        pickedUpAt: null,
-        startedAt: null,
-        estimatedArrivalAt: null,
-        slaStartedAt: new Date(),
-        history: { create: { status: DeliveryStatus.ASSIGNED, changedBy, note } },
-      },
-      include: INCLUDE,
-    });
-    return this.toRecord(row);
-  }
-
   async completeWithProof(
     id: string,
     from: DeliveryStatus,
@@ -852,15 +831,16 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     if (range.to) conds.push(Prisma.sql`"deliveredAt" < ${range.to}`);
     if (scoped) conds.push(Prisma.sql`"depotId" = ANY(${depotIds}::uuid[])`);
     const [agg] = await this.prisma.$queryRaw<
-      { total: bigint; ontime: bigint; summinutes: number | null; medianminutes: number | null }[]
+      { total: bigint; ontime: bigint; stored: bigint; summinutes: number | null; medianminutes: number | null }[]
     >(Prisma.sql`
       SELECT COUNT(*)::bigint AS total,
              COALESCE(SUM(
-               CASE WHEN COALESCE("slaOnTime", EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60 <= ${thresholdMinutes})
+               CASE WHEN COALESCE("slaOnTime", EXTRACT(EPOCH FROM ("deliveredAt" - COALESCE("slaStartedAt", "assignedAt"))) / 60 <= ${thresholdMinutes})
                     THEN 1 ELSE 0 END
              ), 0)::bigint AS ontime,
-             COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60), 0) AS summinutes,
-             percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60) AS medianminutes
+             COUNT("slaOnTime")::bigint AS stored,
+             COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - COALESCE("slaStartedAt", "assignedAt"))) / 60), 0) AS summinutes,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("deliveredAt" - COALESCE("slaStartedAt", "assignedAt"))) / 60) AS medianminutes
       FROM "deliveries"
       WHERE ${Prisma.join(conds, ' AND ')}
     `);
@@ -883,6 +863,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       sumMinutes: Number(agg.summinutes ?? 0),
       medianMinutes: agg.medianminutes == null ? null : Number(agg.medianminutes),
       failedCount,
+      storedVerdicts: Number(agg.stored),
     };
   }
 
@@ -905,6 +886,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
         depotid: string;
         total: bigint;
         ontime: bigint;
+        stored: bigint;
         summinutes: number | null;
         medianminutes: number | null;
       }[]
@@ -912,11 +894,12 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       SELECT "depotId" AS depotid,
              COUNT(*)::bigint AS total,
              COALESCE(SUM(
-               CASE WHEN COALESCE("slaOnTime", EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60 <= ${thresholdMinutes})
+               CASE WHEN COALESCE("slaOnTime", EXTRACT(EPOCH FROM ("deliveredAt" - COALESCE("slaStartedAt", "assignedAt"))) / 60 <= ${thresholdMinutes})
                     THEN 1 ELSE 0 END
              ), 0)::bigint AS ontime,
-             COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60), 0) AS summinutes,
-             percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("deliveredAt" - "assignedAt")) / 60) AS medianminutes
+             COUNT("slaOnTime")::bigint AS stored,
+             COALESCE(SUM(EXTRACT(EPOCH FROM ("deliveredAt" - COALESCE("slaStartedAt", "assignedAt"))) / 60), 0) AS summinutes,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("deliveredAt" - COALESCE("slaStartedAt", "assignedAt"))) / 60) AS medianminutes
       FROM "deliveries"
       WHERE ${Prisma.join(conds, ' AND ')}
       GROUP BY "depotId"
@@ -931,25 +914,36 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
         breached: totalDelivered - onTime,
         sumMinutes: Number(r.summinutes ?? 0),
         medianMinutes: r.medianminutes == null ? null : Number(r.medianminutes),
+        storedVerdicts: Number(r.stored),
       };
     });
   }
 
   async findUnalertedInFlight(assignedBefore: Date, limit: number): Promise<SlaCandidate[]> {
-    return this.prisma.delivery.findMany({
-      where: {
-        status: {
-          in: [DeliveryStatus.ASSIGNED, DeliveryStatus.PICKED_UP, DeliveryStatus.ON_DELIVERY],
-        },
-        slaAlertedAt: null,
-        assignedAt: { lt: assignedBefore },
-      },
-      // Oldest first: when a backlog is bigger than one batch, the most overdue
-      // deliveries are the ones that get called in rather than the ones that fit.
-      orderBy: { assignedAt: 'asc' },
-      take: limit,
-      select: { id: true, orderId: true, orderNumber: true, depotId: true, assignedAt: true },
-    });
+    // The clock is slaStartedAt when a customer reschedule restarted it, else assignedAt.
+    // Oldest clock first: when a backlog is bigger than one batch, the most overdue
+    // deliveries are the ones that get called in rather than the ones that fit.
+    const rows = await this.prisma.$queryRaw<
+      {
+        id: string;
+        orderId: string;
+        orderNumber: string;
+        depotId: string | null;
+        clockStartedAt: Date;
+      }[]
+    >(Prisma.sql`
+      SELECT "id", "orderId", "orderNumber", "depotId",
+             COALESCE("slaStartedAt", "assignedAt") AS "clockStartedAt"
+      FROM "deliveries"
+      WHERE "status" IN (${DeliveryStatus.ASSIGNED}::"DeliveryStatus",
+                         ${DeliveryStatus.PICKED_UP}::"DeliveryStatus",
+                         ${DeliveryStatus.ON_DELIVERY}::"DeliveryStatus")
+        AND "slaAlertedAt" IS NULL
+        AND COALESCE("slaStartedAt", "assignedAt") < ${assignedBefore}
+      ORDER BY COALESCE("slaStartedAt", "assignedAt") ASC
+      LIMIT ${limit}
+    `);
+    return rows;
   }
 
   async markSlaAlerted(id: string, at: Date): Promise<void> {

@@ -4,3 +4,4 @@
 ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "slaStartedAt" TIMESTAMP(3);
 ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "slaThresholdMinutes" INTEGER;
 ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "slaOnTime" BOOLEAN;
+ALTER TABLE "deliveries" ADD COLUMN IF NOT EXISTS "rescheduleInitiator" TEXT;

@@ -10,6 +10,12 @@ export function slaClockStart(d: { assignedAt: Date; slaStartedAt: Date | null }
   return d.slaStartedAt ?? d.assignedAt;
 }
 
+/**
+ * Who asked for a reschedule. Only a CUSTOMER request restarts the SLA clock when the row is
+ * re-opened; a depot taking the delivery off a courier (to swap them) keeps the old start.
+ */
+export type RescheduleInitiator = 'CUSTOMER' | 'DEPOT';
+
 export function isOnTime(start: Date, deliveredAt: Date, thresholdMinutes: number): boolean {
   return (deliveredAt.getTime() - start.getTime()) / 60_000 <= thresholdMinutes;
 }

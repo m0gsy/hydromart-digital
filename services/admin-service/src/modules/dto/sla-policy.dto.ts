@@ -51,6 +51,17 @@ export class SaveSlaPolicyDto {
 
 /* ---------- Responses ---------- */
 
+export class SlaBandsDto {
+  @ApiProperty({ example: 95 })
+  healthyBandPct!: number;
+  @ApiProperty({ example: 85 })
+  criticalBandPct!: number;
+
+  static from(record: SlaPolicyRecord): SlaBandsDto {
+    return { healthyBandPct: record.healthyBandPct, criticalBandPct: record.criticalBandPct };
+  }
+}
+
 export class SlaPolicyDto {
   @ApiProperty({ example: 90 })
   onTimeThresholdMinutes!: number;
