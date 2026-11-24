@@ -34,7 +34,18 @@ vi.mock('@/lib/depot-context', () => ({
   }),
 }));
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => '/driver/performance',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 import ManagerHome from '@/app/m/manager/page';
+import DriverPerformancePage from '@/app/driver/performance/page';
+
+vi.mock('@/components/driver/driver-shell', () => ({
+  DriverShell: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 const sla = (over: Record<string, unknown>) => ({
   from: null,
@@ -79,6 +90,7 @@ describe('HD-6 A4 manager home SLA', () => {
     expect(q.get('from')).toBe('2026-09-30T17:00:00.000Z');
     expect(q.get('to')).toBe('2026-10-31T17:00:00.000Z');
     expect(q.get('depotId')).toBe('depot-1');
+    expect(screen.getByText('hrFix.managerHome.thisMonth')).toBeTruthy();
   });
 
   it('shows a dash, never 0%, when nothing was delivered', async () => {
@@ -87,5 +99,19 @@ describe('HD-6 A4 manager home SLA', () => {
     await waitFor(() => expect(screen.getByText('SLA tepat waktu')).toBeTruthy());
     expect(screen.queryByText('0%')).toBeNull();
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
+});
+
+describe('HD-6 A4 driver performance with no depot rank', () => {
+  it('renders without the rank card when rank is null', async () => {
+    get.mockResolvedValue({
+      weekStart: '2026-07-13', delivered: 0, deliveredPrev: 0, perDay: [0, 0, 0, 0, 0, 0, 0],
+      onTime: 0, onTimeRate: 0, failed: 0, rating: null, ratingPrev: null,
+      rank: null, rankPrev: null, depotCouriers: 1, target: 45, targetMet: false,
+    });
+    render(<DriverPerformancePage />);
+    await waitFor(() => expect(screen.getByText('hrFix.driverPerf.title')).toBeTruthy());
+    await waitFor(() => expect(screen.queryByText('hrFix.driverPerf.depotRank')).toBeNull());
+    expect(screen.queryByText(/^#/)).toBeNull();
   });
 });

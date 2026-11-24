@@ -29,6 +29,9 @@ function Kpis({ d }: { d: ExecutiveDashboard }) {
 
   return (
     <Card className="grid grid-cols-2 gap-y-4 p-5">
+      <div className="col-span-2 text-[10.5px] font-bold uppercase tracking-wide text-brand-700">
+        {t('hrFix.managerHome.thisMonth')}
+      </div>
       <Kpi label="Order" value={orders.toLocaleString('id-ID')} />
       <Kpi label="Pendapatan" value={<Money amount={revenue} />} />
       <Kpi label={t('hrFix.managerHome.gallonsDelivered')} value={gallons.toLocaleString('id-ID')} />
@@ -91,18 +94,17 @@ export default function ManagerHomePage() {
   const { t } = useT();
   const { customer } = useAuth();
   const { selected, depots, scopedId, ready } = useDepot();
-  // The KPI card is the depot named in the header, not the network, and the CURRENT WIB
-  // month: with no range the server answered all-time, so SLA (and orders, revenue) never moved.
-  // The KPI card is the depot named in the header, not the network. It asked for the
-  // unscoped executive dashboard — every depot's orders and every depot's revenue — and
-  // printed the answer directly under one depot's name. The scoped id goes in the request;
-  // the server refuses it if this account is not responsible for that depot.
+  // The KPI card is the depot named in the header, not the network (the scoped id goes in
+  // the request; the server refuses a depot this account is not responsible for), and the
+  // CURRENT WIB month: with no range the server answered all-time, so SLA never moved.
+  // The month start is a dep so a page left open across the 1st refetches.
+  const monthKey = monthRangeWib().from;
   const dash = useAsync<ExecutiveDashboard>(
     () =>
       scopedId
         ? api.get(endpoints.dashboard.executive({ ...monthRangeWib(), depotId: scopedId }), true)
         : Promise.resolve(null as unknown as ExecutiveDashboard),
-    [scopedId],
+    [scopedId, monthKey],
   );
   const counts = useAsync<ApprovalCounts>(
     () => (scopedId ? api.get(endpoints.approvals.counts(scopedId), true) : Promise.resolve(null as unknown as ApprovalCounts)),

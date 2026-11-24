@@ -2314,6 +2314,7 @@ export const hrFix = {
   },
   managerHome: {
     gallonsDelivered: 'Gallons delivered',
+    thisMonth: 'This month',
     yourDepot: 'Your depot',
     loadFailed: 'Could not load',
   },

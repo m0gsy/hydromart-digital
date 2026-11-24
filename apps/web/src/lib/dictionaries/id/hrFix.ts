@@ -2335,6 +2335,7 @@ export const hrFix = {
   },
   managerHome: {
     gallonsDelivered: 'Galon terkirim',
+    thisMonth: 'Bulan ini',
     yourDepot: 'Depot kamu',
     loadFailed: 'Gagal memuat',
   },

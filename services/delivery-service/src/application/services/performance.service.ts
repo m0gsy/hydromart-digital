@@ -77,8 +77,11 @@ export class PerformanceService {
     // depot the courier worked, so their own count is read off the depot board too (0 if
     // absent); an all-depot count against a one-depot board over-ranked them.
     const ownDepot = depotCounts.find((c) => c.driverId === driverId)?.count ?? 0;
+    // A courier with nothing at this depot this week is not on its board: no rank.
     const rank =
-      depotId === undefined ? null : 1 + depotCounts.filter((c) => c.count > ownDepot).length;
+      depotId === undefined || ownDepot === 0
+        ? null
+        : 1 + depotCounts.filter((c) => c.count > ownDepot).length;
     // Prior-week rank on the same depot board. Null when the courier had no delivery at
     // this depot last week — there's no meaningful rank to compare to.
     const ownDepotPrev = depotCountsPrev.find((c) => c.driverId === driverId)?.count ?? 0;
