@@ -39,7 +39,7 @@ export const covers = (scope: ReadScope, depotId: string, day: string): boolean 
 const dayBefore = (day: string): string => {
   // tz-ok: calendar days as UTC midnights.
   const ms = Date.parse(`${day}T00:00:00Z`) - 86_400_000;
-  return new Date(ms).toISOString().slice(0, 10);
+  return new Date(ms).toISOString().slice(0, 10); // tz-ok: a calendar day held as a UTC midnight
 };
 
 const UNAVAILABLE = 'Cakupan badan hukum belum bisa dipastikan sekarang; coba lagi nanti.';
