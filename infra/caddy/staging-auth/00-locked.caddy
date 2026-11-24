@@ -5,4 +5,7 @@
 # (a bcrypt hash, never the password) and not kept in git (.gitignore).
 # Both hashes are bcrypt cost 10 (about 60 ms), not Caddy's default 14 (about a second): anyone
 # on the internet can send credentials, and each guess costs this shared box one hash.
+# The secrets scanner flags any bcrypt hash; this one opens nothing (its password is gone), and
+# the marker must sit on the line directly above the hash.
+# nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash
 locked $2a$10$SQzCB0CTKo72b.oFHhWfTuUs0b1UGTINm1zi/7X12nRqBGW0/Gu6W
