@@ -49,6 +49,13 @@ export interface SoldTotals {
   unmeasuredLines: number;
   gallonsDelivered: number;
   revenueIdr: number;
+  /**
+   * Decision 27-A: what the day's gallons sold for. Gallon lines of every order that counts
+   * (not BATAL, not VOID), delivered or not, because the water they take is already counted in
+   * `soldLiters`. Their average price is what a litre of variance is worth.
+   */
+  gallonSalesIdr: number;
+  gallonsSold: number;
 }
 
 export interface MeterReconciliation extends SoldTotals {
@@ -121,6 +128,8 @@ export interface MeterHistoryRow {
   soldLiters: number;
   varianceLiters: number | null;
   varianceGallons: number | null;
+  /** Decision 27-A, the same price as the daily screen: null with no gallon sold that day. */
+  varianceIdr: number | null;
   roYieldPct: number | null;
 }
 
@@ -183,10 +192,9 @@ export function reconcile(input: ReconcileInput): MeterReconciliation {
   const varianceGallons =
     varianceLiters === null ? null : round2(varianceLiters / (referenceVolumeMl / 1000));
 
-  // Price the variance off the day's own revenue per delivered galon. No galon
-  // delivered means there is no price to apply — report null, not a confident zero.
-  const idrPerGallon =
-    totals.gallonsDelivered > 0 ? totals.revenueIdr / totals.gallonsDelivered : null;
+  // Decision 27-A: price the variance at the day's own average price per galon sold. No galon
+  // sold means there is no price to apply: report null, not a confident zero.
+  const idrPerGallon = totals.gallonsSold > 0 ? totals.gallonSalesIdr / totals.gallonsSold : null;
   const varianceIdr =
     varianceGallons === null || idrPerGallon === null
       ? null

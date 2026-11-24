@@ -41,6 +41,8 @@ function totalsFrom(rows: OrderRecord[]): SoldTotals {
       .filter((r) => isDelivered(r.status))
       .reduce((s, r) => s + gallonQty(r), 0),
     revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
+    gallonSalesIdr: live.reduce((s, r) => s + r.items.reduce((t, i) => t + (i.isGallon ? i.lineTotal : 0), 0), 0),
+    gallonsSold: live.reduce((s, r) => s + gallonQty(r), 0),
   };
 }
 
@@ -280,6 +282,7 @@ export class MeterService {
         soldLiters: result.soldLiters,
         varianceLiters: result.varianceLiters,
         varianceGallons: result.varianceGallons,
+        varianceIdr: result.varianceIdr,
         roYieldPct: result.roYieldPct,
       });
     }

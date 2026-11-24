@@ -3283,6 +3283,9 @@ export interface MeterReconciliation {
   unmeasuredLines: number;
   gallonsDelivered: number;
   revenueIdr: number;
+  /** Decision 27-A: the gallon lines of the day's counting orders, and how many gallons they were. */
+  gallonSalesIdr: number;
+  gallonsSold: number;
   varianceLiters: number | null;
   varianceGallons: number | null;
   varianceIdr: number | null;
@@ -3301,6 +3304,7 @@ export interface MeterHistoryRow {
   soldLiters: number;
   varianceLiters: number | null;
   varianceGallons: number | null;
+  varianceIdr: number | null;
   roYieldPct: number | null;
 }
 

@@ -31,7 +31,7 @@ function reading(over: Partial<MeterReading> = {}): MeterReading {
 }
 
 function totals(over: Partial<SoldTotals> = {}): SoldTotals {
-  return { soldLiters: 0, unmeasuredLines: 0, gallonsDelivered: 0, revenueIdr: 0, ...over };
+  return { soldLiters: 0, unmeasuredLines: 0, gallonsDelivered: 0, revenueIdr: 0, gallonSalesIdr: 0, gallonsSold: 0, ...over };
 }
 
 const settings = { referenceVolumeMl: 19000, toleranceLiters: 200 };
@@ -82,7 +82,7 @@ describe('reconcile', () => {
       depotId: 'd1',
       date: '2026-08-02',
       reading: reading(),
-      totals: totals({ soldLiters: 2430, gallonsDelivered: 130, revenueIdr: 2600000 }),
+      totals: totals({ soldLiters: 2430, gallonsDelivered: 100, gallonsSold: 130, gallonSalesIdr: 2600000, revenueIdr: 9999999 }),
       ...settings,
     });
     expect(result.meterLiters).toBe(2600);
@@ -142,7 +142,7 @@ describe('reconcile', () => {
       depotId: 'd1',
       date: '2026-08-02',
       reading: reading({ closingM3: 1001 }),
-      totals: totals({ soldLiters: 2430, gallonsDelivered: 130, revenueIdr: 2600000 }),
+      totals: totals({ soldLiters: 2430, gallonsDelivered: 100, gallonsSold: 130, gallonSalesIdr: 2600000, revenueIdr: 9999999 }),
       ...settings,
     });
     expect(result.meterLiters).toBe(1000);

@@ -139,8 +139,8 @@ function order(over: Partial<OrderRecord> = {}): OrderRecord {
     createdAt: new Date(`${DATE}T08:00:00.000Z`),
     total: 2600000,
     items: [
-      { quantity: 120, volumeMl: 19000, isGallon: true },
-      { quantity: 10, volumeMl: 15000, isGallon: true },
+      { quantity: 120, volumeMl: 19000, isGallon: true, lineTotal: 2400000 },
+      { quantity: 10, volumeMl: 15000, isGallon: true, lineTotal: 200000 },
     ],
     ...over,
   } as unknown as OrderRecord;
@@ -576,13 +576,43 @@ describe('MeterService reads', () => {
     expect(result.revenueIdr).toBe(2600000);
   });
 
-  it('counts litres from orders that are not delivered yet, but not their gallons', async () => {
+  it('counts litres from orders that are not delivered yet, but not their gallons as delivered', async () => {
     const { service, repo } = build({ orders: [order({ status: OrderStatus.PREPARING })] });
     repo.seed({ openingM3: 1000, closingM3: 1002.6 });
     const result = await service.reconcile(DEPOT, DATE);
     expect(result.soldLiters).toBe(2430);
     expect(result.gallonsDelivered).toBe(0);
-    expect(result.varianceIdr).toBeNull();
+    // Decision 27-A: the rupiah is priced at the average per galon SOLD that day (2.6M / 130),
+    // so a day of undelivered orders no longer inflates it or blanks it.
+    expect(result.gallonsSold).toBe(130);
+    expect(result.gallonSalesIdr).toBe(2600000);
+    expect(result.varianceIdr).toBe(179000);
+  });
+
+  it('27-A: prices the variance at the average gallon price, not at all revenue over delivered gallons', async () => {
+    const { service, repo } = build({
+      orders: [
+        order({
+          total: 5000000, // a big order that is mostly not water
+          items: [
+            { quantity: 100, volumeMl: 19000, isGallon: true, lineTotal: 2000000 },
+            { quantity: 1, volumeMl: null, isGallon: false, lineTotal: 3000000 },
+          ] as never,
+        }),
+      ],
+    });
+    repo.seed({ openingM3: 1000, closingM3: 1002.1 }); // 2100 L out, 1900 L sold: 200 L = 10.53 gal
+    const result = await service.reconcile(DEPOT, DATE);
+    expect(result.varianceGallons).toBe(10.53);
+    expect(result.varianceIdr).toBe(Math.round(10.53 * 20000)); // 20 000 a galon, not 50 000
+  });
+
+  it('27-A: no gallon sold that day means no price: null, never 0', async () => {
+    const { service, repo } = build({
+      orders: [order({ items: [{ quantity: 4, volumeMl: 1000, isGallon: false, lineTotal: 40000 }] as never })],
+    });
+    repo.seed({ openingM3: 1000, closingM3: 1001 });
+    expect((await service.reconcile(DEPOT, DATE)).varianceIdr).toBeNull();
   });
 
   // C2: a meter reading is taken by depot staff on a LOCAL day, so the sales it is compared
@@ -623,6 +653,9 @@ describe('MeterService reads', () => {
     expect(rows.map((r) => r.day)).toEqual(['2026-08-01', '2026-08-02']);
     expect(rows[0].meterLiters).toBe(2500);
     expect(rows[0].varianceLiters).toBe(70);
+    // 27-A: each history day carries its rupiah, at that day's own average gallon price (20 000).
+    expect(rows[0].varianceIdr).toBe(Math.round(rows[0].varianceGallons! * 20000));
+    expect(rows[1].varianceIdr).not.toBeNull();
     // The whole window is read once and bucketed — not once per day on the chart (H-48).
     expect(orders.ordersForDepot).toHaveBeenCalledTimes(1);
     // C2: the window is the LOCAL span of those two days — 01 Aug 00:00 WIB is
