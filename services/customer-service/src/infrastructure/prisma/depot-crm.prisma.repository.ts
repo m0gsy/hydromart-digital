@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { DEFAULT_MAX_ROWS } from '@hydromart/platform';
 
 import { Prisma } from '../../../prisma/generated/client';
-import { MembershipTier } from '../../domain/membership-tier.enum';
 import {
   DepotCrmRepository,
   DepotCustomerQuery,
@@ -14,7 +13,6 @@ interface RawRow {
   customerId: string;
   fullName: string | null;
   phone: string | null;
-  membershipTier: string;
 }
 
 @Injectable()
@@ -70,17 +68,15 @@ export class DepotCrmPrismaRepository implements DepotCrmRepository {
       )
       SELECT m."customerId" AS "customerId",
              a."recipientName" AS "fullName",
-             a."phone" AS "phone",
-             COALESCE(p."membershipTier"::text, 'BASIC') AS "membershipTier"
+             a."phone" AS "phone"
       FROM members m
-      LEFT JOIN "customer_profiles" p ON p."customerId" = m."customerId"
       LEFT JOIN "addresses" a
         ON a."customerId" = m."customerId" AND a."isPrimary" = true
       ${search}
       ORDER BY a."recipientName" ASC NULLS LAST, m."customerId" ASC
       LIMIT ${limit} OFFSET ${offset}
     `);
-    return rows.map((r) => ({ ...r, membershipTier: r.membershipTier as MembershipTier }));
+    return rows;
   }
 
   async findIdsByDepotPage(

@@ -298,6 +298,7 @@ model Employee {
   history          EmploymentHistory[]
   faceEmbeddings   FaceEmbedding[]
   attendance       Attendance[]
+  attendanceRollups AttendanceMonthRollup[]
   bonuses          Bonus[]
   allowances       Allowance[]
   deductions       Deduction[]
@@ -766,6 +767,11 @@ model Payroll {
   paidAt          DateTime?
   /// HR-06: wage, jabatan and PTKP as the first generate read them (see PayrollSnapshot).
   snapshot        Json?
+  /// HD-6 A7: the employer's BPJS as this slip priced it, on the employee's depot's own rates
+  /// (see PayrollEmployerMemo). A cost memo, never a payslip line: it is not in gross, bonus,
+  /// deduction or net, so the labour-cost report reads what the slip was generated with.
+  /// NULL on slips from before the column existed and on imported history.
+  employerMemo    Json?
   createdBy       String?       @db.Uuid
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -1106,4 +1112,28 @@ model EmployeeLegalEntity {
 
   @@unique([employeeId, effectiveFrom])
   @@map("employee_legal_entities")
+}
+
+/// HD-6 A7: one employee's attendance for one WIB month, counted from the raw rows BEFORE the
+/// retention scrub deletes them (EmployeePrismaRepository.anonymiseRetentionEligible). Counts
+/// only, no times or photos. `present` is PRESENT, `late` is LATE (so people at work = present
+/// + late); PENDING and HOLIDAY rows are counted in neither. `depotId` is the employee's depot
+/// when the rollup was written.
+model AttendanceMonthRollup {
+  id         String   @id @default(uuid()) @db.Uuid
+  employeeId String   @db.Uuid
+  depotId    String?  @db.Uuid
+  /// "YYYY-MM".
+  month      String
+  present    Int      @default(0)
+  late       Int      @default(0)
+  absent     Int      @default(0)
+  leave      Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, month])
+  @@index([depotId, month])
+  @@map("attendance_month_rollups")
 }

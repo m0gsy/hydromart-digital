@@ -86,11 +86,11 @@ describe('CampaignService', () => {
 
     it('resolves recipients from a segment (FR-087), forwarding the caller token', async () => {
       directory.recipients = [
-        { customerId: 'c1', name: 'Sinta', phone: '+628111', tier: 'SILVER', city: 'Depok' },
-        { customerId: 'c2', name: 'Bima', phone: '+628222', tier: 'BASIC', city: 'Bogor' },
+        { customerId: 'c1', name: 'Sinta', phone: '+628111', city: 'Depok' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222', city: 'Bogor' },
       ];
       const c = await service.create('staff-1', 'Blast', 'Hi {{name}}', undefined, {
-        tier: 'SILVER',
+        city: 'Depok',
       }, 'Bearer tok');
       expect(c.totalRecipients).toBe(1);
       expect(c.recipients[0]).toMatchObject({ phone: '+628111', name: 'Sinta', customerId: 'c1' });
@@ -99,8 +99,8 @@ describe('CampaignService', () => {
 
     it('resolves an EMPTY segment to all reachable customers (design 10d "Semua pelanggan")', async () => {
       directory.recipients = [
-        { customerId: 'c1', name: 'Sinta', phone: '+628111', tier: 'SILVER', city: 'Depok' },
-        { customerId: 'c2', name: 'Bima', phone: '+628222', tier: 'BASIC', city: 'Bogor' },
+        { customerId: 'c1', name: 'Sinta', phone: '+628111', city: 'Depok' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222', city: 'Bogor' },
       ];
       const c = await service.create('staff-1', 'Blast', 'Hi {{name}}', undefined, {}, 'Bearer tok');
       expect(c.totalRecipients).toBe(2);
@@ -117,15 +117,15 @@ describe('CampaignService', () => {
     it('throws NoRecipientsError when a segment resolves to nobody', async () => {
       directory.recipients = [];
       await expect(
-        service.create('staff-1', 'Blast', 'Hi', undefined, { tier: 'GOLD' }, 'Bearer tok'),
+        service.create('staff-1', 'Blast', 'Hi', undefined, { city: 'Nowhere' }, 'Bearer tok'),
       ).rejects.toBeInstanceOf(NoRecipientsError);
     });
 
     /*
      * The activity half. The screens size these segments from order-service (at-risk, new,
-     * frequent, "customers of this depot") and used to send `{tier:'GOLD'}` or `{}` instead
+     * frequent, "customers of this depot") and used to send `{}` instead
      * — an estimate of 40 lapsed customers followed by a blast to everyone. The directory
-     * still owns tier/city; order-service now says who is in the activity segment, and the
+     * still owns city; order-service now says who is in the activity segment, and the
      * campaign is the intersection.
      */
     it('narrows a segment to the customers order-service says are in it', async () => {
@@ -144,15 +144,15 @@ describe('CampaignService', () => {
 
     it('combines the activity segment with the attribute one', async () => {
       directory.recipients = [
-        { customerId: 'c1', name: 'Sinta', phone: '+628111', tier: 'GOLD' },
-        { customerId: 'c2', name: 'Bima', phone: '+628222', tier: 'BASIC' },
+        { customerId: 'c1', name: 'Sinta', phone: '+628111', city: 'Depok' },
+        { customerId: 'c2', name: 'Bima', phone: '+628222', city: 'Bogor' },
       ];
       activity.customerIds = ['c1', 'c2'];
 
-      const c = await service.create('staff-1', 'Both', 'Hi', undefined, { tier: 'GOLD', minOrders: 5 }, 'Bearer tok');
+      const c = await service.create('staff-1', 'Both', 'Hi', undefined, { city: 'Depok', minOrders: 5 }, 'Bearer tok');
 
       expect(c.recipients.map((r) => r.customerId)).toEqual(['c1']);
-      // tier must NOT be sent to order-service — it does not know tiers, and a stray
+      // city must NOT be sent to order-service — it does not know it, and a stray
       // property on that query is a 400 behind forbidNonWhitelisted.
       expect(activity.lastConditions).toEqual({ minOrders: 5 });
     });

@@ -32,6 +32,28 @@ export class EmployeePrismaRepository implements EmployeeRepository {
    * reads as a data bug to whoever opens an old payroll slip. */
   private static readonly REDACTED = 'Karyawan dihapus';
 
+  /**
+   * HD-6 A7: the month counts of the attendance rows a scrub is about to delete, written FIRST
+   * and in the same transaction, so the deletion can never happen without them. Idempotent: a
+   * (employee, month) that already has a rollup is left alone, and a re-run after the rows are
+   * gone finds nothing to count.
+   */
+  private rollUpAttendance(where: Prisma.Sql) {
+    return this.prisma.$executeRaw`
+      INSERT INTO "attendance_month_rollups"
+        ("id", "employeeId", "depotId", "month", "present", "late", "absent", "leave")
+      SELECT gen_random_uuid(), a."employeeId", e."depotId", to_char(a."workDate", 'YYYY-MM'),
+        count(*) FILTER (WHERE a."status" = 'PRESENT'),
+        count(*) FILTER (WHERE a."status" = 'LATE'),
+        count(*) FILTER (WHERE a."status" = 'ABSENT'),
+        count(*) FILTER (WHERE a."status" = 'LEAVE')
+      FROM "attendance" a
+      JOIN "employees" e ON e."id" = a."employeeId"
+      WHERE ${where}
+      GROUP BY a."employeeId", e."depotId", to_char(a."workDate", 'YYYY-MM')
+      ON CONFLICT ("employeeId", "month") DO NOTHING`;
+  }
+
   async anonymiseRetentionEligible(cutoff: Date): Promise<number> {
     const doomed = await this.prisma.employee.findMany({
       where: { status: { in: ['RESIGNED', 'INACTIVE'] }, updatedAt: { lt: cutoff } },
@@ -43,6 +65,7 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     // One transaction: an employee whose identity was scrubbed but whose face embedding
     // survived would be the worst of both outcomes.
     await this.prisma.$transaction([
+      this.rollUpAttendance(Prisma.sql`a."employeeId" = ANY(${ids}::uuid[])`),
       this.prisma.faceEmbedding.deleteMany({ where: { employeeId: { in: ids } } }),
       this.prisma.attendance.deleteMany({ where: { employeeId: { in: ids } } }),
       this.prisma.performanceReview.deleteMany({ where: { employeeId: { in: ids } } }),
@@ -83,6 +106,7 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     if (!employee) return 0;
 
     await this.prisma.$transaction([
+      this.rollUpAttendance(Prisma.sql`a."employeeId" = ${employee.id}::uuid`),
       this.prisma.faceEmbedding.deleteMany({ where: { employeeId: employee.id } }),
       this.prisma.attendance.deleteMany({ where: { employeeId: employee.id } }),
       this.prisma.performanceReview.deleteMany({ where: { employeeId: employee.id } }),

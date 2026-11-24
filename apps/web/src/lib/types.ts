@@ -2906,13 +2906,12 @@ export interface OnboardingState {
 }
 
 // Depot CRM — depot-scoped customer directory (Depot Operator 6a/7a, Manager 12b).
-// `Customer` and `MembershipTier` are already taken, so these are prefixed and the tier is
-// left as a plain string (customer-service uses BASIC/SILVER/GOLD).
+// `Customer` is already taken, so these are prefixed. There is no member tier here: the old
+// BASIC column was dead (nothing wrote it); the real tier lives in loyalty-service.
 export interface DepotCustomer {
   id: string;
   fullName: string | null;
   phone: string | null;
-  membershipTier: string;
   // null = aggregate not computed yet (cross-service unwired); render as "—".
   orderCount: number | null;
   gallonsOnLoan: number | null;
@@ -2982,7 +2981,6 @@ export interface DepotCustomerDetail {
     id: string;
     fullName: string | null;
     phone: string | null;
-    membershipTier: string;
     // null = aggregate not computed yet (cross-service unwired); render as "—".
     isSubscriber: boolean | null;
     orderCount: number | null;

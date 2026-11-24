@@ -3,7 +3,6 @@ import { randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 
 import { CustomerConfigService } from '../../src/config/customer-config.service';
-import { MembershipTier } from '../../src/domain/membership-tier.enum';
 import { AddressLimitError } from '../../src/domain/errors';
 import {
   CustomerProfileRecord,
@@ -40,12 +39,6 @@ export class InMemoryProfileRepository implements ProfileRepository {
   // Optional address source so findSegment (FR-087) can join to a primary address.
   constructor(private readonly addresses?: InMemoryAddressRepository) {}
 
-  /** Test helper: force a tier (membershipTier is read-only via the API). */
-  async setTier(customerId: string, tier: MembershipTier): Promise<void> {
-    const rec = this.rows.get(customerId) ?? (await this.create(customerId));
-    rec.membershipTier = tier;
-  }
-
   async findByCustomerId(customerId: string): Promise<CustomerProfileRecord | null> {
     return this.rows.get(customerId) ?? null;
   }
@@ -56,7 +49,6 @@ export class InMemoryProfileRepository implements ProfileRepository {
     const now = nextDate();
     const rec: CustomerProfileRecord = {
       customerId,
-      membershipTier: MembershipTier.BASIC,
       pointBalance: 0,
       favoriteDepotId: null,
       birthdate: null,
@@ -125,7 +117,6 @@ export class InMemoryProfileRepository implements ProfileRepository {
   async findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
     const out: DirectoryRecipient[] = [];
     for (const p of this.rows.values()) {
-      if (filter.tier && p.membershipTier !== filter.tier) continue;
       const addrs = this.addresses ? await this.addresses.listByCustomer(p.customerId) : [];
       const primary = addrs.find((a) => a.isPrimary);
       if (!primary) continue;

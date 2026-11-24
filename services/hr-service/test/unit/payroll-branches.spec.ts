@@ -178,6 +178,7 @@ function build(opts: {
     // existing assertions are untouched — while a test that DOES enrol someone gets the
     // lawful numbers rather than a convenient fiction.
     pph21TerTable: () => ({}),
+    employerRates: () => ({}),
     statutoryRates: () => ({
       healthEmployeePct: 1,
       healthCeilingIdr: 12_000_000,

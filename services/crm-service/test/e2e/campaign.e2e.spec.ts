@@ -165,20 +165,29 @@ describe('Campaign HTTP flows (e2e)', () => {
 
   it('creates a campaign from an attribute segment (FR-087)', async () => {
     directory.recipients = [
-      { customerId: randomUUID(), name: 'Sinta', phone: '+628111', tier: 'SILVER', city: 'Depok' },
-      { customerId: randomUUID(), name: 'Bima', phone: '+628222', tier: 'BASIC', city: 'Bogor' },
+      { customerId: randomUUID(), name: 'Sinta', phone: '+628111', city: 'Depok' },
+      { customerId: randomUUID(), name: 'Bima', phone: '+628222', city: 'Bogor' },
     ];
     const res = await request(server())
       .post('/api/v1/campaigns')
       .set(auth(marketingToken))
       .send({
-        name: 'Silver Depok',
+        name: 'Depok',
         messageTemplate: 'Hi {{name}}!',
-        segment: { tier: 'SILVER', city: 'Depok' },
+        segment: { city: 'Depok' },
       })
       .expect(201);
     expect(res.body).toMatchObject({ status: 'DRAFT', totalRecipients: 1 });
     expect(res.body.recipients[0]).toMatchObject({ phone: '+628111', name: 'Sinta' });
+  });
+
+  it('answers 400 with a clear message for the removed segment tier filter (HD-6 A7)', async () => {
+    const res = await request(server())
+      .post('/api/v1/campaigns')
+      .set(auth(marketingToken))
+      .send({ name: 'Old', messageTemplate: 'Hi', segment: { tier: 'BASIC' } })
+      .expect(400);
+    expect(JSON.stringify(res.body)).toContain('Filter tier sudah tidak ada');
   });
 
   it('restricts list to staff (403 customer, 200 marketing)', async () => {

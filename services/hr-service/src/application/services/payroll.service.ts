@@ -48,6 +48,7 @@ import {
   StatutoryInput,
   StatutoryRates,
   bpjsEmployeeDeductions,
+  bpjsEmployerCosts,
   pph21December,
   pph21Monthly,
 } from '../../domain/statutory';
@@ -79,6 +80,7 @@ import {
 import {
   PAYROLL_REPOSITORY,
   PayrollItemInput,
+  PayrollEmployerMemo,
   PayrollSnapshot,
   PayrollRepository,
   PayrollShareRow,
@@ -580,6 +582,15 @@ export class PayrollService {
       items.push({ kind: 'DEDUCTION', label: line.label, amount: line.amountIdr, code: 'BPJS' });
     }
     const bpjsTotal = bpjsLines.reduce((sum, line) => sum + line.amountIdr, 0);
+    // HD-6 A7: the employer's half, on THIS depot's own rates, stored with the slip so the
+    // labour-cost report reads what the slip was priced with instead of re-pricing it later.
+    const employerMemo: PayrollEmployerMemo = {
+      ratesDepotId: employee.depotId ?? null,
+      lines: bpjsEmployerCosts(statutoryInput, {
+        ...rates,
+        ...this.config.employerRates(employee.depotId),
+      }),
+    };
 
     // December is the month that makes the other eleven honest: the year's actual
     // liability, minus everything already withheld. Every other month is an estimate
@@ -632,6 +643,7 @@ export class PayrollService {
       createdBy: user.sub,
       items,
       snapshot,
+      employerMemo,
       ...(shares !== undefined ? { shares } : {}),
     };
     return existing ? this.repo.regenerate(existing.id, write) : this.repo.create(write);

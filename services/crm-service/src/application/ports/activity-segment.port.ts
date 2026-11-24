@@ -1,6 +1,6 @@
 /**
  * Activity conditions an audience can be cut by. These live in order-service (they are
- * facts about orders), which is why they are NOT part of `SegmentFilter`'s tier/city —
+ * facts about orders), which is why they are NOT part of `SegmentFilter`'s city —
  * those are customer attributes and are resolved from the customer directory.
  */
 export interface ActivityConditions {

@@ -174,6 +174,7 @@ function build(opts: {
     // existing assertions are untouched — while a test that DOES enrol someone gets the
     // lawful numbers rather than a convenient fiction.
     pph21TerTable: () => ({}),
+    employerRates: (d?: string | null) => (d === 'd1' ? { healthEmployerPct: 6 } : {}),
     statutoryRates: () => ({
       healthEmployeePct: 1,
       healthCeilingIdr: 12_000_000,
@@ -269,6 +270,23 @@ describe('PayrollService.generate', () => {
       expect(w.gross).toBe(5_000_000);
       expect(w.totalDeduction).toBe(202_500);
       expect(w.net).toBe(5_000_000 - 202_500);
+    });
+
+    it('stores the employer BPJS memo, priced on the employee depot rates', async () => {
+      const { repo, svc } = build({
+        employee: enrolled,
+        summary: { presentDays: 31, lateDays: 0, leaveDays: 0, pendingDays: 0 },
+      });
+      await svc.generate(user, 'e1', '2026-07');
+      const w = repo.lastWrite!;
+      // depot d1 pays 6% employer Kesehatan in the fixture (see employerRates); 5jt gross.
+      expect(w.employerMemo).toEqual({
+        ratesDepotId: 'd1',
+        lines: [{ label: 'BPJS Kesehatan (perusahaan)', amountIdr: 300_000 }],
+      });
+      // A memo, never a payslip line: net and deductions are untouched.
+      expect(w.totalDeduction).toBe(202_500);
+      expect(w.items.some((i) => i.label.includes('perusahaan'))).toBe(false);
     });
 
     it('deducts nothing statutory for an employee enrolled in neither scheme', async () => {

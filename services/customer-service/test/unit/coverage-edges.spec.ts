@@ -46,7 +46,6 @@ function fakeCrm(
           customerId: r.customerId,
           fullName: r.fullName ?? null,
           phone: r.phone ?? null,
-          membershipTier: 'BASIC' as const,
         }));
       // NULLS LAST, then id — the order the statement asks for.
       rows.sort((a, b) =>
@@ -360,7 +359,6 @@ describe('DepotCrmService directory union and ledger (§I, J-2)', () => {
     customerId: 'c-profile',
     fullName: 'Budi',
     phone: '+62811',
-    membershipTier: 'BASIC',
   };
 
   const build = (ledger: unknown) =>

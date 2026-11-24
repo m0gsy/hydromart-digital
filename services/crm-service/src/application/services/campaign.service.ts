@@ -112,12 +112,12 @@ export class CampaignService {
     // not "fall back to the explicit list". Resolution throws if the directory is unreachable.
     let list: CreateRecipientData[] = recipients;
     if (segment) {
-      // Two owners, one audience. The directory answers tier/city (customer attributes) and
+      // Two owners, one audience. The directory answers city (a customer attribute) and
       // order-service answers the activity half (lapsed, new, frequent, ordered-at-depot);
       // the campaign is the intersection. Before this, an activity segment was SIZED from
-      // order-service and SENT as `{tier:'GOLD'}` or `{}` — the screen promised 40 lapsed
+      // order-service and SENT as `{}` — the screen promised 40 lapsed
       // customers and the blast reached everyone.
-      const { tier, city, customerIds, ...activityConditions } = segment;
+      const { city, customerIds, ...activityConditions } = segment;
       const inSegment = hasActivityConditions(activityConditions)
         ? new Set(await this.activity.customersIn(activityConditions))
         : null;
@@ -128,7 +128,7 @@ export class CampaignService {
       // ponytail: the intersection is done here rather than pushed into the directory query
       // because the directory read is already whole-audience for an empty filter. If a
       // deployment ever outgrows that, the id list belongs in the directory's WHERE.
-      const resolved = await this.directory.resolveSegment({ tier, city }, authorization);
+      const resolved = await this.directory.resolveSegment({ city }, authorization);
       list = resolved
         .filter((r) => !inSegment || inSegment.has(r.customerId))
         .filter((r) => !named || named.has(r.customerId))
@@ -193,9 +193,9 @@ export class CampaignService {
     scheduledFor?: Date | null,
   ): Promise<CampaignRecord> {
     this.assertNotPast(scheduledFor);
-    const { tier, city, ...activityConditions } = { ...segment, depotId };
+    const { city, ...activityConditions } = { ...segment, depotId };
     const inSegment = new Set(await this.activity.customersIn(activityConditions));
-    const resolved = await this.directory.resolveSegmentAsService({ tier, city });
+    const resolved = await this.directory.resolveSegmentAsService({ city });
     const list = resolved
       .filter((r) => inSegment.has(r.customerId))
       .map((r) => ({ customerId: r.customerId, phone: r.phone, name: r.name }));

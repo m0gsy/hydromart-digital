@@ -73,11 +73,11 @@ describe('CustomerDirectoryHttpAdapter', () => {
     const page1 = Array.from({ length: 5000 }, (_, i) => ({ customerId: `c${String(i).padStart(5, '0')}`, name: 'A', phone: '1' }));
     const page2 = [{ customerId: 'c99999', name: 'B', phone: '2' }];
     fetchMock.mockResolvedValueOnce(res({ body: page1 })).mockResolvedValueOnce(res({ body: page2 }));
-    const out = await new CustomerDirectoryHttpAdapter(makeConfig()).resolveSegment({ tier: 'GOLD' }, AUTH);
+    const out = await new CustomerDirectoryHttpAdapter(makeConfig()).resolveSegment({ city: 'Depok' }, AUTH);
     expect(out).toHaveLength(5001);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][0]).toContain('after=c04999');
-    expect(fetchMock.mock.calls[1][0]).toContain('tier=GOLD');
+    expect(fetchMock.mock.calls[1][0]).toContain('city=Depok');
   });
 
   // 2026-11-20: a customer whose account owner was not found comes back with no number. The
@@ -105,14 +105,14 @@ describe('CustomerDirectoryHttpAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('builds the tier + city segment query string', async () => {
+  it('builds the city segment query string', async () => {
     fetchMock.mockResolvedValue(res({ body: [] }));
     await new CustomerDirectoryHttpAdapter(makeConfig()).resolveSegment(
-      { tier: 'GOLD', city: 'Jakarta Selatan' },
+      { city: 'Jakarta Selatan' },
       AUTH,
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      'http://customer:3002/api/v1/profile/directory?tier=GOLD&city=Jakarta+Selatan',
+      'http://customer:3002/api/v1/profile/directory?city=Jakarta+Selatan',
       expect.anything(),
     );
   });
@@ -150,10 +150,10 @@ describe('CustomerDirectoryHttpAdapter as a service', () => {
     fetchMock.mockResolvedValue(res({ body: recipients }));
     const out = await new CustomerDirectoryHttpAdapter(
       makeConfig({ internalServiceKey: 'k' }),
-    ).resolveSegmentAsService({ tier: 'GOLD' });
+    ).resolveSegmentAsService({ city: 'Depok' });
     expect(out).toEqual(recipients);
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('http://customer:3002/api/v1/profile/internal/directory?tier=GOLD');
+    expect(url).toBe('http://customer:3002/api/v1/profile/internal/directory?city=Depok');
     expect((init as { headers: Record<string, string> }).headers['x-internal-key']).toBe('k');
   });
 });

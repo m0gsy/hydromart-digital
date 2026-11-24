@@ -45,7 +45,6 @@ import { CustomerDepotDepositRow } from '../application/ports/depot-ledger.port'
 function toProfileResponse(p: CustomerProfileRecord): ProfileResponseDto {
   return {
     customerId: p.customerId,
-    membershipTier: p.membershipTier,
     pointBalance: p.pointBalance,
     favoriteDepotId: p.favoriteDepotId,
     // tz-ok: birthdate is @db.Date (UTC-midnight) — the slice IS the calendar date, and
@@ -113,12 +112,11 @@ export class ProfileController {
   @Can('customerDirectory')
   @Get('profile/directory')
   @ApiOperation({
-    summary: 'Staff: list broadcast recipients by segment (tier/city) for CRM (FR-087)',
+    summary: 'Staff: list broadcast recipients by segment (city) for CRM (FR-087)',
   })
   @ApiOkResponse({ type: [DirectoryRecipientDto] })
   async directory(@Query() query: DirectoryQueryDto): Promise<DirectoryRecipient[]> {
     return this.profiles.findSegment({
-      tier: query.tier,
       city: query.city,
       after: query.after,
       limit: query.limit,
@@ -142,7 +140,6 @@ export class ProfileController {
   @ApiOkResponse({ type: [DirectoryRecipientDto] })
   async internalDirectory(@Query() query: DirectoryQueryDto): Promise<DirectoryRecipient[]> {
     return this.profiles.findSegment({
-      tier: query.tier,
       city: query.city,
       after: query.after,
       limit: query.limit,

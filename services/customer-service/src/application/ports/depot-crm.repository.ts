@@ -1,4 +1,3 @@
-import { MembershipTier } from '../../domain/membership-tier.enum';
 
 /**
  * One row of the depot customer directory (6a). Name/phone here are the PRIMARY ADDRESS's
@@ -9,7 +8,6 @@ export interface DepotCustomerRow {
   customerId: string;
   fullName: string | null;
   phone: string | null;
-  membershipTier: MembershipTier;
 }
 
 /**

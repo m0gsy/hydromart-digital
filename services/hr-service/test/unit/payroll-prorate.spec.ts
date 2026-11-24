@@ -98,6 +98,7 @@ function build(o: Overrides = {}) {
       overtimeMultiplierPct: () => 0,
       overtimeOffDayMultiplierPct: () => 0,
       standardWorkingMinutes: () => 480,
+      employerRates: () => ({}),
       statutoryRates: () => '',
       // No TER table configured is the shipped state, and the state these tests assume.
       pph21TerTable: () => ({}),

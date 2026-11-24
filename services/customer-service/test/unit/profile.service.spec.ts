@@ -1,6 +1,5 @@
 import { ProfileService } from '../../src/application/services/profile.service';
 import { NotificationService } from '../../src/application/services/notification.service';
-import { MembershipTier } from '../../src/domain/membership-tier.enum';
 import type { DepotLedgerPort } from '../../src/application/ports/depot-ledger.port';
 import {
   buildTestConfig,
@@ -39,7 +38,7 @@ describe('ProfileService', () => {
 
   it('lazily creates a default BASIC profile on first read', async () => {
     const p = await service.get('cust-1');
-    expect(p.membershipTier).toBe(MembershipTier.BASIC);
+    expect(p).not.toHaveProperty('membershipTier');
     expect(p.pointBalance).toBe(0);
     expect(p.favoriteDepotId).toBeNull();
     expect(p.birthdate).toBeNull();

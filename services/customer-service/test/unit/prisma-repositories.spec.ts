@@ -5,7 +5,6 @@ import { FavoritePrismaRepository } from '../../src/infrastructure/prisma/favori
 import { NotificationPrismaRepository } from '../../src/infrastructure/prisma/notification.prisma.repository';
 import { PaymentMethodPrismaRepository } from '../../src/infrastructure/prisma/payment-method.prisma.repository';
 import { ProfilePrismaRepository } from '../../src/infrastructure/prisma/profile.prisma.repository';
-import { MembershipTier } from '../../src/domain/membership-tier.enum';
 import {
   AddressLimitError,
   AddressNotFoundError,
@@ -366,18 +365,18 @@ describe('ProfilePrismaRepository', () => {
     expect(model.findUnique).toHaveBeenCalledWith({ where: { customerId: 'cust-1' } });
   });
 
-  it('maps the membershipTier string to the enum on find', async () => {
+  it('never serves the dead membershipTier column on find', async () => {
     model.findUnique.mockResolvedValue(row);
     const out = await repo.findByCustomerId('cust-1');
-    expect(out?.membershipTier).toBe(MembershipTier.GOLD);
+    expect(out).not.toHaveProperty('membershipTier');
     expect(out?.pointBalance).toBe(100);
   });
 
-  it('creates a bare profile and maps the tier', async () => {
+  it('creates a bare profile', async () => {
     model.create.mockResolvedValue(row);
     const out = await repo.create('cust-1');
     expect(model.create).toHaveBeenCalledWith({ data: { customerId: 'cust-1' } });
-    expect(out.membershipTier).toBe(MembershipTier.GOLD);
+    expect(out).not.toHaveProperty('membershipTier');
   });
 
   it('updates the favorite depot (set and clear)', async () => {
@@ -453,7 +452,7 @@ describe('ProfilePrismaRepository', () => {
 
   it('finds a segment with filters applied', async () => {
     $queryRaw.mockResolvedValue([{ customerId: 'cust-1', name: 'Budi', phone: '+62800' }]);
-    const out = await repo.findSegment({ tier: MembershipTier.GOLD, city: 'Jakarta' });
+    const out = await repo.findSegment({ city: 'Jakarta' });
     expect(out).toHaveLength(1);
     expect($queryRaw).toHaveBeenCalledTimes(1);
   });
@@ -507,12 +506,12 @@ describe('DepotCrmPrismaRepository', () => {
 
   // Searching moved OUT of this query: the name staff search by is the account name,
   // which lives in auth-service, so DepotCrmService filters after overlaying it.
-  it('lists depot customers, mapping the tier', async () => {
+  it('lists depot customers', async () => {
     $queryRaw.mockResolvedValue([
-      { customerId: 'cust-1', fullName: 'Budi', phone: '+62800', membershipTier: 'SILVER' },
+      { customerId: 'cust-1', fullName: 'Budi', phone: '+62800' },
     ]);
     const out = await repo.listDepotCustomers('depot-1');
-    expect(out[0].membershipTier).toBe(MembershipTier.SILVER);
+    expect(out[0]).not.toHaveProperty('membershipTier');
     expect($queryRaw).toHaveBeenCalledTimes(1);
   });
 

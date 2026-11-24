@@ -36,6 +36,16 @@ export interface PayrollSnapshot {
   ptkpStatus: string | null;
 }
 
+/**
+ * The employer's BPJS as a slip was priced (HD-6 A7): the lines `bpjsEmployerCosts` returned for
+ * the employee's depot's own rates, memo only (never part of gross, deductions or net).
+ */
+export interface PayrollEmployerMemo {
+  /** The depot whose rates priced it; null = the network default. */
+  ratesDepotId: string | null;
+  lines: { label: string; amountIdr: number }[];
+}
+
 export interface PayrollWrite {
   employeeId: string;
   periodMonth: string;
@@ -47,6 +57,7 @@ export interface PayrollWrite {
   createdBy: string | null;
   items: PayrollItemInput[];
   snapshot?: PayrollSnapshot;
+  employerMemo?: PayrollEmployerMemo;
   /**
    * Per-depot split. Absent = the feature is off and the row is written exactly as it always
    * was. On `regenerate`, an EMPTY array means "drop whatever shares were there" (the switch

@@ -13,9 +13,6 @@ import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { canManageCampaigns, canViewCampaigns } from '@/lib/roles';
 
-// Segment tiers accepted by customer-service (MembershipTier). Blank = no filter.
-const TIERS = ['BASIC', 'SILVER', 'GOLD'];
-
 const inputClass =
   'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm placeholder:text-[color:var(--text-muted)] focus:outline focus:outline-2 focus:outline-brand-600';
 
@@ -29,7 +26,6 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
   const [message, setMessage] = useState('');
   const [audience, setAudience] = useState<Audience>('list');
   const [recipients, setRecipients] = useState('');
-  const [tier, setTier] = useState('');
   const [city, setCity] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +34,6 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
     setName('');
     setMessage('');
     setRecipients('');
-    setTier('');
     setCity('');
     setAudience('list');
     setError(null);
@@ -58,11 +53,11 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
       }
       body.recipients = parsed;
     } else {
-      if (!tier && !city.trim()) {
+      if (!city.trim()) {
         setError(t('dashboard.campaigns.pickSegment'));
         return;
       }
-      body.segment = { tier: tier || undefined, city: city.trim() || undefined };
+      body.segment = { city: city.trim() };
     }
     setBusy(true);
     setError(null);
@@ -133,16 +128,6 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
         </Field>
       ) : (
         <div className="flex flex-wrap gap-3">
-          <Field label={t('dashboard.campaigns.tier')} htmlFor="c-tier">
-            <select id="c-tier" value={tier} onChange={(e) => setTier(e.target.value)} className={`${inputClass} min-w-40`}>
-              <option value="">{t('dashboard.campaigns.anyTier')}</option>
-              {TIERS.map((tierName) => (
-                <option key={tierName} value={tierName}>
-                  {tierName}
-                </option>
-              ))}
-            </select>
-          </Field>
           <Field label={t('dashboard.campaigns.city')} htmlFor="c-city">
             <Input id="c-city" value={city} onChange={(e) => setCity(e.target.value)} placeholder={t('dashboard.campaigns.cityPlaceholder')} />
           </Field>

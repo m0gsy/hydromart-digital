@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-import { MembershipTier } from '../../domain/membership-tier.enum';
 import {
   CustomerProfileRecord,
   DirectoryRecipient,
@@ -26,7 +25,10 @@ export class ProfilePrismaRepository implements ProfileRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   private toRecord(row: ProfileRow): CustomerProfileRecord {
-    return { ...row, membershipTier: row.membershipTier as MembershipTier };
+    // HD-6 A7: the BASIC tier column is dead (nothing writes it); it is never served.
+    const { membershipTier: _dead, ...record } = row;
+    void _dead;
+    return record;
   }
 
   async findByCustomerId(customerId: string): Promise<CustomerProfileRecord | null> {
@@ -143,8 +145,7 @@ export class ProfilePrismaRepository implements ProfileRepository {
 
   async findSegment(filter: SegmentFilter): Promise<DirectoryRecipient[]> {
     // Null params short-circuit the guarded predicate so the same query serves every
-    // combination of filters. tier is compared as text to sidestep enum-cast binding.
-    const tier = filter.tier ?? null;
+    // combination of filters.
     const city = filter.city ?? null;
     const after = filter.after ?? null;
     const limit = Math.min(Math.max(filter.limit ?? DIRECTORY_PAGE_MAX, 1), DIRECTORY_PAGE_MAX);
@@ -157,7 +158,6 @@ export class ProfilePrismaRepository implements ProfileRepository {
       JOIN "addresses" a
         ON a."customerId" = p."customerId" AND a."isPrimary" = true
       WHERE p."anonymisedAt" IS NULL
-        AND (${tier}::text IS NULL OR p."membershipTier"::text = ${tier})
         AND (${city}::text IS NULL OR LOWER(BTRIM(a."city")) = LOWER(BTRIM(${city})))
         AND (${after}::uuid IS NULL OR p."customerId" > ${after}::uuid)
         -- F1b: the marketing opt-out bites HERE, not at delivery. This is the only place
