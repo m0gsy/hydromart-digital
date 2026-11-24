@@ -119,6 +119,8 @@ model Order {
 
   /// Display name of the assigned courier (set at DRIVER_ASSIGNED). Powers "antaran {name}".
   driverName    String?
+  // Courier identity (HD-6 A5). Null on rows made before it existed and on walk-in/pickup.
+  driverId      String?       @db.Uuid
 
   /// Assigned courier's phone (set at DRIVER_ASSIGNED), snapshotted from dispatch so
   /// the customer can call the driver from order tracking without a cross-service lookup.

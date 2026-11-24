@@ -614,6 +614,11 @@ export class UpdateOrderStatusDto {
   @MaxLength(120)
   driverName?: string;
 
+  @ApiPropertyOptional({ description: 'Courier user id (set on DRIVER_ASSIGNED); groups reports.' })
+  @IsOptional()
+  @IsUUID()
+  driverId?: string;
+
   @ApiPropertyOptional({
     description: 'Courier phone (set on DRIVER_ASSIGNED); lets the customer call the driver.',
   })

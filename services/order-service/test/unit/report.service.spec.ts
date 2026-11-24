@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { ReportService } from '../../src/application/services/report.service';
 import { OrderStatus } from '../../src/domain/order-status';
+import { ANONYMOUS_CUSTOMER_ID } from '../../src/domain/anonymous';
 import { CreateOrderData } from '../../src/application/ports/order.repository';
 import { InMemoryOrderRepository } from '../support/fakes';
 import { OrderConfigService } from '../../src/config/order-config.service';
@@ -477,6 +478,32 @@ describe('ReportService', () => {
       // The cancelled order is a failed delivery for Budi and revenue for nobody.
       expect(rep.failedDeliveries).toBe(1);
       expect(budiFailed).toBeDefined();
+    });
+
+    it('keeps two couriers with the same name apart when the orders carry their ids', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      const [idA, idB] = [randomUUID(), randomUUID()];
+      for (const [id, n] of [[idA, 2], [idB, 1]] as const) {
+        for (let i = 0; i < n; i += 1) {
+          const o = await r.create({
+            ...orderData({ depotId: depot, total: 40000 }),
+            items: gallon(2),
+          });
+          const row = r.rows.find((x) => x.id === o.id)!;
+          row.createdAt = new Date(`${day}T02:00:00.000Z`);
+          row.status = OrderStatus.DELIVERED;
+          row.driverName = 'Budi';
+          row.driverId = id;
+        }
+      }
+      const svc = new ReportService(r, reportTestConfig(), undefined, undefined, {
+        cashByOrder: async () => [],
+        depotCash: async () => null,
+      } as never);
+      const rep = await svc.depotDaily(depot, day);
+      expect(rep.perCourier.map((c) => c.completed).sort()).toEqual([1, 2]);
+      expect(rep.perCourier.every((c) => c.name === 'Budi')).toBe(true);
     });
 
     it('reports courier COD as null when payment-service could not answer', async () => {
@@ -1484,13 +1511,15 @@ describe('ReportService', () => {
     );
     r.rows.find((x) => x.id === cancelled.id)!.createdAt = new Date('2026-05-11T00:00:00.000Z');
     await r.applyStatus(cancelled.id, OrderStatus.CREATED, OrderStatus.CANCELLED, null, null);
+    // A walk-in sale carries the shared sentinel id: it is not a customer.
+    await mk(ANONYMOUS_CUSTOMER_ID, 10000, null, OrderStatus.COMPLETED);
     const other = await r.create(orderData({ depotId: depot, customerId: custX, total: 70000 }));
     r.rows.find((x) => x.id === other.id)!.createdAt = new Date('2026-06-02T00:00:00.000Z');
 
     const rep = await svc.reportsDepotMonthly(depot, '2026-05', true);
-    expect(rep.orders).toBe(3);
-    expect(rep.revenueIdr).toBe(100000);
-    expect(rep.activeCustomers).toBe(2); // distinct non-cancelled customers
+    expect(rep.orders).toBe(4);
+    expect(rep.revenueIdr).toBe(110000);
+    expect(rep.activeCustomers).toBe(2); // distinct named customers; the walk-in sentinel is not one
     expect(rep.topCourier).toEqual({ name: 'Budi', delivered: 2 });
     expect(rep.netProfitIdr).toBeNull();
     expect(rep.slaPct).toBeNull();

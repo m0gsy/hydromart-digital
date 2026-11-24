@@ -1449,6 +1449,26 @@ describe('OrderService', () => {
       ).resolves.toMatchObject({ status: OrderStatus.COMPLETED });
     });
 
+    it('records the courier id with the name when the order is assigned', async () => {
+      await addToCart(20000, 1);
+      const order = await service.checkout(customer, { deliveryAddress: address });
+      await service.updateStatus(order.id, OrderStatus.CONFIRMED, 'staff');
+      await service.updateStatus(order.id, OrderStatus.PREPARING, 'staff');
+      const out = await service.updateStatus(
+        order.id,
+        OrderStatus.DRIVER_ASSIGNED,
+        'staff',
+        undefined,
+        '',
+        'Budi',
+        undefined,
+        undefined,
+        '3f2b1c9e-0000-4000-8000-000000000001',
+      );
+      expect(out.driverName).toBe('Budi');
+      expect(out.driverId).toBe('3f2b1c9e-0000-4000-8000-000000000001');
+    });
+
     it('stamps the ETA the courier gave when going on delivery', async () => {
       await addToCart(20000, 1);
       const order = await service.checkout(customer, { deliveryAddress: address });
