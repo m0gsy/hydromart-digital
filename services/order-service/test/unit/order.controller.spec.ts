@@ -836,6 +836,7 @@ describe('OrderController', () => {
       note: 'left at door',
       driverName: 'Andi',
       driverPhone: '0822',
+      driverId: 'drv-1',
       estimatedArrivalAt: '2026-01-01T10:00:00.000Z',
     } as never;
     await expect(controller.updateStatus(admin, 'o1', dto, 'Bearer t')).resolves.toMatchObject({
@@ -851,6 +852,7 @@ describe('OrderController', () => {
       'Andi',
       '0822',
       '2026-01-01T10:00:00.000Z',
+      'drv-1',
     );
   });
 

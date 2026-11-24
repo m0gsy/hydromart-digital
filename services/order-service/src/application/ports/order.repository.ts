@@ -85,6 +85,8 @@ export interface OrderRecord extends DeliveryAddressSnapshot {
   total: number;
   /** Display name of the assigned courier (null until DRIVER_ASSIGNED). */
   driverName: string | null;
+  /** Courier user id, set with the name at DRIVER_ASSIGNED; null on orders from before HD-6 A5. */
+  driverId: string | null;
   /** Assigned courier's phone (null until DRIVER_ASSIGNED); lets the customer call the driver. */
   driverPhone: string | null;
   /** Customer-facing ETA (null until ON_DELIVERY), set by delivery-service. */
@@ -729,6 +731,8 @@ export interface OrderRepository {
      * and the owner credit being owed somewhere durable.
      */
     outbox?: OutboxWrite[],
+    /** Courier identity, written with the name at DRIVER_ASSIGNED (HD-6 A5). */
+    driverId?: string | null,
   ): Promise<OrderRecord>;
   /**
    * Append a history row WITHOUT moving the order.

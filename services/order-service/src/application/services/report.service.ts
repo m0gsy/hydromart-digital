@@ -1148,11 +1148,9 @@ export class ReportService {
   /**
    * The day's orders grouped by the courier who carried them.
    *
-   * Grouped on `driverName`, the only courier identity an order carries — the same key
-   * `depotWeekly`/`reportsDepotMonthly` already use for `topCourier`, so the daily
-   * breakdown and the weekly top-courier can never disagree about who did what. Two
-   * couriers sharing a display name would merge; the fix for that is a driver id on the
-   * order, not a second grouping rule here.
+   * Grouped on the courier id the order carries (HD-6 A5), so two couriers sharing a
+   * display name stay separate. Orders from before the id existed have none and group by
+   * name; `topCourier` in the weekly/monthly reports still groups by name.
    *
    * `failed` is the cancelled orders that had already been assigned to that courier, which
    * is why cancelled rows are grouped too rather than filtered out first.
@@ -1161,19 +1159,25 @@ export class ReportService {
     rows: OrderRecord[],
     cashBy: Map<string, number> | null,
   ): DepotCourierDaily[] {
-    const by = new Map<string, { completed: number; failed: number; codIdr: number }>();
+    const by = new Map<
+      string,
+      { name: string; completed: number; failed: number; codIdr: number }
+    >();
     for (const o of rows) {
       if (!o.driverName) continue;
-      const cur = by.get(o.driverName) ?? { completed: 0, failed: 0, codIdr: 0 };
+      // Keyed on the id when the order carries one, so two couriers who share a name stay
+      // two rows. Older orders have no id and keep grouping by name, as before.
+      const key = o.driverId ?? `n:${o.driverName}`;
+      const cur = by.get(key) ?? { name: o.driverName, completed: 0, failed: 0, codIdr: 0 };
       if (o.status === OrderStatus.CANCELLED) cur.failed += 1;
       else if (isDelivered(o.status)) cur.completed += 1;
       cur.codIdr += cashBy?.get(o.id) ?? 0;
-      by.set(o.driverName, cur);
+      by.set(key, cur);
     }
-    return [...by.entries()]
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([name, c]) => ({
-        name,
+    return [...by.values()]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((c) => ({
+        name: c.name,
         completed: c.completed,
         failed: c.failed,
         codIdr: cashBy ? c.codIdr : null,
@@ -1405,7 +1409,10 @@ export class ReportService {
       revenueIdr,
       refundedIdr,
       netRevenueIdr: revenueIdr - refundedIdr,
-      activeCustomers: new Set(live.map((r) => r.customerId)).size,
+      // Named customers only: the walk-in sentinel is one shared id, not a buyer.
+      activeCustomers: new Set(
+        live.map((r) => r.customerId).filter((id) => id !== ANONYMOUS_CUSTOMER_ID),
+      ).size,
       payVisible,
       netCashFlowIdr,
       netProfitIdr: netCashFlowIdr,

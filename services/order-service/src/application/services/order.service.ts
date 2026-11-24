@@ -3174,6 +3174,7 @@ export class OrderService {
       driverPhone?: string | null,
       estimatedArrivalAt?: Date | null,
       outbox?: OutboxWrite[],
+      driverId?: string | null,
     ]
   ): Promise<OrderRecord> {
     const updated = await this.orders.applyStatus(
@@ -3219,6 +3220,7 @@ export class OrderService {
     driverName?: string,
     driverPhone?: string,
     estimatedArrivalAt?: string,
+    driverId?: string,
   ): Promise<OrderRecord> {
     const order = await this.getAny(orderId);
     if (!canTransition(order.status, to)) {
@@ -3244,6 +3246,7 @@ export class OrderService {
         : to === OrderStatus.CANCELLED
           ? OrderService.cancellationOutbox(order.id)
           : [],
+      to === OrderStatus.DRIVER_ASSIGNED ? (driverId ?? null) : undefined,
     );
     if (to === OrderStatus.CANCELLED) {
       await this.outboxService.processForOrder(updated.id, authorization);

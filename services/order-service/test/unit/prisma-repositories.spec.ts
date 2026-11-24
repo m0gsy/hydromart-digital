@@ -2136,6 +2136,13 @@ describe('OrderPrismaRepository', () => {
     expect(await repo.audienceReach()).toBe(0);
   });
 
+  it('leaves the walk-in sentinel out of audience reach', async () => {
+    $queryRaw.mockResolvedValue([{ count: BigInt(1) }]);
+    await repo.audienceReach();
+    const sql = $queryRaw.mock.calls.at(-1)![0] as { values: unknown[] };
+    expect(sql.values).toContain(ANONYMOUS_CUSTOMER_ID);
+  });
+
   it('lists every order for a depot within a range, one keyset page at a time', async () => {
     order.findMany.mockResolvedValue([orderRow()]);
     await repo.ordersForDepot('depot-1', {

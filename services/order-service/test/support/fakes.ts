@@ -288,6 +288,7 @@ export class InMemoryOrderRepository implements OrderRepository {
       voidReason: null,
       subscriptionId: rest.subscriptionId ?? null,
       driverName: null,
+      driverId: null,
       driverPhone: null,
       estimatedArrivalAt: null,
       reviewed: false,
@@ -514,6 +515,7 @@ export class InMemoryOrderRepository implements OrderRepository {
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
     outbox: OutboxWrite[] = [],
+    driverId?: string | null,
   ): Promise<OrderRecord> {
     // The compare-and-set the real repository does in its WHERE (H-4): a caller writing
     // from a status the order has already left claims nothing.
@@ -524,6 +526,7 @@ export class InMemoryOrderRepository implements OrderRepository {
     if (outbox.length) this.outbox?.enqueue(outbox);
     row.status = status;
     if (driverName != null) row.driverName = driverName;
+    if (driverId != null) row.driverId = driverId;
     if (driverPhone != null) row.driverPhone = driverPhone;
     if (estimatedArrivalAt != null) row.estimatedArrivalAt = estimatedArrivalAt;
     row.updatedAt = nextDate();
@@ -879,6 +882,7 @@ export class InMemoryOrderRepository implements OrderRepository {
     const ids = new Set(
       this.rows
         .filter((r) => r.status !== OrderStatus.CANCELLED)
+        .filter((r) => r.customerId !== ANONYMOUS_CUSTOMER_ID)
         .filter((r) => !depotId || r.depotId === depotId)
         .map((r) => r.customerId),
     );

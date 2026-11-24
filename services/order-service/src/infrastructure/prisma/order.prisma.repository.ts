@@ -123,6 +123,7 @@ interface OrderRow {
   voidReason: string | null;
   subscriptionId: string | null;
   driverName: string | null;
+  driverId: string | null;
   driverPhone: string | null;
   estimatedArrivalAt: Date | null;
   items: ItemRow[];
@@ -244,6 +245,7 @@ export class OrderPrismaRepository implements OrderRepository {
       voidReason: row.voidReason,
       subscriptionId: row.subscriptionId,
       driverName: row.driverName,
+      driverId: row.driverId,
       driverPhone: row.driverPhone,
       estimatedArrivalAt: row.estimatedArrivalAt,
       items: row.items.map((i) => ({
@@ -769,6 +771,7 @@ export class OrderPrismaRepository implements OrderRepository {
     driverPhone?: string | null,
     estimatedArrivalAt?: Date | null,
     outbox: OutboxWrite[] = [],
+    driverId?: string | null,
   ): Promise<OrderRecord> {
     // `status: from` in the WHERE is the guard (H-4). No match means the order moved
     // under us; P2025 becomes StaleOrderStatusError so the loser is told, not ignored.
@@ -786,6 +789,7 @@ export class OrderPrismaRepository implements OrderRepository {
             // one cancels orders a depot has only just picked up.
             statusChangedAt: new Date(),
             ...(driverName != null ? { driverName } : {}),
+            ...(driverId != null ? { driverId } : {}),
             ...(driverPhone != null ? { driverPhone } : {}),
             ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
             history: { create: { status, changedBy, note } },
@@ -1399,7 +1403,11 @@ export class OrderPrismaRepository implements OrderRepository {
   }
 
   async audienceReach(depotId?: string): Promise<number> {
-    const conds: Prisma.Sql[] = [NOT_VOID_SQL];
+    // The walk-in sentinel is one shared id, not a person, so it is not part of any reach.
+    const conds: Prisma.Sql[] = [
+      NOT_VOID_SQL,
+      Prisma.sql`"customerId" <> ${ANONYMOUS_CUSTOMER_ID}::uuid`,
+    ];
     if (depotId) conds.push(Prisma.sql`"depotId" = ${depotId}::uuid`);
     const rows = await this.prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`
       SELECT COUNT(DISTINCT "customerId")::bigint AS count
