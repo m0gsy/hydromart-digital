@@ -20,8 +20,8 @@ const fixtures = JSON.parse(readFileSync(new URL('../infra/aiweb-staging/mock/fi
 const AI_WEB = 'https://staging-ai.example.test';
 const MACHINE = { id: randomUUID(), secret: randomBytes(32).toString('hex') };
 
-async function boot(extra = {}) {
-  const mock = createMock({ env: { MOCK_AI_WEB_URL: AI_WEB, MOCK_MACHINE_ID: MACHINE.id, MOCK_MACHINE_SECRET: MACHINE.secret, ...extra } });
+async function boot(extra = {}, now) {
+  const mock = createMock({ env: { MOCK_AI_WEB_URL: AI_WEB, MOCK_MACHINE_ID: MACHINE.id, MOCK_MACHINE_SECRET: MACHINE.secret, ...extra }, ...(now && { now }) });
   await new Promise((r) => mock.server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${mock.server.address().port}`;
   const close = () => new Promise((r) => mock.server.close(r));
@@ -331,12 +331,26 @@ test('n8n: the morning summary needs the machine scope and the Jakarta date of t
     assert.equal((await send(accessToken, { eventId: 'morning-summary:2020-01-01', date: '2020-01-01' })).status, 400);
     assert.equal((await send(accessToken, { eventId: `morning-summary:${date}`, date: '2020-01-01' })).status, 400);
     assert.equal((await send(accessToken, { eventId: `morning-summary:${date}`, date, extra: 1 })).status, 400);
+    assert.equal((await send(accessToken, { eventId: `morning-summary:${date}` })).status, 400);
     const p = pkce();
     const { code } = await pick(mock, user('SUPER_ADMIN'), p);
     const human = await (await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE })).json();
     assert.equal((await send(human.accessToken, { eventId: `morning-summary:${date}`, date })).status, 401);
     assert.equal((await send('nope', { eventId: `morning-summary:${date}`, date })).status, 401);
     assert.equal((await send(null, { eventId: `morning-summary:${date}`, date })).status, 401);
+  } finally {
+    await mock.close();
+  }
+});
+
+test('the morning summary day is Jakarta’s, not UTC’s: 17:30Z on 24 Nov is 25 Nov', async () => {
+  const mock = await boot({}, () => Date.parse('2026-11-24T17:30:00Z'));
+  const send = (token, date) =>
+    json('POST', mock.base, '/crm/api/v1/notifications/external/morning-summary', { eventId: `morning-summary:${date}`, date }, { authorization: `Bearer ${token}` });
+  try {
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    assert.equal((await send(accessToken, '2026-11-25')).status, 200);
+    assert.equal((await send(accessToken, '2026-11-24')).status, 400);
   } finally {
     await mock.close();
   }
