@@ -345,7 +345,7 @@ bash scripts/aiweb-deploy.sh           # a full run; a missing image needs the D
 bash scripts/aiweb-firewall.sh         # close the host's ssh to the AI web now (cron: every 5 minutes)
 bash scripts/backup-aiweb-db.sh         # dump databases ai and n8n now (the 03:05 job)
 bash scripts/backup-aiweb-db.sh --drill # restore the newest AI web dump into a scratch container
-bash scripts/aiweb-n8n-check.sh         # n8n's drift check and its machine secret's day (the 04:40 job)
+bash scripts/aiweb-n8n-check.sh         # n8n's drift, its machine secret's day, 2FA on every account (the 04:40 job)
 dca logs -f n8n                         # n8n's own log (a failed run is kept ~72 h, readable in the editor)
 ```
 
@@ -382,7 +382,12 @@ loopback only.
   `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is
   published, and the credentials n8n holds, must be what the image's copy of git holds. A drift
   alerts once. Workflows change only by a PR in hydromart-ai and a release here; whatever is
-  changed in the editor is drift, and the next deploy's setup unpublishes it.
+  changed in the editor is drift, and the next deploy's setup unpublishes it. The same job reads
+  database n8n for accounts that can sign in to the editor without 2FA (D5, owner decision
+  24 Nov 2026: n8n Community cannot make 2FA compulsory, the risk is accepted with this check) and
+  alerts once with their roles, never their addresses: turn 2FA on for the account in the editor
+  (Settings, Personal) or remove it. A query that fails, as after an n8n upgrade renames a column,
+  alerts as "could not check".
 
 **The editor**, through an ssh tunnel only (n8n's port is on the box's loopback):
 
