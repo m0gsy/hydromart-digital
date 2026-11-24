@@ -788,6 +788,30 @@ describe('ReportService', () => {
       expect(shown.depots[0]!.netProfitIdr).not.toBeNull();
     });
 
+    it('subtracts payroll only when the window is exactly one WIB month', async () => {
+      const r = new InMemoryOrderRepository();
+      const depot = randomUUID();
+      await withRevenue(r, depot, 12_000_000);
+      const payroll = jest.fn(async () => 3_000_000);
+      const svc = svcWith(r, costsPort({ payroll }));
+      const monthRange = {
+        from: new Date('2026-06-30T17:00:00.000Z'),
+        to: new Date('2026-07-31T17:00:00.000Z'),
+      };
+      const month = await svc.reportsDepotCompare([depot], monthRange, true);
+      expect(payroll).toHaveBeenCalledWith(depot, '2026-07');
+      expect(month.depots[0]!.netProfitIdr).not.toBeNull();
+
+      payroll.mockClear();
+      const twoWeeks = await svc.reportsDepotCompare(
+        [depot],
+        { from: monthRange.from, to: new Date('2026-07-15T17:00:00.000Z') },
+        true,
+      );
+      expect(payroll).not.toHaveBeenCalled();
+      expect(twoWeeks.depots[0]!.netProfitIdr).toBeNull();
+    });
+
     it('asks hr for the reported month, not for whatever month it is today', async () => {
       const r = new InMemoryOrderRepository();
       const depot = randomUUID();

@@ -190,6 +190,7 @@ export class InventoryPrismaRepository implements InventoryRepository {
     const rows = await this.prisma.$queryRaw<ItemRow[]>(Prisma.sql`
       SELECT * FROM "inventory_items"
       WHERE "minimumStock" > 0
+        AND "hidden" = false
         AND ("quantity"::bigint - "reserved"::bigint) <= "minimumStock"
         ${scope}
       ORDER BY "depotId" ASC, "itemType" ASC

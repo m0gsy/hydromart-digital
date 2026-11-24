@@ -242,7 +242,7 @@ const opsFixShared = {
     title: 'Analitik promo',
     back: 'Kembali',
     used: 'Dipakai',
-    thisWeek: '↑ {n} pekan ini',
+    thisWeek: '↑ {n} 7 hari terakhir',
     savingsGiven: 'Penghematan diberikan',
     ordersAffected: 'Order terpengaruh',
     orderValue: 'Nilai order',

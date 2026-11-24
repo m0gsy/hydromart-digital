@@ -179,6 +179,30 @@ describe('DailyCloseService', () => {
     expect(closed.cashInIdr).toBe(333_000);
   });
 
+  it('counts a lower-case or padded konter category as konter, and skips a reversal row', async () => {
+    const { cashbook, service, depots } = make();
+    const depotId = await seedDepot(depots);
+    const at = new Date(`${DAY}T03:00:00.000Z`);
+    const post = (category: string, amountIdr: number, reversesId?: string) =>
+      cashbook.create({
+        depotId,
+        direction: CashDirection.IN,
+        category,
+        label: 'Tunai konter',
+        amountIdr,
+        occurredAt: at,
+        sourceRef: null,
+        actorId: 'kd-1',
+        ...(reversesId ? { reversesId } : {}),
+      } as never);
+    await post('konter', 100_000);
+    await post(' Konter ', 50_000);
+    await post('KONTER', 7_000, 'orig-1');
+
+    const closed = await service.close(kepalaDepot(depotId), depotId, DAY, null);
+    expect(closed.konterIdr).toBe(150_000);
+  });
+
   it('adds up both halves of the day: counter cash from the cashbook, COD from delivery', async () => {
     const { cashbook, service, depots } = make();
     const depotId = await seedDepot(depots);

@@ -154,7 +154,7 @@ export class DailyCloseService {
       closedBy: user.sub,
       cashInIdr: sum((e) => e.direction === CashDirection.IN),
       cashOutIdr: sum((e) => e.direction === CashDirection.OUT),
-      konterIdr: sum((e) => e.direction === CashDirection.IN && e.category === 'KONTER'),
+      konterIdr: sum((e) => e.direction === CashDirection.IN && !e.reversesId && e.category.trim().toUpperCase() === 'KONTER'),
       codDepositedIdr: cod.depositedIdr,
       codExpectedIdr: cod.expectedIdr,
       note: note?.trim() || null,

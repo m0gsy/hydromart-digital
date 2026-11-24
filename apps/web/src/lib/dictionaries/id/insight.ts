@@ -353,7 +353,7 @@ export const insight = {
     totalDef: 'Pelanggan yang pernah memesan di depot ini.',
     fresh: 'Pelanggan baru',
     freshDef:
-      'Pelanggan yang baru memesan untuk pertama kali dalam periode berjalan menurut definisi CRM depot.',
+      'Pelanggan yang baru memesan untuk pertama kali dalam 30 hari terakhir menurut definisi CRM depot.',
     inactive: 'Tidak aktif',
     inactiveDef: 'Pelanggan yang sudah lama tidak memesan menurut definisi CRM depot.',
     repeat: 'Pelanggan berulang',
@@ -363,6 +363,7 @@ export const insight = {
     voucherBurnDef:
       'Total rupiah potongan voucher yang benar-benar terpakai (yang dikembalikan tidak dihitung).',
     sinceStart: 'sejak awal, seluruh jaringan',
+    sinceStartDepot: 'sejak awal, voucher milik depot; voucher jaringan tidak termasuk',
     subscriptions: 'Langganan aktif',
     subscribers: '{n} pelanggan',
     subscriptionsDef: 'Langganan berstatus aktif di seluruh jaringan.',

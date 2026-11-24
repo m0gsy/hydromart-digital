@@ -27,6 +27,15 @@ function make(rows: StockSnapshotRow[]) {
 }
 
 describe('ReportTableService.stockLevels', () => {
+  it('calls a line with no minimum AMAN while it has stock, HABIS only at zero', async () => {
+    const { service } = make([
+      row({ quantity: 2, minimumStock: 0 }),
+      row({ quantity: 0, minimumStock: 0 }),
+    ]);
+    const t = await service.stockLevels();
+    expect(t.rows.map((r) => r[7])).toEqual(['AMAN', 'HABIS']);
+  });
+
   it('aligns every row with its columns and classifies availability', async () => {
     const { service } = make([
       row(),

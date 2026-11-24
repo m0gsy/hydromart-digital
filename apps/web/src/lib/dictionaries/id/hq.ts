@@ -1001,7 +1001,7 @@ export const hq = {
   inventory: {
     partial: 'Tidak bisa membaca stok: {depots}. Hitungan di bawah belum lengkap.',
     title: 'Inventory jaringan',
-    subtitle: 'Kesehatan stok tiap depot · 30 hari',
+    subtitle: 'Kesehatan stok tiap depot · posisi saat ini',
     critical: '{n} depot kritis',
     allHealthy: 'Semua depot sehat',
     lines: '{n} lini',

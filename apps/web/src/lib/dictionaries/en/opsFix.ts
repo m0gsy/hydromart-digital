@@ -239,7 +239,7 @@ export const opsFix = {
     title: 'Promo analytics',
     back: 'Back',
     used: 'Used',
-    thisWeek: '↑ {n} this week',
+    thisWeek: '↑ {n} in the last 7 days',
     savingsGiven: 'Savings given',
     ordersAffected: 'Orders affected',
     orderValue: 'Order value',

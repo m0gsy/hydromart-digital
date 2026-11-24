@@ -1307,6 +1307,15 @@ export class ReportService {
     const bounded = range.from != null && range.to != null;
     const from = range.from as Date;
     const to = range.to as Date;
+    // Payroll is booked per calendar month, so it only means something for a window that is
+    // exactly one WIB month. Any other window gets no payroll (and so no net) rather than the
+    // first month's payroll subtracted from a window of a different length (HD-6 A6).
+    const tz = this.config.businessTimeZone;
+    const month = bounded ? localDayKey(from, tz).slice(0, 7) : '';
+    const wholeMonth =
+      bounded &&
+      from.getTime() === dayStartUtc(`${month}-01`, tz).getTime() &&
+      to.getTime() === addLocalMonths(dayStartUtc(`${month}-01`, tz), 1, tz).getTime();
 
     const depots = await Promise.all(
       depotIds.map(async (depotId) => {
@@ -1318,11 +1327,8 @@ export class ReportService {
           bounded && this.depotCosts
             ? this.depotCosts.costs(depotId, from, to)
             : Promise.resolve(null),
-          bounded && this.depotCosts && payVisible
-            ? this.depotCosts.payroll(
-                depotId,
-                localDayKey(from, this.config.businessTimeZone).slice(0, 7),
-              )
+          wholeMonth && this.depotCosts && payVisible
+            ? this.depotCosts.payroll(depotId, month)
             : Promise.resolve(null),
           bounded && this.depotDirectory?.gallonReturns
             ? this.depotDirectory.gallonReturns(depotId, from, to)

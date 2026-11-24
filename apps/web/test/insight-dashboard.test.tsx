@@ -1645,6 +1645,15 @@ describe('the people tab', () => {
     expect(screen.queryByText(/99\.000\.000/)).toBeNull();
   });
 
+  it('hides the payroll widget from an HR viewer without payrollRead', async () => {
+    asRole('SUPERVISOR');
+    openTab('people');
+    renderPage();
+    expect(await screen.findByText('Karyawan')).toBeTruthy();
+    expect(screen.queryByText('Draf')).toBeNull();
+    expect(screen.queryByText('Dibayar')).toBeNull();
+  });
+
   it('reads the payroll month from the window and asks for it by name', async () => {
     asRole('HEAD_OFFICE');
     openTab('people');
