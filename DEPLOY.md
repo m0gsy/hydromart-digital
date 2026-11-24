@@ -295,7 +295,11 @@ answers 404 for `/api/internal/*` (n8n's alarm route is the app's alone).
   `TOTP_ENCRYPTION_KEY` is made only while `hydromart_auth.totp_credentials` is empty (a
   read-only count): over sealed secrets a new key would be data loss, so it writes nothing,
   alerts, and the old key comes back from the `.env` backup. The second pulls any missing image
-  by digest (logged in with the Deploy job's own token, logged out at once), starts the
+  by digest (logged in with the Deploy job's own token, logged out at once), makes every network
+  the release uses without starting anything (`up --no-start --no-recreate`, the app and n8n held
+  at the containers they have), closes the host's ssh to those networks
+  ([below](#the-hosts-ssh-closed-to-the-ai-web)) before any container of the project starts on
+  them, starts the
   database, applies [`infra/aiweb/roles.sql`](infra/aiweb/roles.sql) (`ai_owner` owns database
   `ai` and migrates; `ai_app` exists; `n8n` owns database `n8n`; each role may connect to its own
   database only), migrates as `ai_owner` (15 minutes at most), removes n8n and runs `n8n-setup`
@@ -501,23 +505,30 @@ Deploy workflow included, is exactly as it was.
   networks, and one rule first in `INPUT`: `-p tcp --dport 22 -j AIWEB-NO-SSH`. No other `INPUT`
   rule and none of Docker's chains is touched. Matched by the bridge a packet comes in on, it
   closes every address of the host at once: each gateway, and the public address the AI web
-  reaches hydromart by. IPv4 only: those networks are IPv4-only, and Docker leaves a container on
-  one no IPv6 at all (the script refuses a network with IPv6 on).
-- **Kept.** A reboot forgets the rules and a network made again gets a new bridge, so the AI web
-  step of a deploy runs the script just before its probe (when it gets that far), and host cron
-  every 5 minutes, whatever the deploy did (log
-  `/var/log/hydromart-watchdog.log`; silent unless it wrote). It runs as the deploy user and gets
-  root through `sudo -n`; without passwordless sudo it writes nothing, says so with `!!`, and
-  alerts once.
+  reaches hydromart by (the box holds its public address on `eth0`, no 1:1 NAT: checked on
+  24 November 2026, so no packet to it leaves the box). When the jump is not rule 1 of `INPUT`,
+  or is there twice, every copy goes and it goes
+  back in first. IPv4 only: those networks are IPv4-only, and Docker leaves a container on one no
+  IPv6 at all; a network with IPv6 on is still closed over IPv4, then reported (`!!`, an alert).
+- **Kept.** A reboot forgets the rules and a network made again gets a new bridge. Host cron runs
+  the script at boot (`@reboot`) and every 5 minutes; every AI web deploy runs it once it has made
+  the release's networks and before any container of the project starts on them. A run that has
+  docker's answer saves the bridges it wrote in `.deploy/aiweb-firewall.bridges`; at boot, before
+  docker answers, the saved ones are written (a network keeps its id, so its bridge's name,
+  across a reboot), so port 22 is closed before docker starts the containers again. One run at a
+  time (`flock` on `.deploy/aiweb-firewall.lock`). It runs as the deploy user and gets root
+  through `sudo -n`. Log `/var/log/hydromart-watchdog.log`: silent unless it wrote; a failing run
+  (no passwordless sudo, no docker answer and nothing saved, a bad project name) writes nothing,
+  prints its `!!` line on every run, and alerts once.
 - **Proved.** The probe asks port 22 at the gateway of every network the app and n8n are on and at
   `api.hydromart-digital.com:22`, from inside both containers. A connection is a breach and fails
   the AI web step; no answer, or a refusal, is closed; a name that does not resolve proves nothing
-  and fails it too.
+  and fails it too, as does a network whose gateway it cannot read.
 - **Check it**, on the box: `bash scripts/aiweb-deploy.sh --probe` prints one
   `host-ssh <address>:22 ... -> closed` line per address, from the app (`probe:`) and from n8n
   (`probe(n8n):`); `sudo iptables -S AIWEB-NO-SSH` lists one bridge per network
   (`docker network ls` shows each id) and `sudo iptables -S INPUT | head -2` the one jump, first.
-- **Undo it**: revert the PR that brought `aiweb-firewall.sh` (its cron line, the deploy's call
+- **Undo it**: revert the PR that brought `aiweb-firewall.sh` (its cron lines, the deploy's call
   and the probe's verdict go with it) and deploy. The rules then stay until a reboot, or go at once
   with, on the box:
 

@@ -27,8 +27,8 @@
 #   - no service publishes a host port but n8n's editor, on the box's loopback only (reached
 #     through an ssh tunnel), and none joins hydromart's own network;
 #   - the box's own ssh (TCP 22) answers nothing from edge, private or egress: closed by
-#     scripts/aiweb-firewall.sh at every deploy and every 5 minutes (DEPLOY.md, "The host's ssh,
-#     closed to the AI web");
+#     scripts/aiweb-firewall.sh at boot, every 5 minutes, and in every deploy before any container
+#     here starts (DEPLOY.md, "The host's ssh, closed to the AI web");
 #   - only AIWEB_* keys of .env are interpolated here, and ALERT_WEBHOOK_URL for the app's alarms:
 #     none of hydromart's secrets (JWT_ACCESS_SECRET, INTERNAL_SERVICE_KEY, ...) can be handed to
 #     a container here.

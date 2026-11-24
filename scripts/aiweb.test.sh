@@ -56,6 +56,7 @@ args=" $* "
 if [ "$1" = compose ]; then
   case "$args" in
     *" config --images "*) sed -n 's/^ *image: *//p' infra/aiweb/docker-compose.yml ;;
+    *" up --no-start "*) exit "${FAKE_NOSTART_RC:-0}" ;;
     *" psql "*" -f - "*)
       script="$(cat)"
       case "$script" in
@@ -104,6 +105,7 @@ case "$1" in
           "c3c3c3c3c3c3 false hydromart_default hydromart" "5e5e5e5e5e5e false host " ;;
       *IPAM*)
         case "$args" in
+          *" ${FAKE_NO_GW:-no-such-network} "*) exit 1 ;;
           *" edge "*) echo "172.19.0.1 " ;;
           *" hydromart-ai_private "*) echo "172.20.0.1 " ;;
           *" hydromart-ai_egress "*) echo "172.21.0.1 " ;;
@@ -116,6 +118,8 @@ case "$1" in
     case "$args" in
       *project=hydromart-ai*service=migrate*) [ -z "${FAKE_MIGRATE_HANG:-}" ] || echo mig1 ;;
       *project=hydromart-ai*service=n8n-setup*) [ -z "${FAKE_SETUP_HANG:-}" ] || echo setup1 ;;
+      *project=hydromart-ai*service=aiweb*) echo app1 ;;
+      *project=hydromart-ai*"service=n8n "*) [ -n "${FAKE_NO_N8N:-}" ] || echo n8n1 ;;
       *project=hydromart-ai*) printf '%s\n' app1 db1 $([ -n "${FAKE_NO_N8N:-}" ] || echo n8n1) ;;
       *service=caddy*) echo caddy1 ;;
       *Ports*)
@@ -207,8 +211,9 @@ cat > "$BIN/sudo" <<'EOF'
 [ -z "${FAKE_NO_SUDO:-}" ] || { echo 'sudo: a password is required' >&2; exit 1; }
 exec "$@"
 EOF
-# iptables: the filter table as one file per chain under $FAKE_FW, each line one rule as it was
-# given, logged with docker's calls. Only what aiweb-firewall.sh may use; anything else fails.
+# iptables: the filter table as one file per chain under $FAKE_FW, each line one rule, stored as
+# iptables prints it (`-p tcp --dport` comes back `-p tcp -m tcp --dport`), logged with docker's
+# calls. Only what aiweb-firewall.sh may use; anything else fails.
 cat > "$BIN/iptables" <<'EOF'
 #!/usr/bin/env bash
 printf 'iptables %s\n' "$*" >> "$FAKE_LOG"
@@ -217,6 +222,9 @@ op="$1"
 f="$FAKE_FW/${2:-}"
 shift
 [ "$#" = 0 ] || shift
+[ "$op" = -I ] && [ "${1:-}" = 1 ] && shift
+spec="$*"
+spec="${spec/-p tcp --dport/-p tcp -m tcp --dport}"
 case "$op" in
   -S)
     echo '-P INPUT ACCEPT'
@@ -224,13 +232,20 @@ case "$op" in
     for x in "$FAKE_FW"/*; do while IFS= read -r r; do echo "-A ${x##*/} $r"; done < "$x"; done ;;
   -N) [ ! -e "$f" ] || { echo 'iptables: Chain already exists.' >&2; exit 1; }; : > "$f" ;;
   -F) [ -e "$f" ] && : > "$f" ;;
-  -A) [ -e "$f" ] && echo "$*" >> "$f" ;;
-  -I) [ -e "$f" ] && [ "$1" = 1 ] && shift && { echo "$*"; cat "$f"; } > "$f.new" && mv "$f.new" "$f" ;;
-  -C) [ -e "$f" ] && grep -qxF -- "$*" "$f" ;;
+  -A) [ -e "$f" ] && echo "$spec" >> "$f" ;;
+  -I) [ -e "$f" ] && { echo "$spec"; cat "$f"; } > "$f.new" && mv "$f.new" "$f" ;;
+  -C) [ -e "$f" ] && grep -qxF -- "$spec" "$f" ;;
+  -D) n="$(grep -nxF -- "$spec" "$f" 2>/dev/null | head -1 | cut -d: -f1)" && [ -n "$n" ] && sed -i "${n}d" "$f" ;;
   *) echo "iptables: the fake does not do $op" >&2; exit 2 ;;
 esac
 EOF
-chmod +x "$BIN/docker" "$BIN/curl" "$BIN/sleep" "$BIN/sudo" "$BIN/iptables"
+# flock: taken (logged), or held by another run with FAKE_FLOCK_BUSY.
+cat > "$BIN/flock" <<'EOF'
+#!/usr/bin/env bash
+printf 'flock %s\n' "$*" >> "$FAKE_LOG"
+[ -z "${FAKE_FLOCK_BUSY:-}" ]
+EOF
+chmod +x "$BIN/docker" "$BIN/curl" "$BIN/sleep" "$BIN/sudo" "$BIN/iptables" "$BIN/flock"
 mkdir -p "$W/fw"
 # What every fake run needs, as `env` arguments. An array: PATH may hold spaces.
 FAKE_ENV=("PATH=$BIN:$PATH" "FAKE_LOG=$W/log" "FAKE_ENVS=$W/envs" "FAKE_CURL=$W/curl"
@@ -654,12 +669,12 @@ app="$(line_of ' up .*--remove-orphans')"
   [ "$setup" -lt "$approle" ] && [ "$approle" -lt "$app" ] &&
   ok "order: database, roles, migration as the owner, n8n removed and set up, ai_app's password, then the app and n8n" ||
   bad "wrong order: db=$db roles=$roles migrate=$mig n8n-rm=$n8nrm setup=$setup app-role=$approle app=$app"
+nostart="$(line_of ' up --no-start --no-recreate --scale aiweb=1 --scale n8n=1$')"
 fwat="$(line_of '^iptables -w -S$')"
-probeat="$(line_of '^exec -i app1 node - ')"
-[ -n "$fwat" ] && [ -n "$probeat" ] && [ "$app" -lt "$fwat" ] && [ "$fwat" -lt "$probeat" ] &&
+[ -n "$nostart" ] && [ -n "$fwat" ] && [ -n "$db" ] && [ "$nostart" -lt "$fwat" ] && [ "$fwat" -lt "$db" ] &&
   said "host ssh: TCP 22 is closed to the AI web's networks" &&
-  ok "the host's ssh is closed once the app and n8n are up, before the probe asks" ||
-  bad "aiweb-firewall.sh must run between the app's up ($app) and the probe ($probeat), ran at: $fwat"
+  ok "networks first (up --no-start, no one-shot job, the app and n8n held at the one container each has), then the host's ssh closed, then the first container starts" ||
+  bad "up --no-start ($nostart), then aiweb-firewall.sh ($fwat), then the database ($db): $(grep -E ' up |^iptables' "$W/log" | head -4 | tr '\n' ' ')"
 if grep '^compose' "$W/log" | grep -qv 'infra/aiweb/docker-compose.yml' || grep -qE 'docker-compose\.(prod\.)?yml( |$)' <(grep '^compose' "$W/log" | sed 's|infra/aiweb/docker-compose.yml||g'); then
   bad "a compose call names something other than infra/aiweb/docker-compose.yml: $(grep '^compose' "$W/log" | grep -v 'infra/aiweb' | head -1)"
 else
@@ -759,8 +774,12 @@ deploy FAKE_APPROLE_RC=3
   ok "app-role.sql failing: the app is not swapped" || bad "app-role path ($RC)"
 
 deploy FAKE_APP_RC=1
-[ "$RC" = 1 ] && alerted 'did not become healthy' && said "the app's last line" &&
-  ok "an unhealthy app: its last log lines, an alert" || bad "unhealthy path ($RC)"
+[ "$RC" = 1 ] && alerted 'did not become healthy' && said "the app's last line" && called '^iptables -w -S$' &&
+  ok "an unhealthy app: its last log lines, an alert, and the host's ssh closed before it started all the same" || bad "unhealthy path ($RC)"
+
+deploy FAKE_NOSTART_RC=1
+[ "$RC" = 1 ] && ! called ' up .* db$' && ! called ' run ' && ! called '^iptables' && alerted "could not make the release's networks" &&
+  ok "the networks cannot be made: nothing started, nothing run, an alert" || bad "up --no-start failing ($RC): $(tail -2 "$W/out" | tr '\n' ' ')"
 
 # Stopped from outside (deploy.sh's timeout): still one alert, still logged out.
 RUNNER="timeout 4" deploy FAKE_PRESENT= GHCR_TOKEN=t FAKE_PULL_HANG=1
@@ -809,6 +828,8 @@ probe_fails "the host's ssh answering at the public address" 'isolation: the AI 
   FAKE_OUTCOMES=api.hydromart-digital.com:22=open
 probe_fails "the public name not resolving: nothing proved" 'no usable answer for host-ssh at api.hydromart-digital.com:22' \
   FAKE_OUTCOMES=api.hydromart-digital.com:22=not-found
+probe_fails "a gateway it cannot read: the host's ssh untried there is not closed" \
+  'probe: could not read the gateway of the hydromart-ai_private network' FAKE_NO_GW=hydromart-ai_private
 deploy FAKE_NO_SUDO=1
 [ "$RC" = 1 ] && said 'needs passwordless sudo for iptables' && said 'could not close the host' &&
   alerted 'isolation: the AI web reaches host-ssh at 172.19.0.1:22 (open)' && alerted 'host ssh may be reachable from the AI web' &&
@@ -866,8 +887,8 @@ deploy AIWEB_N8N_SETUP_TIMEOUT=2 FAKE_SETUP_HANG=1
 # The kill switch: secret kept and blanked. No setup, n8n scaled to nothing, the deploy green.
 ENV_FILE="$(sed 's/^AIWEB_N8N_MACHINE_SECRET=.*/AIWEB_N8N_MACHINE_SECRET=/' <<<"$GOOD_ENV")" deploy FAKE_NO_N8N=1
 [ "$RC" = 0 ] && ! called 'n8n-setup run' && ! called ' rm --stop --force n8n' && called ' up .*--remove-orphans.*--scale n8n=0' &&
-  said 'n8n is switched off' && said 'AI web OK' &&
-  ok "n8n switched off (blank secret): never set up, scaled to nothing, the deploy still green" ||
+  called ' up --no-start --no-recreate --scale aiweb=1 --scale n8n=0$' && said 'n8n is switched off' && said 'AI web OK' &&
+  ok "n8n switched off (blank secret): never set up, held at none from the networks step on, the deploy still green" ||
   bad "kill switch deploy ($RC): $(grep -E 'n8n' "$W/out" | tail -3 | tr '\n' ' ')"
 ENV_FILE="$(sed 's/^AIWEB_N8N_MACHINE_SECRET=.*/AIWEB_N8N_MACHINE_SECRET=/' <<<"$GOOD_ENV")" deploy
 [ "$RC" = 1 ] && alerted 'n8n runs although AIWEB_N8N_MACHINE_SECRET is blank' &&
@@ -877,6 +898,9 @@ ENV_FILE="$(sed '/^AIWEB_N8N_MACHINE_SECRET=/d' <<<"$GOOD_ENV")" deploy
   ok "no machine secret line at all: named, nothing touched" || bad "absent secret ($RC): $(tail -2 "$W/out" | tr '\n' ' ')"
 
 probe_fails "n8n not running though not switched off" 'no n8n container is running' FAKE_NO_N8N=1
+called ' up --no-start --no-recreate --scale aiweb=1 --scale n8n=0$' &&
+  ok "  ...and an n8n with no container is held at none by the networks step: never made there for the watchdog to start" ||
+  bad "the networks step with no n8n container: $(grep -F ' up --no-start' "$W/log")"
 probe_fails "n8n on another network" 'isolation: n8n is attached to network hydromart_default' FAKE_N8N_EXTRA_NET=hydromart_default
 probe_fails "n8n's editor published wide" 'isolation: n8n publishes a host port (0.0.0.0:5678->5678/tcp)' "FAKE_N8N_BIND=0.0.0.0:5678->5678/tcp "
 probe_fails "a second n8n port" 'isolation: n8n publishes a host port' "FAKE_N8N_BIND=127.0.0.1:5678->5678/tcp 127.0.0.1:5679->5679/tcp "
@@ -1017,12 +1041,17 @@ fw() { # <env assignments...>: one run on the deploy's scratch box, against the 
   RC=$?
 }
 chain() { cat "$W/fw/$1" 2>/dev/null; }
-JUMP='-p tcp --dport 22 -j AIWEB-NO-SSH'
+# The jump as the fake, like iptables, stores and prints it.
+JUMP='-p tcp -m tcp --dport 22 -j AIWEB-NO-SSH'
 CLOSED='-i br-a1a1a1a1a1a1 -j DROP
 -i br-b2b2b2b2b2b2 -j DROP
 -i br-e0e0e0e0e0e0 -j DROP'
+SAVED="$T/.deploy/aiweb-firewall.bridges"
+SAVED_LIST='hydromart-ai_private=br-a1a1a1a1a1a1
+hydromart-ai_egress=br-b2b2b2b2b2b2
+edge=br-e0e0e0e0e0e0'
 printf '%s\n' "$GOOD_ENV" > "$T/.env"
-rm -f "$T/.deploy/alerted/aiweb-firewall"
+rm -f "$T/.deploy/alerted/aiweb-firewall" "$SAVED"
 reset_fakes
 fw
 [ "$RC" = 0 ] && [ "$(chain AIWEB-NO-SSH)" = "$CLOSED" ] &&
@@ -1035,35 +1064,91 @@ fw
   ok "no Docker chain, no other chain and no other table is touched" || bad "something else was touched: $(grep '^iptables' "$W/log" | tr '\n' ' ')"
 grep -qF 'TCP 22 now dropped from: hydromart-ai_private=br-a1a1a1a1a1a1 hydromart-ai_egress=br-b2b2b2b2b2b2 edge=br-e0e0e0e0e0e0 (wrote AIWEB-NO-SSH INPUT)' <<<"$OUT" &&
   ok "  ...and says which network got which bridge, and what it wrote" || bad "the first run said: $OUT"
+[ "$(cat "$SAVED" 2>/dev/null)" = "$SAVED_LIST" ] &&
+  ok "  ...and saves the bridges it wrote, network by network, for a run docker cannot answer" || bad "saved: $(cat "$SAVED" 2>&1)"
+[ "$(head -1 "$W/log")" = 'flock -w 60 8' ] && ok "one run at a time: the lock is taken before docker or iptables is asked anything" ||
+  bad "the first call was not the lock: $(head -2 "$W/log" | tr '\n' ' ')"
 : > "$W/log"
 fw
-[ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$(grep -c '^iptables' "$W/log")" = 2 ] && ! grep -qE '^iptables -w -[NFAI] ' "$W/log" &&
-  ok "a second run reads (two calls), writes nothing and says nothing" || bad "a second run ($RC) wrote or spoke: $OUT $(grep '^iptables' "$W/log" | tr '\n' ' ')"
+[ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$(grep -c '^iptables' "$W/log")" = 1 ] && ! grep -qE '^iptables -w -[NFAICD] ' "$W/log" &&
+  ok "a second run reads (one call), writes nothing and says nothing" || bad "a second run ($RC) wrote or spoke: $OUT $(grep '^iptables' "$W/log" | tr '\n' ' ')"
 sed -i '/AIWEB-NO-SSH/d' "$W/fw/INPUT"
 : > "$W/log"
 fw
-[ "$RC" = 0 ] && [ "$(head -1 "$W/fw/INPUT")" = "$JUMP" ] && [ "$(grep -c AIWEB-NO-SSH "$W/fw/INPUT")" = 1 ] &&
-  ! grep -q '^iptables -w -[NFA] ' "$W/log" &&
+[ "$RC" = 0 ] && [ "$(chain INPUT)" = "$JUMP
+-i lo -j ACCEPT" ] && ! grep -q '^iptables -w -[NFA] ' "$W/log" &&
   ok "a jump taken out of INPUT is put back first; the chain, still right, is left alone" || bad "jump repair ($RC): $(chain INPUT | tr '\n' ' ') $OUT"
+printf '%s\n' '-p tcp -m tcp --dport 22 -j ACCEPT' "$JUMP" '-i lo -j ACCEPT' > "$W/fw/INPUT"
+fw
+[ "$RC" = 0 ] && [ "$(chain INPUT)" = "$JUMP
+-p tcp -m tcp --dport 22 -j ACCEPT
+-i lo -j ACCEPT" ] && grep -qF '(wrote INPUT)' <<<"$OUT" &&
+  ok "a rule put ahead of the jump (an ACCEPT for 22 would let all of it through): the jump goes back first, that rule stays after it" ||
+  bad "the jump not first ($RC): $(chain INPUT | tr '\n' ' ') $OUT"
+printf '%s\n' "$JUMP" '-i lo -j ACCEPT' "$JUMP" > "$W/fw/INPUT"
+fw
+[ "$RC" = 0 ] && [ "$(chain INPUT)" = "$JUMP
+-i lo -j ACCEPT" ] && ok "the jump in twice (two runs once raced): one copy left, first" ||
+  bad "a doubled jump ($RC): $(chain INPUT | tr '\n' ' ') $OUT"
+: > "$W/log"
+fw FAKE_FLOCK_BUSY=1
+[ "$RC" = 1 ] && grep -qF 'could not lock .deploy/aiweb-firewall.lock within 60 seconds' <<<"$OUT" && [ "$(grep -vc '^flock ' "$W/log")" = 0 ] &&
+  ok "another run holding the lock: this one asks and writes nothing, says so, exit 1" || bad "the lock held ($RC): $OUT $(head -3 "$W/log" | tr '\n' ' ')"
 fw FAKE_PRIVATE_ID=f9f9f9f9f9f9
 [ "$RC" = 0 ] && [ "$(chain AIWEB-NO-SSH)" = '-i br-b2b2b2b2b2b2 -j DROP
 -i br-e0e0e0e0e0e0 -j DROP
--i br-f9f9f9f9f9f9 -j DROP' ] && [ "$(grep -c AIWEB-NO-SSH "$W/fw/INPUT")" = 1 ] &&
-  ok "a network made again (a new bridge): the chain follows it, the old bridge leaves, INPUT keeps its one jump" ||
+-i br-f9f9f9f9f9f9 -j DROP' ] && [ "$(grep -c AIWEB-NO-SSH "$W/fw/INPUT")" = 1 ] && grep -qx 'hydromart-ai_private=br-f9f9f9f9f9f9' "$SAVED" &&
+  ok "a network made again (a new bridge): the chain and the saved bridges follow it, the old bridge leaves, INPUT keeps its one jump" ||
   bad "a re-made network ($RC): $(chain AIWEB-NO-SSH | tr '\n' ' ') $OUT"
 fw
 : > "$W/log"
 fw FAKE_DOCKER_DOWN=1
-[ "$RC" = 1 ] && [ "$(chain AIWEB-NO-SSH)" = "$CLOSED" ] && grep -qF 'so the rules were left as they were' <<<"$OUT" && ! grep -q '^iptables' "$W/log" &&
-  ok "docker not answering (live-restore keeps the containers up): exit 1, the rules left as they were, never emptied" ||
-  bad "docker down ($RC): $(chain AIWEB-NO-SSH | tr '\n' ' ') $OUT"
+[ "$RC" = 0 ] && [ -z "$OUT" ] && [ "$(chain AIWEB-NO-SSH)" = "$CLOSED" ] && ! grep -qE '^iptables -w -[NFAICD] ' "$W/log" &&
+  ok "docker not answering (live-restore keeps the containers up), the rules in place: they are the saved bridges, nothing written" ||
+  bad "docker down, rules in place ($RC): $(chain AIWEB-NO-SSH | tr '\n' ' ') $OUT"
+# A reboot: the kernel's rules are gone, .deploy/ is not, and docker is not up yet.
+reset_fakes
+fw FAKE_DOCKER_DOWN=1
+[ "$RC" = 0 ] && [ "$(chain AIWEB-NO-SSH)" = "$CLOSED" ] && [ "$(chain INPUT)" = "$JUMP
+-i lo -j ACCEPT" ] && grep -qF 'from the bridges the last run saved: docker is not answering (Cannot connect to the Docker daemon)' <<<"$OUT" &&
+  [ ! -s "$W/alerts" ] && [ "$(cat "$SAVED")" = "$SAVED_LIST" ] &&
+  ok "at boot, docker not up yet: port 22 closed from the saved bridges before docker starts a container, no alert, the list kept" ||
+  bad "the boot run ($RC): $(chain AIWEB-NO-SSH | tr '\n' ' ') $OUT"
+rm -f "$SAVED"
+reset_fakes
+fw FAKE_DOCKER_DOWN=1
+[ "$RC" = 1 ] && [ ! -e "$W/fw/AIWEB-NO-SSH" ] && grep -qF 'and no bridges were saved, so the rules were left as they were' <<<"$OUT" &&
+  grep -qF 'host ssh may be reachable from the AI web: docker did not list' "$W/alerts" &&
+  ok "docker not answering and nothing saved: nothing written, exit 1, an alert" || bad "docker down, nothing saved ($RC): $OUT"
+printf '%s\n' 'edge=br-e0e0e0e0e0e0' 'x=--modprobe=/tmp/x' > "$SAVED"
+: > "$W/log"
+fw FAKE_DOCKER_DOWN=1
+[ "$RC" = 1 ] && grep -qF "holds 'x=--modprobe=/tmp/x', not a network and its bridge" <<<"$OUT" && ! grep -q '^iptables' "$W/log" &&
+  ok "a saved list that is not network=bridge lines is refused before anything reaches iptables" || bad "a bad saved list ($RC): $OUT"
+rm -f "$SAVED"
 : > "$W/log"
 fw FAKE_EDGE_ID=--modprobe=x
 [ "$RC" = 1 ] && grep -qF "the id '--modprobe=x', not 12 hex characters" <<<"$OUT" && ! grep -q '^iptables' "$W/log" &&
   ok "a network id that is not 12 hex characters is refused before anything reaches iptables" || bad "a bad id ($RC): $OUT"
+rm -f "$T/.deploy/alerted/aiweb-firewall"
+reset_fakes
 fw FAKE_EGRESS_IPV6=true
-[ "$RC" = 1 ] && grep -qF 'network hydromart-ai_egress has IPv6 on, and this closes IPv4 only' <<<"$OUT" &&
-  ok "an AI web network with IPv6 on is refused: the rule closes IPv4 only" || bad "IPv6 on ($RC): $OUT"
+[ "$RC" = 1 ] && [ "$(chain AIWEB-NO-SSH)" = "$CLOSED" ] && [ "$(head -1 "$W/fw/INPUT")" = "$JUMP" ] &&
+  grep -qF '!! IPv6 is on for: hydromart-ai_egress, and only IPv4 is closed to them' <<<"$OUT" && grep -qF 'IPv6 is on for' "$W/alerts" &&
+  ok "an AI web network with IPv6 on: every network still closed over IPv4, then the IPv6 one reported, exit 1, an alert" ||
+  bad "IPv6 beside IPv4 ($RC): $(chain AIWEB-NO-SSH | tr '\n' ' ') $OUT"
+reset_fakes
+fw 'AI_PROJECT=x # y'
+[ "$RC" = 1 ] && grep -qF "'x # y' (the name: line of infra/aiweb/docker-compose.yml) is not a compose project name" <<<"$OUT" &&
+  ! grep -qE '^(network|iptables) ' "$W/log" && grep -qF 'is not a compose project name' "$W/alerts" &&
+  ok "a project name that is not one (a comment on its line): refused before docker or iptables is asked, an alert" || bad "a bad project name ($RC): $OUT"
+mv "$T/infra/aiweb/docker-compose.yml" "$T/infra/aiweb/compose.away"
+: > "$W/log"
+fw
+[ "$RC" = 1 ] && grep -qF "!! '' (the name: line of infra/aiweb/docker-compose.yml) is not a compose project name" <<<"$OUT" &&
+  ! grep -qE '^(network|iptables) ' "$W/log" &&
+  ok "no compose file at all: the same refusal, said and alerted, not a silent exit" || bad "no compose file ($RC): $OUT"
+mv "$T/infra/aiweb/compose.away" "$T/infra/aiweb/docker-compose.yml"
 rm -f "$T/.deploy/alerted/aiweb-firewall"
 reset_fakes
 fw FAKE_NO_SUDO=1
@@ -1073,15 +1158,17 @@ fw FAKE_NO_SUDO=1
   ok "no passwordless sudo: nothing written, the '!!' line names the root access missing, one alert" || bad "no sudo ($RC): $OUT"
 n_alerts="$(wc -l < "$W/alerts")"
 fw FAKE_NO_SUDO=1
-[ "$RC" = 1 ] && [ "$(wc -l < "$W/alerts")" = "$n_alerts" ] && ok "  ...said once, not on every run" || bad "the same failure alerted twice"
+[ "$RC" = 1 ] && [ "$(wc -l < "$W/alerts")" = "$n_alerts" ] && grep -qF '!! sudo -n iptables -S failed' <<<"$OUT" &&
+  ok "  ...said again on the next run, alerted once" || bad "the same failure alerted twice, or went quiet ($RC): $OUT"
 fw
 [ "$RC" = 0 ] && [ "$(chain AIWEB-NO-SSH)" = "$CLOSED" ] && [ ! -e "$T/.deploy/alerted/aiweb-firewall" ] &&
   ok "  ...and forgotten by the run that closes it" || bad "after sudo came back ($RC): $OUT"
-fw_line="$(bash scripts/install-host-cron.sh --show 2>/dev/null | grep -F 'scripts/aiweb-firewall.sh')"
-case "$fw_line" in
-  "*/5 * * * * cd "*" && bash scripts/aiweb-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1")
-    ok "install-host-cron.sh runs it every 5 minutes (a reboot forgets the rules), into the watchdog's log" ;;
-  *) bad "install-host-cron.sh does not run aiweb-firewall.sh every 5 minutes: '$fw_line'" ;;
+fw_lines="$(bash scripts/install-host-cron.sh --show 2>/dev/null | grep -F 'scripts/aiweb-firewall.sh')"
+case "$fw_lines" in
+  "@reboot cd "*" && bash scripts/aiweb-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1
+*/5 * * * * cd "*" && bash scripts/aiweb-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1")
+    ok "install-host-cron.sh runs it at boot (@reboot) and every 5 minutes, into the watchdog's log" ;;
+  *) bad "install-host-cron.sh does not run aiweb-firewall.sh at boot and every 5 minutes: '$fw_lines'" ;;
 esac
 
 if [ "$fails" -gt 0 ]; then
