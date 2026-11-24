@@ -602,6 +602,12 @@ dump that is not valid gzip is an alert and nothing is sent. To force a new encr
 the twin and its hash: `rm <dump>.enc <dump>.enc.sha256`, then run `backup-offsite.sh`. Twins of
 dumps already pruned, and `.part` files older than an hour, are removed by the next copy run.
 
+**The first night after this deploys.** Until the 03:20 copy run has made `<dump>.enc` for the
+newest dump, every `--verify` exits 1 saying "no encrypted copy yet": that is
+a deploy's backup check, or a hand-run `check-backup-freshness.sh` (the cron one, at 05:00, comes
+after the copy). If one runs before 03:20 on that day, one red check or alert is expected and
+clears by itself once the 03:20 run has sent the first copy.
+
 **Rolling back across this change.** A release before D8 has a `backup-db.sh` that uploads each
 dump itself, in the clear, whenever `BACKUP_S3_BUCKET` is set. Before rolling back past it, the
 box's `.env` must not have `BACKUP_S3_BUCKET` (checked 24 Nov 2026: it has none). If it has, remove
@@ -637,9 +643,10 @@ on the box can do it, because the box cannot decrypt):
    `grep 'encrypted from' /var/log/hydromart-backup.log | tail -4`.
 4. Delete the opened dumps from your machine: they are the whole database in the clear.
 
-Equal hashes mean the copy opens to byte-for-byte the dump the box had when it was encrypted (the
-`.enc` is checked whole and tied to its dump's recorded sha256 before every send, so it is that
-dump or nothing), and the weekly drill there proves that dump restores. A copy that does not open means the box encrypts to a certificate
+Equal hashes mean the copy opens to byte-for-byte the dump the box had when it was encrypted:
+before every send the `.enc` is checked whole (it parses as DER, ends with the envelope's five
+end-of-contents pairs, which a cut at any element boundary lacks, and is larger than its dump)
+and tied to its dump by the recorded sha256. The weekly drill there proves that dump restores. A copy that does not open means the box encrypts to a certificate
 whose private key you do not hold: check `BACKUP_ENV_CERT` and `ops/env-backup-public.pem`
 before anything else.
 

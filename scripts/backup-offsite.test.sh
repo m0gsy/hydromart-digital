@@ -492,7 +492,7 @@ if [ "\${1:-}" = smime ]; then
   n=\$(cat "\$SSL_COUNT" 2>/dev/null || echo 0); n=\$((n + 1)); echo "\$n" >"\$SSL_COUNT"
   if [ "\$n" -le "\${SSL_CUT_FIRST:-999}" ]; then
     out=""; prev=""; for a in "\$@"; do [ "\$prev" = -out ] && out="\$a"; prev="\$a"; done
-    head -c 200 "\$out" >"\$out.cut" && mv -f "\$out.cut" "\$out"
+    head -c "\${SSL_CUT_AT:-200}" "\$out" >"\$out.cut" && mv -f "\$out.cut" "\$out"
   fi
   exit 0
 fi
@@ -660,6 +660,92 @@ if [ "$RC" != 0 ] && [ -z "$(ls -A "$TMP/db-out")" ]; then
   ok "backup-db.sh: a dump that is not gzip fails and leaves nothing under any name"
 else
   bad "backup-db.sh: bad dump gave exit $RC, dir: $(ls -A "$TMP/db-out" | tr '\n' ' ')"
+fi
+
+# --- 16. round 2: asn1parse accepts a -stream envelope cut at an element boundary ------------
+# A cut after a whole 4096-byte chunk, after the last chunk or after an end-of-contents pair
+# still parses. The twin must also end with its five zero pairs. The candidate cuts are found
+# here by asking asn1parse, so the precondition (some boundary cuts ARE accepted by it, and are
+# bigger than the dump) is measured, not assumed.
+D6="$TRD/src/hydromart-20260906-040000.sql.gz"
+head -c 20000 /dev/urandom | gzip >"$D6"
+mkdir -p "$TRD/rem6"
+run env BACKUP_OFFSITE_DEST="$TRD/rem6" bash scripts/backup-offsite.sh "$D6"
+expect "a 20 KB dump is copied" 0 "offsite OK"
+cp "$D6.enc" "$TRD/good6.der"
+T6="$(wc -c <"$TRD/good6.der" | tr -d ' ')"
+D6SIZE="$(wc -c <"$D6" | tr -d ' ')"
+[ "$(tail -c 10 "$TRD/good6.der" | od -An -tx1 | tr -d ' \n')" = 00000000000000000000 ] \
+  && ok "a whole twin ends with ten zero bytes (five end-of-contents pairs)" || bad "a whole twin does not end with ten zero bytes"
+BOUNDARY=''
+for o in $(seq $((T6 - 600)) $((T6 - 1))) $(for k in 1 2 3 4; do seq $((k * 4096)) $((k * 4096 + 64)); done); do
+  [ "$o" -gt "$D6SIZE" ] || continue
+  head -c "$o" "$TRD/good6.der" >"$TRD/probe.der"
+  openssl asn1parse -inform DER -in "$TRD/probe.der" >/dev/null 2>&1 && BOUNDARY="$BOUNDARY $o"
+done
+if [ "$(echo $BOUNDARY | wc -w)" -ge 3 ]; then
+  ok "cuts that asn1parse and the size check both accept exist ($(echo $BOUNDARY | wc -w): $BOUNDARY)"
+else
+  bad "no boundary cut found that asn1parse accepts — the cases below would measure nothing ($BOUNDARY)"
+fi
+for o in $BOUNDARY; do
+  # reuse: the cut twin sits beside its dump with the right hash
+  head -c "$o" "$TRD/good6.der" >"$D6.enc"
+  sha256sum "$D6" | cut -d' ' -f1 >"$D6.enc.sha256"
+  run env BACKUP_OFFSITE_DEST="$TRD/rem6" bash scripts/backup-offsite.sh --verify "$D6"
+  expect "reuse: a twin cut at byte $o is refused by --verify" 1 "end-of-contents"
+  run env BACKUP_OFFSITE_DEST="$TRD/rem6" bash scripts/backup-offsite.sh "$D6"
+  if [ "$RC" = 0 ] && cmp -s "$D6.enc" "$TRD/rem6/$(basename "$D6").enc" \
+    && [ "$(tail -c 10 "$D6.enc" | od -An -tx1 | tr -d ' \n')" = 00000000000000000000 ]; then
+    ok "reuse: ...and the copy run remade it whole before sending"
+  else
+    bad "reuse: a twin cut at byte $o was not remade whole (exit $RC)"
+  fi
+  # creation: the first encryption comes out cut at exactly that byte
+  rm -f "$D6.enc" "$D6.enc.sha256"
+  : >"$TMP/ssl-count"
+  run env PATH="$TMP/ssl-stub:$PATH" SSL_COUNT="$TMP/ssl-count" SSL_CUT_FIRST=1 SSL_CUT_AT="$o" \
+    BACKUP_OFFSITE_DEST="$TRD/rem6" bash scripts/backup-offsite.sh "$D6"
+  if [ "$RC" = 0 ] && [ "$(tail -c 10 "$D6.enc" | od -An -tx1 | tr -d ' \n')" = 00000000000000000000 ] \
+    && [ "$(cat "$TMP/ssl-count")" = 2 ]; then
+    ok "creation: ...a first encryption cut at byte $o is detected and remade"
+  else
+    bad "creation: a first encryption cut at byte $o was not caught (exit $RC, encryptions $(cat "$TMP/ssl-count"))"
+  fi
+done
+
+# --verify never reads a twin a copy run is replacing: it waits for the lock, shared.
+if command -v flock >/dev/null 2>&1; then
+  ( flock "$TRD/src/.offsite-hydromart.lock" sleep 3 ) &
+  lockpid=$!
+  sleep 1
+  t0=$(date +%s)
+  run env BACKUP_OFFSITE_DEST="$TRD/rem6" bash scripts/backup-offsite.sh --verify "$D6"
+  t1=$(date +%s)
+  wait "$lockpid" || true
+  if [ "$RC" = 0 ] && [ $((t1 - t0)) -ge 1 ]; then
+    ok "--verify waits for a running copy run's lock, then reads"
+  else
+    bad "--verify did not wait for the lock (exit $RC, ${t0}->${t1})"
+  fi
+fi
+# The order a twin appears in: its hash first, the twin last, so no reader sees one without the other.
+ln_sha="$(grep -n 'mv -f "$shapart" "$SHAFILE"' scripts/backup-offsite.sh | head -1 | cut -d: -f1)"
+ln_twin="$(grep -n 'mv -f "$part" "$ENC"' scripts/backup-offsite.sh | head -1 | cut -d: -f1)"
+if [ -n "$ln_sha" ] && [ -n "$ln_twin" ] && [ "$ln_sha" -le "$ln_twin" ] && grep -q 'mv -f "$shapart" "$SHAFILE" && mv -f "$part" "$ENC"' scripts/backup-offsite.sh; then
+  ok "the hash is renamed into place before the twin"
+else
+  bad "the twin can be renamed into place before its hash"
+fi
+# a killed run's leftovers (twin part, hash part, destination part) are all swept when stale
+for f in "$TRD/src/.hydromart-20260101-000000.sql.gz.enc.part.1" "$TRD/src/.hydromart-20260101-000000.sql.gz.enc.sha256.part.1" "$TRD/rem6/.hydromart-20260101-000000.sql.gz.enc.part.1"; do
+  echo x >"$f"; touch -d '2026-01-01 00:00:00' "$f" 2>/dev/null || touch -t 202601010000 "$f"
+done
+run env BACKUP_OFFSITE_DEST="$TRD/rem6" bash scripts/backup-offsite.sh "$D6"
+if [ -z "$(ls -A "$TRD/src" "$TRD/rem6" | grep 'part\.1' || true)" ]; then
+  ok "stale hash-part and destination part files are swept"
+else
+  bad "stale part files left: $(ls -A "$TRD/src" "$TRD/rem6" | grep 'part\.1' | tr '\n' ' ')"
 fi
 
 if [ "$fails" -gt 0 ]; then

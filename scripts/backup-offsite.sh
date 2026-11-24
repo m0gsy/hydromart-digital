@@ -313,13 +313,19 @@ twin_check() {
     || { TWIN_WHY="is not a complete DER envelope (cut short?)"; return 1; }
   [ "$(wc -c <"$ENC" | tr -d ' ')" -gt "$(wc -c <"$FILE" | tr -d ' ')" ] \
     || { TWIN_WHY="is not larger than its dump (cut short?)"; return 1; }
+  # asn1parse accepts a -stream (indefinite-length) envelope cut exactly at an element boundary:
+  # after a whole chunk, after the last chunk, after any end-of-contents pair. The five pairs that
+  # close the envelope are the file's last ten bytes, all zero (measured on OpenSSL 3.0.x: a
+  # whole twin always ends so, and no cut over its last 600 bytes or at a 4096-byte chunk does).
+  [ "$(tail -c 10 "$ENC" | od -An -tx1 | tr -d ' \n')" = 00000000000000000000 ] \
+    || { TWIN_WHY="does not end with its five end-of-contents pairs (cut short?)"; return 1; }
   [ -s "$SHAFILE" ] && [ "$(tr -d '[:space:]' <"$SHAFILE")" = "$DUMP_SHA" ] \
     || { TWIN_WHY="was not made from $(basename "$FILE") as it is now (its dump sha256 is not recorded beside it, or differs)"; return 1; }
   return 0
 }
 
 make_twin() {
-  local part
+  local part shapart
   part="$(dirname "$ENC")/.$KEY.part.$$"
   CLEANUP="$part"
   # -stream: one pass, the dump is never held whole. The only file written is ciphertext, here,
@@ -331,19 +337,27 @@ make_twin() {
     rm -f "$part"; CLEANUP=''
     return 1
   fi
+  # A twin must never be seen without its hash (--verify reads without making anything): the old
+  # pair goes first, the hash is renamed into place, the twin last. In between there is no twin.
+  shapart="$(dirname "$ENC")/.$KEY.sha256.part.$$"
   rm -f "$ENC" "$SHAFILE"
-  mv -f "$part" "$ENC"
+  printf '%s\n' "$DUMP_SHA" >"$shapart" && mv -f "$shapart" "$SHAFILE" && mv -f "$part" "$ENC"
   CLEANUP=''
-  printf '%s\n' "$DUMP_SHA" >"$SHAFILE.part.$$" && mv -f "$SHAFILE.part.$$" "$SHAFILE"
 }
 
-if [ "$MODE" = copy ]; then
-  # One run per family at a time (cron + somebody by hand): two runs could each make a twin and
-  # send different ciphertexts to the two providers. Held until exit.
-  if command -v flock >/dev/null 2>&1; then
-    exec 9>"$(dirname "$ENC")/.offsite-$FAMILY.lock"
+# One run per family at a time (cron + somebody by hand): two runs could each make a twin and
+# send different ciphertexts to the two providers. Held until exit. --verify takes it shared
+# (with a bounded wait), so it never reads a twin in the middle of being replaced.
+LOCKFILE="$(dirname "$ENC")/.offsite-$FAMILY.lock"
+if command -v flock >/dev/null 2>&1 && ( : >>"$LOCKFILE" ) 2>/dev/null; then
+  exec 9>>"$LOCKFILE"
+  if [ "$MODE" = copy ]; then
     flock -w 1800 9 || { echo "!! another backup-offsite.sh run held the lock for 30 minutes" >&2; exit 1; }
+  else
+    flock -s -w 120 9 || { echo "!! a copy run held the lock for 2 minutes; --verify did not read a twin it may be replacing" >&2; exit 1; }
   fi
+fi
+if [ "$MODE" = copy ]; then
   # A twin lives exactly as long as its dump: those whose dump backup-db.sh or backup-aiweb-db.sh
   # has since pruned go too (with their recorded hash), or this directory would keep every
   # encrypted copy ever made. Only a twin whose dump is GONE is touched, and part files old
@@ -356,12 +370,18 @@ if [ "$MODE" = copy ]; then
     [ -e "$sha" ] || continue
     [ -e "${sha%.enc.sha256}" ] || rm -f "$sha" || true
   done
+  # .<family>-*.part* is also backup-db.sh's in-progress dump (.hydromart-<stamp>.sql.gz.part):
+  # -mmin +60 leaves any live one alone, a dump never takes an hour to write.
   find "$(dirname "$ENC")" -maxdepth 1 -type f -name ".$FAMILY-*.part*" -mmin +60 -delete 2>/dev/null || true
+  # The same for what a killed run left on a directory destination (.<key>.part.<pid>).
+  if [ "$SHAPE" = dir ]; then
+    find "$DEST" -maxdepth 1 -type f -name ".$FAMILY-*.part*" -mmin +60 -delete 2>/dev/null || true
+  fi
 fi
 
 if [ ! -s "$ENC" ] && [ "$MODE" = verify ]; then
-  echo "!! $(basename "$FILE") has no encrypted twin ($KEY) on this box, so it has never been" >&2
-  echo "   sent offsite from here. bash scripts/backup-offsite.sh makes it and sends it." >&2
+  echo "!! $(basename "$FILE") has no encrypted copy yet ($KEY): it has never been sent offsite" >&2
+  echo "   from here. The 03:20 copy run (bash scripts/backup-offsite.sh) makes it and sends it." >&2
   exit 1
 fi
 if ! twin_check; then
