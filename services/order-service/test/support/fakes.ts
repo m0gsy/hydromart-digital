@@ -714,8 +714,10 @@ export class InMemoryOrderRepository implements OrderRepository {
     return [...agg.entries()].map(([depotId, refunded]) => ({ depotId, refunded }));
   }
 
-  async recordRefund(orderId: string, amount: number): Promise<void> {
-    this.refunds.set(orderId, amount);
+  async recordRefund(orderId: string, amount: number): Promise<number> {
+    const before = this.refunds.get(orderId) ?? 0;
+    this.refunds.set(orderId, Math.max(before, amount));
+    return before;
   }
 
   /** Receives the outbox rows a void wrote, so a test can assert them. */

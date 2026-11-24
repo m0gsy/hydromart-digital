@@ -1164,8 +1164,17 @@ export class OrderPrismaRepository implements OrderRepository {
     return this.toRecord(row!);
   }
 
-  async recordRefund(orderId: string, amount: number): Promise<void> {
-    await this.prisma.order.update({ where: { id: orderId }, data: { refundedAmount: amount } });
+  async recordRefund(orderId: string, amount: number): Promise<number> {
+    const before = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: { refundedAmount: true },
+    });
+    // Only raises: the total is a running sum, so a late or retried notice must not lower it.
+    await this.prisma.order.updateMany({
+      where: { id: orderId, OR: [{ refundedAmount: null }, { refundedAmount: { lt: amount } }] },
+      data: { refundedAmount: amount },
+    });
+    return before?.refundedAmount ? before.refundedAmount.toNumber() : 0;
   }
 
   async ratingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRating[]> {

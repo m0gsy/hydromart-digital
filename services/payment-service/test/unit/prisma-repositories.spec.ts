@@ -408,18 +408,10 @@ describe('PaymentPrismaRepository', () => {
     });
   });
 
-  it('aggregateRevenueByMethod groups PAID with a one-sided range', async () => {
-    model.groupBy.mockResolvedValue([
-      { method: 'CASH', _sum: { amount: 90000 }, _count: { _all: 5 } },
-    ]);
-    const from = new Date('2026-02-01');
-    const out = await repo.aggregateRevenueByMethod({ from });
-    expect(model.groupBy).toHaveBeenCalledWith({
-      by: ['method'],
-      where: { status: PaymentStatus.PAID, createdAt: { gte: from } },
-      _sum: { amount: true },
-      _count: { _all: true },
-    });
+  it('aggregateRevenueByMethod counts what stayed, per method', async () => {
+    const raw = jest.fn().mockResolvedValue([{ method: 'CASH', amount: 90000, count: BigInt(5) }]);
+    const r = new PaymentPrismaRepository({ $queryRaw: raw } as unknown as PrismaService);
+    const out = await r.aggregateRevenueByMethod({ from: new Date('2026-02-01') });
     expect(out).toEqual([{ method: PaymentMethod.CASH, amount: 90000, count: 5 }]);
   });
 
@@ -430,25 +422,12 @@ describe('PaymentPrismaRepository', () => {
     expect(model.groupBy).not.toHaveBeenCalled();
   });
 
-  it('cashByOrder groups PAID cash per order and drops orders with none', async () => {
-    model.groupBy.mockResolvedValue([{ orderId: 'order-1', _sum: { amount: 40000 } }]);
-    const rows = await repo.cashByOrder(['order-1', 'order-2']);
-    expect(model.groupBy).toHaveBeenCalledWith({
-      by: ['orderId'],
-      where: {
-        orderId: { in: ['order-1', 'order-2'] },
-        method: PaymentMethod.CASH,
-        status: PaymentStatus.PAID,
-      },
-      _sum: { amount: true },
-    });
-    // order-2 is absent, not zero: it simply has no PAID cash row.
-    expect(rows).toEqual([{ orderId: 'order-1', amountIdr: 40000 }]);
-  });
-
-  it('cashByOrder coerces a null group sum to zero', async () => {
-    model.groupBy.mockResolvedValue([{ orderId: 'order-1', _sum: { amount: null } }]);
-    expect(await repo.cashByOrder(['order-1'])).toEqual([{ orderId: 'order-1', amountIdr: 0 }]);
+  it('cashByOrder returns the kept cash per order', async () => {
+    const raw = jest.fn().mockResolvedValue([{ orderId: 'order-1', amount: 40000 }]);
+    const r = new PaymentPrismaRepository({ $queryRaw: raw } as unknown as PrismaService);
+    expect(await r.cashByOrder(['order-1', 'order-2'])).toEqual([
+      { orderId: 'order-1', amountIdr: 40000 },
+    ]);
   });
 
   /**
@@ -463,73 +442,32 @@ describe('PaymentPrismaRepository', () => {
    * before this column existed — stay attributable by the old window rule, because
    * dropping them would turn historical takings into a shortfall against a real person.
    */
-  it('C2 · a shift asks for its own drawer, and inherits only the unattributed', async () => {
+  // The SQL itself (shift arm, window arm, part-refunds) is proven on real Postgres in
+  // test/race/refund-readers.race.ts; here only the wiring.
+  it('C2 · sumDepotCash shape: named shift adds the shift arm, no shift is the window alone', async () => {
     const from = new Date('2026-08-03T01:00:00.000Z');
     const to = new Date('2026-08-03T09:00:00.000Z');
-    model.aggregate.mockResolvedValue({ _sum: { amount: 400_000 }, _count: { _all: 3 } });
-
-    await repo.sumDepotCash('depot-1', { from, to }, 'shift-1');
-
-    expect(model.aggregate).toHaveBeenCalledWith({
-      where: {
-        depotId: 'depot-1',
-        method: PaymentMethod.CASH,
-        status: PaymentStatus.PAID,
-        OR: [
-          { cashierShiftId: 'shift-1' },
-          { cashierShiftId: null, paidAt: { gte: from, lte: to } },
-        ],
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    });
+    const raw = jest.fn().mockResolvedValue([{ total: 1_250_000, count: BigInt(9) }]);
+    const r = new PaymentPrismaRepository({ $queryRaw: raw } as unknown as PrismaService);
+    expect(await r.sumDepotCash('depot-1', { from, to })).toEqual({ total: 1_250_000, count: 9 });
+    await r.sumDepotCash('depot-1', { from, to }, 'shift-1');
+    const text = (i: number) => (raw.mock.calls[i]![0] as { strings: string[] }).strings.join('?');
+    expect(text(0)).not.toContain('cashierShiftId');
+    expect(text(1)).toContain('cashierShiftId');
+    expect((raw.mock.calls[1]![0] as { values: unknown[] }).values).toContain('shift-1');
   });
 
-  it('C2 · with no shift named, it is the old window rule exactly', async () => {
-    const from = new Date('2026-08-03T01:00:00.000Z');
-    const to = new Date('2026-08-03T09:00:00.000Z');
-    model.aggregate.mockResolvedValue({ _sum: { amount: 1_000 }, _count: { _all: 1 } });
-
-    await repo.sumDepotCash('depot-1', { from, to });
-
-    expect(model.aggregate).toHaveBeenCalledWith({
-      where: {
-        depotId: 'depot-1',
-        method: PaymentMethod.CASH,
-        status: PaymentStatus.PAID,
-        paidAt: { gte: from, lte: to },
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    });
+  it('sumDepotCash with no bounds still answers', async () => {
+    const raw = jest.fn().mockResolvedValue([{ total: 0, count: BigInt(0) }]);
+    const r = new PaymentPrismaRepository({ $queryRaw: raw } as unknown as PrismaService);
+    expect(await r.sumDepotCash('depot-1', {})).toEqual({ total: 0, count: 0 });
   });
 
-  // Bounded by paidAt, not createdAt: a sale rung up before the shift but settled during it
-  // is cash this cashier is holding, and their count has to include it.
-  it('sumDepotCash aggregates one depot PAID cash by settlement time', async () => {
-    const from = new Date('2026-08-03T01:00:00.000Z');
-    const to = new Date('2026-08-03T09:00:00.000Z');
-    model.aggregate.mockResolvedValue({ _sum: { amount: 1_250_000 }, _count: { _all: 9 } });
-
-    expect(await repo.sumDepotCash('depot-1', { from, to })).toEqual({
-      total: 1_250_000,
-      count: 9,
-    });
-    expect(model.aggregate).toHaveBeenCalledWith({
-      where: {
-        depotId: 'depot-1',
-        method: PaymentMethod.CASH,
-        status: PaymentStatus.PAID,
-        paidAt: { gte: from, lte: to },
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
-    });
-  });
-
-  it('sumDepotCash reports zero for a depot that took nothing', async () => {
-    model.aggregate.mockResolvedValue({ _sum: { amount: null }, _count: { _all: 0 } });
-    expect(await repo.sumDepotCash('depot-1', {})).toEqual({ total: 0, count: 0 });
+  it('refundedTotalForOrder sums the order refunded payments', async () => {
+    model.aggregate.mockResolvedValueOnce({ _sum: { refundedAmount: 12000.4 } });
+    expect(await repo.refundedTotalForOrder('o1')).toBe(12000);
+    model.aggregate.mockResolvedValueOnce({ _sum: { refundedAmount: null } });
+    expect(await repo.refundedTotalForOrder('o1')).toBe(0);
   });
 
   it('update applies the patch and returns the mapped row', async () => {

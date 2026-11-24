@@ -201,6 +201,17 @@ export class InMemoryPaymentRepository implements PaymentRepository {
   }
   // CA-2-59: sums this fake's own refunded rows, so the network P&L's arithmetic is
   // exercised against real numbers rather than a stub that always answers zero.
+  async refundedTotalForOrder(orderId: string): Promise<number> {
+    return this.rows
+      .filter((r) => r.orderId === orderId && r.status === PaymentStatus.REFUNDED)
+      .reduce((s, r) => s + Math.round(r.refundedAmount ?? 0), 0);
+  }
+  /** HD-6 A3 mirror of the real readers: PAID whole, REFUNDED = amount - refunded part, >= 0. */
+  private kept(r: PaymentRecord): number {
+    if (r.status === PaymentStatus.PAID) return r.amount;
+    if (r.status === PaymentStatus.REFUNDED) return Math.max(r.amount - (r.refundedAmount ?? r.amount), 0);
+    return 0;
+  }
   async refundedTotalByDepot(
     depotIds: readonly string[],
     from: Date,
@@ -302,11 +313,11 @@ export class InMemoryPaymentRepository implements PaymentRepository {
   async aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
     const map = new Map<PaymentMethod, { amount: number; count: number }>();
     for (const r of this.rows) {
-      if (r.status !== PaymentStatus.PAID) continue;
+      if (this.kept(r) <= 0) continue;
       if (range.from && r.createdAt < range.from) continue;
       if (range.to && r.createdAt > range.to) continue;
       const e = map.get(r.method) ?? { amount: 0, count: 0 };
-      e.amount += r.amount;
+      e.amount += this.kept(r);
       e.count += 1;
       map.set(r.method, e);
     }
@@ -318,8 +329,8 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     const by = new Map<string, number>();
     for (const r of this.rows) {
       if (!set.has(r.orderId)) continue;
-      if (r.method !== PaymentMethod.CASH || r.status !== PaymentStatus.PAID) continue;
-      by.set(r.orderId, (by.get(r.orderId) ?? 0) + r.amount);
+      if (r.method !== PaymentMethod.CASH || this.kept(r) <= 0) continue;
+      by.set(r.orderId, (by.get(r.orderId) ?? 0) + this.kept(r));
     }
     return [...by.entries()].map(([orderId, amountIdr]) => ({ orderId, amountIdr }));
   }
@@ -339,12 +350,12 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       (r) =>
         r.depotId === depotId &&
         r.method === PaymentMethod.CASH &&
-        r.status === PaymentStatus.PAID &&
+        this.kept(r) > 0 &&
         (cashierShiftId
           ? r.cashierShiftId === cashierShiftId || (r.cashierShiftId === null && inWindow(r))
           : inWindow(r)),
     );
-    return { total: matched.reduce((s, r) => s + r.amount, 0), count: matched.length };
+    return { total: matched.reduce((s, r) => s + this.kept(r), 0), count: matched.length };
   }
 
   async update(id: string, patch: PaymentStatusPatch): Promise<PaymentRecord> {

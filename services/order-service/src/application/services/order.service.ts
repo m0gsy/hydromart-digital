@@ -3273,14 +3273,20 @@ export class OrderService {
     return this.updateStatus(orderId, OrderStatus.CONFIRMED, changedBy);
   }
 
-  /** Record a settled refund amount on the order (payment-service coordination, 22a). */
+  /**
+   * Record the order's refunded TOTAL (payment-service coordination, 22a). `amount` is the sum
+   * over every refunded payment of the order, so a second part-refund adds to the first instead
+   * of overwriting it. The customer hears only what is new; a repeated notice says nothing.
+   */
   async recordRefund(orderId: string, amount: number): Promise<void> {
     const order = await this.getAny(orderId); // 404 if the order doesn't exist
-    await this.orders.recordRefund(orderId, amount);
+    const before = await this.orders.recordRefund(orderId, amount);
+    const added = amount - before;
+    if (added <= 0) return;
     // A refund is only recorded once it has SETTLED (an over-threshold one waits in HQ's
     // queue and calls this when approved), so this is "your money is on its way", never a
     // promise. Fail-open like every notify.
-    await this.notifyCustomer('REFUND_PROCESSED', order, { amount: rupiahLabel(amount) });
+    await this.notifyCustomer('REFUND_PROCESSED', order, { amount: rupiahLabel(added) });
   }
 
   /**

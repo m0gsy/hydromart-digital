@@ -55,6 +55,13 @@ interface PaymentRow {
   updatedAt: Date;
 }
 
+/**
+ * HD-6 A3: what a payment still counts for as money kept. PAID counts whole; REFUNDED counts
+ * what was NOT sent back (amount minus the refunded part), never below zero. A REFUNDED row with
+ * no stated amount is a full refund and counts nothing. Callers restrict status to PAID/REFUNDED.
+ */
+const KEPT_AMOUNT = Prisma.sql`(CASE WHEN "status" = 'PAID' THEN "amount" ELSE GREATEST("amount" - COALESCE("refundedAmount", "amount"), 0) END)`;
+
 const ACTIVE_STATUSES: PaymentStatus[] = [PaymentStatus.PENDING, PaymentStatus.PAID];
 
 @Injectable()
@@ -398,20 +405,23 @@ export class PaymentPrismaRepository implements PaymentRepository {
   }
 
   async aggregateRevenueByMethod(range: DateRange): Promise<UnsettledMethodAggregate[]> {
-    const createdAt =
-      range.from || range.to
-        ? { ...(range.from ? { gte: range.from } : {}), ...(range.to ? { lte: range.to } : {}) }
-        : undefined;
-    const grouped = await this.prisma.payment.groupBy({
-      by: ['method'],
-      where: { status: PaymentStatus.PAID, ...(createdAt ? { createdAt } : {}) },
-      _sum: { amount: true },
-      _count: { _all: true },
-    });
-    return grouped.map((g) => ({
-      method: g.method as PaymentMethod,
-      amount: g._sum.amount ? Number(g._sum.amount) : 0,
-      count: g._count._all,
+    const rows = await this.prisma.$queryRaw<
+      { method: string; amount: Prisma.Decimal | null; count: bigint }[]
+    >(Prisma.sql`
+      SELECT "method"::text AS method,
+             COALESCE(SUM(${KEPT_AMOUNT}), 0) AS amount,
+             COUNT(*) FILTER (WHERE ${KEPT_AMOUNT} > 0)::bigint AS count
+      FROM "payments"
+      WHERE "status" IN (${PaymentStatus.PAID}::"PaymentStatus", ${PaymentStatus.REFUNDED}::"PaymentStatus")
+        ${range.from ? Prisma.sql`AND ("createdAt" AT TIME ZONE 'UTC') >= ${range.from}::timestamptz` : Prisma.empty}
+        ${range.to ? Prisma.sql`AND ("createdAt" AT TIME ZONE 'UTC') <= ${range.to}::timestamptz` : Prisma.empty}
+      GROUP BY "method"
+      HAVING COUNT(*) FILTER (WHERE ${KEPT_AMOUNT} > 0) > 0
+    `);
+    return rows.map((r) => ({
+      method: r.method as PaymentMethod,
+      amount: r.amount ? Number(r.amount) : 0,
+      count: Number(r.count),
     }));
   }
 
@@ -419,22 +429,21 @@ export class PaymentPrismaRepository implements PaymentRepository {
     if (orderIds.length === 0) {
       return [];
     }
-    // groupBy, not findMany: an order can legitimately carry more than one PAID cash row
-    // (a partial settlement, a re-take after a void), and every caller wants one number
-    // per order rather than a row per payment.
-    const rows = await this.prisma.payment.groupBy({
-      by: ['orderId'],
-      where: {
-        orderId: { in: orderIds },
-        method: PaymentMethod.CASH,
-        status: PaymentStatus.PAID,
-      },
-      _sum: { amount: true },
-    });
-    return rows.map((r) => ({
-      orderId: r.orderId,
-      amountIdr: r._sum.amount ? Math.round(Number(r._sum.amount)) : 0,
-    }));
+    // One number per order, not a row per payment: an order can legitimately carry more than
+    // one cash row (a partial settlement, a re-take after a void). A part-refunded row still
+    // counts for what stayed (HD-6 A3); a fully refunded one drops out.
+    const rows = await this.prisma.$queryRaw<{ orderId: string; amount: Prisma.Decimal }[]>(
+      Prisma.sql`
+      SELECT "orderId"::text AS "orderId", SUM(${KEPT_AMOUNT}) AS amount
+      FROM "payments"
+      WHERE "orderId" IN (${Prisma.join(orderIds.map((id) => Prisma.sql`${id}::uuid`))})
+        AND "method" = ${PaymentMethod.CASH}::"PaymentMethod"
+        AND "status" IN (${PaymentStatus.PAID}::"PaymentStatus", ${PaymentStatus.REFUNDED}::"PaymentStatus")
+      GROUP BY "orderId"
+      HAVING SUM(${KEPT_AMOUNT}) > 0
+    `,
+    );
+    return rows.map((r) => ({ orderId: r.orderId, amountIdr: Math.round(Number(r.amount)) }));
   }
 
   /**
@@ -461,24 +470,32 @@ export class PaymentPrismaRepository implements PaymentRepository {
     range: DateRange,
     cashierShiftId?: string,
   ): Promise<CashCollectedSummary> {
+    const inWindow = Prisma.sql`"paidAt" IS NOT NULL
+        ${range.from ? Prisma.sql`AND ("paidAt" AT TIME ZONE 'UTC') >= ${range.from}::timestamptz` : Prisma.empty}
+        ${range.to ? Prisma.sql`AND ("paidAt" AT TIME ZONE 'UTC') <= ${range.to}::timestamptz` : Prisma.empty}`;
+    const scope = cashierShiftId
+      ? Prisma.sql`("cashierShiftId" = ${cashierShiftId} OR ("cashierShiftId" IS NULL AND ${inWindow}))`
+      : inWindow;
+    const [row] = await this.prisma.$queryRaw<{ total: Prisma.Decimal; count: bigint }[]>(
+      Prisma.sql`
+      SELECT COALESCE(SUM(${KEPT_AMOUNT}), 0) AS total,
+             COUNT(*) FILTER (WHERE ${KEPT_AMOUNT} > 0)::bigint AS count
+      FROM "payments"
+      WHERE "depotId" = ${depotId}::uuid
+        AND "method" = ${PaymentMethod.CASH}::"PaymentMethod"
+        AND "status" IN (${PaymentStatus.PAID}::"PaymentStatus", ${PaymentStatus.REFUNDED}::"PaymentStatus")
+        AND ${scope}
+    `,
+    );
+    return { total: Number(row.total), count: Number(row.count) };
+  }
+
+  async refundedTotalForOrder(orderId: string): Promise<number> {
     const agg = await this.prisma.payment.aggregate({
-      where: {
-        depotId,
-        method: PaymentMethod.CASH,
-        status: PaymentStatus.PAID,
-        ...(cashierShiftId
-          ? {
-              OR: [
-                { cashierShiftId },
-                { cashierShiftId: null, paidAt: { gte: range.from, lte: range.to } },
-              ],
-            }
-          : { paidAt: { gte: range.from, lte: range.to } }),
-      },
-      _sum: { amount: true },
-      _count: { _all: true },
+      where: { orderId, status: PaymentStatus.REFUNDED },
+      _sum: { refundedAmount: true },
     });
-    return { total: agg._sum.amount ? Number(agg._sum.amount) : 0, count: agg._count._all };
+    return agg._sum.refundedAmount ? Math.round(Number(agg._sum.refundedAmount)) : 0;
   }
 
   async attachProofIfFirst(

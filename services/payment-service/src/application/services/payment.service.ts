@@ -1481,7 +1481,13 @@ export class PaymentService {
     });
     // Record the refund on the order for per-depot reconciliation. Fail-open: the refund
     // is already settled, so a coordination hiccup must never surface as a payment error.
-    await this.orderCoordination.notifyRefunded(payment.orderId, amount);
+    // HD-6 A3: the ORDER'S refunded total, not just this payment's part. The order sets the value
+    // it is given, so sending a lone amount let a second part-refund overwrite the first; the sum
+    // over the order's refunded payments is the same on a retry, so it cannot double either.
+    await this.orderCoordination.notifyRefunded(
+      payment.orderId,
+      await this.payments.refundedTotalForOrder(payment.orderId),
+    );
     return updated;
   }
 
