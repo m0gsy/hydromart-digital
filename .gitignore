@@ -115,3 +115,6 @@ solo.json
 /.audit-endpoints.json
 /.audit_tmp/
 **/.cov-full/
+
+# D3 staging: the login hash the deploy makes from a repo secret (the tracked 00-locked.caddy beside it stays).
+/infra/caddy/staging-auth/10-staging.caddy

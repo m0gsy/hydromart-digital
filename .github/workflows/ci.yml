@@ -369,6 +369,12 @@ jobs:
       - name: AI web deploy self-check (HD-9)
         run: bash scripts/aiweb.test.sh
 
+      # D3 staging: the front door's config, validated by the Caddy image the compose file pins by
+      # digest, as git holds it and with the staging login hash the deploy adds. A reload that
+      # refuses keeps the old config and blocks every later Caddy change, so it is caught here.
+      - name: Caddy config validates (pinned image)
+        run: bash scripts/check-caddy-validate.sh
+
       # env-doctor --fix rewrites the live .env, so every branch of it is pinned by tests:
       # what it joins, what it refuses, and that it never prints the key.
       - name: .env doctor self-check

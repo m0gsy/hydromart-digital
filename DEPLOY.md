@@ -553,6 +553,25 @@ Not covered yet:
   reaches the cloud metadata address (`169.254.169.254:80`) and never fails on it: the owner
   decides whether to block it. The host's ssh is decided, and closed (above).
 
+#### The staging AI web: the plumbing (D3 staging, part B)
+
+The staging copy of the AI web (staging-ai.hydromart-digital.com, its own compose project, added
+by the next part) has its front door ready before it exists:
+
+- `docker-compose.prod.yml` makes an internal network, `edge-staging`, and Caddy joins it with the
+  staging host name as an alias. Staging is never put on `edge` (a second container there would take
+  production's traffic). Deploying this recreates Caddy once.
+- `infra/caddy/sites/staging-ai.caddy` is the login-walled site. Its users are every file in
+  `infra/caddy/staging-auth/`: the tracked `00-locked.caddy` (a login nobody can use) and
+  `10-staging.caddy`, which the deploy writes from the `STAGING_AI_PASSWORD` secret (a bcrypt hash,
+  not in git). With no password every request is 401; with the password but no staging stack the
+  upstream is missing and the answer is 502 behind the wall.
+- `scripts/aiweb-firewall.sh` also drops TCP 22 from `edge-staging` and every network of the
+  `hydromart-ai-staging` project; `scripts/docker-gc.sh` keeps the images
+  `infra/aiweb-staging/docker-compose.yml` pins (and the release before).
+- `scripts/check-caddy-validate.sh` (CI) validates infra/caddy/ with the pinned Caddy image, with
+  and without a staging login hash.
+
 ### Backups + restore drill (host cron)
 
 [`scripts/backup-db.sh`](scripts/backup-db.sh) dumps the whole Postgres cluster

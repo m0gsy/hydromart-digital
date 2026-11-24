@@ -1,0 +1,51 @@
+# D3 staging: the staging copy of the AI web (infra/aiweb-staging/, its own compose project,
+# started by the deploy once part C ships). Nothing of it is on the `edge` network: Caddy
+# reaches it over `edge-staging`, an internal network only Caddy, the staging app and the fake
+# hydromart join (docker-compose.prod.yml). Caddy also answers to this very host name on that
+# network (a network alias), so the staging app's own calls to "hydromart" stay inside the box.
+#
+# One login wall for the whole site, one password the owner chose (repo secret
+# STAGING_AI_PASSWORD). The deploy turns it into a bcrypt hash in staging-auth/10-staging.caddy;
+# staging-auth/00-locked.caddy is a login nobody can use, so with no password every request is
+# 401 and a reload never fails on a missing or empty block.
+#
+# Exempt from the wall, because the staging app's SERVER fetches them (no browser, no way to
+# type a password): the fake hydromart's public keys and its code-for-token call. They carry
+# nothing without a one-time code and its PKCE verifier. /api/internal is hidden from everyone.
+#
+# No `log` directive, as for ai.hydromart-digital.com: no access log, so the one-time code in
+# /masuk/callback's query is never recorded. The Host header goes through unchanged
+# (reverse_proxy's default, and NO header_up Host): the app's server actions and the fake
+# hydromart's cross-site check both read it.
+staging-ai.hydromart-digital.com {
+	import hsts
+	header X-Robots-Tag "noindex, nofollow"
+
+	@gated not path /auth/api/v1/auth/jwks /auth/api/v1/auth/handoff/token /api/internal /api/internal/*
+	basic_auth @gated {
+		# Relative to this file: sites/ is one level below infra/caddy/.
+		import ../staging-auth/*.caddy
+	}
+
+	# Never forwarded, like hydromart's /metrics and the AI web's own internal routes.
+	handle /api/internal {
+		respond 404
+	}
+	handle /api/internal/* {
+		respond 404
+	}
+
+	request_body /api/ingress/* {
+		max_size 64KB
+	}
+
+	# The fake hydromart: its hand-over page and console (behind the wall), and the two calls
+	# above. Everything else is the staging app.
+	@mock path /ai/masuk /ai/masuk/* /_mock /_mock/* /auth/api/v1/auth/jwks /auth/api/v1/auth/handoff/token
+	handle @mock {
+		reverse_proxy hydromart-mock:9911
+	}
+	handle {
+		reverse_proxy staging-aiweb:3000
+	}
+}

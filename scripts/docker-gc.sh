@@ -81,7 +81,7 @@ prune_images() {
 # pinned_digests <file>: the sha256 digests a compose file pins, one per line.
 pinned_digests() { grep -oE '@sha256:[0-9a-f]{64}' "$1" 2>/dev/null | cut -c2- | sort -u || true; }
 aiweb_prune() {
-  local file="$INFRA_DIR/aiweb/docker-compose.yml" repo project keep now prev rev used id refs digest kept=0 removed=0
+  local file="$INFRA_DIR/aiweb/docker-compose.yml" staging_file="$INFRA_DIR/aiweb-staging/docker-compose.yml" repo project keep now prev rev used id refs digest kept=0 removed=0 now_s='' prev_s=''
   [ -f "$file" ] || return 0
   project="$(sed -n 's/^name:[[:space:]]*//p' "$file" | tr -d "\"' \r")"
   [ -n "$project" ] || return 0
@@ -101,7 +101,18 @@ aiweb_prune() {
     prev=''
   done
   [ -n "$prev" ] || echo "docker-gc: no earlier release of the AI web in this checkout's history; keeping only the current one"
-  keep="$(printf '%s\n%s\n' "$now" "$prev" | sed '/^$/d' | sort -u)"
+  # D3 staging: the staging AI web pins its own releases (infra/aiweb-staging/docker-compose.yml),
+  # often newer than production's, and its images carry the same project label. Its pinned
+  # digests, and the ones it pinned before them, are kept exactly like production's.
+  if [ -f "$staging_file" ]; then
+    now_s="$(pinned_digests "$staging_file")"
+    for rev in $(git -C "$repo" log --format=%H -- infra/aiweb-staging/docker-compose.yml 2>/dev/null || true); do
+      prev_s="$(git -C "$repo" show "$rev:infra/aiweb-staging/docker-compose.yml" 2>/dev/null | grep -oE '@sha256:[0-9a-f]{64}' | cut -c2- | sort -u || true)"
+      [ -n "$prev_s" ] && [ "$prev_s" != "$now_s" ] && break
+      prev_s=''
+    done
+  fi
+  keep="$(printf '%s\n%s\n%s\n%s\n' "$now" "$prev" "$now_s" "$prev_s" | sed '/^$/d' | sort -u)"
   # The image ids every container references, running or not.
   used="$($DOCKER ps -aq 2>/dev/null | xargs -r $DOCKER inspect --format '{{.Image}}' 2>/dev/null || true)"
   for id in $($DOCKER images -q --no-trunc --filter "label=com.docker.compose.project=$project" 2>/dev/null | sort -u || true); do
@@ -122,7 +133,7 @@ aiweb_prune() {
       kept=$((kept + 1))
     fi
   done
-  echo "docker-gc: AI web images ($project): $removed removed, $kept kept (the pinned release, the one before it, and any in use)"
+  echo "docker-gc: AI web images ($project): $removed removed, $kept kept (the pinned releases of production and staging, the one before each, and any in use)"
 }
 
 before=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')

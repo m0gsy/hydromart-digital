@@ -4,6 +4,11 @@
 # it) and every network compose makes for the AI web's project (`private`, n8n's `egress`). SSH
 # from anywhere else, the internet included, is left exactly as it was.
 #
+# D3 staging: the AI web's staging copy (its own compose project, infra/aiweb-staging/) is closed
+# the same way: `edge-staging` (the internal network hydromart's compose file makes so Caddy can
+# reach it) and every network of the project named by STAGING_PROJECT (hydromart-ai-staging).
+# They are listed beside the others when they exist and add nothing when they do not.
+#
 #   bash scripts/aiweb-firewall.sh   # close it; says nothing when it already is
 #
 # How: a chain of its own, AIWEB-NO-SSH, holding `-i <bridge> -j DROP` for each of those networks'
@@ -68,6 +73,11 @@ flock -w 60 8 || fail "could not lock .deploy/aiweb-firewall.lock within 60 seco
 AI_PROJECT="${AI_PROJECT:-$(sed -n 's/^name: *//p' infra/aiweb/docker-compose.yml 2>/dev/null | tr -d "\"' \r" || true)}"
 [[ "$AI_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]] ||
   fail "'$AI_PROJECT' (the name: line of infra/aiweb/docker-compose.yml) is not a compose project name, so the AI web's networks are unknown"
+# The staging project's name: its compose file's when this checkout has one, else the fixed one.
+STAGING_PROJECT="${STAGING_PROJECT:-$(sed -n 's/^name: *//p' infra/aiweb-staging/docker-compose.yml 2>/dev/null | tr -d "\"' \r" || true)}"
+STAGING_PROJECT="${STAGING_PROJECT:-hydromart-ai-staging}"
+[[ "$STAGING_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]] ||
+  fail "'$STAGING_PROJECT' (the staging project's name) is not a compose project name, so the staging AI web's networks are unknown"
 
 # The bridges. Docker's answer is what gets written, even one naming none of these networks (then
 # there is nothing to close, and the chain is emptied). With no answer at all (the daemon down,
@@ -79,7 +89,7 @@ v6=''
 from=''
 if nets="$(timeout 30 docker network ls --format '{{.ID}} {{.IPv6}} {{.Name}} {{.Label "com.docker.compose.project"}}' 2>&1)"; then
   while read -r id ipv6 name project; do
-    [ "$name" = edge ] || [ "$project" = "$AI_PROJECT" ] || continue
+    [ "$name" = edge ] || [ "$name" = edge-staging ] || [ "$project" = "$AI_PROJECT" ] || [ "$project" = "$STAGING_PROJECT" ] || continue
     [[ "$id" =~ ^[0-9a-f]{12}$ ]] || fail "docker gave network $name the id '$id', not 12 hex characters"
     [ "$ipv6" = false ] || v6+=" $name"
     bridges+=" br-$id"

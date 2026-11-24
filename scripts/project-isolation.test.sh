@@ -50,12 +50,22 @@ grep -q "$LABEL" .github/workflows/images.yml &&
 CADDY="$(awk '/^  caddy:/{f=1;print;next} f&&/^  [a-z]/{exit} f&&/^[a-z]/{exit} f' docker-compose.prod.yml)"
 printf '%s\n' "$CADDY" | grep -qE '^    image: caddy:[^@ ]+@sha256:[0-9a-f]{64}$' &&
   ok "the Caddy image is pinned by digest" || bad "the Caddy image must be pinned by digest"
-printf '%s\n' "$CADDY" | grep -qE '^      - default$' && printf '%s\n' "$CADDY" | grep -qE '^      - edge$' &&
+printf '%s\n' "$CADDY" | grep -qE '^      default: \{\}$' && printf '%s\n' "$CADDY" | grep -qE '^      edge: \{\}$' &&
   ok "Caddy joins its default network and edge" ||
   bad "Caddy must list both \`default\` (web, gateway) and \`edge\` under networks"
 awk '/^networks:/{f=1;next} f&&/^[a-z]/{exit} f' docker-compose.prod.yml | grep -qE '^    name: edge$' &&
   ok "the edge network has the fixed name 'edge'" ||
   bad "networks.edge must carry \`name: edge\` so the other project can declare it external"
+# D3 staging: the staging AI web reaches Caddy over its own INTERNAL network, never over `edge`
+# (a second container there could take production's traffic and open its port).
+NETS="$(awk '/^networks:/{f=1;next} f&&/^[a-z]/{exit} f' docker-compose.prod.yml)"
+STAGE_NET="$(printf '%s\n' "$NETS" | awk '/^  edge-staging:/{f=1;next} f&&/^  [a-z]/{exit} f')"
+printf '%s\n' "$STAGE_NET" | grep -qE '^    internal: true$' && printf '%s\n' "$STAGE_NET" | grep -qE '^    name: edge-staging$' &&
+  ok "edge-staging is a fixed-name internal network" ||
+  bad "networks.edge-staging must be \`name: edge-staging\` and \`internal: true\`: staging must have no way out"
+printf '%s\n' "$CADDY" | awk '/^      edge-staging:/{f=1;next} f&&/^      [a-z]/{exit} f' | grep -qE '^          - staging-ai\.hydromart-digital\.com$' &&
+  ok "Caddy answers to the staging host name on edge-staging" ||
+  bad "Caddy must join edge-staging with the alias staging-ai.hydromart-digital.com"
 grep -qx 'import sites/\*\.caddy' infra/caddy/Caddyfile && [ -d infra/caddy/sites ] &&
   ok "the Caddyfile imports infra/caddy/sites/*.caddy" ||
   bad "the Caddyfile must end with \`import sites/*.caddy\` and infra/caddy/sites/ must exist"

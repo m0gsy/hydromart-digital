@@ -1,0 +1,6 @@
+# A login nobody can use, so the staging site's basic_auth block is never empty and a
+# Caddy reload never fails when the staging password is unset: every request is then 401.
+# The password this hash was made from was random and thrown away. The real login is
+# 10-staging.caddy beside it, made by the deploy from the STAGING_AI_PASSWORD repo secret
+# (a bcrypt hash, never the password) and not kept in git (.gitignore).
+locked $2a$14$6eH7eDR4jAmvAmJnSQguhuFtxVl.xH/8eXchRr2Zsq422EjRVHVuW

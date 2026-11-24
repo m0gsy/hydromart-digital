@@ -140,6 +140,37 @@ DOCKER_BIN="$tmp/ai-docker3" GC_INFRA_DIR="$repo3/infra" bash scripts/docker-gc.
 removed="$(grep '^rmi ' "$tmp/ai3.log" | sed 's/^rmi //' | sort | tr '\n' ' ')"
 check "n8n's image: the pinned one and the one before stay, like the app's; one pinned nowhere goes" "$(d 71) " "$removed"
 
+# D3 staging: the staging AI web pins its own (newer) release in infra/aiweb-staging/, kept like
+# production's: the digests pinned now and the ones pinned before. Production pins 31/32; staging
+# went 81/82, then 91/92. Kept: 31 32 91 92 (now) and 81 82 (staging's release before); removed: 93.
+repo4="$tmp/repo4"
+mkdir -p "$repo4/infra/aiweb" "$repo4/infra/aiweb-staging"
+git -C "$repo4" init -q
+printf 'name: hydromart-ai\nservices:\n  db:\n    image: postgres:16-alpine@%s\n  migrate:\n    image: ghcr.io/m0gsy/hydromart-ai@%s\n  aiweb:\n    image: ghcr.io/m0gsy/hydromart-ai@%s\n' "$(d 9)" "$(d 32)" "$(d 31)" > "$repo4/infra/aiweb/docker-compose.yml"
+pin4() { # <app> <migrate>
+  printf 'name: hydromart-ai-staging\nservices:\n  db:\n    image: postgres:16-alpine@%s\n  migrate:\n    image: ghcr.io/m0gsy/hydromart-ai@%s\n  staging-aiweb:\n    image: ghcr.io/m0gsy/hydromart-ai@%s\n' "$(d 9)" "$2" "$1" > "$repo4/infra/aiweb-staging/docker-compose.yml"
+  git -C "$repo4" -c core.autocrlf=false add -A >/dev/null && git -C "$repo4" -c core.autocrlf=false -c user.name=t -c user.email=t@example.invalid commit -qm "staging $1" >/dev/null
+}
+pin4 "$(d 81)" "$(d 82)"
+pin4 "$(d 91)" "$(d 92)"
+cat > "$tmp/ai-docker4" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$tmp/ai4.log"
+case "\$1 \$2" in
+  "ps -a") case "\$*" in *Label*) printf 'hydromart\nhydromart-ai\n' ;; *) printf 'c1\n' ;; esac ;;
+  "ps -aq") printf 'c1\n' ;;
+  "inspect --format") printf '%s\n' sha256:not-an-ai-image ;;
+  "images -q") printf '%s\n' "$(d 31)" "$(d 32)" "$(d 81)" "$(d 82)" "$(d 91)" "$(d 92)" "$(d 93)" ;;
+  "image inspect") echo "ghcr.io/m0gsy/hydromart-ai@\${*: -1} " ;;
+esac
+exit 0
+EOF
+chmod +x "$tmp/ai-docker4"
+: > "$tmp/ai4.log"
+DOCKER_BIN="$tmp/ai-docker4" GC_INFRA_DIR="$repo4/infra" bash scripts/docker-gc.sh --old-images >/dev/null 2>&1
+removed="$(grep '^rmi ' "$tmp/ai4.log" | sed 's/^rmi //' | sort | tr '\n' ' ')"
+check "staging's image: its pinned release and the one before stay with production's; one pinned nowhere goes" "$(d 93) " "$removed"
+
 # A compose file that pins no digest (tags only, or no image line at all) has nothing to keep by:
 # an empty keep list must never widen the prune to every AI web image no container uses.
 for shape in tags none; do
