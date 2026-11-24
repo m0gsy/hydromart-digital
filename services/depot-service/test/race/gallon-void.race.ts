@@ -18,6 +18,7 @@ describeRace('counter void reversal on real Postgres', () => {
   let returnSvc: GallonReturnService;
   let depotId: string;
   let shelf = 0;
+  let moves: number[] = [];
 
   beforeAll(async () => {
     const db = await freshPrisma();
@@ -46,6 +47,7 @@ describeRace('counter void reversal on real Postgres', () => {
     const inventory = {
       moveRawLine: async (_d: string, _t: unknown, delta: number) => {
         shelf += delta;
+        moves.push(delta);
         return { shortfall: 0 };
       },
     } as never;
@@ -64,11 +66,14 @@ describeRace('counter void reversal on real Postgres', () => {
   it('five concurrent reversals of one refill: one row per ledger, shelf net zero', async () => {
     for (let i = 0; i < 5; i++) {
       shelf = 0;
+      moves = [];
       const orderId = randomUUID();
       const customerId = randomUUID();
       await issueSvc.recordFromOrder(depotId, { orderId, customerId, quantity: 2 }, 'os');
       await returnSvc.recordFromCounter(depotId, { orderId, customerId, quantity: 2 }, 'os');
       expect(shelf).toBe(0); // out 2, back 2
+      expect(moves).toEqual([-2, 2]);
+      moves = [];
 
       const res = await race(
         Array.from({ length: 5 }, () => () => returnSvc.reverseOrder(depotId, orderId, 'os')),
@@ -83,6 +88,8 @@ describeRace('counter void reversal on real Postgres', () => {
       expect(returnRows.reduce((s, r) => s + r.quantity, 0)).toBe(0);
       // Reversal put back +2 (issue) and took off -2 (return): net unchanged from before the sale.
       expect(shelf).toBe(0);
+      // Moved back exactly once: +2 for the issue and -2 for the return, never repeated.
+      expect(moves.sort()).toEqual([-2, 2]);
     }
   });
 });

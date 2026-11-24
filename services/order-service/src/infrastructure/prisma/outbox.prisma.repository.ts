@@ -99,6 +99,14 @@ export class OutboxPrismaRepository implements OutboxRepository {
    * those effects explicitly (restock, points, owner ledger). Re-marking them would erase
    * the record that they ever ran.
    */
+  async requeue(topic: OutboxTopic, orderId: string): Promise<void> {
+    await this.prisma.outboxMessage.upsert({
+      where: { topic_orderId: { topic, orderId } },
+      create: { topic, orderId },
+      update: { status: 'PENDING', attempts: 0, nextAttemptAt: new Date(), lastError: null },
+    });
+  }
+
   async cancelForOrder(orderId: string, reason: string): Promise<number> {
     const { count } = await this.prisma.outboxMessage.updateMany({
       // A voided counter sale stops owing its side effects; it never owes the customer's

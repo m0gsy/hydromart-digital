@@ -92,6 +92,12 @@ export interface OutboxRepository {
    * order's rows and filter in memory, so behind a backlog it saw none of its own.
    */
   findDueForOrder(orderId: string, now: Date, limit: number): Promise<OutboxMessageRecord[]>;
+  /**
+   * Owes this effect (again), due now. There is one row per (topic, order), so an existing one
+   * is re-armed to PENDING with a fresh attempt count rather than duplicated: a row that already
+   * ran as a no-op is exactly the one a late booking needs to run once more.
+   */
+  requeue(topic: OutboxTopic, orderId: string): Promise<void>;
   /** The effect landed; the row is closed and never picked up again. */
   markDone(id: string): Promise<void>;
   /**

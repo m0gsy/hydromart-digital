@@ -42,6 +42,15 @@ describe('OutboxService edges', () => {
     expect(repo.rows.find((r) => r.topic === 'GALLON_ISSUE')!.status).toBe('DEAD');
   });
 
+  it('requeues a topic: re-arms an existing row, creates a missing one', async () => {
+    repo.enqueue([{ topic: 'GALLON_ISSUE_VOID', orderId: 'o1' }]);
+    repo.rows[0].status = 'DONE';
+    await service.requeue('GALLON_ISSUE_VOID', 'o1');
+    expect(repo.rows[0]).toMatchObject({ status: 'PENDING', attempts: 0 });
+    await service.requeue('GALLON_ISSUE_VOID', 'o2');
+    expect(repo.rows).toHaveLength(2);
+  });
+
   it('retries a topic no running version knows how to handle', async () => {
     repo.enqueue([{ topic: 'INVENTORY_CONSUME', orderId: 'ord-1' }]);
 

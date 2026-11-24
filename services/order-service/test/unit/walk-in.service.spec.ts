@@ -1851,11 +1851,23 @@ describe('OrderService.walkInSale', () => {
           gallonIssue.afterBook = undefined;
           await service.voidCounterSale(operator, order.id, 'Salah', now, 'Bearer t');
         };
+        orders.onVoidOutbox = (rows) => orders.outbox!.enqueue(rows);
         orders.outbox!.enqueue([{ topic: 'GALLON_ISSUE', orderId: order.id }]);
         await (
           service as unknown as { bookGallonIssue(id: string): Promise<void> }
         ).bookGallonIssue(order.id);
+        // The void's own row already ran as a no-op before the issue landed; it is re-armed
+        // (not sent inline, depot-service may be down) and delivering it reverses once.
+        const row = orders.outbox!.rows.find((r) => r.topic === 'GALLON_ISSUE_VOID')!;
+        row.status = 'DONE';
+        await (
+          service as unknown as { bookGallonIssue(id: string): Promise<void> }
+        ).bookGallonIssue(order.id);
+        expect(row.status).toBe('PENDING');
+        expect(gallonIssue.voided).toHaveLength(0);
+        await sweep(new Date(now.getTime() + 10 * 60_000));
         expect(gallonIssue.voided).toEqual([{ depotId: DEPOT, orderId: order.id }]);
+        expect(row.status).toBe('DONE');
       });
 
       it('keeps owing the reversal while depot-service is down', async () => {

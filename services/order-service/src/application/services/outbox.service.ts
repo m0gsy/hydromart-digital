@@ -99,6 +99,11 @@ export class OutboxService {
     return cancelled;
   }
 
+  /** Owes `topic` for the order again, due now; see `OutboxRepository.requeue`. */
+  requeue(topic: OutboxTopic, orderId: string): Promise<void> {
+    return this.outbox.requeue(topic, orderId);
+  }
+
   async processForOrder(orderId: string, authorization: string): Promise<OutboxSweepResult> {
     const now = new Date();
     // ORD-12: ask for THIS order's rows. Filtering the oldest batch of everyone's rows meant a

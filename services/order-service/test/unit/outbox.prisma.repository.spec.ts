@@ -73,6 +73,22 @@ describe('OutboxPrismaRepository', () => {
     });
   });
 
+  it('re-arms the one row of a topic and order instead of duplicating it', async () => {
+    const upsert = jest.fn();
+    const r = new OutboxPrismaRepository({ outboxMessage: { upsert } } as unknown as PrismaService);
+    await r.requeue('GALLON_ISSUE_VOID', 'ord-1');
+    expect(upsert).toHaveBeenCalledWith({
+      where: { topic_orderId: { topic: 'GALLON_ISSUE_VOID', orderId: 'ord-1' } },
+      create: { topic: 'GALLON_ISSUE_VOID', orderId: 'ord-1' },
+      update: {
+        status: 'PENDING',
+        attempts: 0,
+        nextAttemptAt: expect.any(Date),
+        lastError: null,
+      },
+    });
+  });
+
   it('closes a delivered row and clears the last error', async () => {
     await repo.markDone('ob-1');
     expect(model.updateMany).toHaveBeenCalledWith({

@@ -1998,6 +1998,12 @@ export class InMemoryOutboxRepository implements OutboxRepository {
     }
   }
 
+  async requeue(topic: OutboxMessageRecord['topic'], orderId: string): Promise<void> {
+    const row = this.rows.find((r) => r.topic === topic && r.orderId === orderId);
+    if (!row) return this.enqueue([{ topic, orderId }]);
+    Object.assign(row, { status: 'PENDING', attempts: 0, nextAttemptAt: new Date(0), lastError: null });
+  }
+
   async findDue(now: Date, limit: number): Promise<OutboxMessageRecord[]> {
     return this.rows
       .filter((r) => r.status === 'PENDING' && r.nextAttemptAt.getTime() <= now.getTime())
