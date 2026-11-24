@@ -127,14 +127,14 @@ export class SubmitFranchiseApplicationDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  @Matches(PLACE_NAME_PATTERN, { message: "city hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -" })
+  @Matches(PLACE_NAME_PATTERN, { message: "Kota hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -; beri spasi setelah titik" })
   city!: string;
 
   @ApiProperty({ example: 'Jawa Barat' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
-  @Matches(PLACE_NAME_PATTERN, { message: "province hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -" })
+  @Matches(PLACE_NAME_PATTERN, { message: "Provinsi hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -; beri spasi setelah titik" })
   province!: string;
 
   @ApiProperty({ example: -6.9421, description: 'Proposed location latitude.' })

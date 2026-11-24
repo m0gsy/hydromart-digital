@@ -57,4 +57,14 @@ describe('SubmitFranchiseApplicationDto place names', () => {
   it.each(['evil.com', 'x.co.id', 'bit.ly', 'a@b', 'http://x', 'Bandung 2', '<b>Bandung</b>', '...', '   ', ''])('refuses "%s" as city and province', async (place) => {
     expect((await refusedFields({ city: place, province: place })).sort()).toEqual(['city', 'province']);
   });
+
+  // Lookalikes of a web address that a plain ASCII check would miss.
+  it.each([
+    ['a Cyrillic o', `evil.c${String.fromCodePoint(0x43e)}m`],
+    ['fullwidth letters and stop', String.fromCodePoint(0xff45, 0xff56, 0xff49, 0xff4c, 0xff0e, 0xff43, 0xff4f, 0xff4d)],
+    ['an ideographic full stop', `evil${String.fromCodePoint(0x3002)}com`],
+    ['a combining mark after the dot', `evil.${String.fromCodePoint(0x301)}com`],
+  ])('refuses %s in a web address', async (_name, place) => {
+    expect((await refusedFields({ city: place, province: place })).sort()).toEqual(['city', 'province']);
+  });
 });

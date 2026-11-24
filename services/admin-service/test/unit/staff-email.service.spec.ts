@@ -132,6 +132,22 @@ describe('StaffEmailService', () => {
     expect(peak).toBe(3);
   });
 
+  it('names the recipient whose send fails in a later batch, and keeps the counts exact', async () => {
+    const ids = Array.from({ length: 5 }, (_, i) => `ho-${i}`);
+    const { service } = build({
+      accounts: ids.map((id) => account(id)),
+      mailer: {
+        send: async (mail) => {
+          if (mail.to.startsWith('ho-4@')) throw new Error(`451 <${mail.to}> try later`);
+        },
+      },
+    });
+    await expect(service.send(request(ids))).resolves.toEqual({ sent: 4, failed: 1, skipped: 0 });
+    expect(warn).toHaveBeenCalledWith('staff email to ho-4 failed: 451 <address> try later');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('4 sent, 1 failed'));
+  });
+
   describe('hourly cap per toggle', () => {
     const ids = Array.from({ length: 121 }, (_, i) => `ho-${i}`);
     beforeEach(() => jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] }));
