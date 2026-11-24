@@ -128,12 +128,12 @@ export class OutboxService {
     for (const message of due) {
       try {
         await this.deliver(message, authorization);
-        await this.outbox.markDone(message.id);
+        await this.outbox.markDone(message.id, message.updatedAt);
         result.delivered += 1;
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         const retryAt = this.nextAttemptFor(message, now);
-        await this.outbox.markFailed(message.id, reason, retryAt);
+        await this.outbox.markFailed(message.id, reason, retryAt, message.updatedAt);
         result.failed += 1;
         if (!retryAt) {
           result.dead += 1;

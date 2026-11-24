@@ -22,7 +22,10 @@ describe('OutboxPrismaRepository', () => {
     nextAttemptAt: new Date('2026-08-03T10:00:00Z'),
     lastError: 'depot-service down',
     createdAt: new Date('2026-08-03T09:00:00Z'),
+    updatedAt: new Date('2026-08-03T09:30:00Z'),
   };
+
+  const SEEN = new Date('2026-08-03T09:30:00Z');
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -90,18 +93,18 @@ describe('OutboxPrismaRepository', () => {
   });
 
   it('closes a delivered row and clears the last error', async () => {
-    await repo.markDone('ob-1');
+    await repo.markDone('ob-1', SEEN);
     expect(model.updateMany).toHaveBeenCalledWith({
-      where: { id: 'ob-1', status: 'PENDING' },
+      where: { id: 'ob-1', status: 'PENDING', updatedAt: SEEN },
       data: { status: 'DONE', lastError: null },
     });
   });
 
   it('schedules the next attempt when retries remain', async () => {
     const retryAt = new Date('2026-08-03T12:00:00Z');
-    await repo.markFailed('ob-1', 'depot-service down', retryAt);
+    await repo.markFailed('ob-1', 'depot-service down', retryAt, SEEN);
     expect(model.updateMany).toHaveBeenCalledWith({
-      where: { id: 'ob-1', status: 'PENDING' },
+      where: { id: 'ob-1', status: 'PENDING', updatedAt: SEEN },
       data: {
         status: 'PENDING',
         attempts: { increment: 1 },
@@ -112,7 +115,7 @@ describe('OutboxPrismaRepository', () => {
   });
 
   it('marks the row DEAD when there is no next attempt, and truncates the reason', async () => {
-    await repo.markFailed('ob-1', 'x'.repeat(900), null);
+    await repo.markFailed('ob-1', 'x'.repeat(900), null, SEEN);
     const data = model.updateMany.mock.calls[0][0].data;
     expect(data.status).toBe('DEAD');
     expect(data.nextAttemptAt).toBeUndefined();

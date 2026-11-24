@@ -51,6 +51,24 @@ describe('OutboxService edges', () => {
     expect(repo.rows).toHaveLength(2);
   });
 
+  // HD-6: the void row's delivery is in flight (it found nothing booked) when a late booking
+  // re-arms it. The first delivery's success must not close the row over the second owing.
+  it('a requeue during an in-flight delivery is not swallowed by that delivery finishing', async () => {
+    const ran: string[] = [];
+    service.register('GALLON_ISSUE_VOID', async (id) => {
+      ran.push(id);
+      if (ran.length === 1) await service.requeue('GALLON_ISSUE_VOID', id); // re-armed mid-flight
+    });
+    repo.enqueue([{ topic: 'GALLON_ISSUE_VOID', orderId: 'o1' }]);
+    jest.spyOn(orders, 'findById').mockResolvedValue({ status: 'COMPLETED' } as never);
+    const first = await service.processDue(new Date(1000));
+    expect(first.delivered).toBe(1);
+    expect(repo.rows[0].status).toBe('PENDING'); // not DONE: owed again
+    await service.processDue(new Date(2000));
+    expect(ran).toEqual(['o1', 'o1']);
+    expect(repo.rows[0].status).toBe('DONE');
+  });
+
   it('retries a topic no running version knows how to handle', async () => {
     repo.enqueue([{ topic: 'INVENTORY_CONSUME', orderId: 'ord-1' }]);
 

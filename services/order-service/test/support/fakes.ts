@@ -1994,6 +1994,7 @@ export class InMemoryOutboxRepository implements OutboxRepository {
         nextAttemptAt: new Date(0),
         lastError: null,
         createdAt: nextDate(),
+        updatedAt: nextDate(),
       });
     }
   }
@@ -2001,7 +2002,13 @@ export class InMemoryOutboxRepository implements OutboxRepository {
   async requeue(topic: OutboxMessageRecord['topic'], orderId: string): Promise<void> {
     const row = this.rows.find((r) => r.topic === topic && r.orderId === orderId);
     if (!row) return this.enqueue([{ topic, orderId }]);
-    Object.assign(row, { status: 'PENDING', attempts: 0, nextAttemptAt: new Date(0), lastError: null });
+    Object.assign(row, {
+      status: 'PENDING',
+      attempts: 0,
+      nextAttemptAt: new Date(0),
+      lastError: null,
+      updatedAt: nextDate(),
+    });
   }
 
   async findDue(now: Date, limit: number): Promise<OutboxMessageRecord[]> {
@@ -2021,15 +2028,22 @@ export class InMemoryOutboxRepository implements OutboxRepository {
       .slice(0, limit)
       .map((r) => ({ ...r }));
   }
-  async markDone(id: string): Promise<void> {
+  async markDone(id: string, seenUpdatedAt: Date): Promise<void> {
     const row = this.rows.find((r) => r.id === id)!;
-    if (row.status !== 'PENDING') return;
+    if (row.status !== 'PENDING' || row.updatedAt.getTime() !== seenUpdatedAt.getTime()) return;
+    row.updatedAt = nextDate();
     row.status = 'DONE';
     row.lastError = null;
   }
-  async markFailed(id: string, error: string, nextAttemptAt: Date | null): Promise<void> {
+  async markFailed(
+    id: string,
+    error: string,
+    nextAttemptAt: Date | null,
+    seenUpdatedAt: Date,
+  ): Promise<void> {
     const row = this.rows.find((r) => r.id === id)!;
-    if (row.status !== 'PENDING') return;
+    if (row.status !== 'PENDING' || row.updatedAt.getTime() !== seenUpdatedAt.getTime()) return;
+    row.updatedAt = nextDate();
     row.status = nextAttemptAt ? 'PENDING' : 'DEAD';
     row.attempts += 1;
     row.lastError = error;

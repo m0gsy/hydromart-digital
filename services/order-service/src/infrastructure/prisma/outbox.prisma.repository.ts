@@ -18,6 +18,7 @@ interface OutboxRow {
   nextAttemptAt: Date;
   lastError: string | null;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 function toRecord(row: OutboxRow): OutboxMessageRecord {
@@ -30,6 +31,7 @@ function toRecord(row: OutboxRow): OutboxMessageRecord {
     nextAttemptAt: row.nextAttemptAt,
     lastError: row.lastError,
     createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -69,20 +71,27 @@ export class OutboxPrismaRepository implements OutboxRepository {
     return rows.map(toRecord);
   }
 
-  async markDone(id: string): Promise<void> {
+  async markDone(id: string, seenUpdatedAt: Date): Promise<void> {
     // Conditional on PENDING: a sweep that was already holding the row must not turn a row the
     // void just CANCELLED (or a DEAD one an operator is looking at) back into DONE.
     await this.prisma.outboxMessage.updateMany({
-      where: { id, status: 'PENDING' },
+      // `updatedAt` is the version: `requeue` always moves it, so a re-arm that landed while this
+      // delivery was in flight is not closed over. Postgres keeps ms; Prisma writes ms.
+      where: { id, status: 'PENDING', updatedAt: seenUpdatedAt },
       data: { status: 'DONE', lastError: null },
     });
   }
 
-  async markFailed(id: string, error: string, nextAttemptAt: Date | null): Promise<void> {
+  async markFailed(
+    id: string,
+    error: string,
+    nextAttemptAt: Date | null,
+    seenUpdatedAt: Date,
+  ): Promise<void> {
     // Same guard as markDone: only a row still owed can be failed or rescheduled, so a late
     // failure cannot revive a CANCELLED row as PENDING.
     await this.prisma.outboxMessage.updateMany({
-      where: { id, status: 'PENDING' },
+      where: { id, status: 'PENDING', updatedAt: seenUpdatedAt },
       data: {
         // No next attempt means the retries are spent: DEAD, so it stops being counted as
         // work still coming and starts being counted as work somebody has to look at.

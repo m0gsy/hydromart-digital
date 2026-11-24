@@ -70,6 +70,11 @@ export interface OutboxMessageRecord {
   nextAttemptAt: Date;
   lastError: string | null;
   createdAt: Date;
+  /**
+   * When the row last changed. A sweep hands it back to `markDone` / `markFailed`, which only
+   * act on a row that has not changed since it was read (see those methods).
+   */
+  updatedAt: Date;
 }
 
 /** What an order owes, written alongside the state change that earns it. */
@@ -98,14 +103,26 @@ export interface OutboxRepository {
    * ran as a no-op is exactly the one a late booking needs to run once more.
    */
   requeue(topic: OutboxTopic, orderId: string): Promise<void>;
-  /** The effect landed; the row is closed and never picked up again. */
-  markDone(id: string): Promise<void>;
+  /**
+   * The effect landed; the row is closed and never picked up again.
+   *
+   * Only if the row is still the one the sweep read (`seenUpdatedAt`): a `requeue` that landed
+   * while the delivery was in flight owes the effect AGAIN, and this delivery's success must not
+   * swallow that. A miss leaves the row PENDING, which is safe: every consumer is idempotent
+   * (the queue is at-least-once), so the cost of a miss is one repeated call.
+   */
+  markDone(id: string, seenUpdatedAt: Date): Promise<void>;
   /**
    * The effect failed. Bumps the attempt count, records why, and either schedules the
    * next try or gives up — a row nobody will retry has to say so, not sit as PENDING
    * forever pretending it is still coming.
    */
-  markFailed(id: string, error: string, nextAttemptAt: Date | null): Promise<void>;
+  markFailed(
+    id: string,
+    error: string,
+    nextAttemptAt: Date | null,
+    seenUpdatedAt: Date,
+  ): Promise<void>;
   /**
    * C3: the order stopped owing these. Cancels every row still PENDING for it and answers
    * how many, so the caller can say so rather than guess.
