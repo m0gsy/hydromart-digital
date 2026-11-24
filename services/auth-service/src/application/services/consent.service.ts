@@ -40,8 +40,11 @@ import { AUTH_TOKENS } from '../tokens';
  *
  * 2026-11-23 (HD-8): the privacy policy now says that the campaign code of a link someone
  * arrived by is kept with their signup or their franchise application.
+ *
+ * 2026-11-24 (D8): the privacy policy now says BiznetGio NEO also holds the database backup
+ * copies, encrypted before they leave the server with a key NEO does not hold.
  */
-export const CONSENT_DOCUMENT_VERSION = '2026-11-23';
+export const CONSENT_DOCUMENT_VERSION = '2026-11-24';
 
 export interface ConsentStateEntry {
   purpose: ConsentPurpose;

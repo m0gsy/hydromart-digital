@@ -48,7 +48,7 @@ export function isTerminalStage(stage: FranchiseAppStage): boolean {
  * {id,en}/privacy.ts); apps/web/test/legal-versions.test.ts fails when the two differ, because
  * a stored version naming a text nobody was shown is worse than none.
  */
-export const PRIVACY_POLICY_VERSION = '2026-11-23';
+export const PRIVACY_POLICY_VERSION = '2026-11-24';
 
 /**
  * HD-8: a campaign code as the web stores it (lib/attribution.ts): lower case, 1 to 64 of
