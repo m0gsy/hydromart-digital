@@ -629,7 +629,7 @@ echo "deploy (aiweb-deploy.sh, fake docker):"
 T="$W/deploy"
 mkdir -p "$T/scripts/lib" "$T/infra/aiweb"
 cp scripts/aiweb-deploy.sh scripts/aiweb-firewall.sh "$T/scripts/"
-cp scripts/lib/deploy-common.sh scripts/lib/tcp-reach.cjs "$T/scripts/lib/"
+cp scripts/lib/deploy-common.sh scripts/lib/tcp-reach.cjs scripts/lib/aiweb-probe.sh "$T/scripts/lib/"
 cp infra/aiweb/docker-compose.yml infra/aiweb/roles.sql infra/aiweb/app-role.sql "$T/infra/aiweb/"
 GOOD_ENV='AIWEB_POSTGRES_PASSWORD=p1
 AIWEB_DB_OWNER_PASSWORD=p2
