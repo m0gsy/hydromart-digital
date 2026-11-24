@@ -41,6 +41,7 @@ const day = (d: string, o: Partial<MeterDayRow> = {}): MeterDayRow => ({
   varianceLiters: 170,
   varianceGallons: 8.95,
   varianceIdr: 179_000,
+  sourceLiters: null,
   roYieldPct: null,
   ...o,
 });
@@ -123,7 +124,18 @@ describe('S-01 stock now', () => {
   it('adds up the depots readable today, available units by type', async () => {
     const { service, sources } = build();
     const res = await service.answer('S-01', user, NOVEMBER, NOW);
-    expect(res.value).toEqual({ depots: 2, lines: 8, lowLines: 2, outLines: 2, availableByType: { GALON: 80, AIR: 1000 } });
+    expect(res.value).toEqual({
+      depots: 2,
+      lines: 8,
+      lowLines: 2,
+      outLines: 2,
+      availableByType: { GALON: 80, AIR: 1000 },
+      // the dictionary lists depot as a dimension: per depot, only the depots the caller may read today
+      byDepot: [
+        { depotId: D1, lines: 4, lowLines: 1, outLines: 1 },
+        { depotId: D2, lines: 4, lowLines: 1, outLines: 1 },
+      ],
+    });
     expect(sources.position).toHaveBeenCalledTimes(1);
     expect(sources.position).toHaveBeenCalledWith([D1, D2]);
     expect(res.label).toContain('baris tersembunyi tidak dihitung');
@@ -184,6 +196,7 @@ describe('S-02 and S-03 losses', () => {
     const res = await service.answer('S-02', user, NOVEMBER, NOW);
     expect(res.value).toMatchObject({ units: -4, valueIdr: -80_000 });
     expect(res.label).toContain('ditolak HQ tidak dihitung');
+    expect(res.label).toContain('menunggu persetujuan HQ termasuk');
   });
 
   it('is a real 0 when nothing happened, and null value only when units exist and none could be priced', async () => {
@@ -203,8 +216,8 @@ describe('S-04 water meter', () => {
   it('asks the history of each depot for the days it was readable and adds the days with a closing reading', async () => {
     const { service, sources } = build(SPLIT, {
       meterDays: jest.fn(async (_d: string, from: string): Promise<MeterDayRow[] | null> => [
-        day(from, { roYieldPct: 80 }),
-        day(plusDays(from, 1), { roYieldPct: 90 }),
+        day(from),
+        day(plusDays(from, 1)),
         day(plusDays(from, 2), { meterLiters: null, varianceLiters: null, varianceGallons: null, varianceIdr: null, soldLiters: 999 }), // not closed: left out
       ]),
     });
@@ -221,9 +234,22 @@ describe('S-04 water meter', () => {
       varianceGallons: 53.7,
       varianceIdr: 1_074_000,
       daysWithoutPrice: 0,
-      roYieldPct: 85,
+      roYieldPct: null, // no raw-water reading on any of these days
     });
     expect(res.label).toContain('harga jual rata-rata per galon');
+  });
+
+  it('RO recovery is water out over raw water in, weighted by litres, over the days that metered both', async () => {
+    const { service } = build(scopeOf([span(D1, '2026-11-01', '2026-11-30')]), {
+      meterDays: jest.fn(async () => [
+        day('2026-11-02', { meterLiters: 2600, sourceLiters: 2600 }), // 100 %
+        day('2026-11-03', { meterLiters: 1000, sourceLiters: 1250 }), // 80 %: the mean of the two would be 90
+        day('2026-11-04', { meterLiters: 9000, sourceLiters: null }), // raw water not metered: not in the ratio
+      ]),
+    });
+    const res = await service.answer('S-04', user, NOVEMBER, NOW);
+    expect(res.value).toMatchObject({ daysWithReading: 3, roYieldPct: 93.5 }); // 3600 / 3850
+    expect(res.label).toContain('dibobot liter');
   });
 
   it('cuts a long period into reads of at most 92 days', async () => {
@@ -315,5 +341,31 @@ describe('LoyaltyMetricsService', () => {
   it('404s an unknown id, and still refuses a bad period', async () => {
     await expect(svc().answer('O-99', user, NOVEMBER, NOW)).rejects.toBeInstanceOf(NotFoundException);
     await expect(svc().answer('O-04', user, {}, NOW)).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe('StockMetricsService, remaining branches', () => {
+  it('validates every shape of a period sent to a metric about now, and still answers over today', async () => {
+    const { service } = build();
+    for (const q of [{ date: '2026-11-10', period: 'month' }, { from: '2026-11-01', to: '2026-11-30' }]) {
+      expect((await service.answer('S-05', user, q, NOW)).period).toMatchObject({ unit: 'day', from: '2026-11-25' });
+    }
+    await expect(service.answer('S-05', user, { from: '2026-11-01' }, NOW)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('adds a type that is priced in one row and not in another, and a day with no gallon figure', async () => {
+    const { service } = build(scopeOf([span(D1, '2026-11-01', '2026-11-30')]), {
+      wastage: jest.fn(async () => [loss({ units: 1, valueIdr: null, unpricedUnits: 1 }), loss({ units: 2, valueIdr: 40_000 }), loss({ units: 1, valueIdr: 5_000 })]),
+      meterDays: jest.fn(async () => [day('2026-11-02', { varianceGallons: null })]),
+    });
+    expect((await service.answer('S-03', user, NOVEMBER, NOW)).value).toMatchObject({ units: 4, valueIdr: 45_000, unpricedUnits: 1 });
+    expect((await service.answer('S-04', user, NOVEMBER, NOW)).value).toMatchObject({ varianceGallons: 0 });
+  });
+});
+
+describe('StockMetricsService, an unexpected failure', () => {
+  it('is not turned into belum_ada: it surfaces', async () => {
+    const { service } = build(WHOLE, { position: jest.fn().mockRejectedValue(new Error('boom')) });
+    await expect(service.answer('S-01', user, NOVEMBER, NOW)).rejects.toThrow('boom');
   });
 });

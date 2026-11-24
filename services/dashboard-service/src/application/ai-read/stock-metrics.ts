@@ -158,6 +158,7 @@ export class StockMetricsService {
         lowLines: sum(rows, (r) => r.lowLines),
         outLines: sum(rows, (r) => r.outLines),
         availableByType,
+        byDepot: rows.map((r) => ({ depotId: r.depotId, lines: r.lines, lowLines: r.lowLines, outLines: r.outLines })),
       },
     );
   }
@@ -172,7 +173,7 @@ export class StockMetricsService {
     const label =
       id === 'S-03'
         ? 'barang rusak atau hilang (penyesuaian stok minus) dan galon kembali rusak, tanpa galon yang dipinjamkan; nilai = harga beli terakhir pada tanggal kejadian; unit tanpa harga beli tidak masuk nilai'
-        : 'hasil hitung dikurangi stok sistem, minus = kurang; selisih yang ditolak HQ tidak dihitung; nilai = harga beli terakhir pada tanggal hitung; unit tanpa harga beli tidak masuk nilai';
+        : 'hasil hitung dikurangi stok sistem, minus = kurang; selisih yang ditolak HQ tidak dihitung, tetapi yang masih menunggu persetujuan HQ termasuk dan bisa berubah bila ditolak; nilai = harga beli terakhir pada tanggal hitung; unit tanpa harga beli tidak masuk nilai';
     return ok({ ...c.base, label }, lossValue(rows));
   }
 
@@ -191,12 +192,15 @@ export class StockMetricsService {
     const days = chunks.flat().filter((d): d is MeterDayRow & { meterLiters: number; varianceLiters: number } => d.meterLiters !== null && d.varianceLiters !== null);
     if (days.length === 0) return c.none('Belum ada meteran tutup yang dicatat pada periode ini.');
     const unpriced = days.filter((d) => d.varianceIdr === null && d.varianceLiters !== 0).length;
-    const yields = days.map((d) => d.roYieldPct).filter((v): v is number => v !== null);
+    // RO recovery over the period = water out / raw water in, weighted by litres (not a mean of daily
+    // percentages): only days that metered the raw water too, so both sides cover the same days.
+    const metered = days.filter((d) => d.sourceLiters !== null && d.sourceLiters > 0);
+    const sourceLiters = sum(metered, (d) => d.sourceLiters ?? 0);
     return ok(
       {
         ...c.base,
         label:
-          'air keluar = (meteran tutup - buka) x 1.000 liter; selisih = air keluar - air terjual dari pesanan bukan BATAL/VOID; rupiah = galon selisih x harga jual rata-rata per galon hari itu; hanya hari dengan meteran tutup',
+          'air keluar = (meteran tutup - buka) x 1.000 liter; selisih = air keluar - air terjual dari pesanan bukan BATAL/VOID; rupiah = galon selisih x harga jual rata-rata per galon hari itu; hanya hari dengan meteran tutup; rendemen RO = air keluar / air sumber pada hari yang air sumbernya juga dicatat, dibobot liter',
       },
       {
         daysWithReading: days.length,
@@ -207,7 +211,7 @@ export class StockMetricsService {
         // A day with variance but no gallon sold has no price: a total would undercount, so it is held back.
         varianceIdr: unpriced > 0 ? null : rp(sum(days, (d) => d.varianceIdr ?? 0)),
         daysWithoutPrice: unpriced,
-        roYieldPct: yields.length === 0 ? null : r1(yields.reduce((s, v) => s + v, 0) / yields.length),
+        roYieldPct: sourceLiters > 0 ? r1((sum(metered, (d) => d.meterLiters) / sourceLiters) * 100) : null,
       },
     );
   }

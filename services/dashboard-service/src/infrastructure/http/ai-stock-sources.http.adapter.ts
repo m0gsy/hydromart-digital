@@ -109,6 +109,7 @@ export class AiStockSourcesHttpAdapter implements AiStockSourcesPort {
         isNumOrNull(r.varianceLiters) &&
         isNumOrNull(r.varianceGallons) &&
         isNumOrNull(r.varianceIdr) &&
+        isNumOrNull(r.sourceLiters) &&
         isNumOrNull(r.roYieldPct),
     );
     return ok ? (rows as unknown as MeterDayRow[]) : null;

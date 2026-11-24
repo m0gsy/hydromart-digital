@@ -91,7 +91,7 @@ describe('GET ai/read/stock and ai/read/loyalty (HD-6 H4)', () => {
       if (url.href.startsWith(ORDER_URL)) {
         asked.push(url);
         const day = url.searchParams.get('from');
-        return json([{ day, meterLiters: 2600, soldLiters: 2430, varianceLiters: 170, varianceGallons: 8.95, varianceIdr: 179_000, roYieldPct: null }]);
+        return json([{ day, meterLiters: 2600, soldLiters: 2430, varianceLiters: 170, varianceGallons: 8.95, varianceIdr: 179_000, sourceLiters: null, roYieldPct: null }]);
       }
       if (!url.href.startsWith(DEPOT_URL)) return { ok: false, status: 503, json: async () => ({}) } as unknown as Response;
       if (url.pathname.startsWith('/api/v1/internal/ai-stock/')) {

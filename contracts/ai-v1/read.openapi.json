@@ -760,26 +760,26 @@
           "S-01": {
             "unit": "unit, baris",
             "wholeMonthOnly": false,
-            "value": "{ depots, lines, lowLines, outLines, availableByType: { [itemType]: units } }",
-            "rules": "Stock now: the period of the answer is TODAY (WIB) whatever period is sent (a nonsense period is still 400, none at all is fine), over the depots readable today. Hidden lines are not counted. available = quantity - reserved; lowLines = lines whose available is at most a minimum that is set (a minimum of 0 never makes a line low); outLines = lines with nothing available, a fact on its own. belum_ada when no depot is readable today or a source cannot answer."
+            "value": "{ depots, lines, lowLines, outLines, availableByType: { [itemType]: units }, byDepot: [{ depotId, lines, lowLines, outLines }] }",
+            "rules": "Stock now: the period of the answer is TODAY (WIB) whatever period is sent (a nonsense period is still 400, none at all is fine), over the depots readable today. Hidden lines are not counted. available = quantity - reserved; lowLines = lines whose available is at most a minimum that is set (a minimum of 0 never makes a line low); outLines = lines with nothing available, a fact on its own. byDepot lists only the depots the caller may read today that have a visible line. belum_ada when no depot is readable today or a source cannot answer."
           },
           "S-02": {
             "unit": "unit, Rp",
             "wholeMonthOnly": false,
             "value": "{ byType: { [itemType]: { units, valueIdr, unpricedUnits } }, units, valueIdr, unpricedUnits }",
-            "rules": "Stock count differences (opname) in the period: counted minus system, signed (minus = short). Counts HQ rejected are left out. Valued at the last purchase price on the day of each count (purchase orders that put goods on the shelf), never the selling price; units with no purchase price are in unpricedUnits and NOT in valueIdr, so quote both. valueIdr is null only when something was counted and nothing could be priced. No count in the period is a real 0."
+            "rules": "Stock count differences (opname) in the period: counted minus system, signed (minus = short). Counts HQ rejected are left out, but counts still WAITING for HQ approval are included (they may be rejected later, so the number can change; the label says so). Valued at the last purchase price on the day of each count (the most recent RECEIVED purchase order received on or before that day, by its received date; a line at 0 is no price), never the selling price; units with no purchase price are in unpricedUnits and NOT in valueIdr, so quote both. valueIdr is null only when something was counted and nothing could be priced. No count in the period is a real 0."
           },
           "S-03": {
             "unit": "unit, Rp",
             "wholeMonthOnly": false,
             "value": "{ byType: { [itemType]: { units, valueIdr, unpricedUnits } }, units, valueIdr, unpricedUnits }",
-            "rules": "Wastage in the period: stock adjusted down (broken or lost) plus gallons handed back damaged, WITHOUT the gallons lent to customers with a delivery and without the reversal of a count HQ rejected. Units per item type, and rupiah at the last purchase price on the day of the loss; unpriced units are in unpricedUnits and not in valueIdr. No loss in the period is a real 0."
+            "rules": "Wastage in the period: stock adjusted down (broken or lost) plus gallons handed back damaged, WITHOUT the gallons lent to customers with a delivery and without the reversal of a count HQ rejected. Units per item type, and rupiah at the last purchase price on the day of the loss (damaged gallons at the day of each return; most recent RECEIVED purchase order on or before that day, a line at 0 is no price; the newest 200 received orders of each depot are searched); unpriced units are in unpricedUnits and not in valueIdr. No loss in the period is a real 0."
           },
           "S-04": {
             "unit": "liter, galon, Rp, persen",
             "wholeMonthOnly": false,
             "value": "{ daysWithReading, meterLiters, soldLiters, varianceLiters, varianceGallons, varianceIdr, daysWithoutPrice, roYieldPct }",
-            "rules": "Water meter over the days with a closing reading in the period: water out = (closing - opening) x 1000 litres; sold = litres of orders that are not BATAL or VOID created that WIB day (products with a volume); variance = out - sold; rupiah = variance gallons x that day's average selling price per gallon (decision 27-A). A day with a variance but no gallon sold has no price: varianceIdr is then null and daysWithoutPrice counts them (never a total that silently undercounts). roYieldPct is the mean of the days that metered the raw water too, else null. belum_ada when no closing reading was recorded in the period."
+            "rules": "Water meter over the days with a closing reading in the period: water out = (closing - opening) x 1000 litres; sold = litres of orders that are not BATAL or VOID created that WIB day (products with a volume); variance = out - sold; rupiah = variance gallons x that day's average selling price per gallon (decision 27-A). A day with a variance but no gallon sold has no price: varianceIdr is then null and daysWithoutPrice counts them (never a total that silently undercounts). roYieldPct is water out / raw water in over the days that metered the raw water too, weighted by litres (not a mean of daily percentages), else null. belum_ada when no closing reading was recorded in the period."
           },
           "S-05": {
             "unit": "Rp",
@@ -791,7 +791,7 @@
             "unit": "Rp",
             "wholeMonthOnly": false,
             "value": "{ horizonDays, historyDays, predictedRevenueIdr, predictedDaily }",
-            "rules": "A FORECAST, never a fact (the label says so): predicted revenue for the next 7 days from today (WIB), from the last 30 days of history, summed over the depots readable today. The period of the answer is today whatever period is sent. belum_ada when the forecast service is not wired or any depot cannot be forecast."
+            "rules": "A FORECAST, never a fact (the label says so): predicted REVENUE ONLY (the per-product demand forecast is not served); predicted revenue for the next 7 days from today (WIB), from the last 30 days of history, summed over the depots readable today. The period of the answer is today whatever period is sent. belum_ada when the forecast service is not wired or any depot cannot be forecast."
           }
         }
       }

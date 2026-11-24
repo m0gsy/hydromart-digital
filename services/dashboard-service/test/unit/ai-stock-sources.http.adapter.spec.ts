@@ -30,7 +30,7 @@ afterEach(() => jest.restoreAllMocks());
 
 const position = { depotId: D1, lines: 4, lowLines: 1, outLines: 0, byType: [{ itemType: 'GALON', availableUnits: 9, lines: 2 }] };
 const lossRow = { depotId: D1, itemType: 'GALON', units: 3, valueIdr: null, unpricedUnits: 3 };
-const meterRow = { day: '2026-11-02', meterLiters: 2600, soldLiters: 2430, varianceLiters: 170, varianceGallons: 8.95, varianceIdr: null, roYieldPct: null };
+const meterRow = { day: '2026-11-02', meterLiters: 2600, soldLiters: 2430, varianceLiters: 170, varianceGallons: 8.95, varianceIdr: null, sourceLiters: null, roYieldPct: null };
 
 describe('AiStockSourcesHttpAdapter (HD-6 H4), depot-service', () => {
   it('asks for the depots (and the instants) with the internal key', async () => {
@@ -96,6 +96,7 @@ describe('AiStockSourcesHttpAdapter (HD-6 H4), order-service meter', () => {
     ['a day outside the days asked', [{ ...meterRow, day: '2026-12-01' }], true],
     ['a day before the days asked', [{ ...meterRow, day: '2026-10-31' }], true],
     ['a row with a string for a number', [{ ...meterRow, soldLiters: '1' }], true],
+    ['a row without the raw-water litres', [{ ...meterRow, sourceLiters: undefined }], true],
     ['a row without the rupiah column (an order-service from before 27-A)', [{ ...meterRow, varianceIdr: undefined }], true],
   ])('is null for %s', async (_name, body, ok) => {
     answer(body, ok as boolean);
