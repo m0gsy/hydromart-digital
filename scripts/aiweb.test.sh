@@ -994,7 +994,8 @@ case "$1" in
     case "$2" in
       db1)
         [ -z "${FAKE_PSQL_FAIL:-}" ] || { echo 'ERROR:  column "kind" does not exist' >&2; exit 1; }
-        printf '%s\n' "${FAKE_NO_2FA:-0 }" ;;
+        [ -z "${FAKE_PSQL_WARN:-}" ] || echo 'WARNING:  could not flush dirty data: harmless' >&2
+        printf '%s\n' "${FAKE_NO_2FA:-0 0 }" ;;
       *)
         case "${FAKE_DRIFT:-0}" in
           0) echo '[n8n-drift] none: 2 workflow(s) and 2 credential(s) as git holds them' ;;
@@ -1047,11 +1048,12 @@ check AIWEB_N8N_MACHINE_SECRET=s "$later"
 grep -q '^exec db1 psql -tAX -U postgres -d n8n -v ON_ERROR_STOP=1 -c' "$W/log" &&
   grep -qF "WHERE kind = 'person' AND NOT disabled AND NOT \"mfaEnabled\" AND email IS NOT NULL" "$W/log" &&
   ok "2FA (D5): database n8n is asked for the persons who can sign in without it" || bad "2FA query not sent: $(cat "$W/log")"
-check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_2FA='2 global:admin,global:owner'
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_2FA='2 1 global:admin,global:owner'
 [ "$RC" = 1 ] &&
-  grep -q '2 n8n account(s) can sign in to the editor without 2FA (roles global:admin,global:owner)' "$W/alerts" &&
-  ok "  ...two accounts without it: alerted with their roles, no address" || bad "no 2FA ($RC): $(cat "$W/alerts")"
-check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_2FA='2 global:admin,global:owner'
+  grep -q '2 n8n account(s) can sign in to the editor without 2FA, 1 of them an invite not yet taken (roles global:admin,global:owner)' "$W/alerts" &&
+  grep -q 'or remove the account or the invite' "$W/alerts" &&
+  ok "  ...two accounts without it, one an invite: alerted with their roles, no address" || bad "no 2FA ($RC): $(cat "$W/alerts")"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_2FA='2 1 global:admin,global:owner'
 [ "$RC" = 1 ] && [ ! -s "$W/alerts" ] && ok "  ...once: the next night is not said again" || bad "2FA said twice"
 check AIWEB_N8N_MACHINE_SECRET=s "$later"
 [ "$RC" = 0 ] && [ ! -s "$W/alerts" ] && [ ! -e "$N/.deploy/alerted/aiweb-n8n-2fa" ] &&
@@ -1061,7 +1063,14 @@ check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_PSQL_FAIL=1
   ok "  ...a query that fails (a renamed column) is alerted as could not check, never all well" || bad "psql failure ($RC): $(cat "$W/alerts")"
 check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_2FA='not a count'
 [ "$RC" = 1 ] && grep -q 'n8n 2FA check could not read' "$W/alerts" &&
-  ok "  ...and so is an answer that is not <count> <roles>" || bad "odd answer ($RC): $(cat "$W/alerts")"
+  ok "  ...and so is an answer that is not <count> <invites> <roles>" || bad "odd answer ($RC): $(cat "$W/alerts")"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_PSQL_WARN=1
+[ "$RC" = 0 ] && [ ! -s "$W/alerts" ] && [ ! -e "$N/.deploy/alerted/aiweb-n8n-2fa" ] &&
+  ok "  ...a warning psql prints on a good answer is not read as the answer" || bad "psql warning ($RC): $(cat "$W/alerts")"
+mkdir -p "$N/.deploy/alerted" && echo 'an old 2FA alert' > "$N/.deploy/alerted/aiweb-n8n-2fa"
+check AIWEB_N8N_MACHINE_SECRET= "$later"
+[ "$RC" = 0 ] && [ ! -e "$N/.deploy/alerted/aiweb-n8n-2fa" ] &&
+  ok "  ...switching n8n off forgets a 2FA alert too, so switching it back on says it again" || bad "kill switch kept the 2FA memory ($RC)"
 check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_DB=1
 [ "$RC" = 1 ] && grep -q "the AI web's database is not running" "$W/alerts" &&
   ok "  ...no database running: alerted" || bad "no database ($RC): $(cat "$W/alerts")"

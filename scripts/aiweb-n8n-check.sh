@@ -14,11 +14,12 @@
 #      alerted once, until a deploy rotates it.
 #   3. 2FA on every n8n account (D5, owner decision 24 Nov 2026). n8n Community cannot make 2FA
 #      compulsory; the owner accepted that risk with this check. Every account that can sign in to
-#      the editor (a person, not disabled, with an address; an invite not yet taken counts) must
-#      have 2FA on. Any without is alerted once, by its n8n role, never its address: turn 2FA on
-#      for it in the editor (Settings, Personal) or remove the account. Read from database n8n in
-#      the AI web's db container; a query that fails (an n8n upgrade renamed a column) is alerted
-#      as "could not check", never taken as all well.
+#      the editor (a person, not disabled, with an address) must have 2FA on. An invite not yet
+#      taken counts too, said apart: once taken it signs in without 2FA, and the only cure before
+#      then is removing it. Any without is alerted by its n8n role, never its address: turn 2FA on
+#      for it in the editor (Settings, Personal) or remove the account or invite. Read from
+#      database n8n in the AI web's db container; a query that fails (an n8n upgrade renamed a
+#      column) is alerted as "could not check", never taken as all well.
 #
 # n8n switched off (AIWEB_N8N_MACHINE_SECRET kept and blanked, its kill switch) is said, never
 # alerted. .env is read as data, never sourced. Alerts go through alert_once, so each condition is
@@ -42,6 +43,7 @@ if grep -q '^AIWEB_N8N_MACHINE_SECRET=' .env 2>/dev/null && [ -z "$(env_value AI
   say "n8n is switched off (AIWEB_N8N_MACHINE_SECRET is blank, its kill switch): nothing to check"
   alert_clear aiweb-n8n-drift
   alert_clear aiweb-n8n-secret
+  alert_clear aiweb-n8n-2fa
   exit 0
 fi
 
@@ -86,30 +88,36 @@ fi
 
 # 3. 2FA on every account that can sign in to the editor. Columns of n8n 2.48's `user` table:
 #    `kind` (person or service), `disabled`, `mfaEnabled`, `email` (NULL only on the placeholder
-#    owner before set-up, which cannot sign in), `roleSlug` (global:owner, global:admin, ...).
-#    Prints "<count> <roles, comma-joined>".
+#    owner before set-up, which cannot sign in), `password` (NULL on an invite not yet taken),
+#    `roleSlug` (global:owner, global:admin, ...). Prints "<count> <invites among them> <roles>".
 read -r -d '' NO_2FA_SQL <<'SQL' || true
-SELECT count(*) || ' ' || coalesce(string_agg("roleSlug", ',' ORDER BY "roleSlug"), '')
+SELECT count(*) || ' ' || count(*) FILTER (WHERE password IS NULL) || ' '
+       || coalesce(string_agg("roleSlug", ',' ORDER BY "roleSlug"), '')
   FROM "user"
  WHERE kind = 'person' AND NOT disabled AND NOT "mfaEnabled" AND email IS NOT NULL
 SQL
 db="$(docker ps -q --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=db 2>/dev/null | head -1 || true)"
+# psql's stderr apart from its answer, so a warning on a good run is not read as the answer.
+errf="$(mktemp)"
 if [ -z "$db" ]; then
   say "!! no database is running in project $project, so no 2FA check ran"
   alert_once aiweb-n8n-2fa "the AI web's database is not running on this box ($project): no n8n 2FA check ran; the watchdog says why it stopped"
   rc=1
-elif ! out="$(timeout "${AIWEB_N8N_2FA_TIMEOUT:-60}" docker exec "$db" psql -tAX -U postgres -d n8n -v ON_ERROR_STOP=1 -c "$NO_2FA_SQL" 2>&1)" ||
-  ! [[ "$out" =~ ^([0-9]+)\ ([A-Za-z0-9:,._-]*)$ ]]; then
-  say "!! could not read n8n's accounts: $(printf '%s' "$out" | clean)"
-  alert_once aiweb-n8n-2fa "n8n 2FA check could not read n8n's accounts (an n8n upgrade may have changed its tables): $(printf '%s' "$out" | clean)"
+elif ! out="$(timeout "${AIWEB_N8N_2FA_TIMEOUT:-60}" docker exec "$db" psql -tAX -U postgres -d n8n -v ON_ERROR_STOP=1 -c "$NO_2FA_SQL" 2>"$errf")" ||
+  ! [[ "$out" =~ ^([0-9]+)\ ([0-9]+)\ ([^[:space:]]*)$ ]]; then
+  why="$( { printf '%s\n' "$out"; cat "$errf"; } | clean)"
+  say "!! could not read n8n's accounts: $why"
+  alert_once aiweb-n8n-2fa "n8n 2FA check could not read n8n's accounts (an n8n upgrade may have changed its tables): $why"
   rc=1
 elif [ "${BASH_REMATCH[1]}" -gt 0 ]; then
-  say "!! ${BASH_REMATCH[1]} n8n account(s) can sign in without 2FA (${BASH_REMATCH[2]})"
-  alert_once aiweb-n8n-2fa "${BASH_REMATCH[1]} n8n account(s) can sign in to the editor without 2FA (roles ${BASH_REMATCH[2]}): turn 2FA on in the editor (Settings, Personal) or remove the account"
+  roles="$(printf '%s' "${BASH_REMATCH[3]}" | clean)"
+  say "!! ${BASH_REMATCH[1]} n8n account(s) without 2FA, ${BASH_REMATCH[2]} of them an invite not yet taken ($roles)"
+  alert_once aiweb-n8n-2fa "${BASH_REMATCH[1]} n8n account(s) can sign in to the editor without 2FA, ${BASH_REMATCH[2]} of them an invite not yet taken (roles $roles): turn 2FA on in the editor (Settings, Personal), or remove the account or the invite"
   rc=1
 else
   say "2FA: every n8n account that can sign in has it"
   alert_clear aiweb-n8n-2fa
 fi
+rm -f "$errf"
 
 exit "$rc"

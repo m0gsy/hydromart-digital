@@ -384,10 +384,12 @@ loopback only.
   alerts once. Workflows change only by a PR in hydromart-ai and a release here; whatever is
   changed in the editor is drift, and the next deploy's setup unpublishes it. The same job reads
   database n8n for accounts that can sign in to the editor without 2FA (D5, owner decision
-  24 Nov 2026: n8n Community cannot make 2FA compulsory, the risk is accepted with this check) and
-  alerts once with their roles, never their addresses: turn 2FA on for the account in the editor
-  (Settings, Personal) or remove it. A query that fails, as after an n8n upgrade renames a column,
-  alerts as "could not check".
+  24 Nov 2026: n8n Community cannot make 2FA compulsory, the risk is accepted with this check). It
+  alerts with their roles, never their addresses, and says how many are invites not yet taken: turn
+  2FA on for the account in the editor (Settings, Personal), or remove the account or the invite
+  (an invite cannot turn 2FA on before it is taken). Like every alert here it is said when it
+  starts or changes, then weekly while it lasts. A query that fails, as after an n8n upgrade
+  renames a column, alerts as "could not check".
 
 **The editor**, through an ssh tunnel only (n8n's port is on the box's loopback):
 
