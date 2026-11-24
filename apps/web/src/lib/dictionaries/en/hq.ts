@@ -996,7 +996,7 @@ export const hq = {
   inventory: {
     partial: 'Could not read stock for: {depots}. The counts below are incomplete.',
     title: 'Network inventory',
-    subtitle: 'Stock health per depot · 30 days',
+    subtitle: 'Stock health per depot · current position',
     critical: '{n} critical depots',
     allHealthy: 'All depots healthy',
     lines: '{n} lines',

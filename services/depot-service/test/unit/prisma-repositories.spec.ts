@@ -1944,6 +1944,10 @@ describe('InventoryPrismaRepository', () => {
     expect(($queryRaw.mock.calls[0][0] as { strings: string[] }).strings.join('?')).toContain(
       '"quantity"::bigint - "reserved"::bigint',
     );
+    // HD-6 A6: a hidden product line is not stock the depot sells, so it never counts as low.
+    expect(($queryRaw.mock.calls[0][0] as { strings: string[] }).strings.join('?')).toContain(
+      '"hidden" = false',
+    );
     expect(out.map((i) => i.id)).toEqual(['it-2']);
   });
 

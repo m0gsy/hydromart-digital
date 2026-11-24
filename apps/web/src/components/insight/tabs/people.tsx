@@ -68,7 +68,7 @@ export function PeopleTab({ ctx }: { ctx: InsightCtx }) {
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {mayView && (
+        {mayView && can('payrollRead', role) && (
           <WidgetCard
             title={t('insight.people.payrollTitle', { month: period })}
             source={hr}

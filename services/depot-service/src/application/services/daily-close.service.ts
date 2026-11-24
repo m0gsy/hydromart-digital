@@ -145,6 +145,8 @@ export class DailyCloseService {
     // Fails closed (see CourierCodPort): better no close than a total missing half its money.
     const cod = await this.cod.depositedInWindow(depotId, from, to);
     const entries = await this.cashbook.listForDepot(depotId, { from, to });
+    // A cancelled takings row stays in the book; its reversal is a second (OUT) row pointing back.
+    const reversedIds = new Set(entries.flatMap((e) => (e.reversesId ? [e.reversesId] : [])));
     const sum = (predicate: (e: (typeof entries)[number]) => boolean) =>
       entries.filter(predicate).reduce((total, e) => total + e.amountIdr, 0);
 
@@ -154,7 +156,13 @@ export class DailyCloseService {
       closedBy: user.sub,
       cashInIdr: sum((e) => e.direction === CashDirection.IN),
       cashOutIdr: sum((e) => e.direction === CashDirection.OUT),
-      konterIdr: sum((e) => e.direction === CashDirection.IN && e.category === 'KONTER'),
+      konterIdr: sum(
+        (e) =>
+          e.direction === CashDirection.IN &&
+          !e.reversesId &&
+          !reversedIds.has(e.id) &&
+          e.category.trim().toUpperCase() === 'KONTER',
+      ),
       codDepositedIdr: cod.depositedIdr,
       codExpectedIdr: cod.expectedIdr,
       note: note?.trim() || null,

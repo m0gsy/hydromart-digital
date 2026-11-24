@@ -179,6 +179,59 @@ describe('DailyCloseService', () => {
     expect(closed.cashInIdr).toBe(333_000);
   });
 
+  it('counts a lower-case or padded konter category as konter, and skips a reversal row', async () => {
+    const { cashbook, service, depots } = make();
+    const depotId = await seedDepot(depots);
+    const at = new Date(`${DAY}T03:00:00.000Z`);
+    const post = (category: string, amountIdr: number, reversesId?: string) =>
+      cashbook.create({
+        depotId,
+        direction: CashDirection.IN,
+        category,
+        label: 'Tunai konter',
+        amountIdr,
+        occurredAt: at,
+        sourceRef: null,
+        actorId: 'kd-1',
+        ...(reversesId ? { reversesId } : {}),
+      } as never);
+    await post('konter', 100_000);
+    await post(' Konter ', 50_000);
+    await post('KONTER', 7_000, 'orig-1');
+
+    const closed = await service.close(kepalaDepot(depotId), depotId, DAY, null);
+    expect(closed.konterIdr).toBe(150_000);
+  });
+
+  it('drops a konter entry that was reversed, and ignores an unrelated reversal', async () => {
+    const { cashbook, service, depots } = make();
+    const depotId = await seedDepot(depots);
+    const at = new Date(`${DAY}T03:00:00.000Z`);
+    const base = { depotId, label: 'x', occurredAt: at, sourceRef: null, actorId: 'kd-1' };
+    const cancelled = await cashbook.create({
+      ...base,
+      direction: CashDirection.IN,
+      category: 'KONTER',
+      amountIdr: 100_000,
+    });
+    await cashbook.create({
+      ...base,
+      direction: CashDirection.OUT,
+      category: 'KONTER',
+      amountIdr: 100_000,
+      reversesId: cancelled.id,
+    } as never);
+    await cashbook.create({
+      ...base,
+      direction: CashDirection.OUT,
+      category: 'PO',
+      amountIdr: 5_000,
+      reversesId: 'some-other-row',
+    } as never);
+    const closed = await service.close(kepalaDepot(depotId), depotId, DAY, null);
+    expect(closed.konterIdr).toBe(0);
+  });
+
   it('adds up both halves of the day: counter cash from the cashbook, COD from delivery', async () => {
     const { cashbook, service, depots } = make();
     const depotId = await seedDepot(depots);

@@ -9,7 +9,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useInsightData } from '@/lib/insight/use-insight-data';
 import { useT } from '@/lib/locale-context';
-import { can } from '@/lib/roles';
+import { can, isHq } from '@/lib/roles';
 import type {
   ChurnCustomer,
   CrmDashboard,
@@ -141,7 +141,7 @@ export function CustomersTab({ ctx }: { ctx: InsightCtx }) {
             <KpiCard
               label={t('insight.customers.voucherBurn')}
               value={burn.data ? formatIDR(burn.data.totalUsed) : dash}
-              hint={t('insight.customers.sinceStart')}
+              hint={t(isHq(role) ? 'insight.customers.sinceStart' : 'insight.customers.sinceStartDepot')}
               definition={t('insight.customers.voucherBurnDef')}
             />
           )}

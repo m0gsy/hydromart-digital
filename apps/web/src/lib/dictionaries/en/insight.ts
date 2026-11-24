@@ -349,7 +349,7 @@ export const insight = {
     total: 'Customers',
     totalDef: 'Customers who have ever ordered at this depot.',
     fresh: 'New customers',
-    freshDef: 'Customers who ordered for the first time recently, by the depot CRM definition.',
+    freshDef: 'Customers who ordered for the first time in the last 30 days, by the depot CRM definition.',
     inactive: 'Inactive',
     inactiveDef: 'Customers who have not ordered for a long time, by the depot CRM definition.',
     repeat: 'Repeat customers',
@@ -359,6 +359,7 @@ export const insight = {
     voucherBurnDef:
       'Total rupiah of voucher discount actually used (returned ones are not counted).',
     sinceStart: 'since the start, whole network',
+    sinceStartDepot: 'since the start, depot-owned vouchers; network vouchers not included',
     subscriptions: 'Active subscriptions',
     subscribers: '{n} customers',
     subscriptionsDef: 'Subscriptions with an active status across the network.',
