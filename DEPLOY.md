@@ -606,7 +606,9 @@ dumps already pruned, and `.part` files older than an hour, are removed by the n
 newest dump, every `--verify` exits 1 saying "no encrypted copy yet": that is
 a deploy's backup check, or a hand-run `check-backup-freshness.sh` (the cron one, at 05:00, comes
 after the copy). If one runs before 03:20 on that day, one red check or alert is expected and
-clears by itself once the 03:20 run has sent the first copy.
+clears by itself once the 03:20 run has sent the first copy. On any night, a `--verify` that
+starts while a copy run is sending (03:20, 03:22 for the AI web, 04:00 for the second provider)
+waits up to 5 minutes for it, then fails with "a copy run held the lock": run it again after.
 
 **Rolling back across this change.** A release before D8 has a `backup-db.sh` that uploads each
 dump itself, in the clear, whenever `BACKUP_S3_BUCKET` is set. Before rolling back past it, the

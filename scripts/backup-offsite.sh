@@ -354,8 +354,13 @@ if command -v flock >/dev/null 2>&1 && ( : >>"$LOCKFILE" ) 2>/dev/null; then
   if [ "$MODE" = copy ]; then
     flock -w 1800 9 || { echo "!! another backup-offsite.sh run held the lock for 30 minutes" >&2; exit 1; }
   else
-    flock -s -w 120 9 || { echo "!! a copy run held the lock for 2 minutes; --verify did not read a twin it may be replacing" >&2; exit 1; }
+    # A copy run reads back what it sent, so it can hold the lock for minutes: wait 5 of them.
+    flock -s -w 300 9 || { echo "!! a copy run held the lock for 5 minutes; --verify did not read a twin it may be replacing" >&2; exit 1; }
   fi
+elif [ "$MODE" = copy ] && command -v flock >/dev/null 2>&1; then
+  # The lock file is there but not ours to write (made by another user): the copy goes on, but
+  # it is said, because a run at the same time could now send the providers different bytes.
+  echo "!! $LOCKFILE cannot be opened for writing: this copy runs without the family lock" >&2
 fi
 if [ "$MODE" = copy ]; then
   # A twin lives exactly as long as its dump: those whose dump backup-db.sh or backup-aiweb-db.sh
