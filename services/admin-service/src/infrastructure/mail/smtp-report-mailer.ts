@@ -13,6 +13,10 @@ const smtpTransport = (smtp: Smtp) =>
     host: smtp.host,
     port: smtp.port,
     secure: smtp.port === 465,
+    // nodemailer waits 2 min to connect and 10 min on a quiet socket by default: a stuck server must not hold a send that long.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
     auth: smtp.user ? { user: smtp.user, pass: smtp.pass } : undefined,
   });
 

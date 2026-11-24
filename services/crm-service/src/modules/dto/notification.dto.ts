@@ -151,10 +151,14 @@ export class PdpAnonymiseDto {
 /** AI-5: the dedupe key of the event is `franchise.application_submitted:<applicationId>`. */
 export const FRANCHISE_EVENT_PREFIX = 'franchise.application_submitted:';
 
+// Twin of PLACE_NAME_PATTERN in depot-service franchise-application.dto.ts: a place name never
+// carries a link, because it goes into an email sent from our own address.
+export const PLACE_NAME_PATTERN = /^(?=.*\p{L})(?!.*\.[\p{L}\p{M}]{2})[\p{L}\p{M} .,'’()-]+$/u;
+
 /**
  * AI-5 — what n8n forwards from the signed `franchise.application_submitted` event
  * (contracts/ai-v1/events.openapi.json): its `eventId` and `data`. city and province are
- * checked as depot-service's form checks them; the controller then makes each one line.
+ * checked as depot-service's form checks them (place-name characters only); the controller then makes each one line.
  */
 export class FranchiseApplicationSubmittedDto {
   @ApiProperty({ example: 'franchise.application_submitted:3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807' })
@@ -173,12 +177,14 @@ export class FranchiseApplicationSubmittedDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
+  @Matches(PLACE_NAME_PATTERN, { message: "city hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -" })
   city!: string;
 
   @ApiProperty({ example: 'Jawa Barat', maxLength: 100 })
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
+  @Matches(PLACE_NAME_PATTERN, { message: "province hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -" })
   province!: string;
 }
 

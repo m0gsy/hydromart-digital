@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { can } from '@hydromart/access';
 
 import { AdminConfigService } from '../../config/admin-config.service';
 import { StaffDirectoryPort } from '../ports/staff-directory.port';
@@ -23,6 +24,12 @@ export interface StaffEmailResult {
   /** Not attempted: email switched off, not an active staff login, no address, or no SMTP. */
   skipped: number;
 }
+
+/** At most this many messages per toggle per hour: internal calls skip the throttler. */
+export const STAFF_EMAIL_HOURLY_CAP = 120;
+const HOUR_MS = 60 * 60 * 1000;
+/** Recipients written to at the same time: a handful of SMTP connections, not one per person. */
+const BATCH = 3;
 
 /** A header is one line: format characters out, control characters and whitespace runs one space. */
 const oneLine = (value: string): string =>
@@ -60,6 +67,9 @@ export function staffEmailText(text: string, path: string, origin: string): stri
 export class StaffEmailService {
   private readonly logger = new Logger(StaffEmailService.name);
   private smtpUnsetSaid = false;
+  // ponytail: per process. admin-service runs as one replica in docker-compose.prod.yml; the cap
+  // is then per toggle. If admin ever scales out, the ceiling is replicas x cap: use a shared counter.
+  private readonly windows = new Map<string, { start: number; sent: number; warned: boolean }>();
 
   constructor(
     private readonly config: AdminConfigService,
@@ -78,26 +88,50 @@ export class StaffEmailService {
     }
     const wanted = await this.prefs.emailOnFor(req.accountIds, req.toggle);
     const accounts = wanted.length > 0 ? await this.directory.accountsByIds(wanted) : [];
-    // Staff email is for staff: a login that is active and is not a customer's.
-    const staff = accounts.filter((a) => a.status === 'ACTIVE' && a.role !== 'CUSTOMER');
-    const to = staff.flatMap((a) => (a.email ? [{ id: a.id, email: a.email }] : []));
+    // Staff email is for HQ staff: active, and able to open /hq/profile (where the switch lives)
+    // and the /hq screen the link points to.
+    const staff = accounts.filter((a) => a.status === 'ACTIVE' && can('hqConsole', a.role));
+    const withAddress = staff.flatMap((a) => (a.email ? [{ id: a.id, email: a.email }] : []));
+    const room = this.room(req.toggle, withAddress.length);
+    const to = withAddress.slice(0, room);
     const subject = oneLine(req.subject);
     const text = staffEmailText(req.text, req.path, this.config.webOrigin);
-    const results = await Promise.allSettled(
-      to.map((r) => this.mailer.send({ to: r.email, subject, text })),
-    );
     let failed = 0;
-    results.forEach((result, i) => {
-      if (result.status === 'fulfilled') return;
-      failed += 1;
-      this.logger.warn(`staff email to ${to[i].id} failed: ${withoutAddresses(result.reason)}`);
-    });
+    for (let at = 0; at < to.length; at += BATCH) {
+      const batch = to.slice(at, at + BATCH);
+      const results = await Promise.allSettled(
+        batch.map((r) => this.mailer.send({ to: r.email, subject, text })),
+      );
+      results.forEach((result, i) => {
+        if (result.status === 'fulfilled') return;
+        failed += 1;
+        this.logger.warn(`staff email to ${batch[i].id} failed: ${withoutAddresses(result.reason)}`);
+      });
+    }
     this.logger.log(
       `staff email ${req.toggle} ${req.path}: ${req.accountIds.length} accounts, ` +
         `${req.accountIds.length - wanted.length} switched off, ` +
-        `${wanted.length - staff.length} not active staff, ` +
-        `${staff.length - to.length} without an address, ${to.length - failed} sent, ${failed} failed`,
+        `${wanted.length - staff.length} not active HQ staff, ` +
+        `${staff.length - withAddress.length} without an address, ` +
+        `${withAddress.length - to.length} over the hourly cap, ${to.length - failed} sent, ${failed} failed`,
     );
     return { sent: to.length - failed, failed, skipped: req.accountIds.length - to.length };
+  }
+
+  /** How many of `want` messages the toggle may still send in its current one-hour window. */
+  private room(toggle: string, want: number): number {
+    const now = Date.now();
+    let w = this.windows.get(toggle);
+    if (!w || now - w.start >= HOUR_MS) {
+      w = { start: now, sent: 0, warned: false };
+      this.windows.set(toggle, w);
+    }
+    const allowed = Math.max(0, Math.min(want, STAFF_EMAIL_HOURLY_CAP - w.sent));
+    w.sent += allowed;
+    if (allowed < want && !w.warned) {
+      w.warned = true;
+      this.logger.warn(`staff email ${toggle}: hourly cap of ${STAFF_EMAIL_HOURLY_CAP} reached, the rest is not sent`);
+    }
+    return allowed;
   }
 }

@@ -11,7 +11,8 @@ import { CrmConfigService } from '../../config/crm-config.service';
 @Injectable()
 export class StaffEmailHttpAdapter implements StaffEmailPort {
   // admin answers once its SMTP sends are done. Nobody waits on this call (the notification is
-  // already filed), so the limit is generous: a slow mail server is not a refusal.
+  // already filed), so the limit is generous. When it passes, crm stops waiting but admin keeps
+  // sending: admin's own summary log line is the outcome, a timeout here only costs this log line.
   private static readonly TIMEOUT_MS = 30_000;
 
   constructor(private readonly config: CrmConfigService) {}

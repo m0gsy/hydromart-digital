@@ -37,6 +37,8 @@ export const franchise = {
   needDepotName: 'Depot name is required.',
   needCity: 'City is required.',
   needProvince: 'Province is required.',
+  badCity: "City may only contain letters, spaces and . , ' ( ) -",
+  badProvince: "Province may only contain letters, spaces and . , ' ( ) -",
   needLocation: 'A location pin is required.',
   needMoney: 'Capital and revenue estimate must be 0 or more.',
   submitError: 'The application could not be sent. Please try again shortly.',

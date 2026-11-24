@@ -45,6 +45,8 @@ export const franchise = {
   needDepotName: 'Nama depot wajib diisi.',
   needCity: 'Kota wajib diisi.',
   needProvince: 'Provinsi wajib diisi.',
+  badCity: "Kota hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -",
+  badProvince: "Provinsi hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -",
   needLocation: 'Titik lokasi wajib diisi.',
   needMoney: 'Kisaran modal dan perkiraan omzet harus angka 0 atau lebih.',
   submitError: 'Pengajuan gagal terkirim. Coba lagi sebentar lagi.',

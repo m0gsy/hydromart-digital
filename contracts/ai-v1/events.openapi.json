@@ -140,11 +140,13 @@
           "city": {
             "type": "string",
             "minLength": 1,
+            "pattern": "^(?=.*\\p{L})(?!.*\\.[\\p{L}\\p{M}]{2})[\\p{L}\\p{M} .,'’()-]+$",
             "description": "City of the proposed depot, as the applicant typed it (the form allows 100 characters as it counts them; do not reject on length). Show it as text, never as markup."
           },
           "province": {
             "type": "string",
             "minLength": 1,
+            "pattern": "^(?=.*\\p{L})(?!.*\\.[\\p{L}\\p{M}]{2})[\\p{L}\\p{M} .,'’()-]+$",
             "description": "Province of the proposed depot, as the applicant typed it (same rule as city)."
           }
         }

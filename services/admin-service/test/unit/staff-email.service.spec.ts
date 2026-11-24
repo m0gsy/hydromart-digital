@@ -74,7 +74,7 @@ describe('StaffEmailService', () => {
       text: staffEmailText(TEXT, PATH, ORIGIN),
     });
     expect(log).toHaveBeenCalledWith(
-      `staff email newFranchiseApp ${PATH}: 2 accounts, 0 switched off, 0 not active staff, 0 without an address, 2 sent, 0 failed`,
+      `staff email newFranchiseApp ${PATH}: 2 accounts, 0 switched off, 0 not active HQ staff, 0 without an address, 0 over the hourly cap, 2 sent, 0 failed`,
     );
   });
 
@@ -103,7 +103,51 @@ describe('StaffEmailService', () => {
       skipped: 4,
     });
     expect(sent.map((m) => m.to)).toEqual(['di-1@hydromart.id']);
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('3 not active staff, 1 without an address, 1 sent'));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('3 not active HQ staff, 1 without an address'));
+  });
+
+  it('writes only to roles that can open the HQ console, even with the email switch on', async () => {
+    const roles = ['STAFF_DEPOT', 'KEPALA_DEPOT', 'HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'];
+    const { service, sent } = build({ accounts: roles.map((role) => account(role, { role })) });
+    await expect(service.send(request(roles))).resolves.toEqual({ sent: 4, failed: 0, skipped: 2 });
+    expect(sent.map((m) => m.to)).toEqual(['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'].map((r) => `${r}@hydromart.id`));
+  });
+
+  it('sends in batches of 3: never more than 3 sends open at once', async () => {
+    let open = 0;
+    let peak = 0;
+    const ids = Array.from({ length: 7 }, (_, i) => `ho-${i}`);
+    const { service } = build({
+      accounts: ids.map((id) => account(id)),
+      mailer: {
+        send: async () => {
+          open += 1;
+          peak = Math.max(peak, open);
+          await new Promise((r) => setImmediate(r));
+          open -= 1;
+        },
+      },
+    });
+    await expect(service.send(request(ids))).resolves.toEqual({ sent: 7, failed: 0, skipped: 0 });
+    expect(peak).toBe(3);
+  });
+
+  describe('hourly cap per toggle', () => {
+    const ids = Array.from({ length: 121 }, (_, i) => `ho-${i}`);
+    beforeEach(() => jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] }));
+    afterEach(() => jest.useRealTimers());
+
+    it('skips the 121st message of the hour, warns once, and starts over after an hour', async () => {
+      const { service, sent } = build({ accounts: ids.map((id) => account(id)) });
+      await expect(service.send(request(ids))).resolves.toEqual({ sent: 120, failed: 0, skipped: 1 });
+      expect(sent).toHaveLength(120);
+      expect(log).toHaveBeenCalledWith(expect.stringContaining('1 over the hourly cap, 120 sent'));
+      // Still the same hour: nothing more goes out, and the warning is not repeated.
+      await expect(service.send(request(['ho-0']))).resolves.toEqual({ sent: 0, failed: 0, skipped: 1 });
+      expect(warn.mock.calls.filter(([m]) => String(m).includes('hourly cap'))).toHaveLength(1);
+      jest.setSystemTime(Date.now() + 60 * 60 * 1000);
+      await expect(service.send(request(['ho-0']))).resolves.toEqual({ sent: 1, failed: 0, skipped: 0 });
+    });
   });
 
   it('looks nobody up when nobody has email on', async () => {
