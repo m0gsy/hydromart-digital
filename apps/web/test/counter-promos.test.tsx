@@ -400,6 +400,41 @@ describe('the pay button only charges a total that belongs to this basket', () =
     expect(pay().disabled).toBe(true);
     expect(post.mock.calls.some(([path]) => String(path).endsWith('/orders/walk-in'))).toBe(false);
   });
+
+  /*
+   * An answer belongs to the inputs it was priced for, and only to those. Bayar is read at the
+   * moment each quote is asked for: by then the render in which the new basket settled is on
+   * screen, and a till that compared keys instead of answers stood open there on the previous
+   * basket's total (and, coming back, on the total of a basket no longer on the counter).
+   */
+  it('opens only on an answer priced for this exact basket', async () => {
+    const shutWhenAsked: boolean[] = [];
+    const base = post.getMockImplementation()!;
+    post.mockImplementation(async (path: string, body: Record<string, unknown>) => {
+      if (String(path).includes('/walk-in/quote')) shutWhenAsked.push(pay().disabled);
+      return base(path, body);
+    });
+    const askedFor = (quantity: number) =>
+      expect(quoteBodies.at(-1)?.lines).toEqual([{ productId: 'p-air', quantity }]);
+
+    await openTill();
+    await addOneGalon();
+    await waitFor(() => expect(pay().disabled).toBe(false));
+    shutWhenAsked.length = 0;
+
+    // Two galon, priced slowly…
+    let release!: () => void;
+    quoteGate = new Promise<void>((r) => (release = r));
+    await addOneGalon();
+    await waitFor(() => askedFor(2));
+    // …and back to one before that answer lands: it is the price of a basket that is gone.
+    await userEvent.click(screen.getAllByRole('button', { name: /Decrease quantity/i })[0]!);
+    release();
+    // One galon is asked for again, and only that answer opens Bayar.
+    await waitFor(() => askedFor(1));
+    await waitFor(() => expect(pay().disabled).toBe(false));
+    expect(shutWhenAsked).toEqual([true, true]);
+  });
 });
 
 describe('what the till remembers between buyers', () => {
