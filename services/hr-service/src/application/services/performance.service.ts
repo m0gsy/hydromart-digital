@@ -3,6 +3,7 @@ import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
 import { Employee, Prisma, PerformanceReview } from '../../../prisma/generated/client';
 import { parseWeeklyOffDays, workingDaysInMonth } from '../../domain/calendar';
+import { salesWindow } from '../../domain/sales-window';
 import {
   PerformanceScore,
   ScoreInputs,
@@ -172,7 +173,7 @@ export class PerformanceService {
       from,
       to,
     );
-    const perDepot = this.depotLoaders(from, to);
+    const perDepot = this.depotLoaders(from, to, periodMonth);
 
     const scored = await Promise.all(
       rows.map((employee) =>
@@ -190,7 +191,8 @@ export class PerformanceService {
    * cached, not results, so N employees of one depot share a single in-flight call rather
    * than starting N of them.
    */
-  private depotLoaders(from: Date, to: Date): DepotLoaders {
+  private depotLoaders(from: Date, to: Date, periodMonth: string): DepotLoaders {
+    const { from: salesFrom, to: salesTo } = salesWindow(periodMonth);
     const holidays = new Map<string, Promise<string[]>>();
     const sales = new Map<string, Promise<number | null>>();
     return {
@@ -209,7 +211,7 @@ export class PerformanceService {
         if (!hit) {
           // Fail-soft exactly like the bonus rules: an unreachable order-service means the
           // sales component is unmeasurable, never a zero that drags somebody's score down.
-          hit = this.sales.depotSales(depotId, from, to).catch(() => null);
+          hit = this.sales.depotSales(depotId, salesFrom, salesTo).catch(() => null);
           sales.set(depotId, hit);
         }
         return hit;
@@ -220,7 +222,7 @@ export class PerformanceService {
   private async scoreOne(employee: Employee, periodMonth: string): Promise<ScoredEmployee> {
     const { from, to } = monthWindow(periodMonth);
     const summary = await this.attendance.summary(employee.id, from, to);
-    return this.scoreWith(employee, periodMonth, summary, this.depotLoaders(from, to));
+    return this.scoreWith(employee, periodMonth, summary, this.depotLoaders(from, to, periodMonth));
   }
 
   private async scoreWith(

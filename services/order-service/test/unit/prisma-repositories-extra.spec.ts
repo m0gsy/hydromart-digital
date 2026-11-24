@@ -36,7 +36,7 @@ describe('OrderPrismaRepository.sumDepotSales', () => {
       where: {
         depotId: 'd1',
         status: { in: ['DELIVERED', 'COMPLETED'] },
-        createdAt: { gte: new Date('2026-01-01'), lte: new Date('2026-02-01') },
+        createdAt: { gte: new Date('2026-01-01'), lt: new Date('2026-02-01') },
       },
     });
   });

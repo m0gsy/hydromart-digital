@@ -100,6 +100,9 @@ class FakePayrollRepo implements PayrollRepository {
   }
 }
 
+/** HD-6 A2: the [from, to) every SALES_TOTAL read asked order-service for. */
+const salesWindows: Date[][] = [];
+
 function build(opts: {
   employee: Partial<Employee>;
   summary?: AttendanceSummary;
@@ -199,7 +202,12 @@ function build(opts: {
     : undefined;
   const sales =
     opts.sales !== undefined
-      ? ({ depotSales: async () => opts.sales } as unknown as SalesPort)
+      ? ({
+          depotSales: async (_depot: string, from: Date, to: Date) => {
+            salesWindows.push([from, to]);
+            return opts.sales;
+          },
+        } as unknown as SalesPort)
       : undefined;
   const allowances = opts.allowances
     ? ({
@@ -286,6 +294,11 @@ describe('PayrollService auto-bonus rules (Rule-F)', () => {
     });
     await svc.generate(user, 'e1', '2026-07');
     expect(repo.lastWrite!.totalBonus).toBe(75_000);
+    // The whole WIB month, not the UTC month: [1 Jul 00:00 WIB, 1 Aug 00:00 WIB).
+    expect(salesWindows.at(-1)).toEqual([
+      new Date('2026-06-30T17:00:00.000Z'),
+      new Date('2026-07-31T17:00:00.000Z'),
+    ]);
     expect(
       repo
         .lastWrite!.items.filter((i) => i.kind === 'BONUS')

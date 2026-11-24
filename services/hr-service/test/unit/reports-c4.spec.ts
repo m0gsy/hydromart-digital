@@ -283,7 +283,7 @@ describe('ReportsController C4 delivery', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('defaults to CSV with a BOM and a named file', async () => {
-    const c = new ReportsController(analytics);
+    const c = new ReportsController(analytics, {} as never);
     const res = fakeRes();
     await c.late({ ...range } as never, hq, res);
     expect(res.headers['Content-Disposition']).toContain('late-2026-07-01_2026-07-31.csv');
@@ -292,7 +292,7 @@ describe('ReportsController C4 delivery', () => {
   });
 
   it('renders a PDF with a title and the period as its subtitle', async () => {
-    const c = new ReportsController(analytics);
+    const c = new ReportsController(analytics, {} as never);
     const res = fakeRes();
     await c.leave({ ...range, format: 'pdf' } as never, hq, res);
     expect(res.headers['Content-Type']).toBe('application/pdf');
@@ -307,7 +307,7 @@ describe('ReportsController C4 delivery', () => {
   });
 
   it('still serves xlsx, and every C4 route reaches its builder', async () => {
-    const c = new ReportsController(analytics);
+    const c = new ReportsController(analytics, {} as never);
     const xlsxRes = fakeRes();
     await c.performance({ periodMonth: '2026-07', format: 'xlsx' } as never, hq, xlsxRes);
     expect(xlsxRes.headers['Content-Type']).toContain('spreadsheetml');

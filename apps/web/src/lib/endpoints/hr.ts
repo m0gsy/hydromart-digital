@@ -271,6 +271,8 @@ export const hr = {
     },
     reportEmployerCost: (periodMonth: string, format?: string) =>
       `/hr-reports/api/v1/hr-reports/payroll-employer-cost?${new URLSearchParams({ periodMonth, ...(format ? { format } : {}) })}`,
+    reportSalesBonusShortfall: (periodMonth: string, format?: string) =>
+      `/hr-reports/api/v1/hr-reports/payroll-sales-bonus-shortfall?${new URLSearchParams({ periodMonth, ...(format ? { format } : {}) })}`,
     reportPayroll: (periodMonth: string, depotId?: string, format?: string) => {
       const p = new URLSearchParams({ periodMonth });
       if (depotId) p.set('depotId', depotId);

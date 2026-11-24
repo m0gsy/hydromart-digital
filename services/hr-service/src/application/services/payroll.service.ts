@@ -8,7 +8,7 @@ import {
   runImport,
 } from '@hydromart/platform';
 
-import { Employee, Payroll, Prisma } from '../../../prisma/generated/client';
+import { BonusRule, Employee, Payroll, Prisma } from '../../../prisma/generated/client';
 import { HrConfigService } from '../../config/hr-config.service';
 import { AuditService } from './audit.service';
 import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
@@ -86,6 +86,7 @@ import {
   PayrollWithEmployee,
   PayrollWithItems,
 } from '../ports/payroll.repository';
+import { salesWindow } from '../../domain/sales-window';
 import { EmployeeService } from './employee.service';
 
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -370,11 +371,12 @@ export class PayrollService {
     if (this.bonusRules) {
       // Only pay the cross-service sales call when a SALES rule actually needs it.
       const needsSales = rules.some((r) => r.metric === 'SALES_TOTAL');
+      const sales = salesWindow(periodMonth);
       // No home depot ⇒ no depot sales to attribute. null (not 0) so a SALES rule is
       // SKIPPED rather than evaluated as a miss — see evalBonusRule.
       const salesTotal =
         needsSales && this.sales && employee.depotId
-          ? await this.sales.depotSales(employee.depotId, from, to)
+          ? await this.sales.depotSales(employee.depotId, sales.from, sales.to)
           : null;
       const ctx: BonusContext = {
         presentDays,
@@ -1558,6 +1560,101 @@ export class PayrollService {
       );
     }
     return result.monthlyIdr;
+  }
+
+  /**
+   * HD-6 A2, read-only. The SALES_TOTAL bonus used to sum sales over a window that cut the
+   * month at 07:00 WIB, so every APPROVED/PAID slip of those months is short. Slips are never
+   * rewritten (owner decision 2026-11-24); this lists, per employee, what the SALES_TOTAL
+   * rules paid on the slip against what they pay on the whole WIB month, for HR to adjust by
+   * hand. The rules are the depot's CURRENT active ones, evaluated on the slip's own base pay.
+   * `correct`/`difference` are blank where order-service could not be reached - never a zero.
+   */
+  async salesBonusShortfallReport(
+    user: AuthenticatedUser,
+    periodMonth: string,
+  ): Promise<{ headers: string[]; rows: (string | number)[][] }> {
+    const headers = ['periodMonth', 'employeeId', 'name', 'status', 'paidBonus', 'correctBonus', 'difference'];
+    const rows: (string | number)[][] = [];
+    if (!this.bonusRules || !this.sales) return { headers, rows };
+    const window = salesWindow(periodMonth);
+    const salesByDepot = new Map<string, Promise<number | null>>();
+    const rulesByDepot = new Map<string, Promise<BonusRule[]>>();
+    for (let page = 1; ; page++) {
+      const { rows: slips } = await this.repo.list({
+        periodMonth,
+        depotIds: depotScopeIds(user),
+        skip: (page - 1) * 100,
+        take: 100,
+      });
+      for (const slip of slips) {
+        if (slip.status !== 'APPROVED' && slip.status !== 'PAID') continue;
+        const [employee, full] = await Promise.all([
+          this.employees.getById(user, slip.employeeId),
+          this.repo.findById(slip.id),
+        ]);
+        const depot = employee.depotId ?? '';
+        if (!rulesByDepot.has(depot)) {
+          rulesByDepot.set(depot, this.bonusRules.listActiveForDepot(employee.depotId));
+        }
+        const rules = (await rulesByDepot.get(depot)!).filter((r) => r.metric === 'SALES_TOTAL');
+        if (rules.length === 0 || !full) continue;
+        if (!salesByDepot.has(depot)) {
+          salesByDepot.set(
+            depot,
+            employee.depotId
+              ? this.sales.depotSales(employee.depotId, window.from, window.to)
+              : Promise.resolve(null),
+          );
+        }
+        const salesTotal = await salesByDepot.get(depot)!;
+        const ids = new Set(rules.map((r) => r.id));
+        const paid = full.items
+          .filter((i) => i.kind === 'BONUS' && i.sourceRef && ids.has(i.sourceRef))
+          .reduce((t, i) => t + rupiah(i.amount), 0);
+        const ctx: BonusContext = {
+          presentDays: 0,
+          workingDays: 0,
+          lateDays: 0,
+          isDepotManager: false,
+          salesTotal,
+          basePay: full.items
+            .filter((i) => i.kind === 'BASE')
+            .reduce((t, i) => t + rupiah(i.amount), 0),
+        };
+        const correct =
+          salesTotal === null
+            ? null
+            : rules.reduce(
+                (t, r) =>
+                  t +
+                  evalBonusRule(
+                    {
+                      metric: 'SALES_TOTAL',
+                      op: r.op as CompareOp,
+                      threshold: Number(r.threshold),
+                      rewardKind: r.rewardKind as RewardKind,
+                      rewardValue: Number(r.rewardValue),
+                      maxIdr: r.maxIdr == null ? null : Number(r.maxIdr),
+                    },
+                    ctx,
+                  ),
+                0,
+              );
+        if (paid === 0 && !correct) continue;
+        rows.push([
+          periodMonth,
+          slip.employeeId,
+          slip.employeeName ?? '',
+          slip.status,
+          paid,
+          correct ?? '',
+          correct === null ? '' : correct - paid,
+        ]);
+      }
+      if (slips.length < 100) break;
+    }
+    return { headers, rows };
   }
 
   private monthRange(periodMonth: string): { from: Date; to: Date } {

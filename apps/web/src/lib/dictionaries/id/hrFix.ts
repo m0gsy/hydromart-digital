@@ -591,6 +591,8 @@ export const hrFix = {
     directoryBody: 'Semua karyawan (sesuai cakupan depot).',
     payroll: 'Payroll',
     payrollBody: 'Gaji per periode beserta bonus dan potongan.',
+    salesShortfall: 'Selisih bonus penjualan',
+    salesShortfallBody: 'Untuk slip yang sudah disetujui atau dibayar: bonus penjualan yang dibayar dibanding hitungan aturan atas satu bulan kalender penuh (WIB). Sebelum perbaikan, bulan terpotong pukul 07.00 sehingga sekitar sehari penjualan tidak terhitung. Slip tidak diubah; pakai ini untuk memutuskan penyesuaian manual. Memakai aturan bonus depot yang berlaku sekarang.',
     employerCost: 'Beban BPJS perusahaan',
     employerCostBody: 'Porsi BPJS yang dibayar perusahaan di atas gaji (Kesehatan, JHT, JP, JKK, JKM), per karyawan dan per depot. Biaya perusahaan saja: tidak masuk slip dan tidak mengurangi gaji siapa pun. Hanya karyawan yang punya nomor BPJS yang dihitung.',
     performance: 'Kinerja',

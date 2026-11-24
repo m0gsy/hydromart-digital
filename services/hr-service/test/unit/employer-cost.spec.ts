@@ -134,7 +134,7 @@ describe('route and repository', () => {
     const employerCostReport = jest.fn().mockResolvedValue({ headers: ['a'], rows: [['1']] });
     const csv = jest.fn().mockReturnValue('a,b');
     const res = { setHeader: jest.fn(), send: jest.fn() };
-    const c = new ReportsController({ employerCostReport, csv } as never);
+    const c = new ReportsController({ employerCostReport, csv } as never, {} as never);
     await c.payrollEmployerCost({ periodMonth: '2026-09' } as never, { sub: 'u' } as never, res as never);
     expect(employerCostReport).toHaveBeenCalled();
     expect(res.setHeader).toHaveBeenCalledWith(

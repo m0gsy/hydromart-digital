@@ -614,7 +614,7 @@ export interface OrderRepository {
   ): Promise<OrderRecord>;
   /** Existing orders only, selected in one query for internal cross-service reporting. */
   findOrderValues(orderIds: string[]): Promise<OrderValue[]>;
-  /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to]. IDR. */
+  /** Sum of fulfilled (DELIVERED/COMPLETED) order totals for a depot in [from, to). IDR. */
   sumDepotSales(depotId: string, from: Date, to: Date): Promise<number>;
   /**
    * Gallons a depot delivered per LOCAL day in [from, to), bucketed in `tz`.

@@ -578,6 +578,8 @@ export const hrFix = {
     directoryBody: 'Every employee within your depot scope.',
     payroll: 'Payroll',
     payrollBody: 'Pay per period, with bonuses and deductions.',
+    salesShortfall: 'Sales bonus shortfall',
+    salesShortfallBody: 'For approved or paid payslips: the sales bonus paid against what the rules pay on the whole calendar month (WIB). Before this fix the month was cut at 07:00, so about a day of sales was missed. Payslips are never changed; use this to decide manual adjustments. Uses the current bonus rules of each depot.',
     employerCost: 'Employer BPJS cost',
     employerCostBody: 'The BPJS share the company pays on top of wages (Kesehatan, JHT, JP, JKK, JKM), per employee and per depot. A company cost only: not on any payslip and never deducted from anybody. Only employees with a BPJS number on file are counted.',
     performance: 'Performance',
