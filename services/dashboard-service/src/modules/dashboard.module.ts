@@ -26,6 +26,9 @@ import { AiReadStockController } from './ai-read-stock.controller';
 import { StockMetricsService } from '../application/ai-read/stock-metrics';
 import { LoyaltyMetricsService } from '../application/ai-read/loyalty-metrics';
 import { AiStockSourcesHttpAdapter } from '../infrastructure/http/ai-stock-sources.http.adapter';
+import { FranchiseMetricsService } from '../application/ai-read/franchise-metrics';
+import { HrMetricsService } from '../application/ai-read/hr-metrics';
+import { AiOrgSourcesHttpAdapter } from '../infrastructure/http/ai-org-sources.http.adapter';
 import { PendingApprovalSourcesHttpAdapter } from '../infrastructure/http/pending-approval-sources.http.adapter';
 
 const providers: Provider[] = [
@@ -35,10 +38,13 @@ const providers: Provider[] = [
   ReadScopeService,
   { provide: DASHBOARD_TOKENS.AiReadSources, useClass: AiReadSourcesHttpAdapter },
   { provide: DASHBOARD_TOKENS.AiMoneySources, useClass: AiMoneySourcesHttpAdapter },
+  { provide: DASHBOARD_TOKENS.AiOrgSources, useClass: AiOrgSourcesHttpAdapter },
   MoneyMetricsService,
   { provide: DASHBOARD_TOKENS.AiStockSources, useClass: AiStockSourcesHttpAdapter },
   StockMetricsService,
   LoyaltyMetricsService,
+  FranchiseMetricsService,
+  HrMetricsService,
   PendingApprovalsService,
   { provide: DASHBOARD_TOKENS.PendingApprovalSources, useClass: PendingApprovalSourcesHttpAdapter },
   {
