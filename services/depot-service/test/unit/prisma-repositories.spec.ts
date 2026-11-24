@@ -1530,20 +1530,20 @@ describe('GallonReturnPrismaRepository', () => {
 
   it('summarises with a separate damaged count, coercing refund decimal', async () => {
     model.aggregate.mockResolvedValue({
-      _count: { _all: 2 },
       _sum: { quantity: 6, depositRefunded: decimal(120000) },
     });
-    model.count.mockResolvedValue(1);
+    model.count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
     const out = await repo.summaryForDepot('depot-1');
+    // Row counts skip a void's negative reversal rows; the sums keep them.
+    expect(model.count).toHaveBeenCalledWith({ where: { depotId: 'depot-1', quantity: { gt: 0 } } });
     expect(model.count).toHaveBeenCalledWith({
-      where: { depotId: 'depot-1', condition: GallonCondition.DAMAGED },
+      where: { depotId: 'depot-1', condition: GallonCondition.DAMAGED, quantity: { gt: 0 } },
     });
     expect(out).toEqual({ returns: 2, gallons: 6, damaged: 1, depositRefunded: 120000 });
   });
 
   it('summarises defaulting a null refund sum to zero', async () => {
     model.aggregate.mockResolvedValue({
-      _count: { _all: 0 },
       _sum: { quantity: null, depositRefunded: null },
     });
     model.count.mockResolvedValue(0);

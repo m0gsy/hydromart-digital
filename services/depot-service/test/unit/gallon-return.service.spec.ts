@@ -78,9 +78,9 @@ class InMemoryGallonReturnRepository implements GallonReturnRepository {
   async summaryForDepot(depotId: string): Promise<GallonReturnSummary> {
     const all = this.rows.filter((r) => r.depotId === depotId);
     return {
-      returns: all.length,
+      returns: all.filter((r) => r.quantity > 0).length,
       gallons: all.reduce((s, r) => s + r.quantity, 0),
-      damaged: all.filter((r) => r.condition === GallonCondition.DAMAGED).length,
+      damaged: all.filter((r) => r.condition === GallonCondition.DAMAGED && r.quantity > 0).length,
       depositRefunded: all.reduce((s, r) => s + r.depositRefunded, 0),
     };
   }
@@ -964,6 +964,8 @@ describe('GallonReturnService', () => {
       expect(r).toEqual({ reversedIssue: true, reversedReturn: true });
       expect(await net(ANI)).toEqual({ gallons: 0, deposit: 0 });
       expect((await issues.summaryForDepot(depotId)).issues).toBe(2); // 100-seed + sale; reversal not counted
+      // Same for the return ledger: courier return counted once, its reversal row not.
+      expect((await returns.summaryForDepot(depotId)).returns).toBe(1);
     });
 
     it('voiding a new-gallon sale takes the gallon back off the customer', async () => {
