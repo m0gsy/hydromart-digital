@@ -42,12 +42,23 @@ idx=$(( n < ${#seq[@]} ? n : ${#seq[@]} - 1 ))
 printf '%s\n%s' "$body" "${seq[$idx]}"
 SH
 chmod +x "$WORK/bin/curl"
+# The stand-in openssl: `s_client` "connects" (logging the host it was asked for), `x509` prints
+# the end date CERT_END (or nothing when CERT_UNREADABLE is set, as a broken TLS endpoint would).
+cat > "$WORK/bin/openssl" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+  s_client) printf '%s\n' "$*" | sed -n 's/.*-servername \([^ ]*\).*/\1/p' >> "$CERTS"; echo CERT ;;
+  x509) cat >/dev/null; [ -n "${CERT_UNREADABLE:-}" ] || echo "notAfter=${CERT_END:-Dec 31 23:59:59 2099 GMT}" ;;
+esac
+exit 0
+SH
+chmod +x "$WORK/bin/openssl"
 
-export PATH="$WORK/bin:$PATH" CALLS="$WORK/calls" POSTS="$WORK/posts" TABLE="$WORK/table"
-export API_URL="https://api.example" WEB_HOST="web.example" PROBE_PAUSE=0 PROBE_ATTEMPTS=3
+export PATH="$WORK/bin:$PATH" CALLS="$WORK/calls" POSTS="$WORK/posts" TABLE="$WORK/table" CERTS="$WORK/certs"
+export API_URL="https://api.example" WEB_HOST="web.example" AI_WEB_HOST="ai.example" PROBE_PAUSE=0 PROBE_ATTEMPTS=3
 
 run() {
-  rm -f "$CALLS" "$POSTS"
+  rm -f "$CALLS" "$POSTS" "$CERTS"
   OUT="$(bash "$ROOT/scripts/uptime-probe.sh" 2>&1)"
   RC=$?
 }
@@ -55,6 +66,7 @@ run() {
 healthy() {
   cat > "$TABLE" <<'T'
 /health|200|{"status":"ok"}
+/api/health|200|{"status":"ok","database":"ok","rowSecurity":"enforced"}
 /depots/api/v1/depots|200|{"items":[{"code":"X"}]}
 WEB|200|<!DOCTYPE html><html lang="id">
 T
@@ -64,14 +76,35 @@ echo "uptime-probe:"
 
 healthy
 run
-[ "$RC" = 0 ] && ok "green when all three checks answer" || bad "should pass: $OUT"
+[ "$RC" = 0 ] && ok "green when all four checks answer and every certificate has time left" || bad "should pass: $OUT"
+[ "$(sort "$CERTS" 2>/dev/null | tr '\n' ' ')" = "ai.example api.example web.example " ] &&
+  ok "  ...the certificates of the api, the web and the AI web host are read (SNI)" || bad "certificates read: $(cat "$CERTS" 2>/dev/null)"
+
+healthy
+sed -i 's#^/api/health|200|.*#/api/health|503|{"status":"down","database":"unreachable"}#' "$TABLE"
+run
+[ "$RC" = 1 ] && case "$OUT" in *"AI web /api/health"*) true ;; *) false ;; esac &&
+  ok "RED when the AI web cannot reach its database (503), named" || bad "a down AI web must fail (rc=$RC): $OUT"
+
+healthy
+CERT_END="$(date -u -d '+5 days' '+%b %d %H:%M:%S %Y GMT')" run
+[ "$RC" = 1 ] && case "$OUT" in *"certificate of api.example"*"days left"*) true ;; *) false ;; esac &&
+  ok "RED when a certificate has fewer than 14 days left (renewal failing), naming the host" || bad "an expiring certificate must fail (rc=$RC): $OUT"
+CERT_END="$(date -u -d '+30 days' '+%b %d %H:%M:%S %Y GMT')" run
+[ "$RC" = 0 ] && ok "  ...30 days left is fine" || bad "30 days must pass: $OUT"
+CERT_UNREADABLE=1 run
+[ "$RC" = 1 ] && case "$OUT" in *"could not be read"*) true ;; *) false ;; esac &&
+  ok "RED when a certificate cannot be read at all" || bad "an unreadable certificate must fail (rc=$RC): $OUT"
+CERT_END="$(date -u -d '+5 days' '+%b %d %H:%M:%S %Y GMT')" ALERT_WEBHOOK_URL="http://hook.invalid/x" run
+[ -f "$POSTS" ] && grep -q "certificate renewal is failing" "$POSTS" && ! grep -q "DOWN" "$POSTS" &&
+  ok "  ...and the ops channel hears a certificate warning, not an outage" || bad "certificate alert text: $(cat "$POSTS" 2>/dev/null)"
 
 healthy
 sed -i 's#^/health|200#/health|500#' "$TABLE"
 run
 [ "$RC" = 1 ] && ok "RED when the gateway health check keeps failing" || bad "a dead gateway must fail (rc=$RC)"
 case "$OUT" in *"gateway /health"*) ok "  ...and names what failed" ;; *) bad "  expected the check name in: $OUT" ;; esac
-[ "$(grep -c '/health$' "$CALLS")" = 3 ] && ok "  ...after three tries, not one" || bad "should have tried 3 times: $(cat "$CALLS")"
+[ "$(grep -c 'api.example/health$' "$CALLS")" = 3 ] && ok "  ...after three tries, not one" || bad "should have tried 3 times: $(cat "$CALLS")"
 
 healthy
 sed -i 's#^/health|200#/health|500,200#' "$TABLE"

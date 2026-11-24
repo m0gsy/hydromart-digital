@@ -15,6 +15,10 @@
 #   /depots/api/v1/depots          the request gets through the gateway to depot-service and its
 #                                  database and back — the path every screen depends on
 #   https://<web>/                 the customer app itself is being served
+#   https://<ai web>/api/health    the AI web answers with its database (HD-10)
+# and, for the api, the web and the AI web host, how many days the served TLS certificate has
+# left: Caddy renews them by itself, so a renewal that keeps failing is silent until browsers
+# refuse the site. Fewer than CERT_WARN_DAYS (default 14) fails the run while there is time.
 #
 # A check must fail on ATTEMPTS consecutive tries (default 3, 10s apart) before it counts: one
 # dropped connection from a shared runner is not an outage, and a probe that cries wolf is
@@ -24,9 +28,13 @@ set -uo pipefail
 
 API="${API_URL:?set API_URL, e.g. https://api.hydromart-digital.com}"
 WEB="${WEB_HOST:?set WEB_HOST, e.g. hydromart-digital.com}"
+# The AI web's public name is not secret; a repository variable can move it.
+AI_WEB="${AI_WEB_HOST:-ai.hydromart-digital.com}"
 ATTEMPTS="${PROBE_ATTEMPTS:-3}"
 PAUSE="${PROBE_PAUSE:-10}"
+CERT_WARN_DAYS="${CERT_WARN_DAYS:-14}"
 FAILED=()
+EXPIRING=()
 
 check() {
   local name="$1" url="$2" needle="${3:-}" reply code body i
@@ -48,9 +56,43 @@ check() {
 check "gateway /health" "${API%/}/health"
 check "gateway to depot-service and database" "${API%/}/depots/api/v1/depots?limit=1" '"items"'
 check "customer web app" "https://${WEB}/" '<html'
+check "AI web /api/health" "https://${AI_WEB}/api/health" '"status":"ok"'
 
-if [ "${#FAILED[@]}" -gt 0 ]; then
-  text="🚨 Hydromart is DOWN from outside — ${FAILED[*]}. Nothing on the box can report this."
+# Days left on the certificate a host serves, read the way a browser meets it (SNI). A host
+# that cannot be read on ATTEMPTS tries is reported too: that is a broken TLS endpoint.
+cert() {
+  local host="$1" end ts days i
+  for i in $(seq 1 "$ATTEMPTS"); do
+    end="$(echo | timeout 20 openssl s_client -servername "$host" -connect "$host:443" 2>/dev/null |
+      openssl x509 -noout -enddate 2>/dev/null | sed -n 's/^notAfter=//p')"
+    ts="$( [ -n "$end" ] && date -u -d "$end" +%s 2>/dev/null)"
+    if [ -n "$ts" ]; then
+      days=$(((ts - $(date -u +%s)) / 86400))
+      if [ "$days" -ge "$CERT_WARN_DAYS" ]; then
+        echo "ok   certificate of $host — $days days left"
+        return 0
+      fi
+      echo "FAIL certificate of $host — $days days left (renewal is not happening)"
+      EXPIRING+=("$host ($days days)")
+      return 1
+    fi
+    [ "$i" -lt "$ATTEMPTS" ] && sleep "$PAUSE"
+  done
+  echo "FAIL certificate of $host could not be read on $ATTEMPTS tries"
+  EXPIRING+=("$host (unreadable)")
+  return 1
+}
+API_HOST="${API#*://}"
+API_HOST="${API_HOST%%/*}"
+for host in "$API_HOST" "$WEB" "$AI_WEB"; do cert "$host"; done
+
+if [ "${#FAILED[@]}" -gt 0 ] || [ "${#EXPIRING[@]}" -gt 0 ]; then
+  if [ "${#FAILED[@]}" -gt 0 ]; then
+    text="🚨 Hydromart is DOWN from outside — ${FAILED[*]}. Nothing on the box can report this."
+  else
+    text="Hydromart TLS certificate renewal is failing — ${EXPIRING[*]}. Check Caddy's log on the box."
+  fi
+  [ "${#FAILED[@]}" -gt 0 ] && [ "${#EXPIRING[@]}" -gt 0 ] && text="$text Certificates: ${EXPIRING[*]}."
   [ -n "${GITHUB_RUN_ID:-}" ] && text="$text Run: ${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY:-}/actions/runs/${GITHUB_RUN_ID}"
   echo "$text"
   if [ -n "${ALERT_WEBHOOK_URL:-}" ]; then
