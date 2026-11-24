@@ -308,7 +308,7 @@ function DashboardBody({ view }: { view: 'manager' | 'executive' }) {
             />
             <Stat
               label={t('mgrFix.dash.slaOnTime')}
-              value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
+              value={deliverySla?.slaRate != null ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
               hint={deliverySla ? t('mgrFix.dash.slaTarget', { n: 96 }) : undefined}
             />
           </>
@@ -321,7 +321,7 @@ function DashboardBody({ view }: { view: 'manager' | 'executive' }) {
             />
             <Stat
               label={t('dashboard.landing.slaOnTime')}
-              value={deliverySla ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
+              value={deliverySla?.slaRate != null ? `${Math.round(deliverySla.slaRate * 100)}%` : '—'}
               hint={deliverySla ? t('dashboard.landing.delivered', { onTime: deliverySla.onTime, total: deliverySla.totalDelivered }) : undefined}
             />
             <Stat

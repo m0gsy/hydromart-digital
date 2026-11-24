@@ -117,6 +117,32 @@ describe('PerformanceService.weekly', () => {
     expect(r.depotCouriers).toBe(2);
   });
 
+  it('ranks within the depot: deliveries at another depot do not inflate the courier', async () => {
+    const rival = randomUUID();
+    const other = '00000000-0000-4000-8000-000000000002';
+    // Rival delivers 3 here; our driver 1 here + 5 at another depot (6 overall).
+    for (let i = 0; i < 3; i++) {
+      seed(repo, { driverId: rival, deliveredAt: new Date('2026-07-14T05:00:00Z') });
+    }
+    seed(repo, { driverId: driver, deliveredAt: new Date('2026-07-14T05:00:00Z') });
+    for (let i = 0; i < 5; i++) {
+      seed(repo, { driverId: driver, depotId: other, deliveredAt: new Date('2026-07-14T05:00:00Z') });
+    }
+
+    const r = await service.weekly(driver, '2026-07-13', DEPOT);
+    expect(r.delivered).toBe(6);
+    expect(r.rank).toBe(2);
+  });
+
+  it('has no rank when the courier delivered nothing at this depot this week', async () => {
+    const rival = randomUUID();
+    seed(repo, { driverId: rival, deliveredAt: new Date('2026-07-14T05:00:00Z') });
+
+    const r = await service.weekly(driver, '2026-07-13', DEPOT);
+    expect(r.rank).toBeNull();
+    expect(r.depotCouriers).toBe(1);
+  });
+
   it('computes the prior-week rank for the week-over-week delta (design 4c)', async () => {
     const rival = randomUUID();
     // Prev week (Mon 6 Jul): driver 2, rival 1 → prev rank #1. This week: rival 3, driver 1 → #2.

@@ -390,8 +390,6 @@ export interface DepotWeeklyReport {
   orders: number;
   revenueIdr: number;
   avgPerDayIdr: number;
-  /** Omitted — SLA on-time needs delivery-service data (no order-service source). */
-  slaOnTimePct?: number;
   revenueByDay: { day: string; revenueIdr: number }[];
   /** The window's orders by hour of day — when the depot is busy, not which day. */
   byHour: HourBucket[];
@@ -1246,7 +1244,7 @@ export class ReportService {
   /**
    * Depot weekly report (design 7d). Defaults to the trailing 7 days when the window is
    * open. orders/revenue/revenueByDay/topProducts are real; topCourier is derived from the
-   * order's own driverName (delivered count, no rating). slaOnTimePct is omitted (no source).
+   * order's own driverName (delivered count, no rating). No SLA column: that lives in delivery-service.
    */
   async depotWeekly(depotId: string, from?: Date, to?: Date): Promise<DepotWeeklyReport> {
     const toDate = to ?? new Date();

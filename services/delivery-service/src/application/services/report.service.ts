@@ -13,8 +13,8 @@ export interface SlaReport {
   totalDelivered: number;
   onTime: number;
   breached: number;
-  /** onTime / totalDelivered, 0..1; 0 when nothing was delivered. */
-  slaRate: number;
+  /** onTime / totalDelivered, 0..1; null when nothing was delivered (never 0%). */
+  slaRate: number | null;
   /** Mean delivery minutes rounded to 1 decimal; null when nothing was delivered. */
   avgMinutes: number | null;
   /** Median delivery minutes, 1 decimal; null when nothing was delivered. One very old delivery
@@ -28,7 +28,7 @@ export interface DepotSlaRow {
   totalDelivered: number;
   onTime: number;
   breached: number;
-  slaRate: number;
+  slaRate: number | null;
   avgMinutes: number | null;
   medianMinutes: number | null;
 }
@@ -85,7 +85,7 @@ export class ReportService {
       totalDelivered: s.totalDelivered,
       onTime: s.onTime,
       breached: s.breached,
-      slaRate: s.totalDelivered === 0 ? 0 : s.onTime / s.totalDelivered,
+      slaRate: s.totalDelivered === 0 ? null : s.onTime / s.totalDelivered,
       avgMinutes:
         s.totalDelivered === 0 ? null : Math.round((s.sumMinutes / s.totalDelivered) * 10) / 10,
       medianMinutes: s.medianMinutes == null ? null : Math.round(s.medianMinutes * 10) / 10,
@@ -112,7 +112,7 @@ export class ReportService {
         totalDelivered: s.totalDelivered,
         onTime: s.onTime,
         breached: s.breached,
-        slaRate: s.totalDelivered === 0 ? 0 : s.onTime / s.totalDelivered,
+        slaRate: s.totalDelivered === 0 ? null : s.onTime / s.totalDelivered,
         avgMinutes:
           s.totalDelivered === 0 ? null : Math.round((s.sumMinutes / s.totalDelivered) * 10) / 10,
         medianMinutes: s.medianMinutes == null ? null : Math.round(s.medianMinutes * 10) / 10,

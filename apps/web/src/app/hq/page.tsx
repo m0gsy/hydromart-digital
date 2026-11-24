@@ -99,9 +99,9 @@ export default function HqOverviewPage() {
   // a network with no depots trading, which is the one thing this screen must never invent.
   const activeDepots = depotList.error ? null : depots.filter((d) => d.active).length;
   // No delivered order in the window means there is no rate to state — the service
-  // reports slaRate 0 for that, and "0%" reads as a failing network rather than a quiet one.
+  // reports slaRate null for that (never 0), and "0%" would read as a failing network rather than a quiet one.
   const slaPct =
-    deliverySla && deliverySla.totalDelivered > 0 ? Math.round(deliverySla.slaRate * 100) : null;
+    deliverySla?.slaRate != null ? Math.round(deliverySla.slaRate * 100) : null;
   // Pending franchise applications = non-terminal stages (mirrors /hq/applications).
   const pendingCount = pendingApps.data
     ? pendingApps.data.items.filter((a) => a.stage !== 'APPROVED' && a.stage !== 'REJECTED').length

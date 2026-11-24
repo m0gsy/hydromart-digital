@@ -1260,7 +1260,8 @@ export interface DeliverySla {
   totalDelivered: number;
   onTime: number;
   breached: number;
-  slaRate: number;
+  /** null when nothing was delivered in range: show "-", never 0%. */
+  slaRate: number | null;
   avgMinutes: number | null;
   /** Median minutes (steady against one very late delivery). Older servers omit it. */
   medianMinutes?: number | null;
@@ -3067,7 +3068,6 @@ export interface DepotWeeklyReport {
   orders: number;
   revenueIdr: number;
   avgPerDayIdr: number;
-  slaOnTimePct?: number;
   revenueByDay: { day: string; revenueIdr: number }[];
   /** The window by hour of day; hours with no orders are present as zeros. */
   byHour: DepotHourBucket[];

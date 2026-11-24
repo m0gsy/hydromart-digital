@@ -786,7 +786,12 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     depotIds?: string[],
   ): Promise<SlaStats> {
     const scoped = depotIds !== undefined && depotIds.length > 0;
-    const conds: Prisma.Sql[] = [Prisma.sql`"deliveredAt" IS NOT NULL`];
+    // Depot-less deliveries stay out so the network total equals the sum of the depot rows
+    // (slaStatsByDepot has always excluded them).
+    const conds: Prisma.Sql[] = [
+      Prisma.sql`"deliveredAt" IS NOT NULL`,
+      Prisma.sql`"depotId" IS NOT NULL`,
+    ];
     if (range.from) conds.push(Prisma.sql`"deliveredAt" >= ${range.from}`);
     if (range.to) conds.push(Prisma.sql`"deliveredAt" < ${range.to}`);
     if (scoped) conds.push(Prisma.sql`"depotId" = ANY(${depotIds}::uuid[])`);
@@ -810,7 +815,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
           ...(range.from ? { gte: range.from } : {}),
           ...(range.to ? { lt: range.to } : {}),
         },
-        ...(scoped ? { depotId: { in: depotIds } } : {}),
+        depotId: scoped ? { in: depotIds } : { not: null },
       },
     });
     const totalDelivered = Number(agg.total);

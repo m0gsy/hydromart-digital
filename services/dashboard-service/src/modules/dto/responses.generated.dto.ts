@@ -84,8 +84,8 @@ export class DeliverySlaResponseDto {
   onTime!: number;
   @ApiProperty({ type: Number })
   breached!: number;
-  @ApiProperty({ type: Number })
-  slaRate!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  slaRate!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   avgMinutes!: number | null;
   @ApiProperty({ type: Number, nullable: true })

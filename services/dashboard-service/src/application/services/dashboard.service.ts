@@ -560,7 +560,7 @@ export class DashboardService {
     const depots = DashboardService.inScope(allDepots, scope);
     const reportFull = (topDepots?.items.length ?? 0) >= DashboardService.NETWORK_TOP_LIMIT;
     let missingFromReport = false;
-    const slaByDepotId = new Map<string, number>();
+    const slaByDepotId = new Map<string, number | null>();
     const avgMinutesByDepot = new Map<string, number | null>();
     const medianMinutesByDepot = new Map<string, number | null>();
     for (const row of slaByDepot?.depots ?? []) {

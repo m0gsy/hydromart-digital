@@ -7,9 +7,9 @@ import { DeliverySlaPort } from '../../application/ports/delivery-sla.port';
  * Reads one depot's on-time rate from delivery-service's internal report route.
  *
  * Fails SOFT (null): the monthly review is a report, and one that refuses to render because
- * a sibling service blinked is worse than one that says "—" in a single cell. `slaRate` is 0
- * when nothing was delivered, which is a real number about a real month but NOT a
- * percentage anybody should read — so an empty window comes back as null too.
+ * a sibling service blinked is worse than one that says "—" in a single cell. `slaRate` is null
+ * when nothing was delivered; older delivery-service builds sent 0 for that, which is NOT a
+ * percentage anybody should read — so an empty window comes back as null here too.
  */
 @Injectable()
 export class DeliverySlaHttpAdapter implements DeliverySlaPort {

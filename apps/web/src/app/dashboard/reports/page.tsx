@@ -446,14 +446,10 @@ function Mingguan({ depotId }: { depotId: string }) {
     <div className="flex flex-col gap-5">
       <h1 className="text-lg font-extrabold">{t('opsFix.reports.weeklyTitle')}</h1>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
         <StatCard label={t('opsFix.reports.orders')} value={String(rep.data.orders)} />
         <StatCard label={t('opsFix.reports.revenue')} value={formatIDR(rep.data.revenueIdr)} />
         <StatCard label={t('opsFix.reports.avgPerDay')} value={formatIDR(rep.data.avgPerDayIdr)} />
-        <StatCard
-          label={t('opsFix.reports.slaOnTime')}
-          value={rep.data.slaOnTimePct != null ? `${rep.data.slaOnTimePct}%` : '—'}
-        />
       </div>
 
       <Card className="flex flex-col gap-3 p-4">

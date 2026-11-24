@@ -363,7 +363,6 @@ const opsFixShared = {
     weeklyTitle: 'Laporan mingguan',
     orders: 'Pesanan',
     avgPerDay: 'Rata-rata per hari',
-    slaOnTime: 'SLA tepat waktu',
     revenuePerDay: 'Pendapatan per hari',
     noRevenueThisWeek: 'Belum ada pendapatan pekan ini.',
     topProducts: 'Produk terlaris',

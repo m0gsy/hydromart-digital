@@ -1110,7 +1110,7 @@ describe('ReportService', () => {
     ]);
     expect(rep.topProducts[0]).toEqual({ label: 'Galon 19L', qty: 4 });
     expect(rep.topCourier).toEqual({ name: 'Budi', delivered: 2 }); // most deliveries
-    expect(rep.slaOnTimePct).toBeUndefined();
+    expect(rep).not.toHaveProperty('slaOnTimePct');
   });
 
   /*
