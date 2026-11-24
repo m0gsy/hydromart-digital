@@ -7,4 +7,6 @@ export const DASHBOARD_TOKENS = {
   AiReadSources: Symbol('AiReadSources'),
   /** HD-6 H2: the money facts (sales, cash, COD, cashbook) the AI read API reads beside the P&L. */
   AiMoneySources: Symbol('AiMoneySources'),
+  /** HD-6 H4: the stock, meter and forecast facts the AI read API reads. */
+  AiStockSources: Symbol('AiStockSources'),
 } as const;

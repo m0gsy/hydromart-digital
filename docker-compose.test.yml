@@ -282,6 +282,7 @@ services:
       DEPOT_SERVICE_URL: http://depot:3007
       HR_SERVICE_URL: http://hr:3018
       CUSTOMER_SERVICE_URL: http://customer:3002
+      FORECAST_SERVICE_URL: http://forecast:3014
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3008/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 10s

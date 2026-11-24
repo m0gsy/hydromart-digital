@@ -22,6 +22,10 @@ import { ReadScopeService } from '../application/ai-read/scope.service';
 import { AiReadSourcesHttpAdapter } from '../infrastructure/http/ai-read-sources.http.adapter';
 import { AiMoneySourcesHttpAdapter } from '../infrastructure/http/ai-money-sources.http.adapter';
 import { MoneyMetricsService } from '../application/ai-read/money-metrics';
+import { AiReadStockController } from './ai-read-stock.controller';
+import { StockMetricsService } from '../application/ai-read/stock-metrics';
+import { LoyaltyMetricsService } from '../application/ai-read/loyalty-metrics';
+import { AiStockSourcesHttpAdapter } from '../infrastructure/http/ai-stock-sources.http.adapter';
 import { PendingApprovalSourcesHttpAdapter } from '../infrastructure/http/pending-approval-sources.http.adapter';
 
 const providers: Provider[] = [
@@ -32,6 +36,9 @@ const providers: Provider[] = [
   { provide: DASHBOARD_TOKENS.AiReadSources, useClass: AiReadSourcesHttpAdapter },
   { provide: DASHBOARD_TOKENS.AiMoneySources, useClass: AiMoneySourcesHttpAdapter },
   MoneyMetricsService,
+  { provide: DASHBOARD_TOKENS.AiStockSources, useClass: AiStockSourcesHttpAdapter },
+  StockMetricsService,
+  LoyaltyMetricsService,
   PendingApprovalsService,
   { provide: DASHBOARD_TOKENS.PendingApprovalSources, useClass: PendingApprovalSourcesHttpAdapter },
   {
@@ -50,7 +57,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [DashboardController, PendingApprovalsController, AiReadController, PendingApprovalsInternalController],
+  controllers: [DashboardController, PendingApprovalsController, AiReadController, AiReadStockController, PendingApprovalsInternalController],
   providers,
   exports: [DashboardConfigService],
 })
