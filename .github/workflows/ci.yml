@@ -369,6 +369,21 @@ jobs:
       - name: AI web deploy self-check (HD-9)
         run: bash scripts/aiweb.test.sh
 
+      # D3 staging, part C: the staging copy's compose policy (never on edge, internal networks, only
+      # STAGING_* keys, one budget), its env keys documented, a production pin that never ran on
+      # staging (a warning only), and its deploy proved against a fake docker, curl and Caddy.
+      - name: Staging AI web compose policy (D3)
+        run: node scripts/check-aiweb-staging-compose.mjs
+
+      - name: Every staging AI web compose variable is in the env template
+        run: node scripts/check-env-template.mjs infra/aiweb-staging/docker-compose.yml
+
+      - name: A production AI web pin that never ran on staging (warning only)
+        run: node scripts/check-aiweb-promotion.mjs
+
+      - name: Staging AI web deploy self-check (D3)
+        run: bash scripts/aiweb-staging.test.sh
+
       # D3 staging: the front door's config, validated by the Caddy image the compose file pins by
       # digest, as git holds it and with the staging login hash the deploy adds. A reload that
       # refuses keeps the old config and blocks every later Caddy change, so it is caught here.

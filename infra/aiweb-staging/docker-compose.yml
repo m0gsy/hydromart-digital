@@ -1,0 +1,243 @@
+# The AI web's STAGING copy (D3 staging): the same hydromart-ai app, migration job and n8n as
+# infra/aiweb/docker-compose.yml, in a compose project of their own, beside hydromart and the
+# production AI web on the production box, behind a login at https://staging-ai.hydromart-digital.com.
+# scripts/aiweb-staging-deploy.sh starts it after every deploy (DEPLOY.md, "The staging AI web").
+#
+# What staging has that production does not: SYNTHETIC everything. A fake hydromart
+# (infra/aiweb-staging/mock/) plays hydromart-digital's sign-in and API, with made-up people; n8n's
+# workflows are pointed at it (n8n-rewrite.mjs); its database is its own. No production secret, no
+# production data and no way to reach production: its networks are internal (no way off the box)
+# and none is `edge` or hydromart's. The mock needs no image of its own: it runs on the app image.
+#
+# A RELEASE IS THIS FILE, as for production, and it is the file that runs AHEAD of production:
+# to try a new hydromart-ai commit, change the three digests below (the app, the migration job and
+# n8n, as hydromart-ai's CI prints them) in a PR here; the deploy after its merge runs it on
+# staging. Once it has been tried, a second PR copies the same three digests into
+# infra/aiweb/docker-compose.yml (scripts/check-aiweb-promotion.mjs warns when a production pin was
+# never pinned here first). Staging has no backup: its data is made up and `staging-reset` (the
+# Deploy workflow's mode) starts it again from nothing.
+#
+# Pinned now: the same hydromart-ai commit production runs (966464f).
+#
+# Isolation, held by scripts/check-aiweb-staging-compose.mjs in CI and proved on the box after every
+# deploy by the probe in scripts/aiweb-staging-deploy.sh:
+#   - its own project name, so hydromart's `up --remove-orphans` never takes it for an orphan, and
+#     docker-gc and the firewall read this `name:`;
+#   - `private` is internal (the database, the mock, the app, n8n); `edge-staging` is internal too
+#     and is where Caddy reaches the app and the mock (hydromart's compose file makes it). Neither
+#     is `edge`: a container named like production's there would take production's traffic;
+#   - the app's name for hydromart is Caddy's own address on `edge-staging` (an alias of the
+#     staging host name), so every call "to hydromart" is answered by the mock and none leaves the box;
+#   - only n8n publishes a port, its editor, on the box's loopback (an ssh tunnel reaches it), and
+#     for that it alone sits on `tunnel`, a network with a way out;
+#   - the box's ssh answers nothing from any of these networks (scripts/aiweb-firewall.sh);
+#   - only STAGING_* keys of .env are interpolated here: no key of hydromart's or production's AI
+#     web can reach a container of this project.
+name: hydromart-ai-staging
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 50m
+    max-file: "3"
+
+services:
+  db:
+    # The image hydromart's own Postgres and the production AI web run, so the box holds it.
+    image: postgres:16-alpine@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 256m
+    cpus: 0.25
+    environment:
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:?set by scripts/aiweb-staging-secrets.sh}
+      # Read by infra/aiweb/roles.sql and app-role.sql (psql \getenv), which are shared with the
+      # production AI web: the names inside the container are theirs, the values are staging's.
+      AIWEB_DB_OWNER_PASSWORD: ${STAGING_DB_OWNER_PASSWORD:?set by scripts/aiweb-staging-secrets.sh}
+      AIWEB_DB_APP_PASSWORD: ${STAGING_DB_APP_PASSWORD:?set by scripts/aiweb-staging-secrets.sh}
+      AIWEB_N8N_DB_PASSWORD: ${STAGING_N8N_DB_PASSWORD:?set by scripts/aiweb-staging-secrets.sh}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "postgres"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+      start_interval: 2s
+
+  # One shot, before every app start: `prisma migrate deploy` as ai_owner.
+  migrate:
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:cd00a3d71cb28e354a076159bd40b360182b3514fce8f3e13ad4c6f1f8c197d5
+    profiles: ["migrate"]
+    logging: *logging
+    mem_limit: 384m
+    cpus: 0.5
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      DATABASE_URL: postgresql://ai_owner:${STAGING_DB_OWNER_PASSWORD:?set by scripts/aiweb-staging-secrets.sh}@db:5432/ai
+    networks:
+      - private
+    depends_on:
+      db: { condition: service_healthy }
+
+  # The service is not called `aiweb`: Caddy reaches it by this name over `edge-staging`. Its
+  # alias `aiweb` exists on `private` only, where n8n's workflows and the mock name it.
+  staging-aiweb:
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:9be3190ec3bdb6dd2afc915a958f6be631a993e92d7c5a83e2b2973b47155517
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 384m
+    cpus: 0.5
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      DATABASE_URL: postgresql://ai_app:${STAGING_DB_APP_PASSWORD:?set by scripts/aiweb-staging-secrets.sh}@db:5432/ai
+      # All three are the staging host: the sign-in page and the API are the mock, served by Caddy
+      # on the same origin (infra/caddy/sites/staging-ai.caddy).
+      AI_WEB_URL: https://staging-ai.hydromart-digital.com
+      HYDROMART_WEB_URL: https://staging-ai.hydromart-digital.com
+      HYDROMART_API_URL: https://staging-ai.hydromart-digital.com
+      HD_EVENT_SECRET: ${STAGING_HD_EVENT_SECRET:?set by scripts/aiweb-staging-secrets.sh}
+      N8N_URL: http://n8n:5678
+      N8N_TOKEN: ${STAGING_N8N_TOKEN:?set by scripts/aiweb-staging-secrets.sh}
+      # The mock takes the alarms: nothing of staging posts to the channel production's alerts use.
+      ALERT_WEBHOOK_URL: http://hydromart-mock:9911/alert
+    networks:
+      edge-staging: {}
+      private:
+        aliases:
+          - aiweb
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+
+  # The fake hydromart (infra/aiweb-staging/mock/server.mjs), on the app image: node is there and
+  # nothing else is needed. The file is mounted read-only from this checkout.
+  hydromart-mock:
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:9be3190ec3bdb6dd2afc915a958f6be631a993e92d7c5a83e2b2973b47155517
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 64m
+    cpus: 0.1
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    entrypoint: ["node", "/mock/server.mjs"]
+    volumes:
+      - ./mock:/mock:ro
+    environment:
+      MOCK_PORT: "9911"
+      MOCK_AI_WEB_URL: https://staging-ai.hydromart-digital.com
+      MOCK_INGRESS_URL: http://aiweb:3000/api/ingress/hd
+      MOCK_SIGNING_KEY: ${STAGING_MOCK_SIGNING_KEY:?set by scripts/aiweb-staging-secrets.sh}
+      MOCK_HD_EVENT_SECRET: ${STAGING_HD_EVENT_SECRET:?set by scripts/aiweb-staging-secrets.sh}
+      MOCK_MACHINE_ID: ${STAGING_N8N_MACHINE_ID:?set by scripts/aiweb-staging-secrets.sh}
+      MOCK_MACHINE_SECRET: ${STAGING_N8N_MACHINE_SECRET:?set by scripts/aiweb-staging-secrets.sh}
+    networks:
+      - edge-staging
+      - private
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:9911/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+      start_interval: 2s
+
+  # n8n, the production image and its locked settings. Its workflows name hydromart's public API;
+  # n8n-rewrite.mjs (below) points the copy staging imports at the mock, and the image's
+  # N8N_SSRF_ALLOWED_HOSTNAMES is widened by exactly the mock's name.
+  n8n:
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:3b5eaa33d1483727f607510e3ab06e03dc8e09217e483c036baa9ff38572d4ce
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 700m
+    cpus: 0.5
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /home/node/.n8n:uid=1000,gid=1000,mode=0700,size=128m
+    volumes:
+      - ./n8n-rewrite.mjs:/staging/n8n-rewrite.mjs:ro
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: db
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${STAGING_N8N_DB_PASSWORD:?set by scripts/aiweb-staging-secrets.sh}
+      N8N_ENCRYPTION_KEY: ${STAGING_N8N_ENCRYPTION_KEY:?set by scripts/aiweb-staging-secrets.sh}
+      N8N_EDITOR_BASE_URL: http://localhost:5679
+      N8N_SSRF_ALLOWED_HOSTNAMES: aiweb,hydromart-mock
+    networks:
+      - private
+      - tunnel
+    # The editor, on the box's loopback and nowhere else (production's is 5678): `ssh -L
+    # 5679:127.0.0.1:5679` reaches it.
+    ports:
+      - "127.0.0.1:5679:5678"
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:5678/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+      start_interval: 2s
+
+  # One shot, in every deploy while n8n is stopped: n8n-rewrite.mjs makes the copy of the image's
+  # n8n/ with hydromart's address replaced by the mock's, then setup.mjs imports THAT.
+  n8n-setup:
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:3b5eaa33d1483727f607510e3ab06e03dc8e09217e483c036baa9ff38572d4ce
+    profiles: ["n8n-setup"]
+    logging: *logging
+    mem_limit: 700m
+    cpus: 0.5
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    entrypoint: ["node", "/staging/n8n-rewrite.mjs", "node", "/opt/hydromart/bin/setup.mjs"]
+    tmpfs:
+      - /home/node/.n8n:uid=1000,gid=1000,mode=0700,size=128m
+      - /tmp:size=64m
+    volumes:
+      - ./n8n-rewrite.mjs:/staging/n8n-rewrite.mjs:ro
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: db
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: ${STAGING_N8N_DB_PASSWORD:?set by scripts/aiweb-staging-secrets.sh}
+      N8N_ENCRYPTION_KEY: ${STAGING_N8N_ENCRYPTION_KEY:?set by scripts/aiweb-staging-secrets.sh}
+      N8N_SETUP_AIWEB_TOKEN: ${STAGING_N8N_TOKEN:?set by scripts/aiweb-staging-secrets.sh}
+      N8N_SETUP_MACHINE_ACCOUNT_ID: ${STAGING_N8N_MACHINE_ID:?set by scripts/aiweb-staging-secrets.sh}
+      N8N_SETUP_MACHINE_SECRET: ${STAGING_N8N_MACHINE_SECRET:?set by scripts/aiweb-staging-secrets.sh}
+    networks:
+      - private
+    depends_on:
+      db: { condition: service_healthy }
+
+networks:
+  # Created by hydromart's docker-compose.prod.yml (internal; Caddy answers on it to the staging
+  # host name). Caddy, the app and the mock are its only members; the probe says so after each deploy.
+  edge-staging:
+    external: true
+  # The database's network, and where the app, the mock and n8n talk. No way off the box.
+  private:
+    internal: true
+  # n8n's alone: Docker cannot publish a port from a container on internal networks only.
+  tunnel: {}
+
+volumes:
+  pgdata:

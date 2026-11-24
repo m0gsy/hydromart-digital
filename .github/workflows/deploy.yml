@@ -47,7 +47,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), install-docker-daemon (install ops/docker-daemon.json to /etc/docker/daemon.json and restart the daemon so the log cap applies; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back), restore-rehearsal (restore a few backed-up objects to a SCRATCH prefix in each live bucket, compare byte for byte, clean up; never touches a live key)'
+        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), install-docker-daemon (install ops/docker-daemon.json to /etc/docker/daemon.json and restart the daemon so the log cap applies; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back), restore-rehearsal (restore a few backed-up objects to a SCRATCH prefix in each live bucket, compare byte for byte, clean up; never touches a live key), staging-deploy (deploy just the staging AI web now: after setting, rotating or deleting the STAGING_AI_PASSWORD secret), staging-reset (drop the staging AI web data and deploy it again; `confirm` must be staging)'
         type: choice
         default: deploy
         options:
@@ -73,6 +73,8 @@ on:
             explain-queries,
             alert-channel-2,
             install-docker-daemon,
+            staging-deploy,
+            staging-reset,
           ]
       sha:
         description: 'rollback target SHA (blank = previous good)'
@@ -87,7 +89,7 @@ on:
         required: false
         default: '+6281199900001'
       confirm:
-        description: 'reset-test-data: type RESET-TEST-DATA to actually clear; install-node / install-docker-daemon: type install to actually upgrade / restart (anything else = dry run / check only, writes nothing)'
+        description: 'staging-reset: type staging; reset-test-data: type RESET-TEST-DATA to actually clear; install-node / install-docker-daemon: type install to actually upgrade / restart (anything else = dry run / check only, writes nothing)'
         required: false
         default: ''
 
@@ -377,6 +379,13 @@ jobs:
             # The second alert channel: writes the ALERT_WEBHOOK_URL_2 repo secret into
             # ops/alertmanager-secondary/webhook-url on the box (never printed) and posts one test line to it.
             alert-channel-2) echo "run=bash scripts/set-alert-channel.sh --test" >> "$GITHUB_OUTPUT" ;;
+            # D3 staging: drop the staging AI web's data (its database and n8n's) and deploy it again
+            # from nothing. `confirm` must be exactly `staging` (the script checks it); the staging
+            # login and registry token ride in the environment like a deploy's.
+            # staging-deploy: just the staging AI web, now (after the password secret was set, rotated
+            # or deleted, which a normal deploy only notices when there is a release to ship).
+            staging-deploy) echo "run=bash scripts/aiweb-staging-secrets.sh && bash scripts/aiweb-staging-deploy.sh" >> "$GITHUB_OUTPUT" ;;
+            staging-reset) echo "run=bash scripts/aiweb-staging-deploy.sh --reset" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 
@@ -406,7 +415,7 @@ jobs:
           # DEPLOY_SHA rides the same way (M26): the commit whose CI went green, handed to
           # deploy.sh so it stops choosing its own target. Empty on manual dispatch, which
           # keeps "deploy whatever the tip is" as a deliberate button.
-          envs: ENV_SET_BLOCK,DEPLOY_SHA,RESET_CONFIRM,ALERT_WEBHOOK_URL_2,GHCR_TOKEN,GHCR_USER
+          envs: ENV_SET_BLOCK,DEPLOY_SHA,RESET_CONFIRM,ALERT_WEBHOOK_URL_2,GHCR_TOKEN,GHCR_USER,STAGING_AI_PASSWORD
           script: |
             set -e
             cd "${{ secrets.VPS_REPO_PATH }}"
@@ -475,5 +484,10 @@ jobs:
           # HD-9: only the two paths that run scripts/deploy.sh get it; deploy.sh hands it to
           # scripts/aiweb-deploy.sh alone, which logs in on the box with it (on stdin, in a
           # throwaway docker config), pulls the pinned digests and logs out.
-          GHCR_TOKEN: ${{ (github.event_name == 'workflow_run' || inputs.mode == 'deploy' || inputs.mode == 'deploy-all') && github.token || '' }}
+          GHCR_TOKEN: ${{ (github.event_name == 'workflow_run' || inputs.mode == 'deploy' || inputs.mode == 'deploy-all' || startsWith(inputs.mode, 'staging-')) && github.token || '' }}
           GHCR_USER: ${{ github.actor }}
+          # D3 staging: the staging site's one password (a repo secret the owner chose). Handed to the
+          # box only on the paths that run the staging deploy; scripts/deploy.sh and
+          # scripts/aiweb-staging-deploy.sh take it out of the environment at once, hash it with
+          # Caddy's own hasher and keep only the hash: the password is never written to the box.
+          STAGING_AI_PASSWORD: ${{ (github.event_name == 'workflow_run' || inputs.mode == 'deploy' || inputs.mode == 'deploy-all' || startsWith(inputs.mode, 'staging-')) && secrets.STAGING_AI_PASSWORD || '' }}
