@@ -13,13 +13,14 @@ CREATE TABLE IF NOT EXISTS "attendance_month_rollups" (
     "late" INTEGER NOT NULL DEFAULT 0,
     "absent" INTEGER NOT NULL DEFAULT 0,
     "leave" INTEGER NOT NULL DEFAULT 0,
+    "holiday" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "attendance_month_rollups_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex (the table is new and empty, so a plain CREATE INDEX takes no meaningful lock)
-CREATE UNIQUE INDEX IF NOT EXISTS "attendance_month_rollups_employeeId_month_key" ON "attendance_month_rollups"("employeeId", "month");
+CREATE UNIQUE INDEX IF NOT EXISTS "attendance_month_rollups_employeeId_month_depotId_key" ON "attendance_month_rollups"("employeeId", "month", "depotId");
 CREATE INDEX IF NOT EXISTS "attendance_month_rollups_depotId_month_idx" ON "attendance_month_rollups"("depotId", "month");
 
 -- AddForeignKey

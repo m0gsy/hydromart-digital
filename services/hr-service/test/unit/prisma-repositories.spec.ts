@@ -1454,6 +1454,7 @@ describe('AnalyticsPrismaRepository', () => {
         late: 2,
         absent: 1,
         leave: 1,
+        holiday: 3,
         employee: { employeeCode: 'HR-9', fullName: 'Karyawan dihapus' },
       },
     ]);
@@ -1466,7 +1467,7 @@ describe('AnalyticsPrismaRepository', () => {
       take: 50000,
     });
     expect(out).toEqual([
-      { month: '2026-03', employeeCode: 'HR-9', fullName: 'Karyawan dihapus', present: 18, late: 2, absent: 1, leave: 1 },
+      { month: '2026-03', employeeCode: 'HR-9', fullName: 'Karyawan dihapus', present: 18, late: 2, absent: 1, leave: 1, holiday: 3 },
     ]);
     await repo.attendanceRollupsForReport('2026-03', '2026-04');
     expect(m(p, 'attendanceMonthRollup').findMany.mock.calls[1][0].where).toEqual({
@@ -2124,7 +2125,9 @@ describe('EmployeePrismaRepository retention (M23-21)', () => {
     expect(p.$executeRaw).toHaveBeenCalledTimes(1);
     const rollupSql = ((p.$executeRaw as jest.Mock).mock.calls[0][0] as string[]).join('?');
     expect(rollupSql).toContain('INSERT INTO "attendance_month_rollups"');
-    expect(rollupSql).toContain('ON CONFLICT ("employeeId", "month") DO NOTHING');
+    expect(rollupSql).toContain('ON CONFLICT ("employeeId", "month", "depotId") DO NOTHING');
+    // Filed under the depot of each attendance row, not the employee's current depot.
+    expect(rollupSql).toContain('GROUP BY a."employeeId", a."depotId"');
     expect(
       (p.$executeRaw as jest.Mock).mock.invocationCallOrder[0],
     ).toBeLessThan(m(p, 'attendance').deleteMany.mock.invocationCallOrder[0]);

@@ -1117,8 +1117,11 @@ model EmployeeLegalEntity {
 /// HD-6 A7: one employee's attendance for one WIB month, counted from the raw rows BEFORE the
 /// retention scrub deletes them (EmployeePrismaRepository.anonymiseRetentionEligible). Counts
 /// only, no times or photos. `present` is PRESENT, `late` is LATE (so people at work = present
-/// + late); PENDING and HOLIDAY rows are counted in neither. `depotId` is the employee's depot
-/// when the rollup was written.
+/// + late); `holiday` is HOLIDAY; PENDING rows are counted nowhere (the attendance report leaves
+/// them out too). One row per (employee, month, depot of the attendance row), so an employee who
+/// moved depots mid-month has a row at each. A NULL depot (staff above a single depot) is not
+/// deduplicated by the unique key (Postgres treats NULLs as distinct); the scrub deletes the
+/// source rows in the same transaction, so a re-run finds nothing to double count.
 model AttendanceMonthRollup {
   id         String   @id @default(uuid()) @db.Uuid
   employeeId String   @db.Uuid
@@ -1129,11 +1132,12 @@ model AttendanceMonthRollup {
   late       Int      @default(0)
   absent     Int      @default(0)
   leave      Int      @default(0)
+  holiday    Int      @default(0)
   createdAt  DateTime @default(now())
 
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
-  @@unique([employeeId, month])
+  @@unique([employeeId, month, depotId])
   @@index([depotId, month])
   @@map("attendance_month_rollups")
 }

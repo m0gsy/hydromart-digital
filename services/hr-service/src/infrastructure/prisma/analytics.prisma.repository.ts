@@ -421,6 +421,7 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       late: r.late,
       absent: r.absent,
       leave: r.leave,
+      holiday: r.holiday,
     }));
   }
 

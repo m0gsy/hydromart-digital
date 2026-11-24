@@ -35,23 +35,23 @@ export class EmployeePrismaRepository implements EmployeeRepository {
   /**
    * HD-6 A7: the month counts of the attendance rows a scrub is about to delete, written FIRST
    * and in the same transaction, so the deletion can never happen without them. Idempotent: a
-   * (employee, month) that already has a rollup is left alone, and a re-run after the rows are
+   * (employee, month, depot) that already has a rollup is left alone, and a re-run after the rows are
    * gone finds nothing to count.
    */
   private rollUpAttendance(where: Prisma.Sql) {
     return this.prisma.$executeRaw`
       INSERT INTO "attendance_month_rollups"
-        ("id", "employeeId", "depotId", "month", "present", "late", "absent", "leave")
-      SELECT gen_random_uuid(), a."employeeId", e."depotId", to_char(a."workDate", 'YYYY-MM'),
+        ("id", "employeeId", "depotId", "month", "present", "late", "absent", "leave", "holiday")
+      SELECT gen_random_uuid(), a."employeeId", a."depotId", to_char(a."workDate", 'YYYY-MM'),
         count(*) FILTER (WHERE a."status" = 'PRESENT'),
         count(*) FILTER (WHERE a."status" = 'LATE'),
         count(*) FILTER (WHERE a."status" = 'ABSENT'),
-        count(*) FILTER (WHERE a."status" = 'LEAVE')
+        count(*) FILTER (WHERE a."status" = 'LEAVE'),
+        count(*) FILTER (WHERE a."status" = 'HOLIDAY')
       FROM "attendance" a
-      JOIN "employees" e ON e."id" = a."employeeId"
       WHERE ${where}
-      GROUP BY a."employeeId", e."depotId", to_char(a."workDate", 'YYYY-MM')
-      ON CONFLICT ("employeeId", "month") DO NOTHING`;
+      GROUP BY a."employeeId", a."depotId", to_char(a."workDate", 'YYYY-MM')
+      ON CONFLICT ("employeeId", "month", "depotId") DO NOTHING`;
   }
 
   async anonymiseRetentionEligible(cutoff: Date): Promise<number> {

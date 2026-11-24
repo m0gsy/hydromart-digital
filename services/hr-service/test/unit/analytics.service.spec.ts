@@ -254,18 +254,18 @@ describe('AnalyticsService CSV exports', () => {
     const csv = await svc.csv(
       await svc.attendanceReport(hq, { from: '2026-07-01', to: '2026-07-31' }),
     );
-    expect(csv.split('\r\n')[1]).toBe('2026-07-01,HR-0001,A,LATE,,,12,,,,,');
+    expect(csv.split('\r\n')[1]).toBe('2026-07-01,HR-0001,A,LATE,,,12,,,,,,');
   });
 
   it('appends the month rollups kept from before the retention scrub, depot-scoped', async () => {
     const rollups = jest.fn(async () => [
-      { month: '2026-03', employeeCode: 'HR-9', fullName: 'Karyawan dihapus', present: 18, late: 2, absent: 1, leave: 1 },
+      { month: '2026-03', employeeCode: 'HR-9', fullName: 'Karyawan dihapus', present: 18, late: 2, absent: 1, leave: 1, holiday: 3 },
     ]);
     const { svc } = build({ attendanceForReport: async () => [], attendanceRollupsForReport: rollups });
     const r = await svc.attendanceReport(hq, { from: '2026-03-01', to: '2026-04-30' });
     expect(rollups).toHaveBeenCalledWith('2026-03', '2026-04', undefined);
     expect(r.rows).toEqual([
-      ['2026-03', 'HR-9', 'Karyawan dihapus', 'REKAP BULANAN', '', '', '', '', 18, 2, 1, 1],
+      ['2026-03', 'HR-9', 'Karyawan dihapus', 'REKAP BULANAN', '', '', '', '', 18, 2, 1, 1, 3],
     ]);
   });
 

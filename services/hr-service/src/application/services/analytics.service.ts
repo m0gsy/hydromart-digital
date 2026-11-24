@@ -345,7 +345,7 @@ export class AnalyticsService {
     );
     // HD-6 A7: months whose raw rows the retention scrub already deleted survive as one
     // monthly count per person (written first, see anonymiseRetentionEligible). Appended after
-    // the daily rows; `workDate` carries the month and the last four columns the counts.
+    // the daily rows; `workDate` carries the month and the last five columns the counts (PENDING days are in no count, as in the daily rows).
     const rollups =
       (await this.repo.attendanceRollupsForReport?.(
         query.from.slice(0, 7),
@@ -366,6 +366,7 @@ export class AnalyticsService {
         'rekapTelat',
         'rekapAbsen',
         'rekapCuti',
+        'rekapLibur',
       ],
       rows: [
         ...rows.map((a): CsvCell[] => [
@@ -377,6 +378,7 @@ export class AnalyticsService {
           isoTime(a.checkOutAt),
           a.lateMinutes,
           a.workingMinutes ?? '',
+          '',
           '',
           '',
           '',
@@ -395,6 +397,7 @@ export class AnalyticsService {
           r.late,
           r.absent,
           r.leave,
+          r.holiday,
         ]),
       ],
     };

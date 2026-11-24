@@ -92,6 +92,7 @@ export interface AttendanceRollupRow {
   late: number;
   absent: number;
   leave: number;
+  holiday: number;
 }
 export type PayrollWithEmployee = Payroll & {
   /** `depotId` only on the payroll report reads that need it (the employer-cost fallback). */
@@ -156,6 +157,7 @@ export interface AnalyticsRepository {
   departmentCodesByIds(ids: readonly string[]): Promise<Map<string, string>>;
   shiftNamesByIds(ids: readonly string[]): Promise<Map<string, string>>;
   attendanceForReport(from: Date, to: Date, depotIds?: readonly string[]): Promise<AttendanceWithEmployee[]>;
+  /** Slips of ANY status (DRAFT/APPROVED/PAID). Labour cost must sum APPROVED/PAID only (HD-6 owner decision). */
   payrollForReport(periodMonth: string, depotIds?: readonly string[]): Promise<PayrollWithEmployee[]>;
   /**
    * Monthly attendance counts kept from before the retention scrub deleted the raw rows,
