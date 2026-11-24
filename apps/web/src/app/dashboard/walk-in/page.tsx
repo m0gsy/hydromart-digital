@@ -454,37 +454,45 @@ function WalkIn({ depotId }: { depotId: string }) {
       : null;
   // The phone is required by the sale DTO too, so an address without one is not sendable.
   const deliveryReady = deliveryAddress !== null && deliveryAddress.phone.length > 0;
+  // The address a quote is priced with: the one that first made Antar complete. Typing on (a
+  // house number, a landmark) does not re-quote, since the fee is per galon; the sale still
+  // sends the address as it stands. Set while rendering, React's pattern for state that
+  // follows other state.
+  const [pricedAddress, setPricedAddress] = useState<typeof deliveryAddress>(null);
+  if (deliveryReady !== (pricedAddress !== null)) {
+    setPricedAddress(deliveryReady ? deliveryAddress : null);
+  }
 
-  // The basket and the voucher as typed, and the same once they have been still for a moment.
-  // A typed voucher was a quote per keystroke too.
-  const quoteKey = `${basketKey}#${voucher.trim()}`;
+  /*
+   * The quote request as typed, and the same once it has been still for a moment (a typed
+   * voucher was a quote per keystroke too). What is sent is the SETTLED copy, and the answer
+   * keeps the key it was priced for, so a total is fresh only for the exact inputs on screen,
+   * whatever the render timing. With the buyer and Antar as triggers beside a basket-only key,
+   * the till priced whatever basket was on screen mid-debounce, and that answer passed as fresh
+   * once the basket was back at its settled key: after a sale to an identified buyer, "+"
+   * within 300 ms left the next buyer with no total and Bayar dead.
+   */
+  const quoteKey = JSON.stringify({
+    depotId,
+    lines: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
+    customerId: buyerId ?? undefined,
+    voucherCode: voucher.trim() || undefined,
+    // C11: the quote has to know, or the till shows a pick-up total and charges a
+    // delivery one — they differ by exactly the ongkir.
+    deliveryAddress: pricedAddress ?? undefined,
+  });
   const settledQuoteKey = useDebounce(quoteKey, 300);
-  const quote = useAsync<CounterQuote | null>(
-    () =>
-      lines.length === 0
-        ? Promise.resolve(null)
-        : api.post<CounterQuote>(
-            endpoints.orders.walkInQuote,
-            {
-              depotId,
-              lines: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
-              customerId: buyerId ?? undefined,
-              voucherCode: voucher.trim() || undefined,
-              // C11: the quote has to know, or the till shows a pick-up total and charges a
-              // delivery one — they differ by exactly the ongkir.
-              deliveryAddress: deliveryReady ? deliveryAddress : undefined,
-            },
-            true,
-          ),
-    [
-      depotId,
-      settledQuoteKey,
-      buyerId,
-      // Re-quote when delivery is switched on or off, and when the address first becomes
-      // complete — the fee is per galon, so it moves with the basket as well.
-      deliveryReady,
-    ],
-  );
+  const priced = useAsync<{ key: string; quote: CounterQuote | null }>(async () => {
+    const body = JSON.parse(settledQuoteKey) as { lines: unknown[] };
+    const answer =
+      body.lines.length === 0
+        ? null
+        : await api.post<CounterQuote>(endpoints.orders.walkInQuote, body, true);
+    return { key: settledQuoteKey, quote: answer };
+  }, [settledQuoteKey]);
+  // The latest answer, shown while the next one is on its way; `quoteFresh` decides whether
+  // it may be charged.
+  const quote = { ...priced, data: priced.data?.quote ?? null };
 
   // Offered only for a buyer the cashier deliberately identified: the list is that buyer's
   // own granted codes, so there is nothing to show (and nothing to fetch) before then. A
@@ -511,8 +519,10 @@ function WalkIn({ depotId }: { depotId: string }) {
    * and the shortfall only surfaced when the payment was confirmed. The number may still be
    * shown (no flicker), but it may only be charged once it belongs to this basket.
    */
-  // ...and a basket still settling is not priced yet: the answer on screen is the last one.
-  const quoteFresh = !quote.loading && !quote.error && settledQuoteKey === quoteKey;
+  // ...and only an answer priced for exactly these inputs counts. Comparing the settled key
+  // instead let the previous answer pass for one render whenever a new key settled, because
+  // `loading` only turns on in useAsync's effect, after that render is on screen.
+  const quoteFresh = !quote.loading && !quote.error && priced.data?.key === quoteKey;
   // What the empties box means for the report: a swap of all, some, or none. Informational —
   // the sale is the same either way; only how it is counted differs.
   const emptiesNum = Number(emptiesReturned);
