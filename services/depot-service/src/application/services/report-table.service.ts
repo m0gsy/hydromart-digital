@@ -58,7 +58,11 @@ export class ReportTableService {
           l.reserved,
           available,
           l.minimumStock,
-          available <= 0 ? 'HABIS' : l.minimumStock > 0 && available <= l.minimumStock ? 'RENDAH' : 'AMAN',
+          available <= 0
+            ? 'HABIS'
+            : l.minimumStock > 0 && available <= l.minimumStock
+              ? 'RENDAH'
+              : 'AMAN',
           l.lastMovementAt ? l.lastMovementAt.toISOString() : null,
         ];
       }),

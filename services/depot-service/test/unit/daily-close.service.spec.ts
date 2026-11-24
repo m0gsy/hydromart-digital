@@ -203,6 +203,35 @@ describe('DailyCloseService', () => {
     expect(closed.konterIdr).toBe(150_000);
   });
 
+  it('drops a konter entry that was reversed, and ignores an unrelated reversal', async () => {
+    const { cashbook, service, depots } = make();
+    const depotId = await seedDepot(depots);
+    const at = new Date(`${DAY}T03:00:00.000Z`);
+    const base = { depotId, label: 'x', occurredAt: at, sourceRef: null, actorId: 'kd-1' };
+    const cancelled = await cashbook.create({
+      ...base,
+      direction: CashDirection.IN,
+      category: 'KONTER',
+      amountIdr: 100_000,
+    });
+    await cashbook.create({
+      ...base,
+      direction: CashDirection.OUT,
+      category: 'KONTER',
+      amountIdr: 100_000,
+      reversesId: cancelled.id,
+    } as never);
+    await cashbook.create({
+      ...base,
+      direction: CashDirection.OUT,
+      category: 'PO',
+      amountIdr: 5_000,
+      reversesId: 'some-other-row',
+    } as never);
+    const closed = await service.close(kepalaDepot(depotId), depotId, DAY, null);
+    expect(closed.konterIdr).toBe(0);
+  });
+
   it('adds up both halves of the day: counter cash from the cashbook, COD from delivery', async () => {
     const { cashbook, service, depots } = make();
     const depotId = await seedDepot(depots);
