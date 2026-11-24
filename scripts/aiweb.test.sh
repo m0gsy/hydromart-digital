@@ -17,7 +17,8 @@
 #      machine account in MACHINE_ACCOUNTS are made, rotated, switched off and repaired without
 #      touching another account or writing what auth-service would refuse; its setup runs before
 #      ai_app's password and a failure leaves it off; the probe runs from inside it too; and the
-#      nightly check (scripts/aiweb-n8n-check.sh) alerts on drift and on a secret near its day.
+#      nightly check (scripts/aiweb-n8n-check.sh) alerts on drift, on a secret near its day and
+#      on an n8n account that can sign in without 2FA (D5).
 #   6. The host's ssh (the owner's decision of 24 November 2026): scripts/aiweb-firewall.sh, against
 #      fake docker, sudo and iptables, drops TCP 22 from the AI web's three bridges and nothing
 #      else, adds one INPUT rule and touches no other, writes nothing when nothing changed, follows
@@ -984,11 +985,22 @@ cat > "$N/bin/docker" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FAKE_LOG"
 case "$1" in
-  ps) case "$*" in *project=hydromart-ai*service=n8n*) [ -n "${FAKE_NO_N8N:-}" ] || echo n8n1 ;; esac ;;
+  ps)
+    case "$*" in
+      *project=hydromart-ai*service=n8n*) [ -n "${FAKE_NO_N8N:-}" ] || echo n8n1 ;;
+      *project=hydromart-ai*service=db*) [ -n "${FAKE_NO_DB:-}" ] || echo db1 ;;
+    esac ;;
   exec)
-    case "${FAKE_DRIFT:-0}" in
-      0) echo '[n8n-drift] none: 2 workflow(s) and 2 credential(s) as git holds them' ;;
-      *) echo '[n8n-drift] workflow x1 is published in n8n but is not in git' >&2; exit "$FAKE_DRIFT" ;;
+    case "$2" in
+      db1)
+        [ -z "${FAKE_PSQL_FAIL:-}" ] || { echo 'ERROR:  column "kind" does not exist' >&2; exit 1; }
+        [ -z "${FAKE_PSQL_WARN:-}" ] || echo 'WARNING:  could not flush dirty data: harmless' >&2
+        printf '%s\n' "${FAKE_NO_2FA:-0 0 }" ;;
+      *)
+        case "${FAKE_DRIFT:-0}" in
+          0) echo '[n8n-drift] none: 2 workflow(s) and 2 credential(s) as git holds them' ;;
+          *) echo '[n8n-drift] workflow x1 is published in n8n but is not in git' >&2; exit "$FAKE_DRIFT" ;;
+        esac ;;
     esac ;;
 esac
 exit 0
@@ -1019,8 +1031,8 @@ check AIWEB_N8N_MACHINE_SECRET=s "$later"
 check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_DRIFT=2
 [ "$RC" = 1 ] && grep -q 'n8n drift check exit 2' "$W/alerts" && ok "could not check (exit 2): alerted too" || bad "exit 2 ($RC)"
 check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_N8N=1
-[ "$RC" = 1 ] && grep -q 'n8n is not running on this box' "$W/alerts" && ! grep -q '^exec' "$W/log" &&
-  ok "no n8n running: alerted, nothing run" || bad "no n8n ($RC): $(cat "$W/alerts")"
+[ "$RC" = 1 ] && grep -q 'n8n is not running on this box' "$W/alerts" && ! grep -q '^exec n8n1' "$W/log" &&
+  ok "no n8n running: alerted, nothing run in it" || bad "no n8n ($RC): $(cat "$W/alerts")"
 check AIWEB_N8N_MACHINE_SECRET=s "$(date -u -d '+10 days' +%F)"
 [ "$RC" = 1 ] && grep -q 'n8n machine secret stops on' "$W/alerts" && grep -q 'run Deploy (mode deploy)' "$W/alerts" &&
   ok "the machine secret 10 days from its end: alerted, saying a deploy renews it" || bad "10 days ($RC): $(cat "$W/alerts")"
@@ -1032,6 +1044,36 @@ check AIWEB_N8N_MACHINE_SECRET=s 'soon'
 check AIWEB_N8N_MACHINE_SECRET= "$(date -u -d '+3 days' +%F)" FAKE_DRIFT=1
 [ "$RC" = 0 ] && [ ! -s "$W/alerts" ] && [ ! -s "$W/log" ] && grep -q 'switched off' <<<"$OUT" &&
   ok "n8n switched off (blank secret): said, nothing asked of docker, nothing alerted" || bad "switched off ($RC): $OUT"
+check AIWEB_N8N_MACHINE_SECRET=s "$later"
+grep -q '^exec db1 psql -tAX -U postgres -d n8n -v ON_ERROR_STOP=1 -c' "$W/log" &&
+  grep -qF "WHERE kind = 'person' AND NOT disabled AND NOT \"mfaEnabled\" AND email IS NOT NULL" "$W/log" &&
+  ok "2FA (D5): database n8n is asked for the persons who can sign in without it" || bad "2FA query not sent: $(cat "$W/log")"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_2FA='2 1 global:admin,global:owner'
+[ "$RC" = 1 ] &&
+  grep -q '2 n8n account(s) can sign in to the editor without 2FA, 1 of them an invite not yet taken (roles global:admin,global:owner)' "$W/alerts" &&
+  grep -q 'or remove the account or the invite' "$W/alerts" &&
+  ok "  ...two accounts without it, one an invite: alerted with their roles, no address" || bad "no 2FA ($RC): $(cat "$W/alerts")"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_2FA='2 1 global:admin,global:owner'
+[ "$RC" = 1 ] && [ ! -s "$W/alerts" ] && ok "  ...once: the next night is not said again" || bad "2FA said twice"
+check AIWEB_N8N_MACHINE_SECRET=s "$later"
+[ "$RC" = 0 ] && [ ! -s "$W/alerts" ] && [ ! -e "$N/.deploy/alerted/aiweb-n8n-2fa" ] &&
+  ok "  ...and forgotten once every account has it" || bad "the 2FA memory survived ($RC)"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_PSQL_FAIL=1
+[ "$RC" = 1 ] && grep -q 'n8n 2FA check could not read' "$W/alerts" && grep -q 'column kind does not exist' "$W/alerts" &&
+  ok "  ...a query that fails (a renamed column) is alerted as could not check, never all well" || bad "psql failure ($RC): $(cat "$W/alerts")"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_2FA='not a count'
+[ "$RC" = 1 ] && grep -q 'n8n 2FA check could not read' "$W/alerts" &&
+  ok "  ...and so is an answer that is not <count> <invites> <roles>" || bad "odd answer ($RC): $(cat "$W/alerts")"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_PSQL_WARN=1
+[ "$RC" = 0 ] && [ ! -s "$W/alerts" ] && [ ! -e "$N/.deploy/alerted/aiweb-n8n-2fa" ] &&
+  ok "  ...a warning psql prints on a good answer is not read as the answer" || bad "psql warning ($RC): $(cat "$W/alerts")"
+mkdir -p "$N/.deploy/alerted" && echo 'an old 2FA alert' > "$N/.deploy/alerted/aiweb-n8n-2fa"
+check AIWEB_N8N_MACHINE_SECRET= "$later"
+[ "$RC" = 0 ] && [ ! -e "$N/.deploy/alerted/aiweb-n8n-2fa" ] &&
+  ok "  ...switching n8n off forgets a 2FA alert too, so switching it back on says it again" || bad "kill switch kept the 2FA memory ($RC)"
+check AIWEB_N8N_MACHINE_SECRET=s "$later" FAKE_NO_DB=1
+[ "$RC" = 1 ] && grep -q "the AI web's database is not running" "$W/alerts" &&
+  ok "  ...no database running: alerted" || bad "no database ($RC): $(cat "$W/alerts")"
 grep -q 'aiweb-n8n-check.sh' scripts/install-host-cron.sh && ok "install-host-cron.sh schedules it" || bad "install-host-cron.sh does not schedule the n8n check"
 
 # ------------------------------- 6. the host's ssh (aiweb-firewall.sh), fake docker, sudo, iptables
