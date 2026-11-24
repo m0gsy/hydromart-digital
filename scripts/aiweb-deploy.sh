@@ -25,10 +25,13 @@
 #      the swap, n8n's setup included, so that stays true whichever step fails.
 #   6. The app and n8n up and healthy. /api/health answers 503 for a role that gets past row level
 #      security, so a wrong DATABASE_URL fails here rather than serving.
-#   7. The probe: what the containers are attached to and publish, what the app and n8n can open
+#   7. The host's ssh closed to the AI web's networks (scripts/aiweb-firewall.sh), now that every
+#      one of them exists. A failure is said; the probe decides.
+#   8. The probe: what the containers are attached to and publish, what the app and n8n can open
 #      from inside their own containers (their database must open; no address of any hydromart
-#      container may answer at all), Caddy's way in, the public URL, the sign-in path from both,
-#      the app's way to n8n, ai_app's privileges, and n8n holding exactly what git holds.
+#      container may answer at all; the host's ssh must not open, at any gateway of theirs or at
+#      the public address), Caddy's way in, the public URL, the sign-in path from both, the app's
+#      way to n8n, ai_app's privileges, and n8n holding exactly what git holds.
 #
 # Hydromart is never touched: every compose call here names infra/aiweb/ and nothing else. Every
 # failure ends with exit 1, a `!!` line naming the step, and one alert (alert_once aiweb, again
@@ -167,8 +170,9 @@ hydromart_container() {
 #   name       one of hydromart's service names: not resolving is said, never counted as a pass
 #   front      Caddy's address on edge, where the AI web is MEANT to reach it: 80 and 443 may
 #              open; any other port of it (the admin API on 2019) must not
-#   host       the host, through the edge gateway, on a port hydromart publishes: must not open
-#   info       printed, never judged (the host's ssh, the cloud metadata address)
+#   host       the host, through the edge gateway, on a port hydromart publishes, and its ssh (22) at
+#              the gateway of every AI web network and at the public address: must not open
+#   info       printed, never judged (the cloud metadata address)
 judge() { # <kind> <outcome> <port>
   case "$1:$2" in
     control:open) echo ok ;;
@@ -203,12 +207,13 @@ only_members() { # <network> <who> <project/service allowed>...
 }
 
 # Every address of every running hydromart container on every TCP port it exposes, read off docker
-# rather than listed here, so a container added tomorrow is tried tomorrow. Sets PLAN, one line per
-# target, `<kind> <host:port> <label>`, and COUNT, the hydromart containers found.
+# rather than listed here, so a container added tomorrow is tried tomorrow, and the host's ssh
+# through each network given (the AI web's). Sets PLAN, one line per target,
+# `<kind> <host:port> <label>`, and COUNT, the hydromart containers found.
 PLAN=''
 COUNT=0
-build_plan() {
-  local t id line name pairs ports tcp p pair net ip kind edge_gw host_ports
+build_plan() { # <network>...
+  local t id line name pairs ports tcp p pair net ip kind edge_gw host_ports gw api_host
   PLAN="control db:5432 own-database"$'\n'
   for t in postgres:5432 hydromart-postgres:5432 gateway:8080 auth:3001 web:3000; do
     PLAN+="name $t service-name"$'\n'
@@ -246,8 +251,21 @@ build_plan() {
     note "probe: the edge network has no gateway address, so the host's ports were not tried"
   else
     for p in $host_ports; do PLAN+="host $edge_gw:$p host"$'\n'; done
-    PLAN+="info $edge_gw:22 host-ssh"$'\n'
   fi
+  # The host's ssh, closed to the AI web by scripts/aiweb-firewall.sh (the owner's decision of
+  # 24 November 2026): at the gateway of every network an AI web container is on (an internal
+  # network's too: its gateway is the host), and at the public address the AI web reaches
+  # hydromart by, the API's name resolved inside the container, as its own requests resolve it.
+  for net in "$@"; do
+    gw="$(docker network inspect "$net" --format '{{range .IPAM.Config}}{{.Gateway}} {{end}}' 2>/dev/null | awk '{print $1}' || true)"
+    if [ -n "$gw" ]; then
+      PLAN+="host $gw:22 host-ssh"$'\n'
+    else
+      say "probe: the $net network has no gateway address, so the host's ssh was not tried through it"
+    fi
+  done
+  api_host="${HYDROMART_API_URL#*://}"
+  PLAN+="host ${api_host%%[:/]*}:22 host-ssh"$'\n'
   PLAN+="info 169.254.169.254:80 cloud-metadata"$'\n'
 }
 
@@ -287,7 +305,7 @@ jwks_from() {
 }
 
 probe() {
-  local app n8n id line who nets binds n allowed caddy code jwks grants t out rc
+  local app n8n id line who nets binds n allowed caddy code jwks grants t out rc ai_nets=''
   PROBLEMS=''
   app="$($AIWEB_COMPOSE ps -q aiweb 2>/dev/null | head -1 || true)"
   if [ -z "$app" ]; then
@@ -311,6 +329,7 @@ probe() {
   for id in $(docker ps -aq --filter "label=com.docker.compose.project=$AI_PROJECT"); do
     line="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}|{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}|{{range $k, $v := .HostConfig.PortBindings}}{{range $v}}{{.HostIp}}:{{.HostPort}}->{{$k}} {{end}}{{end}}' "$id")"
     IFS='|' read -r who nets binds <<<"$line"
+    ai_nets+=" $nets"
     case "$who" in
       aiweb) allowed=" edge ${AI_PROJECT}_private " ;;
       n8n) allowed=" ${AI_PROJECT}_private ${AI_PROJECT}_egress " ;;
@@ -331,8 +350,11 @@ probe() {
   only_members edge "the AI web" "$HYDROMART_PROJECT/caddy" "$AI_PROJECT/aiweb"
   if [ -n "$n8n" ]; then only_members "${AI_PROJECT}_egress" n8n "$AI_PROJECT/n8n"; fi
 
-  # 3. From INSIDE the app's container, then n8n's: no hydromart address may answer either.
-  build_plan
+  # 3. From INSIDE the app's container, then n8n's: no hydromart address may answer either, nor
+  # the host's ssh through any network the AI web's containers are on (read off them in 1, not
+  # off scripts/aiweb-firewall.sh's own list, so the proof does not lean on what it proves).
+  # shellcheck disable=SC2046,SC2086 # one argument per network
+  build_plan $(printf '%s\n' $ai_nets | sort -u)
   reach_from "$app" "the AI web" probe
   if [ -n "$n8n" ]; then reach_from "$n8n" n8n "probe(n8n)"; fi
 
@@ -496,7 +518,16 @@ deploy() {
   fi
   if n8n_off; then say "app: healthy; n8n: off"; else say "app and n8n: healthy"; fi
 
-  # 7. The probe.
+  # 7. The host's ssh, closed to the AI web's networks (the owner's decision of 24 November 2026),
+  # now that every one of them exists. Host cron keeps it closed between deploys. Its failure is
+  # said and alerted by itself, and decided by the probe: port 22 answering fails it.
+  if bash scripts/aiweb-firewall.sh; then
+    say "host ssh: TCP 22 is closed to the AI web's networks (scripts/aiweb-firewall.sh)"
+  else
+    say "!! scripts/aiweb-firewall.sh could not close the host's ssh to the AI web; the probe says whether it is closed"
+  fi
+
+  # 8. The probe.
   probe || fail "probe: ${PROBLEMS%; }"
   alert_clear aiweb
   say "AI web OK: release $RELEASE serves $AI_WEB_URL and cannot reach hydromart"
