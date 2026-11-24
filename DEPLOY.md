@@ -553,10 +553,73 @@ Not covered yet:
   reaches the cloud metadata address (`169.254.169.254:80`) and never fails on it: the owner
   decides whether to block it. The host's ssh is decided, and closed (above).
 
-#### The staging AI web: the plumbing (D3 staging, part B)
+#### The staging AI web (D3 staging)
 
-The staging copy of the AI web (staging-ai.hydromart-digital.com, its own compose project, added
-by the next part) has its front door ready before it exists:
+A copy of the AI web that runs a hydromart-ai release AHEAD of production, always on, at
+https://staging-ai.hydromart-digital.com, behind one login. Everything in it is made up: a fake
+hydromart (`infra/aiweb-staging/mock/`) plays hydromart-digital's sign-in and API with invented
+people, n8n's workflows are pointed at it, and its database is its own. It has no production
+secret, no production data and no way to reach production, the production AI web, the internet
+or the host's ssh (the probe proves each after every deploy). It is its own compose project,
+`hydromart-ai-staging` (`infra/aiweb-staging/docker-compose.yml`): `db`, `staging-aiweb`,
+`hydromart-mock`, `n8n`, and the one-shots `migrate` and `n8n-setup`; about 1.4 GB at most (a gate
+holds the budget at 1.5 GB). Its data is not backed up and nothing pages anyone: `restart:
+unless-stopped` and the next deploy keep it up; a failed staging step raises one alert, "staging AI
+web ... NOT deployed", and never fails hydromart's deploy.
+
+**Opening it.** Go to the URL, and answer the browser's login prompt with user `staging` and the
+password in the `STAGING_AI_PASSWORD` repo secret. The AI web's own "sign in" then lands on the
+fake hydromart's page: pick a made-up person (one per role). Roles that need an authenticator
+(Direktur, Kantor Pusat, Keuangan, Super Admin) take the code `123456`, or the recovery code
+`STAGE-ABCDE`; the picker page says so. `/_mock/` (behind the same login) is the fake hydromart's
+console: its call log, a switch that turns the AI tokens off (the kill switch), a button that sends a
+signed `franchise.application_submitted` event to the AI web (the whole event path: ingress, n8n,
+the fake notification), and a reset.
+
+**The password.** One secret, `STAGING_AI_PASSWORD` (repo secret, at least 16 characters of
+`A-Z a-z 0-9 . _ ~ -`). Every deploy hands it to the box only to be hashed by Caddy's own
+`hash-password` over stdin (bcrypt, cost 10: anyone can send credentials to the site and each guess
+costs this box one hash); only the hash is kept, in `.env` (`STAGING_AI_BASIC_AUTH_HASH`) and in
+`infra/caddy/staging-auth/10-staging.caddy` (not in git), and Caddy is reloaded when it changes. The
+plaintext is never written to the box or a log. A normal deploy only runs when there is a release, so after
+setting, changing or deleting the secret press Deploy with mode `staging-deploy`: it runs just the
+staging step. Delete the secret and deploy `staging-deploy` and staging is OFF: its containers are
+removed (data kept), the login file is gone and the site is 401 for everyone: that is the way to give
+the memory back. Set it again and the same mode brings it up.
+
+**A new hydromart-ai release.** Change the three digests (app, migration job, n8n) in
+`infra/aiweb-staging/docker-compose.yml` in a PR; the deploy after its merge runs it on staging.
+Try it there. Then a second PR copies the same three digests into `infra/aiweb/docker-compose.yml`.
+CI warns (never fails) when a production pin was never pinned on staging first
+(`scripts/check-aiweb-promotion.mjs`).
+
+**Reset.** Deploy workflow, mode `staging-reset`, `confirm` = `staging`: drops staging's containers
+and volumes (its database and n8n's) and deploys it again from nothing. The fake hydromart forgets
+its codes and counters at every restart by itself.
+
+**n8n's editor.** On the box's loopback only, port 5679 (production's is 5678):
+`ssh -L 5679:127.0.0.1:5679 <the box>`, then http://localhost:5679. Its workflows are the image's, with
+hydromart's public API replaced by the fake hydromart (`infra/aiweb-staging/n8n-rewrite.mjs` makes
+the copy that setup and the drift check use, and refuses any production host name left in it).
+
+**Where it can fail.** `docker logs` of the staging containers (`hydromart-ai-staging-*`); the
+deploy log's `[staging]` lines; `bash scripts/aiweb-staging-deploy.sh --probe` repeats the probe
+alone. The keys are made by `scripts/aiweb-staging-secrets.sh` when their lines are absent from
+`.env`, and it refuses (writing nothing) any staging value equal to a production AI web value, or
+the mock's signing key being the same key as production's `AI_TOKEN_SIGNING_KEY`.
+
+**Memory and a quiet failure.** Steady state is at most about 1.4 GB. While a deploy runs, the
+migration job runs beside the running app (and n8n's setup runs while n8n is removed), so the peak
+is about 1.8 GB; the box had about 12.5 GB available when this was measured (24 November 2026).
+Without a certificate or DNS for staging-ai yet, the probe says "the password was answered 000"
+(no answer): one alert, said again only when the text changes or after a week (`alert_once`).
+
+**Rollback.** `staging-deploy` with the secret deleted switches it off. Reverting this change
+removes the step; whatever still runs is removed once with
+`docker compose -p hydromart-ai-staging down -v` (a deploy mode can do it: `staging-reset` needs
+the script, so keep it until staging is off).
+
+**The front door and the host guards** (the plumbing under all of the above):
 
 - `docker-compose.prod.yml` makes an internal network, `edge-staging`, and Caddy joins it with the
   staging host name as an alias. Staging is never put on `edge` (a second container there would take
@@ -566,7 +629,7 @@ by the next part) has its front door ready before it exists:
   `10-staging.caddy`, which the deploy writes from the `STAGING_AI_PASSWORD` secret (a bcrypt hash,
   not in git; bcrypt cost 10, about 60 ms, because anyone can send credentials and each guess costs
   this shared box one hash: the deploy must hash the password with `--algorithm bcrypt
-  --bcrypt-cost 10`, never Caddy's default of 14). With no password every request is 401; with the password but no staging stack the
+  --bcrypt-cost 10`, never Caddy's default of 14). With no password every request is 401; with the password but the stack down the
   upstream is missing and the answer is 502 behind the wall.
 - `scripts/aiweb-firewall.sh` also drops TCP 22 from `edge-staging` and every network of the
   `hydromart-ai-staging` project; `scripts/docker-gc.sh` keeps the images

@@ -39,6 +39,11 @@ BRANCH="${DEPLOY_BRANCH:-main}"
 AIWEB_GHCR_TOKEN="${GHCR_TOKEN:-}"
 AIWEB_GHCR_USER="${GHCR_USER:-}"
 unset GHCR_TOKEN GHCR_USER
+# D3 staging: the staging site's password (the STAGING_AI_PASSWORD repo secret), out of the
+# environment at once like the token, so scripts/aiweb-staging-deploy.sh is the only child that
+# is ever handed it. It hashes it with Caddy and keeps only the hash.
+STAGING_PW="${STAGING_AI_PASSWORD:-}"
+unset STAGING_AI_PASSWORD
 
 log() { echo "[deploy] $*"; }
 
@@ -908,6 +913,13 @@ else
   log "!! could not make the AI web's missing keys; the AI web step after the gate names them"
   alert_once aiweb-secrets "aiweb-secrets.sh failed on deploy: the AI web's missing keys were not made"
 fi
+# D3 staging: the same for the staging AI web's keys (STAGING_*), refusing any equal to production's.
+if bash scripts/aiweb-staging-secrets.sh; then
+  alert_clear aiweb-staging-secrets
+else
+  log "!! could not make the staging AI web's missing keys; the staging step after the gate names them"
+  alert_once aiweb-staging-secrets "aiweb-staging-secrets.sh failed on deploy: the staging AI web's missing keys were not made (or one equals a production key)"
+fi
 
 # rebuild-stale only `up -d`s the services it rebuilt, so anything outside that set
 # (Caddy, and any container an earlier batch or anything else left down) stays stopped.
@@ -1150,6 +1162,17 @@ if health_ok; then
   fi
   if [ "$AIWEB_RC" = 137 ]; then
     alert_once aiweb "AI web step killed after 31 minutes on deploy $NEW_SHA, past its own alert: read the [aiweb] lines in the deploy log"
+  fi
+  # D3 staging: the staging AI web, after the production one, same shape: its own script pulls,
+  # migrates, starts, logs in, probes and alerts on its own failure (alert_once aiweb-staging), and
+  # `||` keeps that failure from ever becoming this deploy's. No password set: it switches staging off.
+  STAGING_RC=0
+  GHCR_TOKEN="$AIWEB_GHCR_TOKEN" GHCR_USER="$AIWEB_GHCR_USER" STAGING_AI_PASSWORD="$STAGING_PW"     timeout --kill-after=60 1800 bash scripts/aiweb-staging-deploy.sh || STAGING_RC=$?
+  if [ "$STAGING_RC" != 0 ]; then
+    log "!! the staging AI web was NOT deployed or is not isolated (exit $STAGING_RC; 124 = stopped after 30 minutes): its [staging] lines say why; hydromart and the AI web are unaffected"
+  fi
+  if [ "$STAGING_RC" = 137 ]; then
+    alert_once aiweb-staging "staging AI web step killed after 31 minutes on deploy $NEW_SHA, past its own alert: read the [staging] lines in the deploy log"
   fi
   # C1 — prove the scheduler's clock instead of assuming it. Compose sets TZ on that
   # container, but alpine had no zone files to read it with, so it ran UTC and every cron
