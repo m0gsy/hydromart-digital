@@ -566,6 +566,14 @@ export const CAPABILITIES = {
    * wakes their phones, network-wide, so no custom role or per-depot grant may hold it.
    */
   franchiseApplicationNotify: ['SUPER_ADMIN'],
+  /*
+   * crm-service (AI-9) — trigger the Direksi morning summary
+   * (POST notifications/external/morning-summary). Held by the n8n machine account through its
+   * token's `scopes`, like franchiseApplicationNotify, and for the same reason in CUSTOM_FORBIDDEN:
+   * it fans a notification out to every recipient, network-wide. n8n only triggers; the counts
+   * are hydromart's own and never pass through it.
+   */
+  morningSummaryNotify: ['SUPER_ADMIN'],
   // promo-service — RETIRED: the voucher-request flow was removed, nothing enforces this any more.
   // Kept only so a stored matrix row naming it still validates.
   voucherRequestDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
@@ -1048,6 +1056,8 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   // AI-5: the n8n machine account's, never a person's. A network-wide write into head office's
   // feed with no depot fence, so a per-depot GRANT of it would reach every depot.
   'franchiseApplicationNotify',
+  // AI-9: the n8n machine account's, same reasoning.
+  'morningSummaryNotify',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

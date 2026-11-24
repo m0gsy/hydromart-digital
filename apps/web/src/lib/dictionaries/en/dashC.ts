@@ -210,6 +210,7 @@ export const dashC = {
       priceOverrideDecide: 'Decide depot price proposals',
       franchiseApplications: 'Franchise applications',
       franchiseApplicationNotify: 'Raise the new franchise application notification (n8n machine account)',
+      morningSummaryNotify: 'Trigger the Direksi morning summary (n8n machine account)',
       voucherRequestDecide: 'Decide voucher requests',
       fraudReview: 'Review fraud flags',
       refundIssue: 'Raise a refund',

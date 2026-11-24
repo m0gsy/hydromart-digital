@@ -24,7 +24,7 @@ const body = (over: Partial<FranchiseApplicationSubmittedDto> = {}): FranchiseAp
 
 function build() {
   const notify = jest.fn(async () => ({ id: 'row-1' }));
-  const controller = new NotificationExternalController({ notify } as unknown as NotificationService);
+  const controller = new NotificationExternalController({ notify } as unknown as NotificationService, {} as never);
   return { controller, notify };
 }
 

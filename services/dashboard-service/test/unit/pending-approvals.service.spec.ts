@@ -256,4 +256,27 @@ describe('PendingApprovalsService', () => {
       { key: 'settlements', count: 3, oldestAt: OLDEST, href: '/dashboard/settlements' },
     ]);
   });
+  // AI-9: crm asks for another account's answer with the internal key.
+  describe('forAccount', () => {
+    it('answers what forCaller answers for that role, counted for that account', async () => {
+      const { svc, asked } = make();
+      const viaAccount = await svc.forAccount('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'DIREKTUR');
+      const viaCaller = await make().svc.forCaller(user('DIREKTUR'));
+      expect(viaAccount).toEqual(viaCaller);
+      expect(asked.length).toBeGreaterThan(0);
+      expect(asked.every(([, a]) => a.actorId === 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')).toBe(true);
+    });
+
+    it('refuses a depot-scoped role, whose empty scope would read as nothing waiting', async () => {
+      await expect(make().svc.forAccount('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'MANAGER')).rejects.toThrow(
+        /network-wide/,
+      );
+    });
+
+    it('says an unreadable queue is unavailable, never 0', async () => {
+      const { svc } = make(['franchiseApplications']);
+      const answer = await svc.forAccount('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'DIREKTUR');
+      expect(answer.queues.find((q) => q.key === 'franchiseApplications')).toMatchObject({ count: null, error: 'unavailable' });
+    });
+  });
 });

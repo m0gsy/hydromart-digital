@@ -378,6 +378,12 @@ loopback only.
   deployed has no capability `franchiseApplicationNotify` (auth-service would refuse to boot, and
   a rollback does not undo `.env`). The nightly check alerts when fewer than 14 days are left:
   press Deploy (mode `deploy`).
+- **Scopes** (AI-9): the release carries a second capability, `morningSummaryNotify`, for n8n's
+  trigger of the Direksi morning summary (`POST crm/api/v1/notifications/external/morning-summary`,
+  contracts/ai-v1/notifications.openapi.json). Until `aiweb-secrets.sh` writes it into n8n's
+  `MACHINE_ACCOUNTS` entry beside `franchiseApplicationNotify` (its `SCOPE` is one capability today:
+  a follow-up before the hydromart-ai workflow goes live), that route answers 403 to n8n. crm also
+  needs `DASHBOARD_SERVICE_URL` (set in the compose files) to ask each recipient's queues.
 - **Nightly** at 04:40 [`scripts/aiweb-n8n-check.sh`](scripts/aiweb-n8n-check.sh) (log
   `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is
   published, and the credentials n8n holds, must be what the image's copy of git holds. A drift

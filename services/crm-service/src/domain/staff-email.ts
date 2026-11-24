@@ -17,6 +17,10 @@ export interface StaffEmailTemplate {
  * toggle, STAFF_TOGGLE_FOR_EVENT) and sends it as plain text.
  */
 export const STAFF_EMAIL_TEMPLATES: Partial<Record<NotificationEvent, StaffEmailTemplate>> = {
+  [NotificationEvent.MORNING_SUMMARY]: {
+    subject: 'Persetujuan yang menunggu Anda pagi ini',
+    body: 'Persetujuan yang menunggu Anda: {{summary}}.{{oldest}} Buka tautan di bawah untuk memutuskannya.',
+  },
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: {
     subject: 'Lamaran waralaba baru: calon mitra di {{city}}, {{province}}',
     body: 'Lamaran waralaba baru dari calon mitra di {{city}}, {{province}}. Buka tautan di bawah untuk meninjaunya.',

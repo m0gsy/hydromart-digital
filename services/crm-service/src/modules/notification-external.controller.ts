@@ -11,11 +11,16 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 
 import { AuditMutationsInterceptor, Can, ExternalAccess } from '@hydromart/platform';
 
+import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { NotificationService } from '../application/services/notification.service';
+import { wibDate } from '../domain/morning-summary';
 import { NotificationEvent } from '../domain/notification-event';
 import {
   FRANCHISE_EVENT_PREFIX,
   FranchiseApplicationSubmittedDto,
+  MORNING_SUMMARY_PREFIX,
+  MorningSummaryDto,
+  MorningSummaryResultDto,
   NotificationIdDto,
 } from './dto/notification.dto';
 
@@ -41,7 +46,10 @@ const oneLine = (value: string): string =>
 @ApiBearerAuth()
 @Controller({ path: 'notifications/external', version: '1' })
 export class NotificationExternalController {
-  constructor(private readonly notifications: NotificationService) {}
+  constructor(
+    private readonly notifications: NotificationService,
+    private readonly morningSummary: MorningSummaryService,
+  ) {}
 
   /*
    * A calon mitra applied on /waralaba. depot-service raised the signed event, the AI web took
@@ -81,5 +89,30 @@ export class NotificationExternalController {
       eventId,
     );
     return { id: row.id };
+  }
+
+  /*
+   * AI-9: the Direksi morning summary. n8n only says "now"; hydromart picks the recipients, asks
+   * dashboard-service for each one's own approval queues and files one notification each
+   * (NotificationEvent.MORNING_SUMMARY: bell and push, email). `eventId` is
+   * morning-summary:<WIB date> and the date must be today in Asia/Jakarta, so a replay of an old
+   * trigger cannot send today's counts under yesterday's name. A retry sends nothing twice.
+   */
+  @ExternalAccess('machine')
+  @Can('morningSummaryNotify')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('morning-summary')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'n8n: trigger the Direksi morning summary (AI-9)' })
+  @ApiOkResponse({ type: MorningSummaryResultDto })
+  async morningSummaryRun(@Body() dto: MorningSummaryDto): Promise<MorningSummaryResultDto> {
+    const { eventId } = dto;
+    if (eventId !== `${MORNING_SUMMARY_PREFIX}${dto.date}`) {
+      throw new BadRequestException(`eventId must be ${MORNING_SUMMARY_PREFIX}<date>`);
+    }
+    if (dto.date !== wibDate(new Date())) {
+      throw new BadRequestException('date must be today in Asia/Jakarta');
+    }
+    return this.morningSummary.run(eventId, dto.date);
   }
 }

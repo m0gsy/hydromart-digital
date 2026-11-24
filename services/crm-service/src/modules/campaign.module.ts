@@ -9,6 +9,7 @@ import { CRM_TOKENS } from '../application/tokens';
 import { CampaignService } from '../application/services/campaign.service';
 import { SavedSegmentService } from '../application/services/saved-segment.service';
 import { NotificationService } from '../application/services/notification.service';
+import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { BroadcastService } from '../application/services/broadcast.service';
 import { PushService } from '../application/services/push.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
@@ -27,6 +28,7 @@ import { StaffPrefsHttpAdapter } from '../infrastructure/http/staff-prefs.http.a
 import { DestinationBrakesHttpAdapter } from '../infrastructure/http/destination-brakes.http.adapter';
 import { ApproverDirectoryHttpAdapter } from '../infrastructure/http/approver-directory.http.adapter';
 import { StaffEmailHttpAdapter } from '../infrastructure/http/staff-email.http.adapter';
+import { PendingApprovalsHttpAdapter } from '../infrastructure/http/pending-approvals.http.adapter';
 import { DepotOverseersHttpAdapter } from '../infrastructure/http/depot-overseers.http.adapter';
 import { NotificationPreferenceHttpAdapter } from '../infrastructure/http/notification-preference.http.adapter';
 import { ActivitySegmentHttpAdapter } from '../infrastructure/http/activity-segment.http.adapter';
@@ -44,6 +46,7 @@ const providers: Provider[] = [
   CampaignService,
   SavedSegmentService,
   NotificationService,
+  MorningSummaryService,
   BroadcastService,
   PushService,
   { provide: CRM_TOKENS.CampaignRepository, useClass: CampaignPrismaRepository },
@@ -59,6 +62,7 @@ const providers: Provider[] = [
   { provide: CRM_TOKENS.DestinationBrakes, useClass: DestinationBrakesHttpAdapter },
   { provide: CRM_TOKENS.ApproverDirectory, useClass: ApproverDirectoryHttpAdapter },
   { provide: CRM_TOKENS.StaffEmail, useClass: StaffEmailHttpAdapter },
+  { provide: CRM_TOKENS.PendingApprovals, useClass: PendingApprovalsHttpAdapter },
   { provide: CRM_TOKENS.ActivitySegment, useClass: ActivitySegmentHttpAdapter },
   { provide: CRM_TOKENS.PushSubscriptionRepository, useClass: PushSubscriptionPrismaRepository },
   // Both transports are always constructed; the composite routes per subscription by the

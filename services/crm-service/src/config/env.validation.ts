@@ -20,6 +20,8 @@ export const envValidationSchema = Joi.object({
     .default('')
     .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
   ADMIN_SERVICE_URL: Joi.string().allow('').default(''),
+  // AI-9: dashboard-service, for the morning summary's approval queues. Blank = the summary fails 503.
+  DASHBOARD_SERVICE_URL: Joi.string().allow('').default(''),
   // Optional: order-service base URL for the ACTIVITY half of a segment (lapsed/new/
   // frequent/ordered-at-depot). Blank makes an activity segment fail closed, never wider.
   ORDER_SERVICE_URL: Joi.string().allow('').default(''),

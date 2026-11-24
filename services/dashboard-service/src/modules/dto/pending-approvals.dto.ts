@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
 
 import { PENDING_QUEUE_KEYS } from '../../application/ports/pending-approval-sources.port';
 
@@ -35,4 +36,16 @@ export class PendingApprovalsResponseDto {
     description: 'The queues the caller decides, in a fixed order. A queue they do not decide is absent.',
   })
   queues!: PendingQueueResponseDto[];
+}
+
+/** AI-9: crm asks for one account's queues (internal key). */
+export class PendingForAccountQueryDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  accountId!: string;
+
+  @ApiProperty({ example: 'DIREKTUR' })
+  @IsString()
+  @IsNotEmpty()
+  role!: string;
 }
