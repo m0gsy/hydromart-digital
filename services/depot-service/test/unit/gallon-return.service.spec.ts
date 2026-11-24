@@ -52,6 +52,16 @@ class InMemoryGallonReturnRepository implements GallonReturnRepository {
     this.rows.push(row);
     return row;
   }
+  /** HD-6: mirrors the real insert-or-read on the unique key. */
+  async createKeyed(
+    data: CreateGallonReturnData,
+  ): Promise<{ record: GallonReturnRecord; created: boolean }> {
+    const hit = data.idempotencyKey
+      ? this.rows.find((r) => r.depotId === data.depotId && r.idempotencyKey === data.idempotencyKey)
+      : undefined;
+    if (hit) return { record: hit, created: false };
+    return { record: await this.create(data), created: true };
+  }
   /** DEP-07: unique(depotId, idempotencyKey); a missing key never matches. */
   async findByIdempotencyKey(depotId: string, key: string): Promise<GallonReturnRecord | null> {
     return this.rows.find((r) => r.depotId === depotId && r.idempotencyKey === key) ?? null;

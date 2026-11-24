@@ -64,7 +64,7 @@ describeRace('counter void reversal on real Postgres', () => {
   afterAll(async () => drop?.());
 
   it('five concurrent reversals of one refill: one row per ledger, shelf net zero', async () => {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < Number(process.env.RACE_ROUNDS ?? 5); i++) {
       shelf = 0;
       moves = [];
       const orderId = randomUUID();
@@ -78,7 +78,9 @@ describeRace('counter void reversal on real Postgres', () => {
       const res = await race(
         Array.from({ length: 5 }, () => () => returnSvc.reverseOrder(depotId, orderId, 'os')),
       );
-      expect(res.every((r) => r.status === 'fulfilled')).toBe(true);
+      const failed = res.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+      // Print WHY, so a CI failure names the error instead of just "false".
+      expect(failed.map((f) => `${(f.reason as { code?: string })?.code ?? ''} ${(f.reason as Error)?.message}`)).toEqual([]);
 
       const issueRows = await prisma.gallonIssue.findMany({ where: { depotId, customerId } });
       const returnRows = await prisma.gallonReturn.findMany({ where: { depotId, customerId } });

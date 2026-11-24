@@ -592,25 +592,20 @@ export class GallonReturnService {
     let reversedReturn = false;
     const ret = await this.returns.findByOrderId(orderId);
     if (ret && ret.depotId === depotId) {
-      const { record, created } = await this.returns.serialized(
-        this.balanceKey(depotId, ret.customerId),
-        async () => {
-          const already = await this.returns.findByIdempotencyKey(depotId, key);
-          if (already) return { record: already, created: false };
-          const row = await this.returns.create({
-            depotId,
-            customerId: ret.customerId,
-            orderId: null,
-            quantity: -ret.quantity,
-            condition: ret.condition,
-            depositRefunded: -ret.depositRefunded,
-            note,
-            actorId,
-            idempotencyKey: key,
-          });
-          return { record: row, created: true };
-        },
-      );
+      // No balance lock: a reversal measures nothing, and the unique (depot, key) index is the
+      // guard. Taking the lock here held a pooled connection per caller while the work needed
+      // another, so five concurrent reversals exhausted a small pool (P2024/P2028 on CI).
+      const { record, created } = await this.returns.createKeyed({
+        depotId,
+        customerId: ret.customerId,
+        orderId: null,
+        quantity: -ret.quantity,
+        condition: ret.condition,
+        depositRefunded: -ret.depositRefunded,
+        note,
+        actorId,
+        idempotencyKey: key,
+      });
       if (created && ret.condition === GallonCondition.GOOD) {
         // The empty went back to the buyer, so the shelf count drops by what the return added.
         await this.inventory.moveRawLine(

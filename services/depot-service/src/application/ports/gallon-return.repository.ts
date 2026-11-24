@@ -85,6 +85,14 @@ export interface GallonReturnRepository {
   serialized<T>(scopeKey: string, work: () => Promise<T>): Promise<T>;
   create(data: CreateGallonReturnData): Promise<GallonReturnRecord>;
   /**
+   * HD-6: insert-or-read on the unique (depotId, idempotencyKey), with NO balance lock. For a
+   * row that needs no measuring (a void's reversal), the unique index is the whole guard; the
+   * loser reads the winner's row and reports created=false instead of throwing.
+   */
+  createKeyed(
+    data: CreateGallonReturnData,
+  ): Promise<{ record: GallonReturnRecord; created: boolean }>;
+  /**
    * MONEY-04: idempotent on `orderId`, the exact mirror of
    * `GallonIssueRepository.createFromOrder` — and it exists for the same reason, which the
    * issue side had and this one did not.

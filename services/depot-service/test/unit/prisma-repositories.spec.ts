@@ -1327,6 +1327,23 @@ describe('GallonReturnPrismaRepository', () => {
     await expect(repo.findByIdempotencyKey('d1', 'none')).resolves.toBeNull();
   });
 
+  it('createKeyed: writes, or reads the winner on a unique violation, or rethrows (HD-6)', async () => {
+    model.create.mockReset();
+    model.findFirst.mockReset();
+    const row = { id: 'r1', depotId: 'd1', quantity: -1, condition: 'GOOD', depositRefunded: '0', createdAt: new Date() };
+    const data = { depotId: 'd1', idempotencyKey: 'void:o1' } as never;
+    model.create.mockResolvedValueOnce(row);
+    await expect(repo.createKeyed(data)).resolves.toMatchObject({ created: true });
+    model.create.mockRejectedValueOnce({ code: 'P2002' });
+    model.findFirst.mockResolvedValueOnce(row);
+    await expect(repo.createKeyed(data)).resolves.toMatchObject({ created: false });
+    model.create.mockRejectedValueOnce({ code: 'P2002' });
+    model.findFirst.mockResolvedValueOnce(null);
+    await expect(repo.createKeyed(data)).rejects.toEqual({ code: 'P2002' });
+    model.create.mockRejectedValueOnce({ code: 'P2002' });
+    await expect(repo.createKeyed({ depotId: 'd1' } as never)).rejects.toEqual({ code: 'P2002' });
+  });
+
   it('finds the return booked from an order, or null (HD-6)', async () => {
     model.findUnique.mockReset();
     const r = {
