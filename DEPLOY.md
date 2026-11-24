@@ -608,6 +608,12 @@ alone. The keys are made by `scripts/aiweb-staging-secrets.sh` when their lines 
 `.env`, and it refuses (writing nothing) any staging value equal to a production AI web value, or
 the mock's signing key being the same key as production's `AI_TOKEN_SIGNING_KEY`.
 
+**Memory and a quiet failure.** Steady state is at most about 1.4 GB. While a deploy runs, the
+migration job runs beside the running app (and n8n's setup runs while n8n is removed), so the peak
+is about 1.8 GB; the box had about 12.5 GB available when this was measured (24 November 2026).
+Without a certificate or DNS for staging-ai yet, the probe says "the password was answered 000"
+(no answer): one alert, said again only when the text changes or after a week (`alert_once`).
+
 **Rollback.** `staging-deploy` with the secret deleted switches it off. Reverting this change
 removes the step; whatever still runs is removed once with
 `docker compose -p hydromart-ai-staging down -v` (a deploy mode can do it: `staging-reset` needs

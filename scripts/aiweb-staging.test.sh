@@ -164,7 +164,7 @@ case "$1" in
       *"project=$STAGE"*service=*) case "$args" in *service=staging-aiweb*) echo app1 ;; *service=hydromart-mock*) echo mock1 ;; *service=n8n*) [ -n "${FAKE_NO_N8N:-}" ] || echo n8n1 ;; esac ;;
       *"project=$STAGE"*) [ -n "${FAKE_NO_STAGING:-}" ] || printf '%s\n' app1 mock1 db1 n8n1 ;;
       *service=caddy*) echo caddy1 ;;
-      *Ports*) printf '%s\n' '0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, 443/udp, 2019/tcp' ;;
+      *Ports*) printf '%s\n' '0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, 443/udp, 2019/tcp' ${FAKE_HOST_PORTS:-} ;;
       *project=hydromart-ai*) printf '%s\n' prodapp proddb ;;
       *project=hydromart*) printf '%s\n' pg1 caddy1 ;;
     esac ;;
@@ -269,12 +269,13 @@ reset_fakes() { for f in log envs curl alerts cfgs stdin pwstdin; do : > "$W/$f"
 
 T="$W/deploy"
 mkdir -p "$T/scripts/lib" "$T/infra/aiweb" "$T/infra/aiweb-staging" "$T/infra/caddy/staging-auth"
-cp scripts/aiweb-staging-deploy.sh scripts/env-set.sh "$T/scripts/"
+cp scripts/aiweb-staging-deploy.sh scripts/aiweb-staging-secrets.sh scripts/env-set.sh "$T/scripts/"
 cp scripts/lib/deploy-common.sh scripts/lib/tcp-reach.cjs scripts/lib/aiweb-probe.sh "$T/scripts/lib/"
 cp infra/aiweb/docker-compose.yml infra/aiweb/roles.sql infra/aiweb/app-role.sql "$T/infra/aiweb/"
 cp infra/aiweb-staging/docker-compose.yml "$T/infra/aiweb-staging/"
 # The firewall is its own test's (aiweb.test.sh): here it only has to be asked.
 printf '#!/usr/bin/env bash\necho "firewall" >> "$FAKE_LOG"\nexit "${FAKE_FW_RC:-0}"\n' > "$T/scripts/aiweb-firewall.sh"
+MOCK_KEY="$(pkcs8)"
 GOOD_ENV='STAGING_POSTGRES_PASSWORD=p1
 STAGING_DB_OWNER_PASSWORD=p2
 STAGING_DB_APP_PASSWORD=p3
@@ -284,7 +285,7 @@ STAGING_N8N_TOKEN=t6
 STAGING_HD_EVENT_SECRET=h7
 STAGING_N8N_MACHINE_ID=11111111-2222-4333-8444-555555555555
 STAGING_N8N_MACHINE_SECRET=s8
-STAGING_MOCK_SIGNING_KEY=k9
+STAGING_MOCK_SIGNING_KEY='"$MOCK_KEY"'
 ALERT_WEBHOOK_URL=https://alert.invalid/hook'
 IMAGES="$(sed -n 's/^ *image: *//p' infra/aiweb-staging/docker-compose.yml | tr '\n' ' ')"
 PW='a-staging-pass-phrase-7'
@@ -349,6 +350,11 @@ hash2="$(sed -n "s/^STAGING_AI_BASIC_AUTH_HASH=//p" "$T/.env" | tr -d "'")"
 FRESH=1 deploy STAGING_AI_PASSWORD="$PW" FAKE_RELOAD_RC=1
 [ "$RC" = 1 ] && said 'Caddy would not reload' && alerted 'staging AI web' && ok "a Caddy that will not reload: exit 1, said, one alert" || bad "reload failure ($RC): $(tail -3 "$W/out" | tr '\n' ' ')"
 [ "$(grep -c '^caddy-reload' "$W/log")" = 3 ] && ok "  ...after three tries" || bad "tries: $(grep -c '^caddy-reload' "$W/log")"
+[ ! -e "$AUTHF" ] && ok "  ...and the login file it had just written is removed again: the disk matches what Caddy serves" || bad "the new login file stayed: $(cat "$AUTHF")"
+FRESH=1 deploy STAGING_AI_PASSWORD="$PW"
+before_login="$(cat "$AUTHF")"
+deploy STAGING_AI_PASSWORD="$PW2" FAKE_RELOAD_RC=1
+[ "$RC" = 1 ] && [ "$(cat "$AUTHF")" = "$before_login" ] && ok "  ...and a changed login that Caddy refused is put back: the previous login file is on disk again" || bad "login file after a refused rotation ($RC): $(cat "$AUTHF") (was $before_login)"
 
 # Unset password: staging off, the login gone, Caddy reloaded, nothing started.
 FRESH=1 deploy STAGING_AI_PASSWORD="$PW"
@@ -367,7 +373,15 @@ ok "a password that is short or has characters curl's config line would read dif
 
 # Missing keys, images, registry token.
 ENV_FILE='ALERT_WEBHOOK_URL=https://alert.invalid/hook' FRESH=1 deploy STAGING_AI_PASSWORD="$PW"
-[ "$RC" = 1 ] && said 'STAGING_POSTGRES_PASSWORD' && said 'STAGING_MOCK_SIGNING_KEY' && ! called ' up ' && ok "keys missing from .env: named, nothing started" || bad "missing keys ($RC): $(tail -2 "$W/out" | tr '\n' ' ')"
+[ "$RC" = 0 ] && grep -q '^STAGING_POSTGRES_PASSWORD=[0-9a-f]\{64\}$' "$T/.env" && grep -q '^STAGING_MOCK_SIGNING_KEY=' "$T/.env" && ok "keys absent from .env: the deploy makes them first (the key maker, idempotent), then goes on" || bad "absent keys ($RC): $(tail -2 "$W/out" | tr '\n' ' ')"
+ENV_FILE="$(printf '%s\n' "$GOOD_ENV" | sed 's/^STAGING_POSTGRES_PASSWORD=.*/STAGING_POSTGRES_PASSWORD=/')" FRESH=1 deploy STAGING_AI_PASSWORD="$PW"
+[ "$RC" = 1 ] && said 'STAGING_POSTGRES_PASSWORD' && ! called ' up ' && ok "a blank key line is a decision the key maker leaves alone: named, nothing started" || bad "blank key ($RC): $(tail -2 "$W/out" | tr '\n' ' ')"
+# A key equal to production's stops staging (never production): nothing is started, one alert.
+ENV_FILE="$(printf '%s\nAIWEB_N8N_TOKEN=t6\n' "$GOOD_ENV")" FRESH=1 deploy STAGING_AI_PASSWORD="$PW"
+[ "$RC" = 1 ] && said 'a staging key equals a production key' && ! called ' up ' && ! called '^firewall' && alerted 'NOT deployed' && ! grep -q 't6' "$W/out" &&
+  ok "a hand-set staging key equal to a production AI web key: staging is not started, one alert, no value printed" || bad "equal key ($RC): $(tail -2 "$W/out" | tr '\n' ' ')"
+ENV_FILE="$(printf '%s\nAI_TOKEN_SIGNING_KEY=%s\n' "$GOOD_ENV" "$MOCK_KEY")" FRESH=1 deploy STAGING_AI_PASSWORD="$PW"
+[ "$RC" = 1 ] && said 'a staging key equals a production key' && ! called ' up ' && ok "the mock's signing key being production's token key: staging is not started" || bad "same signing key ($RC): $(tail -2 "$W/out" | tr '\n' ' ')"
 FRESH=1 deploy STAGING_AI_PASSWORD="$PW" FAKE_PRESENT=''
 [ "$RC" = 1 ] && said 'no registry token' && ! called ' up ' && ok "images missing and no token: stops before anything starts" || bad "no token ($RC): $(tail -2 "$W/out" | tr '\n' ' ')"
 FRESH=1 deploy STAGING_AI_PASSWORD="$PW" FAKE_PRESENT='' GHCR_TOKEN=tok-xyz GHCR_USER=bot
@@ -407,6 +421,8 @@ probe_case "the app reaching a production database" 'hydromart-ai-db-1' FAKE_OUT
 probe_case "the app reaching hydromart's postgres" 'hydromart-postgres' FAKE_OUTCOMES='172.18.0.4:5432=open'
 probe_case "the app reaching the internet" 'internet' FAKE_OUTCOMES='1.1.1.1:443=open'
 probe_case "the host's ssh answering at a gateway" 'host-ssh' FAKE_OUTCOMES='172.31.0.1:22=open'
+probe_case "a host service answering n8n on the tunnel gateway" 'reaches host at 172.32.0.1:5432' FAKE_HOST_PORTS='127.0.0.1:5432->5432/tcp' FAKE_OUTCOMES='172.32.0.1:5432=open'
+probe_case "a host service answering the app on the private gateway" 'reaches host at 172.31.0.1:5432' FAKE_HOST_PORTS='127.0.0.1:5432->5432/tcp' FAKE_OUTCOMES='172.31.0.1:5432=open'
 probe_case "Caddy's admin port answering" 'caddy' FAKE_OUTCOMES='172.30.0.2:2019=open'
 probe_case "the app's keys not the fake hydromart's" 'are not the fake hydromart' FAKE_APP_KID=someone-elses
 probe_case "the app's keys the same as production's" "also in production's key set" FAKE_PROD_KID=mockkid

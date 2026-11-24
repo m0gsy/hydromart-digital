@@ -158,8 +158,8 @@ caddy_reload() { # <caddy container>
 # The login file holds `staging <hash>` when there is a password and does not exist when there is
 # none. Written (and Caddy reloaded) only when the content changes.
 set_login_file() { # <content, or empty to remove> <caddy container>
-  local current=''
-  [ ! -f "$AUTH_FILE" ] || current="$(cat "$AUTH_FILE")"
+  local current='' had=''
+  [ ! -f "$AUTH_FILE" ] || { current="$(cat "$AUTH_FILE")"; had=1; }
   if [ -z "$1" ]; then
     [ -f "$AUTH_FILE" ] || return 0
     rm -f "$AUTH_FILE"
@@ -167,9 +167,19 @@ set_login_file() { # <content, or empty to remove> <caddy container>
     [ "$current" != "$1" ] || return 0
     printf '%s\n' "$1" >"$AUTH_FILE.new" && mv "$AUTH_FILE.new" "$AUTH_FILE"
   fi
-  [ -n "$2" ] || fail "the staging login changed but Caddy is not running, so it was not reloaded"
-  caddy_reload "$2" ||
-    fail "Caddy would not reload ($AUTH_FILE changed): the file did not validate; Caddy keeps serving the previous login. Check: docker exec <caddy> caddy validate --config /etc/caddy/Caddyfile"
+  # A change Caddy did not take is put back, so the file on disk is what Caddy serves: a later
+  # reload (any deploy's) must not suddenly load a login nobody checked.
+  restore() {
+    if [ -n "$had" ]; then printf '%s\n' "$current" >"$AUTH_FILE.new" && mv "$AUTH_FILE.new" "$AUTH_FILE"; else rm -f "$AUTH_FILE"; fi
+  }
+  if [ -z "$2" ]; then
+    restore
+    fail "the staging login changed but Caddy is not running, so it was not reloaded (the previous login file is back)"
+  fi
+  if ! caddy_reload "$2"; then
+    restore
+    fail "Caddy would not reload ($AUTH_FILE changed): the file did not validate; the previous login file is back and Caddy keeps serving it. Check: docker exec <caddy> caddy validate --config /etc/caddy/Caddyfile"
+  fi
   say "login: Caddy reloaded for the changed staging login"
 }
 
@@ -266,7 +276,7 @@ probe() {
   # 3. From INSIDE each container: no hydromart or production AI web address answers (Caddy's
   # address on edge-staging is the front door: its 80 and 443 only), no host ssh through any
   # network of ours, no internet for the app and the mock (internal networks only).
-  PLAN_PROJECTS="$HYDROMART_PROJECT $AI_PROJECT" PLAN_FRONT_NETS=edge-staging PLAN_GW_NET=edge-staging
+  PLAN_PROJECTS="$HYDROMART_PROJECT $AI_PROJECT" PLAN_FRONT_NETS=edge-staging PLAN_GW_NET=edge-staging PLAN_HOST_PORTS_ALL_GW=1
   # shellcheck disable=SC2046,SC2086 # one argument per network
   build_plan $(printf '%s\n' $ai_nets | sort -u)
   base="$PLAN"
@@ -362,6 +372,10 @@ deploy() {
   [ -n "$staging_pw" ] || off
   [[ "$staging_pw" =~ ^[A-Za-z0-9._~-]{16,}$ ]] ||
     fail "STAGING_AI_PASSWORD must be at least 16 characters of A-Z a-z 0-9 . _ ~ - (it is handed to curl as a config line)"
+  # The key maker again (idempotent, writes only absent keys): its refusal of a staging key equal to a
+  # production one stops staging here, whatever the caller did with its exit code. Never production.
+  env -u STAGING_AI_PASSWORD bash scripts/aiweb-staging-secrets.sh >/dev/null ||
+    fail "scripts/aiweb-staging-secrets.sh refused or could not run: a staging key equals a production key, or one is malformed (run it by hand to read which; it prints key names only). Staging is not started"
   for key in STAGING_POSTGRES_PASSWORD STAGING_DB_OWNER_PASSWORD STAGING_DB_APP_PASSWORD STAGING_N8N_DB_PASSWORD \
     STAGING_N8N_ENCRYPTION_KEY STAGING_N8N_TOKEN STAGING_HD_EVENT_SECRET STAGING_N8N_MACHINE_ID \
     STAGING_N8N_MACHINE_SECRET STAGING_MOCK_SIGNING_KEY; do

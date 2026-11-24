@@ -12,6 +12,8 @@
 #   PLAN_GW_NET      the network whose gateway is the host's route to hydromart's published
 #                    ports (default: edge)
 #   PLAN_NAMES       service names that must not answer (default: hydromart's own)
+#   PLAN_HOST_PORTS_ALL_GW  set: hydromart's published ports are tried at every gateway given,
+#                    not only PLAN_GW_NET's (default: unset, as production has always been)
 # PURE: what one outcome of scripts/lib/tcp-reach.cjs means for one kind of target.
 #   control    db:5432, the container's own database: must open, or no answer below proves anything
 #   container  an address a hydromart container holds on a network other than edge: isolated
@@ -111,6 +113,12 @@ build_plan() { # <network>...
     gw="$(docker network inspect "$net" --format '{{range .IPAM.Config}}{{.Gateway}} {{end}}' 2>/dev/null | awk '{print $1}' || true)"
     if [ -n "$gw" ]; then
       PLAN+="host $gw:22 host-ssh"$'\n'
+      # PLAN_HOST_PORTS_ALL_GW (the staging script sets it): hydromart's published ports at EVERY
+      # gateway too, not only PLAN_GW_NET's: a container on a network with its own gateway (n8n's
+      # tunnel) reaches the host there, and a service bound to the bridge address would answer.
+      if [ -n "${PLAN_HOST_PORTS_ALL_GW:-}" ] && [ "$gw" != "$edge_gw" ]; then
+        for p in $host_ports; do PLAN+="host $gw:$p host"$'\n'; done
+      fi
     else
       note "probe: could not read the gateway of the $net network, so the host's ssh was not tried through it"
     fi

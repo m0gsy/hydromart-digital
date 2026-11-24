@@ -384,7 +384,7 @@ jobs:
             # login and registry token ride in the environment like a deploy's.
             # staging-deploy: just the staging AI web, now (after the password secret was set, rotated
             # or deleted, which a normal deploy only notices when there is a release to ship).
-            staging-deploy) echo "run=bash scripts/aiweb-staging-secrets.sh && bash scripts/aiweb-staging-deploy.sh" >> "$GITHUB_OUTPUT" ;;
+            staging-deploy) echo "run=env -u STAGING_AI_PASSWORD bash scripts/aiweb-staging-secrets.sh && bash scripts/aiweb-staging-deploy.sh" >> "$GITHUB_OUTPUT" ;;
             staging-reset) echo "run=bash scripts/aiweb-staging-deploy.sh --reset" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
