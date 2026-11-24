@@ -41,4 +41,17 @@ describe('shared SLA colour band (HD-6 #19)', () => {
     get.mockResolvedValueOnce({ healthyBandPct: 60, criticalBandPct: 80 });
     expect(await loadSlaBands()).toEqual(DEFAULT_SLA_BANDS);
   });
+
+  it('caches the fallback after a failure, so a 403 is not retried on every mount', async () => {
+    get.mockRejectedValue(new Error('403'));
+    expect(await loadSlaBands()).toEqual(DEFAULT_SLA_BANDS);
+    expect(await loadSlaBands()).toEqual(DEFAULT_SLA_BANDS);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares one in-flight read between concurrent callers', async () => {
+    get.mockResolvedValue({ healthyBandPct: 90, criticalBandPct: 70 });
+    await Promise.all([loadSlaBands(), loadSlaBands()]);
+    expect(get).toHaveBeenCalledTimes(1);
+  });
 });

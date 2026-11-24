@@ -41,7 +41,11 @@ export function loadSlaBands(): Promise<SlaBands> {
       cache = { bands, at: Date.now() };
       return bands;
     })
-    .catch(() => DEFAULT_SLA_BANDS)
+    .catch(() => {
+      // A role without the dashboard capability (403) must not retry on every mount.
+      cache = { bands: DEFAULT_SLA_BANDS, at: Date.now() };
+      return DEFAULT_SLA_BANDS;
+    })
     .finally(() => {
       inflight = null;
     });
