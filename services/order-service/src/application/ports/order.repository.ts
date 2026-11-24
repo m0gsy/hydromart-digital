@@ -367,6 +367,26 @@ export interface DepotShipping {
   shippingBilled: number;
 }
 
+/**
+ * HD-6 H2: one depot's sales over a window, from the live orders table only (no imported
+ * history, no top-N cap). `orders`/`revenueIdr`/`shippingIdr` count every order but CANCELLED and
+ * VOIDED, by the day it was created; the cancelled and delivered counts look at the same window
+ * across every status.
+ */
+export interface DepotSalesSummary {
+  depotId: string;
+  orders: number;
+  revenueIdr: number;
+  shippingIdr: number;
+  appOrders: number;
+  appRevenueIdr: number;
+  counterOrders: number;
+  counterRevenueIdr: number;
+  cancelledOrders: number;
+  /** DELIVERED or COMPLETED. */
+  deliveredOrders: number;
+}
+
 /** Refunds settled per depot over a range — reconciliation 22a. */
 export interface DepotRefund {
   depotId: string;
@@ -784,6 +804,11 @@ export interface OrderRepository {
   /** Highest-revenue depots in the window (null depot & CANCELLED excluded). FR-098. */
   topDepots(range: ReportRange, limit: number, depotIds?: readonly string[]): Promise<DepotSales[]>;
   shippingByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotShipping[]>;
+  /** HD-6 H2: per-depot sales for a window `[from, to)`; a depot with no orders is absent. */
+  depotSalesSummary(
+    range: { from: Date; to: Date },
+    depotIds: readonly string[],
+  ): Promise<DepotSalesSummary[]>;
   /** Refunds settled per depot (null depot excluded) — reconciliation 22a. */
   refundsByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRefund[]>;
   /**

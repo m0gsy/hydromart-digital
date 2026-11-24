@@ -49,6 +49,7 @@ import {
   PaymentExpirySweepResult,
   PaymentReminderSweepResult,
   PaymentUnconfirmedSweepResult,
+  MoneyDepotRow,
   PaymentService,
   RefundQueueRow,
   RevenueMethodRow,
@@ -71,6 +72,7 @@ import {
   ListPaymentsQueryDto,
   PaymentsForOrdersDto,
   PurgeProofsDto,
+  DepotMoneyQueryDto,
   DepotRefundsQueryDto,
   RefundCountsQueryDto,
   PaymentWebhookDto,
@@ -388,6 +390,26 @@ export class PaymentController {
       .map((id) => id.trim())
       .filter(Boolean);
     return this.payments.refundedByOrder(ids, new Date(query.from), new Date(query.to));
+  }
+
+  /**
+   * HD-6 H2: collected / pending / refunded money by the depot of the ORDER (a counter sale names
+   * its drawer; a delivery order's depot is read from order-service), for the AI read API. The
+   * caller has already cut the depot list and the window to what the asker may read.
+   */
+  @ApiOkResponse({ description: '`{ rows: MoneyDepotRow[] }` by depot, channel, method (and age or order).' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/depot-money')
+  @ApiOperation({ summary: 'Money by depot of the order over a window (internal service auth)' })
+  depotMoney(@Query() query: DepotMoneyQueryDto): Promise<{ rows: MoneyDepotRow[] }> {
+    return this.payments.moneyByDepot(
+      query.kind,
+      query.depotIds.split(','),
+      new Date(query.from),
+      new Date(query.to),
+    );
   }
 
   @ApiOkResponse({ type: RefundCountsResponseDto })

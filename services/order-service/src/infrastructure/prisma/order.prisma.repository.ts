@@ -23,6 +23,7 @@ import {
   DepotRating,
   DepotRatingsDetail,
   DepotRefund,
+  DepotSalesSummary,
   DepotShipping,
   NewVsRepeatRow,
   OrderQuery,
@@ -1100,6 +1101,69 @@ export class OrderPrismaRepository implements OrderRepository {
       depotId: r.depotId as string,
       shippingBilled: r._sum.deliveryFee ? r._sum.deliveryFee.toNumber() : 0,
     }));
+  }
+
+  async depotSalesSummary(
+    range: { from: Date; to: Date },
+    depotIds: readonly string[],
+  ): Promise<DepotSalesSummary[]> {
+    if (depotIds.length === 0) return [];
+    const depotId = { in: [...depotIds] };
+    const [sales, byStatus] = await Promise.all([
+      this.prisma.order.groupBy({
+        by: ['depotId', 'isWalkIn'],
+        where: { ...this.reportWhere(range), depotId },
+        _count: { _all: true },
+        _sum: { total: true, deliveryFee: true },
+      }),
+      this.prisma.order.groupBy({
+        by: ['depotId', 'status'],
+        where: { createdAt: { gte: range.from, lt: range.to }, depotId },
+        _count: { _all: true },
+      }),
+    ]);
+    const out = new Map<string, DepotSalesSummary>();
+    const row = (id: string): DepotSalesSummary => {
+      let r = out.get(id);
+      if (!r) {
+        r = {
+          depotId: id,
+          orders: 0,
+          revenueIdr: 0,
+          shippingIdr: 0,
+          appOrders: 0,
+          appRevenueIdr: 0,
+          counterOrders: 0,
+          counterRevenueIdr: 0,
+          cancelledOrders: 0,
+          deliveredOrders: 0,
+        };
+        out.set(id, r);
+      }
+      return r;
+    };
+    for (const g of sales) {
+      const r = row(g.depotId as string);
+      const total = g._sum.total ? g._sum.total.toNumber() : 0;
+      r.orders += g._count._all;
+      r.revenueIdr += total;
+      r.shippingIdr += g._sum.deliveryFee ? g._sum.deliveryFee.toNumber() : 0;
+      if (g.isWalkIn) {
+        r.counterOrders += g._count._all;
+        r.counterRevenueIdr += total;
+      } else {
+        r.appOrders += g._count._all;
+        r.appRevenueIdr += total;
+      }
+    }
+    for (const g of byStatus) {
+      const r = row(g.depotId as string);
+      if (g.status === DbOrderStatus.CANCELLED) r.cancelledOrders += g._count._all;
+      if (g.status === DbOrderStatus.DELIVERED || g.status === DbOrderStatus.COMPLETED) {
+        r.deliveredOrders += g._count._all;
+      }
+    }
+    return [...out.values()];
   }
 
   async refundsByDepot(range: ReportRange, depotIds?: readonly string[]): Promise<DepotRefund[]> {

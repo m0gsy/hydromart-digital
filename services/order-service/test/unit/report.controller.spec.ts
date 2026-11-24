@@ -30,6 +30,7 @@ countingOrderIds: jest.fn().mockResolvedValue(['o1']),
     depotWeekly: jest.fn().mockResolvedValue('weekly'),
     reportsDepotCompare: jest.fn().mockResolvedValue('compare'),
     reportsDepotMonthly: jest.fn().mockResolvedValue('monthly'),
+    depotSalesSummary: jest.fn().mockResolvedValue({ items: [] }),
     audienceReach: jest.fn().mockResolvedValue('reach'),
     segmentEstimate: jest.fn().mockResolvedValue('segment'),
     segmentCustomers: jest.fn().mockResolvedValue({ customerIds: ['c1'], truncated: false }),
@@ -429,6 +430,26 @@ describe('ReportController', () => {
       } as never),
     ).resolves.toEqual({ depotId: 'd1', days: [{ day: '2026-07-01', gallons: 130 }] });
     expect(service.depotDailyGallons).toHaveBeenCalledWith('d1', '2026-07-01', '2026-07-31');
+  });
+
+  it('internalDepotSalesSummary: splits the depot list and reads the window as instants', async () => {
+    await controller.internalDepotSalesSummary({
+      depotIds: 'd1,d2',
+      from: '2026-10-31T17:00:00.000Z',
+      to: '2026-11-30T17:00:00.000Z',
+    } as never);
+    expect(service.depotSalesSummary).toHaveBeenCalledWith(
+      { from: new Date('2026-10-31T17:00:00.000Z'), to: new Date('2026-11-30T17:00:00.000Z') },
+      ['d1', 'd2'],
+    );
+  });
+
+  it('internalDepotCashFlow: asks for the payroll-inclusive month and returns the two figures', async () => {
+    service.reportsDepotMonthly.mockResolvedValue({ netRevenueIdr: 900, netCashFlowIdr: null, orders: 3 });
+    await expect(
+      controller.internalDepotCashFlow({ depotId: 'd1', month: '2026-11' } as never),
+    ).resolves.toEqual({ depotId: 'd1', month: '2026-11', netRevenueIdr: 900, netCashFlowIdr: null });
+    expect(service.reportsDepotMonthly).toHaveBeenCalledWith('d1', '2026-11', true);
   });
 
   it('internalDailySalesBroadcast: forwards the slot from the path', async () => {

@@ -20,6 +20,7 @@ import {
   DepotRating,
   DepotRatingsDetail,
   DepotRefund,
+  DepotSalesSummary,
   DepotShipping,
   OrderQuery,
   NewVsRepeatRow,
@@ -692,6 +693,44 @@ export class InMemoryOrderRepository implements OrderRepository {
       .map(([depotId, v]) => ({ depotId, ...v }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, limit);
+  }
+
+  async depotSalesSummary(
+    range: { from: Date; to: Date },
+    depotIds: readonly string[],
+  ): Promise<DepotSalesSummary[]> {
+    const out = new Map<string, DepotSalesSummary>();
+    for (const r of this.rows) {
+      if (!r.depotId || !depotIds.includes(r.depotId)) continue;
+      if (r.createdAt < range.from || r.createdAt >= range.to) continue;
+      const s = out.get(r.depotId) ?? {
+        depotId: r.depotId,
+        orders: 0,
+        revenueIdr: 0,
+        shippingIdr: 0,
+        appOrders: 0,
+        appRevenueIdr: 0,
+        counterOrders: 0,
+        counterRevenueIdr: 0,
+        cancelledOrders: 0,
+        deliveredOrders: 0,
+      };
+      out.set(r.depotId, s);
+      if (r.status === 'CANCELLED') s.cancelledOrders += 1;
+      if (r.status === 'DELIVERED' || r.status === 'COMPLETED') s.deliveredOrders += 1;
+      if (r.status === 'CANCELLED' || r.status === 'VOIDED') continue;
+      s.orders += 1;
+      s.revenueIdr += r.total;
+      s.shippingIdr += r.deliveryFee;
+      if (r.isWalkIn) {
+        s.counterOrders += 1;
+        s.counterRevenueIdr += r.total;
+      } else {
+        s.appOrders += 1;
+        s.appRevenueIdr += r.total;
+      }
+    }
+    return [...out.values()];
   }
 
   async shippingByDepot(range: ReportRange): Promise<DepotShipping[]> {

@@ -56,6 +56,25 @@ export class SalesReportQueryDto {
   to?: string;
 }
 
+/** HD-6 H2: per-depot sales for the AI read API (internal key). The depot list is required. */
+export class DepotSalesSummaryQueryDto {
+  @ApiProperty({ description: 'Comma-separated depot ids, at most 100.' })
+  @Matches(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(,[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}){0,99}$/i,
+  )
+  depotIds!: string;
+
+  @ApiProperty({ description: 'Inclusive lower bound (ISO 8601).' })
+  @IsISO8601()
+  from!: string;
+
+  @ApiProperty({ description: 'Exclusive upper bound (ISO 8601), after from, at most a leap year later.' })
+  @IsISO8601()
+  @IsNotBefore('from')
+  @IsWithinDays('from')
+  to!: string;
+}
+
 export class RangeReportQueryDto {
   @ApiPropertyOptional({ description: 'Inclusive lower bound (ISO 8601).' })
   @IsOptional()

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, UnprocessableEntityException } from '@nestjs/common';
 import {
   AuthenticatedUser,
   FeatureFlagReader,
@@ -53,6 +53,7 @@ import {
   CreatePaymentData,
   DateRange,
   PaymentRecord,
+  MoneyKind,
   PaymentRepository,
   PaymentStatusPatch,
   UnsettledMethodAggregate,
@@ -170,6 +171,19 @@ const AGING_BUCKETS: readonly { label: string; maxDays: number }[] = [
   { label: '4-7', maxDays: 7 },
   { label: '8+', maxDays: Number.POSITIVE_INFINITY },
 ];
+/** One row of {@link PaymentService.moneyByDepot}. */
+export interface MoneyDepotRow {
+  depotId: string;
+  channel: 'counter' | 'delivery';
+  method: PaymentMethod;
+  /** Pending only: the age bucket label ('0-1', '2-3', '4-7', '8+'). */
+  age?: string;
+  /** Refunded only: the order the refund belongs to. */
+  orderId?: string;
+  amountIdr: number;
+  count: number;
+}
+
 export const UNSETTLED_AGING_BUCKETS: readonly string[] = AGING_BUCKETS.map((b) => b.label);
 
 /** Unsettled money by method and age. `amounts[i]` and `counts[i]` belong to `buckets[i]`. */
@@ -498,6 +512,66 @@ export class PaymentService {
   ): Promise<{ depotId: string; refundedIdr: number }[]> {
     const map = await this.payments.refundedTotalByDepot(depotIds, from, to);
     return depotIds.map((depotId) => ({ depotId, refundedIdr: map.get(depotId) ?? 0 }));
+  }
+
+  /** HD-6 H2: the most orders one money read may cover; past it the answer is refused, never cut. */
+  private static readonly MONEY_ORDER_CAP = 20_000;
+
+  /**
+   * HD-6 H2: money by DEPOT OF THE ORDER, for the AI read API. A counter payment names its depot; a
+   * delivery payment does not (the order owns that), so those are looked up in order-service in
+   * batches and a payment whose order cannot be placed in one of `depotIds` is left out.
+   *
+   *  - collected / pending: summed per (depot, channel, method[, age]).
+   *  - refunded: kept per order, so the caller can set refunds of cancelled orders apart.
+   *
+   * Refused (422), never cut short, when the window holds more than MONEY_ORDER_CAP order rows.
+   */
+  async moneyByDepot(
+    kind: MoneyKind,
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<{ rows: MoneyDepotRow[] }> {
+    const cap = PaymentService.MONEY_ORDER_CAP;
+    const maxDays = AGING_BUCKETS.slice(0, -1).map((b) => b.maxDays);
+    const raw = await this.payments.moneyByOrder(kind, { from, to }, cap + 1, {
+      asOf: new Date(),
+      tz: BUSINESS_TZ,
+      maxDays,
+    });
+    if (raw.length > cap) {
+      throw new UnprocessableEntityException('Terlalu banyak transaksi pada rentang ini; persempit periode.');
+    }
+    const wanted = new Set(depotIds);
+    const orderDepot = new Map<string, string>();
+    const lookups = [...new Set(raw.filter((r) => !r.counterDepotId).map((r) => r.orderId))];
+    for (let i = 0; i < lookups.length; i += 1000) {
+      for (const [id, depot] of await this.orderCoordination.getOrderDepots(lookups.slice(i, i + 1000))) {
+        orderDepot.set(id, depot);
+      }
+    }
+    const rows = new Map<string, MoneyDepotRow>();
+    for (const r of raw) {
+      const depotId = r.counterDepotId ?? orderDepot.get(r.orderId);
+      if (!depotId || !wanted.has(depotId)) continue;
+      const channel = r.counterDepotId ? 'counter' : 'delivery';
+      const age = kind === 'pending' ? AGING_BUCKETS[Math.min(r.bucket, AGING_BUCKETS.length - 1)].label : undefined;
+      const key = kind === 'refunded' ? `${depotId}#${r.orderId}` : `${depotId}#${channel}#${r.method}#${age ?? ''}`;
+      const row = rows.get(key) ?? {
+        depotId,
+        channel,
+        method: r.method,
+        ...(age ? { age } : {}),
+        ...(kind === 'refunded' ? { orderId: r.orderId } : {}),
+        amountIdr: 0,
+        count: 0,
+      };
+      row.amountIdr += r.amountIdr;
+      row.count += r.count;
+      rows.set(key, row);
+    }
+    return { rows: [...rows.values()] };
   }
 
   /** PLP-13: refunds per order for the P&L. A month holds far fewer than this per network. */

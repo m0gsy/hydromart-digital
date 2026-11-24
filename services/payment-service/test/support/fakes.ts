@@ -8,6 +8,7 @@ import {
   CashCollectedSummary,
   CreatePaymentData,
   DateRange,
+  MoneyOrderRow,
   PaymentQuery,
   PaymentRecord,
   PaymentRepository,
@@ -276,6 +277,42 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       items: all.slice(start, start + query.limit).map((r) => ({ ...r })),
       total: all.length,
     };
+  }
+  /** HD-6 H2: a plain mirror of the three readers, over this fake's rows. */
+  async moneyByOrder(
+    kind: 'collected' | 'pending' | 'refunded',
+    window: { from: Date; to: Date },
+    limit: number,
+    aging: { asOf: Date; tz: string; maxDays: readonly number[] },
+  ): Promise<MoneyOrderRow[]> {
+    const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: aging.tz }).format(d);
+    const within = (d: Date | null) => !!d && d >= window.from && d < window.to;
+    const out = new Map<string, MoneyOrderRow>();
+    for (const r of this.rows) {
+      let amount = 0;
+      let at: Date | null = null;
+      let bucket = 0;
+      if (kind === 'collected' && (r.status === PaymentStatus.PAID || r.status === PaymentStatus.REFUNDED)) {
+        amount = this.kept(r);
+        at = r.paidAt;
+      } else if (kind === 'pending' && r.status === PaymentStatus.PENDING) {
+        amount = r.amount;
+        at = r.createdAt;
+        const age = Math.max(0, Math.round((Date.parse(day(aging.asOf)) - Date.parse(day(r.createdAt))) / 86_400_000));
+        const found = aging.maxDays.findIndex((m) => age <= m);
+        bucket = found === -1 ? aging.maxDays.length : found;
+      } else if (kind === 'refunded' && r.status === PaymentStatus.REFUNDED) {
+        amount = r.refundedAmount ?? r.amount;
+        at = r.refundedAt;
+      }
+      if (!within(at) || (kind === 'collected' && amount <= 0)) continue;
+      const key = `${r.orderId}#${r.depotId}#${r.method}#${bucket}`;
+      const row = out.get(key) ?? { orderId: r.orderId, counterDepotId: r.depotId, method: r.method, bucket, amountIdr: 0, count: 0 };
+      row.amountIdr += Math.round(amount);
+      row.count += 1;
+      out.set(key, row);
+    }
+    return [...out.values()].slice(0, limit);
   }
   async aggregateUnsettledAging(
     asOf: Date,

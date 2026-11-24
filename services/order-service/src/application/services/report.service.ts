@@ -14,6 +14,7 @@ import {
   DepotSales,
   DepotRating,
   DepotRefund,
+  DepotSalesSummary,
   DepotShipping,
   OrderRecord,
   OrderRepository,
@@ -590,6 +591,17 @@ export class ReportService {
   ): Promise<ReportRangeView & { items: DepotShipping[] }> {
     const items = await this.orders.shippingByDepot(range, depotIds);
     return { ...ReportService.rangeView(range), items };
+  }
+
+  /**
+   * HD-6 H2: per-depot sales for the AI read API. The depot list is the caller's whole scope, so
+   * it is bounded by that and not by a top-N cap; imported history is not read (it has no depot).
+   */
+  async depotSalesSummary(
+    range: { from: Date; to: Date },
+    depotIds: readonly string[],
+  ): Promise<{ items: DepotSalesSummary[] }> {
+    return { items: await this.orders.depotSalesSummary(range, depotIds) };
   }
 
   async refundsByDepot(
