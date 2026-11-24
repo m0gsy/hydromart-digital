@@ -60,6 +60,11 @@ export enum NotificationEvent {
   // POST notifications/external/franchise-application-submitted, never by a service.
   // Tokens: {{city}}, {{province}}; `applicationId` rides along for the tap.
   FRANCHISE_APPLICATION_SUBMITTED = 'FRANCHISE_APPLICATION_SUBMITTED',
+  // AI-9: the Direksi morning summary, one row per recipient, raised by
+  // POST notifications/external/morning-summary (n8n only triggers it). Tokens: {{summary}}
+  // (queue labels with their counts), {{oldest}} (" Tertua sejak 12 Nov." or empty), `href`
+  // rides along for the tap. Counts only, nothing personal.
+  MORNING_SUMMARY = 'MORNING_SUMMARY',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -219,6 +224,7 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   // "Lamaran waralaba" is the HQ menu label of that screen (hq.nav.applications).
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]:
     'Lamaran waralaba baru dari calon mitra di {{city}}, {{province}}. Buka menu Lamaran waralaba untuk meninjau.',
+  [NotificationEvent.MORNING_SUMMARY]: 'Persetujuan yang menunggu Anda: {{summary}}.{{oldest}}',
   [NotificationEvent.PAYMENT_FAILED]:
     'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
   [NotificationEvent.PAYMENT_REMINDER]:
@@ -332,6 +338,8 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.REFUND_REQUESTED,
   // AI-5: no depot. The row is for those who review applications, the push likewise.
   NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED,
+  // AI-9: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
+  NotificationEvent.MORNING_SUMMARY,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -380,7 +388,14 @@ export const OVERSEER_EVENTS: readonly NotificationEvent[] = [
  * event with no entry has no switch on any screen - a leave decision, a payslip, a courier's own
  * delivery - and is always pushed.
  */
-export type StaffToggle = 'newOrder' | 'lowStock' | 'courierFail' | 'approval' | 'dailySummary' | 'newFranchiseApp';
+export type StaffToggle =
+  | 'newOrder'
+  | 'lowStock'
+  | 'courierFail'
+  | 'approval'
+  | 'dailySummary'
+  | 'newFranchiseApp'
+  | 'morningSummary';
 
 export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffToggle>> = {
   [NotificationEvent.DEPOT_ORDER_INCOMING]: 'newOrder',
@@ -401,6 +416,8 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.REFUND_REQUESTED]: 'approval',
   // AI-5: its own switch on /hq/profile, not the depot consoles' "approval".
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: 'newFranchiseApp',
+  // AI-9: its own switch on /hq/profile, push and email, both defaulting on.
+  [NotificationEvent.MORNING_SUMMARY]: 'morningSummary',
   [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
 };
 
@@ -439,6 +456,8 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.SHIFT_REMINDER,
   NotificationEvent.PAYSLIP_READY,
   NotificationEvent.ATTENDANCE_LATE,
+  // AI-9: counts for one recipient, shown to that recipient only.
+  NotificationEvent.MORNING_SUMMARY,
 ];
 
 // English. Same tokens, same order, same meaning — including the operational ones, which go
@@ -464,6 +483,7 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'A refund of {{amount}} waits for head office approval. Open the Refund queue to decide.',
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]:
     'New franchise application from a prospective partner in {{city}}, {{province}}. Open Franchise applications to review it.',
+  [NotificationEvent.MORNING_SUMMARY]: 'Approvals waiting for you: {{summary}}.{{oldest}}',
   [NotificationEvent.PAYMENT_FAILED]:
     'Hi {{name}}, the payment for order {{orderNumber}} did not go through ({{reason}}). Please pay again from the app.',
   [NotificationEvent.PAYMENT_REMINDER]:

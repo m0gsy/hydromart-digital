@@ -197,6 +197,9 @@ export function destinationFor(
     // AI-5: the application itself (head office's, web only like pricing), or the list.
     case NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED:
       return vars.applicationId ? withId('/hq/applications/detail', vars.applicationId) : '/hq/applications';
+    // AI-9: the queue screen the summary names (an href of the HD-11 queue contract), else the inbox.
+    case NotificationEvent.MORNING_SUMMARY:
+      return /^\/[a-z0-9/-]+$/.test(vars.href ?? '') ? vars.href : INBOX;
     case NotificationEvent.LEAVE_SUBMITTED:
       return options.leaveScreen ? withId('/hr/leave', vars.leaveId) : INBOX;
     case NotificationEvent.LEAVE_APPROVED:

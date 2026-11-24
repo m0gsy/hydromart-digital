@@ -1,4 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsIn, IsUUID } from 'class-validator';
+
+import { Role } from '@hydromart/platform';
 
 import { PENDING_QUEUE_KEYS } from '../../application/ports/pending-approval-sources.port';
 
@@ -35,4 +38,16 @@ export class PendingApprovalsResponseDto {
     description: 'The queues the caller decides, in a fixed order. A queue they do not decide is absent.',
   })
   queues!: PendingQueueResponseDto[];
+}
+
+/** AI-9: crm asks for one account's queues (internal key). */
+export class PendingForAccountQueryDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  accountId!: string;
+
+  // Internal-key only, and answered only for a network-wide role (PendingApprovalsService.forAccount).
+  @ApiProperty({ example: 'DIREKTUR', enum: Object.values(Role) })
+  @IsIn(Object.values(Role))
+  role!: string;
 }

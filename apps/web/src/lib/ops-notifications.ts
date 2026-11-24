@@ -55,6 +55,8 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   REFUND_REQUESTED: 'orders',
   // AI-5: a prospective franchise partner is a sales lead, and "Sales" is who it is for.
   FRANCHISE_APPLICATION_SUBMITTED: 'sales',
+  // AI-9: approvals waiting are decisions, the same bucket as the other approval alerts.
+  MORNING_SUMMARY: 'orders',
   COURIER_DELIVERY_ASSIGNED: 'courier',
   DELIVERY_SLA_BREACHED: 'courier',
   STOCK_LOW: 'stock',

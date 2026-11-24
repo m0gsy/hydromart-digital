@@ -322,6 +322,7 @@ export const hq = {
       priceOverrideDecide: 'Putuskan usulan harga depot',
       franchiseApplications: 'Putuskan aplikasi waralaba',
       franchiseApplicationNotify: 'Kirim notifikasi lamaran waralaba baru (akun mesin n8n)',
+      morningSummaryNotify: 'Picu ringkasan pagi Direksi (akun mesin n8n)',
       voucherRequestDecide: 'Putuskan permintaan voucher',
       fraudReview: 'Tinjau tanda kecurangan',
       refundIssue: 'Ajukan refund',
@@ -2199,6 +2200,7 @@ export const hq = {
     events: {
       criticalSla: 'SLA depot di bawah ambang',
       newFranchiseApp: 'Lamaran waralaba baru',
+      morningSummary: 'Ringkasan persetujuan pagi',
       payoutPending: 'Payout menunggu rilis',
       systemIncident: 'Insiden sistem (kritis)',
       dailyDigest: 'Ringkasan harian (email)',

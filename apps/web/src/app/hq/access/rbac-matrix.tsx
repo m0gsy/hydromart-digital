@@ -102,6 +102,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'legalEntityAdmin',
       'legalEntityAiAccess',
       'franchiseApplicationNotify',
+      'morningSummaryNotify',
       'depotDirectory',
       'orderManageRead',
       'staffDirectoryFinance',

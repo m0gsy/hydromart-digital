@@ -15,6 +15,7 @@ import { DashboardService } from '../application/services/dashboard.service';
 import { DashboardSourcesHttpAdapter } from '../infrastructure/http/dashboard-sources.http.adapter';
 import { DashboardController } from './dashboard.controller';
 import { PendingApprovalsController } from './pending-approvals.controller';
+import { PendingApprovalsInternalController } from './pending-approvals-internal.controller';
 import { PendingApprovalsService } from '../application/services/pending-approvals.service';
 import { AiReadController } from './ai-read.controller';
 import { ReadScopeService } from '../application/ai-read/scope.service';
@@ -45,7 +46,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [DashboardController, PendingApprovalsController, AiReadController],
+  controllers: [DashboardController, PendingApprovalsController, AiReadController, PendingApprovalsInternalController],
   providers,
   exports: [DashboardConfigService],
 })

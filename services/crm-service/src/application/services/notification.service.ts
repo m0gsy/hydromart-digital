@@ -374,6 +374,8 @@ export class NotificationService {
     };
 
     if (customerId) {
+      // A staff kind with an email template (AI-9) goes to this one account by email too.
+      this.emailStaff(event, [customerId], vars, destinationFor(event, vars, destination));
       void this.pushAllowedFor(customerId)
         // An alert addressed to one staff account (an approval waiting on them) honours that
         // person's own switch, exactly as a depot-wide one does.

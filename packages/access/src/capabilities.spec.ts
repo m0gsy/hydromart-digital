@@ -171,6 +171,15 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).not.toContain('aiRead');
   });
 
+  // AI-9: n8n only triggers the Direksi morning summary; no human role raises it.
+  it('leaves triggering the morning summary to the machine account', () => {
+    expect(CAPABILITIES.morningSummaryNotify).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING', 'MANAGER']) {
+      expect(can('morningSummaryNotify', role)).toBe(false);
+    }
+    expect(CUSTOM_FORBIDDEN).toContain('morningSummaryNotify');
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);

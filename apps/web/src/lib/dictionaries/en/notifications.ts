@@ -36,6 +36,7 @@ export const notifications = {
     EXPENSE_CLAIM_SUBMITTED: 'Expense claim waiting for approval',
     REFUND_REQUESTED: 'Refund waiting for approval',
     FRANCHISE_APPLICATION_SUBMITTED: 'New franchise application',
+    MORNING_SUMMARY: 'Approvals waiting for you',
     PAYMENT_FAILED: 'Payment did not go through',
     PAYMENT_REMINDER: 'Complete your payment',
     REFUND_PROCESSED: 'Refund processed',

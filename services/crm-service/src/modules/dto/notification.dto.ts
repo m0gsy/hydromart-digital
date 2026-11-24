@@ -192,6 +192,42 @@ export class FranchiseApplicationSubmittedDto {
   province!: string;
 }
 
+/** AI-9: the dedupe key of the morning summary is `morning-summary:<WIB date>`. */
+export const MORNING_SUMMARY_PREFIX = 'morning-summary:';
+
+/** AI-9 — n8n's trigger: when to send, nothing else. The counts are hydromart's own. */
+export class MorningSummaryDto {
+  @ApiProperty({ example: 'morning-summary:2026-11-25' })
+  @IsString()
+  @Matches(/^morning-summary:\d{4}-\d{2}-\d{2}$/, { message: 'eventId must be morning-summary:<YYYY-MM-DD>' })
+  eventId!: string;
+
+  @ApiProperty({ example: '2026-11-25', description: 'The WIB date of the summary: today, in Asia/Jakarta.' })
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date must be YYYY-MM-DD' })
+  date!: string;
+}
+
+export class MorningSummaryResultDto {
+  @ApiProperty({ example: '2026-11-25' })
+  date!: string;
+
+  @ApiProperty({ description: 'Accounts holding a recipient role.' })
+  recipients!: number;
+
+  @ApiProperty({ description: 'Of those, how many have the summary of the day (a retry files none twice).' })
+  notified!: number;
+
+  @ApiProperty({ description: 'Of those, how many had nothing waiting and so got nothing.' })
+  nothingWaiting!: number;
+
+  @ApiProperty({
+    enum: ['pending'],
+    description: 'WhatsApp is not sent until the Meta channel is ready; never reported as sent.',
+  })
+  whatsapp!: 'pending';
+}
+
 export class NotificationIdDto {
   @ApiProperty({ format: 'uuid', description: 'The notification row; a repeated eventId answers the same one.' })
   id!: string;

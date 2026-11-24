@@ -934,6 +934,8 @@ export type NotificationEvent =
   | 'REFUND_REQUESTED'
   // AI-5: raised by n8n, to the accounts that may review franchise applications.
   | 'FRANCHISE_APPLICATION_SUBMITTED'
+  // AI-9: the Direksi morning summary, one row per recipient.
+  | 'MORNING_SUMMARY'
   | 'VOUCHER_EXPIRING'
   | 'COURIER_DELIVERY_ASSIGNED'
   | 'DELIVERY_SLA_BREACHED'
@@ -984,6 +986,7 @@ export const OPS_EVENTS = [
   'EXPENSE_CLAIM_SUBMITTED',
   'REFUND_REQUESTED',
   'FRANCHISE_APPLICATION_SUBMITTED',
+  'MORNING_SUMMARY',
   'COURIER_DELIVERY_ASSIGNED',
   'DELIVERY_SLA_BREACHED',
   'STOCK_LOW',
@@ -2882,7 +2885,7 @@ export interface SecurityPolicy {
 
 // Per-admin notification prefs (23a). Event ids are canonical; labels are i18n on the web.
 export type NotificationEventId =
-  'criticalSla' | 'newFranchiseApp' | 'payoutPending' | 'systemIncident' | 'dailyDigest';
+  'criticalSla' | 'newFranchiseApp' | 'morningSummary' | 'payoutPending' | 'systemIncident' | 'dailyDigest';
 export interface NotificationChannelPref {
   id: NotificationEventId;
   push: boolean;

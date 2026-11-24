@@ -215,6 +215,7 @@ export const dashC = {
       priceOverrideDecide: 'Putuskan usulan harga depot',
       franchiseApplications: 'Pengajuan waralaba',
       franchiseApplicationNotify: 'Kirim notifikasi lamaran waralaba baru (akun mesin n8n)',
+      morningSummaryNotify: 'Picu ringkasan pagi Direksi (akun mesin n8n)',
       voucherRequestDecide: 'Putuskan permintaan voucher',
       fraudReview: 'Tinjau indikasi fraud',
       refundIssue: 'Ajukan refund',

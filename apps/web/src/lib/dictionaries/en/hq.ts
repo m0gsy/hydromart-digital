@@ -319,6 +319,7 @@ export const hq = {
       priceOverrideDecide: 'Decide a depot price proposal',
       franchiseApplications: 'Decide franchise applications',
       franchiseApplicationNotify: 'Raise the new franchise application notification (n8n machine account)',
+      morningSummaryNotify: 'Trigger the Direksi morning summary (n8n machine account)',
       voucherRequestDecide: 'Decide voucher requests',
       fraudReview: 'Review fraud flags',
       refundIssue: 'Raise a refund',
@@ -2182,6 +2183,7 @@ export const hq = {
     events: {
       criticalSla: 'Depot SLA below threshold',
       newFranchiseApp: 'New franchise application',
+      morningSummary: 'Morning approvals summary',
       payoutPending: 'Payout pending release',
       systemIncident: 'System incident (critical)',
       dailyDigest: 'Daily digest (email)',

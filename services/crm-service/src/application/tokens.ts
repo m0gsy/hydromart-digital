@@ -19,4 +19,6 @@ export const CRM_TOKENS = {
   ApproverDirectory: Symbol('ApproverDirectory'),
   // Owner rule 24 Nov 2026: the email channel of staff notifications (admin-service).
   StaffEmail: Symbol('StaffEmail'),
+  // AI-9: what one account's approval queues hold (dashboard-service).
+  PendingApprovals: Symbol('PendingApprovals'),
 } as const;

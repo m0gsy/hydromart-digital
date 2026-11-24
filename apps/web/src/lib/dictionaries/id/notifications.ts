@@ -39,6 +39,7 @@ export const notifications = {
     EXPENSE_CLAIM_SUBMITTED: 'Klaim biaya menunggu persetujuan',
     REFUND_REQUESTED: 'Refund menunggu persetujuan',
     FRANCHISE_APPLICATION_SUBMITTED: 'Lamaran waralaba baru',
+    MORNING_SUMMARY: 'Persetujuan menunggu Anda',
     PAYMENT_FAILED: 'Pembayaran belum berhasil',
     PAYMENT_REMINDER: 'Selesaikan pembayaran',
     REFUND_PROCESSED: 'Refund diproses',

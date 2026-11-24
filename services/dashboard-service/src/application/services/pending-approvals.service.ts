@@ -1,7 +1,7 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 
 import { can, currentDepotOverrides, type Capability } from '@hydromart/access';
-import { AuthenticatedUser, depotScopeIds, isDepotLocked } from '@hydromart/platform';
+import { AuthenticatedUser, Role, depotScopeIds, effectiveScope, isDepotLocked } from '@hydromart/platform';
 
 import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
 
@@ -99,6 +99,18 @@ export class PendingApprovalsService {
       PENDING_QUEUES.map((q) => this.answer(q, user, own, scope, networkDepots)),
     );
     return { queues: rows.filter((r): r is PendingQueue => r !== null) };
+  }
+
+  /**
+   * AI-9: the same answer for another account, asked by crm for the morning summary with the
+   * internal key (no token to read the depots from). Only a network-wide role is answerable: a
+   * depot-scoped one needs its resolved depots, and an empty scope would read as "0 waiting".
+   */
+  async forAccount(accountId: string, role: string): Promise<PendingApprovals> {
+    if (effectiveScope(role) !== 'GLOBAL') {
+      throw new BadRequestException('Only a network-wide role can be asked for another account');
+    }
+    return this.forCaller({ sub: accountId, role: role as Role, phone: null, depotId: null });
   }
 
   /** Null: the caller does not decide this queue at all, so it is left out of the answer. */
