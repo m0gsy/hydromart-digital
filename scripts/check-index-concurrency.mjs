@@ -28,6 +28,33 @@ const runner = readFileSync('scripts/create-indexes.sh', 'utf8');
 const problems = [];
 let checked = 0;
 
+// An index is "in create-indexes.sh" only as a row of its INDEXES='...' table. A name that
+// appears anywhere else in the file (a comment, or a row appended after the closing quote)
+// is not built by it, and a row outside the table is run by bash as a command: on
+// 2026-11-25 such a row made the deploy refuse with a syntax error before any migration.
+const runnerLines = runner.split(/\r?\n/);
+const tableStart = runnerLines.indexOf("INDEXES='");
+const tableEnd = runnerLines.indexOf("'", tableStart + 1);
+const ROW = /^[a-z-]+\|([\w.]+)\|CREATE /;
+const tableRows = new Set();
+const runnerComments = runnerLines.filter((line) => /^\s*#/.test(line)).join('\n');
+if (tableStart === -1 || tableEnd === -1) {
+  problems.push("scripts/create-indexes.sh has no INDEXES='...' table this check can read.");
+} else {
+  runnerLines.forEach((line, i) => {
+    const row = ROW.exec(line);
+    if (!row) return;
+    if (i > tableStart && i < tableEnd) tableRows.add(row[1]);
+    else {
+      problems.push(
+        `scripts/create-indexes.sh line ${i + 1}: the row for "${row[1]}" sits outside the ` +
+          `INDEXES='...' table, so it is never built and bash runs it as a command (a syntax ` +
+          `error that stops every deploy). Move it inside the table.`,
+      );
+    }
+  });
+}
+
 for (const service of readdirSync('services')) {
   const dir = join('services', service, 'prisma', 'migrations');
   if (!existsSync(dir)) continue;
@@ -56,7 +83,9 @@ for (const service of readdirSync('services')) {
         );
         continue;
       }
-      if (!runner.includes(index)) {
+      // A row of the table, or a comment naming it (an index on a table its own migration
+      // creates is built there, empty and instant, and the file says so in a comment).
+      if (!tableRows.has(index) && !runnerComments.includes(index)) {
         problems.push(
           `${service}/${migration}: "${index}" is built by a locking CREATE INDEX and has ` +
             `no entry in scripts/create-indexes.sh — production would block writes on that ` +

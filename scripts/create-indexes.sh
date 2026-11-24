@@ -176,6 +176,7 @@ promo|promo_rules_active_depotId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "pr
 promo|promo_applications_orderId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "promo_applications_orderId_idx" ON "promo_applications"("orderId")
 promo|promo_applications_orderId_promoRuleId_productId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "promo_applications_orderId_promoRuleId_productId_key" ON "promo_applications"("orderId", "promoRuleId", "productId")
 promo|promo_applications_order_rule_shipping_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "promo_applications_order_rule_shipping_key" ON "promo_applications"("orderId", "promoRuleId") WHERE "productId" IS NULL
+delivery|cash_settlements_orderIds_gin_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "cash_settlements_orderIds_gin_idx" ON "cash_settlements" USING GIN ("orderIds")
 '
 
 # One rule, one place. It lived in two places for exactly one deploy, and in that deploy the
@@ -317,4 +318,3 @@ echo "All indexes present."
 # attendance_month_rollups_employeeId_month_depotId_key and attendance_month_rollups_depotId_month_idx
 # (hr-service, 2026-11-24, HD-6 A7) are built by their own migration, not here: they index a table
 # that migration creates, so it is empty and the build is instant.
-delivery|cash_settlements_orderIds_gin_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "cash_settlements_orderIds_gin_idx" ON "cash_settlements" USING GIN ("orderIds")

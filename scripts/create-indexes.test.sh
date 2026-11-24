@@ -17,6 +17,10 @@ fail() {
   exit 1
 }
 
+# The script must parse at all: a row appended after the INDEXES table's closing quote is run
+# by bash as a command, and the deploy stops on its syntax error (2026-11-25).
+bash -n "$SCRIPT" || fail 'create-indexes.sh does not parse (bash -n)'
+
 # The literal block out of the script, so this test cannot drift from what runs.
 INDEXES="$(sed -n "/^INDEXES='/,/^'$/p" "$SCRIPT" | sed "1d;\$d")"
 [ -n "$INDEXES" ] || fail 'could not read the INDEXES table out of create-indexes.sh'
