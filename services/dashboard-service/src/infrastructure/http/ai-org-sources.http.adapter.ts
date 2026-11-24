@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { InstantRange } from '../../application/ports/ai-money-sources.port';
 import {
+  ATTENDANCE_CELLS,
   AiOrgSourcesPort,
   ApplicationSummary,
   AttendanceRow,
@@ -68,16 +69,21 @@ export class AiOrgSourcesHttpAdapter implements AiOrgSourcesPort {
     return { total: body.total, byStage: Object.fromEntries(stages) as Record<string, number> };
   }
 
+  /** At most 100 entities a call (depot-service refuses more), so a longer list is asked in parts. */
   async entityKinds(ids: readonly string[]): Promise<Map<string, string> | null> {
-    if (ids.length === 0) return new Map();
-    const body = (await this.get(
-      `${this.config.depotServiceUrl}/api/v1/legal-entities/internal/kinds?${this.q({ ids: ids.join(',') })}`,
-    )) as { entities?: unknown } | null;
-    const rows = body?.entities;
-    if (!isList(rows) || !rows.every((r) => typeof r.id === 'string' && typeof r.kind === 'string')) return null;
-    const kinds = new Map(rows.map((r) => [r.id as string, r.kind as string]));
-    // An entity the service does not know is a scope it could not resolve: no answer.
-    return ids.every((id) => kinds.has(id.toLowerCase())) ? kinds : null;
+    const kinds = new Map<string, string>();
+    for (let i = 0; i < ids.length; i += 100) {
+      const part = ids.slice(i, i + 100);
+      const body = (await this.get(
+        `${this.config.depotServiceUrl}/api/v1/legal-entities/internal/kinds?${this.q({ ids: part.join(',') })}`,
+      )) as { entities?: unknown } | null;
+      const rows = body?.entities;
+      if (!isList(rows) || !rows.every((r) => typeof r.id === 'string' && typeof r.kind === 'string')) return null;
+      for (const r of rows) kinds.set(r.id as string, r.kind as string);
+      // An entity the service does not know is a scope it could not resolve: no answer.
+      if (!part.every((id) => kinds.has(id.toLowerCase()))) return null;
+    }
+    return kinds;
   }
 
   async commission(depotIds: readonly string[], range: InstantRange): Promise<{ depotId: string; commissionIdr: number }[] | null> {
@@ -95,8 +101,12 @@ export class AiOrgSourcesHttpAdapter implements AiOrgSourcesPort {
     const body = (await this.get(
       `${base}/api/v1/hr-reports/internal/ai/attendance?${this.q({ depotIds: depotIds.join(','), from, to })}`,
     )) as { rows?: unknown; rolledUp?: unknown } | null;
-    const rows = perDepot<AttendanceRow>(body?.rows, depotIds, ['present', 'late', 'absent', 'leave', 'pending', 'people']);
-    return rows && typeof body?.rolledUp === 'boolean' ? { rows, rolledUp: body.rolledUp } : null;
+    const rows = perDepot<AttendanceRow>(body?.rows, depotIds, ATTENDANCE_CELLS);
+    const heads = (r: AttendanceRow): boolean => {
+      const p = r.people as unknown as Record<string, unknown> | null;
+      return !!p && typeof p === 'object' && ATTENDANCE_CELLS.every((c) => isNum(p[c]));
+    };
+    return rows && rows.every(heads) && typeof body?.rolledUp === 'boolean' ? { rows, rolledUp: body.rolledUp } : null;
   }
 
   async payroll(depotIds: readonly string[], month: string): Promise<PayrollRow[] | null> {

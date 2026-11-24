@@ -236,25 +236,26 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
           AND e."depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
         GROUP BY e."depotId"
       `,
-      this.prisma.employee.groupBy({
-        by: ['depotId'],
-        where: {
-          depotId: { in: ids },
-          joinDate: { lte: monthEnd },
-          OR: [{ status: 'ACTIVE' }, { exitDate: { gte: monthStart } }],
-        },
-        _count: { _all: true },
-      }),
-      // Slips by the employee's own depot: still DRAFT, and employees with an APPROVED or PAID one.
+      // Basis of the gate: the depot the employee BELONGS to (`homeDepotId`, else the live depot), the same
+      // basis the AI read API's payroll amounts use, so "is the month finished" and "how much" agree.
+      this.prisma.$queryRaw<{ depotId: string; n: bigint }[]>`
+        SELECT COALESCE(e."homeDepotId", e."depotId") AS "depotId", COUNT(*) AS "n"
+        FROM "employees" e
+        WHERE COALESCE(e."homeDepotId", e."depotId") IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
+          AND e."joinDate" <= ${monthEnd}
+          AND (e."status" = 'ACTIVE' OR e."exitDate" >= ${monthStart})
+        GROUP BY COALESCE(e."homeDepotId", e."depotId")
+      `,
+      // Slips by the employee's home depot: still DRAFT, and employees with an APPROVED or PAID one.
       this.prisma.$queryRaw<{ depotId: string; draft: bigint; final: bigint }[]>`
-        SELECT e."depotId" AS "depotId",
+        SELECT COALESCE(e."homeDepotId", e."depotId") AS "depotId",
                COUNT(*) FILTER (WHERE p."status" = 'DRAFT') AS "draft",
                COUNT(DISTINCT p."employeeId") FILTER (WHERE p."status" IN ('APPROVED', 'PAID')) AS "final"
         FROM "payrolls" p
         JOIN "employees" e ON e."id" = p."employeeId"
         WHERE p."periodMonth" = ${periodMonth}
-          AND e."depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
-        GROUP BY e."depotId"
+          AND COALESCE(e."homeDepotId", e."depotId") IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
+        GROUP BY COALESCE(e."homeDepotId", e."depotId")
       `,
     ]);
 
@@ -270,7 +271,7 @@ export class AnalyticsPrismaRepository implements AnalyticsRepository {
       at(row.depotId).activeHeadcount = row._count._all;
     }
     for (const row of expected) {
-      if (row.depotId) at(row.depotId).payrollExpectedCount = row._count._all;
+      if (row.depotId) at(row.depotId).payrollExpectedCount = Number(row.n);
     }
     for (const row of finished) {
       at(row.depotId).payrollDraftCount = Number(row.draft ?? 0);

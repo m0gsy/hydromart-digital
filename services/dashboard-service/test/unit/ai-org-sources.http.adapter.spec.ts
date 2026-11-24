@@ -63,6 +63,23 @@ describe('AiOrgSourcesHttpAdapter (HD-6 H5)', () => {
     expect(none).toHaveLength(0);
   });
 
+  it('asks for the kinds of more than 100 entities in parts of 100, and is null if any part fails or is short', async () => {
+    const ids = Array.from({ length: 150 }, (_, i) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(i).padStart(12, '0')}`);
+    const calls: URL[] = [];
+    jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      calls.push(url);
+      const asked = (url.searchParams.get('ids') ?? '').split(',');
+      return { ok: true, status: 200, json: async () => ({ entities: asked.map((id) => ({ id, kind: 'OPERATOR' })) }) } as unknown as Response;
+    });
+    const kinds = await adapter().entityKinds(ids);
+    expect(kinds?.size).toBe(150);
+    expect(calls.map((u) => (u.searchParams.get('ids') ?? '').split(',').length)).toEqual([100, 50]);
+    jest.restoreAllMocks();
+    answer({ entities: [] });
+    await expect(adapter().entityKinds(ids)).resolves.toBeNull();
+  });
+
   it('asks payout-service for HQ commission per depot and accepts exactly the depots asked', async () => {
     const calls = answer([{ depotId: D1, commissionIdr: 5 }, { depotId: D2, commissionIdr: 0 }]);
     await expect(adapter().commission([D1, D2], RANGE)).resolves.toHaveLength(2);
@@ -82,14 +99,18 @@ describe('AiOrgSourcesHttpAdapter (HD-6 H5)', () => {
   });
 
   it('reads hr-service attendance, payroll and kasbon, one row per depot, and nothing from an unwired service', async () => {
-    const att = { depotId: D1, present: 1, late: 0, absent: 0, leave: 0, pending: 0, people: 1 };
+    const att = { depotId: D1, present: 1, late: 0, absentRecorded: 0, leave: 0, pending: 0, people: { present: 1, late: 0, absentRecorded: 0, leave: 0, pending: 0 } };
     const calls = answer({ rows: [att], rolledUp: false });
     await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toEqual({ rows: [att], rolledUp: false });
     expect(calls[0].url.pathname).toBe('/api/v1/hr-reports/internal/ai/attendance');
     expect(calls[0].url.searchParams.get('to')).toBe('2026-11-30');
     answer({ rows: [att] });
     await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
-    answer({ rows: [{ ...att, people: undefined }], rolledUp: false });
+    answer({ rows: [{ ...att, people: 1 }], rolledUp: false });
+    await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
+    answer({ rows: [{ ...att, people: { present: 1 } }], rolledUp: false });
+    await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
+    answer({ rows: [{ ...att, people: null }], rolledUp: false });
     await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
 
     const slip = { depotId: D1, slips: 1, grossIdr: 1, bonusIdr: 1, deductionIdr: 1, netIdr: 1, gallonBonusIdr: 1, gallonPeople: 1 };

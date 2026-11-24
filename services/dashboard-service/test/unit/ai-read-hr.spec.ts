@@ -32,7 +32,8 @@ const scopeOf = (spans: ReadScope['spans']): ReadScope => ({
 // D1 moves PT_A -> PT_B on 16 Nov; D2 is PT_B all month.
 const SCOPE = scopeOf([span(D1, '2026-11-01', '2026-11-15'), span(D1, '2026-11-16', '2026-11-30', PT_B), span(D2, '2026-11-01', '2026-11-30', PT_B)]);
 
-const att = (depotId: string, o: Partial<AttendanceRow> = {}): AttendanceRow => ({ depotId, present: 20, late: 2, absent: 1, leave: 1, pending: 0, people: 5, ...o });
+const heads = (n: number, o: Partial<AttendanceRow['people']> = {}): AttendanceRow['people'] => ({ present: n, late: n, absentRecorded: n, leave: n, pending: n, ...o });
+const att = (depotId: string, o: Partial<AttendanceRow> = {}): AttendanceRow => ({ depotId, present: 20, late: 2, absentRecorded: 1, leave: 1, pending: 0, people: heads(5, { pending: 0 }), ...o });
 const pay = (depotId: string, o: Partial<PayrollRow> = {}): PayrollRow => ({
   depotId,
   slips: 4,
@@ -117,22 +118,39 @@ describe('HrMetricsService: H-02 attendance', () => {
   it('adds the counts over each stretch a depot was readable, with the WIB calendar days asked for', async () => {
     const { sources, ask } = build();
     const out = await ask('H-02');
-    // D1 has two stretches and D2 one: 3 depot-stretches of 20 present, 2 late, 1 absent, 1 leave
-    expect(out.value).toMatchObject({ present: 60, late: 6, absent: 3, leave: 3, pending: 0, heldBackDepots: 0, rate: { status: 'belum_ada' } });
+    // D1 has two stretches and D2 one: 3 depot-stretches of 20 present, 2 late, 1 absentRecorded, 1 leave
+    expect(out.value).toMatchObject({ present: 60, late: 6, absentRecorded: 3, leave: 3, pending: 0, rate: { status: 'belum_ada' } });
+    expect(out.value).not.toHaveProperty('flags');
+    expect(out.value).not.toHaveProperty('absent');
+    expect(out.label).toContain('BUKAN');
     const asked = sources.attendance.mock.calls.map((c) => `${(c[0] as string[]).join('+')}@${c[1]}..${c[2]}`).sort();
     expect(asked).toEqual([`${D1}@2026-11-01..2026-11-15`, `${D1}@2026-11-16..2026-11-30`, `${D2}@2026-11-01..2026-11-30`].sort());
   });
 
-  it('leaves a depot resting on fewer than 3 employees out of every sum and says how many it held back', async () => {
-    const { ask } = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { people: d === D2 ? 2 : 5 })), rolledUp: false }) });
-    expect((await ask('H-02')).value).toMatchObject({ present: 40, heldBackDepots: 1 });
+  it('holds back each count on its OWN people: one person late is not a number even when many were present', async () => {
+    const one = build(SCOPE, {
+      attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { people: heads(5, { late: d === D1 ? 1 : 0, absentRecorded: 0, leave: 2 }) })), rolledUp: false }),
+    });
+    const out = await one.ask('H-02');
+    // late: D1 (two stretches, the same person) counts as 1, D2 counts 0 -> 1 person: held. absentRecorded 0 people is a real 0.
+    // leave: 2 people per depot, 2 + 2 = 4 across D1 and D2: published.
+    expect(out.value).toMatchObject({ present: 60, late: null, leave: 3, flags: { late: 'kurang dari 3' } });
+    expect((out.value as { flags: object }).flags).not.toHaveProperty('leave');
   });
 
-  it('holds the whole answer when every depot with records is that small, and answers a window without records as zeros', async () => {
-    const tiny = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { people: 1 })), rolledUp: false }) });
+  it('counts a person who spans two stretches of one depot once, not twice', async () => {
+    // D1 has two stretches with 2 people each (the same two): 2 people, held; summing the stretches would say 4
+    const out = await build(scopeOf([span(D1, '2026-11-01', '2026-11-15'), span(D1, '2026-11-16', '2026-11-30', PT_B)]), {
+      attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { people: heads(5, { leave: 2 }) })), rolledUp: false }),
+    }).ask('H-02');
+    expect(out.value).toMatchObject({ leave: null, flags: { leave: 'kurang dari 3' } });
+  });
+
+  it('holds the whole answer when every count that has people is held, and answers a window without records as zeros', async () => {
+    const tiny = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { people: heads(1, { pending: 0 }) })), rolledUp: false }) });
     expect(await tiny.ask('H-02')).toMatchObject({ status: 'ditahan', value: null });
-    const none = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { present: 0, late: 0, absent: 0, leave: 0, people: 0 })), rolledUp: false }) });
-    expect((await none.ask('H-02')).value).toMatchObject({ present: 0, heldBackDepots: 0 });
+    const none = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { present: 0, late: 0, absentRecorded: 0, leave: 0, people: heads(0) })), rolledUp: false }) });
+    expect((await none.ask('H-02')).value).toMatchObject({ present: 0, late: 0, leave: 0 });
   });
 
   it('is belum_ada when old days were folded into monthly counts, or hr-service cannot answer', async () => {

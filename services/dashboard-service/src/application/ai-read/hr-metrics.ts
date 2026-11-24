@@ -3,7 +3,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { can } from '@hydromart/access';
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import { AiOrgSourcesPort, AttendanceRow, PayrollRow } from '../ports/ai-org-sources.port';
+import { ATTENDANCE_CELLS, AiOrgSourcesPort, AttendanceCell, PayrollRow } from '../ports/ai-org-sources.port';
 import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
 import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerEnvelope } from './envelope';
@@ -89,38 +89,57 @@ export class HrMetricsService {
     );
   }
 
-  /** H-02: attendance counts. Only what is recorded: the scheduled-days denominator (the rate) is not built. */
+  /**
+   * H-02: attendance counts. Only what is recorded: the scheduled-days denominator (the rate) is not
+   * built, so `absentRecorded` is explicit ABSENT rows, NOT choice 35A's "scheduled day with no punch
+   * and no leave". Each count is held back on its OWN people: a count resting on 1 or 2 employees is
+   * null with a flag. People are counted per depot per cell, the most any one stretch of the depot
+   * shows (the same person can span two stretches), then summed over depots.
+   */
   private async attendance(env: ReadEnv): Promise<AnswerEnvelope> {
-    const rows: AttendanceRow[] = [];
+    const sums = Object.fromEntries(ATTENDANCE_CELLS.map((c) => [c, 0])) as Record<AttendanceCell, number>;
+    const heads = new Map<string, Record<AttendanceCell, number>>();
     for (const st of stretchesOf(env.scope, env.period)) {
-      const part: AttendanceRow[] = [];
       for (const ids of chunks(st.depotIds)) {
         const got = await this.sources.attendance(ids, st.from, st.to);
         if (!got) return env.none(DOWN);
         if (got.rolledUp) {
           return env.none('Sebagian catatan lama sudah dirangkum per bulan (setelah masa simpan karyawan keluar), jadi hitungan harian periode ini tidak lengkap.');
         }
-        part.push(...got.rows);
+        for (const row of got.rows) {
+          const seen = heads.get(row.depotId) ?? ({ ...row.people } as Record<AttendanceCell, number>);
+          for (const c of ATTENDANCE_CELLS) {
+            sums[c] += row[c];
+            seen[c] = Math.max(seen[c], row.people[c]);
+          }
+          heads.set(row.depotId, seen);
+        }
       }
-      rows.push(...part);
     }
-    const shown = rows.filter((r) => !small(r.people));
-    const heldBackDepots = rows.length - shown.length;
-    if (shown.every((r) => r.people === 0) && heldBackDepots > 0) {
-      return env.held(`Karyawan yang tercatat hadir ${SMALL_GROUP_FLAG} per depot; angkanya tidak diberikan.`);
+    const people = Object.fromEntries(
+      ATTENDANCE_CELLS.map((c) => [c, [...heads.values()].reduce((n, h) => n + h[c], 0)]),
+    ) as Record<AttendanceCell, number>;
+    const flags: Partial<Record<AttendanceCell, string>> = {};
+    const value: Record<string, unknown> = {};
+    for (const c of ATTENDANCE_CELLS) {
+      if (small(people[c])) {
+        flags[c] = SMALL_GROUP_FLAG;
+        value[c] = null;
+      } else {
+        value[c] = sums[c];
+      }
     }
-    const sum = (pick: (r: AttendanceRow) => number) => shown.reduce((s, r) => s + pick(r), 0);
+    const flagged = Object.keys(flags).length;
+    if (flagged > 0 && ATTENDANCE_CELLS.every((c) => people[c] === 0 || flags[c])) {
+      return env.held(`Karyawan di balik angka kehadiran ${SMALL_GROUP_FLAG}; angkanya tidak diberikan.`);
+    }
     return env.ok(
       {
-        present: sum((r) => r.present),
-        late: sum((r) => r.late),
-        absent: sum((r) => r.absent),
-        leave: sum((r) => r.leave),
-        pending: sum((r) => r.pending),
-        heldBackDepots,
+        ...value,
+        ...(flagged > 0 ? { flags } : {}),
         rate: { status: 'belum_ada', reason: 'Tingkat hadir butuh hari kerja terjadwal per karyawan; itu belum dihitung di sini.' },
       },
-      'hari kerja menurut tanggal kerja WIB dan depot tempat bekerja hari itu: present = hadir, late = terlambat, absent = hanya catatan ABSEN eksplisit (hari terjadwal tanpa catatan tidak terlihat), leave = cuti, pending = absen offline belum diputuskan HR; depot dengan kurang dari 3 karyawan tercatat tidak ikut dijumlah (heldBackDepots)',
+      'hari kerja menurut tanggal kerja WIB dan depot tempat bekerja hari itu: present = hadir, late = terlambat, absentRecorded = hanya catatan ABSEN eksplisit (BUKAN hari terjadwal tanpa absen dan tanpa cuti: hari tanpa catatan tidak terlihat), leave = cuti, pending = absen offline belum diputuskan HR; tiap angka yang bertumpu pada kurang dari 3 karyawan tidak diberikan (null dengan flag)',
     );
   }
 
@@ -144,7 +163,7 @@ export class HrMetricsService {
     if (id === 'H-05') {
       return env.ok(
         sum((r) => r.gallonBonusIdr),
-        'bonus target galon harian pada slip DISETUJUI/DIBAYAR bulan ini (baris "Bonus target harian"), menurut depot karyawan pada hari terakhir bulan',
+        'bonus target galon harian pada slip DISETUJUI/DIBAYAR bulan ini (baris "Bonus target harian"), menurut depot asal karyawan (homeDepotId, bila kosong depot tempatnya) saat ini, untuk depot yang boleh Anda baca pada hari terakhir bulan; karyawan tanpa depot tidak terhitung',
       );
     }
     if (people === 0) return env.none('Tidak ada slip gaji disetujui atau dibayar pada bulan ini.');
@@ -156,7 +175,7 @@ export class HrMetricsService {
         deductionIdr: Math.round(sum((r) => r.deductionIdr)),
         netIdr: Math.round(sum((r) => r.netIdr)),
       },
-      'slip DISETUJUI/DIBAYAR bulan ini, menurut depot karyawan pada hari terakhir bulan; bruto = gaji pokok + tunjangan, bonus terpisah, bersih = bruto + bonus - potongan',
+      'slip DISETUJUI/DIBAYAR bulan ini, menurut depot asal karyawan (homeDepotId, bila kosong depot tempatnya) saat ini; karyawan tanpa depot tidak terhitung; bruto = gaji pokok + tunjangan, bonus terpisah, bersih = bruto + bonus - potongan',
     );
   }
 
@@ -175,7 +194,7 @@ export class HrMetricsService {
         people: shown.reduce((s, r) => s + r.people, 0),
         heldBackDepots,
       },
-      'sisa kasbon aktif sampai akhir bulan: pokok dikurangi potongan pada slip DISETUJUI/DIBAYAR; depot dengan kurang dari 3 peminjam tidak ikut dijumlah (heldBackDepots); kasbon yang dinonaktifkan dianggap lunas',
+      'sisa kasbon aktif sampai akhir bulan: pokok dikurangi potongan pada slip DISETUJUI/DIBAYAR; depot asal karyawan saat ini; karyawan tanpa depot tidak terhitung; depot dengan kurang dari 3 peminjam tidak ikut dijumlah (heldBackDepots); kasbon yang dinonaktifkan dianggap lunas',
     );
   }
 }

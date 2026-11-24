@@ -124,13 +124,42 @@ describe('FranchiseMetricsService: calon mitra (W-01, W-02)', () => {
   });
 });
 
+describe('FranchiseMetricsService: W-01/W-02 only per whole month or year (differencing)', () => {
+  it.each([
+    ['a week', { period: 'week', date: '2026-11-10' }],
+    ['a day', { period: 'day', date: '2026-11-10' }],
+    ['a month less a day', { from: '2026-11-01', to: '2026-11-29' }],
+    ['a month from the 2nd', { from: '2026-11-02', to: '2026-11-30' }],
+    ['an arbitrary range', { from: '2026-11-05', to: '2026-12-20' }],
+    ['two whole months', { from: '2026-10-01', to: '2026-11-30' }],
+    ['a year less a day', { from: '2026-01-01', to: '2026-12-30' }],
+  ])('refuses %s with belum_ada and a reason, and never asks the source', async (_name, query) => {
+    for (const id of ['W-01', 'W-02']) {
+      const b = build();
+      const out = await b.ask(id, 'SUPER_ADMIN', query as Record<string, string>);
+      expect(out).toMatchObject({ status: 'belum_ada', value: null });
+      expect(out.reason).toContain('bulan atau tahun penuh');
+      expect(b.sources.applications).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each([
+    ['a calendar month by period', { period: 'month', date: '2026-02-10' }],
+    ['a calendar month as a range', { from: '2026-02-01', to: '2026-02-28' }],
+    ['a calendar year by period', { period: 'year', date: '2026-06-01' }],
+    ['a calendar year as a range', { from: '2026-01-01', to: '2026-12-31' }],
+  ])('answers %s', async (_name, query) => {
+    expect((await build().ask('W-01', 'SUPER_ADMIN', query as Record<string, string>)).status).toBe('ok');
+  });
+});
+
 describe('FranchiseMetricsService: W-03, W-04, W-05, W-06', () => {
   it('splits today\'s active depots by type, by the entity each had today (D1 is the company\'s from 16 Nov)', async () => {
     const { ask } = build();
     const out = await ask('W-03');
     expect(out.value).toEqual({
       depots: 2,
-      byOwnershipType: { HKP: 2, WARALABA: 0 },
+      byOwnershipType: { HKP: 2, WARALABA: 0, LAINNYA: 0 },
       byEntityKind: { HKP: 2, WARALABA: 0, INDUK: 0, TANPA_BADAN_HUKUM: 0 },
     });
     // the same question asked about a day D1 still belonged to the partner is not a today question
@@ -147,7 +176,7 @@ describe('FranchiseMetricsService: W-03, W-04, W-05, W-06', () => {
     ]);
     expect((await b.ask('W-03')).value).toEqual({
       depots: 3,
-      byOwnershipType: { HKP: 2, WARALABA: 1 },
+      byOwnershipType: { HKP: 2, WARALABA: 1, LAINNYA: 0 },
       byEntityKind: { HKP: 0, WARALABA: 1, INDUK: 1, TANPA_BADAN_HUKUM: 1 },
     });
   });
@@ -161,6 +190,19 @@ describe('FranchiseMetricsService: W-03, W-04, W-05, W-06', () => {
     expect((await down.ask('W-03')).status).toBe('belum_ada');
   });
 
+  it('puts an ownership type it has no word for under LAINNYA, and refuses to skip a readable depot the list does not know', async () => {
+    const b = build();
+    b.depots.allDepots.mockResolvedValue([
+      { id: D1, code: 'D1', name: 'D1', active: true, ownershipType: 'ANEH' },
+      { id: D2, code: 'D2', name: 'D2', active: true, ownershipType: 'HKP' },
+      { id: D3, code: 'D3', name: 'D3', active: true, ownershipType: 'WARALABA' },
+    ]);
+    expect(((await b.ask('W-03')).value as { byOwnershipType: object }).byOwnershipType).toEqual({ HKP: 1, WARALABA: 1, LAINNYA: 1 });
+    // D3 is readable but depot-service does not list it at all: a short list, not a depot to leave out
+    b.depots.allDepots.mockResolvedValue([{ id: D1, code: 'D1', name: 'D1', active: true, ownershipType: 'HKP' }, { id: D2, code: 'D2', name: 'D2', active: true, ownershipType: 'HKP' }]);
+    expect((await b.ask('W-03')).status).toBe('belum_ada');
+  });
+
   it('holds hak mitra back, whoever asks', async () => {
     const out = await build().ask('W-04');
     expect(out).toMatchObject({ status: 'ditahan', value: null, unit: 'Rp' });
@@ -172,6 +214,8 @@ describe('FranchiseMetricsService: W-03, W-04, W-05, W-06', () => {
     const out = await ask('W-05');
     // D1 has two stretches, D2 and D3 whole month: 4 depot-stretches of 10_000.4 each
     expect(out.value).toBe(40_002);
+    expect(out.label).toContain('tanggal pencatatan');
+    expect(out.label).toContain('void');
     const windows = sources.commission.mock.calls.map((c) => `${(c[0] as string[]).join('+')}@${(c[1] as { from: string }).from}`).sort();
     expect(windows).toEqual(
       [`${D1}@2026-10-31T17:00:00.000Z`, `${D1}@2026-11-15T17:00:00.000Z`, `${D2}+${D3}@2026-10-31T17:00:00.000Z`].sort(),

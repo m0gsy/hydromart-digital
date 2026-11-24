@@ -1,0 +1,68 @@
+import { randomUUID } from 'node:crypto';
+
+import { emptyChecklist, FranchiseAppStage } from '../../src/domain/franchise-application';
+import { FranchiseApplicationPrismaRepository } from '../../src/infrastructure/prisma/franchise-application.prisma.repository';
+import { describeRace, freshPrisma } from './db';
+
+/*
+ * HD-6 H5, on a real Postgres: the stage history is written with the application and each stage
+ * change; the summary counts a purged rejection from the history (and counts it once); and the purge
+ * cuts the history's link to the application it belonged to.
+ */
+describeRace('franchise application stage history on real Postgres (HD-6 H5)', () => {
+  let drop: () => Promise<void>;
+  let prisma: Awaited<ReturnType<typeof freshPrisma>>['prisma'];
+  let repo: FranchiseApplicationPrismaRepository;
+
+  beforeAll(async () => {
+    const db = await freshPrisma();
+    drop = db.drop;
+    prisma = db.prisma;
+    repo = new FranchiseApplicationPrismaRepository(prisma as never);
+  });
+  afterAll(async () => drop?.());
+
+  const submit = () =>
+    repo.create({
+      applicantName: 'Rudi Hartono',
+      applicantPhone: '+6281211112222',
+      proposedCode: `DPK-${randomUUID().slice(0, 6)}`,
+      proposedName: 'Depot Sumber Jernih',
+      city: 'Depok',
+      province: 'Jawa Barat',
+      lat: -6.4,
+      lng: 106.8,
+      investmentAmount: 120_000_000,
+      projectedMonthlyRevenue: 18_000_000,
+      checklist: emptyChecklist(),
+      stage: FranchiseAppStage.PENDING,
+    });
+  const window = () => [new Date(Date.now() - 3_600_000), new Date(Date.now() + 3_600_000)] as const;
+
+  it('records the stage history, counts by current stage, and still counts a rejection after its purge, once', async () => {
+    const a = await submit();
+    const b = await submit();
+    const c = await submit();
+    await repo.updateIfOpen(a.id, { stage: FranchiseAppStage.SURVEY });
+    await repo.updateIfOpen(b.id, { stage: FranchiseAppStage.REJECTED, decisionReason: 'x' });
+    const events = await prisma.franchiseApplicationStageEvent.findMany({ where: { applicationId: b.id } });
+    expect(events.map((e) => e.stage).sort()).toEqual(['PENDING', 'REJECTED']);
+
+    const [from, to] = window();
+    expect(await repo.summary(from, to)).toEqual({
+      total: 3,
+      byStage: { PENDING: 1, DOC_VERIFICATION: 0, SURVEY: 1, APPROVED: 0, REJECTED: 1 },
+    });
+
+    // purge the rejection (cutoff in the future so it is old enough)
+    expect(await repo.purgeRejectedBefore(new Date(Date.now() + 60_000))).toBe(1);
+    expect(await prisma.franchiseApplication.count({ where: { id: b.id } })).toBe(0);
+    // its history no longer points at it, nor at anything else: the link is gone, the counts stay
+    expect(await prisma.franchiseApplicationStageEvent.count({ where: { applicationId: b.id } })).toBe(0);
+    expect(await repo.summary(from, to)).toEqual({
+      total: 3,
+      byStage: { PENDING: 1, DOC_VERIFICATION: 0, SURVEY: 1, APPROVED: 0, REJECTED: 1 },
+    });
+    expect(c.id).toBeTruthy();
+  });
+});

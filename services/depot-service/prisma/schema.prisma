@@ -1230,6 +1230,7 @@ model FranchiseApplicationStageEvent {
   stage         FranchiseAppStage
   at            DateTime          @default(now())
 
+  @@index([stage, applicationId])
   @@map("franchise_application_stage_events")
 }
 

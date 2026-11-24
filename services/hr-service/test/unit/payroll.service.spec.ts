@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, ForbiddenException, Logger } fr
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { Bonus, Deduction, Employee, Payroll } from '../../prisma/generated/client';
+import { DAILY_GALLON_BONUS_LABEL } from '../../src/domain/daily-sales-bonus';
+import { GALLON_BONUS_LIKE } from '../../src/infrastructure/prisma/ai-read.prisma.repository';
 import { HrConfigService } from '../../src/config/hr-config.service';
 import { PayrollService } from '../../src/application/services/payroll.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
@@ -410,6 +412,11 @@ describe('PayrollService.generate', () => {
       // 130 gal → 15.000; 205 gal → 50.000; 100 gal → below the ladder, nothing.
       expect(line).toMatchObject({ kind: 'BONUS', amount: 65_000 });
       expect(line!.label).toBe('Bonus target harian (2 hari)');
+      // the AI read API finds this line by the writer's own constant, through a LIKE on it
+      expect(line!.label.startsWith(DAILY_GALLON_BONUS_LABEL)).toBe(true);
+      // LIKE 'prefix%': the label must start with everything before the trailing wildcard
+      expect(GALLON_BONUS_LIKE.endsWith('%')).toBe(true);
+      expect(line!.label.startsWith(GALLON_BONUS_LIKE.slice(0, -1))).toBe(true);
     });
 
     it('pays nothing for a day the employee did not attend', async () => {

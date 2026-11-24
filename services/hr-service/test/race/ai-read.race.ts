@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import { AnalyticsPrismaRepository } from '../../src/infrastructure/prisma/analytics.prisma.repository';
 import { AiReadPrismaRepository } from '../../src/infrastructure/prisma/ai-read.prisma.repository';
 import { describeRace, freshPrisma } from './db';
 
@@ -61,6 +62,51 @@ describeRace('AiReadPrismaRepository on real Postgres (HD-6 H5)', () => {
     ]);
   });
 
+  it('puts a lent employee at the HOME depot in the amounts, the gate and the kasbon alike', async () => {
+    const H1 = '55555555-5555-4555-8555-555555555555';
+    const L1 = '66666666-6666-4666-8666-666666666666';
+    const lent = await prisma.employee.create({
+      data: {
+        employeeCode: `E-${randomUUID().slice(0, 8)}`,
+        fullName: 'Pinjaman',
+        phone: '0811',
+        position: 'Kasir',
+        employmentStatus: 'PERMANENT',
+        joinDate: new Date('2026-01-01'),
+        salaryType: 'MONTHLY',
+        monthlyRate: 5_000_000,
+        depotId: L1, // lent to L1 today
+        homeDepotId: H1, // belongs to H1
+        status: 'ACTIVE',
+      } as never,
+    });
+    const slip = await prisma.payroll.create({ data: { employeeId: lent.id, periodMonth: MONTH, status: 'DRAFT', gross: 7_000_000, net: 7_000_000 } as never });
+    const analytics = new AnalyticsPrismaRepository(prisma as never);
+    const gate = async () => {
+      const facts = await analytics.depotSummaryFacts(new Date('2026-11-15T00:00:00Z'), MONTH, [H1, L1]);
+      return { home: facts.get(H1), lentTo: facts.get(L1) };
+    };
+    // DRAFT: the HOME depot is the one that is waiting, the lent-to depot waits for nobody
+    let g = await gate();
+    expect(g.home).toMatchObject({ payrollExpectedCount: 1, payrollDraftCount: 1, payrollFinalCount: 0 });
+    expect(g.lentTo?.payrollExpectedCount ?? 0).toBe(0);
+    await prisma.payroll.update({ where: { id: slip.id }, data: { status: 'APPROVED' } });
+    g = await gate();
+    expect(g.home).toMatchObject({ payrollExpectedCount: 1, payrollDraftCount: 0, payrollFinalCount: 1 });
+    // and the amounts are the home depot's, in the same month
+    const rows = await repo.payroll([H1, L1], MONTH);
+    expect(rows).toEqual([
+      expect.objectContaining({ depotId: H1, slips: 1, grossIdr: 7_000_000 }),
+      expect.objectContaining({ depotId: L1, slips: 0, grossIdr: 0 }),
+    ]);
+    const loan = await prisma.loan.create({ data: { employeeId: lent.id, principal: 900, installmentAmount: 300, startPeriod: '2026-10', active: true } as never });
+    expect(loan.id).toBeTruthy();
+    expect(await repo.kasbon([H1, L1], MONTH)).toEqual([
+      { depotId: H1, people: 1, remainingIdr: 900 },
+      { depotId: L1, people: 0, remainingIdr: 0 },
+    ]);
+  });
+
   it('reads what is still owed off the approved slips only', async () => {
     const a = await person(D2);
     const loan = await prisma.loan.create({
@@ -85,6 +131,6 @@ describeRace('AiReadPrismaRepository on real Postgres (HD-6 H5)', () => {
     await day('2026-12-01', 'PRESENT');
     const { rows, rolledUp } = await repo.attendance([D1], '2026-11-01', '2026-11-30');
     expect(rolledUp).toBe(false);
-    expect(rows[0]).toMatchObject({ depotId: D1, present: 1, late: 1, people: 1 });
+    expect(rows[0]).toMatchObject({ depotId: D1, present: 1, late: 1, people: { present: 1, late: 1, absentRecorded: 0 } });
   });
 });

@@ -2,6 +2,7 @@ import { UnprocessableEntityException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
+import { DAILY_GALLON_BONUS_LABEL } from '../../src/domain/daily-sales-bonus';
 import { MAX_AI_READ_GROUPS } from '../../src/application/ports/ai-read.repository';
 import { AiReadPrismaRepository } from '../../src/infrastructure/prisma/ai-read.prisma.repository';
 import { AiReadInternalController } from '../../src/modules/ai-read-internal.controller';
@@ -39,8 +40,9 @@ describe('AiReadPrismaRepository.attendance (HD-6 H5)', () => {
     expect(out).toEqual({
       rolledUp: false,
       rows: [
-        { depotId: D1, present: 18, late: 2, absent: 1, leave: 3, pending: 1, people: 3 },
-        { depotId: D2, present: 0, late: 0, absent: 0, leave: 0, pending: 0, people: 0 },
+        // e1 and e2 were present, e1 late: distinct people are counted per status, not per depot
+        { depotId: D1, present: 18, late: 2, absentRecorded: 1, leave: 3, pending: 1, people: { present: 2, late: 1, absentRecorded: 1, leave: 1, pending: 1 } },
+        { depotId: D2, present: 0, late: 0, absentRecorded: 0, leave: 0, pending: 0, people: { present: 0, late: 0, absentRecorded: 0, leave: 0, pending: 0 } },
       ],
     });
     const where = prisma.attendance.groupBy.mock.calls[0][0].where;
@@ -78,6 +80,10 @@ describe('AiReadPrismaRepository.payroll (HD-6 H5)', () => {
     const strings = prisma.$queryRaw.mock.calls[0][0].join('?');
     expect(strings).toContain(`p."status" IN ('APPROVED', 'PAID')`);
     expect(strings).toContain(`"kind" = 'BONUS'`);
+    // by the employee's HOME depot, the basis of the finished-month gate too
+    expect(strings).toContain('COALESCE(e."homeDepotId", e."depotId")');
+    // the gallon line is found by the label the payroll writer uses
+    expect(prisma.$queryRaw.mock.calls[0].slice(1)).toContain(`${DAILY_GALLON_BONUS_LABEL} (%`);
   });
 
   it('reads null sums as 0', async () => {
@@ -129,6 +135,22 @@ describe('AiReadPrismaRepository.kasbon (HD-6 H5)', () => {
     expect(out[0]).toEqual({ depotId: D1, people: 5001, remainingIdr: 500_100 });
   });
 
+  it('reads a lent employee at the home depot: homeDepotId first, the live depot only when there is none', async () => {
+    const { prisma, repo } = setup();
+    prisma.loan.findMany.mockResolvedValue([
+      { ...loan('l1', 'e1', D2, 1000, 500), employee: { depotId: D2, homeDepotId: D1 } }, // lent to D2, belongs to D1
+      { ...loan('l2', 'e2', D2, 1000, 500), employee: { depotId: D2, homeDepotId: null } },
+    ]);
+    prisma.payrollItem.groupBy.mockResolvedValue([]);
+    expect(await repo.kasbon([D1, D2], '2026-11')).toEqual([
+      { depotId: D1, people: 1, remainingIdr: 1000 },
+      { depotId: D2, people: 1, remainingIdr: 1000 },
+    ]);
+    expect(prisma.loan.findMany.mock.calls[0][0].where.employee).toEqual({
+      OR: [{ homeDepotId: { in: [D1, D2] } }, { homeDepotId: null, depotId: { in: [D1, D2] } }],
+    });
+  });
+
   it('refuses more loans than it will walk, rather than cutting the list', async () => {
     const { prisma, repo } = setup();
     prisma.loan.findMany.mockResolvedValue(new Array(MAX_AI_READ_GROUPS + 1).fill(loan('l', 'e', D1, 1, 1)));
@@ -160,6 +182,10 @@ describe('AiReadInternalController and its DTOs (HD-6 H5)', () => {
     expect(await att({ depotIds: D1, from: '2026-11-30', to: '2026-11-01' })).not.toHaveLength(0);
     expect(await att({ depotIds: D1, from: '2025-01-01', to: '2026-11-01' })).not.toHaveLength(0);
     expect(await att({ depotIds: new Array(101).fill(D1).join(','), from: '2026-11-01', to: '2026-11-30' })).not.toHaveLength(0);
+    // a real calendar day: 2026-02-31 is a 400, not a 500 from the database
+    expect(await att({ depotIds: D1, from: '2026-02-31', to: '2026-03-02' })).not.toHaveLength(0);
+    expect(await att({ depotIds: D1, from: '2026-02-01', to: '2026-02-30' })).not.toHaveLength(0);
+    expect(await att({ depotIds: D1, from: '2026-02-28', to: '2026-03-01' })).toHaveLength(0);
     const month = (m: string) => validate(plainToInstance(AiMonthQueryDto, { depotIds: D1, month: m }) as object);
     expect(await month('2026-11')).toHaveLength(0);
     expect(await month('2026-13')).not.toHaveLength(0);

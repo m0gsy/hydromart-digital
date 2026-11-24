@@ -1272,28 +1272,27 @@ describe('AnalyticsPrismaRepository', () => {
       // A punch with no depot on it cannot be attributed and must not crash the roll-up.
       { depotId: null, status: 'PRESENT', _count: { _all: 5 } },
     ]);
-    m(p, 'employee').groupBy
-      .mockResolvedValueOnce([
-        { depotId: 'd1', _count: { _all: 9 } },
-        { depotId: null, _count: { _all: 3 } },
-      ])
-      // HD-6 H2: the second read is who the month is waiting for.
-      .mockResolvedValueOnce([
-        { depotId: 'd1', _count: { _all: 8 } },
-        { depotId: null, _count: { _all: 1 } },
-      ]);
-    // Prisma hands back a Decimal from a raw SUM; Number() reads it through toString.
-    (p.$queryRaw as jest.Mock).mockResolvedValue([
-      {
-        depotId: 'd1',
-        net: { toString: () => '0' },
-        gross: { toString: () => '11000000' },
-        // COUNT comes back from a raw query as a bigint.
-        count: BigInt(9),
-        draft: BigInt(3),
-        final: BigInt(6),
-      },
+    m(p, 'employee').groupBy.mockResolvedValueOnce([
+      { depotId: 'd1', _count: { _all: 9 } },
+      { depotId: null, _count: { _all: 3 } },
     ]);
+    // Prisma hands back a Decimal from a raw SUM; Number() reads it through toString. The raw reads are the
+    // cost totals, who the month waits for (HD-6 H2, by the HOME depot) and the slips finished, in that order.
+    (p.$queryRaw as jest.Mock).mockImplementation(async (strings: TemplateStringsArray) => {
+      const sql = strings.join('?');
+      if (sql.includes('"n"')) return [{ depotId: 'd1', n: BigInt(8) }, { depotId: null, n: BigInt(1) }];
+      return [
+        {
+          depotId: 'd1',
+          net: { toString: () => '0' },
+          gross: { toString: () => '11000000' },
+          // COUNT comes back from a raw query as a bigint.
+          count: BigInt(9),
+          draft: BigInt(3),
+          final: BigInt(6),
+        },
+      ];
+    });
 
     const repo = new AnalyticsPrismaRepository(asService(p));
     const facts = await repo.depotSummaryFacts(wd, '2026-07', ['d1', 'd2', 'd3']);
@@ -1313,20 +1312,23 @@ describe('AnalyticsPrismaRepository', () => {
       payrollExpectedCount: 8,
       activeHeadcount: 9,
     });
-    // Employed at any time in July: joined on or before the 31st (a mid-month joiner), and either
-    // still active or left on or after the 1st (a mid-month leaver counts; one who left in June does not).
-    const expectedWhere = m(p, 'employee').groupBy.mock.calls.at(-1)![0].where;
-    expect(expectedWhere).toEqual({
-      depotId: { in: ['d1', 'd2', 'd3'] },
-      joinDate: { lte: new Date('2026-07-31T00:00:00.000Z') },
-      OR: [{ status: 'ACTIVE' }, { exitDate: { gte: new Date('2026-07-01T00:00:00.000Z') } }],
-    });
+    // Who the month waits for is read by the HOME depot (the basis the AI read API's payroll amounts use),
+    // employed at any time in July: joined by the 31st, and still active or left on or after the 1st.
+    const expectedSql = (p.$queryRaw as jest.Mock).mock.calls
+      .map((c) => (c[0] as TemplateStringsArray).join('?'))
+      .find((q) => q.includes('"n"'))!;
+    expect(expectedSql).toContain('COALESCE(e."homeDepotId", e."depotId")');
+    expect(expectedSql).toContain(`e."status" = 'ACTIVE' OR e."exitDate" >=`);
+    const finishedSql = (p.$queryRaw as jest.Mock).mock.calls
+      .map((c) => (c[0] as TemplateStringsArray).join('?'))
+      .find((q) => q.includes('"draft"'))!;
+    expect(finishedSql).toContain('GROUP BY COALESCE(e."homeDepotId", e."depotId")');
     expect(facts.get('d2')?.absentToday).toBe(1);
     // A depot with nothing at all is simply absent — the service decides what that means.
     expect(facts.has('d3')).toBe(false);
     expect(m(p, 'attendance').groupBy).toHaveBeenCalledTimes(1);
-    // the cost totals, and the slips by the employee's own depot (finished check)
-    expect(p.$queryRaw).toHaveBeenCalledTimes(2);
+    // the cost totals, who the month waits for, and the slips by the employee's home depot (finished check)
+    expect(p.$queryRaw).toHaveBeenCalledTimes(3);
   });
 
   it('depotSummaryFacts reads a null payroll sum as zero, and asks nothing for no depots', async () => {
@@ -1342,7 +1344,7 @@ describe('AnalyticsPrismaRepository', () => {
 
     const none = await repo.depotSummaryFacts(new Date('2026-07-01'), '2026-07', []);
     expect(none.size).toBe(0);
-    expect(p.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(p.$queryRaw).toHaveBeenCalledTimes(3);
   });
 
   it('payrollTotals converts Decimals (and null → 0), scoped by depot', async () => {

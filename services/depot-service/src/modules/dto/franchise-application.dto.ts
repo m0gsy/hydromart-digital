@@ -246,11 +246,11 @@ export class PurgeRejectedResponseDto {
 /** HD-6 H5: the window `[from, to)` an application summary is asked for, at most a leap year. */
 export class ApplicationSummaryQueryDto {
   @ApiProperty({ type: String, format: 'date-time' })
-  @IsISO8601()
+  @IsISO8601({ strict: true }) // a real calendar date: 2026-02-31 is a 400, not a 500
   from!: string;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  @IsISO8601()
+  @IsISO8601({ strict: true })
   @IsNotBefore('from')
   @IsWithinDays('from')
   to!: string;

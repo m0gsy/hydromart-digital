@@ -301,11 +301,11 @@ export class CommissionByDepotQueryDto {
   depotIds!: string[];
 
   @ApiProperty({ format: 'date-time' })
-  @IsISO8601()
+  @IsISO8601({ strict: true })
   from!: string;
 
   @ApiProperty({ format: 'date-time', description: 'Exclusive end of the window.' })
-  @IsISO8601()
+  @IsISO8601({ strict: true })
   @IsNotBefore('from')
   @IsWithinDays('from')
   to!: string;

@@ -8,17 +8,21 @@ export const AI_READ_REPOSITORY = Symbol('AiReadRepository');
 /** The most groups one answer may rest on; past it the read is refused (422), never cut short. */
 export const MAX_AI_READ_GROUPS = 50_000;
 
+/** The attendance statuses the AI read API counts, in the order it answers them. */
+export const ATTENDANCE_CELLS = ['present', 'late', 'absentRecorded', 'leave', 'pending'] as const;
+export type AttendanceCell = (typeof ATTENDANCE_CELLS)[number];
+
 export interface AttendanceDepotRow {
   depotId: string;
   present: number;
   late: number;
   /** Explicit ABSENT records only: a scheduled day with no record at all is not counted here. */
-  absent: number;
+  absentRecorded: number;
   leave: number;
   /** Punches taken offline and not yet decided by HR; counted as nothing. */
   pending: number;
-  /** Distinct employees with a record at this depot in the window. */
-  people: number;
+  /** DISTINCT employees behind each count above, so the reader can hold back any one of them. */
+  people: Record<AttendanceCell, number>;
 }
 
 export interface PayrollDepotRow {

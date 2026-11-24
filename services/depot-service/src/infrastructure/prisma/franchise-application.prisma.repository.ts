@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
@@ -131,10 +133,23 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
   }
 
   async purgeRejectedBefore(cutoff: Date): Promise<number> {
-    const { count } = await this.prisma.franchiseApplication.deleteMany({
-      where: { stage: FranchiseAppStage.REJECTED, updatedAt: { lt: cutoff } },
+    // The stage history outlives the application (it keeps the counts), but it must not keep a link
+    // to the person: in the same transaction its rows are re-keyed to a fresh random id per
+    // application, so counts and the "one application" grouping still work and the link is gone.
+    return this.prisma.$transaction(async (tx) => {
+      const doomed = await tx.franchiseApplication.findMany({
+        where: { stage: FranchiseAppStage.REJECTED, updatedAt: { lt: cutoff } },
+        select: { id: true },
+      });
+      for (const { id } of doomed) {
+        await tx.franchiseApplicationStageEvent.updateMany({
+          where: { applicationId: id },
+          data: { applicationId: randomUUID() },
+        });
+      }
+      const { count } = await tx.franchiseApplication.deleteMany({ where: { id: { in: doomed.map((d) => d.id) } } });
+      return count;
     });
-    return count;
   }
 
   async summary(from: Date, to: Date): Promise<ApplicationSummary> {
@@ -142,35 +157,43 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
       FranchiseAppStage,
       number
     >;
-    const [live, entered] = await Promise.all([
-      this.prisma.franchiseApplication.groupBy({
-        by: ['stage'],
-        where: { submittedAt: { gte: from, lt: to } },
-        _count: { _all: true },
-      }),
-      // The first PENDING row of an application is its submission; a later move back to PENDING is not.
-      this.prisma.franchiseApplicationStageEvent.groupBy({
-        by: ['applicationId'],
-        where: { stage: FranchiseAppStage.PENDING },
-        _min: { at: true },
-        having: { at: { _min: { gte: from, lt: to } } },
-        orderBy: { applicationId: 'asc' },
-        take: MAX_SUMMARY_APPLICATIONS + 1,
-      }),
-    ]);
-    if (entered.length > MAX_SUMMARY_APPLICATIONS) {
-      throw new UnprocessableEntityException(
-        `Lebih dari ${MAX_SUMMARY_APPLICATIONS} pengajuan pada rentang ini; persempit rentangnya.`,
-      );
-    }
+    // One snapshot: a purge landing between the three reads must not count one application twice.
+    const { live, entered, kept } = await this.prisma.$transaction(
+      async (tx) => {
+        const [live, entered] = await Promise.all([
+          tx.franchiseApplication.groupBy({
+            by: ['stage'],
+            where: { submittedAt: { gte: from, lt: to } },
+            _count: { _all: true },
+          }),
+          // The first PENDING row of an application is its submission; a later move back to PENDING is not.
+          tx.franchiseApplicationStageEvent.groupBy({
+            by: ['applicationId'],
+            where: { stage: FranchiseAppStage.PENDING },
+            _min: { at: true },
+            having: { at: { _min: { gte: from, lt: to } } },
+            orderBy: { applicationId: 'asc' },
+            take: MAX_SUMMARY_APPLICATIONS + 1,
+          }),
+        ]);
+        if (entered.length > MAX_SUMMARY_APPLICATIONS) {
+          throw new UnprocessableEntityException(
+            `Lebih dari ${MAX_SUMMARY_APPLICATIONS} pengajuan pada rentang ini; persempit rentangnya.`,
+          );
+        }
+        // In the history but no longer in the table: deleted, so it was rejected.
+        let kept = 0;
+        for (let i = 0; i < entered.length; i += 5000) {
+          kept += await tx.franchiseApplication.count({
+            where: { id: { in: entered.slice(i, i + 5000).map((e) => e.applicationId) } },
+          });
+        }
+        return { live, entered, kept };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
     for (const g of live) byStage[g.stage as FranchiseAppStage] += g._count._all;
-    // In the history but no longer in the table: deleted, so it was rejected.
-    const ids = entered.map((e) => e.applicationId);
-    let kept = 0;
-    for (let i = 0; i < ids.length; i += 5000) {
-      kept += await this.prisma.franchiseApplication.count({ where: { id: { in: ids.slice(i, i + 5000) } } });
-    }
-    byStage[FranchiseAppStage.REJECTED] += ids.length - kept;
+    byStage[FranchiseAppStage.REJECTED] += entered.length - kept;
     return { total: Object.values(byStage).reduce((a, b) => a + b, 0), byStage };
   }
 }

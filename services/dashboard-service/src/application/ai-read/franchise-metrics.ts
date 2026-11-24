@@ -34,6 +34,13 @@ const KIND_NAME: Record<string, string> = { OPERATOR: 'HKP', FRANCHISEE: 'WARALA
 const NO_ENTITY = 'TANPA_BADAN_HUKUM';
 /** Most depots W-06 lists in one answer; past it the answer is "persempit", never a cut list. */
 const MAX_LISTED = 1000;
+/** Exactly one calendar month, or exactly one calendar year (`YYYY-MM-DD` days, both included). */
+function isWholeMonthOrYear(from: string, to: string): boolean {
+  const [y, m, d] = from.split('-').map(Number);
+  // tz-ok: calendar days as UTC midnights; the UTC slice IS the calendar day.
+  const monthEnd = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); // tz-ok: a calendar day
+  return d === 1 && ((to === monthEnd) || (m === 1 && to === `${y}-12-31`));
+}
 const STAGES = ['PENDING', 'DOC_VERIFICATION', 'SURVEY', 'APPROVED', 'REJECTED'];
 
 @Injectable()
@@ -71,6 +78,11 @@ export class FranchiseMetricsService {
 
   /** W-01, W-02: applications carry no depot or legal entity, so only a role that reads every entity and holds the queue may count them. */
   private async applications(id: 'W-01' | 'W-02', user: AuthenticatedUser, env: ReadEnv): Promise<AnswerEnvelope> {
+    // Differencing: a month's total minus the same month less one day would isolate one calon mitra (and
+    // their stage), so only a whole calendar month or year is answered, never a week or a free range.
+    if (!isWholeMonthOrYear(env.period.from, env.period.to)) {
+      return env.none('Pengajuan calon mitra hanya dijawab per bulan atau tahun penuh, supaya selisih dua jawaban tidak menunjuk satu orang.');
+    }
     if (!can('franchiseApplications', user.role)) {
       return env.held('Pengajuan calon mitra hanya untuk peran yang memegang antrean pengajuan waralaba.');
     }
@@ -104,7 +116,10 @@ export class FranchiseMetricsService {
     );
   }
 
-  /** W-05: HQ's commission, from the ledger payout-service keeps, over the days each depot was readable. */
+  /**
+   * W-05: HQ's commission from the ledger payout-service keeps, by POSTING date over the days each depot
+   * was readable: a void is its own reversing row, so it falls in the period it was voided in.
+   */
   private async commission(user: AuthenticatedUser, env: ReadEnv): Promise<AnswerEnvelope> {
     if (!can('hqPayoutRead', user.role)) return env.held('Komisi HQ hanya untuk peran yang boleh membaca pembayaran mitra.');
     if (env.scope.spans.length === 0) return env.none('Tidak ada depot yang boleh Anda baca pada periode ini.');
@@ -114,7 +129,7 @@ export class FranchiseMetricsService {
       if (!rows) return env.none(DOWN);
       total += rows.reduce((s, r) => s + r.commissionIdr, 0);
     }
-    return env.ok(Math.round(total), 'komisi HQ dari penjualan depot mitra: subtotal barang x persen komisi depot saat pesanan selesai, dikurangi yang dikembalikan void kasir; refund belum dibalik');
+    return env.ok(Math.round(total), 'komisi HQ dari penjualan depot mitra: subtotal barang x persen komisi depot saat pesanan selesai, menurut tanggal pencatatan di buku: pembatalan (void) jatuh pada bulan ia dibatalkan, bukan bulan pesanan; refund belum dibalik');
   }
 
   /** The legal entity of each depot readable on `day`, and its kind. Null: a source is down. */
@@ -143,19 +158,23 @@ export class FranchiseMetricsService {
     const all = await this.depots.allDepots('');
     const entities = await this.entitiesOn(env.scope, today);
     if (!all || !entities) return env.none(DOWN);
+    // A readable depot depot-service does not list at all is a source that is short, not a depot to skip.
+    const listed = new Set(all.map((d) => d.id));
+    if (entities.some((e) => !listed.has(e.depotId))) return env.none(DOWN);
     const active = new Map(all.filter((d) => d.active).map((d) => [d.id, d.ownershipType]));
     const mine = entities.filter((e) => active.has(e.depotId));
-    const byOwnershipType: Record<string, number> = { HKP: 0, WARALABA: 0 };
+    const byOwnershipType: Record<string, number> = { HKP: 0, WARALABA: 0, LAINNYA: 0 };
     const byEntityKind: Record<string, number> = { HKP: 0, WARALABA: 0, INDUK: 0, [NO_ENTITY]: 0 };
     for (const e of mine) {
       const type = active.get(e.depotId) as string;
-      byOwnershipType[type] = (byOwnershipType[type] ?? 0) + 1;
+      // A value this code has no word for goes to a fixed bucket: the answer never grows new keys.
+      byOwnershipType[type === 'HKP' || type === 'WARALABA' ? type : 'LAINNYA'] += 1;
       const kind = e.kind ? (KIND_NAME[e.kind] ?? NO_ENTITY) : NO_ENTITY;
       byEntityKind[kind] += 1;
     }
     return env.ok(
       { depots: mine.length, byOwnershipType, byEntityKind },
-      `depot aktif hari ini (${today}) yang boleh Anda baca; byOwnershipType = jenis pada data depot, byEntityKind = jenis badan hukum pemegang depot hari ini (OPERATOR = HKP, FRANCHISEE = WARALABA)`,
+      `depot aktif hari ini (${today}) yang boleh Anda baca; byOwnershipType = jenis pada data depot (nilai lain masuk LAINNYA), byEntityKind = jenis badan hukum pemegang depot hari ini (OPERATOR = HKP, FRANCHISEE = WARALABA)`,
     );
   }
 

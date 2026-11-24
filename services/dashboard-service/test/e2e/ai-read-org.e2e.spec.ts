@@ -94,7 +94,7 @@ describe('GET ai/read/franchise and ai/read/hr (HD-6 H5)', () => {
           return json(ids.map((depotId) => ({ depotId, activeHeadcount: 4, payrollCount: 4, payrollDraftCount: 0, payrollFinalCount: 4, payrollExpectedCount: 4 })));
         }
         if (url.pathname.endsWith('/ai/attendance')) {
-          return json({ rolledUp: false, rows: ids.map((depotId) => ({ depotId, present: 10, late: 1, absent: 0, leave: 0, pending: 0, people: 4 })) });
+          return json({ rolledUp: false, rows: ids.map((depotId) => ({ depotId, present: 10, late: 1, absentRecorded: 0, leave: 0, pending: 0, people: { present: 4, late: 4, absentRecorded: 0, leave: 0, pending: 0 } })) });
         }
         if (url.pathname.endsWith('/ai/payroll')) {
           return json(ids.map((depotId) => ({ depotId, slips: 4, grossIdr: 1_000, bonusIdr: 100, deductionIdr: 10, netIdr: 1_090, gallonBonusIdr: 50, gallonPeople: 3 })));

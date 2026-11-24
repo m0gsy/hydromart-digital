@@ -8,11 +8,13 @@ import {
   MAX_AI_READ_GROUPS,
   PayrollDepotRow,
 } from '../../application/ports/ai-read.repository';
+import { DAILY_GALLON_BONUS_LABEL } from '../../domain/daily-sales-bonus';
 import { loanRemainingAfter } from '../../domain/loan';
 import { PrismaService } from './prisma.service';
 
 const TOO_MANY = 'Terlalu banyak data untuk satu jawaban; persempit rentang atau cakupan depot.';
-const GALLON_BONUS_LABEL = 'Bonus target harian%';
+// The writer's own label (payroll.service), then ` (n hari)`; `%`/`_` in it would be wildcards, so it has none.
+export const GALLON_BONUS_LIKE = `${DAILY_GALLON_BONUS_LABEL} (%`;
 const FINAL = ['APPROVED', 'PAID'] as const;
 const CHUNK = 5000;
 
@@ -44,22 +46,30 @@ export class AiReadPrismaRepository implements AiReadRepository {
       }),
     ]);
     if (groups.length > MAX_AI_READ_GROUPS) throw new UnprocessableEntityException(TOO_MANY);
-    const cells = new Map<string, { row: AttendanceDepotRow; seen: Set<string> }>(
-      ids.map((depotId) => [
-        depotId,
-        { row: { depotId, present: 0, late: 0, absent: 0, leave: 0, pending: 0, people: 0 }, seen: new Set() },
-      ]),
-    );
-    const key = { PRESENT: 'present', LATE: 'late', ABSENT: 'absent', LEAVE: 'leave', PENDING: 'pending' } as const;
+    const blank = (depotId: string): AttendanceDepotRow => ({
+      depotId,
+      present: 0,
+      late: 0,
+      absentRecorded: 0,
+      leave: 0,
+      pending: 0,
+      people: { present: 0, late: 0, absentRecorded: 0, leave: 0, pending: 0 },
+    });
+    const rows = new Map(ids.map((d) => [d, blank(d)]));
+    const seen = new Map<string, Set<string>>();
+    const field = { PRESENT: 'present', LATE: 'late', ABSENT: 'absentRecorded', LEAVE: 'leave', PENDING: 'pending' } as const;
     for (const g of groups) {
-      const cell = g.depotId ? cells.get(g.depotId) : undefined;
-      if (!cell) continue;
-      const field = key[g.status as keyof typeof key];
-      if (field) cell.row[field] += g._count._all;
-      cell.seen.add(g.employeeId);
-      cell.row.people = cell.seen.size;
+      const row = g.depotId ? rows.get(g.depotId) : undefined;
+      const cell = field[g.status as keyof typeof field];
+      if (!row || !cell) continue;
+      row[cell] += g._count._all;
+      const key = `${row.depotId}|${cell}`;
+      const heads = seen.get(key) ?? new Set<string>();
+      heads.add(g.employeeId);
+      seen.set(key, heads);
+      row.people[cell] = heads.size;
     }
-    return { rows: ids.map((d) => cells.get(d)!.row), rolledUp: rollups > 0 };
+    return { rows: ids.map((d) => rows.get(d)!), rolledUp: rollups > 0 };
   }
 
   async payroll(depotIds: readonly string[], month: string): Promise<PayrollDepotRow[]> {
@@ -76,7 +86,7 @@ export class AiReadPrismaRepository implements AiReadRepository {
         gallonPeople: bigint | null;
       }[]
     >`
-      SELECT e."depotId" AS "depotId", COUNT(*) AS "slips", SUM(p."gross") AS "gross",
+      SELECT COALESCE(e."homeDepotId", e."depotId") AS "depotId", COUNT(*) AS "slips", SUM(p."gross") AS "gross",
              SUM(p."totalBonus") AS "bonus", SUM(p."totalDeduction") AS "deduction", SUM(p."net") AS "net",
              SUM(COALESCE(g."amount", 0)) AS "gallon",
              COUNT(*) FILTER (WHERE g."amount" > 0) AS "gallonPeople"
@@ -84,13 +94,13 @@ export class AiReadPrismaRepository implements AiReadRepository {
       JOIN "employees" e ON e."id" = p."employeeId"
       LEFT JOIN (
         SELECT "payrollId", SUM("amount") AS "amount" FROM "payroll_items"
-        WHERE "kind" = 'BONUS' AND "label" LIKE ${GALLON_BONUS_LABEL}
+        WHERE "kind" = 'BONUS' AND "label" LIKE ${GALLON_BONUS_LIKE}
         GROUP BY "payrollId"
       ) g ON g."payrollId" = p."id"
       WHERE p."periodMonth" = ${month}
         AND p."status" IN ('APPROVED', 'PAID')
-        AND e."depotId" IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
-      GROUP BY e."depotId"
+        AND COALESCE(e."homeDepotId", e."depotId") IN (${Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`))})
+      GROUP BY COALESCE(e."homeDepotId", e."depotId")
     `;
     const by = new Map(rows.map((r) => [r.depotId, r]));
     return ids.map((depotId) => {
@@ -111,14 +121,19 @@ export class AiReadPrismaRepository implements AiReadRepository {
   async kasbon(depotIds: readonly string[], month: string): Promise<KasbonDepotRow[]> {
     const ids = [...depotIds];
     const loans = await this.prisma.loan.findMany({
-      where: { active: true, startPeriod: { lte: month }, employee: { depotId: { in: ids } } },
+      where: {
+        active: true,
+        startPeriod: { lte: month },
+        // The employee's home depot: `homeDepotId`, else the live depot (as the payroll rules read it).
+        employee: { OR: [{ homeDepotId: { in: ids } }, { homeDepotId: null, depotId: { in: ids } }] },
+      },
       select: {
         id: true,
         employeeId: true,
         principal: true,
         installmentAmount: true,
         startPeriod: true,
-        employee: { select: { depotId: true } },
+        employee: { select: { depotId: true, homeDepotId: true } },
       },
       orderBy: { id: 'asc' },
       take: MAX_AI_READ_GROUPS + 1,
@@ -142,7 +157,8 @@ export class AiReadPrismaRepository implements AiReadRepository {
       ids.map((d) => [d, { remaining: 0, owing: new Set<string>() }]),
     );
     for (const l of loans) {
-      const cell = l.employee.depotId ? cells.get(l.employee.depotId) : undefined;
+      const home = l.employee.homeDepotId ?? l.employee.depotId;
+      const cell = home ? cells.get(home) : undefined;
       if (!cell) continue;
       const left = loanRemainingAfter(
         { principal: Number(l.principal), installmentAmount: Number(l.installmentAmount), startPeriod: l.startPeriod },

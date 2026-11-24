@@ -77,5 +77,8 @@ describe('ApplicationSummaryQueryDto (HD-6 H5)', () => {
     expect(await check({ from: '2026-12-01T00:00:00Z', to: '2026-11-01T00:00:00Z' })).not.toHaveLength(0);
     expect(await check({ from: '2020-01-01T00:00:00Z', to: '2026-11-01T00:00:00Z' })).not.toHaveLength(0);
     expect(await check({ from: 'x' })).not.toHaveLength(0);
+    // a real calendar date: 2026-02-31 is a 400, not a 500 from the database
+    expect(await check({ from: '2026-02-31T00:00:00Z', to: '2026-03-31T00:00:00Z' })).not.toHaveLength(0);
+    expect(await check({ from: '2026-02-01T00:00:00Z', to: '2026-02-30T00:00:00Z' })).not.toHaveLength(0);
   });
 });

@@ -7,15 +7,19 @@ export interface ApplicationSummary {
 }
 
 /** hr-service: one depot's attendance counts over a window of days. */
+export const ATTENDANCE_CELLS = ['present', 'late', 'absentRecorded', 'leave', 'pending'] as const;
+export type AttendanceCell = (typeof ATTENDANCE_CELLS)[number];
+
 export interface AttendanceRow {
   depotId: string;
   present: number;
   late: number;
-  absent: number;
+  /** Explicit ABSENT records only; a scheduled day with no record is not visible. */
+  absentRecorded: number;
   leave: number;
   pending: number;
-  /** Distinct employees behind the counts. */
-  people: number;
+  /** Distinct employees behind EACH count, so each can be held back on its own. */
+  people: Record<AttendanceCell, number>;
 }
 
 /** hr-service: one depot's APPROVED/PAID payslips of a month, by the employee's own depot. */

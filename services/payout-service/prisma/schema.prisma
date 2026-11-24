@@ -129,6 +129,7 @@ model LedgerEntry {
   createdAt        DateTime        @default(now())
 
   @@index([franchiseOwnerId, occurredAt])
+  @@index([depotId, occurredAt])
   @@map("ledger_entries")
 }
 

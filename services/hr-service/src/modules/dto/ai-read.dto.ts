@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsUUID, Matches } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsISO8601, IsUUID, Matches } from 'class-validator';
 import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -27,10 +27,12 @@ class DepotsQueryDto {
 export class AiAttendanceQueryDto extends DepotsQueryDto {
   @ApiProperty({ example: '2026-11-01', description: 'First day, YYYY-MM-DD.' })
   @Matches(DAY)
+  @IsISO8601({ strict: true }) // a real calendar day: 2026-02-31 is a 400
   from!: string;
 
   @ApiProperty({ example: '2026-11-30', description: 'Last day (included), not before from, at most 366 days.' })
   @Matches(DAY)
+  @IsISO8601({ strict: true })
   @IsNotBefore('from')
   @IsWithinDays('from')
   to!: string;
