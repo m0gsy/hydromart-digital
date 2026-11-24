@@ -171,6 +171,21 @@ describe('PaymentService (branch coverage)', () => {
     });
   });
 
+  it('HD-6 A3: a failing settled-stamp write after the money moved still returns the refund', async () => {
+    const payment = await initiate(PaymentMethod.VA, 80_000);
+    await service.confirm(payment.id, 'staff');
+    const real = repo.updateIfStatus.bind(repo);
+    let calls = 0;
+    jest.spyOn(repo, 'updateIfStatus').mockImplementation(async (...args) => {
+      calls += 1;
+      if (calls === 2) throw new Error('db down');
+      return real(...args);
+    });
+    const refunded = await service.refund(payment.id, 'finance');
+    expect(refunded.status).toBe(PaymentStatus.REFUNDED);
+    expect(orders.refunded).toHaveLength(1);
+  });
+
   it('rejects rejectRefund when the refund is not pending approval', async () => {
     const payment = await initiate(PaymentMethod.VA, 80_000);
     await service.confirm(payment.id, 'staff');

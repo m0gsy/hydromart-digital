@@ -470,7 +470,7 @@ describe('PaymentPrismaRepository', () => {
     expect(await r.refundedTotalForOrder('o1')).toBe(0);
     expect(await r.refundedTotalForOrder('o1')).toBe(0);
     const text = (raw.mock.calls[0]![0] as { strings: string[] }).strings.join('?');
-    expect(text).toContain('refundSettledAt" IS NOT NULL');
+    expect(text).toContain('refundSettledAt" IS NOT NULL OR "refundedAt" < now()');
     expect(text).toContain('COALESCE("refundedAmount", "amount")');
   });
 

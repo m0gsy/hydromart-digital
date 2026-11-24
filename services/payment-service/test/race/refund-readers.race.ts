@@ -88,9 +88,15 @@ describeRace('payment readers after a part-refund (real Postgres)', () => {
     expect(await repo.refundedTotalForOrder(o3)).toBe(50_000 + 8_000);
     // A row claimed but not yet settled (gateway pending) is not counted.
     const o5 = randomUUID();
-    await add(o5, 40_000, PaymentStatus.REFUNDED, 9_000, { refundSettledAt: null });
+    await add(o5, 40_000, PaymentStatus.REFUNDED, 9_000, { refundSettledAt: null, refundedAt: new Date() });
     expect(await repo.refundedTotalForOrder(o5)).toBe(0);
     await db.payment.updateMany({ where: { orderId: o5 }, data: { refundSettledAt: at } });
     expect(await repo.refundedTotalForOrder(o5)).toBe(9_000);
+    // Unmarked: refunded 20 minutes ago counts (settled by pre-marker code), 1 minute ago does not.
+    const o6 = randomUUID();
+    const ago = (min: number) => new Date(Date.now() - min * 60_000);
+    await add(o6, 30_000, PaymentStatus.REFUNDED, 6_000, { refundSettledAt: null, refundedAt: ago(20) });
+    await add(o6, 30_000, PaymentStatus.REFUNDED, 4_000, { refundSettledAt: null, refundedAt: ago(1) });
+    expect(await repo.refundedTotalForOrder(o6)).toBe(6_000);
   });
 });

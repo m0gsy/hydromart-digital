@@ -491,6 +491,9 @@ export class PaymentPrismaRepository implements PaymentRepository {
   }
 
   async refundedTotalForOrder(orderId: string): Promise<number> {
+    // An unmarked row older than 15 minutes counts too: a claim lasts only as long as the gateway
+    // call, so an older one was settled by code that predates the marker (or is stuck, which is
+    // reconciled by hand). Otherwise a deploy window would drop real refunds for good.
     // Only SETTLED refunds: a row claimed by a refund still waiting on the gateway is REFUNDED
     // too, and may yet be handed back. A row with no stated part is a full refund (same rule as
     // KEPT_AMOUNT), so the two readers cannot disagree.
@@ -499,7 +502,7 @@ export class PaymentPrismaRepository implements PaymentRepository {
       FROM "payments"
       WHERE "orderId" = ${orderId}::uuid
         AND "status" = ${PaymentStatus.REFUNDED}::"PaymentStatus"
-        AND "refundSettledAt" IS NOT NULL
+        AND ("refundSettledAt" IS NOT NULL OR "refundedAt" < now() - interval '15 minutes')
     `);
     return row?.total ? Math.round(Number(row.total)) : 0;
   }

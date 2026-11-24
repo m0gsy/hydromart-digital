@@ -1470,11 +1470,21 @@ export class PaymentService {
     // result (which already carries every field but the gateway's raw payload).
     // `refundSettledAt` is stamped only here, after the gateway answered: the order's refunded
     // total counts rows that carry it, so a claim handed back above never inflates the total.
+    // A database error here, after the money moved, must not turn a settled refund into a 500
+    // (a retry would meet PaymentNotRefundableError). The unmarked row is still counted by the
+    // order total once it is older than the in-flight window.
     const updated =
-      (await this.payments.updateIfStatus(payment.id, [PaymentStatus.REFUNDED], {
-        ...patch,
-        refundSettledAt: new Date(),
-      })) ?? claimed;
+      (await this.payments
+        .updateIfStatus(payment.id, [PaymentStatus.REFUNDED], {
+          ...patch,
+          refundSettledAt: new Date(),
+        })
+        .catch((error: Error) => {
+          this.logger.error(
+            `Refund of payment ${payment.id} moved money but the settled stamp was not written: ${error.message}`,
+          );
+          return null;
+        })) ?? claimed;
     // H-29: recorded AFTER the money moved, so the trail never claims a refund that the
     // gateway refused. `approval` distinguishes an HQ-approved settlement from one under
     // the threshold that needed nobody — that difference is the whole point of the queue.
