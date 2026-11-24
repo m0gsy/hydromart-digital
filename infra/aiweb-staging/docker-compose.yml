@@ -17,7 +17,7 @@
 # never pinned here first). Staging has no backup: its data is made up and `staging-reset` (the
 # Deploy workflow's mode) starts it again from nothing.
 #
-# Pinned now: hydromart-ai 0e51d9c (AI-8 LLM adapter, n8n three-channel lint, AI-9 morning summary), one step ahead of production (966464f).
+# Pinned now: hydromart-ai 0e51d9c (AI-8 LLM adapter, n8n three-channel lint, AI-9 morning summary), the same as production.
 #
 # Isolation, held by scripts/check-aiweb-staging-compose.mjs in CI and proved on the box after every
 # deploy by the probe in scripts/aiweb-staging-deploy.sh:
