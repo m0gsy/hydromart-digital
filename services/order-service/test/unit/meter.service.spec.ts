@@ -607,6 +607,24 @@ describe('MeterService reads', () => {
     expect(result.varianceIdr).toBe(Math.round(10.53 * 20000)); // 20 000 a galon, not 50 000
   });
 
+  it('27-A: the gallon price is net of the order discount (a line total is price x quantity, before it)', async () => {
+    const { service, repo } = build({ orders: [order({ subtotal: 2600000, discount: 260000 } as never)] });
+    repo.seed({ openingM3: 1000, closingM3: 1002.6 });
+    const result = await service.reconcile(DEPOT, DATE);
+    expect(result.gallonSalesIdr).toBe(2340000);
+    expect(result.varianceIdr).toBe(Math.round(8.95 * 18000));
+  });
+
+  it('history rows carry the raw-water litres (source meter), null without both readings', async () => {
+    const { service, repo } = build();
+    repo.seed({ date: '2026-08-02', openingM3: 1000, closingM3: 1002.5, sourceOpeningM3: 500, sourceClosingM3: 503.125 });
+    repo.seed({ date: '2026-08-03', openingM3: 1002.5, closingM3: 1005 });
+    repo.seed({ date: '2026-08-04', openingM3: 1005, closingM3: 1007, sourceOpeningM3: 503 });
+    const rows = await service.history(DEPOT, '2026-08-02', '2026-08-04');
+    expect(rows.map((r) => r.sourceLiters)).toEqual([3125, null, null]);
+    expect(rows[0].roYieldPct).toBe(80);
+  });
+
   it('27-A: no gallon sold that day means no price: null, never 0', async () => {
     const { service, repo } = build({
       orders: [order({ items: [{ quantity: 4, volumeMl: 1000, isGallon: false, lineTotal: 40000 }] as never })],

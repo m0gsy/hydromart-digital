@@ -10,7 +10,8 @@ import {
 } from '../../src/application/ports/ai-stock.repository';
 import { APPROVAL_MATCH_MS, AiStockService } from '../../src/application/services/ai-stock.service';
 import { InventoryItemType } from '../../src/domain/inventory';
-import { AI_STOCK_ROW_CAP, AiStockPrismaRepository } from '../../src/infrastructure/prisma/ai-stock.prisma.repository';
+import { LENT_GALLON_REASON, OPNAME_REVERSAL_REASON } from '../../src/domain/stock-reasons';
+import { AI_STOCK_ROW_CAP, AiStockPrismaRepository, PRICE_ORDERS_PER_DEPOT } from '../../src/infrastructure/prisma/ai-stock.prisma.repository';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { AiStockController } from '../../src/modules/ai-stock.controller';
 import { AiStockDepotsQueryDto, AiStockWindowQueryDto } from '../../src/modules/dto/ai-stock.dto';
@@ -54,8 +55,9 @@ function repo(over: Partial<AiStockRepository> = {}): AiStockRepository {
     lossAdjustments: jest.fn().mockResolvedValue([]),
     opnameMovements: jest.fn().mockResolvedValue([]),
     rejectedOpnames: jest.fn().mockResolvedValue([]),
-    purchaseOrders: jest.fn().mockResolvedValue([]),
-    damagedGallons: jest.fn().mockResolvedValue(0),
+    receivedPurchaseOrders: jest.fn().mockResolvedValue([]),
+    sentPurchaseOrders: jest.fn().mockResolvedValue([]),
+    damagedGallons: jest.fn().mockResolvedValue([]),
     ...over,
   };
 }
@@ -81,15 +83,10 @@ describe('AiStockService.stockPosition (S-01)', () => {
 });
 
 describe('AiStockService.wastage (S-03, decision 25-A)', () => {
-  it('leaves lent gallons and the reversal of a rejected count out, values the rest at the last purchase price', async () => {
+  it('values the losses the repository returns at the last purchase price', async () => {
     const r = repo({
-      lossAdjustments: jest.fn().mockResolvedValue([
-        move({ delta: -2, reason: 'pecah' }),
-        move({ id: 'm2', delta: -30, reason: 'Galon keluar (deposit) abc' }),
-        move({ id: 'm3', delta: -5, reason: 'Opname ditolak HQ: selisih 5 dibalik' }),
-        move({ id: 'm4', delta: -1, reason: null }),
-      ]),
-      purchaseOrders: jest.fn().mockResolvedValue([po()]),
+      lossAdjustments: jest.fn().mockResolvedValue([move({ delta: -2, reason: 'pecah' }), move({ id: 'm4', delta: -1, reason: null })]),
+      receivedPurchaseOrders: jest.fn().mockResolvedValue([po()]),
     });
     const rows = await new AiStockService(r).wastage([D1], FROM, TO);
     expect(rows).toEqual([{ depotId: D1, itemType: 'GALON', units: 3, valueIdr: 60_000, unpricedUnits: 0 }]);
@@ -106,53 +103,66 @@ describe('AiStockService.wastage (S-03, decision 25-A)', () => {
         move({ id: 'm2', delta: -1, createdAt: new Date('2026-11-25T03:00:00Z') }), // 30_000
         move({ id: 'm3', delta: -4, itemType: InventoryItemType.TUTUP }), // no price
       ]),
-      purchaseOrders: jest.fn().mockResolvedValue(orders),
+      receivedPurchaseOrders: jest.fn().mockResolvedValue(orders),
     });
     const rows = await new AiStockService(r).wastage([D1], FROM, TO);
     expect(rows.find((x) => x.itemType === 'GALON')).toMatchObject({ units: 2, valueIdr: 50_000, unpricedUnits: 0 });
     expect(rows.find((x) => x.itemType === 'TUTUP')).toEqual({ depotId: D1, itemType: 'TUTUP', units: 4, valueIdr: null, unpricedUnits: 4 });
   });
 
-  it('adds gallons handed back damaged to the gallon row, priced at the end of the window, or opens the row', async () => {
-    const damaged = jest.fn().mockImplementation((d: string) => Promise.resolve(d === D1 ? 3 : d === D2 ? 2 : 0));
+  it('adds gallons handed back damaged to the gallon row, each priced at its own date, or opens the row', async () => {
+    const damaged = jest.fn().mockResolvedValue([
+      { depotId: D1, quantity: 2, createdAt: new Date('2026-11-10T03:00:00Z') }, // 20 000 (PO of 2 Nov)
+      { depotId: D1, quantity: 1, createdAt: new Date('2026-11-25T03:00:00Z') }, // 30 000 (PO of 20 Nov)
+      { depotId: D1, quantity: 1, createdAt: new Date('2026-11-01T03:00:00Z') }, // before any price
+      { depotId: D2, quantity: 2, createdAt: new Date('2026-11-10T03:00:00Z') },
+    ]);
     const r = repo({
-      lossAdjustments: jest.fn().mockResolvedValue([move({ delta: -1 })]),
-      purchaseOrders: jest.fn().mockResolvedValue([po()]),
+      lossAdjustments: jest.fn().mockResolvedValue([move({ delta: -1, createdAt: new Date('2026-11-10T03:00:00Z') })]),
+      receivedPurchaseOrders: jest.fn().mockResolvedValue([
+        po({ receivedAt: new Date('2026-11-20T03:00:00Z'), lines: [{ itemType: InventoryItemType.GALON, label: 'g', quantity: 1, unitCostIdr: 30_000 }] }),
+        po(),
+      ]),
       damagedGallons: damaged,
     });
-    const rows = await new AiStockService(r).wastage([D1, D2, '33333333-3333-4333-8333-333333333333'], FROM, TO);
-    expect(rows.find((x) => x.depotId === D1)).toMatchObject({ units: 4, valueIdr: 80_000 });
+    const rows = await new AiStockService(r).wastage([D1, D2], FROM, TO);
+    expect(damaged).toHaveBeenCalledTimes(1);
+    expect(rows.find((x) => x.depotId === D1)).toMatchObject({ units: 5, valueIdr: 20_000 + 40_000 + 30_000, unpricedUnits: 1 });
     // D2 has no PO of its own: its damaged gallons are real units with no price.
     expect(rows.find((x) => x.depotId === D2)).toEqual({ depotId: D2, itemType: 'GALON', units: 2, valueIdr: null, unpricedUnits: 2 });
     expect(rows).toHaveLength(2);
   });
 
-  it('ignores a purchase order that has put nothing on the shelf, and one with a negative price', async () => {
+  it('takes no price from a line at 0 (a free sample), a negative one or one that received nothing; the next older price stands', async () => {
+    const line = (unitCostIdr: number, extra: object = {}) => ({ itemType: InventoryItemType.GALON, label: 'g', quantity: 5, unitCostIdr, ...extra });
     const r = repo({
       lossAdjustments: jest.fn().mockResolvedValue([move({ delta: -1 })]),
-      purchaseOrders: jest.fn().mockResolvedValue([
-        po({ status: 'SENT', lines: [{ itemType: InventoryItemType.GALON, label: 'g', quantity: 5, unitCostIdr: 9_000 }] }),
-        po({ status: 'RECEIVED', lines: [{ itemType: InventoryItemType.GALON, label: 'g', quantity: 5, unitCostIdr: -1 }] }),
-        po({ status: 'RECEIVED', lines: [{ itemType: InventoryItemType.GALON, label: 'g', quantity: 5, unitCostIdr: 7_000, receivedQuantity: 0 }] }),
+      receivedPurchaseOrders: jest.fn().mockResolvedValue([
+        po({ receivedAt: new Date('2026-11-09T03:00:00Z'), lines: [line(0)] }),
+        po({ receivedAt: new Date('2026-11-08T03:00:00Z'), lines: [line(-1)] }),
+        po({ receivedAt: new Date('2026-11-07T03:00:00Z'), lines: [line(7_000, { receivedQuantity: 0 })] }),
+        po({ receivedAt: new Date('2026-11-02T03:00:00Z'), lines: [line(20_000)] }),
       ]),
     });
-    expect(await new AiStockService(r).wastage([D1], FROM, TO)).toEqual([
-      { depotId: D1, itemType: 'GALON', units: 1, valueIdr: null, unpricedUnits: 1 },
-    ]);
+    expect(await new AiStockService(r).wastage([D1], FROM, TO)).toEqual([{ depotId: D1, itemType: 'GALON', units: 1, valueIdr: 20_000, unpricedUnits: 0 }]);
   });
 
-  it('a partly received SENT order already sets a price; a PRODUK line is priced by its product', async () => {
+  it('a price is dated by the day the order was RECEIVED, not the day it was made, and a loss before it has none', async () => {
+    const r = repo({
+      lossAdjustments: jest.fn().mockResolvedValue([move({ delta: -1, createdAt: new Date('2026-11-05T03:00:00Z') })]),
+      receivedPurchaseOrders: jest.fn().mockResolvedValue([po({ createdAt: new Date('2026-11-01T03:00:00Z'), receivedAt: new Date('2026-11-10T03:00:00Z') })]),
+    });
+    expect(await new AiStockService(r).wastage([D1], FROM, TO)).toEqual([{ depotId: D1, itemType: 'GALON', units: 1, valueIdr: null, unpricedUnits: 1 }]);
+  });
+
+  it('a PRODUK line is priced by its own product', async () => {
     const r = repo({
       lossAdjustments: jest.fn().mockResolvedValue([
         move({ itemType: InventoryItemType.PRODUK, productId: 'p1', delta: -2 }),
         move({ id: 'm2', itemType: InventoryItemType.PRODUK, productId: 'p2', delta: -1 }),
       ]),
-      purchaseOrders: jest.fn().mockResolvedValue([
-        po({
-          status: 'SENT',
-          receivedAt: null,
-          lines: [{ itemType: InventoryItemType.PRODUK, productId: 'p1', label: 'x', quantity: 10, receivedQuantity: 4, unitCostIdr: 5_000 }],
-        }),
+      receivedPurchaseOrders: jest.fn().mockResolvedValue([
+        po({ lines: [{ itemType: InventoryItemType.PRODUK, productId: 'p1', label: 'x', quantity: 10, receivedQuantity: 4, unitCostIdr: 5_000 }] }),
       ]),
     });
     const rows = await new AiStockService(r).wastage([D1], FROM, TO);
@@ -174,7 +184,7 @@ describe('AiStockService.opname (S-02, decision 26-A)', () => {
         { depotId: D1, createdAt: counted, itemId: null, variance: null }, // an unbacked-reservation warning: no line, skipped
         { depotId: D1, createdAt: counted, itemId: 'i9', variance: -1 }, // nothing to match
       ]),
-      purchaseOrders: jest.fn().mockResolvedValue([
+      receivedPurchaseOrders: jest.fn().mockResolvedValue([
         po(),
         po({ lines: [{ itemType: InventoryItemType.AIR, label: 'Air', quantity: 100, unitCostIdr: 500 }] }),
       ]),
@@ -198,7 +208,7 @@ describe('AiStockService.opname (S-02, decision 26-A)', () => {
 describe('AiStockService.openPurchases (S-05)', () => {
   it('counts what is still expected on sent orders, short-closed and fully received lines left out', async () => {
     const r = repo({
-      purchaseOrders: jest.fn().mockResolvedValue([
+      sentPurchaseOrders: jest.fn().mockResolvedValue([
         po({
           status: 'SENT',
           lines: [
@@ -211,8 +221,8 @@ describe('AiStockService.openPurchases (S-05)', () => {
         po({ status: 'SENT', depotId: D2, lines: [{ itemType: InventoryItemType.AIR, label: 'a', quantity: 1, receivedQuantity: 1, unitCostIdr: 9 }] }), // nothing waits
       ]),
     });
-    expect(await new AiStockService(r).openPurchases([D1, D2], new Date())).toEqual([{ depotId: D1, orders: 2, valueIdr: 20_500 }]);
-    expect(r.purchaseOrders).toHaveBeenCalledWith([D1, D2], expect.any(Date), ['SENT']);
+    expect(await new AiStockService(r).openPurchases([D1, D2])).toEqual([{ depotId: D1, orders: 2, valueIdr: 20_500 }]);
+    expect(r.sentPurchaseOrders).toHaveBeenCalledWith([D1, D2]);
   });
 });
 
@@ -238,6 +248,11 @@ describe('AiStockPrismaRepository', () => {
     ]);
     await r.opnameMovements([D1], FROM, TO);
     expect(findMany.mock.calls[0][0].where).toMatchObject({ type: 'ADJUSTMENT', delta: { lt: 0 }, createdAt: { gte: FROM, lt: TO } });
+    // lent gallons and rejected-count reversals are left out IN THE QUERY, and a movement with no reason stays in
+    expect(findMany.mock.calls[0][0].where.OR).toEqual([
+      { reason: null },
+      { AND: [{ NOT: { reason: { startsWith: LENT_GALLON_REASON } } }, { NOT: { reason: { startsWith: OPNAME_REVERSAL_REASON } } }] },
+    ]);
     expect(findMany.mock.calls[1][0].where).toMatchObject({ type: 'OPNAME', createdAt: { gte: FROM, lt: TO } });
   });
 
@@ -252,22 +267,37 @@ describe('AiStockPrismaRepository', () => {
     expect(findMany.mock.calls[0][0].where).toMatchObject({ type: 'OPNAME_VARIANCE', status: 'REJECTED' });
   });
 
-  it('reads purchase orders newest first, and a lines column that is not a list as no lines', async () => {
-    const findMany = jest.fn().mockResolvedValue([
-      { depotId: D1, status: 'SENT', createdAt: FROM, receivedAt: null, lines: [{ quantity: 1 }] },
-      { depotId: D1, status: 'RECEIVED', createdAt: FROM, receivedAt: TO, lines: null },
+  it('reads the newest received orders of each depot, bounded, and a lines column that is not a list as no lines', async () => {
+    const findMany = jest.fn().mockImplementation(async (args: { where: { depotId: string } }) => [
+      { depotId: args.where.depotId, status: 'RECEIVED', createdAt: FROM, receivedAt: TO, lines: args.where.depotId === D1 ? [{ quantity: 1 }] : null },
     ]);
-    const rows = await prismaWith({ purchaseOrder: { findMany } }).purchaseOrders([D1], TO, ['SENT']);
-    expect(rows.map((x) => x.lines.length)).toEqual([1, 0]);
-    expect(findMany.mock.calls[0][0]).toMatchObject({ orderBy: { createdAt: 'desc' }, where: { status: { in: ['SENT'] }, createdAt: { lte: TO } } });
+    const ids = Array.from({ length: 23 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    const rows = await prismaWith({ purchaseOrder: { findMany } }).receivedPurchaseOrders([D1, ...ids], TO);
+    expect(rows).toHaveLength(24);
+    expect(rows[0].lines).toHaveLength(1);
+    expect(rows[1].lines).toHaveLength(0);
+    expect(findMany).toHaveBeenCalledTimes(24);
+    expect(findMany.mock.calls[0][0]).toMatchObject({
+      orderBy: { receivedAt: 'desc' },
+      take: PRICE_ORDERS_PER_DEPOT,
+      where: { depotId: D1, status: 'RECEIVED', receivedAt: { lte: TO } },
+    });
   });
 
-  it('sums the damaged gallons of one depot in the window, nothing as 0', async () => {
-    const aggregate = jest.fn().mockResolvedValueOnce({ _sum: { quantity: 7 } }).mockResolvedValueOnce({ _sum: { quantity: null } });
-    const r = prismaWith({ gallonReturn: { aggregate } });
-    expect(await r.damagedGallons(D1, FROM, TO)).toBe(7);
-    expect(await r.damagedGallons(D1, FROM, TO)).toBe(0);
-    expect(aggregate.mock.calls[0][0].where).toEqual({ depotId: D1, condition: 'DAMAGED', createdAt: { gte: FROM, lt: TO } });
+  it('reads the sent orders of the depots, and refuses past the cap', async () => {
+    const findMany = jest.fn().mockResolvedValue([{ depotId: D1, status: 'SENT', createdAt: FROM, receivedAt: null, lines: [] }]);
+    const r = prismaWith({ purchaseOrder: { findMany } });
+    expect(await r.sentPurchaseOrders([D1])).toHaveLength(1);
+    expect(findMany.mock.calls[0][0].where).toEqual({ depotId: { in: [D1] }, status: 'SENT' });
+    findMany.mockResolvedValue(new Array(AI_STOCK_ROW_CAP + 1).fill({}));
+    await expect(r.sentPurchaseOrders([D1])).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+
+  it('reads the damaged returns of the window, one row each', async () => {
+    const rows = [{ depotId: D1, quantity: 2, createdAt: FROM }];
+    const findMany = jest.fn().mockResolvedValue(rows);
+    expect(await prismaWith({ gallonReturn: { findMany } }).damagedGallons([D1, D2], FROM, TO)).toEqual(rows);
+    expect(findMany.mock.calls[0][0].where).toEqual({ depotId: { in: [D1, D2] }, condition: 'DAMAGED', createdAt: { gte: FROM, lt: TO } });
   });
 });
 
@@ -285,6 +315,7 @@ describe('AiStockController and its DTOs', () => {
     expect(await c.wastage(q)).toEqual({ items: [2] });
     expect(await c.opname(q)).toEqual({ items: [3] });
     expect(await c.openPurchases(q)).toEqual({ items: [4] });
+    expect(stock.openPurchases).toHaveBeenCalledWith([D1, D2]);
     expect(stock.wastage).toHaveBeenCalledWith([D1, D2], FROM, TO);
   });
 

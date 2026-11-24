@@ -615,6 +615,8 @@ export class MeterHistoryRowResponseDto {
   @ApiProperty({ type: Number, nullable: true })
   varianceIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
+  sourceLiters!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
   roYieldPct!: number | null;
 }
 

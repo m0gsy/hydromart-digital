@@ -16,6 +16,7 @@ import {
 } from '../ports/gallon-issue.repository';
 import { CustomerContactPort } from '../ports/customer-contact.port';
 import { DEPOT_TOKENS } from '../tokens';
+import { LENT_GALLON_REASON } from '../../domain/stock-reasons';
 import { ImportSummary, runImport } from '@hydromart/platform';
 
 export interface RecordIssueInput {
@@ -91,7 +92,7 @@ export class GallonIssueService {
       InventoryItemType.GALON,
       -record.quantity,
       actorId,
-      `Galon keluar (deposit) ${record.id}`,
+      `${LENT_GALLON_REASON} ${record.id}`,
       orderId,
     );
     if (!moved) {

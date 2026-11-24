@@ -4,10 +4,6 @@ import { InventoryItemType, available } from '../../domain/inventory';
 import { PoLine, isShortClosed, receivedOf } from '../../domain/purchase-order';
 import { AI_STOCK_REPOSITORY, AiStockRepository, MovementRow, PurchaseOrderRow } from '../ports/ai-stock.repository';
 
-/** A lent gallon leaves with the delivery as a negative adjustment: that is a loan, not a loss (decision 25-A). */
-export const LENT_GALLON_REASON = 'Galon keluar (deposit)';
-/** The reversal of an opname HQ rejected: not a loss either, the count itself is what HQ undid. */
-export const OPNAME_REVERSAL_REASON = 'Opname ditolak HQ';
 /** An opname and the approval it raised are written one after the other; this is how far apart their stamps may be. */
 export const APPROVAL_MATCH_MS = 120_000;
 
@@ -82,15 +78,19 @@ export class AiStockService {
     return [...rows.values()];
   }
 
-  /** Purchase prices: PO lines that put goods on the shelf (RECEIVED, or SENT with something received), newest first. */
+  /**
+   * Purchase prices (decision 11-A): lines of RECEIVED orders, dated by the day they were received,
+   * newest first. A price is only known from the day the order was received, so a SENT order never
+   * sets one; a line at 0 (a free sample) is no price at all, it must not zero a valuation.
+   */
   private costsOf(orders: readonly PurchaseOrderRow[]): Cost[] {
     const out: Cost[] = [];
     for (const po of orders) {
       const at = (po.receivedAt ?? po.createdAt).getTime();
       for (const line of po.lines) {
         // A RECEIVED order written before partial receipts carries no receivedQuantity: it took all of it.
-        const took = po.status === 'RECEIVED' && line.receivedQuantity === undefined ? true : receivedOf(line) > 0;
-        if (took && line.unitCostIdr >= 0) {
+        const took = line.receivedQuantity === undefined ? true : receivedOf(line) > 0;
+        if (took && line.unitCostIdr > 0) {
           out.push({ depotId: po.depotId, itemType: line.itemType, productId: line.productId ?? null, at, unitCostIdr: line.unitCostIdr });
         }
       }
@@ -99,7 +99,7 @@ export class AiStockService {
   }
 
   private async costs(depotIds: readonly string[], asOf: Date): Promise<Cost[]> {
-    return this.costsOf(await this.repo.purchaseOrders(depotIds, asOf, ['SENT', 'RECEIVED']));
+    return this.costsOf(await this.repo.receivedPurchaseOrders(depotIds, asOf));
   }
 
   private priceAt(costs: readonly Cost[], m: { depotId: string; itemType: InventoryItemType; productId: string | null }, at: Date): number | null {
@@ -127,24 +127,25 @@ export class AiStockService {
    * and without the reversal of a rejected count, plus gallons handed back damaged.
    */
   async wastage(depotIds: readonly string[], from: Date, to: Date): Promise<LossRow[]> {
-    const moves = (await this.repo.lossAdjustments(depotIds, from, to)).filter(
-      (m) => !(m.reason ?? '').startsWith(LENT_GALLON_REASON) && !(m.reason ?? '').startsWith(OPNAME_REVERSAL_REASON),
-    );
-    const costs = await this.costs(depotIds, to);
+    // Lent gallons and rejected-count reversals are already left out by the repository's query.
+    const [moves, damaged, costs] = await Promise.all([
+      this.repo.lossAdjustments(depotIds, from, to),
+      this.repo.damagedGallons(depotIds, from, to),
+      this.costs(depotIds, to),
+    ]);
     const rows = this.tally(moves, costs, -1);
-    for (const depotId of depotIds) {
-      const damaged = await this.repo.damagedGallons(depotId, from, to);
-      if (damaged === 0) continue;
+    for (const d of damaged) {
       // A returned empty never enters the GALON line, so it cannot already be among the adjustments.
-      let row = rows.find((r) => r.depotId === depotId && r.itemType === InventoryItemType.GALON);
+      let row = rows.find((r) => r.depotId === d.depotId && r.itemType === InventoryItemType.GALON);
       if (!row) {
-        row = { depotId, itemType: InventoryItemType.GALON, units: 0, valueIdr: null, unpricedUnits: 0 };
+        row = { depotId: d.depotId, itemType: InventoryItemType.GALON, units: 0, valueIdr: null, unpricedUnits: 0 };
         rows.push(row);
       }
-      row.units += damaged;
-      const price = this.priceAt(costs, { depotId, itemType: InventoryItemType.GALON, productId: null }, new Date(to.getTime() - 1));
-      if (price === null) row.unpricedUnits += damaged;
-      else row.valueIdr = Math.round((row.valueIdr ?? 0) + damaged * price);
+      row.units += d.quantity;
+      // Priced at its own date, like every other loss.
+      const price = this.priceAt(costs, { depotId: d.depotId, itemType: InventoryItemType.GALON, productId: null }, d.createdAt);
+      if (price === null) row.unpricedUnits += d.quantity;
+      else row.valueIdr = Math.round((row.valueIdr ?? 0) + d.quantity * price);
     }
     return rows;
   }
@@ -168,9 +169,9 @@ export class AiStockService {
   }
 
   /** Purchase orders sent and not yet fully received, per depot. */
-  async openPurchases(depotIds: readonly string[], now: Date): Promise<OpenPurchaseRow[]> {
+  async openPurchases(depotIds: readonly string[]): Promise<OpenPurchaseRow[]> {
     const rows = new Map<string, OpenPurchaseRow>();
-    for (const po of await this.repo.purchaseOrders(depotIds, now, ['SENT'])) {
+    for (const po of await this.repo.sentPurchaseOrders(depotIds)) {
       const pending = po.lines.filter(waiting);
       if (pending.length === 0) continue;
       const row = rows.get(po.depotId) ?? { depotId: po.depotId, orders: 0, valueIdr: 0 };

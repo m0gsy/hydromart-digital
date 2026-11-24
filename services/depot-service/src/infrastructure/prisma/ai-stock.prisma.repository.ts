@@ -9,10 +9,13 @@ import {
 } from '../../application/ports/ai-stock.repository';
 import { InventoryItemType } from '../../domain/inventory';
 import { PoLine } from '../../domain/purchase-order';
+import { LENT_GALLON_REASON, OPNAME_REVERSAL_REASON } from '../../domain/stock-reasons';
 import { PrismaService } from './prisma.service';
 
 /** Most rows one answer will read. Past it the answer is refused (422), never a partial sum. */
 export const AI_STOCK_ROW_CAP = 20_000;
+/** The newest received orders read per depot when looking for a purchase price. */
+export const PRICE_ORDERS_PER_DEPOT = 200;
 
 const guard = <T>(rows: T[]): T[] => {
   if (rows.length > AI_STOCK_ROW_CAP) {
@@ -70,6 +73,11 @@ export class AiStockPrismaRepository implements AiStockRepository {
         delta: { lt: 0 },
         item: { depotId: { in: [...depotIds] } },
         createdAt: { gte: from, lt: to },
+        // A plain NOT startsWith would drop the movements with no reason at all.
+        OR: [
+          { reason: null },
+          { AND: [{ NOT: { reason: { startsWith: LENT_GALLON_REASON } } }, { NOT: { reason: { startsWith: OPNAME_REVERSAL_REASON } } }] },
+        ],
       },
       select: MOVEMENT_SELECT,
       take: AI_STOCK_ROW_CAP + 1,
@@ -112,31 +120,50 @@ export class AiStockPrismaRepository implements AiStockRepository {
     });
   }
 
-  async purchaseOrders(
-    depotIds: readonly string[],
-    asOf: Date,
-    statuses: ('SENT' | 'RECEIVED')[],
-  ): Promise<PurchaseOrderRow[]> {
-    const rows = await this.prisma.purchaseOrder.findMany({
-      where: { depotId: { in: [...depotIds] }, status: { in: statuses }, createdAt: { lte: asOf } },
-      orderBy: { createdAt: 'desc' },
-      select: { depotId: true, status: true, createdAt: true, receivedAt: true, lines: true },
-      take: AI_STOCK_ROW_CAP + 1,
-    });
-    return guard(rows).map((r) => ({
-      depotId: r.depotId,
-      status: r.status as 'SENT' | 'RECEIVED',
-      createdAt: r.createdAt,
-      receivedAt: r.receivedAt,
-      lines: Array.isArray(r.lines) ? (r.lines as unknown as PoLine[]) : [],
-    }));
+  private toOrder = (r: { depotId: string; status: string; createdAt: Date; receivedAt: Date | null; lines: unknown }): PurchaseOrderRow => ({
+    depotId: r.depotId,
+    status: r.status as 'SENT' | 'RECEIVED',
+    createdAt: r.createdAt,
+    receivedAt: r.receivedAt,
+    lines: Array.isArray(r.lines) ? (r.lines as unknown as PoLine[]) : [],
+  });
+
+  private static readonly ORDER_SELECT = { depotId: true, status: true, createdAt: true, receivedAt: true, lines: true } as const;
+
+  async receivedPurchaseOrders(depotIds: readonly string[], asOf: Date): Promise<PurchaseOrderRow[]> {
+    const out: PurchaseOrderRow[] = [];
+    // One bounded read per depot (newest first), ten at a time: no all-time load, no network-wide cap.
+    for (let i = 0; i < depotIds.length; i += 10) {
+      const parts = await Promise.all(
+        depotIds.slice(i, i + 10).map((depotId) =>
+          this.prisma.purchaseOrder.findMany({
+            where: { depotId, status: 'RECEIVED', receivedAt: { lte: asOf } },
+            orderBy: { receivedAt: 'desc' },
+            select: AiStockPrismaRepository.ORDER_SELECT,
+            take: PRICE_ORDERS_PER_DEPOT,
+          }),
+        ),
+      );
+      out.push(...parts.flat().map(this.toOrder));
+    }
+    return out;
   }
 
-  async damagedGallons(depotId: string, from: Date, to: Date): Promise<number> {
-    const agg = await this.prisma.gallonReturn.aggregate({
-      where: { depotId, condition: 'DAMAGED', createdAt: { gte: from, lt: to } },
-      _sum: { quantity: true },
+  async sentPurchaseOrders(depotIds: readonly string[]): Promise<PurchaseOrderRow[]> {
+    const rows = await this.prisma.purchaseOrder.findMany({
+      where: { depotId: { in: [...depotIds] }, status: 'SENT' },
+      select: AiStockPrismaRepository.ORDER_SELECT,
+      take: AI_STOCK_ROW_CAP + 1,
     });
-    return agg._sum.quantity ?? 0;
+    return guard(rows).map(this.toOrder);
+  }
+
+  async damagedGallons(depotIds: readonly string[], from: Date, to: Date): Promise<{ depotId: string; quantity: number; createdAt: Date }[]> {
+    const rows = await this.prisma.gallonReturn.findMany({
+      where: { depotId: { in: [...depotIds] }, condition: 'DAMAGED', createdAt: { gte: from, lt: to } },
+      select: { depotId: true, quantity: true, createdAt: true },
+      take: AI_STOCK_ROW_CAP + 1,
+    });
+    return guard(rows);
   }
 }

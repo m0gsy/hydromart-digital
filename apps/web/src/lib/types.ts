@@ -3305,6 +3305,7 @@ export interface MeterHistoryRow {
   varianceLiters: number | null;
   varianceGallons: number | null;
   varianceIdr: number | null;
+  sourceLiters: number | null;
   roYieldPct: number | null;
 }
 

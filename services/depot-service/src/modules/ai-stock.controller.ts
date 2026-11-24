@@ -53,6 +53,6 @@ export class AiStockController {
   @Get('open-purchases')
   @ApiOperation({ summary: 'Value of goods still expected on sent purchase orders (internal service auth)' })
   async openPurchases(@Query() q: AiStockDepotsQueryDto): Promise<{ items: OpenPurchaseRow[] }> {
-    return { items: await this.stock.openPurchases(q.depotIds.split(','), new Date()) };
+    return { items: await this.stock.openPurchases(q.depotIds.split(',')) };
   }
 }

@@ -130,6 +130,8 @@ export interface MeterHistoryRow {
   varianceGallons: number | null;
   /** Decision 27-A, the same price as the daily screen: null with no gallon sold that day. */
   varianceIdr: number | null;
+  /** Raw-water litres of the day (source meter); null unless both source readings exist. */
+  sourceLiters: number | null;
   roYieldPct: number | null;
 }
 
