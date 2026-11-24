@@ -236,3 +236,51 @@ export class LegalEntitySummaryResponseDto {
   @ApiProperty()
   active!: boolean;
 }
+
+/** HD-6: which legal entity these depots belonged to over a period (calendar days, inclusive). */
+export class DepotEntitiesQueryDto {
+  @ApiProperty({ example: '2026-11-01', description: 'First day, YYYY-MM-DD.' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  from!: string;
+
+  @ApiProperty({ example: '2026-11-30', description: 'Last day (inclusive), YYYY-MM-DD, not before `from`.' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  to!: string;
+
+  @ApiProperty({ description: 'Comma-separated depot ids (1 to 100).' })
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
+      : value,
+  )
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  depotIds!: string[];
+}
+
+export class DepotEntitySpanResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  depotId!: string;
+  @ApiProperty({ type: String, nullable: true, description: 'Null: no legal entity was recorded for the depot yet.' })
+  legalEntityId!: string | null;
+  @ApiProperty({ example: '2026-11-01', description: 'First day of this stretch inside the period.' })
+  from!: string;
+}
+
+export class DepotEntitiesResponseDto {
+  @ApiProperty({ type: [DepotEntitySpanResponseDto] })
+  spans!: DepotEntitySpanResponseDto[];
+}
+
+export class AiGrantsOfRoleResponseDto {
+  @ApiProperty()
+  roleKey!: string;
+  @ApiProperty({ description: 'True: reads every entity (SUPER_ADMIN). Otherwise only legalEntityIds.' })
+  all!: boolean;
+  @ApiProperty({ type: [String] })
+  legalEntityIds!: string[];
+}

@@ -523,7 +523,9 @@ const capsBody = capsSrc.slice(capsStart, capsSrc.indexOf('} as const', capsStar
 const caps = [...capsBody.matchAll(/^ {2}([a-zA-Z][a-zA-Z0-9]*):\s*\[/gm)].map((m) => m[1]);
 for (const locale of ['id', 'en']) {
   const dict = readFileSync(`${ROOT}/lib/dictionaries/${locale}/dashC.ts`, 'utf8');
-  const block = dict.slice(dict.indexOf('cap: {'), dict.indexOf('cap: {') + 6000);
+  // To the end of the `cap` map, not a fixed window: the map outgrew 6000 characters.
+  const capStart = dict.indexOf('cap: {');
+  const block = dict.slice(capStart).split(/^ {4}\},/m)[0];
   const missing = caps.filter((c) => !new RegExp(`^ {6}${c}:`, 'm').test(block));
   if (missing.length)
     results.push({

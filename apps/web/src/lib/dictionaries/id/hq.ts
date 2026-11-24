@@ -249,6 +249,7 @@ export const hq = {
       settingsRead: 'Setelan (lihat)',
       dashboard: 'Dashboard eksekutif',
       pendingApprovals: 'Lihat jumlah persetujuan yang menunggu Anda (Command Center web AI)',
+      aiRead: 'Membaca angka bisnis untuk jawaban web AI, sebatas depot dan badan hukum yang diizinkan',
       orderQueue: 'Antrean pesanan',
       inventoryRead: 'Lihat inventori',
       inventoryWrite: 'Ubah inventori',

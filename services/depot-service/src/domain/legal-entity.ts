@@ -45,6 +45,42 @@ export interface DepotLegalEntityHistory {
   points: DepotLegalEntityPoint[];
 }
 
+/**
+ * One stretch of a period during which a depot belonged to one legal entity (null: none was
+ * recorded yet). `from` is the first day of the stretch inside the period, `YYYY-MM-DD`.
+ */
+export interface DepotEntitySpan {
+  depotId: string;
+  legalEntityId: string | null;
+  from: string;
+}
+
+/**
+ * HD-6: which legal entity each depot belonged to over `[from, to]` (calendar days). W-06 rule:
+ * on day D a depot belongs to the row with the latest `effectiveFrom <= D`, so the answer is the
+ * entity in force on `from`, then one more span at every change point inside `(from, to]`.
+ * A depot with no row by `from` starts with `legalEntityId: null`. `points` may hold other depots.
+ */
+export function entitySpans(
+  depotIds: readonly string[],
+  points: ReadonlyArray<{ depotId: string; legalEntityId: string; effectiveFrom: string }>,
+  from: string,
+  to: string,
+): DepotEntitySpan[] {
+  return depotIds.flatMap((depotId) => {
+    const own = points
+      .filter((p) => p.depotId === depotId && p.effectiveFrom <= to)
+      .sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+    const inForce = own.filter((p) => p.effectiveFrom <= from).pop();
+    return [
+      { depotId, legalEntityId: inForce?.legalEntityId ?? null, from },
+      ...own
+        .filter((p) => p.effectiveFrom > from)
+        .map((p) => ({ depotId, legalEntityId: p.legalEntityId, from: p.effectiveFrom })),
+    ];
+  });
+}
+
 /** The name as stored: outer spaces trimmed, inner runs of whitespace collapsed to one space. */
 export function normaliseLegalEntityName(raw: string): string {
   return raw.trim().replace(/\s+/g, ' ');

@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { EMPLOYABLE_ROLES, currentCustomRoles, currentRoleSettings } from '@hydromart/access';
-import { assertFresh, isDecisionOnlyPatch } from '@hydromart/platform';
+import { Role, assertFresh, isDecisionOnlyPatch } from '@hydromart/platform';
 
 import {
   DepotLegalEntityPointNotFoundError,
@@ -10,6 +10,7 @@ import {
   LegalEntityRoleNotGrantableError,
 } from '../../domain/errors';
 import {
+  DepotEntitySpan,
   DepotLegalEntityHistory,
   DepotLegalEntityPoint,
   LegalEntity,
@@ -36,6 +37,13 @@ export interface AiGrantableRole {
 export interface LegalEntityDirectory {
   entities: LegalEntityRecord[];
   roles: AiGrantableRole[];
+}
+
+/** What a role may read in the AI web: every entity (`all`), or exactly these. */
+export interface AiGrantsOfRole {
+  roleKey: string;
+  all: boolean;
+  legalEntityIds: string[];
 }
 
 export interface LegalEntityPatch {
@@ -192,6 +200,20 @@ export class LegalEntityService {
     const removed = await this.entities.removeDepotPoint(id, lowerId(seenLegalEntityId));
     if (!removed) throw new DepotLegalEntityPointNotFoundError();
     return removed;
+  }
+
+  /** HD-6: each depot's legal entity over `[from, to]`, for the AI read API's scope narrowing. */
+  entityTimeline(depotIds: string[], from: Date, to: Date): Promise<DepotEntitySpan[]> {
+    return this.entities.entityTimeline([...new Set(depotIds.map(lowerId))], from, to);
+  }
+
+  /**
+   * HD-6: the entities a role may read in the AI web. No row = not granted, so a new entity is
+   * readable by SUPER_ADMIN alone until somebody grants it; SUPER_ADMIN reads everything, entity or none.
+   */
+  async aiGrantsFor(roleKey: string): Promise<AiGrantsOfRole> {
+    if (roleKey === Role.SUPER_ADMIN) return { roleKey, all: true, legalEntityIds: [] };
+    return { roleKey, all: false, legalEntityIds: await this.entities.grantedEntityIds(roleKey) };
   }
 
   async get(id: string): Promise<LegalEntity> {

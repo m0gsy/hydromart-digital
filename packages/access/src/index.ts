@@ -82,6 +82,28 @@ export const CAPABILITIES = {
     'MARKETING',
     'SUPER_ADMIN',
   ],
+  /*
+   * dashboard-service — HD-6: the AI web's read API (`ai/read/v1`), the numbers behind its
+   * answers. The same door as `pendingApprovals`, for the same reason: the answer is fenced by the
+   * caller's OWN depot scope (a scoped role reads only its depots), then narrowed again by the
+   * legal-entity matrix (HD-5, no grant = SUPER_ADMIN only), so a wide door does not widen what is
+   * read. FRANCHISE_OWNER is out: an owner's depots are fenced by ownership, which that scope does
+   * not see. NOT in CUSTOM_FORBIDDEN: it reads nothing past the depot scope and the matrix, which
+   * bind a custom role exactly as they bind a built-in one. No phone, name or address leaves it.
+   */
+  aiRead: [
+    'STAFF_DEPOT',
+    'KEPALA_DEPOT',
+    'ASSISTANT_SUPERVISOR',
+    'SUPERVISOR',
+    'MANAGER',
+    'DIREKTUR',
+    'HEAD_OFFICE',
+    'FINANCE',
+    'HR',
+    'MARKETING',
+    'SUPER_ADMIN',
+  ],
   // order-service — staff order queue (cross-customer read).
   orderQueue: [
     'KEPALA_DEPOT',

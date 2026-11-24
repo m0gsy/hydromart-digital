@@ -139,6 +139,7 @@ export const dashC = {
       settingsRead: 'Setelan (lihat)',
       dashboard: 'Dashboard eksekutif',
       pendingApprovals: 'Persetujuan yang menunggu Anda (web AI)',
+      aiRead: 'Angka untuk jawaban web AI (API baca)',
       orderQueue: 'Antrean pesanan',
       inventoryRead: 'Inventory (lihat)',
       inventoryWrite: 'Inventory (ubah)',

@@ -15,6 +15,7 @@ import {
 } from '../../src/domain/errors';
 import { OwnershipType } from '../../src/domain/inventory';
 import {
+  entitySpans,
   formatCalendarDay,
   normaliseLegalEntityName,
   parseCalendarDay,
@@ -56,6 +57,39 @@ describe('legal entity domain helpers', () => {
 
   it('stores a name trimmed with inner runs of space collapsed', () => {
     expect(normaliseLegalEntityName('  PT   Air\tNusantara ')).toBe('PT Air Nusantara');
+  });
+});
+
+describe('entitySpans (W-06: latest effectiveFrom <= D)', () => {
+  const pts = [
+    { depotId: 'd1', legalEntityId: 'A', effectiveFrom: '2026-01-01' },
+    { depotId: 'd1', legalEntityId: 'B', effectiveFrom: '2026-11-16' },
+    { depotId: 'd1', legalEntityId: 'C', effectiveFrom: '2026-12-01' },
+    { depotId: 'd2', legalEntityId: 'A', effectiveFrom: '2026-11-10' },
+  ];
+
+  it('gives the entity in force on the first day, then a span at each change inside the period', () => {
+    expect(entitySpans(['d1'], pts, '2026-11-01', '2026-11-30')).toEqual([
+      { depotId: 'd1', legalEntityId: 'A', from: '2026-11-01' },
+      { depotId: 'd1', legalEntityId: 'B', from: '2026-11-16' },
+    ]);
+  });
+
+  it('treats a change on the first day as already in force, and one after the last day as not yet', () => {
+    expect(entitySpans(['d1'], pts, '2026-11-16', '2026-11-30')).toEqual([
+      { depotId: 'd1', legalEntityId: 'B', from: '2026-11-16' },
+    ]);
+    expect(entitySpans(['d1'], pts, '2026-11-30', '2026-11-30')).toEqual([
+      { depotId: 'd1', legalEntityId: 'B', from: '2026-11-30' },
+    ]);
+  });
+
+  it('starts a depot with no point yet at null, and keeps depots apart', () => {
+    expect(entitySpans(['d2', 'd3'], pts, '2026-11-01', '2026-11-30')).toEqual([
+      { depotId: 'd2', legalEntityId: null, from: '2026-11-01' },
+      { depotId: 'd2', legalEntityId: 'A', from: '2026-11-10' },
+      { depotId: 'd3', legalEntityId: null, from: '2026-11-01' },
+    ]);
   });
 });
 
@@ -257,6 +291,30 @@ describe('LegalEntityService', () => {
       await expect(
         service.setAiGrants([{ legalEntityId: UNKNOWN, roleKey: 'FINANCE', granted: false }], ACTOR),
       ).rejects.toBeInstanceOf(LegalEntityNotFoundError);
+    });
+  });
+
+  describe('AI read API lookups (HD-6)', () => {
+    it('lists the entities a role is granted, and lets SUPER_ADMIN read all without a row', async () => {
+      const e = await kelola();
+      await service.setAiGrants([{ legalEntityId: e.id, roleKey: 'FINANCE', granted: true }], ACTOR);
+      expect(await service.aiGrantsFor('FINANCE')).toEqual({ roleKey: 'FINANCE', all: false, legalEntityIds: [e.id] });
+      expect(await service.aiGrantsFor('MANAGER')).toEqual({ roleKey: 'MANAGER', all: false, legalEntityIds: [] });
+      expect(await service.aiGrantsFor('SUPER_ADMIN')).toEqual({ roleKey: 'SUPER_ADMIN', all: true, legalEntityIds: [] });
+    });
+
+    it('reads the depots entity over a period, a depot that moved mid-period', async () => {
+      const depotId = (await depots.create(DEPOT)).id;
+      const a = await kelola();
+      const b = await service.create({ name: 'PT Indo', kind: 'FRANCHISOR' }, ACTOR);
+      const put = (legalEntityId: string, on: string) =>
+        service.assignDepots({ depotIds: [depotId], legalEntityId, effectiveFrom: day(on), seen: [] }, ACTOR);
+      await put(a.id, '2026-01-01');
+      await put(b.id, '2026-11-16');
+      expect(await service.entityTimeline([depotId.toUpperCase(), depotId], day('2026-11-01'), day('2026-11-30'))).toEqual([
+        { depotId, legalEntityId: a.id, from: '2026-11-01' },
+        { depotId, legalEntityId: b.id, from: '2026-11-16' },
+      ]);
     });
   });
 

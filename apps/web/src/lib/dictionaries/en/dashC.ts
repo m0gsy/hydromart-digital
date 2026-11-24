@@ -137,6 +137,7 @@ export const dashC = {
       settingsRead: 'Settings (view)',
       dashboard: 'Executive dashboard',
       pendingApprovals: 'Approvals waiting for you (AI web)',
+      aiRead: 'Figures behind the AI web answers (read API)',
       orderQueue: 'Order queue',
       inventoryRead: 'Inventory (view)',
       inventoryWrite: 'Inventory (edit)',

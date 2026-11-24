@@ -18,6 +18,8 @@ import {
   LegalEntity,
   LegalEntityKind,
   LegalEntityRecord,
+  DepotEntitySpan,
+  entitySpans,
   formatCalendarDay,
 } from '../../domain/legal-entity';
 import { PrismaService } from './prisma.service';
@@ -25,6 +27,7 @@ import { PrismaService } from './prisma.service';
 // ponytail: one read for the whole admin screen. A network of 100+ depots has a few hundred
 // entities at most; past this the list is cut and the screen would need paging.
 const LIST_CAP = 1000;
+const ENTITY_ROWS_CAP = LIST_CAP * 10;
 
 interface EntityRow {
   id: string;
@@ -63,6 +66,36 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
       ...this.toEntity(row),
       aiReadRoles: aiGrants.map((g) => g.roleKey),
     }));
+  }
+
+  async entityTimeline(depotIds: string[], from: Date, to: Date): Promise<DepotEntitySpan[]> {
+    // ponytail: every point up to `to` of at most 100 depots is read and shaped in memory (a depot
+    // changes hands a handful of times); the `take` is a ceiling, past it a depot's history is cut.
+    const rows = await this.prisma.depotLegalEntity.findMany({
+      where: { depotId: { in: depotIds }, effectiveFrom: { lte: to } },
+      orderBy: [{ depotId: 'asc' }, { effectiveFrom: 'asc' }],
+      take: ENTITY_ROWS_CAP,
+    });
+    // A full page may have been cut: an answer built on part of a depot's history would put it in
+    // the wrong entity, so refuse (the caller fails closed) rather than guess.
+    if (rows.length >= ENTITY_ROWS_CAP) throw new Error('depot legal-entity history exceeds the read cap');
+    return entitySpans(
+      depotIds,
+      rows.map((r) => ({ depotId: r.depotId, legalEntityId: r.legalEntityId, effectiveFrom: formatCalendarDay(r.effectiveFrom) })),
+      formatCalendarDay(from),
+      formatCalendarDay(to),
+    );
+  }
+
+  async grantedEntityIds(roleKey: string): Promise<string[]> {
+    const rows = await this.prisma.legalEntityAiGrant.findMany({
+      where: { roleKey },
+      select: { legalEntityId: true },
+      take: LIST_CAP,
+    });
+    // Cut short = some grant unseen; a missing grant only narrows, but say so instead of hiding it.
+    if (rows.length >= LIST_CAP) throw new Error('AI grants of the role exceed the read cap');
+    return rows.map((r) => r.legalEntityId);
   }
 
   async findById(id: string): Promise<LegalEntity | null> {

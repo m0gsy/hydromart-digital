@@ -40,9 +40,10 @@ function setup() {
     legalEntityAiGrant: {
       createMany: jest.fn().mockReturnValue('createMany'),
       deleteMany: jest.fn().mockReturnValue('deleteMany'),
+      findMany: jest.fn(),
     },
     depot: { findMany: jest.fn() },
-    depotLegalEntity: { delete: jest.fn(), findUnique: jest.fn() },
+    depotLegalEntity: { delete: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
     $transaction: jest.fn((arg: unknown) =>
       typeof arg === 'function' ? (arg as (t: typeof tx) => unknown)(tx) : Promise.resolve(arg),
     ),
@@ -236,5 +237,45 @@ describe('LegalEntityPrismaRepository', () => {
     expect(await repo.removeDepotPoint('p1', 'e1')).toBeNull();
     await expect(repo.removeDepotPoint('p1', 'e1')).rejects.toBeInstanceOf(StaleWriteError);
     await expect(repo.removeDepotPoint('p1', 'e1')).rejects.toThrow('db down');
+  });
+
+  it('shapes the points up to the last day into spans, in calendar days', async () => {
+    const { prisma, repo } = setup();
+    prisma.depotLegalEntity.findMany.mockResolvedValue([
+      { ...POINT, effectiveFrom: new Date('2026-01-01T00:00:00.000Z') },
+      { ...POINT, id: 'p2', legalEntityId: 'e2', effectiveFrom: new Date('2026-11-16T00:00:00.000Z') },
+    ]);
+    const last = new Date('2026-11-30T00:00:00.000Z');
+    const spans = await repo.entityTimeline(['d1'], new Date('2026-11-01T00:00:00.000Z'), last);
+    expect(spans).toEqual([
+      { depotId: 'd1', legalEntityId: 'e1', from: '2026-11-01' },
+      { depotId: 'd1', legalEntityId: 'e2', from: '2026-11-16' },
+    ]);
+    expect(prisma.depotLegalEntity.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { depotId: { in: ['d1'] }, effectiveFrom: { lte: last } } }),
+    );
+  });
+
+  it('reads the entity ids a role key is granted', async () => {
+    const { prisma, repo } = setup();
+    prisma.legalEntityAiGrant.findMany.mockResolvedValue([{ legalEntityId: 'e1' }, { legalEntityId: 'e2' }]);
+    expect(await repo.grantedEntityIds('FINANCE')).toEqual(['e1', 'e2']);
+    expect(prisma.legalEntityAiGrant.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { roleKey: 'FINANCE' } }),
+    );
+  });
+
+  it('refuses, instead of cutting a history short, when the read hits its row cap', async () => {
+    const { prisma, repo } = setup();
+    prisma.depotLegalEntity.findMany.mockResolvedValue(Array.from({ length: 10_000 }, () => POINT));
+    const day = new Date('2026-11-01T00:00:00.000Z');
+    await expect(repo.entityTimeline(['d1'], day, day)).rejects.toThrow('read cap');
+    expect(prisma.depotLegalEntity.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 10_000 }));
+  });
+
+  it('refuses when a role has as many grants as the read cap', async () => {
+    const { prisma, repo } = setup();
+    prisma.legalEntityAiGrant.findMany.mockResolvedValue(Array.from({ length: 1000 }, () => ({ legalEntityId: 'e1' })));
+    await expect(repo.grantedEntityIds('FINANCE')).rejects.toThrow('read cap');
   });
 });
