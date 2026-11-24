@@ -1,5 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { addLocalDays, localDayKey } from '@hydromart/platform';
+
+import { DepotConfigService } from '../../config/depot-config.service';
 import { ApprovalRepository } from '../ports/approval.repository';
 import { DAILY_CLOSE_REPOSITORY, DailyCloseRepository } from '../ports/daily-close.repository';
 import { InventoryRepository } from '../ports/inventory.repository';
@@ -49,13 +52,19 @@ export class DepotGovernanceService {
     @Inject(DEPOT_TOKENS.ApprovalRepository) private readonly approvals: ApprovalRepository,
     @Inject(DEPOT_TOKENS.InventoryRepository) private readonly inventory: InventoryRepository,
     @Inject(DAILY_CLOSE_REPOSITORY) private readonly closes: DailyCloseRepository,
+    private readonly config: DepotConfigService,
   ) {}
 
   async inRange(depotId: string, from: Date, to: Date): Promise<DepotGovernance> {
+    // Daily closes are keyed by WIB day, not instant. The days the window touches run from the
+    // day of `from` to the day of its last millisecond, so the exclusive end is the day after.
+    const tz = this.config.businessTimeZone;
+    const fromDay = localDayKey(from, tz);
+    const toDayExclusive = localDayKey(addLocalDays(new Date(to.getTime() - 1), 1, tz), tz);
     const [approvalsReviewed, variances, closes] = await Promise.all([
       this.approvals.countReviewedInRange(depotId, from, to),
       this.inventory.opnameVariances(depotId, { from, to }),
-      this.closes.listForDepotRange(depotId, from, to),
+      this.closes.listForDepotRange(depotId, fromDay, toDayExclusive),
     ]);
     return {
       approvalsReviewed,

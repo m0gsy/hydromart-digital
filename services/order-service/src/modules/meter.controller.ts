@@ -33,11 +33,6 @@ function assertDay(value: string): string {
   return value;
 }
 
-function toDay(value: Date): string {
-  // tz-ok: @db.Date coming back out of the service — already a local calendar day.
-  return value.toISOString().slice(0, 10);
-}
-
 @ApiTags('Reports')
 @ApiBearerAuth()
 @Controller({ path: 'reports/meter', version: '1' })
@@ -90,10 +85,10 @@ export class MeterController {
     @Param('depotId', ParseUUIDPipe) depotId: string,
     @Query() query: MeterHistoryQueryDto,
   ): Promise<MeterHistoryRow[]> {
-    const to = query.to ? assertDay(query.to.slice(0, 10)) : toDay(new Date());
+    const to = query.to ? assertDay(query.to.slice(0, 10)) : this.meter.today();
     const from = query.from
       ? assertDay(query.from.slice(0, 10))
-      : toDay(new Date(Date.parse(`${to}T00:00:00.000Z`) - 29 * DAY_MS));
+      : this.meter.dayKeyBefore(to, 29);
     if (Date.parse(`${from}T00:00:00.000Z`) > Date.parse(`${to}T00:00:00.000Z`)) {
       throw new BadRequestException('from must not be after to');
     }

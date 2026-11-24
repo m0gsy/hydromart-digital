@@ -771,3 +771,21 @@ describe('MeterService tank status', () => {
     });
   });
 });
+
+describe('MeterService default history window (WIB keys)', () => {
+  const { service } = build({});
+
+  it('today() is the WIB day: 16:59Z is still today, 17:00Z is tomorrow', () => {
+    expect(service.today(new Date('2026-07-31T16:59:00Z'))).toBe('2026-07-31');
+    expect(service.today(new Date('2026-07-31T17:00:00Z'))).toBe('2026-08-01');
+    // 23:30 vs 00:30 WIB
+    expect(service.today(new Date('2026-12-31T16:30:00Z'))).toBe('2026-12-31');
+    expect(service.today(new Date('2026-12-31T17:30:00Z'))).toBe('2027-01-01');
+  });
+
+  it('dayKeyBefore walks calendar days across month and year ends', () => {
+    expect(service.dayKeyBefore('2026-08-01', 29)).toBe('2026-07-03');
+    expect(service.dayKeyBefore('2027-01-01', 29)).toBe('2026-12-03');
+    expect(service.dayKeyBefore('2026-03-01', 1)).toBe('2026-02-28');
+  });
+});

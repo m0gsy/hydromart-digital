@@ -109,12 +109,14 @@ class FakeCourierLedger implements CourierLedgerRepository {
     type: CourierLedgerEntryType,
     since: Date,
     depotId?: string,
+    until?: Date,
   ): Promise<number> {
     return this.entries.filter(
       (e) =>
         e.courierId === courierId &&
         e.type === type &&
         e.occurredAt >= since &&
+        (until === undefined || e.occurredAt < until) &&
         (depotId === undefined || e.depotId === depotId),
     ).length;
   }
@@ -647,6 +649,18 @@ it('credits base + on-time + peak using the WIB hour of deliveredAt', async () =
       await service.recordDeliveryEarning(event('d2', '2026-08-01T05:00:00.000Z', true));
       expect(incentives()).toHaveLength(1);
       // Both deliveries are August's, so the rung is August's rung.
+      expect(incentives()[0].sourceRef).toContain(':2026-08:2');
+    });
+
+    // HD-6 A1: the tally had only a lower bound, so a late event for a past month also
+    // counted every later month's deliveries and fired that month's rungs.
+    it('does not count later months into a late event for an earlier month', async () => {
+      await service.recordDeliveryEarning(event('a1', '2026-08-05T03:00:00.000Z', true));
+      await service.recordDeliveryEarning(event('a2', '2026-08-06T03:00:00.000Z', true));
+      expect(incentives()).toHaveLength(1); // August rung 2
+      // First July delivery arrives late; July has 1 delivery, not 3.
+      await service.recordDeliveryEarning(event('j1', day(10), true));
+      expect(incentives()).toHaveLength(1);
       expect(incentives()[0].sourceRef).toContain(':2026-08:2');
     });
 

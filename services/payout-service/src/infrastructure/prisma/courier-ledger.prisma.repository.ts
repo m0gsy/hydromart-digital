@@ -164,9 +164,15 @@ export class CourierLedgerPrismaRepository implements CourierLedgerRepository {
     type: CourierLedgerEntryType,
     since: Date,
     depotId?: string,
+    until?: Date,
   ): Promise<number> {
     return this.prisma.courierLedgerEntry.count({
-      where: { courierId, type, occurredAt: { gte: since }, ...(depotId ? { depotId } : {}) },
+      where: {
+        courierId,
+        type,
+        occurredAt: { gte: since, ...(until ? { lt: until } : {}) },
+        ...(depotId ? { depotId } : {}),
+      },
     });
   }
 

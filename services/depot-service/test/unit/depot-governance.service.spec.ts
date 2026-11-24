@@ -1,6 +1,7 @@
 import { DepotGovernanceService } from '../../src/application/services/depot-governance.service';
 import { ApprovalRepository } from '../../src/application/ports/approval.repository';
 import { DailyCloseRepository } from '../../src/application/ports/daily-close.repository';
+import { DepotConfigService } from '../../src/config/depot-config.service';
 import { InventoryRepository } from '../../src/application/ports/inventory.repository';
 
 const FROM = new Date('2026-07-01T00:00:00.000Z');
@@ -22,7 +23,8 @@ function make(
   const closes = {
     listForDepotRange: jest.fn().mockResolvedValue(over.closes ?? []),
   } as unknown as DailyCloseRepository;
-  return { service: new DepotGovernanceService(approvals, inventory, closes), approvals };
+  const config = { businessTimeZone: 'Asia/Jakarta' } as unknown as DepotConfigService;
+  return { service: new DepotGovernanceService(approvals, inventory, closes, config), approvals, closes };
 }
 
 describe('DepotGovernanceService', () => {
@@ -73,5 +75,25 @@ describe('DepotGovernanceService', () => {
     const out = await service.inRange('d1', FROM, TO);
     expect(approvals.countReviewedInRange).toHaveBeenCalledWith('d1', FROM, TO);
     expect(out.approvalsReviewed).toBe(4);
+  });
+
+  // HD-6 A1: the repository compares day keys with a DATE column; a WIB-midnight instant used
+  // to leak through as 17:00Z the day before and shift both ends of the month by a day.
+  it('asks the repository for WIB day keys, whole days, end exclusive', async () => {
+    const { service, closes } = make();
+    // 1 Aug 00:00 WIB .. 1 Sep 00:00 WIB
+    await service.inRange(
+      'd1',
+      new Date('2026-07-31T17:00:00.000Z'),
+      new Date('2026-08-31T17:00:00.000Z'),
+    );
+    expect(closes.listForDepotRange).toHaveBeenLastCalledWith('d1', '2026-08-01', '2026-09-01');
+    // A window ending mid-day still includes that day (23:30 WIB on 31 Aug).
+    await service.inRange(
+      'd1',
+      new Date('2026-07-31T17:00:00.000Z'),
+      new Date('2026-08-31T16:30:00.000Z'),
+    );
+    expect(closes.listForDepotRange).toHaveBeenLastCalledWith('d1', '2026-08-01', '2026-09-01');
   });
 });

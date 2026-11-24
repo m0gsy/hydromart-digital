@@ -1163,6 +1163,14 @@ describe('CourierLedgerPrismaRepository', () => {
     expect(ledgerModel.count).toHaveBeenLastCalledWith({
       where: { courierId: 'cou-1', type: 'EARNING', occurredAt: { gte: since }, depotId: 'dep-1' },
     });
+
+    // `until` is an exclusive upper bound: a late event for a past month must not count
+    // the deliveries of the months after it.
+    const until = new Date('2026-02-01');
+    await repo.countByType('cou-1', 'EARNING' as never, since, undefined, until);
+    expect(ledgerModel.count).toHaveBeenLastCalledWith({
+      where: { courierId: 'cou-1', type: 'EARNING', occurredAt: { gte: since, lt: until } },
+    });
   });
 
   /*

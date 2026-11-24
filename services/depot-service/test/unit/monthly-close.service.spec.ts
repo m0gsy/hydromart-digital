@@ -39,10 +39,13 @@ class FakeDailyCloses implements DailyCloseRepository {
     row.reopenedBy = reopenedBy;
     return row;
   }
-  async listForDepotRange(depotId: string, from: Date, to: Date) {
+  async listForDepotRange(depotId: string, fromDay: string, toDayExclusive: string) {
     return this.rows.filter(
       (r) =>
-        r.depotId === depotId && new Date(r.businessDate) >= from && new Date(r.businessDate) < to,
+        r.depotId === depotId &&
+        !r.reopenedAt &&
+        r.businessDate >= fromDay &&
+        r.businessDate < toDayExclusive,
     );
   }
   /** Test helper: push a closed day straight in, skipping the real close() math. */

@@ -40,6 +40,17 @@ export interface DailyCloseRepository {
   close(data: CloseDayData): Promise<DailyCloseRecord>;
   /** Mark a closed day open again. Only HQ reaches this. */
   reopen(depotId: string, businessDate: string, reopenedBy: string): Promise<DailyCloseRecord>;
-  /** Every close whose business day falls in [from, to). Backs the monthly settlement variance. */
-  listForDepotRange(depotId: string, from: Date, to: Date): Promise<DailyCloseRecord[]>;
+  /**
+   * Every CLOSED day (a reopened day is open again, so it is not one) whose business day falls
+   * in [fromDay, toDayExclusive). Backs the monthly settlement variance.
+   *
+   * Day KEYS ('YYYY-MM-DD'), not instants: `businessDate` is a Postgres DATE and Postgres
+   * compares a timestamp parameter with it as a timestamp, so a WIB-midnight instant (17:00Z the
+   * day before) pulled the previous month's last day in and dropped this month's last day.
+   */
+  listForDepotRange(
+    depotId: string,
+    fromDay: string,
+    toDayExclusive: string,
+  ): Promise<DailyCloseRecord[]>;
 }

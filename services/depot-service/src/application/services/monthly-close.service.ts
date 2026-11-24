@@ -77,13 +77,20 @@ export class MonthlyCloseService {
     return days;
   }
 
+  /** The day key after the last of the month's `count` expected days (exclusive end). */
+  private dayAfterExpected(businessMonth: string, count: number, tz: string): string {
+    return localDayKey(addLocalDays(dayStartUtc(`${businessMonth}-01`, tz), count, tz), tz);
+  }
+
   private async missingDays(depotId: string, businessMonth: string): Promise<string[]> {
     const expected = this.expectedDays(businessMonth);
     if (expected.length === 0) return [];
     const tz = this.config.businessTimeZone;
-    const from = dayStartUtc(`${businessMonth}-01`, tz);
-    const to = addLocalDays(from, expected.length, tz);
-    const rows = await this.dailyCloses.listForDepotRange(depotId, from, to);
+    const rows = await this.dailyCloses.listForDepotRange(
+      depotId,
+      `${businessMonth}-01`,
+      this.dayAfterExpected(businessMonth, expected.length, tz),
+    );
     const closed = new Set(rows.filter((r) => !r.reopenedAt).map((r) => r.businessDate));
     return expected.filter((d) => !closed.has(d));
   }
@@ -138,9 +145,11 @@ export class MonthlyCloseService {
     }
 
     const tz = this.config.businessTimeZone;
-    const from = dayStartUtc(`${businessMonth}-01`, tz);
-    const to = addLocalDays(from, expected.length, tz);
-    const rows = await this.dailyCloses.listForDepotRange(depotId, from, to);
+    const rows = await this.dailyCloses.listForDepotRange(
+      depotId,
+      `${businessMonth}-01`,
+      this.dayAfterExpected(businessMonth, expected.length, tz),
+    );
     const sum = (pick: (r: (typeof rows)[number]) => number) =>
       rows.reduce((s, r) => s + pick(r), 0);
 

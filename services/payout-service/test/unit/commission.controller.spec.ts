@@ -1,3 +1,4 @@
+import { PayoutConfigService } from '../../src/config/payout-config.service';
 import { CommissionController } from '../../src/modules/commission.controller';
 import { CommissionService } from '../../src/application/services/commission.service';
 import { ApplySchemeDto } from '../../src/modules/dto/commission.dto';
@@ -7,7 +8,10 @@ describe('CommissionController', () => {
     listCurrent: jest.fn().mockResolvedValue([]),
     apply: jest.fn().mockResolvedValue([]),
   };
-  const controller = new CommissionController(commission as unknown as CommissionService);
+  const controller = new CommissionController(
+    commission as unknown as CommissionService,
+    { businessTimeZone: 'Asia/Jakarta' } as unknown as PayoutConfigService,
+  );
   afterEach(() => jest.clearAllMocks());
 
   it('listSchemes delegates to listCurrent', async () => {
@@ -23,7 +27,7 @@ describe('CommissionController', () => {
     );
     // PYO-6: the applying account travels with the scheme.
     expect(commission.apply).toHaveBeenCalledWith({
-      effectiveDate: new Date('2026-08-01'),
+      effectiveDate: new Date('2026-07-31T17:00:00.000Z'),
       items,
       appliedBy: 'hq-1',
     });
