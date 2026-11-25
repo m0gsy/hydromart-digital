@@ -400,8 +400,10 @@ loopback only.
 - **Scopes** (AI-7c): a third capability, `aiAccessRequestNotify`, for n8n's "someone asks for AI web
   access" call (`POST crm/api/v1/notifications/external/ai-access-requested`, ids only; hydromart looks
   up the names and tells the holders of `legalEntityAiAccess`). `aiweb-secrets.sh` adds it to n8n's
-  `MACHINE_ACCOUNTS` entry on the first deploy after the release holding it is the last good one;
-  until then the route answers 403 to n8n. crm needs `DEPOT_SERVICE_URL` (already set) for entity names;
+  `MACHINE_ACCOUNTS` entry on the first deploy after the release holding it is the last good one
+  (read on the box 25 Nov 2026 with a4a2b2a4a live); without it the route answers 403 to n8n.
+  The n8n workflow (hydromart-ai bd6de7e, `ai-access-request`) calls it for each "Minta akses" form
+  sent in the AI web. crm needs `DEPOT_SERVICE_URL` (already set) for entity names;
   a 503 means the requester, the entities or a recipient could not be read: n8n retries the same body.
   The route caps itself: 3 distinct requests per requester and 30 overall per rolling hour; past it the answer is 200 with `capped: true` and nothing is sent (a warning is logged).
 - **Scopes** (HD-18): a fourth and fifth capability, `orderStatusByPhone` and `customerReminderNotify`,
