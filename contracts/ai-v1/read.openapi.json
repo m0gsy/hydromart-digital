@@ -3,7 +3,7 @@
   "info": {
     "title": "hydromart-digital read API for the AI web",
     "version": "1.0.0",
-    "description": "HD-6, foundation (H1), the money metrics (H2) and the stock and loyalty groups (H4). The numbers behind the AI web's answers. Every route under /dashboard/api/v1/ai/read answers ONE envelope (AnswerEnvelope), so a metric group added later changes only metricId, value and unit. GET scope answers what the caller may read for a period; GET money?metric= (H2) answers the money metrics (sales, cash and COD, profit and loss); GET stock?metric= and GET loyalty?metric= (H4) answer the stock group and the loyalty, promo, subscription and queue group; the other metric groups follow within version 1.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. A machine token (aud hydromart-machine) is refused with 403 whatever its scopes. The door is the aiRead capability: every staff role by default, franchise owners not.\n\nScope, applied in this order: (1) the person's own depots, exactly as hydromart-digital's own screens resolve them (a network-wide role: every depot); (2) narrowed to the depots whose legal entity, on a day of the period, is one the person's ROLE is granted in the role x legal entity matrix (HD-5). No grant = only SUPER_ADMIN reads it. A grant never widens step 1. The answer echoes the depots and legal entities it covered in scope. When hydromart-digital cannot work the scope out (a depot service that does not answer), nothing is answered: 503, never an answer without the narrowing.\n\nPeriod: the WIB (Asia/Jakarta, UTC+7) calendar. Send period=day|week|month|year (with date, any day inside it; default today in WIB) OR from and to (YYYY-MM-DD, both days included, at most 366 days). Both or neither is a 400. Weeks run Monday to Sunday. The resolved period is always echoed back, with the same span as UTC instants (fromAt inclusive, toAt exclusive). A metric defined only over whole months or years refuses a range that is not a run of them (400).\n\nvalue and status: ok = a real value, and 0 is a real value. belum_ada = there is nothing to say yet (not built, no data, not defined): value is null and reason says why; never read it as 0. ditahan = held back on purpose (masking, or a decision still open): value is null and reason says why. Quote the number from value, and the period and scope from the envelope.\n\nMasking (owner decision 24 Nov 2026): no phone number, name or address ever leaves this API. Customers and couriers appear only as counts or opaque ids. A group of fewer than 3 people is not given as a number: its cell has value null and flag \"kurang dari 3\", and when a total is published beside it, the smallest other non-empty cell is held back with it (flag \"ditahan\") so the small cell cannot be computed back from the total; if there is no such cell the total itself is null with totalFlag \"ditahan\". A group of 0 people is shown as 0. Held-back cells are widened until at least 6 people are held back, so a held-back cell cannot be pinned down from the total; if the cells run out first the total is held back too. Two answers over overlapping windows are never published, because their difference would be a smaller group than either shows.\n\nNo personal data: every string, and every object key, is checked before an answer leaves. A field named phone, name, nama, address, alamat, email, hp and the like is refused, and so is any text that contains an email address or a phone number. A display name travels only under the field label. A label names a thing (a depot code, a product, a queue), never a person, and is checked like every other string. Amounts and counts are JSON numbers, never digit strings: a string of 10 to 13 digits that starts with 08, 62 or 8 reads as a phone number and is refused. A refused answer is a 500 with the fixed message \"Jawaban ini tidak bisa dikirim.\" and never echoes what tripped the check.\n\nRead-only: nothing is written and nothing is recorded in the audit trail. Rate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a field you do not know; removing or renaming one is a new contract version."
+    "description": "HD-6, foundation (H1), the money metrics (H2), the customer, delivery and gallon groups (H3), the stock and loyalty groups (H4) and the franchise, legal-entity and HR groups (H5). The numbers behind the AI web's answers. Every route under /dashboard/api/v1/ai/read answers ONE envelope (AnswerEnvelope), so a metric group added later changes only metricId, value and unit. GET scope answers what the caller may read for a period; GET money?metric= (H2) answers the money metrics (sales, cash and COD, profit and loss); GET customers?metric=, GET delivery?metric= and GET gallons?metric= (H3) answer the customer, delivery/courier and gallon metrics; GET stock?metric= and GET loyalty?metric= (H4) answer the stock group and the loyalty, promo, subscription and queue group; GET franchise?metric= and GET hr?metric= (H5) answer the franchise and legal-entity group and the HR group.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. A machine token (aud hydromart-machine) is refused with 403 whatever its scopes. The door is the aiRead capability: every staff role by default, franchise owners not.\n\nScope, applied in this order: (1) the person's own depots, exactly as hydromart-digital's own screens resolve them (a network-wide role: every depot); (2) narrowed to the depots whose legal entity, on a day of the period, is one the person's ROLE is granted in the role x legal entity matrix (HD-5). No grant = only SUPER_ADMIN reads it. A grant never widens step 1. The answer echoes the depots and legal entities it covered in scope. When hydromart-digital cannot work the scope out (a depot service that does not answer), nothing is answered: 503, never an answer without the narrowing.\n\nPeriod: the WIB (Asia/Jakarta, UTC+7) calendar. Send period=day|week|month|year (with date, any day inside it; default today in WIB) OR from and to (YYYY-MM-DD, both days included, at most 366 days). Both or neither is a 400. Weeks run Monday to Sunday. The resolved period is always echoed back, with the same span as UTC instants (fromAt inclusive, toAt exclusive). A metric defined only over whole months or years refuses a range that is not a run of them (400).\n\nvalue and status: ok = a real value, and 0 is a real value. belum_ada = there is nothing to say yet (not built, no data, not defined): value is null and reason says why; never read it as 0. ditahan = held back on purpose (masking, or a decision still open): value is null and reason says why. Quote the number from value, and the period and scope from the envelope.\n\nMasking (owner decision 24 Nov 2026): no phone number, name or address ever leaves this API. Customers and couriers appear only as counts or opaque ids. A group of fewer than 3 people is not given as a number: its cell has value null and flag \"kurang dari 3\", and when a total is published beside it, the smallest other non-empty cell is held back with it (flag \"ditahan\") so the small cell cannot be computed back from the total; if there is no such cell the total itself is null with totalFlag \"ditahan\". A group of 0 people is shown as 0. Held-back cells are widened until at least 6 people are held back, so a held-back cell cannot be pinned down from the total; if the cells run out first the total is held back too. Two answers over overlapping windows are never published, because their difference would be a smaller group than either shows.\n\nNo personal data: every string, and every object key, is checked before an answer leaves. A field named phone, name, nama, address, alamat, email, hp and the like is refused, and so is any text that contains an email address or a phone number. A display name travels only under the field label. A label names a thing (a depot code, a product, a queue), never a person, and is checked like every other string. Amounts and counts are JSON numbers, never digit strings: a string of 10 to 13 digits that starts with 08, 62 or 8 reads as a phone number and is refused. A refused answer is a 500 with the fixed message \"Jawaban ini tidak bisa dikirim.\" and never echoes what tripped the check.\n\nRead-only: nothing is written and nothing is recorded in the audit trail. Rate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a field you do not know; removing or renaming one is a new contract version."
   },
   "servers": [
     {
@@ -1508,6 +1508,729 @@
             "wholeMonthOnly": false,
             "value": "null",
             "rules": "Always belum_ada: employee turnover is not recorded per period."
+          }
+        }
+      }
+    },
+    "/dashboard/api/v1/ai/read/customers": {
+      "get": {
+        "summary": "One customer metric (C-: new, active, repeat, segments, cohorts, rating) for ONE whole calendar month.",
+        "description": "The customer group of the metric dictionary (section 3.5). The metric is the `metric` query parameter; the answer is the AnswerEnvelope. Every metric counts people, so every one is defined for ONE whole calendar month (C-08 for a run of whole months): a day, a week, or a range that is not whole months is a 400. Two answers therefore never overlap, and no two of them can be subtracted to isolate the few people between a month and a week.\n\nPeople: this group counts customers or couriers. No name, phone or address is ever read; a group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). Only named customers count: the anonymous counter buyer is nobody. A person with two phone numbers is two customers (no merging).\n\nScope: a fact counts only for the days its depot was readable by the caller (a depot that changed legal entity mid-month counts for its stretch). Distinct counts are one read over all the depot stretches, so a person who bought at two depots is one. When the scope holds more than 100 depots the metric is belum_ada (\"persempit cakupan\"), never a partial sum.\n\nSources of truth: order-service (customers, cohorts, reviews, segments). A source that cannot answer, or answers something this API does not understand, makes the metric belum_ada (never 0).\n\nRunning month: a month that has not ended is NOT answered (ditahan, reason \"bulan berjalan belum ditutup\"), because its count watched day by day steps by the one person who ordered that day. Only a closed month is answered, and exactly, except where said below. C-06 (a total as of a date) is answered only as of the last day of a closed month (belum_ada otherwise), always rounded to a multiple of 5, and its window \"aktif\" (30 days back from the as-of day) is not the calendar month of C-04. C-08 sizes and cells are always rounded to a multiple of 5, because the exact repeat and active counts of C-05 minus an exact cohort diagonal would give a held cohort away. C-06 counts all history, so a depot whose older history the role may not read (it joined a readable legal entity recently) is held back and counted in heldBackDepots.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "metric",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "C-01",
+                "C-02",
+                "C-03",
+                "C-04",
+                "C-05",
+                "C-06",
+                "C-07",
+                "C-08",
+                "C-09",
+                "C-10"
+              ]
+            },
+            "description": "A metric of the customers group. Any other id is 404; leaving it out is 400."
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            },
+            "description": "A whole calendar period in WIB. Not together with from/to."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Any day inside the period; default today in WIB. Only with period."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "First day of an explicit range, with to."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Last day of an explicit range (included), with from."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The envelope for the metric.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerEnvelope"
+                },
+                "example": {
+                  "metricId": "C-01",
+                  "period": {
+                    "unit": "month",
+                    "from": "2026-11-01",
+                    "to": "2026-11-30",
+                    "timeZone": "Asia/Jakarta",
+                    "fromAt": "2026-10-31T17:00:00.000Z",
+                    "toAt": "2026-11-30T17:00:00.000Z"
+                  },
+                  "scope": {
+                    "depotIds": [
+                      "11111111-1111-4111-8111-111111111111"
+                    ],
+                    "legalEntityIds": [
+                      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+                    ]
+                  },
+                  "value": 37,
+                  "status": "ok",
+                  "unit": "orang",
+                  "asOf": "2026-11-25T03:00:00.000Z",
+                  "label": "pelanggan baru: orang yang pesanan pertamanya di seluruh jaringan jatuh pada bulan ini"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: a period that is ambiguous (both period and from/to, or neither), not a real day, backwards, longer than 366 days, or not whole where the metric needs it. Every metric of this group needs one whole calendar month (C-08: a run of whole months or a year).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. Hand off again for a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, or a person whose role does not hold aiRead (a franchise owner, by default). Not worth retrying until their role changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: a metric id that is not in the customers group of the dictionary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_SERVER_ERROR: the answer was held back because it would have carried personal data (a bug in the metric, not in the request). The message is always \"Jawaban ini tidak bisa dikirim.\"; retrying will not help.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the scope could not be worked out (the depot list or the legal-entity matrix could not be read). Nothing is answered rather than an answer without the narrowing. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-metrics": {
+          "C-01": {
+            "unit": "orang",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "number",
+            "rules": "New customers: named customers whose first order anywhere in the network (not BATAL, not VOID, any other status) was created in the month, recorded at the depot of that first order, so the depots of a network add up to the network. 0 is a real answer; 1 or 2 is ditahan. belum_ada when order-service cannot be read. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back."
+          },
+          "C-02": {
+            "unit": "orang",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "number",
+            "rules": "New customers of ONE depot: customers whose first order at that depot was created in the month, even if they bought elsewhere before. Not summed across depots: ditahan unless exactly one depot is in scope. 1 or 2 is ditahan. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back."
+          },
+          "C-03": {
+            "unit": "akun",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "null",
+            "rules": "Always belum_ada: new accounts (people who signed up, ordered or not) have no internal read route in auth-service yet, and an account has no depot to narrow by."
+          },
+          "C-04": {
+            "unit": "orang",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "number",
+            "rules": "Active customers: distinct named customers with at least one order (not BATAL, not VOID) created in the month, counted once however many depots they bought at. 1 or 2 is ditahan. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back."
+          },
+          "C-05": {
+            "unit": "orang, persen",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ cells: MaskedCell[], total: number | null, ratePct: number | null }",
+            "rules": "Repeat customers: cells \"berulang\" (buyers of the month who ordered before the month, at any depot) and \"pertama kali pada bulan ini\"; total = all buyers; ratePct = berulang / total with one decimal, null whenever a cell is held back (it would give the small cell away). When a cell has 1 or 2 people the other cell is held back with it and the whole answer is ditahan. belum_ada with no buyers. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back."
+          },
+          "C-06": {
+            "unit": "orang",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ asOf, cells: MaskedCell[], total: number | null, heldBackDepots: number }",
+            "rules": "Customers by days since their last order (not BATAL, not VOID, all time up to asOf): \"aktif\" up to 30 days, \"berisiko\" 31 to 60, \"tidak aktif\" more than 60. asOf = the last day of a CLOSED month (a running month is belum_ada: no closed as-of date exists yet); the depots counted are those readable on asOf. Cells of 1 or 2 people are held back with their smallest neighbour; all cells held = ditahan. belum_ada with no named customer at all. Every cell and the total are rounded to a multiple of 5 always (a total as of two dates subtracts into the people who moved between them). Only depots whose whole history up to asOf the role may read are counted; heldBackDepots says how many were not, and the label names the day they became readable."
+          },
+          "C-07": {
+            "unit": "skor",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "null",
+            "rules": "Always ditahan: a churn score is one number per person (a group of 1, masking) and a forecast. Use C-06 for counts by days since the last order."
+          },
+          "C-08": {
+            "unit": "orang, persen",
+            "wholeMonthOnly": true,
+            "value": "{ cohorts: [{ cohort: \"YYYY-MM\", size: number | null, flag?: \"kurang dari 3\", months: [{ monthIndex, customers: number | null, ratePct: number | null, flag? }] }] }",
+            "rules": "Retention by cohort: cohort = the WIB month of a customer's first order ever (named customers, not BATAL/VOID) in a readable depot and day; months[n] = customers of the cohort who ordered again n months later (in a readable depot and day), ratePct = customers / size with one decimal. A cohort or a cell of fewer than 3 people has value null and flag \"kurang dari 3\". Defined for a run of whole calendar months or a year; belum_ada when no new customer fell in them. A cohort is held back WHOLE (size null, flag \"kurang dari 3\") when any of its cells is under 3 people, or when 1 or 2 of its people did not come back (near-total retention shows them). Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back. Sizes and cells are ALWAYS multiples of 5 (percentages worked out from the rounded numbers); the held-back test is made on the exact counts first."
+          },
+          "C-09": {
+            "unit": "Rp",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "null",
+            "rules": "Always ditahan: lifetime value is an amount per customer (a group of 1, masking)."
+          },
+          "C-10": {
+            "unit": "bintang",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ averageStars, reviews }",
+            "rules": "Rating: the mean stars of all reviews of orders created in the month (every review weighs the same), one decimal. Reviews from fewer than 3 different customers = ditahan. belum_ada with no review. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back."
+          }
+        }
+      }
+    },
+    "/dashboard/api/v1/ai/read/delivery": {
+      "get": {
+        "summary": "One delivery or courier metric (K-: delivered, on time, median time, failed, courier group, live orders).",
+        "description": "The delivery group of the metric dictionary (section 3.6). K-01 to K-05 are answered for ONE whole calendar month only, and only a CLOSED one (the running month is ditahan, \"bulan berjalan belum ditutup\"): two nested periods (d1..d7 and d1..d6) would subtract into one courier's day, and a running month watched day by day steps by one courier. A day, a week, a range or a year is a 400. K-06 (a rating per courier) is never answered. K-07 is the state right now and ignores the period.\n\nPeople: this group counts customers or couriers. No name, phone or address is ever read; a group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). Courier identity is never sent: only how many couriers there were. A failure reason is free text a courier typed and can name a person, so only the no-show reason is counted apart; the rest is \"otherReason\" without text.\n\nOn time (K-02): the verdict stored when the delivery completed (depot threshold, else the network threshold; the clock starts at the courier's assignment and restarts when a CUSTOMER reschedules, not when the depot swaps the courier). Deliveries completed before the verdict was stored are graded again with the network threshold; the label says how many of each.\n\nScope and sources as for the other groups: delivery-service and order-service; belum_ada (never 0) when a source cannot answer or more than 100 depots are in scope.\n\nCourier floor: in a depot or slice with 1 or 2 couriers the on-time share, the median minutes, the failures and the delivered count ARE that courier's record. So K-01 to K-05 answer ditahan (\"kurang dari 3\") unless 3 or more distinct couriers, counting those who delivered OR failed, are behind the slice. K-07 answers the state of TODAY: the period asked is not used, the scope is worked out for today, and the period echoed in the envelope is today. K-07 is a live figure: the difference between two readings is a change of orders, not of people.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "metric",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "K-01",
+                "K-02",
+                "K-03",
+                "K-04",
+                "K-05",
+                "K-06",
+                "K-07"
+              ]
+            },
+            "description": "A metric of the delivery group. Any other id is 404; leaving it out is 400."
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            },
+            "description": "A whole calendar period in WIB. Not together with from/to."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Any day inside the period; default today in WIB. Only with period."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "First day of an explicit range, with to."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Last day of an explicit range (included), with from."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The envelope for the metric.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerEnvelope"
+                },
+                "example": {
+                  "metricId": "K-01",
+                  "period": {
+                    "unit": "month",
+                    "from": "2026-11-01",
+                    "to": "2026-11-30",
+                    "timeZone": "Asia/Jakarta",
+                    "fromAt": "2026-10-31T17:00:00.000Z",
+                    "toAt": "2026-11-30T17:00:00.000Z"
+                  },
+                  "scope": {
+                    "depotIds": [
+                      "11111111-1111-4111-8111-111111111111"
+                    ],
+                    "legalEntityIds": [
+                      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+                    ]
+                  },
+                  "value": 128,
+                  "status": "ok",
+                  "unit": "pengiriman",
+                  "asOf": "2026-11-25T03:00:00.000Z",
+                  "label": "pengiriman terkirim pada periode menurut waktu terkirim (WIB)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: a period that is ambiguous (both period and from/to, or neither), not a real day, backwards, longer than 366 days, or not whole where the metric needs it. K-05 needs one whole calendar month.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. Hand off again for a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, or a person whose role does not hold aiRead (a franchise owner, by default). Not worth retrying until their role changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: a metric id that is not in the delivery group of the dictionary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_SERVER_ERROR: the answer was held back because it would have carried personal data (a bug in the metric, not in the request). The message is always \"Jawaban ini tidak bisa dikirim.\"; retrying will not help.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the scope could not be worked out (the depot list or the legal-entity matrix could not be read). Nothing is answered rather than an answer without the narrowing. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-metrics": {
+          "K-01": {
+            "unit": "pengiriman",
+            "wholeMonthOnly": true,
+            "value": "number",
+            "rules": "Deliveries delivered in the period by delivery time (WIB), at the delivering depot; one per order. 0 is a real answer. ditahan when fewer than 3 distinct couriers (delivering or failing) are behind the slice.",
+            "exactlyOneMonth": true
+          },
+          "K-02": {
+            "unit": "persen",
+            "wholeMonthOnly": true,
+            "value": "{ ratePct, onTime, delivered }",
+            "rules": "Share on time, one decimal; the label says how many verdicts were stored and how many were graded again, and with which threshold. belum_ada when nothing was delivered (never 0%). ditahan when fewer than 3 distinct couriers (delivering or failing) are behind the slice. Old rows without a stored verdict are graded with their depot's threshold (depot setting, else the network threshold of /hq/sla-policy); the label gives the threshold, or says it differs by depot.",
+            "exactlyOneMonth": true
+          },
+          "K-03": {
+            "unit": "menit",
+            "wholeMonthOnly": true,
+            "value": "number",
+            "rules": "Median minutes from the courier's assignment (restarted on a customer reschedule) to delivery, one decimal. belum_ada when nothing was delivered. ditahan when fewer than 3 distinct couriers (delivering or failing) are behind the slice.",
+            "exactlyOneMonth": true
+          },
+          "K-04": {
+            "unit": "pengiriman",
+            "wholeMonthOnly": true,
+            "value": "{ failed, noShow, otherReason, rescheduled, cancelledBeforeDeparture, held } (a count of 1 or 2 is null with its key in held)",
+            "rules": "Deliveries that ended GAGAL by failure date (failed), of which noShow = customer not at home and otherReason = every other reason, without text. rescheduled = times a delivery was handed back to be rescheduled, by when it happened; cancelledBeforeDeparture = delivery orders cancelled (by cancel time) that never reached PICKED_UP or ON_DELIVERY. The last two are counted apart and are not part of failed. A count of 1 or 2 is held back (null, flagged in held), with the smallest neighbour beside a published total. ditahan when fewer than 3 distinct couriers are behind the slice. belum_ada when either source cannot be read.",
+            "exactlyOneMonth": true
+          },
+          "K-05": {
+            "unit": "kurir, pengiriman",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ couriers, delivered, failed, averageDeliveredPerCourier, onTimeRatePct }",
+            "rules": "The courier group of ONE whole month: how many couriers delivered, and the deliveries, failures and on-time rate of the group (never per courier). Fewer than 3 couriers = ditahan. belum_ada when nothing was delivered."
+          },
+          "K-06": {
+            "unit": "bintang",
+            "wholeMonthOnly": false,
+            "value": "null",
+            "rules": "Always ditahan: a rating per courier is an evaluation of one person (a group of 1). The customers' rating per depot is C-10."
+          },
+          "K-07": {
+            "unit": "pesanan",
+            "wholeMonthOnly": false,
+            "value": "{ total, notConfirmed, withoutCourier, withCourier, held, heldBackDepots }",
+            "rules": "Delivery orders in flight right now at the depots readable today, in groups: notConfirmed = CREATED; withoutCourier = CONFIRMED and PREPARING; withCourier = DRIVER_ASSIGNED, PICKED_UP and ON_DELIVERY. Counter sales are never in flight. Any age counts, so only depots whose whole history the role may read are included (heldBackDepots says how many were not). A group of 1 or 2 orders is null, flagged in held, with its smallest neighbour. The period asked is not used: it echoes today. Live figures: two readings at different times differ because orders changed, not because of any person."
+          }
+        }
+      }
+    },
+    "/dashboard/api/v1/ai/read/gallons": {
+      "get": {
+        "summary": "One gallon metric (G-: sold, at customers, deposit, returned, refill split).",
+        "description": "The gallon group of the metric dictionary (section 3.2). Gallons count things, not people, so every period is allowed and nothing is masked.\n\nG-02 and G-03 are balances: the ledger up to the end of the last day of the period (today while the period runs), at the depots readable on that day, plus what moved in the period (only the days each depot was readable). Until the owner decides whether to correct old data, a balance still carries every counter refill booked before 25 Nov 2026 as a gallon that never came back, so it runs too high; the label says so.\n\nSources: order-service (G-01, G-05) and depot-service (G-02 to G-04). belum_ada (never 0) when a source cannot answer.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "metric",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "G-01",
+                "G-02",
+                "G-03",
+                "G-04",
+                "G-05"
+              ]
+            },
+            "description": "A metric of the gallons group. Any other id is 404; leaving it out is 400."
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            },
+            "description": "A whole calendar period in WIB. Not together with from/to."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Any day inside the period; default today in WIB. Only with period."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "First day of an explicit range, with to."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Last day of an explicit range (included), with from."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The envelope for the metric.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerEnvelope"
+                },
+                "example": {
+                  "metricId": "G-01",
+                  "period": {
+                    "unit": "month",
+                    "from": "2026-11-01",
+                    "to": "2026-11-30",
+                    "timeZone": "Asia/Jakarta",
+                    "fromAt": "2026-10-31T17:00:00.000Z",
+                    "toAt": "2026-11-30T17:00:00.000Z"
+                  },
+                  "scope": {
+                    "depotIds": [
+                      "11111111-1111-4111-8111-111111111111"
+                    ],
+                    "legalEntityIds": [
+                      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+                    ]
+                  },
+                  "value": 5400,
+                  "status": "ok",
+                  "unit": "galon",
+                  "asOf": "2026-11-25T03:00:00.000Z",
+                  "label": "galon terjual: unit galon pada pesanan TERKIRIM atau SELESAI menurut tanggal pesanan dibuat"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: a period that is ambiguous (both period and from/to, or neither), not a real day, backwards, longer than 366 days, or not whole where the metric needs it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. Hand off again for a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, or a person whose role does not hold aiRead (a franchise owner, by default). Not worth retrying until their role changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: a metric id that is not in the gallons group of the dictionary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_SERVER_ERROR: the answer was held back because it would have carried personal data (a bug in the metric, not in the request). The message is always \"Jawaban ini tidak bisa dikirim.\"; retrying will not help.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the scope could not be worked out (the depot list or the legal-entity matrix could not be read). Nothing is answered rather than an answer without the narrowing. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-metrics": {
+          "G-01": {
+            "unit": "galon",
+            "wholeMonthOnly": false,
+            "value": "number",
+            "rules": "Gallon units on orders DELIVERED or COMPLETED, by the day the order was created (WIB), counter sales and free promo gallons included."
+          },
+          "G-02": {
+            "unit": "galon",
+            "wholeMonthOnly": false,
+            "value": "{ asOf, heldBackDepots, gallonsAtCustomers, issuedInPeriod, returnedInPeriod }",
+            "rules": "Gallons at customers = issued minus returned, a balance as of asOf; the movements of the period apart. Too high for counter refills before 25 Nov 2026 (see label). Only depots whose whole ledger up to asOf the role may read are in the balance; heldBackDepots counts the others and the label names the day they became readable."
+          },
+          "G-03": {
+            "unit": "Rp",
+            "wholeMonthOnly": false,
+            "value": "{ asOf, heldBackDepots, depositHeldIdr, bookedInPeriodIdr, refundedInPeriodIdr }",
+            "rules": "Deposit held = booked minus refunded, as of asOf: customers' money in trust, never revenue; booked at rate x gallons, not at money received. Same caveat as G-02. Same depots as G-02."
+          },
+          "G-04": {
+            "unit": "galon",
+            "wholeMonthOnly": false,
+            "value": "{ good, damaged }",
+            "rules": "Gallons returned by condition, by the day received, in gallons not records; a void at the counter subtracts."
+          },
+          "G-05": {
+            "unit": "transaksi",
+            "wholeMonthOnly": false,
+            "value": "{ refill, partial, beli, notAsked }",
+            "rules": "Counter sales that sold a gallon (not BATAL/VOID), by the empties the buyer brought: refill (as many as bought or more), partial, beli (none), notAsked. Counts transactions, not gallons."
           }
         }
       }

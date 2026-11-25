@@ -36,7 +36,7 @@ import {
 import { BadRequestException } from '@nestjs/common';
 import { DeliveryStatus } from '../../src/domain/delivery-status';
 import { haversineMeters } from '../../src/domain/geo';
-import { ContactMethod } from '../../src/domain/no-show';
+import { ContactMethod, NO_SHOW_REASON } from '../../src/domain/no-show';
 import { ShiftStatus } from '../../src/domain/shift';
 import {
   FakeDepotLocation,
@@ -1016,6 +1016,8 @@ describe('DeliveryService', () => {
     const failed = await service.markNoShow(driver, d.id, second.eligibleAt!, AUTH);
     expect(failed.status).toBe(DeliveryStatus.FAILED);
     expect(failed.failureReason).toContain('no-show');
+    // The AI read API's failed-delivery summary counts no-shows by this exact text: the real writer must write it.
+    expect(failed.failureReason).toBe(NO_SHOW_REASON);
     expect(orders.calls.map((c) => c.status)).toEqual(['DRIVER_ASSIGNED', 'CANCELLED']);
   });
 

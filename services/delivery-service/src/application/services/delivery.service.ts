@@ -31,6 +31,7 @@ import {
 import {
   ContactMethod,
   ContactState,
+  NO_SHOW_REASON,
   NoShowPolicy,
   canMarkNoShow,
   noShowEligibleAt,
@@ -176,8 +177,6 @@ export interface RescheduleInput {
   /** Who asked (HD-6 #20). Defaults to CUSTOMER: the courier's reschedule is the customer's new time. */
   initiator?: RescheduleInitiator;
 }
-
-const NO_SHOW_REASON = 'Pelanggan tidak di tempat (no-show).';
 
 @Injectable()
 export class DeliveryService {

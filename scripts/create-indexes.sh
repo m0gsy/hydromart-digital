@@ -136,6 +136,8 @@ payout|hq_release_requests_one_pending_per_owner|CREATE UNIQUE INDEX CONCURRENTL
 payout|payout_bank_accounts_subjectId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "payout_bank_accounts_subjectId_key" ON "payout_bank_accounts"("subjectId")
 payout|payout_bank_accounts_status_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "payout_bank_accounts_status_createdAt_idx" ON "payout_bank_accounts"("status", "createdAt")
 delivery|deliveries_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "deliveries_customerId_createdAt_idx" ON "deliveries"("customerId", "createdAt" DESC)
+delivery|deliveries_depotId_failedAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "deliveries_depotId_failedAt_idx" ON "deliveries"("depotId", "failedAt")
+delivery|delivery_status_history_status_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "delivery_status_history_status_createdAt_idx" ON "delivery_status_history"("status", "createdAt")
 order|orders_customerId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "orders_customerId_createdAt_idx" ON "orders"("customerId", "createdAt")
 order|orders_subscriptionId_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "orders_subscriptionId_createdAt_idx" ON "orders"("subscriptionId", "createdAt")
 order|orders_status_statusChangedAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "orders_status_statusChangedAt_idx" ON "orders"("status", "statusChangedAt")

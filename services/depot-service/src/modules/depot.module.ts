@@ -116,6 +116,8 @@ import { GallonReturnController } from './gallon-return.controller';
 import { DriverGallonReturnController } from './driver-gallon-return.controller';
 import { GallonIssueController } from './gallon-issue.controller';
 import { GallonNetworkController } from './gallon-network.controller';
+import { GallonLedgerController } from './gallon-ledger.controller';
+import { GallonLedgerPrismaRepository } from '../infrastructure/prisma/gallon-ledger.prisma.repository';
 import { FranchiseApplicationController } from './franchise-application.controller';
 import { EventOutboxController } from './event-outbox.controller';
 import { DepotPriceOverrideController, PriceOverrideController } from './price-override.controller';
@@ -162,6 +164,7 @@ const providers: Provider[] = [
   GallonReturnService,
   GallonIssueService,
   GallonNetworkService,
+  GallonLedgerPrismaRepository,
   GallonReminderService,
   FranchiseApplicationService,
   // HD-7: webhook events (the first: a franchise application was submitted).
@@ -278,6 +281,7 @@ const providers: Provider[] = [
     DriverGallonReturnController,
     GallonIssueController,
     GallonNetworkController,
+    GallonLedgerController,
     FranchiseApplicationController,
     EventOutboxController,
     DepotPriceOverrideController,

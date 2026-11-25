@@ -1,0 +1,58 @@
+import { Controller, Get, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+
+import { AuthenticatedUser, Can, CurrentUser, ExternalAccess } from '@hydromart/platform';
+
+import { CustomerMetricsService } from '../application/ai-read/customer-metrics';
+import { DeliveryMetricsService } from '../application/ai-read/delivery-metrics';
+import { AnswerEnvelope } from '../application/ai-read/envelope';
+import { GallonMetricsService } from '../application/ai-read/gallon-metrics';
+import { AnswerEnvelopeDto } from './dto/ai-read.dto';
+import { CustomerQueryDto, DeliveryQueryDto, GallonQueryDto } from './dto/ai-read-customer.dto';
+
+/**
+ * HD-6 H3: customers (C-), delivery and couriers (K-) and gallons (G-). One route per group, the
+ * metric id in the `metric` query, the same envelope as every other read route. No route returns a
+ * name, phone or address: customers and couriers appear as counts only, and a group of fewer than 3
+ * people is held back.
+ */
+@ApiTags('AI read')
+@ApiBearerAuth()
+@Controller({ path: 'ai/read', version: '1' })
+export class AiReadCustomerController {
+  constructor(
+    private readonly customers: CustomerMetricsService,
+    private readonly delivery: DeliveryMetricsService,
+    private readonly gallons: GallonMetricsService,
+  ) {}
+
+  @ApiOkResponse({ type: AnswerEnvelopeDto })
+  @ExternalAccess('ai')
+  @Can('aiRead')
+  @Get('customers')
+  @ApiOperation({ summary: 'One customer metric (new, active, repeat, segments, cohorts, rating) for a whole month' })
+  customerMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: CustomerQueryDto): Promise<AnswerEnvelope> {
+    const { metric, ...period } = query;
+    return this.customers.answer(metric, user, period);
+  }
+
+  @ApiOkResponse({ type: AnswerEnvelopeDto })
+  @ExternalAccess('ai')
+  @Can('aiRead')
+  @Get('delivery')
+  @ApiOperation({ summary: 'One delivery or courier metric (delivered, on time, median time, failed, team, live orders)' })
+  deliveryMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: DeliveryQueryDto): Promise<AnswerEnvelope> {
+    const { metric, ...period } = query;
+    return this.delivery.answer(metric, user, period);
+  }
+
+  @ApiOkResponse({ type: AnswerEnvelopeDto })
+  @ExternalAccess('ai')
+  @Can('aiRead')
+  @Get('gallons')
+  @ApiOperation({ summary: 'One gallon metric (sold, at customers, deposit, returned, refill split)' })
+  gallonMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: GallonQueryDto): Promise<AnswerEnvelope> {
+    const { metric, ...period } = query;
+    return this.gallons.answer(metric, user, period);
+  }
+}

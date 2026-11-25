@@ -51,6 +51,9 @@ import { PendingApprovalsController } from './pending-approvals.controller';
 import { PendingApprovalsPrismaReader } from '../infrastructure/prisma/pending-approvals.prisma.reader';
 import { CommissionController } from './commission.controller';
 import { ReportController } from './report.controller';
+import { AiDeliverySummaryController } from './ai-delivery-summary.controller';
+import { AiDeliverySummaryService } from '../application/services/ai-delivery-summary.service';
+import { AiDeliveryPrismaRepository } from '../infrastructure/prisma/ai-delivery.prisma.repository';
 import { UploadController } from './upload.controller';
 import { RetentionController } from './retention.controller';
 import { SlaAlertController } from './sla-alert.controller';
@@ -67,6 +70,8 @@ const providers: Provider[] = [
   DeliveryConfigService,
   DeliveryService,
   ReportService,
+  AiDeliverySummaryService,
+  { provide: DELIVERY_TOKENS.AiDeliveryRepository, useClass: AiDeliveryPrismaRepository },
   SlaAlertService,
   ShiftService,
   IncidentService,
@@ -122,6 +127,7 @@ const providers: Provider[] = [
     PendingApprovalsController,
     CommissionController,
     ReportController,
+    AiDeliverySummaryController,
     UploadController,
     RetentionController,
     EventOutboxController,

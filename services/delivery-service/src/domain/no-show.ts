@@ -5,6 +5,13 @@
  * Framework-free; the counts/timings come from config (NO_SHOW_MIN_*).
  */
 
+/**
+ * The failure reason a no-show is written with. The AI read API's failed-delivery summary counts
+ * no-shows by this exact text, so writer and reader share it. Every other reason is free text a
+ * courier typed, which can name a person, so it is only ever counted as "other".
+ */
+export const NO_SHOW_REASON = 'Pelanggan tidak di tempat (no-show).';
+
 /** How a courier tried to reach the customer before declaring a no-show. */
 export enum ContactMethod {
   CALL = 'CALL',

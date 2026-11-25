@@ -125,7 +125,8 @@ export class MoneyMetricsService {
     const id = metricId as MoneyMetricId;
     const meta: { unit: string; month?: boolean } = MONEY_METRICS[id];
     const period = parsePeriod(query, now, meta.month ? { whole: 'month' } : {});
-    if (meta.month && period.from.slice(0, 7) !== period.to.slice(0, 7)) {
+    // A named day or week is not a whole month even when it sits inside one, and a named year is twelve of them.
+    if (meta.month && (period.unit === 'day' || period.unit === 'week' || period.unit === 'year' || period.from.slice(0, 7) !== period.to.slice(0, 7))) {
       throw new BadRequestException(`${id} hanya untuk satu bulan penuh`);
     }
     const scope = await this.scopes.resolve(user, period);

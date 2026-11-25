@@ -29,6 +29,12 @@ import { AiStockSourcesHttpAdapter } from '../infrastructure/http/ai-stock-sourc
 import { FranchiseMetricsService } from '../application/ai-read/franchise-metrics';
 import { HrMetricsService } from '../application/ai-read/hr-metrics';
 import { AiOrgSourcesHttpAdapter } from '../infrastructure/http/ai-org-sources.http.adapter';
+import { AiReadCustomerController } from './ai-read-customer.controller';
+import { CumulativeScopeService } from '../application/ai-read/cumulative-scope.service';
+import { CustomerMetricsService } from '../application/ai-read/customer-metrics';
+import { DeliveryMetricsService } from '../application/ai-read/delivery-metrics';
+import { GallonMetricsService } from '../application/ai-read/gallon-metrics';
+import { AiCustomerSourcesHttpAdapter } from '../infrastructure/http/ai-customer-sources.http.adapter';
 import { PendingApprovalSourcesHttpAdapter } from '../infrastructure/http/pending-approval-sources.http.adapter';
 
 const providers: Provider[] = [
@@ -45,6 +51,11 @@ const providers: Provider[] = [
   LoyaltyMetricsService,
   FranchiseMetricsService,
   HrMetricsService,
+  { provide: DASHBOARD_TOKENS.AiCustomerSources, useClass: AiCustomerSourcesHttpAdapter },
+  CumulativeScopeService,
+  CustomerMetricsService,
+  DeliveryMetricsService,
+  GallonMetricsService,
   PendingApprovalsService,
   { provide: DASHBOARD_TOKENS.PendingApprovalSources, useClass: PendingApprovalSourcesHttpAdapter },
   {
@@ -63,7 +74,14 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [DashboardController, PendingApprovalsController, AiReadController, AiReadStockController, PendingApprovalsInternalController],
+  controllers: [
+    DashboardController,
+    PendingApprovalsController,
+    AiReadController,
+    AiReadStockController,
+    AiReadCustomerController,
+    PendingApprovalsInternalController,
+  ],
   providers,
   exports: [DashboardConfigService],
 })
