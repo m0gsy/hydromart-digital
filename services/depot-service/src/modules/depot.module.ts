@@ -152,6 +152,10 @@ import { MaintenanceController } from './maintenance.controller';
 import { WholesaleTierController } from './wholesale-tier.controller';
 import { SubscriptionController } from './subscription.controller';
 import { HuddleController } from './huddle.controller';
+import { VisitTemplateController } from './visit-template.controller';
+import { VisitTemplateService } from '../application/services/visit-template.service';
+import { VisitTemplatePrismaRepository } from '../infrastructure/prisma/visit-template.prisma.repository';
+import { SopLookupHttpAdapter } from '../infrastructure/http/sop-lookup.http.adapter';
 import { HandoverController } from './handover.controller';
 import { OperationalReportController } from './operational-report.controller';
 import { SettingsController } from './settings.controller';
@@ -210,6 +214,7 @@ const providers: Provider[] = [
   WholesaleTierService,
   SubscriptionService,
   HuddleService,
+  VisitTemplateService,
   HandoverService,
   OperationalReportService,
   { provide: DEPOT_TOKENS.DepotRepository, useClass: DepotPrismaRepository },
@@ -262,6 +267,8 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.OrderLedger, useClass: OrderLedgerHttpAdapter },
   { provide: DEPOT_TOKENS.MeterVolume, useClass: MeterVolumeHttpAdapter },
   { provide: DEPOT_TOKENS.HuddleRepository, useClass: HuddlePrismaRepository },
+  { provide: DEPOT_TOKENS.VisitTemplateRepository, useClass: VisitTemplatePrismaRepository },
+  { provide: DEPOT_TOKENS.SopLookup, useClass: SopLookupHttpAdapter },
   { provide: DEPOT_TOKENS.HandoverRepository, useClass: HandoverPrismaRepository },
   {
     provide: DEPOT_TOKENS.OperationalReportRepository,
@@ -331,6 +338,7 @@ const providers: Provider[] = [
     WholesaleTierController,
     SubscriptionController,
     HuddleController,
+    VisitTemplateController,
     HandoverController,
     OperationalReportController,
     SettingsController,

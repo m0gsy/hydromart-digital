@@ -88,6 +88,8 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'depotTargets',
       'depotWholesale',
       'depotSubscriptions',
+      'visitTemplateManage',
+      'visitConduct',
     ],
   },
   {

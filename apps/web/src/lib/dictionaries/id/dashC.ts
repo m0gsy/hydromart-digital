@@ -209,6 +209,8 @@ export const dashC = {
       leaveApprove: 'Setujui cuti',
       sopManage: 'Tulis & terbitkan SOP',
       sopRead: 'Lihat SOP',
+      visitTemplateManage: 'Kelola template kunjungan',
+      visitConduct: 'Lakukan kunjungan depot',
       kasbonApprove: 'Setujui kasbon',
       hrView: 'Laporan HR (lihat)',
       hrViewOwn: 'Absensi depot sendiri (waralaba)',

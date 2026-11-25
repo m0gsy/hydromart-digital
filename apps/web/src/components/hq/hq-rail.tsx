@@ -112,6 +112,7 @@ export const HQ_ICONS: Record<string, Icon> = {
   '/hq/inventory': Package,
   '/hq/returns': Recycle,
   '/hq/roster': Truck,
+  '/hq/visit-templates': ListChecks,
   '/hq/orders': ClipboardText,
   '/hq/notifications': Bell,
   '/hq/dashboard': SquaresFour,

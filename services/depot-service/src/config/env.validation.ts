@@ -52,6 +52,9 @@ export const envValidationSchema = Joi.object({
     .allow('')
     .default('')
     .when('NODE_ENV', { is: 'production', then: Joi.string().uri().required().invalid('') }),
+  // hr-service, asked which SOP version a visit checklist item points at. Optional (fail-soft):
+  // blank means a checklist shows without its SOP link, never that a visit cannot start.
+  HR_SERVICE_URL: Joi.string().uri().allow('').default(''),
   ORDER_SERVICE_URL: Joi.string()
     .uri()
     .allow('')

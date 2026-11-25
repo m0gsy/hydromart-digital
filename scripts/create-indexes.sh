@@ -346,3 +346,7 @@ echo "All indexes present."
 # sop_acks_versionId_employeeId_key and sop_acks_employeeId_idx (hr-service, 2026-11-27, HD-16) are
 # built by their own migration, not here: they index tables that migration creates, so they are
 # empty and the build is instant.
+
+# visit_template_items_templateId_position_idx (depot-service, 2026-11-27, HD-15B) is built by its own
+# migration, not here: it indexes a table that migration creates, so it is empty and the build is
+# instant.

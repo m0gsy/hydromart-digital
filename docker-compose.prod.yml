@@ -454,6 +454,9 @@ services:
       # second one grown here. Blank means the console refuses instead of saving a plan
       # nothing will ever run.
       ORDER_SERVICE_URL: http://order:3004
+      # HD-15B: a visit checklist item names an SOP; hr says which version is in force at the depot.
+      # Optional: blank only hides the SOP link, a visit never waits on it.
+      HR_SERVICE_URL: http://hr:3018
       GALLON_DEPOSIT_IDR: ${GALLON_DEPOSIT_IDR:-20000}
       # Object storage for each depot's static QRIS image. It shares the PRODUCT bucket on
       # purpose — the objects are namespaced by the `qris/` key prefix, and reusing the

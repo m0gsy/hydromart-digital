@@ -165,6 +165,7 @@ describe('GatewayConfigService', () => {
     expect(map.approvals).toBe('http://depot:1');
     expect(map.procurement).toBe('http://depot:1');
     expect(map.shifts).toBe('http://depot:1');
+    expect(map['visit-templates']).toBe('http://depot:1');
     // hr-service backs many segments
     expect(map.employees).toBe('http://hr:1');
     expect(map['hr-reports']).toBe('http://hr:1');
