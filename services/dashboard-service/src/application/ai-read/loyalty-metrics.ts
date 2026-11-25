@@ -8,6 +8,7 @@ import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerEnvelope } from './envelope';
 import { SMALL_GROUP_FLAG, SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
 import { PeriodQuery, ResolvedPeriod, parsePeriod } from './period';
+import { OPEN_MONTH_REASON, isOpen } from './group-context';
 import { DOWN, ReadEnv, chunks, makeEnv } from './read-env';
 import { ReadScope, ReadScopeService } from './scope.service';
 import { depotsOn } from './stretches';
@@ -64,8 +65,6 @@ export const LOYALTY_METRIC_IDS = Object.keys(LOYALTY_METRICS) as LoyaltyMetricI
 const NO_SCOPE = 'Tidak ada depot yang boleh Anda baca pada periode ini.';
 const NO_DEPOT_NOW = 'Tidak ada depot yang boleh Anda baca hari ini.';
 const TOO_MANY = 'Terlalu banyak depot untuk dihitung sekaligus dalam satu jawaban; persempit cakupan atau periode.';
-export const OPEN_MONTH_REASON =
-  'bulan berjalan belum ditutup: angka orang yang berubah dari hari ke hari bisa dikurangkan menjadi satu orang, jadi hanya bulan yang sudah ditutup yang dijawab.';
 export const SMALL_GROUP_REASON = 'kurang dari 3: kelompok sekecil ini tidak dijawab dengan angkanya, supaya tidak menunjuk satu atau dua orang.';
 const NETWORK_ONLY =
   'Angka ini ada untuk seluruh jaringan saja (pelanggan, rujukan, langganan dan kampanye tidak melekat pada satu depot, dan depot yang dipilih pelanggan berpindah); hanya peran yang membaca semua depot dan semua badan hukum yang menjawabnya.';
@@ -119,7 +118,7 @@ export class LoyaltyMetricsService {
     const env = makeEnv(id, meta.unit, period, scope, now);
     if (meta.reason) return env.none(meta.reason);
     // A people count over a month that has not ended steps by the one person who acted that day.
-    if (meta.month && env.period.to >= env.today) return env.held(OPEN_MONTH_REASON);
+    if (meta.month && isOpen(env)) return env.held(OPEN_MONTH_REASON);
     if (meta.network) return this.network(id, user, env);
     if (id === 'A-01') return this.queues(env);
     if (scope.spans.length === 0) return env.none(NO_SCOPE);

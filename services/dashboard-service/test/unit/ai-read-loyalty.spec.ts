@@ -2,7 +2,8 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import { LOYALTY_METRIC_IDS, LOYALTY_METRICS, LoyaltyMetricsService, OPEN_MONTH_REASON, round5 } from '../../src/application/ai-read/loyalty-metrics';
+import { OPEN_MONTH_REASON } from '../../src/application/ai-read/group-context';
+import { LOYALTY_METRIC_IDS, LOYALTY_METRICS, LoyaltyMetricsService, round5 } from '../../src/application/ai-read/loyalty-metrics';
 import { ReadScope, ReadScopeService } from '../../src/application/ai-read/scope.service';
 import { AiLoyaltySourcesPort } from '../../src/application/ports/ai-loyalty-sources.port';
 import { AiReadSourcesPort } from '../../src/application/ports/ai-read-sources.port';
@@ -112,13 +113,14 @@ describe('people metrics: one closed whole month only', () => {
     const { service, sources } = build();
     const res = await service.answer(id, network, NOVEMBER, NOW);
     expect(res).toMatchObject({ status: 'ditahan', value: null, reason: OPEN_MONTH_REASON });
-    expect(OPEN_MONTH_REASON).toContain('bulan berjalan belum ditutup');
     for (const fn of Object.values(sources)) expect(fn).not.toHaveBeenCalled();
-    // the last day of the month is still "running" until the month is over
+    // the last day of the month is still "running", and the month stays held through the 7th of the next one
     const edge = await service.answer(id, network, { period: 'month', date: '2026-11-30' }, new Date('2026-11-30T16:00:00.000Z'));
     expect(edge.status).toBe('ditahan');
-    // ...and the first day of the next month closes it
-    const closed = await service.answer(id, network, { period: 'month', date: '2026-11-30' }, new Date('2026-11-30T17:00:00.000Z'));
+    const day7 = await service.answer(id, network, { period: 'month', date: '2026-11-30' }, new Date('2026-12-07T16:59:00.000Z'));
+    expect(day7).toMatchObject({ status: 'ditahan', reason: OPEN_MONTH_REASON });
+    // ...and the 8th (WIB) answers it
+    const closed = await service.answer(id, network, { period: 'month', date: '2026-11-30' }, new Date('2026-12-07T17:00:00.000Z'));
     expect(closed.status).not.toBe('ditahan');
   });
 });

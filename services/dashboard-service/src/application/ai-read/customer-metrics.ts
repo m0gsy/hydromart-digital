@@ -33,8 +33,9 @@ import { depotsOn, plusDays } from './stretches';
  *    held-back cell away by subtraction holds its smallest neighbour back too (masking.ts);
  *  - except C-08, a metric is answered for ONE whole calendar month only, so two answers never
  *    overlap and a month cannot be subtracted from a week to isolate the few people between them;
- *  - only a CLOSED month is answered ("bulan berjalan belum ditutup" otherwise): a running month's count,
- *    watched day by day, steps by the one person who ordered that day;
+ *  - only a CLOSED month is answered, and only from the 8th of the next month (owner, 25 Nov 2026: late
+ *    cancellations settle first; `isOpen` in group-context.ts): a running month's count, watched day by
+ *    day, steps by the one person who ordered that day;
  *  - C-06 is a total as of a date, so it is answered only as of the last day of a closed month, with every
  *    cell and the total rounded to a multiple of 5; C-08's sizes and cells are ALWAYS rounded to 5 too,
  *    because the exact repeat/active of C-05 minus an exact cohort diagonal would give a held row away.
@@ -80,8 +81,8 @@ export class CustomerMetricsService {
     }
     if (c.scope.spans.length === 0) return c.none(NO_SCOPE);
     if (isOpen(c)) {
-      // C-06 is as of a date: the month's last day has not come, so there is no closed as-of to give.
-      return metricId === 'C-06' ? c.none('C-06 hanya dijawab per hari terakhir bulan yang sudah ditutup; bulan ini belum selesai.') : c.held(OPEN_MONTH_REASON);
+      // C-06 is as of a date: the month is not settled yet (from the 8th of the next month), so there is no as-of to give.
+      return metricId === 'C-06' ? c.none('C-06 dijawab per hari terakhir bulan yang sudah ditutup, mulai tanggal 8 bulan berikutnya; bulan ini belum boleh dijawab.') : c.held(OPEN_MONTH_REASON);
     }
     switch (metricId as CustomerMetricId) {
       case 'C-01':

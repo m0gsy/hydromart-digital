@@ -7,6 +7,7 @@ import { ATTENDANCE_CELLS, AiOrgSourcesPort, AttendanceCell, PayrollRow } from '
 import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
 import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerEnvelope } from './envelope';
+import { isOpen } from './group-context';
 import { SMALL_GROUP_FLAG, SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
 import { PeriodQuery, parsePeriod } from './period';
 import { DOWN, ReadEnv, chunks, isWholeMonthOrYear, makeEnv, narrowTo, payrollUnfinished, pooled, stretchesOf } from './read-env';
@@ -39,12 +40,6 @@ const SHOWN_CELLS = ATTENDANCE_CELLS.filter((c) => c !== 'attendedScheduled');
 
 /** The cells that add up to scheduledDays: holding any one of them holds scheduledDays and the rate. */
 const IDENTITY_CELLS = ['present', 'late', 'absentScheduled', 'leave', 'pending'] as const;
-
-/** The first day a month-or-year ending on `to` is answered: the 8th of the month after it (records entered late are in by then). */
-const closedFrom = (to: string): string => {
-  const [y, m] = to.split('-').map(Number);
-  return m === 12 ? `${y + 1}-01-08` : `${y}-${String(m + 1).padStart(2, '0')}-08`;
-};
 
 const small = (people: number): boolean => people > 0 && people < SMALL_GROUP_MIN;
 
@@ -115,7 +110,7 @@ export class HrMetricsService {
     if (!isWholeMonthOrYear(env.period.from, env.period.to)) {
       return env.none('Kehadiran hanya dijawab per bulan atau tahun penuh, supaya selisih dua jawaban tidak menunjuk beberapa orang saja.');
     }
-    if (env.today < closedFrom(env.period.to)) {
+    if (isOpen(env)) {
       return env.none('Kehadiran hanya dijawab untuk bulan yang sudah tutup, mulai tanggal 8 bulan berikutnya, supaya catatan yang terlambat masuk sudah ikut.');
     }
     const sums = Object.fromEntries(ATTENDANCE_CELLS.map((c) => [c, 0])) as Record<AttendanceCell, number>;

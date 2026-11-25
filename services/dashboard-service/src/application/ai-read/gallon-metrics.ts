@@ -22,14 +22,6 @@ export const GALLON_METRICS = {
 export type GallonMetricId = keyof typeof GALLON_METRICS;
 export const GALLON_METRIC_IDS = Object.keys(GALLON_METRICS) as GallonMetricId[];
 
-/**
- * The refill fix (owner decision 24A) records the empty a counter refill brings back and reverses a
- * void's gallons, but only from 25 Nov 2026: what was booked before still carries every past counter
- * refill as a gallon that never came back. Until the owner decides a backfill, the balance says so.
- */
-export const REFILL_FIX_DATE = '25 Nov 2026';
-export const GALLON_BALANCE_CAVEAT = `catatan: isi ulang di kasir sebelum ${REFILL_FIX_DATE} mencatat galon keluar tanpa galon kosong yang kembali, jadi saldo sampai tanggal itu cenderung terlalu besar sampai pemilik memutuskan koreksi data lama`;
-
 const rp = (n: number): number => Math.round(n);
 const sum = (rows: readonly GallonLedgerRow[], pick: (r: GallonLedgerRow) => number): number => rows.reduce((n, r) => n + pick(r), 0);
 
@@ -108,7 +100,7 @@ export class GallonMetricsService {
     const end = addLocalDays(dayStartUtc(asOf, tz), 1, tz).toISOString();
     const [at, moved] = await Promise.all([this.ledger(depotIds, { from: end, to: end }), this.inPeriod(c)]);
     if (!at || !moved) return c.none(DOWN);
-    const note = `; saldo pada ${asOf} (akhir hari, WIB) di depot yang seluruh riwayatnya boleh Anda baca pada hari itu, sepanjang waktu; mutasi = yang dibukukan pada periode, hanya hari depot boleh Anda baca; ${GALLON_BALANCE_CAVEAT}${heldBackNote(split.heldBack)}`;
+    const note = `; saldo pada ${asOf} (akhir hari, WIB) di depot yang seluruh riwayatnya boleh Anda baca pada hari itu, sepanjang waktu; mutasi = yang dibukukan pada periode, hanya hari depot boleh Anda baca${heldBackNote(split.heldBack)}`;
     if (id === 'G-02') {
       return c.ok(
         {

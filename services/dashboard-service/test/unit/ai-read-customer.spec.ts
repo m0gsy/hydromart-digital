@@ -4,7 +4,7 @@ import { AuthenticatedUser } from '@hydromart/platform';
 
 import { CUSTOMER_METRIC_IDS, CUSTOMER_METRICS, CustomerMetricsService } from '../../src/application/ai-read/customer-metrics';
 import { DELIVERY_METRIC_IDS, DELIVERY_METRICS, DeliveryMetricsService } from '../../src/application/ai-read/delivery-metrics';
-import { GALLON_BALANCE_CAVEAT, GALLON_METRIC_IDS, GALLON_METRICS, GallonMetricsService } from '../../src/application/ai-read/gallon-metrics';
+import { GALLON_METRIC_IDS, GALLON_METRICS, GallonMetricsService } from '../../src/application/ai-read/gallon-metrics';
 import { assertNoPersonalData } from '../../src/application/ai-read/masking';
 import { CumulativeScopeService } from '../../src/application/ai-read/cumulative-scope.service';
 import { ReadScope, ReadScopeService } from '../../src/application/ai-read/scope.service';
@@ -21,7 +21,7 @@ const D2 = '22222222-2222-4222-8222-222222222222';
 const PT_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const PT_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const NOW = new Date('2026-11-25T03:00:00.000Z'); // 10:00 WIB 25 Nov: November is still running
-const CLOSED = new Date('2026-12-05T03:00:00.000Z'); // November is closed
+const CLOSED = new Date('2026-12-08T03:00:00.000Z'); // November is closed and settled (8 Dec)
 const NOVEMBER = { period: 'month', date: '2026-11-10' };
 const OCTOBER = { period: 'month', date: '2026-10-10' };
 const NOV_FROM = '2026-10-31T17:00:00.000Z';
@@ -231,12 +231,24 @@ describe('customer metrics (C-)', () => {
     expect(all.sources.segments).not.toHaveBeenCalled();
   });
 
+  it('a month closed 7 days ago is still held, and from the 8th it is answered (late cancellations settle first)', async () => {
+    const day = (d: string) => new Date(`2026-12-${d}T03:00:00.000Z`);
+    for (const id of ['C-01', 'C-04', 'C-05', 'C-06', 'C-10']) {
+      const early = make();
+      const held = await early.service.answer(id, user, NOVEMBER, day('07'));
+      expect(held).toMatchObject({ status: id === 'C-06' ? 'belum_ada' : 'ditahan', value: null });
+      expect(held.reason).toContain('mulai tanggal 8 bulan berikutnya');
+      const settled = await make().service.answer(id, user, NOVEMBER, day('08'));
+      expect(settled.status).toBe('ok');
+    }
+  });
+
   it('a running month is never answered: held for every metric that counts people, and nothing is read', async () => {
     const { service, sources } = make();
     for (const id of ['C-01', 'C-02', 'C-04', 'C-05', 'C-10']) {
       const a = await askOpen(service, id);
       expect(a).toMatchObject({ status: 'ditahan', value: null });
-      expect(a.reason).toContain('bulan berjalan belum ditutup');
+      expect(a.reason).toContain('mulai tanggal 8 bulan berikutnya');
     }
     expect(await askOpen(service, 'C-08', { from: '2026-11-01', to: '2026-11-30' })).toMatchObject({ status: 'ditahan', value: null });
     expect(sources.customerWindow).not.toHaveBeenCalled();
@@ -475,6 +487,18 @@ describe('delivery metrics (K-)', () => {
     expect(await ask(empty.service, 'K-01')).toMatchObject({ status: 'ok', value: 0 });
   });
 
+  it('a month closed 7 days ago is still held, and from the 8th it is answered (late cancellations settle first)', async () => {
+    const day = (d: string) => new Date(`2026-12-${d}T03:00:00.000Z`);
+    for (const id of ['K-01', 'K-02', 'K-05']) {
+      const early = make();
+      const held = await early.service.answer(id, user, NOVEMBER, day('07'));
+      expect(held).toMatchObject({ status: 'ditahan', value: null });
+      expect(held.reason).toContain('mulai tanggal 8 bulan berikutnya');
+      const settled = await make().service.answer(id, user, NOVEMBER, day('08'));
+      expect(settled.status).toBe('ok');
+    }
+  });
+
   it('K-01 to K-05 answer ONE closed month, and only behind 3 or more couriers: 1 or 2 couriers ARE the number', async () => {
     const { service, sources } = make();
     // nested periods (d1..d7 and d1..d6) would subtract into one courier's day: only a whole month is a period here
@@ -488,7 +512,7 @@ describe('delivery metrics (K-)', () => {
     for (const id of ['K-01', 'K-02', 'K-03', 'K-04', 'K-05']) {
       const a = await askOpen(service, id);
       expect(a).toMatchObject({ status: 'ditahan', value: null });
-      expect(a.reason).toContain('bulan berjalan belum ditutup');
+      expect(a.reason).toContain('mulai tanggal 8 bulan berikutnya');
     }
     expect(sources.deliverySummary).not.toHaveBeenCalled();
     for (const couriers of [1, 2]) {
@@ -652,20 +676,17 @@ describe('gallon metrics (G-)', () => {
     expect(g5.label).toContain('Menghitung transaksi');
   });
 
-  it('G-02 and G-03 give the balance at the day the period ends (today while it runs) and what moved, with the caveat', async () => {
+  it('G-02 and G-03 give the balance at the day the period ends (today while it runs) and what moved', async () => {
     const { service, sources } = make();
     const g2 = await ask(service, 'G-02');
     // two depots: balance (100 - 70) each, moved 20 issued and 15 returned each
     expect(g2.value).toEqual({ asOf: '2026-11-25', heldBackDepots: 0, gallonsAtCustomers: 60, issuedInPeriod: 40, returnedInPeriod: 30 });
-    expect(g2.label).toContain(GALLON_BALANCE_CAVEAT);
-    expect(g2.label).toContain('25 Nov 2026');
     // the balance is read at the end of 25 Nov WIB, the movements over the whole stretch
     expect(sources.gallonLedger).toHaveBeenCalledWith([D1, D2], { from: '2026-11-25T17:00:00.000Z', to: '2026-11-25T17:00:00.000Z' });
     expect(sources.gallonLedger).toHaveBeenCalledWith([D1, D2], { from: NOV_FROM, to: NOV_TO });
     const g3 = await ask(service, 'G-03');
     expect(g3.value).toEqual({ asOf: '2026-11-25', heldBackDepots: 0, depositHeldIdr: 900_000, bookedInPeriodIdr: 600_000, refundedInPeriodIdr: 450_000 });
     expect(g3.label).toContain('bukan omzet');
-    expect(g3.label).toContain(GALLON_BALANCE_CAVEAT);
     // a finished month: balance at its last day
     const past = make(OCT);
     expect((await ask(past.service, 'G-02', OCTOBER)).value).toMatchObject({ asOf: '2026-10-31' });
