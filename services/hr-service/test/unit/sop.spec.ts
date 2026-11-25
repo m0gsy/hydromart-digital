@@ -1,14 +1,14 @@
 import { BadRequestException, ConflictException, Logger, NotFoundException, PayloadTooLargeException, ServiceUnavailableException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { AuthenticatedUser, CAPABILITY_KEY } from '@hydromart/platform';
+import { AuthenticatedUser, CAPABILITY_KEY, SELF_SCOPED_KEY } from '@hydromart/platform';
 
 import { SopRepository, SopVersionWithDepots, SopVersionWrite, SopWithVersions } from '../../src/application/ports/sop.repository';
 import { MAX_SOP_PDF_BYTES, SopService } from '../../src/application/services/sop.service';
 import { audienceTargets, coversDepot, currentVersion, dayKeyOf, inForce } from '../../src/domain/sop';
 import { SopPrismaRepository } from '../../src/infrastructure/prisma/sop.prisma.repository';
 import { CreateSopDto, InForceQueryDto, SopVersionDto, UnreadSopDto } from '../../src/modules/dto/sop.dto';
-import { SopController } from '../../src/modules/sop.controller';
+import { SelfSopController, SopController } from '../../src/modules/sop.controller';
 
 const D1 = '00000000-0000-4000-8000-000000000001';
 const D2 = '00000000-0000-4000-8000-000000000002';
@@ -81,6 +81,8 @@ const staff = (id: string, depotId: string | null, over: Record<string, unknown>
   depotId,
   homeDepotId: null,
   departmentId: null,
+  phone: `08-${id}`,
+  authSubjectId: `auth-${id}`,
   ...over,
 });
 
@@ -140,13 +142,25 @@ class FakeRepo implements SopRepository {
   async listAckedEmployeeIds(versionId: string) {
     return this.acks.get(versionId) ?? [];
   }
+  ackTimes = new Map<string, Date>();
+  async ack(versionId: string, employeeId: string) {
+    const key = `${versionId}:${employeeId}`;
+    if (!this.ackTimes.has(key)) {
+      this.ackTimes.set(key, new Date(`2026-11-28T0${this.ackTimes.size}:00:00.000Z`));
+      this.acks.set(versionId, [...(this.acks.get(versionId) ?? []), employeeId]);
+    }
+    return { ackedAt: this.ackTimes.get(key)! };
+  }
+  async ackedAt(employeeId: string, versionIds: readonly string[]) {
+    return new Map(versionIds.filter((v) => this.ackTimes.has(`${v}:${employeeId}`)).map((v) => [v, this.ackTimes.get(`${v}:${employeeId}`)!]));
+  }
 }
 
 const PDF = Buffer.from('%PDF-1.4\n%fake\n');
 
 describe('SopService', () => {
   let repo: FakeRepo;
-  let employees: { list: jest.Mock };
+  let employees: { list: jest.Mock; findByAuthSubjectId: jest.Mock };
   let storage: { put: jest.Mock; getObject: jest.Mock; remove: jest.Mock };
   let service: SopService;
   let warn: jest.SpyInstance;
@@ -165,7 +179,10 @@ describe('SopService', () => {
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     repo = new FakeRepo();
     roster = [staff('e1', D1), staff('e2', D1), staff('e3', D2), staff('e4', null), staff('e5', D3, { homeDepotId: D1 })];
-    employees = { list: jest.fn(async () => ({ rows: roster, total: roster.length })) };
+    employees = {
+      list: jest.fn(async () => ({ rows: roster, total: roster.length })),
+      findByAuthSubjectId: jest.fn(async (sub: string) => roster.find((e) => e.authSubjectId === sub) ?? null),
+    };
     storage = {
       put: jest.fn(async () => ({ url: 'https://files/x', key: FILE_KEY })),
       getObject: jest.fn(),
@@ -411,6 +428,92 @@ describe('SopService', () => {
     });
   });
 
+  describe('the employee side', () => {
+    const asStaff = (id: string, role = 'STAFF_DEPOT'): AuthenticatedUser => ({ sub: `auth-${id}`, role: role as never, phone: null, depotId: null });
+    let all: Awaited<ReturnType<SopService['create']>>;
+    let onlyD3: Awaited<ReturnType<SopService['create']>>;
+
+    beforeEach(async () => {
+      all = await service.create(head, 'SOP umum', input());
+      onlyD3 = await service.create(head, 'SOP depot tiga', input({ allDepots: false, depotIds: [D3] }));
+      await service.create(head, 'SOP depot dua', input({ allDepots: false, depotIds: [D2] }));
+      await service.create(head, 'SOP nanti', input({ effectiveFrom: '2027-01-01' }));
+    });
+
+    it('lists what binds me: my depot and the one I am lent from, once each; above depots only the company-wide', async () => {
+      expect((await service.mine(asStaff('e1'))).map((i) => i.sopTitle)).toEqual(['SOP umum']);
+      const lent = await service.mine(asStaff('e5'));
+      expect(lent.map((i) => i.sopTitle).sort()).toEqual(['SOP depot tiga', 'SOP umum']);
+      expect((await service.mine(asStaff('e4'))).map((i) => i.sopTitle)).toEqual(['SOP umum']);
+      await expect(service.mine(asStaff('nobody'))).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('marks a version read once I acknowledged it, with the time', async () => {
+      await service.ack(asStaff('e1'), all.versions[0].id);
+      const [item] = await service.mine(asStaff('e1'));
+      expect(item).toMatchObject({ versionNo: 1, acked: true, hasFile: false, effectiveFrom: TODAY });
+      expect(item.ackedAt).toBeInstanceOf(Date);
+      expect((await service.mine(asStaff('e2')))[0]).toMatchObject({ acked: false, ackedAt: null });
+    });
+
+    it('acknowledges once however often it is asked, and refuses what does not reach me', async () => {
+      const id = all.versions[0].id;
+      const first = await service.ack(asStaff('e1'), id);
+      expect(await service.ack(asStaff('e1'), id)).toEqual(first);
+      expect(repo.acks.get(id)).toEqual(['e1']);
+      await expect(service.ack(asStaff('e1'), onlyD3.versions[0].id)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.ack(asStaff('e1'), SOP1)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.ack(asStaff('nobody'), id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('shows one version with its text, only to someone it reaches', async () => {
+      const detail = await service.versionForSelf(asStaff('e1'), all.versions[0].id);
+      expect(detail).toMatchObject({ sopTitle: 'SOP umum', body: 'Cuci tangan sebelum mengisi galon.', acked: false });
+      await expect(service.versionForSelf(asStaff('e1'), onlyD3.versions[0].id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('streams the PDF to its audience, and to head office and HR without an employee row', async () => {
+      const withFile = await service.create(head, 'SOP pdf', input({ body: undefined, fileKey: FILE_KEY, fileName: 'a b.pdf' }));
+      const noName = await service.create(head, 'SOP pdf 2', input({ fileKey: FILE_KEY }));
+      repo.sops.find((s) => s.id === noName.id)!.versions[0].fileName = null;
+      storage.getObject.mockResolvedValue({ body: PDF, contentType: 'application/pdf' });
+      const id = withFile.versions[0].id;
+      await expect(service.fileForSelf(asStaff('e1'), id)).resolves.toEqual({ body: PDF, fileName: 'a b.pdf' });
+      expect(storage.getObject).toHaveBeenCalledWith(FILE_KEY);
+      await expect(service.fileForSelf(head, id)).resolves.toMatchObject({ fileName: 'a b.pdf' });
+      await expect(service.fileForSelf(hr, noName.versions[0].id)).resolves.toMatchObject({ fileName: 'sop.pdf' });
+      // text only, unknown, or outside the audience
+      await expect(service.fileForSelf(asStaff('e1'), all.versions[0].id)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.fileForSelf(head, SOP1)).rejects.toBeInstanceOf(NotFoundException);
+      const d3pdf = await service.create(head, 'SOP pdf d3', input({ allDepots: false, depotIds: [D3], fileKey: FILE_KEY }));
+      await expect(service.fileForSelf(asStaff('e1'), d3pdf.versions[0].id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('the publish notice', () => {
+    it('tells each person with a login once, through the announcement event, and survives a failure', async () => {
+      const notify = jest.fn(async (_e: string, phone: string, _vars?: Record<string, string>, _sub?: string) => {
+        if (phone === '08-e2') throw new Error('crm down');
+      });
+      roster.push(staff('e6', D1, { authSubjectId: null }));
+      const noticing = new SopService(repo, employees as never, storage as never, { isActive: jest.fn(async () => true) } as never, { notify });
+      const out = await noticing.create(head, 'SOP baru', input({ allDepots: false, depotIds: [D1], effectiveFrom: '2026-12-01' }));
+      // e1, e2, e5 (lent from D1) have logins; e6 has none.
+      expect(notify.mock.calls.map((c) => c[1])).toEqual(['08-e1', '08-e2', '08-e5']);
+      expect(notify).toHaveBeenCalledWith(
+        'HR_ANNOUNCEMENT',
+        '08-e1',
+        expect.objectContaining({ title: 'SOP baru: SOP baru (versi 1)', level: 'INFO', body: expect.stringContaining('2026-12-01') }),
+        'auth-e1',
+      );
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('crm down'));
+      notify.mockClear();
+      await noticing.addVersion(head, out.id, input({ allDepots: false, depotIds: [D2], effectiveFrom: '2026-12-02' }));
+      expect(notify).toHaveBeenCalledTimes(1);
+      expect(notify.mock.calls[0][2]).toMatchObject({ title: 'SOP baru: SOP baru (versi 2)' });
+    });
+  });
+
   describe('inForceFor', () => {
     it('answers the version in force for a depot, per SOP, by the WIB day', async () => {
       const all = await service.create(head, 'SOP umum', input({ effectiveFrom: TODAY }));
@@ -474,6 +577,35 @@ describe('SopController', () => {
   });
 });
 
+describe('SelfSopController', () => {
+  it('delegates, streams the PDF uncached, and carries no capability', async () => {
+    const svc = {
+      mine: jest.fn(),
+      versionForSelf: jest.fn(),
+      fileForSelf: jest.fn(async () => ({ body: PDF, fileName: 'a b"c.pdf' })),
+      ack: jest.fn(),
+    };
+    const c = new SelfSopController(svc as never);
+    c.mine(kepala);
+    expect(svc.mine).toHaveBeenCalledWith(kepala);
+    c.version(SOP1, kepala);
+    expect(svc.versionForSelf).toHaveBeenCalledWith(kepala, SOP1);
+    c.ack(SOP1, kepala);
+    expect(svc.ack).toHaveBeenCalledWith(kepala, SOP1);
+    const headers: Record<string, string> = {};
+    const out = await c.file(SOP1, kepala, { setHeader: (k: string, v: string) => (headers[k] = v) } as never);
+    expect(out.getStream()).toBeDefined();
+    expect(headers).toEqual({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="a_b_c.pdf"' });
+    expect(Reflect.getMetadata('__headers__', SelfSopController.prototype.file)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'Cache-Control', value: 'no-store, private' })]),
+    );
+    for (const name of ['mine', 'version', 'file', 'ack'] as const) {
+      expect(Reflect.getMetadata(SELF_SCOPED_KEY, SelfSopController.prototype[name])).toBe(true);
+      expect(Reflect.getMetadata(CAPABILITY_KEY, SelfSopController.prototype[name])).toBeUndefined();
+    }
+  });
+});
+
 // ── dto ───────────────────────────────────────────────────────────────
 
 describe('SOP DTOs', () => {
@@ -526,7 +658,7 @@ describe('SopPrismaRepository', () => {
     const p = {
       sop: { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn() },
       sopVersion: { create: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), aggregate: jest.fn() },
-      sopAck: { groupBy: jest.fn(), findMany: jest.fn() },
+      sopAck: { groupBy: jest.fn(), findMany: jest.fn(), upsert: jest.fn() },
       $transaction: jest.fn(),
     };
     p.$transaction.mockImplementation((cb: (tx: unknown) => unknown) => cb(p));
@@ -575,6 +707,23 @@ describe('SopPrismaRepository', () => {
     expect(p.sopVersion.findUnique).toHaveBeenCalledWith({ where: { id: 'v1' }, include: { ...depots, sop: true } });
     await repo.listVersions([SOP1]);
     expect(p.sopVersion.findMany).toHaveBeenCalledWith({ where: { sopId: { in: [SOP1] } }, include: { ...depots, sop: true }, orderBy: { versionNo: 'desc' } });
+  });
+
+  it('acknowledges with an upsert that keeps the first time, and reads my acks back', async () => {
+    const p = prisma();
+    p.sopAck.upsert.mockResolvedValue({ ackedAt: new Date('2026-11-28T01:00:00.000Z') });
+    const repo = new SopPrismaRepository(p as never);
+    await expect(repo.ack('v1', 'e1')).resolves.toEqual({ ackedAt: new Date('2026-11-28T01:00:00.000Z') });
+    expect(p.sopAck.upsert).toHaveBeenCalledWith({
+      where: { versionId_employeeId: { versionId: 'v1', employeeId: 'e1' } },
+      create: { versionId: 'v1', employeeId: 'e1' },
+      update: {},
+      select: { ackedAt: true },
+    });
+    await expect(repo.ackedAt('e1', [])).resolves.toEqual(new Map());
+    p.sopAck.findMany.mockResolvedValue([{ versionId: 'v1', ackedAt: new Date('2026-11-28T01:00:00.000Z') }]);
+    await expect(repo.ackedAt('e1', ['v1', 'v2'])).resolves.toEqual(new Map([['v1', new Date('2026-11-28T01:00:00.000Z')]]));
+    expect(p.sopAck.findMany).toHaveBeenCalledWith({ where: { employeeId: 'e1', versionId: { in: ['v1', 'v2'] } }, select: { versionId: true, ackedAt: true } });
   });
 
   it('counts acknowledgements per version and lists who acknowledged', async () => {

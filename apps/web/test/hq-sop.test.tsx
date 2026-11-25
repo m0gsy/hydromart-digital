@@ -8,10 +8,12 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, post, upload, toast, role, query, depots, FakeApiError } = vi.hoisted(() => ({
+const { get, post, upload, blob, save, toast, role, query, depots, FakeApiError } = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
   upload: vi.fn(),
+  blob: vi.fn(),
+  save: vi.fn(),
   toast: vi.fn(),
   role: { current: 'HEAD_OFFICE' },
   query: { id: '00000000-0000-4000-8000-0000000000a1' },
@@ -29,8 +31,10 @@ const { get, post, upload, toast, role, query, depots, FakeApiError } = vi.hoist
 vi.mock('@/lib/api', () => ({
   api: { get, getCached: get, post },
   uploadFile: upload,
+  getBlob: blob,
   ApiError: FakeApiError,
 }));
+vi.mock('@/lib/csv', () => ({ downloadBlob: save }));
 vi.mock('@/lib/all-depots', () => ({ fetchAllDepots: depots }));
 vi.mock('@/lib/locale-context', () => ({
   useT: () => ({
@@ -106,6 +110,8 @@ beforeEach(() => {
   get.mockReset().mockResolvedValue([]);
   post.mockReset().mockResolvedValue(detail([]));
   upload.mockReset();
+  blob.mockReset().mockResolvedValue(new Blob(['%PDF']));
+  save.mockReset();
   toast.mockReset();
   depots.mockReset().mockResolvedValue([
     { id: D1, code: 'JKT-01', name: 'Jakarta' },
@@ -318,6 +324,21 @@ describe('one SOP', () => {
     expect(screen.getAllByText(/hq\.sop\.allRead/).length).toBe(1);
     expect(screen.getByText(/hq\.sop\.unread\|\{"n":3\}/)).toBeTruthy();
     expect(screen.getByText('hq.sop.back').getAttribute('href')).toBe('/hq/sop');
+  });
+
+  it('opens a version PDF through the session, and reports a failure', async () => {
+    const user = userEvent.setup();
+    get.mockResolvedValue(twoVersions());
+    render(<HqSopDetailPage />);
+    await user.click(await screen.findByText('hq.sop.openPdf'));
+    await waitFor(() => expect(save).toHaveBeenCalledWith('sop-v2.pdf', expect.any(Blob)));
+    expect(blob).toHaveBeenCalledWith('/sops/api/v1/sops/versions/ver-2/file');
+    blob.mockRejectedValueOnce(new FakeApiError(404, 'File SOP tidak ditemukan'));
+    await user.click(screen.getByText('hq.sop.openPdf'));
+    expect(await screen.findByText('File SOP tidak ditemukan')).toBeTruthy();
+    blob.mockRejectedValueOnce(new Error('offline'));
+    await user.click(screen.getByText('hq.sop.openPdf'));
+    expect(await screen.findByText('hq.sop.pdfFailed')).toBeTruthy();
   });
 
   it('says it is gone when the SOP cannot be read', async () => {

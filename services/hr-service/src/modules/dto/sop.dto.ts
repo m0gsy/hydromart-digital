@@ -83,3 +83,12 @@ export class SopUnreadResponseDto {
 export class SopInForceResponseDto {
   @ApiProperty({ type: [Object] }) items!: unknown[];
 }
+export class SopMineResponseDto {
+  @ApiProperty() sopId!: string;
+  @ApiProperty() versionId!: string;
+  @ApiProperty() versionNo!: number;
+  @ApiProperty() acked!: boolean;
+}
+export class SopAckResponseDto {
+  @ApiProperty() ackedAt!: Date;
+}

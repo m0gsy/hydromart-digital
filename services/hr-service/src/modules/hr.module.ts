@@ -126,7 +126,7 @@ import { AnnouncementController, SelfAnnouncementController } from './announceme
 import { SopService } from '../application/services/sop.service';
 import { SOP_REPOSITORY } from '../application/ports/sop.repository';
 import { SopPrismaRepository } from '../infrastructure/prisma/sop.prisma.repository';
-import { SopController } from './sop.controller';
+import { SelfSopController, SopController } from './sop.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -308,6 +308,7 @@ const providers: Provider[] = [
     AssetController,
     SelfAnnouncementController,
     AnnouncementController,
+    SelfSopController,
     SopController,
   ],
   providers,

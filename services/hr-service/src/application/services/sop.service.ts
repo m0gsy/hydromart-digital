@@ -5,15 +5,18 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   PayloadTooLargeException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { AuthenticatedUser, SNIFFED_MIME, depotScopeIds, localDayKey, sniffFileType } from '@hydromart/platform';
 
-import { resolveAudience } from '../../domain/announcement';
+import { can } from '@hydromart/access';
+import { audienceMatches, resolveAudience } from '../../domain/announcement';
 import { audienceTargets, currentVersion, dayKeyOf, inForce } from '../../domain/sop';
 import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
+import { NOTIFICATION_PORT, NotificationPort } from '../ports/notification.port';
 import {
   SOP_REPOSITORY,
   SopRepository,
@@ -109,6 +112,24 @@ export interface UnreadPage {
   }[];
 }
 
+/** One SOP as an employee sees it: the version that binds them, and whether they have read it. */
+export interface SopMineItem {
+  sopId: string;
+  sopTitle: string;
+  versionId: string;
+  versionNo: number;
+  title: string;
+  effectiveFrom: string;
+  hasFile: boolean;
+  fileName: string | null;
+  acked: boolean;
+  ackedAt: Date | null;
+}
+
+export interface SopMineDetail extends SopMineItem {
+  body: string | null;
+}
+
 export interface InForceItem {
   sopId: string;
   versionId: string;
@@ -131,6 +152,7 @@ export class SopService {
     @Inject(EMPLOYEE_REPOSITORY) private readonly employees: EmployeeRepository,
     @Inject(STORAGE_PORT) private readonly storage: StoragePort,
     @Inject(DEPOT_DIRECTORY_PORT) private readonly directory: DepotDirectoryPort,
+    @Optional() @Inject(NOTIFICATION_PORT) private readonly notifications?: NotificationPort,
   ) {}
 
   // -- writing ---------------------------------------------------------
@@ -163,19 +185,23 @@ export class SopService {
   }
 
   async create(user: AuthenticatedUser, title: string, input: SopVersionInput): Promise<SopDetailView> {
-    const write = await this.prepare(user, input.versionTitle?.trim() || title, input);
-    return this.detail(await this.repo.create(title, user.sub, write));
+    const { write, audience } = await this.prepare(user, input.versionTitle?.trim() || title, input);
+    const created = await this.repo.create(title, user.sub, write);
+    await this.announce(audience, title, 1, input.effectiveFrom);
+    return this.detail(created);
   }
 
   async addVersion(user: AuthenticatedUser, sopId: string, input: SopVersionInput): Promise<SopDetailView> {
     const sop = await this.get(sopId);
-    const write = await this.prepare(user, input.versionTitle?.trim() || sop.title, input);
+    const { write, audience } = await this.prepare(user, input.versionTitle?.trim() || sop.title, input);
     // Two writers racing for the same number: the unique (sopId, versionNo) lets one win; the
     // other re-reads the maximum and takes the next. A second collision is a 409, not a loop.
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         if (!(await this.repo.addVersion(sopId, write))) throw new NotFoundException('SOP tidak ditemukan');
-        return this.detail(await this.get(sopId));
+        const out = await this.detail(await this.get(sopId));
+        await this.announce(audience, sop.title, out.versions[0]!.versionNo, input.effectiveFrom);
+        return out;
       } catch (error) {
         if ((error as { code?: string })?.code !== 'P2002') throw error;
       }
@@ -278,7 +304,106 @@ export class SopService {
     return { items };
   }
 
+  // -- the employee's own side -----------------------------------------
+
+  /** The version of each SOP that binds this employee today (their depot and the one they are lent from). */
+  async mine(user: AuthenticatedUser, now = new Date()): Promise<SopMineItem[]> {
+    const employee = await this.self(user);
+    const today = localDayKey(now);
+    const depots = [employee.depotId, employee.homeDepotId].filter((d): d is string => !!d);
+    // Above any depot: only a version for every depot reaches them ('' names no depot).
+    const probes = depots.length > 0 ? depots : [''];
+    const picked = new Map<string, { v: SopVersionRow; sopTitle: string }>();
+    for (const sop of await this.repo.list()) {
+      const shaped = sop.versions.map((v) => ({ v, ...SopService.shape(v) }));
+      for (const depotId of probes) {
+        const hit = inForce(shaped, depotId, today);
+        if (hit) picked.set(hit.v.id, { v: hit.v, sopTitle: sop.title });
+      }
+    }
+    const acks = await this.repo.ackedAt(employee.id, [...picked.keys()]);
+    return [...picked.values()].map(({ v, sopTitle }) => SopService.mineItem(v, sopTitle, acks.get(v.id)));
+  }
+
+  async versionForSelf(user: AuthenticatedUser, versionId: string): Promise<SopMineDetail> {
+    const { employee, version } = await this.readable(user, versionId);
+    const acks = await this.repo.ackedAt(employee.id, [versionId]);
+    return { ...SopService.mineItem(version, version.sop.title, acks.get(versionId)), body: version.body };
+  }
+
+  /** The PDF itself. Head office and HR (sopRead) may open any version; staff only their own. */
+  async fileForSelf(user: AuthenticatedUser, versionId: string): Promise<{ body: Buffer; fileName: string }> {
+    const version = can('sopRead', user.role)
+      ? await this.repo.findVersion(versionId)
+      : (await this.readable(user, versionId)).version;
+    if (!version?.fileKey) throw new NotFoundException('File SOP tidak ditemukan');
+    const object = await this.storage.getObject(version.fileKey);
+    return { body: object.body, fileName: version.fileName ?? 'sop.pdf' };
+  }
+
+  /** "Sudah dibaca". Idempotent; a version that does not reach this employee is 404, not a receipt. */
+  async ack(user: AuthenticatedUser, versionId: string): Promise<{ ackedAt: Date }> {
+    const { employee } = await this.readable(user, versionId);
+    return this.repo.ack(versionId, employee.id);
+  }
+
   // -- internals -------------------------------------------------------
+
+  private async self(user: AuthenticatedUser) {
+    const employee = await this.employees.findByAuthSubjectId(user.sub);
+    if (!employee) throw new NotFoundException('Akun ini belum tertaut ke data karyawan');
+    return employee;
+  }
+
+  private async readable(user: AuthenticatedUser, versionId: string) {
+    const employee = await this.self(user);
+    const version = await this.repo.findVersion(versionId);
+    if (!version || !audienceMatches(audienceTargets(SopService.shape(version)), employee)) {
+      throw new NotFoundException('SOP tidak ditemukan');
+    }
+    return { employee, version };
+  }
+
+  private static mineItem(v: SopVersionRow, sopTitle: string, ackedAt: Date | undefined): SopMineItem {
+    return {
+      sopId: v.sopId,
+      sopTitle,
+      versionId: v.id,
+      versionNo: v.versionNo,
+      title: v.title,
+      effectiveFrom: dayKeyOf(v.effectiveFrom),
+      hasFile: !!v.fileKey,
+      fileName: v.fileName,
+      acked: !!ackedAt,
+      ackedAt: ackedAt ?? null,
+    };
+  }
+
+  /**
+   * The publish notice rides the announcement path (HR_ANNOUNCEMENT), once per person with a login.
+   * Fail-open: a notification outage must not undo a SOP that is already saved.
+   */
+  private async announce(
+    people: readonly { phone: string; authSubjectId: string | null }[],
+    title: string,
+    versionNo: number,
+    effectiveFrom: string,
+  ): Promise<void> {
+    if (!this.notifications) return;
+    const vars = {
+      title: `SOP baru: ${title} (versi ${versionNo})`,
+      body: `Berlaku mulai ${effectiveFrom}. Buka menu SOP, baca, lalu tandai sudah dibaca.`,
+      level: 'INFO',
+    };
+    for (const person of people) {
+      if (!person.authSubjectId) continue;
+      try {
+        await this.notifications.notify('HR_ANNOUNCEMENT', person.phone, vars, person.authSubjectId);
+      } catch (error) {
+        this.logger.warn(`SOP notice not sent: ${(error as Error).message}`);
+      }
+    }
+  }
 
   private async get(id: string): Promise<SopWithVersions> {
     const sop = await this.repo.findById(id);
@@ -355,7 +480,8 @@ export class SopService {
   }
 
   /** Validate one version's input and freeze its audience. */
-  private async prepare(user: AuthenticatedUser, title: string, input: SopVersionInput): Promise<SopVersionWrite> {
+  private async prepare(user: AuthenticatedUser, title: string, input: SopVersionInput,
+  ): Promise<{ write: SopVersionWrite; audience: Awaited<ReturnType<SopService['activeRoster']>> }> {
     const depotIds = [...new Set(input.depotIds ?? [])];
     if (input.allDepots === depotIds.length > 0) {
       throw new BadRequestException('Pilih semua depot, atau sebutkan depotnya, tidak keduanya');
@@ -376,7 +502,8 @@ export class SopService {
 
     await this.assertDepotsExist(depotIds);
     const rows = await this.activeRoster();
-    return {
+    const audience = resolveAudience(audienceTargets({ allDepots: input.allDepots, depotIds }), rows);
+    const write: SopVersionWrite = {
       title,
       body,
       fileKey: input.fileKey ?? null,
@@ -385,8 +512,9 @@ export class SopService {
       effectiveFrom,
       allDepots: input.allDepots,
       depotIds,
-      audienceSize: resolveAudience(audienceTargets({ allDepots: input.allDepots, depotIds }), rows).length,
+      audienceSize: audience.length,
       publishedBy: user.sub,
     };
+    return { write, audience };
   }
 }
