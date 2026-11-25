@@ -1,5 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { onCoarseGrid } from '@hydromart/platform';
+
 import { DeliveryConfigService } from '../../config/delivery-config.service';
 import {
   DepotLookupError,
@@ -102,7 +104,17 @@ export class ShiftService {
     const distance = haversineMeters(lat, lng, depot.lat, depot.lng);
     const radius = this.config.shiftCheckInRadiusMeters(depotId);
     if (distance > radius) {
-      throw new NotAtDepotError(distance, radius);
+      // 2026-11-25: 44 of 56 staff phones held only "Perkiraan" (approximate), which Android
+      // snaps to a 2 km grid — a courier standing in the depot read "1391 m". The grid gives
+      // such a fix away with certainty, so the refusal names it. Nothing is decided on it: a
+      // grid point inside the radius still opens the shift, exactly as before.
+      const approximate = onCoarseGrid(lat, lng);
+      // What ops count afterwards (a refused check-in is stored nowhere); never the coordinates.
+      this.logger.warn(
+        `Shift check-in refused outside the depot: driver ${driverId}, depot ${depotId}, ` +
+          `${Math.round(distance)} m, radius ${radius} m, approximate ${approximate}`,
+      );
+      throw new NotAtDepotError(distance, radius, approximate);
     }
 
     // A check-in queued offline keeps the moment the courier actually stood at the depot —

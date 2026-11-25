@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { Logger } from '@nestjs/common';
+
 import { ShiftService } from '../../src/application/services/shift.service';
 import {
   DepotLookupError,
@@ -78,6 +80,65 @@ describe('ShiftService', () => {
       await expect(
         service.checkIn(driver, DEPOT_ID, FAR_AWAY.lat, FAR_AWAY.lng),
       ).rejects.toThrow(/pilih "Tepat" \(bukan "Perkiraan"\)/);
+    });
+
+    /*
+     * 2026-11-25: Muhammad Rouf stood inside Depot Jatibening and read "1391 m". His phone held
+     * only "Perkiraan", which Android snaps to a 2 km grid: ON_GRID is the point his phone
+     * reported that morning, 1387 m from the depot. No distance on that grid means anything,
+     * so the refusal says what the fix is and where to switch it — and decides nothing new.
+     */
+    describe('a fix on the "Perkiraan" grid', () => {
+      const JATIBENING = { lat: -6.261491236766645, lng: 106.9371636475491 };
+      const ON_GRID = { lat: -6.27027027027027, lng: 106.94608336179 };
+
+      const refusalOf = (at: { lat: number; lng: number }) =>
+        service.checkIn(driver, DEPOT_ID, at.lat, at.lng).then(
+          () => null,
+          (e: unknown) => e as Error,
+        );
+
+      it('is refused as approximate, naming the setting to switch', async () => {
+        depots.depot = { ...depots.depot!, ...JATIBENING };
+        const err = await refusalOf(ON_GRID);
+        expect(err).toBeInstanceOf(NotAtDepotError);
+        expect(err?.message).toMatch(/masih "Perkiraan"/);
+        expect(err?.message).toMatch(/Gunakan lokasi akurat/);
+        // The grid point's distance is not evidence of anything, so it is not quoted.
+        expect(err?.message).not.toMatch(/[0-9]+ m dari depot/);
+        expect(await repo.findOpenByDriver(driver)).toBeNull();
+      });
+
+      it('keeps the distance message for a precise fix that is simply far away', async () => {
+        const err = await refusalOf(FAR_AWAY);
+        expect(err).toBeInstanceOf(NotAtDepotError);
+        expect(err?.message).toMatch(/Kamu [0-9]+ m dari depot/);
+        expect(err?.message).not.toMatch(/masih "Perkiraan"/);
+      });
+
+      it('still opens the shift when a grid point falls inside the radius: the decision is unchanged', async () => {
+        depots.depot = { ...depots.depot!, ...ON_GRID };
+        await expect(service.checkIn(driver, DEPOT_ID, ON_GRID.lat, ON_GRID.lng)).resolves.toMatchObject({
+          status: ShiftStatus.ONLINE,
+        });
+      });
+
+      it('logs the refusal for ops without the coordinates', async () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        try {
+          depots.depot = { ...depots.depot!, ...JATIBENING };
+          await refusalOf(ON_GRID);
+          expect(warn).toHaveBeenCalledTimes(1);
+          const line = String(warn.mock.calls[0]?.[0]);
+          expect(line).toContain(driver);
+          expect(line).toContain(DEPOT_ID);
+          expect(line).toContain('approximate true');
+          expect(line).not.toContain('6.27');
+          expect(line).not.toContain('106.9');
+        } finally {
+          warn.mockRestore();
+        }
+      });
     });
 
     /*

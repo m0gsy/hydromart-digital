@@ -20,7 +20,7 @@ export {
   isTaxRounding,
   roundIdr,
 } from './domain/tax';
-export { haversineKm } from './domain/geo';
+export { APPROXIMATE_ACCURACY_M, haversineKm, isApproximateFix, onCoarseGrid } from './domain/geo';
 export {
   pointInServiceArea,
   readServiceArea,
