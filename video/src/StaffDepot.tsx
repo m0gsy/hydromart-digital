@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Camera,
   CheckCircle,
-  CheckSquare,
   ClockCounterClockwise,
   ListChecks,
   MapPin,
@@ -18,7 +17,7 @@ import {
   User,
   Wallet,
 } from '@phosphor-icons/react';
-import { CameraView, FaceCheck, HrHome, LoginScreen, VerifyScreen } from './shared';
+import { EnrollScreen, FaceCheck, HrHome, LoginScreen, VerifyScreen } from './shared';
 import {
   Btn,
   C,
@@ -108,7 +107,7 @@ const TaskCard: React.FC<{ order: string; addr: string }> = ({ order, addr }) =>
   </Card>
 );
 
-const DriverHome: React.FC<{ marks?: Mark[] }> = ({ marks = [] }) => (
+export const DriverHome: React.FC<{ marks?: Mark[] }> = ({ marks = [] }) => (
   <div style={{ position: 'absolute', inset: 0 }}>
     <div style={{ padding: '18px 20px 0', display: 'flex', justifyContent: 'space-between' }}>
       <div>
@@ -272,79 +271,14 @@ const Login: React.FC = () => (
   </Screens>
 );
 
-const SHOTS = [110, 150, 190];
-
-const Enroll: React.FC = () => {
-  const frame = useCurrentFrame();
-  const shots = SHOTS.filter((s) => frame >= s + 4).length;
-  const consent = frame >= 234;
-  const saved = frame >= 285;
-  return (
-    <Screens at={[0, 60]}>
-      {[
-        <HrHome key="h" name={NAME} tap="enroll" tapAt={35} />,
-        <div key="e">
-          <PageHead title="Daftar Wajah" sub="Ambil 1–3 foto wajah yang jelas untuk absensi" />
-          <div style={{ padding: '0 20px' }}>
-            {saved ? (
-              <Card style={{ textAlign: 'center', padding: 24 }}>
-                <CheckCircle size={56} weight="fill" color={C.success} />
-                <div style={{ fontSize: 15, fontWeight: 700, marginTop: 8 }}>Wajah terdaftar. Kamu bisa absen sekarang.</div>
-              </Card>
-            ) : (
-              <CameraView scanAt={SHOTS.filter((s) => frame >= s).pop() ?? 1e9} height={230} />
-            )}
-            <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  style={{
-                    width: 58,
-                    height: 58,
-                    borderRadius: 12,
-                    border: `1.5px dashed ${C.border}`,
-                    background: C.surface,
-                    overflow: 'hidden',
-                  }}
-                >
-                  {i < shots && (
-                    <svg viewBox="0 0 58 58" width="58" height="58">
-                      <rect width="58" height="58" fill="#3d4f55" />
-                      <ellipse cx="29" cy="30" rx="13" ry="16" fill="#e8b892" />
-                      <path d="M16 27 Q16 12 29 12 Q42 12 42 27 Q38 19 29 19 Q20 19 16 27Z" fill="#2a1d17" />
-                      <ellipse cx="29" cy="62" rx="22" ry="14" fill="#2f6f79" />
-                    </svg>
-                  )}
-                </div>
-              ))}
-              <div style={{ alignSelf: 'center', fontSize: 13.5, fontWeight: 700, marginLeft: 6 }}>{shots} foto siap</div>
-            </div>
-            {!saved && (
-              <Tapped at={SHOTS}>
-                <Btn variant="outline">
-                  <Camera size={18} weight="bold" /> Ambil Foto
-                </Btn>
-              </Tapped>
-            )}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '14px 0', fontSize: 14, fontWeight: 600 }}>
-              <Tapped at={230}>
-                <CheckSquare size={24} weight={consent ? 'fill' : 'regular'} color={consent ? C.brand600 : C.textMuted} />
-              </Tapped>
-              Persetujuan data wajah
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
-              <Btn variant="outline">Reset</Btn>
-              <Tapped at={270}>
-                <Btn style={consent ? undefined : { opacity: 0.45 }}>Simpan</Btn>
-              </Tapped>
-            </div>
-          </div>
-          <Toast at={285}>Wajah berhasil didaftarkan</Toast>
-        </div>,
-      ]}
-    </Screens>
-  );
-};
+const Enroll: React.FC = () => (
+  <Screens at={[0, 60]}>
+    {[
+      <HrHome key="h" name={NAME} tap="enroll" tapAt={35} />,
+      <EnrollScreen key="e" shots={[110, 150, 190]} consentAt={230} saveAt={270} />,
+    ]}
+  </Screens>
+);
 
 const CheckIn: React.FC = () => (
   <Screens at={[0, 60]}>

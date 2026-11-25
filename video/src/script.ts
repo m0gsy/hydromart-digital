@@ -444,6 +444,134 @@ export const PELANGGAN: Scene[] = [
   },
 ];
 
+// Absensi — a deeper cut for every depot employee, written after 2026-11-25: 44 of 56 staff phones
+// held only Android's "Perkiraan" location and courier shift check-ins were refused at the depot
+// door (PRs #1076, #1079, #1081). Targets Ops v1.16.3: no head-turn/blink, the yellow "Perkiraan"
+// notice, and the shift refusal that names the Settings switch. The voice-over is deliberately
+// conversational ("kamu", "nggak") — the owner asked for a VO that is not stiff.
+export const ABSENSI: Scene[] = [
+  {
+    id: 'intro',
+    step: '',
+    title: 'Absen Lancar',
+    caption: 'Cara absen wajah & check-in shift yang benar, plus solusi kalau lokasimu ditolak.',
+    vo: 'Hai, teman-teman Hydromart! Pernah nggak, absen atau check-in shift ditolak, padahal kamu udah ada di depot? Tenang, kamu nggak sendirian kok. Yuk, kita bahas penyebabnya, dan cara beresinnya, pelan-pelan.',
+    sec: 19,
+  },
+  {
+    id: 'why',
+    step: 'Kenapa ditolak?',
+    title: 'Lokasi "Perkiraan"',
+    caption: 'Mode "Perkiraan" cuma kirim lokasi kira-kira: bisa meleset beberapa kilometer.',
+    vo: 'Biasanya, masalahnya ada di izin lokasi. Android punya dua pilihan: Tepat, dan Perkiraan. Kalau HP kamu masih di Perkiraan, yang dikirim cuma lokasi kira-kira, dan itu bisa meleset sampai beberapa kilometer. Jadi, walaupun kamu berdiri di depan depot, sistem ngira kamu masih jauh.',
+    sec: 24,
+  },
+  {
+    id: 'signs',
+    step: 'Tanda-tandanya',
+    title: 'Peringatan kuning',
+    caption: 'Muncul "Lokasi HP masih Perkiraan", dan check-in shift ditolak.',
+    vo: 'Gimana cara tahunya? Di layar absen dan check-in shift, bakal muncul peringatan kuning: Lokasi HP masih Perkiraan. Kalau kamu tetap coba check-in shift, aplikasinya akan menolak, sekaligus kasih tahu cara memperbaikinya.',
+    sec: 17,
+  },
+  {
+    id: 'dialog',
+    step: 'Langkah 1',
+    title: 'Pilih "Tepat"',
+    caption: 'Saat diminta izin lokasi: pilih Tepat → Saat aplikasi digunakan.',
+    vo: 'Cara paling gampang: waktu aplikasi minta izin lokasi, pilih Tepat, terus ketuk Saat aplikasi digunakan. Tapi hati-hati ya. Kalau kamu sudah dua kali pilih Perkiraan, Android nggak bakal nanya lagi. Nah, kalau udah begitu, ubahnya harus lewat Setelan HP.',
+    sec: 23,
+  },
+  {
+    id: 'settings',
+    step: 'Langkah 2',
+    title: 'Buka izin aplikasi',
+    caption: 'Setelan HP → Aplikasi → Hydromart Ops → Izin. Atau tekan lama ikon → Info aplikasi.',
+    vo: 'Buka Setelan, atau Pengaturan HP kamu. Masuk ke Aplikasi, lalu cari Hydromart Ops. Ada cara cepatnya juga: tekan lama ikon Hydromart Ops di layar, terus ketuk Info aplikasi. Setelah itu, ketuk Izin.',
+    sec: 21,
+  },
+  {
+    id: 'precise',
+    step: 'Langkah 3',
+    title: 'Nyalakan lokasi akurat',
+    caption: 'Lokasi → Izinkan hanya saat aplikasi digunakan → nyalakan "Gunakan lokasi akurat".',
+    vo: 'Di halaman Izin, ketuk Lokasi. Pilih Izinkan hanya saat aplikasi digunakan. Terus, ini yang paling penting: nyalakan Gunakan lokasi akurat. Kalau tombolnya sudah aktif, berarti lokasi kamu sudah Tepat. Beres!',
+    sec: 19,
+  },
+  {
+    id: 'gps',
+    step: 'Langkah 4',
+    title: 'GPS harus nyala',
+    caption: 'Usap layar dari atas → nyalakan Lokasi. Tunggu beberapa detik.',
+    vo: 'Satu lagi nih. Pastikan Lokasi, atau GPS di HP kamu, menyala. Usap layar dari atas, lalu nyalakan ikon Lokasi. Kalau baru dinyalakan, tunggu beberapa detik dulu, apalagi kalau kamu lagi di dalam ruangan.',
+    sec: 19,
+  },
+  {
+    id: 'back',
+    step: 'Langkah 5',
+    title: 'Cek lagi di aplikasi',
+    caption: 'Kembali ke aplikasi: peringatan kuning hilang sendiri kalau sudah benar.',
+    vo: 'Sekarang balik lagi ke aplikasi. Kalau pengaturannya sudah benar, peringatan kuning tadi bakal hilang sendiri. Artinya, kamu udah siap absen.',
+    sec: 11,
+  },
+  {
+    id: 'enroll',
+    step: 'Sebelum absen pertama',
+    title: 'Daftarkan wajah',
+    caption: 'Daftar / Perbarui Wajah → 1–3 foto di tempat terang → centang → Simpan.',
+    vo: 'Sebelum absen pertama kali, daftarkan wajah kamu dulu. Buka Daftar atau Perbarui Wajah. Cari tempat yang terang, ambil satu sampai tiga foto, centang persetujuan, lalu ketuk Simpan.',
+    sec: 16,
+  },
+  {
+    id: 'checkin',
+    step: 'Absen masuk',
+    title: 'Tatap & tahan',
+    caption: 'Absen Sekarang → Check-in → tatap kamera, tahan sebentar → Ambil Foto.',
+    vo: 'Waktunya absen! Buka Absen Sekarang, pilih Check-in. Tatap kamera, tahan sebentar, lalu ketuk Ambil Foto. Sekarang nggak perlu geleng kepala atau kedip lagi, kok. Kalau berhasil, muncul tulisan Check-in berhasil.',
+    sec: 19,
+  },
+  {
+    id: 'shift',
+    step: 'Khusus kurir',
+    title: 'Check-in shift',
+    caption: 'Mulai shift · check-in di area depot. Lokasi harus "Tepat".',
+    vo: 'Buat kamu yang kurir, setelah absen, lanjut ke Mulai shift, check-in. Bagian ini ngecek jarak kamu ke depot. Jadi, pastikan kamu sudah di area depot, dan lokasinya sudah Tepat ya.',
+    sec: 15,
+  },
+  {
+    id: 'location-checklist',
+    step: 'Masih ditolak?',
+    title: 'Cek 4 hal ini',
+    caption: 'Lokasi Tepat, GPS nyala, tunggu sebentar, aplikasi versi terbaru.',
+    vo: 'Masih ditolak juga? Coba cek empat hal ini. Satu, lokasi akurat sudah nyala. Dua, GPS menyala. Tiga, tunggu sebentar, atau geser ke dekat pintu biar sinyal GPS-nya lebih bagus. Empat, pastikan aplikasi Hydromart Ops kamu versi terbaru di Play Store.',
+    sec: 23,
+  },
+  {
+    id: 'face-errors',
+    step: 'Kalau ada pesan ini',
+    title: 'Arti pesan error',
+    caption: 'Baca pesannya, lalu ikuti solusinya.',
+    vo: 'Kalau muncul pesan error, jangan panik. Foto terlalu gelap? Cari tempat yang lebih terang. Wajah tidak cocok? Ulangi fotonya, atau perbarui wajah kamu. Wajah belum terdaftar? Daftar dulu. Nggak ada sinyal? Santai, absennya disimpan dan dikirim otomatis nanti.',
+    sec: 24,
+  },
+  {
+    id: 'checkout',
+    step: 'Absen pulang',
+    title: 'Jangan lupa Check-out',
+    caption: 'Absen Sekarang → Check-out → foto. Kurir: akhiri shift ≠ absen pulang.',
+    vo: 'Terakhir, jangan lupa absen pulang. Buka lagi Absen Sekarang, pilih Check-out, lalu ambil foto. Buat kurir, ingat ya: mengakhiri shift itu beda dengan absen pulang. Dua-duanya tetap harus dilakukan.',
+    sec: 18,
+  },
+  {
+    id: 'outro',
+    step: '',
+    title: 'Siap absen!',
+    caption: 'Masih ada kendala? Hubungi kepala depot atau HR.',
+    vo: 'Oke, segitu dulu! Ingat ya: lokasi Tepat, GPS nyala, wajah terdaftar, dan jangan lupa absen pulang. Kalau masih ada kendala, langsung hubungi kepala depot atau tim HR. Semangat kerjanya!',
+    sec: 18,
+  },
+];
+
 export const frames = (scenes: Scene[]) => scenes.reduce((n, s) => n + s.sec * FPS, 0);
 
 /** Frames into a scene before its voice-over starts, so it never talks over the cut. */

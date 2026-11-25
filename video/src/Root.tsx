@@ -1,10 +1,11 @@
 import React from 'react';
 import { Audio, Composition, getStaticFiles, Sequence, Series, staticFile } from 'remotion';
-import { FPS, frames, KEPALA, PELANGGAN, type Scene, STAFF, VO_DELAY } from './script';
+import { ABSENSI, FPS, frames, KEPALA, PELANGGAN, type Scene, STAFF, VO_DELAY } from './script';
 import { Stage, TitleCard } from './ui';
 import { STAFF_SCREENS, STAFF_TITLE } from './StaffDepot';
 import { KEPALA_SCREENS, KEPALA_TITLE } from './KepalaDepot';
 import { PELANGGAN_SCREENS, PELANGGAN_TITLE } from './Pelanggan';
+import { ABSENSI_SCREENS, ABSENSI_TITLE } from './Absensi';
 
 interface TutorialProps {
   scenes: Scene[];
@@ -32,7 +33,7 @@ const Tutorial: React.FC<TutorialProps> = ({ scenes, screens, titles, vo }) => {
                 bullets={s.id === 'intro' ? titles.bullets : titles.outroBullets}
               />
             ) : (
-              <Stage step={s.step} title={s.title} caption={s.caption}>
+              <Stage step={s.step} title={s.title} caption={s.caption} bare={(Screen as { bare?: boolean }).bare}>
                 <Screen />
               </Stage>
             )}
@@ -56,11 +57,13 @@ const KepalaVideo: React.FC = () => <Tutorial scenes={KEPALA} screens={KEPALA_SC
 const PelangganVideo: React.FC = () => (
   <Tutorial scenes={PELANGGAN} screens={PELANGGAN_SCREENS} titles={PELANGGAN_TITLE} vo="pelanggan" />
 );
+const AbsensiVideo: React.FC = () => <Tutorial scenes={ABSENSI} screens={ABSENSI_SCREENS} titles={ABSENSI_TITLE} vo="absensi" />;
 
 export const Root: React.FC = () => (
   <>
     <Composition id="StaffDepot" component={StaffVideo} durationInFrames={frames(STAFF)} {...common} />
     <Composition id="KepalaDepot" component={KepalaVideo} durationInFrames={frames(KEPALA)} {...common} />
     <Composition id="Pelanggan" component={PelangganVideo} durationInFrames={frames(PELANGGAN)} {...common} />
+    <Composition id="Absensi" component={AbsensiVideo} durationInFrames={frames(ABSENSI)} {...common} />
   </>
 );

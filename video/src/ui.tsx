@@ -216,10 +216,15 @@ export const Phone: React.FC<{ children: React.ReactNode; top?: number }> = ({ c
 };
 
 /** A tutorial scene: background, header copy, the phone with the screen inside. */
-export const Stage: React.FC<{ step: string; title: string; caption: string; children: React.ReactNode }> = ({
+/**
+ * A tutorial scene: background, header copy, and the phone with the screen inside, or with `bare`
+ * the scene's own full-width board (explainers and checklists that are not an app screen).
+ */
+export const Stage: React.FC<{ step: string; title: string; caption: string; bare?: boolean; children: React.ReactNode }> = ({
   step,
   title,
   caption,
+  bare,
   children,
 }) => {
   const frame = useCurrentFrame();
@@ -229,7 +234,13 @@ export const Stage: React.FC<{ step: string; title: string; caption: string; chi
     <AbsoluteFill style={{ opacity: out }}>
       <Background />
       <StepHeader step={step} title={title} caption={caption} />
-      <Phone>{children}</Phone>
+      {bare ? (
+        <div style={{ position: 'absolute', left: 64, right: 64, top: 470, bottom: 70, fontFamily: FONT, color: 'white' }}>
+          {children}
+        </div>
+      ) : (
+        <Phone>{children}</Phone>
+      )}
     </AbsoluteFill>
   );
 };

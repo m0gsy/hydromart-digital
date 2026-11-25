@@ -1,7 +1,7 @@
 # Video tutorial Hydromart Ops
 
-Tiga video motion graphic vertikal (1080×1920, 30 fps) yang dibuat dengan
-[Remotion](https://www.remotion.dev): dua untuk karyawan pengguna **Hydromart Ops**, satu untuk
+Empat video motion graphic vertikal (1080×1920, 30 fps) yang dibuat dengan
+[Remotion](https://www.remotion.dev): tiga untuk karyawan pengguna **Hydromart Ops**, satu untuk
 pelanggan pengguna aplikasi **Hydromart**.
 
 | Video        | Role           | Isi                                                                              | Berkas                          |
@@ -9,6 +9,7 @@ pelanggan pengguna aplikasi **Hydromart**.
 | Staff Depot  | `STAFF_DEPOT`  | masuk, daftar & absen wajah, shift, antar + COD + bukti, retur, gagal antar, setor, absen pulang | `out/tutorial-staff-depot.mp4`  |
 | Kepala Depot | `KEPALA_DEPOT` | masuk & absen, Ringkasan, proses & tugaskan pesanan, live tracking, kasir, stok, meteran, verifikasi setoran, tutup buku | `out/tutorial-kepala-depot.mp4` |
 | Pelanggan    | `CUSTOMER`     | daftar & OTP, Beranda, pilih produk, keranjang, checkout (alamat + titik lokasi, waktu antar, cara bayar, voucher), lacak, terima, nilai, pesan lagi, batal, langganan, poin, ajak teman, bantuan | `out/tutorial-pelanggan.mp4`    |
+| Absensi      | semua karyawan | kenapa lokasi "Perkiraan" ditolak, pilih "Tepat", Setelan → izin lokasi akurat, GPS, daftar & absen wajah (v1.16.3), check-in shift kurir, daftar periksa & arti pesan error, absen pulang | `out/tutorial-absensi.mp4`      |
 
 Layar aplikasi digambar ulang (bukan rekaman layar) dengan warna dan font aplikasi
 (`apps/web/src/app/globals.css`, Plus Jakarta Sans). Setiap label tombol, status, dan toast diambil
@@ -35,16 +36,21 @@ untuk mengecek tata letak tanpa render penuh.
   sini.
 - **Naskah voice-over:** `NASKAH_VO.md` dibuat dari `script.ts` dengan `npm run naskah`. Perintah
   ini menolak adegan yang narasinya lebih cepat dari 2,4 kata/detik.
-- **Layar:** `src/StaffDepot.tsx`, `src/KepalaDepot.tsx`, `src/Pelanggan.tsx`, dan layar bersama
+- **Layar:** `src/StaffDepot.tsx`, `src/KepalaDepot.tsx`, `src/Pelanggan.tsx`, `src/Absensi.tsx`, dan layar bersama
   (masuk, absen wajah) di `src/shared.tsx`. Waktu animasi ditulis dalam frame relatif terhadap awal adegan (30 = 1 detik).
 
 ## Suara (voice-over)
 
-Narasi dibuat dengan text-to-speech ElevenLabs, memakai suara **Arunika** ("National TV Voice Over",
-logat Indonesia standar) dari Voice Library dan model `eleven_multilingual_v2`. Berkasnya ada di
-`public/vo/staff-NN.mp3`, `public/vo/kepala-NN.mp3`, dan `public/vo/pelanggan-NN.mp3`, satu per adegan, dan sudah di-commit
-supaya render tidak butuh API key. Tiap suara mulai 12 frame (0,4 detik) setelah adegannya
-dimulai.
+Narasi dibuat dengan text-to-speech ElevenLabs (model `eleven_multilingual_v2`), memakai suara dari
+Voice Library berlogat Indonesia standar:
+
+- **Arunika** ("National TV Voice Over"), dibacakan tenang, untuk Staff Depot, Kepala Depot, dan
+  Pelanggan.
+- **Nilasari** ("Natural, Clear and Inviting"), gaya ngobrol dan lebih ekspresif, untuk Absensi.
+
+Pilihan suara dan gaya bacanya ada di `VIDEOS` di `vo.ts`. Berkasnya ada di
+`public/vo/<video>-NN.mp3`, satu per adegan, dan sudah di-commit supaya render tidak butuh API
+key. Tiap suara mulai 12 frame (0,4 detik) setelah adegannya dimulai.
 
 Setelah mengubah `vo` di `src/script.ts`, buat ulang suaranya:
 
@@ -54,7 +60,7 @@ XI_API_KEY=<key ElevenLabs> NODE_USE_ENV_PROXY=1 npm run vo
 
 Hanya baris yang teksnya berubah yang dibuat ulang (`public/vo/manifest.json`), jadi kuota tidak
 terpakai dua kali. Perintah ini gagal kalau ada suara yang lebih panjang dari adegannya, dan
-menyebutkan `sec` minimal yang dibutuhkan. Untuk suara lain, isi `VO_VOICE=<voice_id>`.
+menyebutkan `sec` minimal yang dibutuhkan.
 `NODE_USE_ENV_PROXY=1` hanya diperlukan di balik proxy HTTPS.
 
 Kalau ingin memakai rekaman sendiri, timpa berkas mp3 dengan nama yang sama, lalu render ulang.
@@ -70,6 +76,10 @@ Kalau ingin memakai rekaman sendiri, timpa berkas mp3 dengan nama yang sama, lal
   "Gunakan lokasi saya", dan pelacakan menampilkan nama kurir serta estimasi tiba, bukan peta live.
 - **E-wallet & virtual account.** Kodenya ada, tapi tersembunyi selama payment gateway belum diatur.
   Video menampilkan COD, Transfer bank, dan QRIS (dua yang terakhir hanya bila depot mengaturnya).
+- **Video Absensi mengikuti Ops v1.16.3** (PR #1076, #1079, #1081): foto wajah tanpa geleng/kedip,
+  peringatan kuning "Perkiraan", dan pesan penolakan shift yang menyebut jalur Setelan. Layar
+  dialog izin, Setelan, dan panel cepat Android adalah ilustrasi Android 12+; nama menu bisa sedikit
+  berbeda di tiap merek HP.
 - **Absen satu-foto untuk kurir** (flag `attendance.courier_one_tap`). Video menampilkan alur
   standar: absen HR dulu, lalu mulai shift.
 

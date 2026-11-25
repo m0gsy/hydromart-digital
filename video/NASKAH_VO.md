@@ -331,3 +331,97 @@ Berkas: `out/tutorial-pelanggan.mp4` · durasi 5:24 · 9720 frame @ 30 fps
 **Teks layar:** Pesan sekarang, galon segar diantar sampai depan pintu.
 
 > Itu dia cara memesan air galon di aplikasi Hydromart. Pesan sekarang, dan galon segar diantar sampai depan pintu. Terima kasih!
+
+## Video 4 — Absensi
+
+Berkas: `out/tutorial-absensi.mp4` · durasi 4:46 · 8580 frame @ 30 fps
+
+### 1. Absen Lancar  `0:00–0:19`
+
+**Teks layar:** Cara absen wajah & check-in shift yang benar, plus solusi kalau lokasimu ditolak.
+
+> Hai, teman-teman Hydromart! Pernah nggak, absen atau check-in shift ditolak, padahal kamu udah ada di depot? Tenang, kamu nggak sendirian kok. Yuk, kita bahas penyebabnya, dan cara beresinnya, pelan-pelan.
+
+### 2. Kenapa ditolak? — Lokasi "Perkiraan"  `0:19–0:43`
+
+**Teks layar:** Mode "Perkiraan" cuma kirim lokasi kira-kira: bisa meleset beberapa kilometer.
+
+> Biasanya, masalahnya ada di izin lokasi. Android punya dua pilihan: Tepat, dan Perkiraan. Kalau HP kamu masih di Perkiraan, yang dikirim cuma lokasi kira-kira, dan itu bisa meleset sampai beberapa kilometer. Jadi, walaupun kamu berdiri di depan depot, sistem ngira kamu masih jauh.
+
+### 3. Tanda-tandanya — Peringatan kuning  `0:43–1:00`
+
+**Teks layar:** Muncul "Lokasi HP masih Perkiraan", dan check-in shift ditolak.
+
+> Gimana cara tahunya? Di layar absen dan check-in shift, bakal muncul peringatan kuning: Lokasi HP masih Perkiraan. Kalau kamu tetap coba check-in shift, aplikasinya akan menolak, sekaligus kasih tahu cara memperbaikinya.
+
+### 4. Langkah 1 — Pilih "Tepat"  `1:00–1:23`
+
+**Teks layar:** Saat diminta izin lokasi: pilih Tepat → Saat aplikasi digunakan.
+
+> Cara paling gampang: waktu aplikasi minta izin lokasi, pilih Tepat, terus ketuk Saat aplikasi digunakan. Tapi hati-hati ya. Kalau kamu sudah dua kali pilih Perkiraan, Android nggak bakal nanya lagi. Nah, kalau udah begitu, ubahnya harus lewat Setelan HP.
+
+### 5. Langkah 2 — Buka izin aplikasi  `1:23–1:44`
+
+**Teks layar:** Setelan HP → Aplikasi → Hydromart Ops → Izin. Atau tekan lama ikon → Info aplikasi.
+
+> Buka Setelan, atau Pengaturan HP kamu. Masuk ke Aplikasi, lalu cari Hydromart Ops. Ada cara cepatnya juga: tekan lama ikon Hydromart Ops di layar, terus ketuk Info aplikasi. Setelah itu, ketuk Izin.
+
+### 6. Langkah 3 — Nyalakan lokasi akurat  `1:44–2:03`
+
+**Teks layar:** Lokasi → Izinkan hanya saat aplikasi digunakan → nyalakan "Gunakan lokasi akurat".
+
+> Di halaman Izin, ketuk Lokasi. Pilih Izinkan hanya saat aplikasi digunakan. Terus, ini yang paling penting: nyalakan Gunakan lokasi akurat. Kalau tombolnya sudah aktif, berarti lokasi kamu sudah Tepat. Beres!
+
+### 7. Langkah 4 — GPS harus nyala  `2:03–2:22`
+
+**Teks layar:** Usap layar dari atas → nyalakan Lokasi. Tunggu beberapa detik.
+
+> Satu lagi nih. Pastikan Lokasi, atau GPS di HP kamu, menyala. Usap layar dari atas, lalu nyalakan ikon Lokasi. Kalau baru dinyalakan, tunggu beberapa detik dulu, apalagi kalau kamu lagi di dalam ruangan.
+
+### 8. Langkah 5 — Cek lagi di aplikasi  `2:22–2:33`
+
+**Teks layar:** Kembali ke aplikasi: peringatan kuning hilang sendiri kalau sudah benar.
+
+> Sekarang balik lagi ke aplikasi. Kalau pengaturannya sudah benar, peringatan kuning tadi bakal hilang sendiri. Artinya, kamu udah siap absen.
+
+### 9. Sebelum absen pertama — Daftarkan wajah  `2:33–2:49`
+
+**Teks layar:** Daftar / Perbarui Wajah → 1–3 foto di tempat terang → centang → Simpan.
+
+> Sebelum absen pertama kali, daftarkan wajah kamu dulu. Buka Daftar atau Perbarui Wajah. Cari tempat yang terang, ambil satu sampai tiga foto, centang persetujuan, lalu ketuk Simpan.
+
+### 10. Absen masuk — Tatap & tahan  `2:49–3:08`
+
+**Teks layar:** Absen Sekarang → Check-in → tatap kamera, tahan sebentar → Ambil Foto.
+
+> Waktunya absen! Buka Absen Sekarang, pilih Check-in. Tatap kamera, tahan sebentar, lalu ketuk Ambil Foto. Sekarang nggak perlu geleng kepala atau kedip lagi, kok. Kalau berhasil, muncul tulisan Check-in berhasil.
+
+### 11. Khusus kurir — Check-in shift  `3:08–3:23`
+
+**Teks layar:** Mulai shift · check-in di area depot. Lokasi harus "Tepat".
+
+> Buat kamu yang kurir, setelah absen, lanjut ke Mulai shift, check-in. Bagian ini ngecek jarak kamu ke depot. Jadi, pastikan kamu sudah di area depot, dan lokasinya sudah Tepat ya.
+
+### 12. Masih ditolak? — Cek 4 hal ini  `3:23–3:46`
+
+**Teks layar:** Lokasi Tepat, GPS nyala, tunggu sebentar, aplikasi versi terbaru.
+
+> Masih ditolak juga? Coba cek empat hal ini. Satu, lokasi akurat sudah nyala. Dua, GPS menyala. Tiga, tunggu sebentar, atau geser ke dekat pintu biar sinyal GPS-nya lebih bagus. Empat, pastikan aplikasi Hydromart Ops kamu versi terbaru di Play Store.
+
+### 13. Kalau ada pesan ini — Arti pesan error  `3:46–4:10`
+
+**Teks layar:** Baca pesannya, lalu ikuti solusinya.
+
+> Kalau muncul pesan error, jangan panik. Foto terlalu gelap? Cari tempat yang lebih terang. Wajah tidak cocok? Ulangi fotonya, atau perbarui wajah kamu. Wajah belum terdaftar? Daftar dulu. Nggak ada sinyal? Santai, absennya disimpan dan dikirim otomatis nanti.
+
+### 14. Absen pulang — Jangan lupa Check-out  `4:10–4:28`
+
+**Teks layar:** Absen Sekarang → Check-out → foto. Kurir: akhiri shift ≠ absen pulang.
+
+> Terakhir, jangan lupa absen pulang. Buka lagi Absen Sekarang, pilih Check-out, lalu ambil foto. Buat kurir, ingat ya: mengakhiri shift itu beda dengan absen pulang. Dua-duanya tetap harus dilakukan.
+
+### 15. Siap absen!  `4:28–4:46`
+
+**Teks layar:** Masih ada kendala? Hubungi kepala depot atau HR.
+
+> Oke, segitu dulu! Ingat ya: lokasi Tepat, GPS nyala, wajah terdaftar, dan jangan lupa absen pulang. Kalau masih ada kendala, langsung hubungi kepala depot atau tim HR. Semangat kerjanya!

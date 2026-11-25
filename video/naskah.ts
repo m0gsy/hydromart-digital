@@ -1,7 +1,7 @@
 // Writes NASKAH_VO.md from src/script.ts and refuses a scene whose voice-over cannot be read
 // calmly in the time the scene is on screen.   node naskah.ts
 import { writeFileSync } from 'node:fs';
-import { FPS, KEPALA, PELANGGAN, STAFF, type Scene } from './src/script.ts';
+import { ABSENSI, FPS, KEPALA, PELANGGAN, STAFF, type Scene } from './src/script.ts';
 
 // ponytail: words/second is a rough proxy for spoken length; time a real read if a scene feels rushed.
 const MAX_WPS = 2.4;
@@ -34,7 +34,8 @@ nama yang sama, lalu render ulang. Bacaan dirancang ±${MAX_WPS} kata/detik, dan
 
 ${section('Video 1 — Staff Depot', 'tutorial-staff-depot.mp4', STAFF)}
 ${section('Video 2 — Kepala Depot', 'tutorial-kepala-depot.mp4', KEPALA)}
-${section('Video 3 — Pelanggan', 'tutorial-pelanggan.mp4', PELANGGAN)}`;
+${section('Video 3 — Pelanggan', 'tutorial-pelanggan.mp4', PELANGGAN)}
+${section('Video 4 — Absensi', 'tutorial-absensi.mp4', ABSENSI)}`;
 
 writeFileSync(new URL('./NASKAH_VO.md', import.meta.url), md);
 console.log('NASKAH_VO.md ditulis');

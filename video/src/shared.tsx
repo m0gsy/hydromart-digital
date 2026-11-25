@@ -2,7 +2,7 @@
 // Labels: apps/web/src/lib/dictionaries/id/auth.ts and hrFix.ts. Names and numbers are sample data.
 import React from 'react';
 import { useCurrentFrame } from 'remotion';
-import { ArrowLeft, Camera, CheckCircle } from '@phosphor-icons/react';
+import { ArrowLeft, Camera, CheckCircle, CheckSquare } from '@phosphor-icons/react';
 import { Btn, C, Card, Chip, ease, Field, PageHead, Spot, Tapped, Toast, typed } from './ui';
 
 export const PHONE_NUMBER = '812 3456 7890';
@@ -220,6 +220,8 @@ export const CameraView: React.FC<{ scanAt?: number; height?: number }> = ({ sca
   );
 };
 
+type FaceSpot = { at: number; until?: number; text: string; on: 'toggle' | 'result' | 'hint' | 'camera'; place?: 'above' | 'below' };
+
 /** /hr/me/check-in — "Absensi Wajah". `mode` flips to Check-out at `modeAt`. */
 export const FaceCheck: React.FC<{
   depot: string;
@@ -228,9 +230,38 @@ export const FaceCheck: React.FC<{
   shootAt: number;
   doneAt: number;
   result: string;
-  spot?: { at: number; text: string; on: 'toggle' | 'result' };
-}> = ({ depot, mode, modeAt = -99, shootAt, doneAt, result, spot }) => {
+  /** One or more tutorial pointers, each on a part of the screen. */
+  spot?: FaceSpot | FaceSpot[];
+  /** The line under the camera. v1.16.2 asked for movement; v1.16.3 (PR #1079) asks to hold still. */
+  hint?: string;
+  /** Shown above the toggle (the v1.16.3 "Perkiraan" notice); fades out at `aboveUntil`. */
+  above?: React.ReactNode;
+  aboveUntil?: number;
+}> = ({
+  depot,
+  mode,
+  modeAt = -99,
+  shootAt,
+  doneAt,
+  result,
+  spot,
+  hint = 'Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.',
+  above,
+  aboveUntil = 1e9,
+}) => {
   const frame = useCurrentFrame();
+  const spots = [spot ?? []].flat();
+  const pointAt = (on: FaceSpot['on'], node: React.ReactNode) => {
+    const s = spots.find((x) => x.on === on);
+    return s ? (
+      <Spot at={s.at} until={s.until} text={s.text} place={s.place}>
+        {node}
+      </Spot>
+    ) : (
+      node
+    );
+  };
+  const aboveFade = 1 - ease(frame, aboveUntil, 12);
   const active = mode === 'Check-out' && frame < modeAt + 4 ? 'Check-in' : mode;
   const done = frame >= doneAt;
   const toggle = (
@@ -276,28 +307,40 @@ export const FaceCheck: React.FC<{
     <div>
       <PageHead title="Absensi Wajah" sub={`Hari ini: depot ${depot}`} />
       <div style={{ padding: '0 20px' }}>
-        {spot?.on === 'toggle' ? (
-          <Spot at={spot.at} text={spot.text}>
-            {toggle}
-          </Spot>
-        ) : (
-          toggle
+        {above && aboveFade > 0 && (
+          <div
+            style={{
+              opacity: aboveFade,
+              marginBottom: 12 * aboveFade,
+              // Clip only while collapsing, so a pointer's label can hang outside it before that.
+              ...(aboveFade < 1 ? { maxHeight: 160 * aboveFade, overflow: 'hidden' } : {}),
+            }}
+          >
+            {above}
+          </div>
         )}
+        {pointAt('toggle', toggle)}
         <div style={{ height: 12 }} />
         {done ? (
-          spot?.on === 'result' ? (
-            <Spot at={spot.at} text={spot.text}>
-              {resultCard}
-            </Spot>
-          ) : (
-            resultCard
-          )
+          pointAt('result', resultCard)
         ) : (
           <>
-            <CameraView scanAt={shootAt} height={300} />
-            <div style={{ fontSize: 12.5, color: C.textMuted, margin: '10px 4px', textAlign: 'center', lineHeight: 1.4 }}>
-              Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.
-            </div>
+            {pointAt('camera', <CameraView scanAt={shootAt} height={300} />)}
+            {pointAt(
+              'hint',
+              <div
+                style={{
+                  fontSize: 12.5,
+                  color: C.textMuted,
+                  margin: '10px 4px',
+                  textAlign: 'center',
+                  lineHeight: 1.4,
+                  background: C.muted,
+                }}
+              >
+                {hint}
+              </div>,
+            )}
             <Tapped at={shootAt}>
               <Btn style={{ padding: 14 }}>
                 <Camera size={18} weight="bold" /> Ambil Foto
@@ -307,6 +350,87 @@ export const FaceCheck: React.FC<{
         )}
       </div>
       <Toast at={doneAt}>{mode} berhasil</Toast>
+    </div>
+  );
+};
+
+/**
+ * /hr/me/enroll — "Daftar Wajah": a shot at each frame in `shots`, the consent box at `consentAt`,
+ * Simpan at `saveAt`. `spot` points at the camera.
+ */
+export const EnrollScreen: React.FC<{
+  shots: number[];
+  consentAt: number;
+  saveAt: number;
+  spot?: { at: number; until?: number; text: string };
+}> = ({ shots, consentAt, saveAt, spot }) => {
+  const frame = useCurrentFrame();
+  const taken = shots.filter((s) => frame >= s + 4).length;
+  const consent = frame >= consentAt + 4;
+  const saved = frame >= saveAt + 15;
+  const camera = <CameraView scanAt={shots.filter((s) => frame >= s).pop() ?? 1e9} height={230} />;
+  return (
+    <div>
+      <PageHead title="Daftar Wajah" sub="Ambil 1–3 foto wajah yang jelas untuk absensi" />
+      <div style={{ padding: '0 20px' }}>
+        {saved ? (
+          <Card style={{ textAlign: 'center', padding: 24 }}>
+            <CheckCircle size={56} weight="fill" color={C.success} />
+            <div style={{ fontSize: 15, fontWeight: 700, marginTop: 8 }}>Wajah terdaftar. Kamu bisa absen sekarang.</div>
+          </Card>
+        ) : spot ? (
+          <Spot at={spot.at} until={spot.until} text={spot.text}>
+            {camera}
+          </Spot>
+        ) : (
+          camera
+        )}
+        <div style={{ display: 'flex', gap: 8, margin: '12px 0' }}>
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 12,
+                border: `1.5px dashed ${C.border}`,
+                background: C.surface,
+                overflow: 'hidden',
+              }}
+            >
+              {i < taken && (
+                <svg viewBox="0 0 58 58" width="58" height="58">
+                  <rect width="58" height="58" fill="#3d4f55" />
+                  <ellipse cx="29" cy="30" rx="13" ry="16" fill="#e8b892" />
+                  <path d="M16 27 Q16 12 29 12 Q42 12 42 27 Q38 19 29 19 Q20 19 16 27Z" fill="#2a1d17" />
+                  <ellipse cx="29" cy="62" rx="22" ry="14" fill="#2f6f79" />
+                </svg>
+              )}
+            </div>
+          ))}
+          <div style={{ alignSelf: 'center', fontSize: 13.5, fontWeight: 700, marginLeft: 6 }}>{taken} foto siap</div>
+        </div>
+        {!saved && (
+          <Tapped at={shots}>
+            <Btn variant="outline">
+              <Camera size={18} weight="bold" /> Ambil Foto
+            </Btn>
+          </Tapped>
+        )}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '14px 0', fontSize: 14, fontWeight: 600 }}>
+          <Tapped at={consentAt}>
+            <CheckSquare size={24} weight={consent ? 'fill' : 'regular'} color={consent ? C.brand600 : C.textMuted} />
+          </Tapped>
+          Persetujuan data wajah
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10 }}>
+          <Btn variant="outline">Reset</Btn>
+          <Tapped at={saveAt}>
+            <Btn style={consent ? undefined : { opacity: 0.45 }}>Simpan</Btn>
+          </Tapped>
+        </div>
+      </div>
+      <Toast at={saveAt + 15}>Wajah berhasil didaftarkan</Toast>
     </div>
   );
 };
