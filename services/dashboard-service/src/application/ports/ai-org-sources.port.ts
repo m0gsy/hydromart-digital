@@ -18,8 +18,17 @@ export interface AttendanceRow {
   absentRecorded: number;
   leave: number;
   pending: number;
-  /** Distinct employees behind EACH count, so each can be held back on its own. */
-  people: Record<AttendanceCell, number>;
+}
+
+/** Opaque employee ids behind each count over the whole call (never a name), unioned by the reader. */
+export type AttendanceHeads = Record<AttendanceCell, string[]>;
+
+/** Is a depot's month of payroll finished, on the employee HOME-depot basis the payroll amounts use. */
+export interface PayrollGateRow {
+  depotId: string;
+  expected: number;
+  draft: number;
+  final: number;
 }
 
 /** hr-service: one depot's APPROVED/PAID payslips of a month, by the employee's own depot. */
@@ -52,7 +61,8 @@ export interface AiOrgSourcesPort {
   entityKinds(ids: readonly string[]): Promise<Map<string, string> | null>;
   /** HQ's commission per depot over a window; one row per depot asked. */
   commission(depotIds: readonly string[], range: InstantRange): Promise<{ depotId: string; commissionIdr: number }[] | null>;
-  attendance(depotIds: readonly string[], from: string, to: string): Promise<{ rows: AttendanceRow[]; rolledUp: boolean } | null>;
+  attendance(depotIds: readonly string[], from: string, to: string): Promise<{ rows: AttendanceRow[]; heads: AttendanceHeads; rolledUp: boolean } | null>;
+  payrollGate(depotIds: readonly string[], month: string): Promise<PayrollGateRow[] | null>;
   payroll(depotIds: readonly string[], month: string): Promise<PayrollRow[] | null>;
   kasbon(depotIds: readonly string[], month: string): Promise<KasbonRow[] | null>;
 }

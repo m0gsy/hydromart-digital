@@ -82,17 +82,21 @@ describeRace('AiReadPrismaRepository on real Postgres (HD-6 H5)', () => {
     });
     const slip = await prisma.payroll.create({ data: { employeeId: lent.id, periodMonth: MONTH, status: 'DRAFT', gross: 7_000_000, net: 7_000_000 } as never });
     const analytics = new AnalyticsPrismaRepository(prisma as never);
-    const gate = async () => {
-      const facts = await analytics.depotSummaryFacts(new Date('2026-11-15T00:00:00Z'), MONTH, [H1, L1]);
-      return { home: facts.get(H1), lentTo: facts.get(L1) };
+    const homeGate = async () => {
+      const rows = await repo.payrollGate([H1, L1], MONTH);
+      return { home: rows[0], lentTo: rows[1] };
     };
-    // DRAFT: the HOME depot is the one that is waiting, the lent-to depot waits for nobody
-    let g = await gate();
-    expect(g.home).toMatchObject({ payrollExpectedCount: 1, payrollDraftCount: 1, payrollFinalCount: 0 });
-    expect(g.lentTo?.payrollExpectedCount ?? 0).toBe(0);
+    // H3's gate is on the HOME basis, as its amounts: DRAFT, the home depot is waiting, the lent-to depot waits for nobody
+    let g = await homeGate();
+    expect(g.home).toEqual({ depotId: H1, expected: 1, draft: 1, final: 0 });
+    expect(g.lentTo).toEqual({ depotId: L1, expected: 0, draft: 0, final: 0 });
+    // H2's gate stays on the LIVE-depot basis of the P&L and cash-flow amounts it guards: the lent-to depot waits
+    const live = async () => (await analytics.depotSummaryFacts(new Date('2026-11-15T00:00:00Z'), MONTH, [H1, L1])).get(L1);
+    expect(await live()).toMatchObject({ payrollExpectedCount: 1, payrollDraftCount: 1, payrollFinalCount: 0 });
     await prisma.payroll.update({ where: { id: slip.id }, data: { status: 'APPROVED' } });
-    g = await gate();
-    expect(g.home).toMatchObject({ payrollExpectedCount: 1, payrollDraftCount: 0, payrollFinalCount: 1 });
+    g = await homeGate();
+    expect(g.home).toEqual({ depotId: H1, expected: 1, draft: 0, final: 1 });
+    expect(await live()).toMatchObject({ payrollExpectedCount: 1, payrollDraftCount: 0, payrollFinalCount: 1 });
     // and the amounts are the home depot's, in the same month
     const rows = await repo.payroll([H1, L1], MONTH);
     expect(rows).toEqual([
@@ -131,6 +135,7 @@ describeRace('AiReadPrismaRepository on real Postgres (HD-6 H5)', () => {
     await day('2026-12-01', 'PRESENT');
     const { rows, rolledUp } = await repo.attendance([D1], '2026-11-01', '2026-11-30');
     expect(rolledUp).toBe(false);
-    expect(rows[0]).toMatchObject({ depotId: D1, present: 1, late: 1, people: { present: 1, late: 1, absentRecorded: 0 } });
+    expect(rows[0]).toMatchObject({ depotId: D1, present: 1, late: 1 });
+    expect((await repo.attendance([D1], '2026-11-01', '2026-11-30')).heads).toMatchObject({ present: [a.id], late: [a.id], absentRecorded: [] });
   });
 });

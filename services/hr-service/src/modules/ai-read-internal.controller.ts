@@ -7,8 +7,10 @@ import {
   AI_READ_REPOSITORY,
   AiReadRepository,
   AttendanceDepotRow,
+  AttendanceHeads,
   KasbonDepotRow,
   PayrollDepotRow,
+  PayrollGateRow,
 } from '../application/ports/ai-read.repository';
 import { AiAttendanceQueryDto, AiAttendanceResponseDto, AiMonthQueryDto } from './dto/ai-read.dto';
 
@@ -28,8 +30,15 @@ export class AiReadInternalController {
   @ApiOkResponse({ type: AiAttendanceResponseDto })
   @Get('attendance')
   @ApiOperation({ summary: 'Attendance counts per depot over [from, to] (internal)' })
-  attendance(@Query() q: AiAttendanceQueryDto): Promise<{ rows: AttendanceDepotRow[]; rolledUp: boolean }> {
+  attendance(@Query() q: AiAttendanceQueryDto): Promise<{ rows: AttendanceDepotRow[]; heads: AttendanceHeads; rolledUp: boolean }> {
     return this.repo.attendance(q.depotIds, q.from, q.to);
+  }
+
+  @ApiOkResponse({ description: 'One row per depot asked for.' })
+  @Get('payroll-gate')
+  @ApiOperation({ summary: 'Is the month of payroll finished, per depot, by the employee home depot (internal)' })
+  payrollGate(@Query() q: AiMonthQueryDto): Promise<PayrollGateRow[]> {
+    return this.repo.payrollGate(q.depotIds, q.month);
   }
 
   @ApiOkResponse({ description: 'One row per depot asked for.' })

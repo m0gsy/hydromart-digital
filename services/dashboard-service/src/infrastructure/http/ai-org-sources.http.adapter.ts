@@ -5,8 +5,10 @@ import {
   ATTENDANCE_CELLS,
   AiOrgSourcesPort,
   ApplicationSummary,
+  AttendanceHeads,
   AttendanceRow,
   KasbonRow,
+  PayrollGateRow,
   PayrollRow,
 } from '../../application/ports/ai-org-sources.port';
 import { DashboardConfigService } from '../../config/dashboard-config.service';
@@ -95,18 +97,28 @@ export class AiOrgSourcesHttpAdapter implements AiOrgSourcesPort {
     return perDepot(body, depotIds, ['commissionIdr']);
   }
 
-  async attendance(depotIds: readonly string[], from: string, to: string): Promise<{ rows: AttendanceRow[]; rolledUp: boolean } | null> {
+  async attendance(depotIds: readonly string[], from: string, to: string): Promise<{ rows: AttendanceRow[]; heads: AttendanceHeads; rolledUp: boolean } | null> {
     const base = this.config.hrServiceUrl;
     if (!base) return null;
     const body = (await this.get(
       `${base}/api/v1/hr-reports/internal/ai/attendance?${this.q({ depotIds: depotIds.join(','), from, to })}`,
     )) as { rows?: unknown; rolledUp?: unknown } | null;
     const rows = perDepot<AttendanceRow>(body?.rows, depotIds, ATTENDANCE_CELLS);
-    const heads = (r: AttendanceRow): boolean => {
-      const p = r.people as unknown as Record<string, unknown> | null;
-      return !!p && typeof p === 'object' && ATTENDANCE_CELLS.every((c) => isNum(p[c]));
-    };
-    return rows && rows.every(heads) && typeof body?.rolledUp === 'boolean' ? { rows, rolledUp: body.rolledUp } : null;
+    const raw = (body as { heads?: Record<string, unknown> } | null)?.heads;
+    const lists = ATTENDANCE_CELLS.map((c) => raw?.[c]);
+    const heads = lists.every((l) => Array.isArray(l) && l.every((id) => typeof id === 'string'))
+      ? (Object.fromEntries(ATTENDANCE_CELLS.map((c, i) => [c, lists[i]])) as AttendanceHeads)
+      : null;
+    return rows && heads && typeof body?.rolledUp === 'boolean' ? { rows, heads, rolledUp: body.rolledUp } : null;
+  }
+
+  async payrollGate(depotIds: readonly string[], month: string): Promise<PayrollGateRow[] | null> {
+    const base = this.config.hrServiceUrl;
+    if (!base) return null;
+    const body = await this.get(
+      `${base}/api/v1/hr-reports/internal/ai/payroll-gate?${this.q({ depotIds: depotIds.join(','), month })}`,
+    );
+    return perDepot<PayrollGateRow>(body, depotIds, ['expected', 'draft', 'final']);
   }
 
   async payroll(depotIds: readonly string[], month: string): Promise<PayrollRow[] | null> {

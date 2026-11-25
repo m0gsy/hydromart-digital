@@ -9,7 +9,7 @@ import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerEnvelope } from './envelope';
 import { SMALL_GROUP_FLAG, SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
 import { PeriodQuery, parsePeriod } from './period';
-import { DOWN, ReadEnv, chunks, makeEnv, narrowTo, payrollUnfinished, pooled, stretchesOf } from './read-env';
+import { DOWN, ReadEnv, chunks, isWholeMonthOrYear, makeEnv, narrowTo, payrollUnfinished, pooled, stretchesOf } from './read-env';
 import { ReadScope, ReadScopeService } from './scope.service';
 
 /**
@@ -92,13 +92,16 @@ export class HrMetricsService {
   /**
    * H-02: attendance counts. Only what is recorded: the scheduled-days denominator (the rate) is not
    * built, so `absentRecorded` is explicit ABSENT rows, NOT choice 35A's "scheduled day with no punch
-   * and no leave". Each count is held back on its OWN people: a count resting on 1 or 2 employees is
-   * null with a flag. People are counted per depot per cell, the most any one stretch of the depot
-   * shows (the same person can span two stretches), then summed over depots.
+   * and no leave". Whole calendar months or years only (differencing: a month less a day would isolate
+   * one day's few people). Each count is held back on its OWN distinct employees, unioned over every
+   * depot and stretch read, so one person with records at two depots is one head.
    */
   private async attendance(env: ReadEnv): Promise<AnswerEnvelope> {
+    if (!isWholeMonthOrYear(env.period.from, env.period.to)) {
+      return env.none('Kehadiran hanya dijawab per bulan atau tahun penuh, supaya selisih dua jawaban tidak menunjuk beberapa orang saja.');
+    }
     const sums = Object.fromEntries(ATTENDANCE_CELLS.map((c) => [c, 0])) as Record<AttendanceCell, number>;
-    const heads = new Map<string, Record<AttendanceCell, number>>();
+    const heads = Object.fromEntries(ATTENDANCE_CELLS.map((c) => [c, new Set<string>()])) as Record<AttendanceCell, Set<string>>;
     for (const st of stretchesOf(env.scope, env.period)) {
       for (const ids of chunks(st.depotIds)) {
         const got = await this.sources.attendance(ids, st.from, st.to);
@@ -106,23 +109,14 @@ export class HrMetricsService {
         if (got.rolledUp) {
           return env.none('Sebagian catatan lama sudah dirangkum per bulan (setelah masa simpan karyawan keluar), jadi hitungan harian periode ini tidak lengkap.');
         }
-        for (const row of got.rows) {
-          const seen = heads.get(row.depotId) ?? ({ ...row.people } as Record<AttendanceCell, number>);
-          for (const c of ATTENDANCE_CELLS) {
-            sums[c] += row[c];
-            seen[c] = Math.max(seen[c], row.people[c]);
-          }
-          heads.set(row.depotId, seen);
-        }
+        for (const row of got.rows) for (const c of ATTENDANCE_CELLS) sums[c] += row[c];
+        for (const c of ATTENDANCE_CELLS) for (const id of got.heads[c]) heads[c].add(id);
       }
     }
-    const people = Object.fromEntries(
-      ATTENDANCE_CELLS.map((c) => [c, [...heads.values()].reduce((n, h) => n + h[c], 0)]),
-    ) as Record<AttendanceCell, number>;
     const flags: Partial<Record<AttendanceCell, string>> = {};
     const value: Record<string, unknown> = {};
     for (const c of ATTENDANCE_CELLS) {
-      if (small(people[c])) {
+      if (small(heads[c].size)) {
         flags[c] = SMALL_GROUP_FLAG;
         value[c] = null;
       } else {
@@ -130,7 +124,7 @@ export class HrMetricsService {
       }
     }
     const flagged = Object.keys(flags).length;
-    if (flagged > 0 && ATTENDANCE_CELLS.every((c) => people[c] === 0 || flags[c])) {
+    if (flagged > 0 && ATTENDANCE_CELLS.every((c) => heads[c].size === 0 || flags[c])) {
       return env.held(`Karyawan di balik angka kehadiran ${SMALL_GROUP_FLAG}; angkanya tidak diberikan.`);
     }
     return env.ok(
@@ -139,7 +133,7 @@ export class HrMetricsService {
         ...(flagged > 0 ? { flags } : {}),
         rate: { status: 'belum_ada', reason: 'Tingkat hadir butuh hari kerja terjadwal per karyawan; itu belum dihitung di sini.' },
       },
-      'hari kerja menurut tanggal kerja WIB dan depot tempat bekerja hari itu: present = hadir, late = terlambat, absentRecorded = hanya catatan ABSEN eksplisit (BUKAN hari terjadwal tanpa absen dan tanpa cuti: hari tanpa catatan tidak terlihat), leave = cuti, pending = absen offline belum diputuskan HR; tiap angka yang bertumpu pada kurang dari 3 karyawan tidak diberikan (null dengan flag)',
+      'hari kerja menurut tanggal kerja WIB dan depot tempat bekerja hari itu, per bulan atau tahun penuh: present = hadir, late = terlambat, absentRecorded = hanya catatan ABSEN eksplisit (BUKAN hari terjadwal tanpa absen dan tanpa cuti: hari tanpa catatan tidak terlihat), leave = cuti, pending = absen offline belum diputuskan HR; tiap angka yang bertumpu pada kurang dari 3 karyawan berbeda tidak diberikan (null dengan flag)',
     );
   }
 
@@ -152,7 +146,7 @@ export class HrMetricsService {
     const env = makeEnv(id, HR_METRICS[id].unit, period, narrowTo(env0.scope, new Set(ids)), now);
     if (ids.length === 0) return env.none('Tidak ada depot yang boleh Anda baca pada hari terakhir bulan ini.');
     if (!can('payrollRead', user.role, ids)) return env.held('Gaji dan kasbon hanya untuk peran yang boleh membaca penggajian.');
-    const unfinished = await payrollUnfinished(this.depots, ids, month);
+    const unfinished = await payrollUnfinished(this.sources, ids, month);
     if (unfinished) return env.none(unfinished);
     if (id === 'H-04') return this.kasbon(env, ids, month);
     const rows = await pooled(ids, (part) => this.sources.payroll(part, month));

@@ -1,7 +1,7 @@
 import { addLocalDays, dayStartUtc, localDayKey } from '@hydromart/platform';
 
 import { InstantRange } from '../ports/ai-money-sources.port';
-import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
+import { AiOrgSourcesPort } from '../ports/ai-org-sources.port';
 import { AnswerEnvelope, belumAda, ditahan, ok } from './envelope';
 import { ResolvedPeriod } from './period';
 import { ReadScope } from './scope.service';
@@ -93,16 +93,26 @@ export async function pooled<T>(depotIds: readonly string[], read: (ids: readonl
  * Owner choice 10A: only APPROVED or PAID payslips count. A depot-month is finished when no slip is
  * DRAFT and as many employees have an APPROVED/PAID slip as the month waits for. Any depot not
  * finished makes every payroll-bearing number belum_ada. Returns the reason, or null when finished.
- * (The same rule L-03/L-09 apply, asked per 100 depots.)
+ * The gate is read on the same HOME-depot basis as the payroll amounts of H-03/H-04/H-05 (hr-service
+ * `payroll-gate`); H2's own gate (`hrSummaryMany`) stays on the basis of the P&L amounts it guards.
  */
-export async function payrollUnfinished(depots: DashboardSourcesPort, ids: readonly string[], month: string): Promise<string | null> {
-  const rows: Awaited<ReturnType<DashboardSourcesPort['hrSummaryMany']>> = [];
-  for (const part of chunks(ids)) rows.push(...(await depots.hrSummaryMany([...part], month)));
-  if (rows.some((r) => r === null || [r.payrollDraftCount, r.payrollFinalCount, r.payrollExpectedCount].includes(undefined))) {
-    return DOWN;
-  }
-  const open = rows.filter((r) => r!.payrollDraftCount! > 0 || r!.payrollFinalCount! < r!.payrollExpectedCount!);
+export async function payrollUnfinished(sources: AiOrgSourcesPort, ids: readonly string[], month: string): Promise<string | null> {
+  const rows = await pooled(ids, (part) => sources.payrollGate(part, month));
+  if (!rows) return DOWN;
+  const open = rows.filter((r) => r.draft > 0 || r.final < r.expected);
   return open.length === 0
     ? null
     : `Gaji bulan ini belum selesai: ${open.length} depot masih punya slip DRAFT atau karyawan yang belum punya slip disetujui/dibayar, jadi angka yang memuat gaji belum bisa dijawab.`;
+}
+
+/**
+ * Differencing: two answers over overlapping windows give the group between them, so a metric that
+ * counts a few people is answered for a whole calendar month or a whole calendar year only (`YYYY-MM-DD`
+ * days, both included), never a week, a day or a free range.
+ */
+export function isWholeMonthOrYear(from: string, to: string): boolean {
+  const [y, m, d] = from.split('-').map(Number);
+  // tz-ok: calendar days as UTC midnights; the UTC slice IS the calendar day.
+  const monthEnd = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); // tz-ok: a calendar day
+  return d === 1 && (to === monthEnd || (m === 1 && to === `${y}-12-31`));
 }

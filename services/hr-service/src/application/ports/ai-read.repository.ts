@@ -21,9 +21,14 @@ export interface AttendanceDepotRow {
   leave: number;
   /** Punches taken offline and not yet decided by HR; counted as nothing. */
   pending: number;
-  /** DISTINCT employees behind each count above, so the reader can hold back any one of them. */
-  people: Record<AttendanceCell, number>;
 }
+
+/**
+ * The employees behind each count over the WHOLE window and every depot of the call, as opaque ids
+ * (never a name): the reader unions them across calls, so one person with records at two depots is
+ * one head, and holds back any count resting on fewer than 3.
+ */
+export type AttendanceHeads = Record<AttendanceCell, string[]>;
 
 export interface PayrollDepotRow {
   depotId: string;
@@ -46,7 +51,23 @@ export interface KasbonDepotRow {
   remainingIdr: number;
 }
 
+/**
+ * Is a depot's month of payroll finished, on the HOME-depot basis the AI read API's payroll amounts
+ * use? (The summary H2's money metrics gate on reads the live-depot basis, because the P&L and cash
+ * flow amounts behind them do; each gate must share its amounts' basis.)
+ */
+export interface PayrollGateRow {
+  depotId: string;
+  /** Employees employed at any time in the month: joined by its last day, ACTIVE or left on or after its first. */
+  expected: number;
+  /** Slips still DRAFT. */
+  draft: number;
+  /** Employees with an APPROVED or PAID slip. */
+  final: number;
+}
+
 export interface AiReadRepository {
+  payrollGate(depotIds: readonly string[], month: string): Promise<PayrollGateRow[]>;
   /**
    * `from`..`to` are calendar days (`YYYY-MM-DD`, both included). `rolledUp`: some old days were
    * folded into monthly counts, so the window is incomplete.
@@ -55,7 +76,7 @@ export interface AiReadRepository {
     depotIds: readonly string[],
     from: string,
     to: string,
-  ): Promise<{ rows: AttendanceDepotRow[]; rolledUp: boolean }>;
+  ): Promise<{ rows: AttendanceDepotRow[]; heads: AttendanceHeads; rolledUp: boolean }>;
   payroll(depotIds: readonly string[], month: string): Promise<PayrollDepotRow[]>;
   /** What is still owed through `month` on active loans, counting only APPROVED/PAID payslips. */
   kasbon(depotIds: readonly string[], month: string): Promise<KasbonDepotRow[]>;

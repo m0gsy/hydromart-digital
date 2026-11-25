@@ -10,7 +10,7 @@ import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerEnvelope } from './envelope';
 import { SMALL_GROUP_FLAG, SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
 import { PeriodQuery, parsePeriod } from './period';
-import { DOWN, ReadEnv, makeEnv, pooled, stretchesOf } from './read-env';
+import { DOWN, ReadEnv, isWholeMonthOrYear, makeEnv, pooled, stretchesOf } from './read-env';
 import { ReadScope, ReadScopeService } from './scope.service';
 
 /**
@@ -34,13 +34,6 @@ const KIND_NAME: Record<string, string> = { OPERATOR: 'HKP', FRANCHISEE: 'WARALA
 const NO_ENTITY = 'TANPA_BADAN_HUKUM';
 /** Most depots W-06 lists in one answer; past it the answer is "persempit", never a cut list. */
 const MAX_LISTED = 1000;
-/** Exactly one calendar month, or exactly one calendar year (`YYYY-MM-DD` days, both included). */
-function isWholeMonthOrYear(from: string, to: string): boolean {
-  const [y, m, d] = from.split('-').map(Number);
-  // tz-ok: calendar days as UTC midnights; the UTC slice IS the calendar day.
-  const monthEnd = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); // tz-ok: a calendar day
-  return d === 1 && ((to === monthEnd) || (m === 1 && to === `${y}-12-31`));
-}
 const STAGES = ['PENDING', 'DOC_VERIFICATION', 'SURVEY', 'APPROVED', 'REJECTED'];
 
 @Injectable()

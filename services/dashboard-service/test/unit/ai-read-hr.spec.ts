@@ -4,7 +4,7 @@ import { AuthenticatedUser } from '@hydromart/platform';
 
 import { HR_METRIC_IDS, HrMetricsService } from '../../src/application/ai-read/hr-metrics';
 import { ReadScope, ReadScopeService } from '../../src/application/ai-read/scope.service';
-import { AiOrgSourcesPort, AttendanceRow, KasbonRow, PayrollRow } from '../../src/application/ports/ai-org-sources.port';
+import { AiOrgSourcesPort, AttendanceHeads, AttendanceRow, KasbonRow, PayrollGateRow, PayrollRow } from '../../src/application/ports/ai-org-sources.port';
 import { DashboardSourcesPort } from '../../src/application/ports/dashboard-sources.port';
 
 /*
@@ -32,8 +32,10 @@ const scopeOf = (spans: ReadScope['spans']): ReadScope => ({
 // D1 moves PT_A -> PT_B on 16 Nov; D2 is PT_B all month.
 const SCOPE = scopeOf([span(D1, '2026-11-01', '2026-11-15'), span(D1, '2026-11-16', '2026-11-30', PT_B), span(D2, '2026-11-01', '2026-11-30', PT_B)]);
 
-const heads = (n: number, o: Partial<AttendanceRow['people']> = {}): AttendanceRow['people'] => ({ present: n, late: n, absentRecorded: n, leave: n, pending: n, ...o });
-const att = (depotId: string, o: Partial<AttendanceRow> = {}): AttendanceRow => ({ depotId, present: 20, late: 2, absentRecorded: 1, leave: 1, pending: 0, people: heads(5, { pending: 0 }), ...o });
+const people = (n: number, from = 0): string[] => Array.from({ length: n }, (_, i) => `e${from + i}`);
+const heads = (n: number, o: Partial<AttendanceHeads> = {}): AttendanceHeads => ({ present: people(n), late: people(n), absentRecorded: people(n), leave: people(n), pending: [], ...o });
+const att = (depotId: string, o: Partial<AttendanceRow> = {}): AttendanceRow => ({ depotId, present: 20, late: 2, absentRecorded: 1, leave: 1, pending: 0, ...o });
+const gate = (depotId: string, o: Partial<PayrollGateRow> = {}): PayrollGateRow => ({ depotId, expected: 4, draft: 0, final: 4, ...o });
 const pay = (depotId: string, o: Partial<PayrollRow> = {}): PayrollRow => ({
   depotId,
   slips: 4,
@@ -49,7 +51,8 @@ const finished = (ids: string[]) => ids.map((depotId) => ({ depotId, payrollCoun
 
 function build(scope: ReadScope = SCOPE, over: Partial<Record<keyof AiOrgSourcesPort, unknown>> = {}) {
   const sources: Record<string, jest.Mock> = {
-    attendance: jest.fn(async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), rolledUp: false })),
+    attendance: jest.fn(async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5), rolledUp: false })),
+    payrollGate: jest.fn(async (ids: readonly string[]): Promise<PayrollGateRow[]> => ids.map((d) => gate(d))),
     payroll: jest.fn(async (ids: readonly string[]) => ids.map((d) => pay(d))),
     kasbon: jest.fn(async (ids: readonly string[]): Promise<KasbonRow[]> => ids.map((depotId) => ({ depotId, people: 4, remainingIdr: 2_500_000 }))),
     ...(over as Record<string, jest.Mock>),
@@ -127,34 +130,55 @@ describe('HrMetricsService: H-02 attendance', () => {
     expect(asked).toEqual([`${D1}@2026-11-01..2026-11-15`, `${D1}@2026-11-16..2026-11-30`, `${D2}@2026-11-01..2026-11-30`].sort());
   });
 
-  it('holds back each count on its OWN people: one person late is not a number even when many were present', async () => {
+  it('holds back each count on its OWN distinct people: one person late is not a number even when many were present', async () => {
     const one = build(SCOPE, {
-      attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { people: heads(5, { late: d === D1 ? 1 : 0, absentRecorded: 0, leave: 2 }) })), rolledUp: false }),
+      attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { late: ['e1'], absentRecorded: [], leave: people(2) }), rolledUp: false }),
     });
     const out = await one.ask('H-02');
-    // late: D1 (two stretches, the same person) counts as 1, D2 counts 0 -> 1 person: held. absentRecorded 0 people is a real 0.
-    // leave: 2 people per depot, 2 + 2 = 4 across D1 and D2: published.
-    expect(out.value).toMatchObject({ present: 60, late: null, leave: 3, flags: { late: 'kurang dari 3' } });
-    expect((out.value as { flags: object }).flags).not.toHaveProperty('leave');
+    expect(out.value).toMatchObject({ present: 60, late: null, leave: null });
+    expect((out.value as { flags: Record<string, string> }).flags).toEqual({ late: 'kurang dari 3', leave: 'kurang dari 3' });
   });
 
-  it('counts a person who spans two stretches of one depot once, not twice', async () => {
-    // D1 has two stretches with 2 people each (the same two): 2 people, held; summing the stretches would say 4
-    const out = await build(scopeOf([span(D1, '2026-11-01', '2026-11-15'), span(D1, '2026-11-16', '2026-11-30', PT_B)]), {
-      attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { people: heads(5, { leave: 2 }) })), rolledUp: false }),
+  it('counts a person with records at two depots once: 2 people stay 2, they do not publish as 4', async () => {
+    // every depot-stretch read reports the same two people on leave
+    const out = await build(SCOPE, {
+      attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { leave: ['e1', 'e2'] }), rolledUp: false }),
     }).ask('H-02');
     expect(out.value).toMatchObject({ leave: null, flags: { leave: 'kurang dari 3' } });
+    // different people in different reads do add up: 2 + 1 distinct = 3
+    let n = 0;
+    const three = await build(SCOPE, {
+      attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { leave: n++ === 0 ? ['e1', 'e2'] : ['e3'] }), rolledUp: false }),
+    }).ask('H-02');
+    expect(three.value).toMatchObject({ leave: 3 });
   });
 
   it('holds the whole answer when every count that has people is held, and answers a window without records as zeros', async () => {
-    const tiny = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { people: heads(1, { pending: 0 }) })), rolledUp: false }) });
+    const tiny = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(1, { pending: [] }), rolledUp: false }) });
     expect(await tiny.ask('H-02')).toMatchObject({ status: 'ditahan', value: null });
-    const none = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { present: 0, late: 0, absentRecorded: 0, leave: 0, people: heads(0) })), rolledUp: false }) });
+    const none = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { present: 0, late: 0, absentRecorded: 0, leave: 0 })), heads: heads(0), rolledUp: false }) });
     expect((await none.ask('H-02')).value).toMatchObject({ present: 0, late: 0, leave: 0 });
   });
 
+  it.each([
+    ['a week', { period: 'week', date: '2026-11-10' }],
+    ['a day', { period: 'day', date: '2026-11-10' }],
+    ['a month less a day', { from: '2026-11-01', to: '2026-11-29' }],
+    ['an arbitrary range', { from: '2026-11-05', to: '2026-12-20' }],
+  ])('refuses %s (a month less a day would isolate one day) and never asks the source', async (_name, query) => {
+    const b = build();
+    const out = await b.ask('H-02', 'SUPER_ADMIN', query as Record<string, string>);
+    expect(out).toMatchObject({ status: 'belum_ada', value: null });
+    expect(out.reason).toContain('bulan atau tahun penuh');
+    expect(b.sources.attendance).not.toHaveBeenCalled();
+  });
+
+  it('answers a whole year', async () => {
+    expect((await build().ask('H-02', 'SUPER_ADMIN', { period: 'year', date: '2026-06-01' })).status).toBe('ok');
+  });
+
   it('is belum_ada when old days were folded into monthly counts, or hr-service cannot answer', async () => {
-    const folded = await build(SCOPE, { attendance: async () => ({ rows: [], rolledUp: true }) }).ask('H-02');
+    const folded = await build(SCOPE, { attendance: async () => ({ rows: [], heads: heads(0), rolledUp: true }) }).ask('H-02');
     expect(folded.status).toBe('belum_ada');
     expect(folded.reason).toContain('dirangkum');
     expect((await build(SCOPE, { attendance: async () => null }).ask('H-02')).status).toBe('belum_ada');
@@ -195,22 +219,23 @@ describe('HrMetricsService: H-03, H-04, H-05 (finished month, payrollRead)', () 
     }
   });
 
-  it('is belum_ada while a depot has a DRAFT slip, an employee without a finished slip, or its HR summary is unreadable', async () => {
-    const draft = build();
-    draft.depots.hrSummaryMany.mockImplementation(async (ids: string[]) => ids.map((depotId, i) => ({ depotId, payrollDraftCount: i === 0 ? 1 : 0, payrollFinalCount: 4, payrollExpectedCount: 4 })));
+  it('is belum_ada while a depot has a DRAFT slip, an employee without a finished slip, or the gate is unreadable', async () => {
+    const draft = build(SCOPE, { payrollGate: async (ids: readonly string[]) => ids.map((d, i) => gate(d, { draft: i === 0 ? 1 : 0 })) });
     const out = await draft.ask('H-03');
     expect(out.status).toBe('belum_ada');
     expect(out.reason).toContain('1 depot');
-    const short = build();
-    short.depots.hrSummaryMany.mockImplementation(async (ids: string[]) => ids.map((depotId) => ({ depotId, payrollDraftCount: 0, payrollFinalCount: 3, payrollExpectedCount: 4 })));
-    expect((await short.ask('H-04')).status).toBe('belum_ada');
-    const old = build();
-    old.depots.hrSummaryMany.mockImplementation(async (ids: string[]) => ids.map((depotId) => ({ depotId })));
-    expect((await old.ask('H-05')).status).toBe('belum_ada');
-    const down = build();
-    down.depots.hrSummaryMany.mockImplementation(async (ids: string[]) => ids.map(() => null));
-    expect((await down.ask('H-03')).status).toBe('belum_ada');
     expect(draft.sources.payroll).not.toHaveBeenCalled();
+    const short = build(SCOPE, { payrollGate: async (ids: readonly string[]) => ids.map((d) => gate(d, { final: 3 })) });
+    expect((await short.ask('H-04')).status).toBe('belum_ada');
+    expect((await build(SCOPE, { payrollGate: async () => null }).ask('H-05')).status).toBe('belum_ada');
+  });
+
+  it('gates on the HOME depot basis the amounts use, asked of hr-service per month, not on the P&L gate', async () => {
+    const b = build();
+    await b.ask('H-03');
+    expect(b.sources.payrollGate).toHaveBeenCalledWith([D1, D2], '2026-11');
+    // H2's gate (hrSummaryMany, the live-depot basis of the P&L amounts) is not consulted by the HR metrics
+    expect(b.depots.hrSummaryMany).not.toHaveBeenCalled();
   });
 
   it('holds the answer when it rests on 1 or 2 slips, and is belum_ada when no slip exists', async () => {

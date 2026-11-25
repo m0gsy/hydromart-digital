@@ -54,8 +54,18 @@ describeRace('franchise application stage history on real Postgres (HD-6 H5)', (
       byStage: { PENDING: 1, DOC_VERIFICATION: 0, SURVEY: 1, APPROVED: 0, REJECTED: 1 },
     });
 
-    // purge the rejection (cutoff in the future so it is old enough)
-    expect(await repo.purgeRejectedBefore(new Date(Date.now() + 60_000))).toBe(1);
+    // its "application submitted" event is not delivered yet: the purge leaves the application alone
+    const later = new Date(Date.now() + 60_000);
+    expect(await repo.purgeRejectedBefore(later)).toBe(0);
+    expect(await prisma.franchiseApplication.count({ where: { id: b.id } })).toBe(1);
+    // delivered: now it goes, and its outbox row (application id, city) goes with it
+    await prisma.webhookEventOutbox.updateMany({ data: { status: 'DONE' } });
+    const key = `franchise.application_submitted:${b.id}`;
+    expect(await prisma.webhookEventOutbox.count({ where: { eventId: key } })).toBe(1);
+    expect(await repo.purgeRejectedBefore(later)).toBe(1);
+    expect(await prisma.webhookEventOutbox.count({ where: { eventId: key } })).toBe(0);
+    // the other applications' rows are untouched
+    expect(await prisma.webhookEventOutbox.count()).toBe(2);
     expect(await prisma.franchiseApplication.count({ where: { id: b.id } })).toBe(0);
     // its history no longer points at it, nor at anything else: the link is gone, the counts stay
     expect(await prisma.franchiseApplicationStageEvent.count({ where: { applicationId: b.id } })).toBe(0);

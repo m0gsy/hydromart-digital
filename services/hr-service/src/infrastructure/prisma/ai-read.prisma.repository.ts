@@ -2,9 +2,13 @@ import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
 import {
+  ATTENDANCE_CELLS,
   AiReadRepository,
+  AttendanceCell,
   AttendanceDepotRow,
+  AttendanceHeads,
   KasbonDepotRow,
+  PayrollGateRow,
   MAX_AI_READ_GROUPS,
   PayrollDepotRow,
 } from '../../application/ports/ai-read.repository';
@@ -26,7 +30,7 @@ export class AiReadPrismaRepository implements AiReadRepository {
     depotIds: readonly string[],
     from: string,
     to: string,
-  ): Promise<{ rows: AttendanceDepotRow[]; rolledUp: boolean }> {
+  ): Promise<{ rows: AttendanceDepotRow[]; heads: AttendanceHeads; rolledUp: boolean }> {
     const ids = [...depotIds];
     // `workDate` is a @db.Date: the calendar day itself, so the day strings go in as dates.
     const [groups, rollups] = await Promise.all([
@@ -46,30 +50,65 @@ export class AiReadPrismaRepository implements AiReadRepository {
       }),
     ]);
     if (groups.length > MAX_AI_READ_GROUPS) throw new UnprocessableEntityException(TOO_MANY);
-    const blank = (depotId: string): AttendanceDepotRow => ({
-      depotId,
-      present: 0,
-      late: 0,
-      absentRecorded: 0,
-      leave: 0,
-      pending: 0,
-      people: { present: 0, late: 0, absentRecorded: 0, leave: 0, pending: 0 },
-    });
-    const rows = new Map(ids.map((d) => [d, blank(d)]));
-    const seen = new Map<string, Set<string>>();
+    const rows = new Map<string, AttendanceDepotRow>(
+      ids.map((depotId) => [depotId, { depotId, present: 0, late: 0, absentRecorded: 0, leave: 0, pending: 0 }]),
+    );
+    const heads: Record<AttendanceCell, Set<string>> = {
+      present: new Set(),
+      late: new Set(),
+      absentRecorded: new Set(),
+      leave: new Set(),
+      pending: new Set(),
+    };
     const field = { PRESENT: 'present', LATE: 'late', ABSENT: 'absentRecorded', LEAVE: 'leave', PENDING: 'pending' } as const;
     for (const g of groups) {
       const row = g.depotId ? rows.get(g.depotId) : undefined;
       const cell = field[g.status as keyof typeof field];
       if (!row || !cell) continue;
       row[cell] += g._count._all;
-      const key = `${row.depotId}|${cell}`;
-      const heads = seen.get(key) ?? new Set<string>();
-      heads.add(g.employeeId);
-      seen.set(key, heads);
-      row.people[cell] = heads.size;
+      heads[cell].add(g.employeeId);
     }
-    return { rows: ids.map((d) => rows.get(d)!), rolledUp: rollups > 0 };
+    return {
+      rows: ids.map((d) => rows.get(d)!),
+      heads: Object.fromEntries(ATTENDANCE_CELLS.map((c) => [c, [...heads[c]]])) as AttendanceHeads,
+      rolledUp: rollups > 0,
+    };
+  }
+
+  async payrollGate(depotIds: readonly string[], month: string): Promise<PayrollGateRow[]> {
+    const ids = [...depotIds];
+    const [y, m] = month.split('-').map(Number);
+    const monthStart = new Date(Date.UTC(y, m - 1, 1));
+    const monthEnd = new Date(Date.UTC(y, m, 0));
+    const list = Prisma.join(ids.map((id) => Prisma.sql`${id}::uuid`));
+    const [expected, slips] = await Promise.all([
+      this.prisma.$queryRaw<{ depotId: string; n: bigint }[]>`
+        SELECT COALESCE(e."homeDepotId", e."depotId") AS "depotId", COUNT(*) AS "n"
+        FROM "employees" e
+        WHERE COALESCE(e."homeDepotId", e."depotId") IN (${list})
+          AND e."joinDate" <= ${monthEnd}
+          AND (e."status" = 'ACTIVE' OR e."exitDate" >= ${monthStart})
+        GROUP BY COALESCE(e."homeDepotId", e."depotId")
+      `,
+      this.prisma.$queryRaw<{ depotId: string; draft: bigint; final: bigint }[]>`
+        SELECT COALESCE(e."homeDepotId", e."depotId") AS "depotId",
+               COUNT(*) FILTER (WHERE p."status" = 'DRAFT') AS "draft",
+               COUNT(DISTINCT p."employeeId") FILTER (WHERE p."status" IN ('APPROVED', 'PAID')) AS "final"
+        FROM "payrolls" p
+        JOIN "employees" e ON e."id" = p."employeeId"
+        WHERE p."periodMonth" = ${month}
+          AND COALESCE(e."homeDepotId", e."depotId") IN (${list})
+        GROUP BY COALESCE(e."homeDepotId", e."depotId")
+      `,
+    ]);
+    const exp = new Map(expected.map((r) => [r.depotId, Number(r.n)]));
+    const sl = new Map(slips.map((r) => [r.depotId, r]));
+    return ids.map((depotId) => ({
+      depotId,
+      expected: exp.get(depotId) ?? 0,
+      draft: Number(sl.get(depotId)?.draft ?? 0),
+      final: Number(sl.get(depotId)?.final ?? 0),
+    }));
   }
 
   async payroll(depotIds: readonly string[], month: string): Promise<PayrollDepotRow[]> {

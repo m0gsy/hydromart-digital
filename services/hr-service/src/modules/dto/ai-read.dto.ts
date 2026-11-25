@@ -47,6 +47,8 @@ export class AiMonthQueryDto extends DepotsQueryDto {
 export class AiAttendanceResponseDto {
   @ApiProperty({ type: 'array', items: { type: 'object' } })
   rows!: Record<string, unknown>[];
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'array', items: { type: 'string' } }, description: 'Opaque employee ids behind each count, over the whole window and call.' })
+  heads!: Record<string, string[]>;
   @ApiProperty()
   rolledUp!: boolean;
 }

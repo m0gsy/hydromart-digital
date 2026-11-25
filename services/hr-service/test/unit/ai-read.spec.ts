@@ -40,16 +40,29 @@ describe('AiReadPrismaRepository.attendance (HD-6 H5)', () => {
     expect(out).toEqual({
       rolledUp: false,
       rows: [
-        // e1 and e2 were present, e1 late: distinct people are counted per status, not per depot
-        { depotId: D1, present: 18, late: 2, absentRecorded: 1, leave: 3, pending: 1, people: { present: 2, late: 1, absentRecorded: 1, leave: 1, pending: 1 } },
-        { depotId: D2, present: 0, late: 0, absentRecorded: 0, leave: 0, pending: 0, people: { present: 0, late: 0, absentRecorded: 0, leave: 0, pending: 0 } },
+        { depotId: D1, present: 18, late: 2, absentRecorded: 1, leave: 3, pending: 1 },
+        { depotId: D2, present: 0, late: 0, absentRecorded: 0, leave: 0, pending: 0 },
       ],
+      // distinct employees per count over the WHOLE call: e1 is present and late, e2 present, e3 leave and pending;
+      // a person is one id even with records at two depots, and a depot-less or unasked row names nobody
+      heads: { present: ['e1', 'e2'], late: ['e1'], absentRecorded: ['e2'], leave: ['e3'], pending: ['e3'] },
     });
     const where = prisma.attendance.groupBy.mock.calls[0][0].where;
     expect(where.workDate).toEqual({ gte: new Date('2026-11-01T00:00:00Z'), lte: new Date('2026-11-30T00:00:00Z') });
     expect(prisma.attendanceMonthRollup.count).toHaveBeenCalledWith({
       where: { depotId: { in: [D1, D2] }, month: { gte: '2026-11', lte: '2026-11' } },
     });
+  });
+
+  it('counts one employee once across two depots', async () => {
+    const { prisma, repo } = setup();
+    prisma.attendance.groupBy.mockResolvedValue([
+      { depotId: D1, employeeId: 'e1', status: 'LEAVE', _count: { _all: 2 } },
+      { depotId: D2, employeeId: 'e1', status: 'LEAVE', _count: { _all: 3 } },
+    ]);
+    const out = await repo.attendance([D1, D2], '2026-11-01', '2026-11-30');
+    expect(out.heads.leave).toEqual(['e1']);
+    expect(out.rows.map((r) => r.leave)).toEqual([2, 3]);
   });
 
   it('says the window is incomplete when leavers days were folded into monthly counts', async () => {
@@ -63,6 +76,22 @@ describe('AiReadPrismaRepository.attendance (HD-6 H5)', () => {
     const { prisma, repo } = setup();
     prisma.attendance.groupBy.mockResolvedValue(new Array(MAX_AI_READ_GROUPS + 1).fill({ depotId: D1, employeeId: 'e', status: 'PRESENT', _count: { _all: 1 } }));
     await expect(repo.attendance([D1], '2026-11-01', '2026-11-30')).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+});
+
+describe('AiReadPrismaRepository.payrollGate (HD-6 H5)', () => {
+  it('reads who the month waits for and what is finished by the HOME depot, one row per depot', async () => {
+    const { prisma, repo } = setup();
+    prisma.$queryRaw.mockImplementation(async (strings: TemplateStringsArray) =>
+      strings.join('?').includes('"n"') ? [{ depotId: D1, n: 4n }] : [{ depotId: D1, draft: 1n, final: 3n }],
+    );
+    expect(await repo.payrollGate([D1, D2], '2026-11')).toEqual([
+      { depotId: D1, expected: 4, draft: 1, final: 3 },
+      { depotId: D2, expected: 0, draft: 0, final: 0 },
+    ]);
+    for (const call of prisma.$queryRaw.mock.calls) {
+      expect((call[0] as TemplateStringsArray).join('?')).toContain('COALESCE(e."homeDepotId", e."depotId")');
+    }
   });
 });
 
@@ -163,14 +192,17 @@ describe('AiReadInternalController and its DTOs (HD-6 H5)', () => {
     const repo = {
       attendance: jest.fn().mockResolvedValue({ rows: [], rolledUp: false }),
       payroll: jest.fn().mockResolvedValue([]),
+      payrollGate: jest.fn().mockResolvedValue([]),
       kasbon: jest.fn().mockResolvedValue([]),
     };
     const c = new AiReadInternalController(repo as never);
     await c.attendance({ depotIds: [D1], from: '2026-11-01', to: '2026-11-30' });
     await c.payroll({ depotIds: [D1], month: '2026-11' });
+    await c.payrollGate({ depotIds: [D1], month: '2026-11' });
     await c.kasbon({ depotIds: [D1], month: '2026-11' });
     expect(repo.attendance).toHaveBeenCalledWith([D1], '2026-11-01', '2026-11-30');
     expect(repo.payroll).toHaveBeenCalledWith([D1], '2026-11');
+    expect(repo.payrollGate).toHaveBeenCalledWith([D1], '2026-11');
     expect(repo.kasbon).toHaveBeenCalledWith([D1], '2026-11');
   });
 

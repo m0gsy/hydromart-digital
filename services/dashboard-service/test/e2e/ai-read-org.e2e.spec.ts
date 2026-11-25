@@ -94,7 +94,15 @@ describe('GET ai/read/franchise and ai/read/hr (HD-6 H5)', () => {
           return json(ids.map((depotId) => ({ depotId, activeHeadcount: 4, payrollCount: 4, payrollDraftCount: 0, payrollFinalCount: 4, payrollExpectedCount: 4 })));
         }
         if (url.pathname.endsWith('/ai/attendance')) {
-          return json({ rolledUp: false, rows: ids.map((depotId) => ({ depotId, present: 10, late: 1, absentRecorded: 0, leave: 0, pending: 0, people: { present: 4, late: 4, absentRecorded: 0, leave: 0, pending: 0 } })) });
+          const four = ['e1', 'e2', 'e3', 'e4'];
+          return json({
+            rolledUp: false,
+            rows: ids.map((depotId) => ({ depotId, present: 10, late: 1, absentRecorded: 0, leave: 0, pending: 0 })),
+            heads: { present: four, late: four, absentRecorded: [], leave: [], pending: [] },
+          });
+        }
+        if (url.pathname.endsWith('/ai/payroll-gate')) {
+          return json(ids.map((depotId) => ({ depotId, expected: 4, draft: 0, final: 4 })));
         }
         if (url.pathname.endsWith('/ai/payroll')) {
           return json(ids.map((depotId) => ({ depotId, slips: 4, grossIdr: 1_000, bonusIdr: 100, deductionIdr: 10, netIdr: 1_090, gallonBonusIdr: 50, gallonPeople: 3 })));
@@ -194,6 +202,8 @@ describe('GET ai/read/franchise and ai/read/hr (HD-6 H5)', () => {
       [`${D1}@2026-11-16..2026-11-30`, `${D2}@2026-11-01..2026-11-30`].sort(),
     );
     expect(h2.body.value).toMatchObject({ present: 20, late: 2 });
+    // the same two stretches of people count as one set of four, not eight
+    expect(h2.body.value.flags).toBeUndefined();
   });
 
   it('answers H-06 and H-07 belum_ada', async () => {

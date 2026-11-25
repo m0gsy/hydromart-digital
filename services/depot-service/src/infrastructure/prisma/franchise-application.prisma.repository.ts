@@ -7,6 +7,7 @@ import {
   Checklist,
   FranchiseAppStage,
   franchiseApplicationSubmitted,
+  franchiseApplicationSubmittedEventId,
 } from '../../domain/franchise-application';
 import {
   ApplicationSummary,
@@ -135,18 +136,34 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
   async purgeRejectedBefore(cutoff: Date): Promise<number> {
     // The stage history outlives the application (it keeps the counts), but it must not keep a link
     // to the person: in the same transaction its rows are re-keyed to a fresh random id per
-    // application, so counts and the "one application" grouping still work and the link is gone.
+    // application, so counts and the "one application" grouping still work and the link is gone. The
+    // delivered "application submitted" event row (its payload names the application and its city) goes
+    // with it. An application whose event has NOT been delivered yet is left alone this time: the
+    // delivery sweep marks it DONE and the next purge takes it, so no event is ever lost to a purge.
     return this.prisma.$transaction(async (tx) => {
-      const doomed = await tx.franchiseApplication.findMany({
+      const old = await tx.franchiseApplication.findMany({
         where: { stage: FranchiseAppStage.REJECTED, updatedAt: { lt: cutoff } },
         select: { id: true },
       });
+      const keyOf = (id: string): string => franchiseApplicationSubmittedEventId(id);
+      const undelivered = new Set(
+        (
+          await tx.webhookEventOutbox.findMany({
+            where: { eventId: { in: old.map((o) => keyOf(o.id)) }, status: { not: 'DONE' } },
+            select: { eventId: true },
+          })
+        ).map((e) => e.eventId),
+      );
+      const doomed = old.filter((o) => !undelivered.has(keyOf(o.id)));
       for (const { id } of doomed) {
         await tx.franchiseApplicationStageEvent.updateMany({
           where: { applicationId: id },
           data: { applicationId: randomUUID() },
         });
       }
+      await tx.webhookEventOutbox.deleteMany({
+        where: { eventId: { in: doomed.map((d) => keyOf(d.id)) }, status: 'DONE' },
+      });
       const { count } = await tx.franchiseApplication.deleteMany({ where: { id: { in: doomed.map((d) => d.id) } } });
       return count;
     });

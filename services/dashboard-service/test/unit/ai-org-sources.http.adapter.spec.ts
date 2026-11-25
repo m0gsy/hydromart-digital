@@ -99,19 +99,30 @@ describe('AiOrgSourcesHttpAdapter (HD-6 H5)', () => {
   });
 
   it('reads hr-service attendance, payroll and kasbon, one row per depot, and nothing from an unwired service', async () => {
-    const att = { depotId: D1, present: 1, late: 0, absentRecorded: 0, leave: 0, pending: 0, people: { present: 1, late: 0, absentRecorded: 0, leave: 0, pending: 0 } };
-    const calls = answer({ rows: [att], rolledUp: false });
-    await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toEqual({ rows: [att], rolledUp: false });
+    const att = { depotId: D1, present: 1, late: 0, absentRecorded: 0, leave: 0, pending: 0 };
+    const heads = { present: ['e1'], late: [], absentRecorded: [], leave: [], pending: [] };
+    const calls = answer({ rows: [att], heads, rolledUp: false });
+    await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toEqual({ rows: [att], heads, rolledUp: false });
     expect(calls[0].url.pathname).toBe('/api/v1/hr-reports/internal/ai/attendance');
     expect(calls[0].url.searchParams.get('to')).toBe('2026-11-30');
-    answer({ rows: [att] });
-    await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
-    answer({ rows: [{ ...att, people: 1 }], rolledUp: false });
-    await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
-    answer({ rows: [{ ...att, people: { present: 1 } }], rolledUp: false });
-    await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
-    answer({ rows: [{ ...att, people: null }], rolledUp: false });
-    await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
+    for (const body of [
+      { rows: [att], heads }, // no rolledUp
+      { rows: [att], rolledUp: false }, // no heads
+      { rows: [att], heads: { ...heads, late: 'x' }, rolledUp: false }, // heads not lists
+      { rows: [att], heads: { ...heads, late: [1] }, rolledUp: false }, // ids not strings
+      { rows: [{ ...att, present: undefined }], heads, rolledUp: false },
+    ]) {
+      answer(body);
+      await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
+    }
+
+    const gateRow = { depotId: D1, expected: 4, draft: 0, final: 4 };
+    const gates = answer([gateRow]);
+    await expect(adapter().payrollGate([D1], '2026-11')).resolves.toEqual([gateRow]);
+    expect(gates[0].url.pathname).toBe('/api/v1/hr-reports/internal/ai/payroll-gate');
+    answer([{ depotId: D1, expected: 4 }]);
+    await expect(adapter().payrollGate([D1], '2026-11')).resolves.toBeNull();
+    await expect(adapter(false).payrollGate([D1], '2026-11')).resolves.toBeNull();
 
     const slip = { depotId: D1, slips: 1, grossIdr: 1, bonusIdr: 1, deductionIdr: 1, netIdr: 1, gallonBonusIdr: 1, gallonPeople: 1 };
     const pay = answer([slip]);
