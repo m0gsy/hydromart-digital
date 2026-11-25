@@ -203,14 +203,22 @@ export class ShiftAlreadyOpenError extends DomainError {
 export class NotAtDepotError extends DomainError {
   readonly code = 'SHIFT_NOT_AT_DEPOT';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
-  constructor(distanceMeters: number, radiusMeters: number) {
+  constructor(distanceMeters: number, radiusMeters: number, approximate = false) {
     super(
-      // Indonesian like the HR punch's own fence message; this reaches a courier verbatim.
-      // 2026-11-21: a courier at the depot read 1409 m with GPS on — Android's "Perkiraan"
-      // (approximate) location permission. "Turn on GPS" sent them to fix what was already on.
-      `Kamu ${Math.round(distanceMeters)} m dari depot. Check-in harus dalam ${radiusMeters} m. ` +
-        'Kalau sudah di sana, lokasi HP belum akurat: di izin lokasi aplikasi pilih "Tepat" (bukan "Perkiraan"), ' +
-        'nyalakan GPS, tunggu sebentar, lalu coba lagi.',
+      approximate
+        ? // 2026-11-25: Muhammad Rouf stood inside Depot Jatibening and read "1391 m" — his phone
+          // held only "Perkiraan", whose fix sits on Android's 2 km grid, so the distance meant
+          // nothing and "kalau sudah di sana" left him guessing. On the grid it is certain: say so,
+          // and name the switch, in the words of the HR punch's own refusal.
+          'Lokasi HP kamu masih "Perkiraan" (bisa meleset beberapa kilometer), jadi tidak bisa ' +
+            'membuktikan kamu di depot. Buka Setelan HP → Aplikasi → Hydromart Ops → Izin → Lokasi, ' +
+            'nyalakan "Gunakan lokasi akurat", lalu coba lagi.'
+        : // Indonesian like the HR punch's own fence message; this reaches a courier verbatim.
+          // 2026-11-21: a courier at the depot read 1409 m with GPS on — Android's "Perkiraan"
+          // (approximate) location permission. "Turn on GPS" sent them to fix what was already on.
+          `Kamu ${Math.round(distanceMeters)} m dari depot. Check-in harus dalam ${radiusMeters} m. ` +
+            'Kalau sudah di sana, lokasi HP belum akurat: di izin lokasi aplikasi pilih "Tepat" (bukan "Perkiraan"), ' +
+            'nyalakan GPS, tunggu sebentar, lalu coba lagi.',
     );
   }
 }
