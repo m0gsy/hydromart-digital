@@ -99,10 +99,14 @@ function CheckIn() {
         : t('driver.checkIn.error');
 
   /** The shift start both flows make. Depot wifi is not a given at 6am: queued, not lost. */
-  const startShift = async ({ lat, lng }: { lat: number; lng: number }) => {
-    // The point only: the accuracy is for the HR punch, and delivery-service refuses a field its
-    // DTO does not declare.
-    const { outcome } = await runOrQueue({ kind: 'shiftCheckIn', payload: { depotId: depotId!, lat, lng } });
+  const startShift = async ({ lat, lng, accuracyM }: { lat: number; lng: number; accuracyM?: number }) => {
+    // With the phone's own accuracy, as the HR punch sends it: delivery-service names a refused
+    // "Perkiraan" fix by it, including Android 16's pattern off the 2 km grid (2026-11-25). Its
+    // DTO declares the field since #1087; an undefined one never reaches the wire.
+    const { outcome } = await runOrQueue({
+      kind: 'shiftCheckIn',
+      payload: { depotId: depotId!, lat, lng, accuracyM },
+    });
     // The Ops binary's equivalent of the customer's first order: the one moment where "let me
     // know when a delivery lands" explains itself. Asking at first launch collects a denial
     // from someone with no reason yet to want one, and Android makes that close to permanent.
@@ -112,8 +116,10 @@ function CheckIn() {
   };
   const here = async () => {
     const { latitude: lat, longitude: lng, accuracy } = (await currentPosition({ precise: true })).coords;
-    // Sent with the HR punch, as on /hr/me/check-in: the server tells a "Perkiraan" fix by it.
-    return { lat, lng, accuracyM: Number.isFinite(accuracy) ? Math.round(accuracy) : undefined };
+    // Sent with the shift and the HR punch: each server tells a "Perkiraan" fix by it. Only a real
+    // one — both DTOs refuse a negative accuracy, and a refusal is final in the offline queue.
+    const usable = Number.isFinite(accuracy) && accuracy >= 0;
+    return { lat, lng, accuracyM: usable ? Math.round(accuracy) : undefined };
   };
 
   const capture = async (image: string, live: boolean) => {

@@ -71,6 +71,9 @@ export interface ShiftCheckInPayload {
   depotId: string;
   lat: number;
   lng: number;
+  /** The fix's accuracy radius in whole metres, when the device gave one. delivery-service names a
+   *  refused "Perkiraan" fix by it (2026-11-25); a server older than that refuses the field (400). */
+  accuracyM?: number;
 }
 
 export interface PodPayload {

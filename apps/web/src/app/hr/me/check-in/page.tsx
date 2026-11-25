@@ -43,7 +43,8 @@ function getPosition(messages: {
     ({ coords: { latitude: lat, longitude: lng, accuracy } }) => ({
       lat,
       lng,
-      accuracyM: Number.isFinite(accuracy) ? Math.round(accuracy) : undefined,
+      // Only a real one: the DTO refuses a negative accuracy, and a refusal is final in the queue.
+      accuracyM: Number.isFinite(accuracy) && accuracy >= 0 ? Math.round(accuracy) : undefined,
     }),
     (err: unknown) => {
       const reason = geoReason(err);

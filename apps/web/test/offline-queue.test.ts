@@ -109,6 +109,28 @@ describe('offline queue', () => {
     expect(pending()).toHaveLength(0);
   });
 
+  // 2026-11-25: delivery-service names a refused "Perkiraan" shift check-in by the same accuracy,
+  // so a check-in that waited on the phone keeps it too, beside its capture time.
+  it("keeps a queued shift check-in's accuracy all the way to delivery-service", async () => {
+    const { runOrQueue, flush, pending } = await freshQueue();
+    const { endpoints } = await import('../src/lib/endpoints');
+    post.mockRejectedValueOnce(new ApiError(0, 'offline'));
+    await runOrQueue({
+      kind: 'shiftCheckIn',
+      payload: { depotId: 'depot-1', lat: -6.2, lng: 106.8, accuracyM: 2000 },
+    });
+    expect(pending()).toHaveLength(1);
+
+    post.mockResolvedValue({ id: 's1' });
+    await flush();
+
+    expect(post).toHaveBeenCalledTimes(2);
+    expect(post.mock.calls[1]![0]).toBe(endpoints.deliveries.shifts.checkIn);
+    expect(post.mock.calls[1]![1]).toMatchObject({ depotId: 'depot-1', lat: -6.2, lng: 106.8, accuracyM: 2000 });
+    expect(typeof post.mock.calls[1]![1].capturedAt).toBe('string');
+    expect(pending()).toHaveLength(0);
+  });
+
   it('queues the job when the device is offline', async () => {
     const { runOrQueue, pending } = await freshQueue();
     post.mockRejectedValue(new ApiError(0, 'Cannot reach the server.'));
