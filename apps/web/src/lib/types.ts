@@ -1314,6 +1314,9 @@ export interface OperationalMonthlyPnl {
   courierCommissionIdr: number | null;
   expenseClaimIdr: number | null;
   refundIdr: number | null;
+  /** HD-16: imported fixed costs; null = none entered (belum diisi), and the profit is then without them. */
+  fixedCostIdr?: number | null;
+  fixedCostStatus?: 'entered' | 'not_entered' | 'unavailable' | 'hidden' | 'partial';
   /** Laba bersih — the one formula (netProfit, @hydromart/platform) the network P&L also uses. */
   netProfitIdr: number | null;
   netMarginPct: number | null;
@@ -1448,6 +1451,9 @@ export interface NetworkPnlDepotRow {
   courierCommissionIdr: number | null;
   expenseClaimIdr: number | null;
   refundIdr: number | null;
+  /** HD-16: imported fixed costs; null = none entered (belum diisi), and the profit is then without them. */
+  fixedCostIdr?: number | null;
+  fixedCostStatus?: 'entered' | 'not_entered' | 'unavailable' | 'hidden' | 'partial';
   netProfitIdr: number | null;
 }
 

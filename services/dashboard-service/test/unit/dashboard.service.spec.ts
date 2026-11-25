@@ -22,6 +22,9 @@ const pnlSources = (
     hrDown?: boolean;
     payoutDown?: boolean;
     refundsDown?: boolean;
+    /** HD-16: imported fixed costs for DEPOT_ID; undefined = none entered. */
+    fixedCostIdr?: number;
+    fixedDown?: boolean;
     /** payout/refunds answered, but listed nothing for this depot. */
     nothingListed?: boolean;
   } = {},
@@ -62,6 +65,13 @@ const pnlSources = (
         options.refundsDown
           ? null
           : new Map(options.nothingListed ? [] : [[DEPOT_ID, 50_000]]),
+      ),
+    fixedCosts: jest
+      .fn()
+      .mockResolvedValue(
+        options.fixedDown
+          ? null
+          : new Map(options.fixedCostIdr === undefined ? [] : [[DEPOT_ID, options.fixedCostIdr]]),
       ),
     depotMonthly: jest
       .fn()
@@ -164,6 +174,68 @@ describe('DashboardService', () => {
     expect(network.payVisible).toBe(false);
     expect(network.depots[0]).toMatchObject({ payrollIdr: null, netProfitIdr: null, revenueIdr: 1_000_000 });
     expect(network.totals).toMatchObject({ payrollIdr: null, netProfitIdr: null });
+  });
+
+  describe('imported fixed costs (HD-16)', () => {
+    it('are their own line and come off the profit when entered', async () => {
+      const sources = pnlSources({ fixedCostIdr: 120_000 });
+      const service = new DashboardService(sources, dashboardTestConfig(), noNames);
+      const depot = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
+      const network = await service.networkPnl('2026-07', 'Bearer t', undefined, true);
+      expect(depot).toMatchObject({ fixedCostIdr: 120_000, fixedCostStatus: 'entered', netProfitIdr: 180_000 });
+      expect(depot.sources.fixedCosts).toBe('ok');
+      expect(network.depots[0]).toMatchObject({ fixedCostIdr: 120_000, fixedCostStatus: 'entered', netProfitIdr: 180_000 });
+      expect(network.totals).toMatchObject({ fixedCostIdr: 120_000, fixedCostStatus: 'entered', netProfitIdr: 180_000 });
+      // ONE batched read per P&L, never one per depot.
+      expect(sources.fixedCosts).toHaveBeenCalledTimes(2);
+      expect(sources.fixedCosts).toHaveBeenCalledWith([DEPOT_ID], '2026-07');
+    });
+
+    it('say "belum diisi" when none were entered: null, the profit without them, never a silent 0', async () => {
+      const service = new DashboardService(pnlSources(), dashboardTestConfig(), noNames);
+      const depot = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
+      const network = await service.networkPnl('2026-07', 'Bearer t', undefined, true);
+      expect(depot).toMatchObject({ fixedCostIdr: null, fixedCostStatus: 'not_entered', netProfitIdr: 300_000 });
+      expect(network.totals).toMatchObject({ fixedCostIdr: null, fixedCostStatus: 'not_entered', netProfitIdr: 300_000 });
+    });
+
+    it('keep an entered 0 apart from nothing entered', async () => {
+      const service = new DashboardService(pnlSources({ fixedCostIdr: 0 }), dashboardTestConfig(), noNames);
+      const depot = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
+      expect(depot).toMatchObject({ fixedCostIdr: 0, fixedCostStatus: 'entered', netProfitIdr: 300_000 });
+    });
+
+    it('make the profit unknown when depot-service cannot be read', async () => {
+      const service = new DashboardService(pnlSources({ fixedDown: true }), dashboardTestConfig(), noNames);
+      const depot = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', true);
+      const network = await service.networkPnl('2026-07', 'Bearer t', undefined, true);
+      expect(depot).toMatchObject({ fixedCostIdr: null, fixedCostStatus: 'unavailable', netProfitIdr: null });
+      expect(depot.sources.fixedCosts).toBe('unavailable');
+      expect(network.sources.fixedCosts).toBe('unavailable');
+      expect(network.totals).toMatchObject({ fixedCostIdr: null, fixedCostStatus: 'unavailable', netProfitIdr: null });
+    });
+
+    it('are neither read nor shown without payrollRead (employer BPJS is in them)', async () => {
+      const sources = pnlSources({ fixedCostIdr: 120_000 });
+      const service = new DashboardService(sources, dashboardTestConfig(), noNames);
+      const depot = await service.monthlyPnl(DEPOT_ID, '2026-07', 'Bearer t', false);
+      const network = await service.networkPnl('2026-07', 'Bearer t', undefined, false);
+      expect(sources.fixedCosts).not.toHaveBeenCalled();
+      expect(depot).toMatchObject({ fixedCostIdr: null, fixedCostStatus: 'hidden' });
+      expect(network.totals).toMatchObject({ fixedCostIdr: null, fixedCostStatus: 'hidden' });
+    });
+
+    it('a network total says partial when only some depots have rows', async () => {
+      const sources = pnlSources({ fixedCostIdr: 50_000 });
+      (sources.allDepots as jest.Mock).mockResolvedValue([
+        { id: DEPOT_ID, code: 'BKS-01', name: 'Bekasi', active: true },
+        { id: 'depot-2', code: 'BDG-01', name: 'Bandung', active: true },
+      ]);
+      const service = new DashboardService(sources, dashboardTestConfig(), noNames);
+      const network = await service.networkPnl('2026-07', 'Bearer t', undefined, true);
+      expect(network.depots.map((d) => d.fixedCostStatus)).toEqual(['entered', 'not_entered']);
+      expect(network.totals).toMatchObject({ fixedCostIdr: 50_000, fixedCostStatus: 'partial' });
+    });
   });
 
   it('agrees with the network P&L row for the same depot and month', async () => {
@@ -1043,10 +1115,10 @@ describe('networkPnl (CA-2-59)', () => {
     expect(out.month).toBe('2026-07');
   });
 
-  it('says in the report itself that rent and electricity are not in it', async () => {
+  it('says in the report itself that fixed costs are only in it when imported', async () => {
     const { svc } = build();
     const out = await svc.networkPnl('2026-07', 'Bearer t', undefined, true);
-    expect(out.disclaimer).toMatch(/[Ss]ewa dan listrik tidak termasuk/);
+    expect(out.disclaimer).toMatch(/belum diisi/);
     expect(out.reportType).toBe('OPERATIONAL_MANAGEMENT');
   });
 });

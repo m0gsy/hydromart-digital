@@ -96,6 +96,8 @@ export const mgrFix = {
     courierCommission: 'Komisi kurir',
     expenseClaims: 'Klaim biaya',
     refunds: 'Pengembalian dana',
+    fixedCosts: 'Biaya tetap (sewa, listrik, dll.)',
+    fixedNotEntered: 'Biaya tetap bulan ini belum diisi kantor pusat, jadi laba bersih di atas belum memuatnya.',
     sources: 'Sumber data',
     orderSource: 'Pendapatan order-service',
     costSource: 'HPP depot-service',

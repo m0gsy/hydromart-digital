@@ -1150,6 +1150,8 @@ export const hq = {
     colCommission: 'Komisi kurir',
     colClaims: 'Klaim biaya',
     colRefunds: 'Pengembalian',
+    colFixed: 'Biaya tetap',
+    fixedNote: 'Biaya tetap diimpor kantor pusat per depot dan bulan. Depot tanpa impor ditampilkan "—" (belum diisi) dan labanya belum memuat biaya tetap; total biaya tetap hanya dari depot yang sudah diisi.',
     colNet: 'Laba bersih',
     total: 'Jaringan',
     inactive: '(nonaktif)',
@@ -1162,6 +1164,7 @@ export const hq = {
       payroll: 'gaji',
       payout: 'komisi & klaim',
       refunds: 'pengembalian dana',
+      fixedCosts: 'biaya tetap',
     },
   },
   compare: {

@@ -1145,6 +1145,8 @@ export const hq = {
     colCommission: 'Courier commission',
     colClaims: 'Expense claims',
     colRefunds: 'Refunds',
+    colFixed: 'Fixed costs',
+    fixedNote: 'Fixed costs are imported by head office per depot and month. A depot without an import shows "—" (not entered) and its profit does not include fixed costs; the fixed-cost total counts only depots that were entered.',
     colNet: 'Net profit',
     total: 'Network',
     inactive: '(inactive)',
@@ -1157,6 +1159,7 @@ export const hq = {
       payroll: 'wages',
       payout: 'commission & claims',
       refunds: 'refunds',
+      fixedCosts: 'fixed costs',
     },
   },
   compare: {

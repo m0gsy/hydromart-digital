@@ -68,6 +68,11 @@ export class DepotFixedCostService {
     };
   }
 
+  /** PR-A2 (service-to-service): the P&L's fixed-cost line. A depot with no rows that month is simply absent. */
+  totalsForDepots(month: string, depotIds: string[]): Promise<{ depotId: string; totalIdr: number }[]> {
+    return this.costs.totalsForDepots(month, depotIds);
+  }
+
   async import(
     rows: readonly ImportDepotFixedCostRowDto[],
     user: AuthenticatedUser,

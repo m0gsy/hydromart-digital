@@ -1,8 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { monthInRange } from '../../application/services/depot-fixed-cost.service';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsNumber,
   IsOptional,
@@ -68,6 +69,29 @@ export class ImportDepotFixedCostRowDto {
   @IsString()
   @MaxLength(300)
   note?: string;
+}
+
+/** Service-to-service: the P&L reads many depots' fixed-cost totals for one month in one call. */
+export class DepotFixedCostTotalsQueryDto {
+  @ApiProperty({ description: 'Comma-separated depot ids (1 to 100).' })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.split(',').map((v) => v.trim()).filter((v) => v.length > 0) : value,
+  )
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  depotIds!: string[];
+
+  @ApiProperty({ example: '2026-11' })
+  @Matches(MONTH_PATTERN, { message: 'month must be in YYYY-MM format' })
+  month!: string;
+}
+
+export class DepotFixedCostTotalResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  depotId!: string;
+  @ApiProperty({ description: 'Sum of every category entered for the month, whole rupiah.' })
+  totalIdr!: number;
 }
 
 export class ImportDepotFixedCostsDto {

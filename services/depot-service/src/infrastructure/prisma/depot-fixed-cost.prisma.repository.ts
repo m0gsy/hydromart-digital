@@ -44,6 +44,15 @@ export class DepotFixedCostPrismaRepository implements DepotFixedCostRepository 
     return rows.map(toRecord);
   }
 
+  async totalsForDepots(month: string, depotIds: string[]): Promise<{ depotId: string; totalIdr: number }[]> {
+    const sums = await this.prisma.depotFixedCost.groupBy({
+      by: ['depotId'],
+      where: { month, depotId: { in: depotIds } },
+      _sum: { amountIdr: true },
+    });
+    return sums.map((s) => ({ depotId: s.depotId, totalIdr: s._sum.amountIdr ?? 0 }));
+  }
+
   async upsert(data: UpsertDepotFixedCostData): Promise<void> {
     const { depotId, month, category, ...values } = data;
     await this.prisma.depotFixedCost.upsert({

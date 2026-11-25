@@ -234,6 +234,11 @@ export interface DashboardSourcesPort {
   ): Promise<Map<string, { commissionIdr: number; expenseClaimIdr: number }> | null>;
   /** CA-2-59: money refunded per depot over a window. `null` = unwired/unreachable. */
   depotRefunds(depotIds: string[], range: Required<DateRange>): Promise<Map<string, number> | null>;
+  /**
+   * HD-16: the fixed costs HQ imported, as the total per depot for a YYYY-MM month, in ONE call.
+   * A depot with none entered is absent from the map; `null` = depot-service unreachable.
+   */
+  fixedCosts(depotIds: string[], month: string): Promise<Map<string, number> | null>;
   /** HR summaries for MANY depots in one call, in the order asked for (audit S-1). */
   hrSummaryMany(depotIds: string[], month?: string): Promise<(HrDepotSummary | null)[]>;
   /** One depot's CRM lifecycle summary; null when customer-service is unwired/down. */

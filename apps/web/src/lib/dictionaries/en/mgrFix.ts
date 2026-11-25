@@ -93,6 +93,8 @@ export const mgrFix = {
     courierCommission: 'Courier commission',
     expenseClaims: 'Expense claims',
     refunds: 'Refunds',
+    fixedCosts: 'Fixed costs (rent, electricity, ...)',
+    fixedNotEntered: 'Head office has not entered this month\'s fixed costs yet, so the net profit above does not include them.',
     sources: 'Data sources',
     orderSource: 'Order-service revenue',
     costSource: 'Depot-service COGS',

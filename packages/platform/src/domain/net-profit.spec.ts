@@ -43,4 +43,15 @@ describe('netProfit', () => {
       }),
     ).toBe(51_000);
   });
+  // HD-16: imported fixed costs are one more term, but "none entered" is not "unknown".
+  it('subtracts the fixed costs when entered, and ignores them when none were', () => {
+    expect(netProfit({ ...month, fixedCostIdr: 200_000 })).toBe(2_000_000);
+    expect(netProfit({ ...month, fixedCostIdr: 0 })).toBe(2_200_000);
+    expect(netProfit({ ...month, fixedCostIdr: null })).toBe(2_200_000);
+    expect(netProfit({ ...month })).toBe(2_200_000);
+  });
+
+  it('is unknown when the fixed cost is not a finite number', () => {
+    expect(netProfit({ ...month, fixedCostIdr: Number.NaN })).toBeNull();
+  });
 });

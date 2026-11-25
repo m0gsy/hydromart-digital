@@ -112,6 +112,13 @@ export interface FranchiseDashboard {
   };
 }
 
+/**
+ * HD-16: 'entered' = HQ imported at least one row, 'not_entered' = none (belum diisi), 'unavailable' = depot-service
+ * could not be read, 'hidden' = the caller lacks payrollRead (employer BPJS is in there), 'partial' = a network total
+ * where only some depots have rows.
+ */
+export type FixedCostStatus = 'entered' | 'not_entered' | 'unavailable' | 'hidden' | 'partial';
+
 export interface MonthlyOperationalPnl {
   /** False when the caller lacks payrollRead: payroll and net profit were not read (2026-11-19). */
   payVisible: boolean;
@@ -131,6 +138,12 @@ export interface MonthlyOperationalPnl {
   expenseClaimIdr: number | null;
   refundIdr: number | null;
   /** Laba bersih: `netProfit` (@hydromart/platform), the one formula every P&L shows. */
+  /**
+   * HD-16: fixed costs HQ imported for this depot and month (rent, electricity, BPJS, ...), already inside
+   * netProfitIdr. null = none entered ("belum diisi"): the profit is then WITHOUT them.
+   */
+  fixedCostIdr: number | null;
+  fixedCostStatus: FixedCostStatus;
   netProfitIdr: number | null;
   /** netProfitIdr as a percentage of revenue, one decimal. */
   netMarginPct: number | null;
@@ -150,6 +163,7 @@ export interface MonthlyOperationalPnl {
     payroll: 'ok' | 'pending' | 'unavailable';
     payout: 'ok' | 'unavailable';
     refunds: 'ok' | 'unavailable';
+    fixedCosts: 'ok' | 'unavailable';
   };
 }
 
@@ -182,6 +196,9 @@ export interface NetworkPnlDepotRow {
   courierCommissionIdr: number | null;
   expenseClaimIdr: number | null;
   refundIdr: number | null;
+  /** HD-16: imported fixed costs; null = none entered, and the profit is then without them. */
+  fixedCostIdr: number | null;
+  fixedCostStatus: FixedCostStatus;
   /** Revenue minus every cost above; null the moment any one of them is unknown. */
   netProfitIdr: number | null;
 }
@@ -203,6 +220,7 @@ export interface NetworkPnl {
     payroll: 'ok' | 'partial' | 'unavailable';
     payout: 'ok' | 'unavailable';
     refunds: 'ok' | 'unavailable';
+    fixedCosts: 'ok' | 'unavailable';
   };
 }
 
@@ -244,12 +262,14 @@ export class DashboardService {
     const range = { from: fromDate.toISOString(), to: toDate.toISOString() };
     // Flow plan 5a-2: the same five terms, from the same sources, as this depot's row in
     // networkPnl — so /dashboard/monthly-pnl and /hq/pnl can no longer disagree about a month.
-    const [order, costs, hr, payout, refunds] = await Promise.all([
+    const [order, costs, hr, payout, refunds, fixed] = await Promise.all([
       this.sources.depotMonthly(depotId, month, token),
       this.sources.operationalCosts(depotId, range, token),
       payVisible ? this.sources.hrSummaryMany([depotId], month) : Promise.resolve([null]),
       this.sources.payoutCosts([depotId], range),
       this.sources.depotRefunds([depotId], range),
+      // Employer BPJS is in the fixed costs, so they follow payroll's visibility (payrollRead).
+      payVisible ? this.sources.fixedCosts([depotId], month) : Promise.resolve(new Map<string, number>()),
     ]);
 
     const revenueIdr = order?.revenueIdr ?? null;
@@ -259,13 +279,15 @@ export class DashboardService {
     const expenseClaimIdr = payout ? (payout.get(depotId)?.expenseClaimIdr ?? 0) : null;
     const refundIdr = refunds ? (refunds.get(depotId) ?? 0) : null;
     const grossProfitIdr = revenueIdr !== null && cogsIdr !== null ? revenueIdr - cogsIdr : null;
-    const netProfitIdr = netProfit({
+    const fc = DashboardService.fixedCost(fixed, depotId, payVisible);
+    const netProfitIdr = fc.status === 'unavailable' ? null : netProfit({
       revenueIdr,
       cogsIdr,
       payrollIdr,
       courierCommissionIdr,
       expenseClaimIdr,
       refundIdr,
+      fixedCostIdr: fc.amount,
     });
     const pctOfRevenue = (v: number | null): number | null =>
       v !== null && revenueIdr !== null && revenueIdr !== 0
@@ -293,6 +315,8 @@ export class DashboardService {
       courierCommissionIdr,
       expenseClaimIdr,
       refundIdr,
+      fixedCostIdr: fc.amount,
+      fixedCostStatus: fc.status,
       netProfitIdr,
       netMarginPct: pctOfRevenue(netProfitIdr),
       payVisible,
@@ -313,8 +337,21 @@ export class DashboardService {
         payroll: hr[0] == null ? 'unavailable' : payrollIdr === null ? 'pending' : 'ok',
         payout: payout === null ? 'unavailable' : 'ok',
         refunds: refunds === null ? 'unavailable' : 'ok',
+        fixedCosts: fixed === null ? 'unavailable' : 'ok',
       },
     };
+  }
+
+  /** HD-16: one depot's fixed-cost line from the one batched read (see FixedCostStatus). */
+  private static fixedCost(
+    map: Map<string, number> | null,
+    depotId: string,
+    visible: boolean,
+  ): { amount: number | null; status: FixedCostStatus } {
+    if (!visible) return { amount: null, status: 'hidden' };
+    if (map === null) return { amount: null, status: 'unavailable' };
+    const amount = map.get(depotId);
+    return amount === undefined ? { amount: null, status: 'not_entered' } : { amount, status: 'entered' };
   }
 
   /**
@@ -439,12 +476,13 @@ export class DashboardService {
     const depots = DashboardService.inScope(await this.sources.allDepots(token), depotIds);
     const ids = (depots ?? []).map((d) => d.id);
 
-    const [revenues, goods, hr, payout, refunds] = await Promise.all([
+    const [revenues, goods, hr, payout, refunds, fixed] = await Promise.all([
       Promise.all(ids.map((id) => this.sources.depotMonthly(id, month, token))),
       Promise.all(ids.map((id) => this.sources.operationalCosts(id, range, token))),
       payVisible ? this.sources.hrSummaryMany(ids, month) : Promise.resolve(ids.map(() => null)),
       this.sources.payoutCosts(ids, range),
       this.sources.depotRefunds(ids, range),
+      payVisible ? this.sources.fixedCosts(ids, month) : Promise.resolve(new Map<string, number>()),
     ]);
 
     let revenueMissing = false;
@@ -463,13 +501,15 @@ export class DashboardService {
       if (cogsIdr === null) goodsMissing = true;
       if (payrollIdr === null) payrollMissing = true;
 
-      const netProfitIdr = netProfit({
+      const fc = DashboardService.fixedCost(fixed, d.id, payVisible);
+      const netProfitIdr = fc.status === 'unavailable' ? null : netProfit({
         revenueIdr,
         cogsIdr,
         payrollIdr,
         courierCommissionIdr,
         expenseClaimIdr,
         refundIdr,
+        fixedCostIdr: fc.amount,
       });
 
       return {
@@ -483,6 +523,8 @@ export class DashboardService {
         courierCommissionIdr,
         expenseClaimIdr,
         refundIdr,
+        fixedCostIdr: fc.amount,
+        fixedCostStatus: fc.status,
         netProfitIdr,
       };
     });
@@ -499,8 +541,10 @@ export class DashboardService {
       reportType: 'OPERATIONAL_MANAGEMENT',
       disclaimer:
         'Laporan manajemen operasional. Hanya biaya yang sudah tercatat: barang, gaji dan ' +
-        'tunjangan, komisi kurir, klaim biaya, dan pengembalian dana. Sewa dan listrik ' +
-        'tidak termasuk karena tidak dicatat di sistem ini. Bukan laporan akuntansi ' +
+        'tunjangan, komisi kurir, klaim biaya, pengembalian dana, dan biaya tetap depot ' +
+        '(sewa, listrik, dan sebagainya) bila sudah diimpor bulan itu; depot tanpa impor ' +
+        'ditandai "belum diisi" dan labanya belum memuat biaya tetap. Biaya kantor pusat ' +
+        'tidak dibebankan ke depot. Bukan laporan akuntansi ' +
         'statutori maupun surat pemberitahuan pajak.',
       depots: rows,
       payVisible,
@@ -511,6 +555,11 @@ export class DashboardService {
         courierCommissionIdr: sum((r) => r.courierCommissionIdr),
         expenseClaimIdr: sum((r) => r.expenseClaimIdr),
         refundIdr: sum((r) => r.refundIdr),
+        // A total of ENTERED costs only: a depot without rows adds nothing, and the status says so.
+        fixedCostIdr: rows.some((r) => r.fixedCostStatus === 'unavailable') || !rows.some((r) => r.fixedCostStatus === 'entered')
+          ? null
+          : rows.reduce((n, r) => n + (r.fixedCostIdr ?? 0), 0),
+        fixedCostStatus: DashboardService.fixedTotalStatus(rows.map((r) => r.fixedCostStatus)),
         netProfitIdr: sum((r) => r.netProfitIdr),
       },
       sources: {
@@ -520,8 +569,17 @@ export class DashboardService {
         payroll: depots === null ? 'unavailable' : payrollMissing ? 'partial' : 'ok',
         payout: payout !== null ? 'ok' : 'unavailable',
         refunds: refunds !== null ? 'ok' : 'unavailable',
+        fixedCosts: fixed !== null ? 'ok' : 'unavailable',
       },
     };
+  }
+
+  private static fixedTotalStatus(statuses: FixedCostStatus[]): FixedCostStatus {
+    if (statuses.includes('unavailable')) return 'unavailable';
+    if (statuses.length > 0 && statuses.every((s) => s === 'hidden')) return 'hidden';
+    const entered = statuses.filter((s) => s === 'entered').length;
+    if (entered === 0) return 'not_entered';
+    return entered === statuses.length ? 'entered' : 'partial';
   }
 
   async network(
