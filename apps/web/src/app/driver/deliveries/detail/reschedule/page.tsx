@@ -102,7 +102,7 @@ function Reschedule() {
         </Field>
         <fieldset className="space-y-2">
           <legend className="mb-1 text-sm font-bold">{t('driver.reschedule.whyLabel')}</legend>
-          <div role="radiogroup" className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             {WHY.map((w) => (
               <label
                 key={w.value}
