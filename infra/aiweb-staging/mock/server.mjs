@@ -11,6 +11,10 @@
 //   POST /auth/api/v1/auth/machine/token  n8n's machine account -> token
 //   POST /crm/api/v1/notifications/external/franchise-application-submitted   n8n's notification
 //   POST /crm/api/v1/notifications/external/morning-summary   n8n's 07.00 WIB summary (AI-9)
+//   POST /crm/api/v1/notifications/external/ai-access-requested   n8n's "Minta akses" notification
+//   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers   the read API: made-up numbers
+//                                       derived from the date; a depot-bound person sees one depot
+//   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
 //   POST /alert                         the AI web's alarm webhook
 //   GET  /health                        for the container's health check
 //   GET  /_mock/ , /_mock/calls         what arrived; kill switch, signed event, reset
@@ -89,7 +93,8 @@ const RX = {
   recovery: new RegExp(PATTERNS.recoveryCode),
   eventId: new RegExp(PATTERNS.eventId),
   place: new RegExp(PATTERNS.place, 'u'),
-  random43: /^[A-Za-z0-9_-]{43}$/,
+  accessEventId: /^ai-access-request:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  random43:/^[A-Za-z0-9_-]{43}$/,
   uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
 };
 
@@ -103,9 +108,46 @@ function same(a, b) {
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
+// ---------------------------------------------------------------------------- read API numbers
+// Made up and deterministic: a depot's value on a day is its base, times a weekday factor, times
+// 1 + trend * a wave of the week number (period 5). Yesterday and the four same weekdays before it
+// are five consecutive weeks, so they meet five different wave values and yesterday is never exactly
+// "usual": a depot with a positive trend and one with a negative trend land on opposite sides.
+const DAY_MS = 86_400_000;
+const WEEKDAY = [0.9, 0.95, 1, 1.05, 1.2, 1.4, 1.1]; // Monday first
+const WAVE = [0, 3, -2, 1, -1];
+const dayNo = (iso) => Math.floor(Date.parse(`${iso}T00:00:00Z`) / DAY_MS);
+const isoOf = (n) => new Date(n * DAY_MS).toISOString().slice(0, 10);
+const validDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s) && isoOf(dayNo(s)) === s;
+const dayValue = (depot, metric, n) =>
+  Math.round(depot.base[metric] * WEEKDAY[(n + 3) % 7] * (1 + depot.trend * WAVE[Math.floor(n / 7) % 5]));
+/** First and last day number of the whole calendar period (WIB dates, so plain calendar maths). */
+function bounds(unit, date) {
+  const n = dayNo(date);
+  const d = new Date(n * DAY_MS);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth();
+  if (unit === 'day') return [n, n];
+  if (unit === 'week') return [n - ((n + 3) % 7), n - ((n + 3) % 7) + 6];
+  if (unit === 'month') return [Date.UTC(y, m, 1) / DAY_MS, Date.UTC(y, m + 1, 0) / DAY_MS];
+  return [Date.UTC(y, 0, 1) / DAY_MS, Date.UTC(y, 11, 31) / DAY_MS];
+}
+// What each read route serves: metric -> unit, as the contract's x-metrics names it.
+const READ = {
+  money: { 'P-01': 'Rp', 'P-07': 'pesanan' },
+  gallons: { 'G-01': 'galon' },
+  customers: { 'C-01': 'orang' },
+};
+const READ_UNITS = new Set(['day', 'week', 'month', 'year']);
+const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 'customers', 'delivery', 'gallons'];
+const ACCESS_KEYS = new Set(['eventId', 'requesterAccountId', 'legalEntityIds', 'group']);
+const ACCESS_PER_REQUESTER = 3;
+const ACCESS_PER_HOUR = 30;
+const HOUR_MS = 3_600_000;
+
 function loadFixtures(path) {
   const f = JSON.parse(readFileSync(path, 'utf8'));
-  return { users: f.users, totpRoles: new Set(f.totpRoles) };
+  return { users: f.users, depots: f.depots, totpRoles: new Set(f.totpRoles) };
 }
 
 export function createMock({ env = process.env, now = () => Date.now(), fixturesPath } = {}) {
@@ -131,6 +173,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     codes: new Map(), // code -> { challenge, user, exp, kept }
     fails: new Map(), // user id -> { n, lockedUntil }
     notified: new Map(), // lower-case eventId -> notification id
+    accessAsks: new Map(), // lower-case ai-access-requested eventId -> { requester, at }
     calls: fresh(),
     lastEvent: null,
   };
@@ -270,7 +313,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     state.calls.tokens += 1;
     return [200, {
       tokenType: 'Bearer',
-      accessToken: jwt({ aud: 'hydromart-machine', sub: env.MOCK_MACHINE_ID, scopes: ['franchiseApplicationNotify', 'morningSummaryNotify'] }),
+      accessToken: jwt({ aud: 'hydromart-machine', sub: env.MOCK_MACHINE_ID, scopes: ['franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify'] }),
       expiresIn: TOKEN_TTL_S,
     }];
   }
@@ -302,6 +345,111 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       eventId: b.eventId, city: null, province: null,
     });
     return [200, { date: today, recipients: 0, notified: 0, nothingWaiting: 0, whatsapp: 'pending' }];
+  }
+
+  // "Minta akses": ids only (contract AiAccessRequestedNotify). A requester that is a fixture person
+  // who cannot grant access counts toward the caps (3 distinct eventIds per requester, 30 overall,
+  // rolling hour); anyone else is "unknown": 200, nobody told, not counted.
+  function accessRequested(req, body) {
+    if (!machineAllowed(req, 'aiAccessRequestNotify')) return refusedToken();
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const ids = b.legalEntityIds;
+    const valid =
+      Object.keys(b).every((k) => ACCESS_KEYS.has(k)) &&
+      typeof b.eventId === 'string' && RX.accessEventId.test(b.eventId) &&
+      typeof b.requesterAccountId === 'string' && RX.uuid.test(b.requesterAccountId) &&
+      (ids === undefined ||
+        (Array.isArray(ids) && ids.length <= 20 && ids.every((i) => typeof i === 'string' && RX.uuid.test(i)) &&
+          new Set(ids.map((i) => i.toLowerCase())).size === ids.length)) &&
+      (b.group === undefined || ACCESS_GROUPS.includes(b.group));
+    if (!valid) return [400, errorBody(400, 'VALIDATION_ERROR', ['The notification is not what the contract asks for'])];
+    const requester = fixtures.users.find((u) => u.id === b.requesterAccountId.toLowerCase());
+    if (!requester || requester.role === 'SUPER_ADMIN') return [200, { recipients: 0, notified: 0, whatsapp: 'pending' }];
+    const key = b.eventId.toLowerCase();
+    if (!state.accessAsks.has(key)) {
+      const recent = [...state.accessAsks.values()].filter((a) => a.at > now() - HOUR_MS);
+      if (recent.length >= ACCESS_PER_HOUR || recent.filter((a) => a.requester === requester.id).length >= ACCESS_PER_REQUESTER) {
+        return [200, { recipients: 1, notified: 0, whatsapp: 'pending', capped: true }];
+      }
+      setBounded(state.accessAsks, key, { requester: requester.id, at: now() });
+      keep(state.calls.notifications, {
+        workflow: String(req.headers['x-workflow'] ?? '').slice(0, 120) || null,
+        eventId: b.eventId, city: null, province: null,
+      });
+    }
+    return [200, { recipients: 1, notified: 1, whatsapp: 'pending' }];
+  }
+
+  // ------------------------------------------------------------------------- the read API
+  // The person's own token (aud hydromart-ai). A franchise owner holds no aiRead (the default) and a
+  // machine token is not a person's: both 403. A depot-bound person (depotId claim) reads that depot.
+  function reader(req) {
+    const auth = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
+    const claims = auth ? readJwt(auth[1]) : null;
+    if (!claims || state.killed || !(claims.exp > now() / 1000)) return { fail: refusedToken() };
+    if (claims.aud !== 'hydromart-ai' || claims.role === 'FRANCHISE_OWNER') {
+      return { fail: [403, errorBody(403, 'FORBIDDEN', 'This token may not read this.')] };
+    }
+    return { depots: claims.depotId ? fixtures.depots.filter((d) => d.id === claims.depotId) : fixtures.depots };
+  }
+  const todayWib = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(now());
+
+  function envelope(depots, unit, date, over) {
+    const [from, to] = bounds(unit, date);
+    const wib = (n) => new Date(Date.parse(`${isoOf(n)}T00:00:00+07:00`)).toISOString();
+    return {
+      period: { unit, from: isoOf(from), to: isoOf(to), timeZone: 'Asia/Jakarta', fromAt: wib(from), toAt: wib(to + 1) },
+      scope: { depotIds: depots.map((d) => d.id), legalEntityIds: [] },
+      status: 'ok',
+      asOf: new Date(now()).toISOString(),
+      ...over,
+    };
+  }
+
+  function readRoute(req, group, q) {
+    const who = reader(req);
+    if (who.fail) return who.fail;
+    const bad = (m) => [400, errorBody(400, 'BAD_REQUEST', m)];
+    const unit = q.get('period') ?? 'day';
+    const date = q.get('date') ?? todayWib();
+    if (!READ_UNITS.has(unit) || !validDay(date)) return bad('period must be day, week, month or year, and date a real day');
+    const { depots } = who;
+    if (group === 'scope') {
+      if (q.get('split')) return bad('scope cannot be split');
+      return [200, envelope(depots, unit, date, {
+        metricId: 'meta.scope', value: depots.length, unit: 'depot',
+        depots: depots.map((d) => ({ depotId: d.id, code: d.code, label: d.label })),
+      })];
+    }
+    const metric = q.get('metric');
+    if (!metric) return bad('metric is required');
+    const unitName = READ[group][metric];
+    if (!unitName) return [404, errorBody(404, 'NOT_FOUND', 'Not a metric of this group (staging answers P-01, P-07, G-01 and C-01).')];
+    const split = q.get('split');
+    if (split !== null && (split !== 'depot' || group === 'customers')) return bad('this metric cannot be split like that');
+    if (metric === 'C-01' && unit !== 'month') return bad('C-01 is a whole month');
+    const [from, to] = bounds(unit, date);
+    const sum = (d) => {
+      let t = 0;
+      for (let n = from; n <= to; n += 1) t += dayValue(d, metric, n);
+      return t;
+    };
+    const byDepot = depots.map((d) => ({ depotId: d.id, value: sum(d) }));
+    const total = byDepot.reduce((a, v) => a + v.value, 0);
+    return [200, envelope(depots, unit, date, { metricId: metric, value: split ? { total, byDepot } : total, unit: unitName })];
+  }
+
+  // The queues a person decides: three for an HQ person, two for a depot-bound one. Counts are
+  // fixed; the oldest item is a fixed number of hours old at the moment of asking.
+  function pendingApprovals(req) {
+    const who = reader(req);
+    if (who.fail) return who.fail;
+    const ago = (h) => new Date(now() - h * HOUR_MS).toISOString();
+    return [200, { queues: [
+      ...(who.depots.length > 1 ? [{ key: 'priceOverrides', count: 3, oldestAt: ago(52), href: '/hq/pricing' }] : []),
+      { key: 'leave', count: 2, oldestAt: ago(30), href: '/hr/leave' },
+      { key: 'kasbon', count: 0, oldestAt: null, href: '/hr/kasbon' },
+    ] }];
   }
 
   function notification(req, body) {
@@ -496,6 +644,21 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
         const [status, body] = morningSummary(req, parseJson(raw));
         return send(res, status, body);
       }
+      if (post && path === '/crm/api/v1/notifications/external/ai-access-requested') {
+        const [status, body] = accessRequested(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (req.method === 'GET' && path.startsWith('/dashboard/api/v1/ai/read/')) {
+        const group = path.slice('/dashboard/api/v1/ai/read/'.length);
+        if (['scope', 'money', 'gallons', 'customers'].includes(group)) {
+          const [status, body] = readRoute(req, group, url.searchParams);
+          return send(res, status, body);
+        }
+      }
+      if (req.method === 'GET' && path === '/dashboard/api/v1/dashboard/pending-approvals') {
+        const [status, body] = pendingApprovals(req);
+        return send(res, status, body);
+      }
       if (post && path === '/alert') {
         const alert = parseJson(raw);
         keep(state.calls.alerts, { size: raw.length, keys: alert && typeof alert === 'object' ? Object.keys(alert).slice(0, 5) : [] });
@@ -536,6 +699,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
         state.codes.clear();
         state.fails.clear();
         state.notified.clear();
+        state.accessAsks.clear();
         state.calls = fresh();
         state.lastEvent = null;
         res.writeHead(303, { location: '/_mock/' });

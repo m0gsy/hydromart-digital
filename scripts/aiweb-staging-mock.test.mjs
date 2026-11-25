@@ -290,7 +290,7 @@ test('n8n: machine token, then the franchise notification, idempotent, validated
     const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
     const claims = verifyToken(accessToken, await jwks(mock));
     assert.equal(claims.aud, 'hydromart-machine');
-    assert.deepEqual(claims.scopes, ['franchiseApplicationNotify', 'morningSummaryNotify']);
+    assert.deepEqual(claims.scopes, ['franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify']);
 
     const applicationId = randomUUID();
     const body = { eventId: `franchise.application_submitted:${applicationId}`, applicationId, city: 'Bekasi', province: 'Jawa Barat' };
@@ -478,6 +478,249 @@ test('logs and maps stay bounded, and an oversize body is answered', async () =>
     assert.equal((await fetch(`${mock.base}/health`)).status, 200, 'still serving');
     assert.equal(mock.server.requestTimeout, 15_000);
     assert.ok(mock.server.headersTimeout <= 15_000);
+  } finally {
+    await mock.close();
+  }
+});
+
+// ------------------------------------------------------------------ the read API and "Minta akses"
+const read = contract('read');
+const approvals = contract('approvals');
+const READ_PATH = '/dashboard/api/v1/ai/read';
+const WIB_DAY = (n) => new Date(Date.parse('2026-11-25T00:00:00Z') + n * 86_400_000).toISOString().slice(0, 10);
+const FAKE_DEPOTS = fixtures.depots.map((d) => d.id);
+
+async function tokenOf(mock, person) {
+  const p = pkce();
+  const { code } = await pick(mock, person, p);
+  const r = await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE });
+  return (await r.json()).accessToken;
+}
+const machineToken = async (mock) =>
+  (await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json()).accessToken;
+const get = (mock, path, token) => fetch(`${mock.base}${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
+
+/** The envelope, checked against the contract's required fields, enums and the metric's own unit. */
+function assertEnvelope(body, group, metric) {
+  const s = read.components.schemas;
+  for (const f of s.AnswerEnvelope.required) assert.ok(body[f] !== undefined, `envelope has ${f}`);
+  for (const f of s.Period.required) assert.ok(body.period[f] !== undefined, `period has ${f}`);
+  assert.equal(body.period.timeZone, s.Period.properties.timeZone.enum[0]);
+  assert.ok(s.Period.properties.unit.enum.includes(body.period.unit));
+  for (const f of s.Scope.required) assert.ok(Array.isArray(body.scope[f]), `scope has ${f}`);
+  assert.ok(s.AnswerEnvelope.properties.status.enum.includes(body.status));
+  assert.ok(!Number.isNaN(Date.parse(body.asOf)));
+  if (metric) {
+    const spec = read.paths[`${READ_PATH}/${group}`].get['x-metrics'][metric];
+    assert.ok(spec, `${metric} is a metric of ${group} in the contract`);
+    assert.equal(body.unit, spec.unit);
+    assert.equal(body.metricId, metric);
+  }
+}
+const splitOf = (body) => {
+  const s = read.components.schemas.DepotSplit;
+  for (const f of s.required) assert.ok(body.value[f] !== undefined, `split has ${f}`);
+  for (const row of body.value.byDepot) for (const f of s.properties.byDepot.items.required) assert.ok(row[f] !== undefined);
+  return new Map(body.value.byDepot.map((r) => [r.depotId, r.value]));
+};
+
+test('the read API: scope, split and plain answers hold the contract, and follow the token', async () => {
+  const mock = await boot();
+  try {
+    const hq = await tokenOf(mock, user('HR'));
+    const scope = await (await get(mock, `${READ_PATH}/scope?period=day&date=2026-11-24`, hq)).json();
+    assertEnvelope(scope, 'scope', null);
+    assert.equal(scope.metricId, 'meta.scope');
+    assert.equal(scope.unit, 'depot');
+    assert.equal(scope.value, FAKE_DEPOTS.length);
+    for (const d of scope.depots) for (const f of read.components.schemas.ScopeDepot.required) assert.ok(d[f]);
+    assert.deepEqual(scope.depots.map((d) => d.depotId), FAKE_DEPOTS);
+    assert.deepEqual(scope.scope.depotIds, FAKE_DEPOTS);
+    // Every metric the AI web asks, split and not.
+    const asks = [['money', 'P-01', 'day'], ['money', 'P-07', 'day'], ['gallons', 'G-01', 'day'], ['customers', 'C-01', 'month']];
+    for (const [group, metric, period] of asks) {
+      const date = period === 'month' ? '2026-10-15' : '2026-11-24';
+      const plain = await (await get(mock, `${READ_PATH}/${group}?metric=${metric}&period=${period}&date=${date}`, hq)).json();
+      assertEnvelope(plain, group, metric);
+      assert.equal(typeof plain.value, 'number');
+      if (group === 'customers') {
+        assert.equal(plain.period.from, '2026-10-01');
+        assert.equal(plain.period.to, '2026-10-31');
+        assert.equal((await get(mock, `${READ_PATH}/customers?metric=C-01&period=month&date=${date}&split=depot`, hq)).status, 400);
+        continue;
+      }
+      const body = await (await get(mock, `${READ_PATH}/${group}?metric=${metric}&period=${period}&date=${date}&split=depot`, hq)).json();
+      assertEnvelope(body, group, metric);
+      const rows = splitOf(body);
+      assert.deepEqual([...rows.keys()], FAKE_DEPOTS);
+      assert.equal(body.value.total, plain.value, 'total is exactly the unsplit answer');
+      assert.equal([...rows.values()].reduce((a, b) => a + b, 0), body.value.total);
+      const again = await (await get(mock, `${READ_PATH}/${group}?metric=${metric}&period=${period}&date=${date}&split=depot`, hq)).json();
+      assert.deepEqual(again.value, body.value, 'the same date, the same numbers');
+    }
+    // A week is the sum of its seven days.
+    const week = await (await get(mock, `${READ_PATH}/money?metric=P-01&period=week&date=2026-11-24`, hq)).json();
+    assert.equal(week.period.from, '2026-11-23');
+    assert.equal(week.period.to, '2026-11-29');
+    let sum = 0;
+    for (let i = 23; i <= 29; i += 1) sum += (await (await get(mock, `${READ_PATH}/money?metric=P-01&period=day&date=2026-11-${i}`, hq)).json()).value;
+    assert.equal(week.value, sum);
+
+    // A depot-bound person reads only that depot.
+    const depot = user('SUPERVISOR');
+    const mine = await tokenOf(mock, depot);
+    const one = await (await get(mock, `${READ_PATH}/scope?period=day&date=2026-11-24`, mine)).json();
+    assert.deepEqual(one.depots.map((d) => d.depotId), [depot.depotId]);
+    const split = await (await get(mock, `${READ_PATH}/money?metric=P-01&period=day&date=2026-11-24&split=depot`, mine)).json();
+    assert.deepEqual([...splitOf(split).keys()], [depot.depotId]);
+  } finally {
+    await mock.close();
+  }
+});
+
+test('the read API: "% dari biasanya" shows variety on any day, above 100 and below 100', async () => {
+  const mock = await boot();
+  try {
+    const hq = await tokenOf(mock, user('HR'));
+    const money = async (date) => splitOf(await (await get(mock, `${READ_PATH}/money?metric=P-01&period=day&date=${date}&split=depot`, hq)).json());
+    for (let back = 0; back < 30; back += 1) {
+      const yesterday = await money(WIB_DAY(-1 - back));
+      const past = await Promise.all([1, 2, 3, 4].map((w) => money(WIB_DAY(-1 - back - 7 * w))));
+      const pct = FAKE_DEPOTS.map((id) => (yesterday.get(id) / (past.reduce((a, m) => a + m.get(id), 0) / 4)) * 100);
+      assert.ok(pct.some((p) => p > 100) && pct.some((p) => p < 100), `${WIB_DAY(-1 - back)}: ${pct.map((p) => p.toFixed(0))}`);
+    }
+  } finally {
+    await mock.close();
+  }
+});
+
+test('the read API: refusals use the contract shape (401, 403, 404, 400)', async () => {
+  const mock = await boot();
+  try {
+    const hq = await tokenOf(mock, user('HR'));
+    const refusal = async (res, status, code) => {
+      assert.equal(res.status, status);
+      const body = await res.json();
+      for (const f of read.components.schemas.Error.required) assert.ok(body[f] !== undefined, `error has ${f}`);
+      assert.equal(body.code, code);
+    };
+    const money = `${READ_PATH}/money?period=day&date=2026-11-24`;
+    await refusal(await get(mock, `${money}&metric=P-01`), 401, 'UNAUTHORIZED');
+    await refusal(await get(mock, `${money}&metric=P-01`, 'nope'), 401, 'UNAUTHORIZED');
+    await refusal(await get(mock, `${money}&metric=P-01`, await machineToken(mock)), 403, 'FORBIDDEN');
+    await refusal(await get(mock, `${money}&metric=P-01`, await tokenOf(mock, user('FRANCHISE_OWNER'))), 403, 'FORBIDDEN');
+    await refusal(await get(mock, `${money}&metric=G-01`, hq), 404, 'NOT_FOUND');
+    await refusal(await get(mock, `${money}&metric=ZZ-99`, hq), 404, 'NOT_FOUND');
+    await refusal(await get(mock, money, hq), 400, 'BAD_REQUEST');
+    await refusal(await get(mock, `${READ_PATH}/money?metric=P-01&period=day&date=2026-02-31`, hq), 400, 'BAD_REQUEST');
+    await refusal(await get(mock, `${READ_PATH}/money?metric=P-01&period=decade&date=2026-11-24`, hq), 400, 'BAD_REQUEST');
+    await refusal(await get(mock, `${READ_PATH}/customers?metric=C-01&date=2026-11-24`, hq), 400, 'BAD_REQUEST');
+    const dflt = await (await get(mock, `${READ_PATH}/money?metric=P-01&date=2026-11-24`, hq)).json();
+    assert.equal(dflt.period.unit, 'day', 'period defaults to day');
+    assert.equal(dflt.period.from, '2026-11-24');
+    await refusal(await get(mock, `${money}&metric=P-01&split=legal`, hq), 400, 'BAD_REQUEST');
+    for (const group of ['money', 'gallons', 'customers', 'scope']) {
+      for (const s of ['200', '400', '401', '403']) assert.ok(read.paths[`${READ_PATH}/${group}`].get.responses[s], `${group} documents ${s}`);
+    }
+    // The kill switch makes every token worthless, as the empty key set does.
+    await fetch(`${mock.base}/_mock/kill`, { method: 'POST', redirect: 'manual' });
+    await refusal(await get(mock, `${money}&metric=P-01`, hq), 401, 'UNAUTHORIZED');
+  } finally {
+    await mock.close();
+  }
+});
+
+test('pending approvals: the queues of the contract, fewer for a depot-bound person', async () => {
+  const mock = await boot();
+  const path = '/dashboard/api/v1/dashboard/pending-approvals';
+  try {
+    assert.ok(approvals.paths[path]);
+    const q = approvals.components.schemas.PendingQueue;
+    const check = (body) => {
+      assert.ok(Array.isArray(body.queues) && body.queues.length > 0);
+      for (const item of body.queues) {
+        for (const f of q.required) assert.ok(item[f] !== undefined, `queue has ${f}`);
+        assert.ok(q.properties.key.enum.includes(item.key));
+        assert.ok(item.href.startsWith('/'));
+        assert.ok(Number.isInteger(item.count) && item.count >= 0);
+        assert.equal(item.oldestAt === null, item.count === 0);
+        assert.ok(item.oldestAt === null || !Number.isNaN(Date.parse(item.oldestAt)));
+      }
+      return body.queues.map((i) => i.key);
+    };
+    const hq = check(await (await get(mock, path, await tokenOf(mock, user('HR')))).json());
+    const depot = check(await (await get(mock, path, await tokenOf(mock, user('SUPERVISOR')))).json());
+    assert.ok(hq.length > depot.length);
+    assert.equal((await get(mock, path)).status, 401);
+    assert.equal((await get(mock, path, await machineToken(mock))).status, 403);
+    assert.equal((await get(mock, path, await tokenOf(mock, user('FRANCHISE_OWNER')))).status, 403);
+  } finally {
+    await mock.close();
+  }
+});
+
+test('n8n: ai-access-requested needs its machine scope, validates the body, and keeps the caps', async () => {
+  const mock = await boot();
+  const path = '/crm/api/v1/notifications/external/ai-access-requested';
+  const send = (token, body) => json('POST', mock.base, path, body, token ? { authorization: `Bearer ${token}`, 'x-workflow': 'ai7-access-request' } : {});
+  const ask = (requester, extra = {}) => ({ eventId: `ai-access-request:${randomUUID()}`, requesterAccountId: requester.id, ...extra });
+  try {
+    const op = notifications.paths[path].post;
+    const schema = notifications.components.schemas.AiAccessRequestedNotify;
+    const result = notifications.components.schemas.AiAccessRequestedResult;
+    for (const s of ['200', '400', '401', '403']) assert.ok(op.responses[s], `documents ${s}`);
+    const token = await machineToken(mock);
+    assert.ok(verifyToken(token, await jwks(mock)).scopes.includes('aiAccessRequestNotify'));
+    const checkResult = async (res) => {
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      for (const f of result.required) assert.ok(body[f] !== undefined, `result has ${f}`);
+      assert.ok(Number.isInteger(body.recipients) && Number.isInteger(body.notified));
+      assert.deepEqual(result.properties.whatsapp.enum, [body.whatsapp]);
+      if (body.capped !== undefined) assert.equal(body.capped, true);
+      return body;
+    };
+    const asker = user('HEAD_OFFICE');
+
+    // Who may call: nobody, a person.
+    assert.equal((await send(null, ask(asker))).status, 401);
+    assert.equal((await send(await tokenOf(mock, user('HR')), ask(asker))).status, 401);
+
+    // A known requester: told and recorded; the same eventId again is not new.
+    const first = ask(asker, { legalEntityIds: [randomUUID()], group: 'money' });
+    assert.deepEqual(await checkResult(await send(token, first)), { recipients: 1, notified: 1, whatsapp: 'pending' });
+    assert.deepEqual(await checkResult(await send(token, first)), { recipients: 1, notified: 1, whatsapp: 'pending' });
+    assert.equal(mock.state.calls.notifications.length, 1);
+    assert.equal(mock.state.calls.notifications[0].workflow, 'ai7-access-request');
+    // An unknown requester, and one who can already grant: nobody told, nothing counted.
+    const unknown = await checkResult(await send(token, { eventId: `ai-access-request:${randomUUID()}`, requesterAccountId: randomUUID() }));
+    assert.deepEqual([unknown.recipients, unknown.notified], [0, 0]);
+    assert.equal((await checkResult(await send(token, ask(user('SUPER_ADMIN'))))).recipients, 0);
+    assert.equal(mock.state.calls.notifications.length, 1);
+
+    // The cap: 3 distinct eventIds per requester, then capped true; a retry of a filed one still passes.
+    assert.equal((await checkResult(await send(token, ask(asker)))).notified, 1);
+    assert.equal((await checkResult(await send(token, ask(asker)))).notified, 1);
+    const capped = await checkResult(await send(token, ask(asker)));
+    assert.deepEqual([capped.notified, capped.capped], [0, true]);
+    assert.equal((await checkResult(await send(token, first))).notified, 1);
+    assert.equal((await checkResult(await send(token, ask(user('FINANCE'))))).notified, 1, 'another requester is not capped');
+
+    // Validation: an unknown field (a name), missing or malformed ids, a repeat, too many, a group not listed.
+    const uuid = randomUUID();
+    const bad = [
+      ask(asker, { name: 'Budi' }),
+      { requesterAccountId: asker.id },
+      { eventId: `ai-access-request:${randomUUID()}` },
+      { eventId: 'ai-access-request:nope', requesterAccountId: asker.id },
+      ask(asker, { requesterAccountId: 'x' }),
+      ask(asker, { legalEntityIds: ['x'] }),
+      ask(asker, { legalEntityIds: [uuid, uuid.toUpperCase()] }),
+      ask(asker, { legalEntityIds: Array.from({ length: 21 }, () => randomUUID()) }),
+      ask(asker, { group: 'everything' }),
+    ];
+    for (const body of bad) assert.equal((await send(token, body)).status, 400, JSON.stringify(body).slice(0, 70));
+    for (const group of schema.properties.group.enum) assert.equal((await send(token, ask(user('MARKETING'), { group }))).status, 200);
   } finally {
     await mock.close();
   }

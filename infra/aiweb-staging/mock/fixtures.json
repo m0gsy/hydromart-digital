@@ -1,10 +1,61 @@
 {
   "_note": "Synthetic people for the staging AI web. Made up: no real name, phone or email.",
+  "_depots": "Fake depots for the read API. Every day value = base * weekday factor * (1 + trend * wave of the week), so a depot with a positive trend sits above its usual on some days and below on others; made up, no real depot.",
   "totpRoles": [
     "DIREKTUR",
     "HEAD_OFFICE",
     "FINANCE",
     "SUPER_ADMIN"
+  ],
+  "depots": [
+    {
+      "id": "00000000-0000-4000-9000-000000000001",
+      "code": "STG-01",
+      "label": "Depot Contoh Satu",
+      "trend": 0.1,
+      "base": {
+        "P-01": 2400000,
+        "P-07": 60,
+        "G-01": 220,
+        "C-01": 2
+      }
+    },
+    {
+      "id": "00000000-0000-4000-9000-000000000002",
+      "code": "STG-02",
+      "label": "Depot Contoh Dua",
+      "trend": -0.08,
+      "base": {
+        "P-01": 3100000,
+        "P-07": 80,
+        "G-01": 300,
+        "C-01": 3
+      }
+    },
+    {
+      "id": "00000000-0000-4000-9000-000000000003",
+      "code": "STG-03",
+      "label": "Depot Contoh Tiga",
+      "trend": 0.04,
+      "base": {
+        "P-01": 1800000,
+        "P-07": 45,
+        "G-01": 160,
+        "C-01": 1
+      }
+    },
+    {
+      "id": "00000000-0000-4000-9000-000000000004",
+      "code": "STG-04",
+      "label": "Depot Contoh Empat",
+      "trend": -0.04,
+      "base": {
+        "P-01": 2000000,
+        "P-07": 52,
+        "G-01": 190,
+        "C-01": 2
+      }
+    }
   ],
   "users": [
     {

@@ -83,7 +83,8 @@ logout() {
   rm -rf "$CFG"
   CFG=''
 }
-trap logout EXIT
+SCREEN_TMP=''
+trap 'logout; [ -z "$SCREEN_TMP" ] || rm -rf "$SCREEN_TMP"' EXIT
 trap 'remove_leftovers migrate; remove_leftovers n8n-setup; fail "stopped by a signal before it finished (deploy.sh allows it 30 minutes); the last [staging] line above is where it stopped"' TERM INT
 
 has_value() {
@@ -191,6 +192,75 @@ site_code() { # <path> [password]
   else
     curl -s -o /dev/null -m 15 -w '%{http_code}' "$AI_WEB_URL$1" || true
   fi
+}
+
+# One request of the screen walk: the password on curl's stdin as a config line (never an argument),
+# the cookie jar kept, headers and body in files of SCREEN_TMP (never printed). Prints the HTTP code.
+screen_req() { # <password> <jar> <url> [form data]
+  local pw="$1" jar="$2" url="$3" data="${4:-}"
+  # url and data hold the one-time code and the state: they travel on the config stdin with the
+  # password, never in argv. A value that curl's config syntax would read differently is refused.
+  case "$url$data" in *'"'* | *'\'* | *$'\n'*) return 0 ;; esac
+  {
+    printf 'user = "staging:%s"\nurl = "%s"\n' "$pw" "$url"
+    [ -z "$data" ] || printf 'data = "%s"\n' "$data"
+  } | curl -s -m 30 -K - -b "$jar" -c "$jar" -D "$SCREEN_TMP/h" -o "$SCREEN_TMP/b" -w '%{http_code}' || true
+}
+screen_header() { sed -n 's/^[Ll]ocation: *//p' "$SCREEN_TMP/h" | tr -d '\r' | head -1; }
+
+# The real sign-in through Caddy, then the screens: the AI web's /masuk starts PKCE and sends the
+# browser to the fake hydromart's hand-over page; the pick (a person with no authenticator step:
+# that step is a Next server action, not something curl can drive) comes back to the AI web's
+# callback; then each screen must answer 200 with its fixed heading. A failure is a note (it names
+# the step and the HTTP code only: never a cookie, a code or the password).
+SCREEN_USER=00000000-0000-4000-8000-000000000010 # fixtures.json: "Staging HR", HQ, sees every fake depot
+SCREEN_DEPOT=00000000-0000-4000-9000-000000000001 # fixtures.json: the first fake depot
+screens_probe() { # <password>
+  local pw="$1" jar code loc entry path want data
+  SCREEN_TMP="$(mktemp -d)"
+  jar="$SCREEN_TMP/jar"
+  code="$(screen_req "$pw" "$jar" "$AI_WEB_URL/masuk")"
+  loc="$(screen_header)"
+  case "$loc" in
+    "$AI_WEB_URL"/ai/masuk\?*) ;;
+    *) note "screens: /masuk answered ${code:-000} and did not send the browser to the fake hydromart's /ai/masuk"; return 0 ;;
+  esac
+  code="$(screen_req "$pw" "$jar" "$AI_WEB_URL/ai/masuk" "user=$SCREEN_USER&${loc#*\?}")"
+  loc="$(screen_header)"
+  case "$loc" in
+    "$AI_WEB_URL"/masuk/callback\?*) ;;
+    *) note "screens: the pick on /ai/masuk answered ${code:-000} and did not return to the AI web's callback"; return 0 ;;
+  esac
+  code="$(screen_req "$pw" "$jar" "$loc")"
+  loc="$(screen_header)"
+  case "$loc" in
+    / | "$AI_WEB_URL"/) ;;
+    *) note "screens: the sign-in callback answered ${code:-000} and did not finish at the Ringkasan"; return 0 ;;
+  esac
+  # path|heading|a string that exists only when the reads parsed (the first fake depot's label; the
+  # headings alone are static and print even when every read failed). No page may carry the AI web's
+  # failure markers (status.ts, screens.tsx): outage banner, "Gagal dimuat", denied, stale.
+  for entry in '/|Apa yang perlu Anda putuskan hari ini?|Depot Contoh Satu' '/liga|Liga depot kemarin|Depot Contoh Satu' \
+    "/depot/$SCREEN_DEPOT|Bagaimana depot ini kemarin|" '/minta-akses?untuk=money|Minta akses ke|'; do
+    path="${entry%%|*}"
+    want="${entry#*|}"
+    data="${want#*|}"
+    want="${want%%|*}"
+    code="$(screen_req "$pw" "$jar" "$AI_WEB_URL$path")"
+    if [ "$code" != 200 ]; then
+      note "screens: GET $path answered ${code:-000} (must be 200)"
+    elif ! grep -qF -- "$want" "$SCREEN_TMP/b"; then
+      note "screens: GET $path answered 200 without its heading ('$want')"
+    elif [ -n "$data" ] && ! grep -qF -- "$data" "$SCREEN_TMP/b"; then
+      note "screens: GET $path answered 200 with its heading but without its data ('$data'): the reads did not parse"
+    elif grep -qF -e 'Mode gangguan' -e 'Gagal dimuat' -e 'tidak boleh membaca' -e 'Basi:' "$SCREEN_TMP/b"; then
+      note "screens: GET $path answered 200 but shows a failure state (outage banner, not loaded, denied or stale)"
+    else
+      say "screens: $path answers 200 with its heading"
+    fi
+  done
+  rm -rf "$SCREEN_TMP"
+  SCREEN_TMP=''
 }
 
 ensure_login() {
@@ -345,6 +415,8 @@ probe() {
       code="$(site_code /api/health "$staging_pw")"
       [ "$code" = 200 ] && say "public: the password opens /api/health (200)" ||
         note "public: the password was answered ${code:-000} on /api/health (must be 200: DNS, certificate, login or app)"
+      # The sign-in and the new screens, only when the password opens the site at all.
+      [ "$code" != 200 ] || screens_probe "$staging_pw"
     fi
     code="$(site_code /api/internal/n8n/failure)"
     [ "$code" = 404 ] || note "public: /api/internal/n8n/failure answered ${code:-000} without credentials (must be 404)"
