@@ -240,17 +240,19 @@ export class DashboardSourcesHttpAdapter implements DashboardSourcesPort {
 
   async fixedCosts(depotIds: string[], month: string): Promise<Map<string, number> | null> {
     if (depotIds.length === 0) return new Map();
-    const out = new Map<string, number>();
     // The route takes at most 100 ids; a network P&L is a handful of calls, not one per depot.
-    for (let i = 0; i < depotIds.length; i += 100) {
-      const params = new URLSearchParams({ depotIds: depotIds.slice(i, i + 100).join(','), month });
-      const rows = await this.getInternal<{ depotId: string; totalIdr: number }[]>(
-        `${this.config.depotServiceUrl}/api/v1/depot-fixed-costs/internal/totals?${params.toString()}`,
-      );
-      if (rows === null) return null;
-      for (const r of rows) out.set(r.depotId, r.totalIdr);
-    }
-    return out;
+    const chunks: string[][] = [];
+    for (let i = 0; i < depotIds.length; i += 100) chunks.push(depotIds.slice(i, i + 100));
+    const answers = await Promise.all(
+      chunks.map((ids) =>
+        this.getInternal<{ depotId: string; totalIdr: number }[]>(
+          `${this.config.depotServiceUrl}/api/v1/depot-fixed-costs/internal/totals?${new URLSearchParams({ depotIds: ids.join(','), month }).toString()}`,
+        ),
+      ),
+    );
+    // Fail-closed: one chunk unread and the whole answer is unknown.
+    if (answers.some((rows) => rows === null)) return null;
+    return new Map(answers.flatMap((rows) => rows!.map((r) => [r.depotId, r.totalIdr] as const)));
   }
 
   async hrSummary(depotId: string): Promise<HrDepotSummary | null> {

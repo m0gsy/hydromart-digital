@@ -73,7 +73,7 @@ export default function HqPnlPage() {
 
   const unreadable = report.data
     ? Object.entries(report.data.sources)
-        .filter(([source, status]) => status !== 'ok' && !(source === 'payroll' && report.data?.payVisible === false))
+        .filter(([source, status]) => status !== 'ok' && status !== 'hidden' && !(source === 'payroll' && report.data?.payVisible === false))
         .map(([source]) => t(`hq.pnl.source.${source}`))
     : [];
 
@@ -139,6 +139,7 @@ function PnlTable({ data }: { data: NetworkPnl }) {
     : COST_KEYS;
   // HD-16: a depot without imported fixed costs is profit WITHOUT them, never a silent Rp 0.
   const fixedGap = !payHidden && ['not_entered', 'partial'].includes(data.totals.fixedCostStatus ?? '');
+  const fixedDown = !payHidden && data.totals.fixedCostStatus === 'unavailable';
   const cell = (value: number | null, negative = false) => (
     <td
       className={`px-3 py-2 text-right tabular-nums ${
@@ -227,6 +228,9 @@ function PnlTable({ data }: { data: NetworkPnl }) {
           </tr>
         </tfoot>
       </table>
+      {fixedDown && (
+        <p className="border-t border-app px-3 py-2 text-xs text-[color:var(--warning)]">{t('hq.pnl.fixedUnavailable')}</p>
+      )}
       {fixedGap && (
         <p className="border-t border-app px-3 py-2 text-xs text-muted">{t('hq.pnl.fixedNote')}</p>
       )}

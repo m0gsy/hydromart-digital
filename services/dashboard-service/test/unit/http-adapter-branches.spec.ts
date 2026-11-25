@@ -218,6 +218,7 @@ describe('DashboardSourcesHttpAdapter', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain('http://depot/api/v1/depot-fixed-costs/internal/totals?depotIds=d0%2Cd1');
     expect(String(fetchMock.mock.calls[0][0])).toContain('month=2026-07');
 
+    // The chunks go out together, not one after the other.
     fetchMock.mockReset();
     fetchMock.mockResolvedValueOnce(okResponse([]));
     fetchMock.mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}), text: async () => '' });

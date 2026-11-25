@@ -223,6 +223,17 @@ describe('DashboardService', () => {
       expect(sources.fixedCosts).not.toHaveBeenCalled();
       expect(depot).toMatchObject({ fixedCostIdr: null, fixedCostStatus: 'hidden' });
       expect(network.totals).toMatchObject({ fixedCostIdr: null, fixedCostStatus: 'hidden' });
+      expect(depot.sources.fixedCosts).toBe('hidden');
+      expect(network.sources.fixedCosts).toBe('hidden');
+    });
+
+    it('an empty network says nothing is missing instead of "belum diisi"', async () => {
+      const sources = pnlSources({ fixedCostIdr: 1 });
+      (sources.allDepots as jest.Mock).mockResolvedValue([]);
+      const service = new DashboardService(sources, dashboardTestConfig(), noNames);
+      const network = await service.networkPnl('2026-07', 'Bearer t', undefined, true);
+      expect(network.depots).toEqual([]);
+      expect(network.totals).toMatchObject({ fixedCostIdr: null, fixedCostStatus: 'entered' });
     });
 
     it('a network total says partial when only some depots have rows', async () => {

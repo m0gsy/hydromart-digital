@@ -1151,6 +1151,7 @@ export const hq = {
     colClaims: 'Klaim biaya',
     colRefunds: 'Pengembalian',
     colFixed: 'Biaya tetap',
+    fixedUnavailable: 'Biaya tetap belum bisa dibaca (layanan depot sedang tidak tersedia), jadi laba bersih tidak dihitung. Coba lagi nanti.',
     fixedNote: 'Biaya tetap diimpor kantor pusat per depot dan bulan. Depot tanpa impor ditampilkan "—" (belum diisi) dan labanya belum memuat biaya tetap; total biaya tetap hanya dari depot yang sudah diisi.',
     colNet: 'Laba bersih',
     total: 'Jaringan',

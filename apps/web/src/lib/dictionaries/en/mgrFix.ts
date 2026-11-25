@@ -94,6 +94,7 @@ export const mgrFix = {
     expenseClaims: 'Expense claims',
     refunds: 'Refunds',
     fixedCosts: 'Fixed costs (rent, electricity, ...)',
+    fixedUnavailable: 'Fixed costs could not be read (depot service unavailable), so net profit is not calculated. Try again later.',
     fixedNotEntered: 'Head office has not entered this month\'s fixed costs yet, so the net profit above does not include them.',
     sources: 'Data sources',
     orderSource: 'Order-service revenue',

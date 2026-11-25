@@ -1146,6 +1146,7 @@ export const hq = {
     colClaims: 'Expense claims',
     colRefunds: 'Refunds',
     colFixed: 'Fixed costs',
+    fixedUnavailable: 'Fixed costs could not be read (depot service unavailable), so net profit is not calculated. Try again later.',
     fixedNote: 'Fixed costs are imported by head office per depot and month. A depot without an import shows "—" (not entered) and its profit does not include fixed costs; the fixed-cost total counts only depots that were entered.',
     colNet: 'Net profit',
     total: 'Network',

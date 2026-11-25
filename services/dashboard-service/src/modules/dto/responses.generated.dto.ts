@@ -132,7 +132,7 @@ export class MonthlyOperationalPnlSourcesResponseDto {
   payout!: string;
   @ApiProperty({ enum: ['ok', 'unavailable'] })
   refunds!: string;
-  @ApiProperty({ enum: ['ok', 'unavailable'] })
+  @ApiProperty({ enum: ['ok', 'unavailable', 'hidden'] })
   fixedCosts!: string;
 }
 

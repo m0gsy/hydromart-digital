@@ -38,6 +38,13 @@ describe('the network P&L fixed-cost column', () => {
     expect(screen.getByText('hq.pnl.fixedNote')).toBeTruthy();
   });
 
+  it('says the fixed costs could not be read, apart from the not-entered note', async () => {
+    get.mockResolvedValue(report([row({ fixedCostIdr: null, fixedCostStatus: 'unavailable', netProfitIdr: null })], { ...row({}), fixedCostIdr: null, fixedCostStatus: 'unavailable', netProfitIdr: null }));
+    render(<HqPnlPage />);
+    expect(await screen.findByText('hq.pnl.fixedUnavailable')).toBeTruthy();
+    expect(screen.queryByText('hq.pnl.fixedNote')).toBeNull();
+  });
+
   it('has no fixed-cost column or note for a reader without payrollRead', async () => {
     get.mockResolvedValue(report([row({ fixedCostIdr: null, fixedCostStatus: 'hidden', netProfitIdr: null })], { ...row({}), fixedCostIdr: null, fixedCostStatus: 'hidden' }, false));
     render(<HqPnlPage />);

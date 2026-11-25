@@ -1494,6 +1494,7 @@ export interface NetworkPnl {
     payroll: 'ok' | 'partial' | 'unavailable';
     payout: 'ok' | 'unavailable';
     refunds: 'ok' | 'unavailable';
+    fixedCosts?: 'ok' | 'unavailable' | 'hidden';
   };
 }
 

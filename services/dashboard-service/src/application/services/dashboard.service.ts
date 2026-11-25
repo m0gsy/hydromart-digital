@@ -163,7 +163,7 @@ export interface MonthlyOperationalPnl {
     payroll: 'ok' | 'pending' | 'unavailable';
     payout: 'ok' | 'unavailable';
     refunds: 'ok' | 'unavailable';
-    fixedCosts: 'ok' | 'unavailable';
+    fixedCosts: 'ok' | 'unavailable' | 'hidden';
   };
 }
 
@@ -220,7 +220,7 @@ export interface NetworkPnl {
     payroll: 'ok' | 'partial' | 'unavailable';
     payout: 'ok' | 'unavailable';
     refunds: 'ok' | 'unavailable';
-    fixedCosts: 'ok' | 'unavailable';
+    fixedCosts: 'ok' | 'unavailable' | 'hidden';
   };
 }
 
@@ -337,7 +337,7 @@ export class DashboardService {
         payroll: hr[0] == null ? 'unavailable' : payrollIdr === null ? 'pending' : 'ok',
         payout: payout === null ? 'unavailable' : 'ok',
         refunds: refunds === null ? 'unavailable' : 'ok',
-        fixedCosts: fixed === null ? 'unavailable' : 'ok',
+        fixedCosts: !payVisible ? 'hidden' : fixed === null ? 'unavailable' : 'ok',
       },
     };
   }
@@ -569,14 +569,16 @@ export class DashboardService {
         payroll: depots === null ? 'unavailable' : payrollMissing ? 'partial' : 'ok',
         payout: payout !== null ? 'ok' : 'unavailable',
         refunds: refunds !== null ? 'ok' : 'unavailable',
-        fixedCosts: fixed !== null ? 'ok' : 'unavailable',
+        fixedCosts: !payVisible ? 'hidden' : fixed !== null ? 'ok' : 'unavailable',
       },
     };
   }
 
   private static fixedTotalStatus(statuses: FixedCostStatus[]): FixedCostStatus {
+    // No depots, nothing missing: the screen must not say "belum diisi" over an empty table.
+    if (statuses.length === 0) return 'entered';
     if (statuses.includes('unavailable')) return 'unavailable';
-    if (statuses.length > 0 && statuses.every((s) => s === 'hidden')) return 'hidden';
+    if (statuses.every((s) => s === 'hidden')) return 'hidden';
     const entered = statuses.filter((s) => s === 'entered').length;
     if (entered === 0) return 'not_entered';
     return entered === statuses.length ? 'entered' : 'partial';

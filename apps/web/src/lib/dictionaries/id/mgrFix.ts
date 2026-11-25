@@ -97,6 +97,7 @@ export const mgrFix = {
     expenseClaims: 'Klaim biaya',
     refunds: 'Pengembalian dana',
     fixedCosts: 'Biaya tetap (sewa, listrik, dll.)',
+    fixedUnavailable: 'Biaya tetap belum bisa dibaca (layanan depot sedang tidak tersedia), jadi laba bersih tidak dihitung. Coba lagi nanti.',
     fixedNotEntered: 'Biaya tetap bulan ini belum diisi kantor pusat, jadi laba bersih di atas belum memuatnya.',
     sources: 'Sumber data',
     orderSource: 'Pendapatan order-service',
