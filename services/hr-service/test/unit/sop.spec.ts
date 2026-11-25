@@ -81,6 +81,7 @@ const staff = (id: string, depotId: string | null, over: Record<string, unknown>
   depotId,
   homeDepotId: null,
   departmentId: null,
+  status: 'ACTIVE',
   phone: `08-${id}`,
   authSubjectId: `auth-${id}`,
   ...over,
@@ -155,6 +156,11 @@ class FakeRepo implements SopRepository {
     return new Map(versionIds.filter((v) => this.ackTimes.has(`${v}:${employeeId}`)).map((v) => [v, this.ackTimes.get(`${v}:${employeeId}`)!]));
   }
 }
+
+/** Let queued promise work run (fake timers hold back setImmediate). */
+const settle = async () => {
+  for (let i = 0; i < 60; i += 1) await Promise.resolve();
+};
 
 const PDF = Buffer.from('%PDF-1.4\n%fake\n');
 
@@ -466,6 +472,45 @@ describe('SopService', () => {
       await expect(service.ack(asStaff('nobody'), id)).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    it('refuses a leaver whose token is still alive', async () => {
+      roster.push(staff('gone', D1, { status: 'RESIGNED' }));
+      const leaver = asStaff('gone');
+      await expect(service.mine(leaver)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.ack(leaver, all.versions[0].id)).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.versionForSelf(leaver, all.versions[0].id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('lists one version per SOP for lent staff: where they work now wins over home', async () => {
+      const sop = await service.create(head, 'SOP dua wajah', input({ allDepots: false, depotIds: [D3] }));
+      await service.addVersion(head, sop.id, input({ body: 'khusus rumah', allDepots: false, depotIds: [D1] }));
+      const items = (await service.mine(asStaff('e5'))).filter((i) => i.sopTitle === 'SOP dua wajah');
+      expect(items).toHaveLength(1);
+      expect(items[0].versionNo).toBe(1); // D3 (current depot), not the D1 version
+    });
+
+    it('lets me read a version ahead of its day but not acknowledge it until it takes effect', async () => {
+      const future = await service.create(head, 'SOP besok', input({ effectiveFrom: '2026-11-29' }));
+      const id = future.versions[0].id;
+      await expect(service.versionForSelf(asStaff('e1'), id)).resolves.toMatchObject({ body: expect.any(String) });
+      await expect(service.ack(asStaff('e1'), id)).rejects.toBeInstanceOf(BadRequestException);
+      expect(repo.acks.get(id)).toBeUndefined();
+      jest.setSystemTime(new Date('2026-11-28T17:30:00.000Z')); // 00:30 WIB on the 29th
+      await expect(service.ack(asStaff('e1'), id)).resolves.toBeDefined();
+    });
+
+    it('answers 404 when the stored PDF is gone, and passes other storage errors on', async () => {
+      const withFile = await service.create(head, 'SOP pdf hilang', input({ fileKey: FILE_KEY }));
+      const id = withFile.versions[0].id;
+      storage.getObject.mockRejectedValueOnce(Object.assign(new Error('x'), { name: 'NoSuchKey' }));
+      await expect(service.fileForSelf(asStaff('e1'), id)).rejects.toBeInstanceOf(NotFoundException);
+      storage.getObject.mockRejectedValueOnce({ Code: 'NoSuchKey' });
+      await expect(service.fileForSelf(asStaff('e1'), id)).rejects.toBeInstanceOf(NotFoundException);
+      storage.getObject.mockRejectedValueOnce({ $metadata: { httpStatusCode: 404 } });
+      await expect(service.fileForSelf(asStaff('e1'), id)).rejects.toBeInstanceOf(NotFoundException);
+      storage.getObject.mockRejectedValueOnce(new Error('s3 down'));
+      await expect(service.fileForSelf(asStaff('e1'), id)).rejects.toThrow('s3 down');
+    });
+
     it('shows one version with its text, only to someone it reaches', async () => {
       const detail = await service.versionForSelf(asStaff('e1'), all.versions[0].id);
       expect(detail).toMatchObject({ sopTitle: 'SOP umum', body: 'Cuci tangan sebelum mengisi galon.', acked: false });
@@ -498,6 +543,7 @@ describe('SopService', () => {
       roster.push(staff('e6', D1, { authSubjectId: null }));
       const noticing = new SopService(repo, employees as never, storage as never, { isActive: jest.fn(async () => true) } as never, { notify });
       const out = await noticing.create(head, 'SOP baru', input({ allDepots: false, depotIds: [D1], effectiveFrom: '2026-12-01' }));
+      await settle();
       // e1, e2, e5 (lent from D1) have logins; e6 has none.
       expect(notify.mock.calls.map((c) => c[1])).toEqual(['08-e1', '08-e2', '08-e5']);
       expect(notify).toHaveBeenCalledWith(
@@ -509,8 +555,36 @@ describe('SopService', () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('crm down'));
       notify.mockClear();
       await noticing.addVersion(head, out.id, input({ allDepots: false, depotIds: [D2], effectiveFrom: '2026-12-02' }));
+      await settle();
       expect(notify).toHaveBeenCalledTimes(1);
       expect(notify.mock.calls[0][2]).toMatchObject({ title: 'SOP baru: SOP baru (versi 2)' });
+    });
+  });
+
+  describe('the publish notice does not hold the response', () => {
+    it('answers before the notices are out, sends ten at a time, and a failing notice never fails the publish', async () => {
+      roster.splice(0, roster.length, ...Array.from({ length: 25 }, (_, i) => staff('n' + i, D1)));
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((r) => (release = r));
+      let inFlight = 0;
+      let peak = 0;
+      const notify = jest.fn(async (_e: string, phone: string, _v?: Record<string, string>, _s?: string) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await gate;
+        inFlight -= 1;
+        if (phone === '08-n3') throw new Error('crm down');
+      });
+      const noticing = new SopService(repo, employees as never, storage as never, { isActive: jest.fn(async () => true) } as never, { notify });
+      const out = await noticing.create(head, 'SOP besar', input());
+      expect(out.versions[0].audienceSize).toBe(25);
+      await settle();
+      expect(notify).toHaveBeenCalledTimes(10); // the response is out while the first chunk is still pending
+      release();
+      await settle();
+      expect(notify).toHaveBeenCalledTimes(25);
+      expect(peak).toBe(10);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('crm down'));
     });
   });
 
@@ -595,7 +669,7 @@ describe('SelfSopController', () => {
     const headers: Record<string, string> = {};
     const out = await c.file(SOP1, kepala, { setHeader: (k: string, v: string) => (headers[k] = v) } as never);
     expect(out.getStream()).toBeDefined();
-    expect(headers).toEqual({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="a_b_c.pdf"' });
+    expect(headers).toEqual({ 'Content-Type': 'application/pdf', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline; filename="a_b_c.pdf"' });
     expect(Reflect.getMetadata('__headers__', SelfSopController.prototype.file)).toEqual(
       expect.arrayContaining([expect.objectContaining({ name: 'Cache-Control', value: 'no-store, private' })]),
     );

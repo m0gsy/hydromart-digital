@@ -133,6 +133,12 @@ describe('reading one SOP', () => {
     const view = render(<MySopDetailPage />);
     expect(await screen.findByText('hrFix.mySop.notFound')).toBeTruthy();
     view.unmount();
+    // Any other failure is a failed read, not "not yours".
+    get.mockRejectedValue(new FakeApiError(500, 'hr down'));
+    const failed = render(<MySopDetailPage />);
+    expect(await screen.findByText('hrFix.mySop.loadError')).toBeTruthy();
+    expect(screen.queryByText('hrFix.mySop.notFound')).toBeNull();
+    failed.unmount();
     const user = userEvent.setup();
     get.mockResolvedValue(detail({ hasFile: true, fileName: null }));
     render(<MySopDetailPage />);

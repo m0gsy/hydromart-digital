@@ -33,6 +33,7 @@ export const MAX_SOP_PDF_BYTES = 10 * 1024 * 1024;
 const ROSTER_PAGE = 1000;
 const ROSTER_MAX_PAGES = 100;
 const DEPOT_CHECK_CHUNK = 10;
+const NOTICE_CHUNK = 10;
 
 /** A key this service minted: `hr/sop/<uuid>.pdf`. Anything else is another bucket folder. */
 const SOP_FILE_KEY = new RegExp('^hr/sop/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.]pdf$');
@@ -187,7 +188,7 @@ export class SopService {
   async create(user: AuthenticatedUser, title: string, input: SopVersionInput): Promise<SopDetailView> {
     const { write, audience } = await this.prepare(user, input.versionTitle?.trim() || title, input);
     const created = await this.repo.create(title, user.sub, write);
-    await this.announce(audience, title, 1, input.effectiveFrom);
+    this.announceInBackground(audience, title, 1, input.effectiveFrom);
     return this.detail(created);
   }
 
@@ -200,7 +201,7 @@ export class SopService {
       try {
         if (!(await this.repo.addVersion(sopId, write))) throw new NotFoundException('SOP tidak ditemukan');
         const out = await this.detail(await this.get(sopId));
-        await this.announce(audience, sop.title, out.versions[0]!.versionNo, input.effectiveFrom);
+        this.announceInBackground(audience, sop.title, out.versions[0]!.versionNo, input.effectiveFrom);
         return out;
       } catch (error) {
         if ((error as { code?: string })?.code !== 'P2002') throw error;
@@ -316,9 +317,13 @@ export class SopService {
     const picked = new Map<string, { v: SopVersionRow; sopTitle: string }>();
     for (const sop of await this.repo.list()) {
       const shaped = sop.versions.map((v) => ({ v, ...SopService.shape(v) }));
+      // One version per SOP: where they work now wins over the depot they are lent from.
       for (const depotId of probes) {
         const hit = inForce(shaped, depotId, today);
-        if (hit) picked.set(hit.v.id, { v: hit.v, sopTitle: sop.title });
+        if (hit) {
+          picked.set(hit.v.id, { v: hit.v, sopTitle: sop.title });
+          break;
+        }
       }
     }
     const acks = await this.repo.ackedAt(employee.id, [...picked.keys()]);
@@ -337,13 +342,26 @@ export class SopService {
       ? await this.repo.findVersion(versionId)
       : (await this.readable(user, versionId)).version;
     if (!version?.fileKey) throw new NotFoundException('File SOP tidak ditemukan');
-    const object = await this.storage.getObject(version.fileKey);
+    let object: Awaited<ReturnType<StoragePort['getObject']>>;
+    try {
+      object = await this.storage.getObject(version.fileKey);
+    } catch (error) {
+      const e = error as { name?: string; Code?: string; $metadata?: { httpStatusCode?: number } };
+      if (e.name === 'NoSuchKey' || e.Code === 'NoSuchKey' || e.$metadata?.httpStatusCode === 404) {
+        throw new NotFoundException('File SOP tidak ditemukan');
+      }
+      throw error;
+    }
     return { body: object.body, fileName: version.fileName ?? 'sop.pdf' };
   }
 
   /** "Sudah dibaca". Idempotent; a version that does not reach this employee is 404, not a receipt. */
   async ack(user: AuthenticatedUser, versionId: string): Promise<{ ackedAt: Date }> {
-    const { employee } = await this.readable(user, versionId);
+    const { employee, version } = await this.readable(user, versionId);
+    // Reading ahead is fine; a receipt for a procedure not yet in force is not.
+    if (dayKeyOf(version.effectiveFrom) > localDayKey(new Date())) {
+      throw new BadRequestException('SOP ini belum berlaku. Anda bisa membacanya, tapi baru bisa menandai sudah dibaca mulai tanggal berlakunya');
+    }
     return this.repo.ack(versionId, employee.id);
   }
 
@@ -351,7 +369,10 @@ export class SopService {
 
   private async self(user: AuthenticatedUser) {
     const employee = await this.employees.findByAuthSubjectId(user.sub);
-    if (!employee) throw new NotFoundException('Akun ini belum tertaut ke data karyawan');
+    // A leaver's token outlives their employment: only active staff read or acknowledge.
+    if (!employee || employee.status !== 'ACTIVE') {
+      throw new NotFoundException('Akun ini belum tertaut ke data karyawan');
+    }
     return employee;
   }
 
@@ -383,6 +404,20 @@ export class SopService {
    * The publish notice rides the announcement path (HR_ANNOUNCEMENT), once per person with a login.
    * Fail-open: a notification outage must not undo a SOP that is already saved.
    */
+  /**
+   * Not awaited: hundreds of round trips must not sit inside the POST, where a gateway timeout after
+   * the SOP is saved would invite a duplicate retry. Failures are logged per person.
+   */
+  private announceInBackground(
+    people: readonly { phone: string; authSubjectId: string | null }[],
+    title: string,
+    versionNo: number,
+    effectiveFrom: string,
+  ): void {
+    // announce() logs each failure itself and never rejects.
+    void this.announce(people, title, versionNo, effectiveFrom);
+  }
+
   private async announce(
     people: readonly { phone: string; authSubjectId: string | null }[],
     title: string,
@@ -395,13 +430,19 @@ export class SopService {
       body: `Berlaku mulai ${effectiveFrom}. Buka menu SOP, baca, lalu tandai sudah dibaca.`,
       level: 'INFO',
     };
-    for (const person of people) {
-      if (!person.authSubjectId) continue;
-      try {
-        await this.notifications.notify('HR_ANNOUNCEMENT', person.phone, vars, person.authSubjectId);
-      } catch (error) {
-        this.logger.warn(`SOP notice not sent: ${(error as Error).message}`);
-      }
+    const notifications = this.notifications;
+    const reachable = people.filter((p) => !!p.authSubjectId);
+    // Ten at a time: bounded load on crm-service.
+    for (let i = 0; i < reachable.length; i += NOTICE_CHUNK) {
+      await Promise.all(
+        reachable.slice(i, i + NOTICE_CHUNK).map(async (person) => {
+          try {
+            await notifications.notify('HR_ANNOUNCEMENT', person.phone, vars, person.authSubjectId!);
+          } catch (error) {
+            this.logger.warn(`SOP notice not sent: ${(error as Error).message}`);
+          }
+        }),
+      );
     }
   }
 

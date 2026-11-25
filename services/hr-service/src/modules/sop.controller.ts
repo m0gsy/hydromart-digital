@@ -169,6 +169,7 @@ export class SelfSopController {
   ): Promise<StreamableFile> {
     const { body, fileName } = await this.sops.fileForSelf(user, versionId);
     res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Disposition', `inline; filename="${fileName.replace(/[^A-Za-z0-9._-]/g, '_')}"`);
     return new StreamableFile(body);
   }

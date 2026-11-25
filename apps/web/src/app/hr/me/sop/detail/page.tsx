@@ -16,7 +16,15 @@ import { useQueryParam } from '@/lib/use-query-param';
 export default function MySopDetailPage() {
   const id = useQueryParam('id');
   const { t } = useT();
-  const detail = useAsync<SopMineDetail>(() => api.get<SopMineDetail>(endpoints.hr.sopVersion(id), true), [id]);
+  // Only a 404 means "not yours / not there"; anything else is a failed read and gets a retry.
+  const detail = useAsync<SopMineDetail | null>(
+    () =>
+      api.get<SopMineDetail>(endpoints.hr.sopVersion(id), true).catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }),
+    [id],
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -31,7 +39,7 @@ export default function MySopDetailPage() {
     return (
       <div className="mx-auto max-w-md space-y-4 px-4 py-6">
         {back}
-        <ErrorState message={t('hrFix.mySop.notFound')} onRetry={detail.reload} />
+        <ErrorState message={detail.error ? t('hrFix.mySop.loadError') : t('hrFix.mySop.notFound')} onRetry={detail.reload} />
       </div>
     );
   }
