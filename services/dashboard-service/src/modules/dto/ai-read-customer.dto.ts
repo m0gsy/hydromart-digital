@@ -17,6 +17,13 @@ export class DeliveryQueryDto extends PeriodQueryDto {
   metric!: string;
 }
 
+/** HD-16: the target route: same shape, its own group (target versus actual for one whole month). */
+export class TargetQueryDto extends PeriodQueryDto {
+  @ApiProperty({ example: 'T-01', description: 'A metric of the target group (see the contract).' })
+  @IsString()
+  metric!: string;
+}
+
 /** The gallon route: same shape, its own group. */
 export class GallonQueryDto extends PeriodQueryDto {
   @ApiProperty({ example: 'G-01', description: 'A metric of the gallon group (see the contract).' })

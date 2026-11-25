@@ -17,6 +17,7 @@ import {
 
 import { CUSTOMER_METRIC_IDS, CUSTOMER_METRICS } from '../../src/application/ai-read/customer-metrics';
 import { DELIVERY_METRIC_IDS, DELIVERY_METRICS } from '../../src/application/ai-read/delivery-metrics';
+import { TARGET_METRICS, TARGET_METRIC_IDS } from '../../src/application/ai-read/target-metrics';
 import { GALLON_METRIC_IDS, GALLON_METRICS } from '../../src/application/ai-read/gallon-metrics';
 import { envValidationSchema } from '../../src/config/env.validation';
 import { DashboardModule } from '../../src/modules/dashboard.module';
@@ -72,11 +73,13 @@ const OPS = {
   customers: contract.paths['/dashboard/api/v1/ai/read/customers'].get,
   delivery: contract.paths['/dashboard/api/v1/ai/read/delivery'].get,
   gallons: contract.paths['/dashboard/api/v1/ai/read/gallons'].get,
+  targets: contract.paths['/dashboard/api/v1/ai/read/targets'].get,
 };
 const GROUPS = {
   customers: { ids: CUSTOMER_METRIC_IDS as string[], registry: CUSTOMER_METRICS as Registry },
   delivery: { ids: DELIVERY_METRIC_IDS as string[], registry: DELIVERY_METRICS as Registry },
   gallons: { ids: GALLON_METRIC_IDS as string[], registry: GALLON_METRICS as Registry },
+  targets: { ids: TARGET_METRIC_IDS as string[], registry: TARGET_METRICS as Registry },
 };
 
 const GRANTS: Record<string, { all: boolean; legalEntityIds: string[] }> = {
@@ -151,6 +154,11 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
             depositRefundedInWindow: 15_000,
           })),
         });
+      }
+      if (url.pathname === '/api/v1/depot-targets/internal/by-month') {
+        // D1 has every goal set; D2 has none (HD-16)
+        const ids = (url.searchParams.get('depotIds') ?? '').split(',');
+        return json(ids.map((depotId) => ({ depotId, revenueTargetIdr: 0, ordersTarget: depotId === D1 ? 2000 : 0, newCustomersTarget: 0, gallonsTarget: depotId === D1 ? 4000 : 0 })));
       }
       const role = url.pathname.split('/internal/ai-grants/')[1];
       return json({ roleKey: role, ...(GRANTS[role] ?? { all: false, legalEntityIds: [] }) });
@@ -228,6 +236,28 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
     }
   });
 
+  it('answers target versus actual: gallons per depot with a null target where none is set, never 0%', async () => {
+    const split = await get(aiToken('SUPER_ADMIN'), 'targets', 'T-02', 'period=month&date=2026-11-10&split=depot').expect(200);
+    expect(split.body).toMatchObject({ metricId: 'T-02', status: 'ok', unit: 'galon' });
+    // the stub sells 777 gallons per span: D1 has two spans (an entity change on 16 Nov), D2 one
+    expect(split.body.value).toEqual({
+      target: null,
+      actual: 3 * 777,
+      pct: null,
+      byDepot: [
+        { depotId: D1, target: 4000, actual: 2 * 777, pct: 38.9 },
+        { depotId: D2, target: null, actual: 777, pct: null },
+      ],
+    });
+    // a network answer with a depot lacking a target is belum_ada, and the revenue goal nobody set likewise
+    expect((await get(aiToken('SUPER_ADMIN'), 'targets', 'T-02').expect(200)).body).toMatchObject({ status: 'belum_ada', value: null });
+    expect((await get(aiToken('SUPER_ADMIN'), 'targets', 'T-01', 'period=month&date=2026-11-10&split=depot').expect(200)).body.status).toBe('belum_ada');
+    // a count of people cannot be split; an open or non-month period and an unknown id are refused
+    await get(aiToken('SUPER_ADMIN'), 'targets', 'T-04', 'period=month&date=2026-11-10&split=depot').expect(400);
+    await get(aiToken('SUPER_ADMIN'), 'targets', 'T-02', 'period=week&date=2026-11-10').expect(400);
+    await get(aiToken('SUPER_ADMIN'), 'targets', 'T-99').expect(404);
+  });
+
   it('answers delivery and gallons, a gallon balance', async () => {
     const k2 = await get(aiToken('SUPER_ADMIN'), 'delivery', 'K-02').expect(200);
     expect(k2.body).toMatchObject({ status: 'ok', value: { ratePct: 85, onTime: 34, delivered: 40 } });
@@ -282,7 +312,7 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
   });
 
   it('keeps the door: no token, a machine token and a franchise owner are refused', async () => {
-    for (const group of ['customers', 'delivery', 'gallons'] as const) {
+    for (const group of ['customers', 'delivery', 'gallons', 'targets'] as const) {
       await get(null, group, 'X-00').expect(401);
       const machine = es256({ iss: 'hydromart-auth', aud: 'hydromart-machine', sub: PERSON, scopes: ['aiRead'], exp: exp() });
       await get(machine, group, 'X-00').expect(403);
@@ -295,11 +325,11 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
    * ids, their units, which ones are month-only and the status rules it quotes must be what is served.
    */
   it('matches the contract the AI web codes against', async () => {
-    const served = { customers: 'C-04', delivery: 'K-01', gallons: 'G-01' } as const;
-    for (const group of ['customers', 'delivery', 'gallons'] as const) {
+    const served = { customers: 'C-04', delivery: 'K-01', gallons: 'G-01', targets: 'T-02' } as const;
+    for (const group of ['customers', 'delivery', 'gallons', 'targets'] as const) {
       const op = OPS[group];
       const { ids, registry } = GROUPS[group];
-      expect(op.parameters.map((p: { name: string }) => p.name).sort()).toEqual(['date', 'from', 'metric', 'period', ...(group === 'gallons' ? ['split'] : []), 'to']);
+      expect(op.parameters.map((p: { name: string }) => p.name).sort()).toEqual(['date', 'from', 'metric', 'period', ...(group === 'gallons' || group === 'targets' ? ['split'] : []), 'to']);
       expect(op.parameters.find((p: { name: string }) => p.name === 'metric').schema.enum).toEqual([...ids]);
       expect(Object.keys(op['x-metrics'])).toEqual([...ids]);
       for (const id of ids) {

@@ -35,6 +35,7 @@ import { CumulativeScopeService } from '../application/ai-read/cumulative-scope.
 import { CustomerMetricsService } from '../application/ai-read/customer-metrics';
 import { DeliveryMetricsService } from '../application/ai-read/delivery-metrics';
 import { GallonMetricsService } from '../application/ai-read/gallon-metrics';
+import { TargetMetricsService } from '../application/ai-read/target-metrics';
 import { AiCustomerSourcesHttpAdapter } from '../infrastructure/http/ai-customer-sources.http.adapter';
 import { PendingApprovalSourcesHttpAdapter } from '../infrastructure/http/pending-approval-sources.http.adapter';
 
@@ -58,6 +59,7 @@ const providers: Provider[] = [
   CustomerMetricsService,
   DeliveryMetricsService,
   GallonMetricsService,
+  TargetMetricsService,
   PendingApprovalsService,
   { provide: DASHBOARD_TOKENS.PendingApprovalSources, useClass: PendingApprovalSourcesHttpAdapter },
   {
