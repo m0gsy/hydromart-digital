@@ -335,6 +335,8 @@ model Subscription {
 
   @@index([customerId])
   @@index([status, nextDeliveryAt])
+  /// HD-6 H4 part 2: subscriptions made inside a month (O-08).
+  @@index([createdAt])
   @@map("subscriptions")
 }
 

@@ -32,6 +32,11 @@ export const envValidationSchema = Joi.object({
   PAYMENT_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // HD-6 H4: the AI read API's sales forecast (S-06). Blank = belum_ada, never zero.
   FORECAST_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // HD-6 H4 part 2: the AI read API's loyalty, referral and campaign metrics (O-02, O-04, O-06, O-09).
+  // Blank = those metrics say belum_ada, never zero.
+  LOYALTY_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  REFERRAL_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
   // Q-6: shipped to every service by docker-compose's x-shared, and until now
   // validated by none of them. The capability poller reads it; unset, it fails open
   // and every service silently enforces the compiled RBAC defaults forever — which

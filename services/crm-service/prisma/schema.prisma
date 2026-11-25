@@ -84,6 +84,8 @@ model Campaign {
   @@index([status, createdAt])
   /// Partial: only scheduled rows need the due-check, and they are the minority.
   @@index([scheduledFor])
+  /// HD-6 H4 part 2: campaigns finished inside a month, and any still sending (O-09).
+  @@index([status, sentAt])
   @@map("campaigns")
 }
 

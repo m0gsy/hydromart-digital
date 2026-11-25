@@ -52,6 +52,16 @@ export class DashboardConfigService {
   get paymentServiceUrl(): string | undefined {
     return this.config.get<string>('PAYMENT_SERVICE_URL')?.replace(/\/+$/, '');
   }
+  /** HD-6 H4 part 2: loyalty, referral and campaign facts the AI read API quotes. Blank = that metric says belum_ada, never 0. */
+  get loyaltyServiceUrl(): string | undefined {
+    return this.config.get<string>('LOYALTY_SERVICE_URL')?.replace(/\/+$/, '');
+  }
+  get referralServiceUrl(): string | undefined {
+    return this.config.get<string>('REFERRAL_SERVICE_URL')?.replace(/\/+$/, '');
+  }
+  get crmServiceUrl(): string | undefined {
+    return this.config.get<string>('CRM_SERVICE_URL')?.replace(/\/+$/, '');
+  }
   /** HD-6 H4: the sales forecast the AI read API quotes. Blank = that metric says belum_ada, never 0. */
   get forecastServiceUrl(): string | undefined {
     return this.config.get<string>('FORECAST_SERVICE_URL')?.replace(/\/+$/, '');

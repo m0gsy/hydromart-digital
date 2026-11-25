@@ -33,6 +33,10 @@ import { DepotOverseersHttpAdapter } from '../infrastructure/http/depot-overseer
 import { NotificationPreferenceHttpAdapter } from '../infrastructure/http/notification-preference.http.adapter';
 import { ActivitySegmentHttpAdapter } from '../infrastructure/http/activity-segment.http.adapter';
 import { CrmAuditSink } from '../infrastructure/http/audit.sink';
+import { AiCampaignService } from '../application/services/ai-campaign.service';
+import { AI_CAMPAIGN_REPOSITORY } from '../application/ports/ai-campaign.repository';
+import { AiCampaignPrismaRepository } from '../infrastructure/prisma/ai-campaign.prisma.repository';
+import { AiCampaignController } from './ai-campaign.controller';
 import { CampaignController } from './campaign.controller';
 import { SavedSegmentController } from './saved-segment.controller';
 import { NotificationController } from './notification.controller';
@@ -44,6 +48,8 @@ const providers: Provider[] = [
   PrismaService,
   CrmConfigService,
   CampaignService,
+  AiCampaignService,
+  { provide: AI_CAMPAIGN_REPOSITORY, useClass: AiCampaignPrismaRepository },
   SavedSegmentService,
   NotificationService,
   MorningSummaryService,
@@ -81,6 +87,7 @@ const providers: Provider[] = [
 @Module({
   imports: [JwtModule.register({})],
   controllers: [
+    AiCampaignController,
     CampaignController,
     SavedSegmentController,
     NotificationController,
