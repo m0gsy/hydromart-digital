@@ -4,8 +4,10 @@ import { InventoryService } from '../../src/application/services/inventory.servi
 import { ApprovalService } from '../../src/application/services/approval.service';
 import { DepotService } from '../../src/application/services/depot.service';
 import { InventoryItemType, OwnershipType, StockMovementType } from '../../src/domain/inventory';
+import { DraftSource } from '../../src/domain/draft-source';
 import { PoStatus } from '../../src/domain/purchase-order';
 import {
+  AiSuggestionReusedError,
   DepotNotFoundError,
   InvalidPurchaseOrderTransitionError,
   InventoryItemNotFoundError,
@@ -602,6 +604,92 @@ describe('PurchaseOrderService', () => {
       await expect(service.receive(id, ACTOR, { 0: 0, 1: 0 })).rejects.toThrow(
         /Nothing to receive/,
       );
+    });
+  });
+  // HD-17: the AI web's draft stays DRAFT, marked AI, once per suggestion id.
+  describe('draftFromAi (HD-17)', () => {
+    const SUGGESTION = '5c1e2f3a-0000-4000-8000-000000000002';
+    const ai = { suggestionId: SUGGESTION, reason: 'Stok galon tinggal 2 hari.' };
+    const input = () => ({
+      depotId,
+      supplierId,
+      shippingIdr: 5_000,
+      lines: [
+        { itemType: InventoryItemType.GALON, label: 'Galon 19L', quantity: 50, unitCostIdr: 18_000 },
+      ],
+      expectedAt: new Date('2026-12-01T00:00:00.000Z'),
+    });
+
+    it('makes a DRAFT marked AI with its suggestion id and reason', async () => {
+      const { draft, replayed } = await service.draftFromAi(input(), ai);
+      expect(replayed).toBe(false);
+      expect(draft).toMatchObject({
+        status: PoStatus.DRAFT,
+        source: DraftSource.AI,
+        aiSuggestionId: SUGGESTION,
+        aiReason: ai.reason,
+        totalIdr: 905_000,
+      });
+    });
+
+    it('answers the same draft for the same id and body (also when the stored lines are re-keyed)', async () => {
+      const first = await service.draftFromAi(input(), ai);
+      const row = poRepo.rows[0]!;
+      row.lines = row.lines.map((l) => ({ unitCostIdr: l.unitCostIdr, quantity: l.quantity, label: l.label, itemType: l.itemType }));
+      const again = await service.draftFromAi(input(), ai);
+      expect(again.replayed).toBe(true);
+      expect(again.draft.id).toBe(first.draft.id);
+      expect(poRepo.rows).toHaveLength(1);
+    });
+
+    it('replays when neither shipping nor expectedAt was given', async () => {
+      const bare = { depotId, supplierId, lines: input().lines };
+      await service.draftFromAi(bare, ai);
+      await expect(service.draftFromAi(bare, ai)).resolves.toMatchObject({ replayed: true });
+    });
+
+    it.each([
+      ['other lines', (i: ReturnType<typeof input>) => ({ ...i, lines: [{ ...i.lines[0]!, quantity: 51 }] })],
+      ['other shipping', (i: ReturnType<typeof input>) => ({ ...i, shippingIdr: 0 })],
+      ['other date', (i: ReturnType<typeof input>) => ({ ...i, expectedAt: null })],
+      ['other supplier', (i: ReturnType<typeof input>) => ({ ...i, supplierId: UNKNOWN })],
+    ])('refuses the same id with %s (409)', async (_n, change) => {
+      await service.draftFromAi(input(), ai);
+      await expect(service.draftFromAi(change(input()), ai)).rejects.toBeInstanceOf(
+        AiSuggestionReusedError,
+      );
+      expect(poRepo.rows).toHaveLength(1);
+    });
+
+    it('refuses another reason on the same id', async () => {
+      await service.draftFromAi(input(), ai);
+      await expect(
+        service.draftFromAi(input(), { suggestionId: SUGGESTION, reason: 'Lain.' }),
+      ).rejects.toBeInstanceOf(AiSuggestionReusedError);
+    });
+
+    it('answers the winner when two calls with one id race on the unique index', async () => {
+      const winner = await service.draftFromAi(input(), ai);
+      let looks = 0;
+      jest.spyOn(poRepo, 'findByAiSuggestionId').mockImplementation(async (id) =>
+        ++looks === 1 ? null : (poRepo.rows.find((r) => r.aiSuggestionId === id) ?? null),
+      );
+      jest.spyOn(poRepo, 'create').mockRejectedValueOnce(new Error('unique violation'));
+      await expect(service.draftFromAi(input(), ai)).resolves.toMatchObject({
+        draft: { id: winner.draft.id },
+        replayed: true,
+      });
+    });
+
+    it('rethrows a failure that is not a lost race', async () => {
+      jest.spyOn(poRepo, 'create').mockRejectedValueOnce(new Error('db down'));
+      await expect(service.draftFromAi(input(), ai)).rejects.toThrow('db down');
+    });
+
+    it('refuses a supplier of another depot like the staff route', async () => {
+      await expect(
+        service.draftFromAi({ ...input(), supplierId: UNKNOWN }, ai),
+      ).rejects.toBeInstanceOf(SupplierNotFoundError);
     });
   });
 });

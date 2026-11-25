@@ -7,6 +7,7 @@ import {
   runImport,
 } from '@hydromart/platform';
 
+import { DraftSource } from '../../domain/draft-source';
 import { PricingAdjustType } from '../../domain/pricing-rule';
 import {
   PriceOverrideProposalRecord,
@@ -16,6 +17,7 @@ import {
   overrideImpactIdr,
 } from '../../domain/price-override-proposal';
 import {
+  AiSuggestionReusedError,
   DepotNotFoundError,
   PriceOverrideProposalDecidedError,
   PriceOverrideProposalNotFoundError,
@@ -24,6 +26,7 @@ import {
 import { DepotConfigService } from '../../config/depot-config.service';
 import { buildPage, Page } from '../pagination';
 import {
+  CreatePriceOverrideProposalData,
   ListProposalsFilter,
   PriceOverrideProposalRepository,
 } from '../ports/price-override-proposal.repository';
@@ -99,6 +102,50 @@ export class PriceOverrideService {
     return created;
   }
 
+  /**
+   * HD-17: the AI web's draft. An ordinary PENDING proposal that HQ decides in /hq/pricing as
+   * today, marked AI with the suggestion id and the AI's reason. Idempotent per suggestion id:
+   * the same id and body answers the row it made (replayed), another body is a 409.
+   */
+  async draftFromAi(
+    depotId: string,
+    proposedBy: string,
+    input: ProposeOverrideInput,
+    ai: { suggestionId: string; reason: string },
+  ): Promise<{ draft: PriceOverrideProposalRecord; replayed: boolean }> {
+    const replay = (r: PriceOverrideProposalRecord) => {
+      const same =
+        r.depotId === depotId &&
+        r.proposedBy === proposedBy &&
+        r.productId === input.productId &&
+        r.productName === input.productName &&
+        r.currentPrice === input.currentPrice &&
+        r.adjustType === input.adjustType &&
+        r.value === input.value &&
+        r.note === input.note &&
+        r.aiReason === ai.reason;
+      if (!same) throw new AiSuggestionReusedError();
+      return { draft: r, replayed: true };
+    };
+    const existing = await this.proposals.findByAiSuggestionId(ai.suggestionId);
+    if (existing) return replay(existing);
+    let created: PriceOverrideProposalRecord;
+    try {
+      created = await this.create(depotId, proposedBy, input, {
+        source: DraftSource.AI,
+        aiSuggestionId: ai.suggestionId,
+        aiReason: ai.reason,
+      });
+    } catch (e) {
+      // Two calls with one id at once: the unique index let one in; the other answers it.
+      const raced = await this.proposals.findByAiSuggestionId(ai.suggestionId);
+      if (!raced) throw e;
+      return replay(raced);
+    }
+    this.tell(created, 1);
+    return { draft: created, replayed: false };
+  }
+
   /** Flow 6b: the accounts that may decide are told; fire-and-log, the proposal never waits on it. */
   private tell(first: PriceOverrideProposalRecord, count: number): void {
     if (!this.alert) return;
@@ -116,6 +163,7 @@ export class PriceOverrideService {
     depotId: string,
     proposedBy: string,
     input: ProposeOverrideInput,
+    ai: Pick<CreatePriceOverrideProposalData, 'source' | 'aiSuggestionId' | 'aiReason'> = {},
   ): Promise<PriceOverrideProposalRecord> {
     const depot = await this.depots.findById(depotId, false);
     if (!depot) throw new DepotNotFoundError();
@@ -129,6 +177,7 @@ export class PriceOverrideService {
       value: input.value,
       note: input.note,
       proposedBy,
+      ...ai,
     });
   }
 

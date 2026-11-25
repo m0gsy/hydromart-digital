@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
 import {
+  AUDIT_MUTATION_SINK,
   JwtAuthGuard,
   RolesGuard,
   DepotScopeGuard,
@@ -124,6 +125,8 @@ import { GallonLedgerController } from './gallon-ledger.controller';
 import { GallonLedgerPrismaRepository } from '../infrastructure/prisma/gallon-ledger.prisma.repository';
 import { FranchiseApplicationController } from './franchise-application.controller';
 import { EventOutboxController } from './event-outbox.controller';
+import { AiDraftController } from './ai-draft.controller';
+import { DepotAuditSink } from '../infrastructure/http/audit.sink';
 import { DepotPriceOverrideController, PriceOverrideController } from './price-override.controller';
 import { IncidentController } from './incident.controller';
 import { ApprovalController } from './approval.controller';
@@ -268,6 +271,8 @@ const providers: Provider[] = [
         : new LocalDiskStorageAdapter(config),
     inject: [DepotConfigService],
   },
+  // HD-17: the trail AuditMutationsInterceptor writes to, on the AI draft routes.
+  { provide: AUDIT_MUTATION_SINK, useClass: DepotAuditSink },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -291,6 +296,7 @@ const providers: Provider[] = [
     FranchiseApplicationController,
     EventOutboxController,
     DepotPriceOverrideController,
+    AiDraftController,
     PriceOverrideController,
     IncidentController,
     ApprovalController,

@@ -1,0 +1,679 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hydromart-digital drafts the AI web may make (depot-service)",
+    "version": "1.0.0",
+    "description": "HD-17 part A. The closed list of writes the AI web's token may make in depot-service: a price proposal (status PENDING) and a purchase order (status DRAFT). Nothing here decides anything: HQ approves or rejects the price proposal in /hq/pricing, and a staff member reviews the purchase order and presses Kirim, exactly as for a draft a person made. Approval, rejection, import, send, receive and every other write answer 403 to the AI token.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. hydromart-digital applies that person's own role and depots exactly as on the staff create route: price proposals need the depotAdmin capability (a depot manager) at that depot, purchase orders the procurement capability at that depot; otherwise 403. A machine token or a staff session token is refused with 403.\n\nAudit: every call is written to the audit trail BEFORE it runs, with the X-AI-Suggestion-Id (suggestionId), and is refused with 503 when it cannot be written.\n\nRate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a key you do not know; removing or renaming one is a new contract version."
+  },
+  "servers": [
+    {
+      "url": "https://api.hydromart-digital.com"
+    }
+  ],
+  "paths": {
+    "/depot/api/v1/ai/drafts/price-overrides": {
+      "post": {
+        "summary": "Draft a price proposal for HQ to decide.",
+        "description": "Makes a PENDING per-product price proposal for one depot, marked source AI with the reason. It joins the HQ queue (/hq/pricing) like a manager's proposal, with an \"Usulan AI\" badge and the reason; the people who decide are told as for any proposal.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-AI-Suggestion-Id",
+            "in": "header",
+            "required": true,
+            "description": "The AI web's id for this suggestion (a UUID). The idempotency key: the same id with the same body answers the draft it already made (200); the same id with a different body is a 409. The id is stored on the draft and written to the audit trail.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "Optional label for the audit trail (the workflow that made the call).",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiPriceOverrideDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The draft was made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceOverrideProposal"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "This X-AI-Suggestion-Id already made exactly this draft; it is returned unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PriceOverrideProposal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: X-AI-Suggestion-Id missing or not a UUID, or the body failed validation (message lists what).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI access was switched off (the published key set is empty).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token or a staff session token, or a person whose role lacks the capability the staff route asks for, or who may not act at that depot. The same answer the staff route gives that person.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: the depot (or the supplier of that depot) does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AI_SUGGESTION_REUSED: this X-AI-Suggestion-Id already made a different draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call, so nothing was drafted. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/depot/api/v1/ai/drafts/purchase-orders": {
+      "post": {
+        "summary": "Draft a purchase order for staff to review and send.",
+        "description": "Makes a purchase order in status DRAFT, marked source AI with the reason. It appears in the depot's purchase order list with an \"Usulan AI\" badge and the reason; a staff member with the procurement capability reviews it and presses Kirim (that is the approval), as for any draft.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-AI-Suggestion-Id",
+            "in": "header",
+            "required": true,
+            "description": "The AI web's id for this suggestion (a UUID). The idempotency key: the same id with the same body answers the draft it already made (200); the same id with a different body is a 409. The id is stored on the draft and written to the audit trail.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "Optional label for the audit trail (the workflow that made the call).",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiPurchaseOrderDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The draft was made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrder"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "This X-AI-Suggestion-Id already made exactly this draft; it is returned unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOrder"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: X-AI-Suggestion-Id missing or not a UUID, or the body failed validation (message lists what).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI access was switched off (the published key set is empty).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token or a staff session token, or a person whose role lacks the capability the staff route asks for, or who may not act at that depot. The same answer the staff route gives that person.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: the depot (or the supplier of that depot) does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AI_SUGGESTION_REUSED: this X-AI-Suggestion-Id already made a different draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call, so nothing was drafted. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "aiToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Authorization: Bearer <accessToken> from POST /auth/api/v1/auth/handoff/token. ES256, aud hydromart-ai; carries the person's own role and depot."
+      }
+    },
+    "schemas": {
+      "AiPriceOverrideDraft": {
+        "type": "object",
+        "required": [
+          "depotId",
+          "productId",
+          "productName",
+          "currentPrice",
+          "adjustType",
+          "value",
+          "reason"
+        ],
+        "properties": {
+          "depotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productName": {
+            "type": "string",
+            "maxLength": 200
+          },
+          "currentPrice": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "The depot's current price for the product (IDR)."
+          },
+          "adjustType": {
+            "type": "string",
+            "enum": [
+              "PERCENT",
+              "FIXED",
+              "ABSOLUTE"
+            ],
+            "description": "PERCENT = signed percent; FIXED = signed rupiah delta; ABSOLUTE = the new price."
+          },
+          "value": {
+            "type": "number"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Why the AI proposes this, in one or two sentences; shown to the person who decides. Trimmed."
+          }
+        }
+      },
+      "PriceOverrideProposal": {
+        "type": "object",
+        "required": [
+          "id",
+          "depotId",
+          "depotName",
+          "productId",
+          "productName",
+          "currentPrice",
+          "adjustType",
+          "value",
+          "note",
+          "status",
+          "proposedBy",
+          "source",
+          "aiSuggestionId",
+          "aiReason",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "depotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "depotName": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "currentPrice": {
+            "type": "number"
+          },
+          "adjustType": {
+            "type": "string",
+            "enum": [
+              "PERCENT",
+              "FIXED",
+              "ABSOLUTE"
+            ]
+          },
+          "value": {
+            "type": "number"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED"
+            ],
+            "description": "PENDING on a new AI draft."
+          },
+          "proposedBy": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The person behind the AI token."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "STAFF",
+              "AI"
+            ]
+          },
+          "aiSuggestionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "aiReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PoLine": {
+        "type": "object",
+        "required": [
+          "itemType",
+          "label",
+          "quantity",
+          "unitCostIdr"
+        ],
+        "properties": {
+          "itemType": {
+            "type": "string",
+            "enum": [
+              "AIR",
+              "GALON",
+              "TUTUP",
+              "SEGEL",
+              "PRODUK"
+            ],
+            "description": "PRODUK needs productId; the others forbid it."
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "unitCostIdr": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "AiPurchaseOrderDraft": {
+        "type": "object",
+        "required": [
+          "depotId",
+          "supplierId",
+          "lines",
+          "reason"
+        ],
+        "properties": {
+          "depotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "supplierId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A supplier of that depot."
+          },
+          "lines": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/PoLine"
+            }
+          },
+          "shippingIdr": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "expectedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 date or date-time."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Why the AI proposes this, in one or two sentences; shown to the person who decides. Trimmed."
+          }
+        }
+      },
+      "PurchaseOrder": {
+        "type": "object",
+        "required": [
+          "id",
+          "depotId",
+          "poNumber",
+          "supplierId",
+          "supplierName",
+          "status",
+          "lines",
+          "subtotalIdr",
+          "shippingIdr",
+          "totalIdr",
+          "expectedAt",
+          "receivedAt",
+          "source",
+          "aiSuggestionId",
+          "aiReason",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "depotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "poNumber": {
+            "type": "string"
+          },
+          "supplierId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "supplierName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "SENT",
+              "RECEIVED"
+            ],
+            "description": "DRAFT on a new AI draft."
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PoLine"
+            }
+          },
+          "subtotalIdr": {
+            "type": "integer"
+          },
+          "shippingIdr": {
+            "type": "integer"
+          },
+          "totalIdr": {
+            "type": "integer"
+          },
+          "expectedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "receivedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "STAFF",
+              "AI"
+            ]
+          },
+          "aiSuggestionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "aiReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "statusCode",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "description": "BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, AI_SUGGESTION_REUSED, RATE_LIMITED or SERVICE_UNAVAILABLE."
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "For people reading logs. Route on statusCode and code."
+          }
+        }
+      }
+    }
+  }
+}

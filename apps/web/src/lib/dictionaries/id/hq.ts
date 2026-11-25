@@ -791,6 +791,8 @@ export const hq = {
     queue: {
       title: 'Override menunggu',
       by: 'Diusulkan {who} · {depot}',
+      aiBadge: 'Usulan AI',
+      aiReason: 'Alasan AI',
       from: 'Sekarang',
       to: 'Usulan',
       approve: 'Setujui',

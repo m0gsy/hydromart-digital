@@ -58,6 +58,7 @@ import {
   SupplierRepository,
   UpdateSupplierData,
 } from '../../src/application/ports/supplier.repository';
+import { DraftSource } from '../../src/domain/draft-source';
 import { PoLine, PoStatus, PurchaseOrder, receivedOf } from '../../src/domain/purchase-order';
 import {
   CreatePurchaseOrderData,
@@ -787,6 +788,9 @@ export class InMemoryPurchaseOrderRepository implements PurchaseOrderRepository 
   async create(data: CreatePurchaseOrderData): Promise<PurchaseOrder> {
     const row: PurchaseOrder = {
       id: randomUUID(),
+      source: DraftSource.STAFF,
+      aiSuggestionId: null,
+      aiReason: null,
       ...data,
       status: PoStatus.DRAFT,
       receivedAt: null,
@@ -803,6 +807,10 @@ export class InMemoryPurchaseOrderRepository implements PurchaseOrderRepository 
   }
   async findById(id: string): Promise<PurchaseOrder | null> {
     const r = this.rows.find((x) => x.id === id);
+    return r ? { ...r } : null;
+  }
+  async findByAiSuggestionId(aiSuggestionId: string): Promise<PurchaseOrder | null> {
+    const r = this.rows.find((x) => x.aiSuggestionId === aiSuggestionId);
     return r ? { ...r } : null;
   }
   async update(id: string, data: UpdatePurchaseOrderData): Promise<PurchaseOrder> {

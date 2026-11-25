@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
+import { DraftSource } from '../../domain/draft-source';
 import {
   computeTotal,
   isFullyReceived,
@@ -12,6 +13,7 @@ import {
 } from '../../domain/purchase-order';
 import { isProductLine } from '../../domain/inventory';
 import {
+  AiSuggestionReusedError,
   DepotNotFoundError,
   InvalidPurchaseOrderTransitionError,
   ProductLineRequiresProductError,
@@ -19,7 +21,7 @@ import {
   SupplierNotFoundError,
 } from '../../domain/errors';
 import { DepotRepository } from '../ports/depot.repository';
-import { PurchaseOrderRepository } from '../ports/purchase-order.repository';
+import { CreatePurchaseOrderData, PurchaseOrderRepository } from '../ports/purchase-order.repository';
 import { SupplierRepository } from '../ports/supplier.repository';
 import { InventoryService } from './inventory.service';
 import { DEPOT_TOKENS } from '../tokens';
@@ -30,6 +32,10 @@ import { DEPOT_TOKENS } from '../tokens';
  * and the bound lives next to the only code that writes it.
  */
 const SHORTFALL_NOTE_MAX = 200;
+
+/** Order-sensitive identity of what was ordered; jsonb does not keep a line's key order. */
+const linesKey = (lines: PoLine[]): string =>
+  JSON.stringify(lines.map((l) => [l.itemType, l.label, l.quantity, l.unitCostIdr, l.productId ?? null]));
 
 export interface CreatePurchaseOrderInput {
   depotId: string;
@@ -76,7 +82,47 @@ export class PurchaseOrderService {
     return found;
   }
 
-  async create(input: CreatePurchaseOrderInput): Promise<PurchaseOrder> {
+  /**
+   * HD-17: the AI web's draft. Stays DRAFT, marked AI with the suggestion id and reason; a
+   * person reviews it and presses Kirim (that IS the approval). Idempotent per suggestion id:
+   * the same id and body answers the row it made (replayed), another body is a 409.
+   */
+  async draftFromAi(
+    input: CreatePurchaseOrderInput,
+    ai: { suggestionId: string; reason: string },
+  ): Promise<{ draft: PurchaseOrder; replayed: boolean }> {
+    const replay = (r: PurchaseOrder) => {
+      const same =
+        r.depotId === input.depotId &&
+        r.supplierId === input.supplierId &&
+        r.shippingIdr === (input.shippingIdr ?? 0) &&
+        (r.expectedAt?.getTime() ?? null) === (input.expectedAt?.getTime() ?? null) &&
+        r.aiReason === ai.reason &&
+        linesKey(r.lines) === linesKey(input.lines);
+      if (!same) throw new AiSuggestionReusedError();
+      return { draft: r, replayed: true };
+    };
+    const existing = await this.orders.findByAiSuggestionId(ai.suggestionId);
+    if (existing) return replay(existing);
+    try {
+      const draft = await this.create(input, {
+        source: DraftSource.AI,
+        aiSuggestionId: ai.suggestionId,
+        aiReason: ai.reason,
+      });
+      return { draft, replayed: false };
+    } catch (e) {
+      // Two calls with one id at once: the unique index let one in; the other answers it.
+      const raced = await this.orders.findByAiSuggestionId(ai.suggestionId);
+      if (!raced) throw e;
+      return replay(raced);
+    }
+  }
+
+  async create(
+    input: CreatePurchaseOrderInput,
+    ai: Pick<CreatePurchaseOrderData, 'source' | 'aiSuggestionId' | 'aiReason'> = {},
+  ): Promise<PurchaseOrder> {
     if (!(await this.depots.findById(input.depotId, false))) {
       throw new DepotNotFoundError();
     }
@@ -106,6 +152,7 @@ export class PurchaseOrderService {
       shippingIdr,
       totalIdr,
       expectedAt: input.expectedAt ?? null,
+      ...ai,
     });
   }
 

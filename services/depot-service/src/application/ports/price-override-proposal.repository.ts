@@ -1,3 +1,4 @@
+import { DraftSource } from '../../domain/draft-source';
 import { PricingAdjustType } from '../../domain/pricing-rule';
 import {
   PriceOverrideProposalRecord,
@@ -14,6 +15,10 @@ export interface CreatePriceOverrideProposalData {
   value: number;
   note: string | null;
   proposedBy: string;
+  /** HD-17: omitted = STAFF. */
+  source?: DraftSource;
+  aiSuggestionId?: string;
+  aiReason?: string;
 }
 
 export interface UpdatePriceOverrideProposalData {
@@ -37,6 +42,8 @@ export interface PriceOverrideProposalRepository {
   /** Proposal count grouped by product, optionally filtered by status. */
   countByProduct(status?: PriceOverrideStatus): Promise<{ productId: string; count: number }[]>;
   findById(id: string): Promise<PriceOverrideProposalRecord | null>;
+  /** HD-17: the draft an AI suggestion id already made, if any. */
+  findByAiSuggestionId(aiSuggestionId: string): Promise<PriceOverrideProposalRecord | null>;
   update(id: string, patch: UpdatePriceOverrideProposalData): Promise<PriceOverrideProposalRecord>;
   /**
    * Compare-and-set: apply `patch` only while the proposal is still PENDING; null when another

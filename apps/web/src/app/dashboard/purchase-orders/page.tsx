@@ -78,8 +78,16 @@ function PoCard({ po, onChanged }: { po: PurchaseOrder; onChanged: () => void })
           <p className="truncate font-semibold hover:underline">{po.poNumber}</p>
           <p className="truncate text-xs text-muted">{po.supplierName}</p>
         </Link>
-        <Badge tone={STATUS_TONE[po.status]}>{t(STATUS_LABEL[po.status])}</Badge>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {po.source === 'AI' ? <Badge tone="brand">{t('hrFix.purchaseOrders.aiBadge')}</Badge> : null}
+          <Badge tone={STATUS_TONE[po.status]}>{t(STATUS_LABEL[po.status])}</Badge>
+        </div>
       </div>
+      {po.source === 'AI' && po.aiReason ? (
+        <p className="text-xs text-muted">
+          <span className="font-semibold">{t('hrFix.purchaseOrders.aiReason')}:</span> {po.aiReason}
+        </p>
+      ) : null}
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-xs text-muted">{t('hrFix.purchaseOrders.value')}</p>

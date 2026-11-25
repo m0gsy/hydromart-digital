@@ -178,6 +178,8 @@ export class AuditMutationsInterceptor implements NestInterceptor {
             via,
             workflow: headerValue(req, 'x-workflow'),
             proposalId: headerValue(req, 'x-ai-proposal'),
+            // HD-17: the AI web's suggestion a draft came from; the same id is on the row.
+            suggestionId: headerValue(req, 'x-ai-suggestion-id'),
           }
         : {}),
     };
