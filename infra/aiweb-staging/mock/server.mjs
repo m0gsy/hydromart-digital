@@ -14,7 +14,7 @@
 //   POST /crm/api/v1/notifications/external/ai-access-requested   n8n's "Minta akses" notification
 //   POST /crm/api/v1/notifications/external/customer-reminders   n8n's customer reminders (HD-18)
 //   POST /crm/api/v1/notifications/external/maintenance-due   n8n's 07.30 WIB maintenance sweep (HD-15)
-//   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers   the read API: made-up numbers
+//   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers|targets   the read API: made-up numbers
 //                                       derived from the date; a depot-bound person sees one depot
 //   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
 //   POST /alert                         the AI web's alarm webhook
@@ -139,7 +139,10 @@ const READ = {
   money: { 'P-01': 'Rp', 'P-07': 'pesanan' },
   gallons: { 'G-01': 'galon' },
   customers: { 'C-01': 'orang' },
+  targets: { 'T-01': 'Rp', 'T-02': 'galon', 'T-03': 'pesanan' },
 };
+// A target metric and the metric that measures it (T-03 is P-07 here: the mock has no P-04).
+const TARGET_BASE = { 'T-01': 'P-01', 'T-02': 'G-01', 'T-03': 'P-07' };
 const READ_UNITS = new Set(['day', 'week', 'month', 'year']);
 const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 'customers', 'delivery', 'gallons'];
 const ACCESS_KEYS = new Set(['eventId', 'requesterAccountId', 'legalEntityIds', 'group']);
@@ -451,10 +454,11 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     const metric = q.get('metric');
     if (!metric) return bad('metric is required');
     const unitName = READ[group][metric];
-    if (!unitName) return [404, errorBody(404, 'NOT_FOUND', 'Not a metric of this group (staging answers P-01, P-07, G-01 and C-01).')];
+    if (!unitName) return [404, errorBody(404, 'NOT_FOUND', 'Not a metric of this group (staging answers P-01, P-07, G-01, C-01 and T-01 to T-03).')];
     const split = q.get('split');
     if (split !== null && (split !== 'depot' || group === 'customers')) return bad('this metric cannot be split like that');
     if (metric === 'C-01' && unit !== 'month') return bad('C-01 is a whole month');
+    if (group === 'targets') return targetRoute(depots, metric, unit, date, split, bad);
     const [from, to] = bounds(unit, date);
     const sum = (d) => {
       let t = 0;
@@ -464,6 +468,36 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     const byDepot = depots.map((d) => ({ depotId: d.id, value: sum(d) }));
     const total = byDepot.reduce((a, v) => a + v.value, 0);
     return [200, envelope(depots, unit, date, { metricId: metric, value: split ? { total, byDepot } : total, unit: unitName })];
+  }
+
+  // T-01..T-03: one whole month. actual = the base metric's sums, up to today for the running month
+  // (a pace, as the real route answers it); target is the depot's fixed figure, null where it has none.
+  function targetRoute(depots, metric, unit, date, split, bad) {
+    if (unit !== 'month') return bad(`${metric} is a whole month`);
+    const [from, last] = bounds('month', date);
+    // The running month's actual stops at today, as the real route's does ("sampai hari ini"); the mock's own
+    // P-01 month answer is the whole month, which is fine for staging. A future month sums nothing: actual 0,
+    // pct 0, like the real route (its scope runs to the period's end and the base metric has no orders).
+    const to = Math.min(last, dayNo(todayWib()));
+    const base = TARGET_BASE[metric];
+    const cell = (actual, target) => ({ target, actual, pct: target === null ? null : Math.round((actual / target) * 1000) / 10 });
+    const rows = depots.map((d) => {
+      let actual = 0;
+      for (let n = from; n <= to; n += 1) actual += dayValue(d, base, n);
+      return { depotId: d.id, ...cell(actual, d.target?.[metric] ?? null) };
+    });
+    const actual = rows.reduce((a, r) => a + r.actual, 0);
+    const every = rows.every((r) => r.target !== null);
+    const target = every ? rows.reduce((a, r) => a + r.target, 0) : null;
+    const out = { metricId: metric, unit: READ.targets[metric] };
+    const none = (reason) => [200, envelope(depots, unit, date, { ...out, value: null, status: 'belum_ada', reason })];
+    // As the real route: no depot with a target is belum_ada even when split by depot.
+    if (rows.every((r) => r.target === null)) return none('Belum ada target bulan ini untuk depot yang boleh Anda baca; tidak dibandingkan dengan 0.');
+    if (!split && !every) {
+      return none('Belum ada target bulan ini untuk setiap depot yang boleh Anda baca; angka jaringan tidak dibandingkan dengan target yang tidak lengkap.');
+    }
+    const value = split ? { ...cell(actual, target), byDepot: rows } : cell(actual, target);
+    return [200, envelope(depots, unit, date, { ...out, value })];
   }
 
   // The queues a person decides: three for an HQ person, two for a depot-bound one. Counts are
@@ -685,7 +719,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (req.method === 'GET' && path.startsWith('/dashboard/api/v1/ai/read/')) {
         const group = path.slice('/dashboard/api/v1/ai/read/'.length);
-        if (['scope', 'money', 'gallons', 'customers'].includes(group)) {
+        if (['scope', 'money', 'gallons', 'customers', 'targets'].includes(group)) {
           const [status, body] = readRoute(req, group, url.searchParams);
           return send(res, status, body);
         }

@@ -6,7 +6,9 @@
 //   node scripts/aiweb-staging-mock.test.mjs
 import assert from 'node:assert/strict';
 import { createHash, createPublicKey, randomBytes, randomUUID, verify } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { PATTERNS, RECOVERY_CODE, REMINDER_KINDS, TOTP_CODE, createMock, signEvent } from '../infra/aiweb-staging/mock/server.mjs';
@@ -642,6 +644,77 @@ test('the read API: "% dari biasanya" shows variety on any day, above 100 and be
     }
   } finally {
     await mock.close();
+  }
+});
+
+test('the read API: targets hold the contract, match P-01 and G-01 sums, and one depot has no target', async () => {
+  const mock = await boot();
+  try {
+    const hq = await tokenOf(mock, user('HR'));
+    const body = async (path) => (await get(mock, `${READ_PATH}/${path}`, hq)).json();
+    for (const [metric, base, group] of [['T-01', 'P-01', 'money'], ['T-02', 'G-01', 'gallons']]) {
+      const q = `period=month&date=2026-10-15`;
+      const split = await body(`targets?metric=${metric}&${q}&split=depot`);
+      assertEnvelope(split, 'targets', metric);
+      for (const f of ['target', 'actual', 'pct', 'byDepot']) assert.ok(split.value[f] !== undefined, `value has ${f}`);
+      const baseSplit = await body(`${group}?metric=${base}&${q}&split=depot`);
+      assert.equal(split.value.actual, baseSplit.value.total, 'actual is the base metric');
+      assert.deepEqual(split.value.byDepot.map((r) => r.depotId), FAKE_DEPOTS);
+      for (const r of split.value.byDepot) {
+        for (const f of read.components.schemas.DepotSplit.properties.byDepot.items.required.filter((x) => x !== 'value')) assert.ok(r[f] !== undefined);
+        assert.equal(r.actual, baseSplit.value.byDepot.find((b) => b.depotId === r.depotId).value);
+      }
+      const rows = split.value.byDepot;
+      assert.equal(rows.at(-1).target, null, 'the last depot has no target');
+      assert.equal(rows.at(-1).pct, null);
+      assert.ok(rows.slice(0, -1).every((r) => r.target > 0 && r.pct === Math.round((r.actual / r.target) * 1000) / 10));
+      assert.equal(split.value.target, null, 'no network target while a depot has none');
+      assert.equal(split.value.pct, null);
+      const plain = await body(`targets?metric=${metric}&${q}`);
+      assert.equal(plain.status, 'belum_ada');
+      assert.equal(plain.value, null);
+      assert.ok(plain.reason);
+    }
+    // a depot-bound person reads only a depot that has a target: the plain answer is the whole cell
+    const kepala = await tokenOf(mock, user('KEPALA_DEPOT'));
+    const mine = await (await get(mock, `${READ_PATH}/targets?metric=T-01&period=month&date=2026-10-15`, kepala)).json();
+    assert.equal(mine.status, 'ok');
+    assert.deepEqual(Object.keys(mine.value), ['target', 'actual', 'pct']);
+    assert.equal(mine.value.target, fixtures.depots[0].target['T-01']);
+    // not a whole month: 400, like C-01
+    for (const q of ['period=day&date=2026-10-15', 'period=week&date=2026-10-15', 'period=year&date=2026-10-15']) {
+      assert.equal((await get(mock, `${READ_PATH}/targets?metric=T-01&${q}`, hq)).status, 400);
+    }
+    // a future month sums nothing (the running month's actual stops at today)
+    const future = await (await get(mock, `${READ_PATH}/targets?metric=T-01&period=month&date=2999-01-15&split=depot`, hq)).json();
+    assert.equal(future.status, 'ok');
+    assert.equal(future.value.actual, 0);
+    assert.deepEqual(future.value.byDepot.map((r) => r.pct), [0, 0, 0, null]);
+    assert.equal((await get(mock, `${READ_PATH}/targets?metric=T-04&period=month`, hq)).status, 404);
+    assert.equal((await get(mock, `${READ_PATH}/targets?metric=T-01&period=month&split=zone`, hq)).status, 400);
+    assert.equal((await get(mock, `${READ_PATH}/targets?metric=T-01&period=month`)).status, 401);
+  } finally {
+    await mock.close();
+  }
+});
+
+test('the read API: targets with no target anywhere are belum_ada, even split by depot', async () => {
+  const f = structuredClone(fixtures);
+  for (const d of f.depots) delete d.target;
+  const dir = mkdtempSync(join(tmpdir(), 'mock-fx-'));
+  writeFileSync(join(dir, 'fixtures.json'), JSON.stringify(f));
+  const mock = createMock({ env: { MOCK_AI_WEB_URL: AI_WEB, MOCK_MACHINE_ID: MACHINE.id, MOCK_MACHINE_SECRET: MACHINE.secret }, fixturesPath: join(dir, 'fixtures.json') });
+  await new Promise((r) => mock.server.listen(0, '127.0.0.1', r));
+  mock.base = `http://127.0.0.1:${mock.server.address().port}`;
+  try {
+    const hq = await tokenOf(mock, user('HR'));
+    const r = await (await get(mock, `${READ_PATH}/targets?metric=T-01&period=month&date=2026-10-15&split=depot`, hq)).json();
+    assert.equal(r.status, 'belum_ada');
+    assert.equal(r.value, null);
+    assert.ok(r.reason);
+  } finally {
+    await new Promise((r) => mock.server.close(r));
+    rmSync(dir, { recursive: true });
   }
 });
 
