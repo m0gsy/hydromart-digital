@@ -10,6 +10,7 @@ import {
 
 import { OrderController } from '../../src/modules/order.controller';
 import { OrderService } from '../../src/application/services/order.service';
+import { EventRelayService } from '../../src/application/services/event-relay.service';
 import { OutboxService } from '../../src/application/services/outbox.service';
 import { SubscriptionService } from '../../src/application/services/subscription.service';
 
@@ -83,6 +84,8 @@ describe('OrderController', () => {
   let outbox: { processDue: jest.Mock; pending: jest.Mock; pendingRevenue: jest.Mock };
   let subscriptions: { list: jest.Mock };
 
+  let eventRelay: { processDue: jest.Mock };
+
   beforeEach(() => {
     subscriptions = { list: jest.fn().mockResolvedValue([]) };
     service = makeService();
@@ -91,11 +94,18 @@ describe('OrderController', () => {
       pending: jest.fn().mockResolvedValue({ PENDING: 1, DONE: 9, DEAD: 0 }),
       pendingRevenue: jest.fn().mockResolvedValue(2),
     };
+    eventRelay = { processDue: jest.fn().mockResolvedValue({ claimed: 1, delivered: 1, failed: 0, pruned: 0, stuck: 0, ok: true }) };
     controller = new OrderController(
       service as unknown as OrderService,
       outbox as unknown as OutboxService,
+      eventRelay as unknown as EventRelayService,
       subscriptions as unknown as SubscriptionService,
     );
+  });
+
+  it('HD-17B: the scheduler sweep sends the owed order webhook events', async () => {
+    await expect(controller.processEventOutbox()).resolves.toMatchObject({ delivered: 1, ok: true });
+    expect(eventRelay.processDue).toHaveBeenCalledTimes(1);
   });
 
   const address = {

@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '../../../prisma/generated/client';
 
 import {
   EventOutboxRecord,
   EventOutboxRepository,
   EventOutboxStatus,
+  NewOutboxEvent,
 } from '../../application/ports/event-outbox.repository';
 import { PrismaService } from './prisma.service';
 
@@ -37,6 +39,14 @@ function toRecord(row: Row): EventOutboxRecord {
 @Injectable()
 export class EventOutboxPrismaRepository implements EventOutboxRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  async record(event: NewOutboxEvent): Promise<boolean> {
+    const { count } = await this.prisma.webhookEventOutbox.createMany({
+      data: [{ ...event, payload: event.payload as Prisma.InputJsonValue }],
+      skipDuplicates: true,
+    });
+    return count > 0;
+  }
 
   async findByEventId(eventId: string): Promise<EventOutboxRecord | null> {
     const row = await this.prisma.webhookEventOutbox.findUnique({ where: { eventId } });

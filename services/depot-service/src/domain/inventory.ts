@@ -49,3 +49,44 @@ export function isProductLine(type: InventoryItemType): boolean {
 export function isLowStock(quantity: number, minimumStock: number): boolean {
   return minimumStock > 0 && quantity <= minimumStock;
 }
+
+/** HD-17B: the event a stock line crossing below its reorder point (minimumStock) raises. */
+export const STOCK_LOW = 'stock.low';
+
+/** The WIB calendar day (YYYY-MM-DD) of an instant: WIB is a fixed UTC+7, no DST. */
+export function wibDay(at: Date): string {
+  return new Date(at.getTime() + 7 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/**
+ * The outbox row for a low line. eventId carries the WIB day, so the outbox's unique key lets a
+ * line raise at most one per day however often it crosses. No personal data: ids and counts.
+ */
+export function stockLowEvent(
+  line: {
+    id: string;
+    depotId: string;
+    productId: string | null;
+    itemType: string;
+    unit: string;
+    minimumStock: number;
+  },
+  onHand: number,
+  at: Date,
+): { event: string; eventId: string; payload: Record<string, unknown>; occurredAt: Date } {
+  return {
+    event: STOCK_LOW,
+    eventId: `${STOCK_LOW}:${line.depotId}:${line.id}:${wibDay(at)}`,
+    payload: {
+      depotId: line.depotId,
+      itemId: line.id,
+      itemType: line.itemType,
+      productId: line.productId,
+      onHand,
+      reorderPoint: line.minimumStock,
+      unit: line.unit,
+      occurredAt: at.toISOString(),
+    },
+    occurredAt: at,
+  };
+}

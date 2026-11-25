@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 
 import { can } from '@hydromart/access';
 
@@ -17,6 +17,7 @@ import {
   available,
   isLowStock,
   isProductLine,
+  stockLowEvent,
 } from '../../domain/inventory';
 import {
   CatalogProductNotFoundError,
@@ -42,6 +43,7 @@ import {
 } from '../ports/inventory.repository';
 import { buildPage, Page } from '../pagination';
 import { DepotRepository } from '../ports/depot.repository';
+import { EventRelayService } from './event-relay.service';
 import { LowStockAlertPort } from '../ports/low-stock-alert.port';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import { UntrackedSaleAlertPort } from '../ports/untracked-sale-alert.port';
@@ -110,6 +112,7 @@ export class InventoryService {
     @Inject(DEPOT_TOKENS.ProductCatalog) private readonly catalog: ProductCatalogPort,
     private readonly approvals: ApprovalService,
     private readonly config: DepotConfigService,
+    @Optional() private readonly events?: EventRelayService,
   ) {
     // DEP-05: a rejected opname variance puts the shelf count back (see reverseOpnameVariance).
     this.approvals.registerReversal(ApprovalType.OPNAME_VARIANCE, (approval, decidedBy) =>
@@ -168,6 +171,9 @@ export class InventoryService {
     ) {
       return;
     }
+    // HD-17B: the AI web hears of it too. After the movement has committed: the edge detection
+    // needs the written quantity, and a crash in between costs one missed event, not the stock.
+    await this.events?.emit(stockLowEvent(line, availableAfter, new Date()));
     const depot = await this.depots.findById(line.depotId, false);
     await this.lowStockAlert.emit(
       {

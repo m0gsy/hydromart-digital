@@ -1773,7 +1773,7 @@ export const hq = {
     url: 'Endpoint URL',
     events: 'Events',
     eventsHint:
-      'Comma-separated. franchise.application_submitted: franchise applications, no personal data (for the AI web). delivery.delivered: for delivery partners, carries the recipient name.',
+      'Comma-separated. franchise.application_submitted: franchise applications, no personal data (for the AI web). order.created, order.status_changed (every status change, with from and to) and stock.low (a depot item fell below its reorder point): ids and numbers only, for the AI web. delivery.delivered: for delivery partners, carries the recipient name.',
     delivery: 'Delivered',
     deliveryNone: 'No deliveries yet',
     logTitle: 'Delivery log',

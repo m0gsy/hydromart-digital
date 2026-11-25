@@ -38,6 +38,10 @@ import {
 import { OrderStatus } from '../domain/order-status';
 import { CartView } from '../application/services/cart.service';
 import { AbandonedSweepResult, OrderService } from '../application/services/order.service';
+import {
+  EventRelayService,
+  EventRelaySweepResult,
+} from '../application/services/event-relay.service';
 import { OutboxService, OutboxSweepResult } from '../application/services/outbox.service';
 import { SubscriptionService } from '../application/services/subscription.service';
 import {
@@ -106,6 +110,7 @@ export class OrderController {
   constructor(
     private readonly orders: OrderService,
     private readonly outboxService: OutboxService,
+    private readonly eventRelay: EventRelayService,
     private readonly subscriptions: SubscriptionService,
   ) {}
 
@@ -389,6 +394,22 @@ export class OrderController {
   @ApiOperation({ summary: 'Retry the order side effects still owed (scheduler sweep)' })
   processOutboxInternal(): Promise<OutboxSweepResult> {
     return this.outboxService.processDue();
+  }
+
+  /**
+   * HD-17B: send the order webhook events (order.created, order.status_changed) admin-service
+   * has not taken yet. Scheduler only (every minute), under its own path: the sweep lock and the
+   * /hq/health row are keyed on it.
+   */
+  @ApiOkResponse({ description: 'Counts for this sweep: claimed, delivered, failed, pruned, stuck.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('event-outbox/internal/process')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send the order webhook events still owed to admin-service (scheduler)' })
+  processEventOutbox(): Promise<EventRelaySweepResult> {
+    return this.eventRelay.processDue();
   }
 
   /**

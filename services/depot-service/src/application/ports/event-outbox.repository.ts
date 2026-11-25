@@ -19,7 +19,19 @@ export interface EventOutboxRecord {
   lastError: string | null;
 }
 
+export interface NewOutboxEvent {
+  event: string;
+  eventId: string;
+  payload: Record<string, unknown>;
+  occurredAt: Date;
+}
+
 export interface EventOutboxRepository {
+  /**
+   * Records an event on its own (no business row to share a transaction with). The unique
+   * eventId is the dedupe: a key already recorded is left alone. True when this call wrote it.
+   */
+  record(event: NewOutboxEvent): Promise<boolean>;
   /** The row that owns this key, whatever its state; null when none was ever recorded. */
   findByEventId(eventId: string): Promise<EventOutboxRecord | null>;
   /** How many events have been owed since `cutoff` or earlier (counted from when they were written). */

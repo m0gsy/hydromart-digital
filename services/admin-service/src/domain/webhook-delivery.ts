@@ -13,7 +13,13 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * received nothing, forever, with nothing anywhere saying why. contracts/ai-v1/events.openapi.json
  * describes the bodies.
  */
-export const WEBHOOK_EVENTS = ['delivery.delivered', 'franchise.application_submitted'] as const;
+export const WEBHOOK_EVENTS = [
+  'delivery.delivered',
+  'franchise.application_submitted',
+  'order.created',
+  'order.status_changed',
+  'stock.low',
+] as const;
 
 /**
  * HD-7: a signing secret is required, and has to be long enough to be one: 32 to 200

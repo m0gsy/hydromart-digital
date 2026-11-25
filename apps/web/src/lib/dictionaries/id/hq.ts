@@ -1788,7 +1788,7 @@ export const hq = {
     url: 'URL endpoint',
     events: 'Event',
     eventsHint:
-      'Pisahkan dengan koma. franchise.application_submitted: lamaran waralaba, tanpa data pribadi (untuk web AI). delivery.delivered: untuk mitra pengantaran, memuat nama penerima.',
+      'Pisahkan dengan koma. franchise.application_submitted: lamaran waralaba, tanpa data pribadi (untuk web AI). order.created, order.status_changed (setiap perubahan status, dengan dari dan ke) dan stock.low (stok depot di bawah titik pesan ulang): hanya id dan angka, untuk web AI. delivery.delivered: untuk mitra pengantaran, memuat nama penerima.',
     delivery: 'Terkirim',
     deliveryNone: 'Belum ada pengiriman',
     logTitle: 'Riwayat pengiriman',

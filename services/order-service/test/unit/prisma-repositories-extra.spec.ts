@@ -158,6 +158,7 @@ describe('OrderPrismaRepository empty-aggregate and unbounded-window branches', 
     aggregate: jest.fn(),
     findMany: jest.fn().mockResolvedValue([]),
     update: jest.fn(),
+    findUnique: jest.fn(),
   };
   const orderReview = { findUnique: jest.fn() };
   // The status write and its outbox rows go in one transaction (H-10); resolve the ops
@@ -166,6 +167,7 @@ describe('OrderPrismaRepository empty-aggregate and unbounded-window branches', 
     order,
     orderReview,
     outboxMessage: { create: jest.fn() },
+    webhookEventOutbox: { create: jest.fn() },
     $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
   } as unknown as PrismaService);
 

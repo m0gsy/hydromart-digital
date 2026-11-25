@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { depotWhere, nextCursor, pageArgs, readAllPages } from '@hydromart/platform';
 
@@ -46,6 +47,12 @@ import {
   TimeAreaRaw,
   RecentActivityRow,
 } from '../../application/ports/order.repository';
+import {
+  WebhookEventRow,
+  newTransitionId,
+  orderCreatedEvent,
+  orderStatusChangedEvent,
+} from '../../domain/webhook-events';
 import { OutboxWrite } from '../../application/ports/outbox.repository';
 import { PrismaService } from './prisma.service';
 
@@ -397,18 +404,32 @@ export class OrderPrismaRepository implements OrderRepository {
     return { average: agg._avg.rating, count: agg._count._all };
   }
 
+  /** The outbox row for a webhook event, as a statement for the caller's transaction. */
+  private webhookEvent(event: WebhookEventRow) {
+    return this.prisma.webhookEventOutbox.create({
+      data: { ...event, payload: event.payload as Prisma.InputJsonValue },
+    });
+  }
+
   async create(data: CreateOrderData): Promise<OrderRecord> {
-    const { items, id, status, outbox = [], ...order } = data;
+    const { items, id: presetId, status, outbox = [], ...order } = data;
+    // HD-17B: the id is needed before the insert, so the order.created event can name it.
+    const id = presetId ?? randomUUID();
     // A walk-in sale is created already COMPLETED (the goods left with the buyer), so the
     // seed history row has to match the row's real status, not a CREATED it never was.
     const opening = status ?? OrderStatus.CREATED;
+    const createdEvent = orderCreatedEvent(
+      { id, depotId: order.depotId, isWalkIn: order.isWalkIn ?? false },
+      opening,
+      new Date(),
+    );
     try {
       // H-10: a walk-in is born COMPLETED, so the effects it earns are written with it
       // rather than at a later transition. One transaction, or neither.
       const [row] = await this.prisma.$transaction([
         this.prisma.order.create({
           data: {
-            ...(id ? { id } : {}),
+            id,
             ...order,
             status: opening,
             items: { create: items },
@@ -417,6 +438,7 @@ export class OrderPrismaRepository implements OrderRepository {
           include: INCLUDE,
         }),
         ...outbox.map((m) => this.prisma.outboxMessage.create({ data: m })),
+        this.webhookEvent(createdEvent),
       ]);
       return this.toRecord(row);
     } catch (error) {
@@ -779,6 +801,21 @@ export class OrderPrismaRepository implements OrderRepository {
     //
     // H-10: the effects the transition earns go in the SAME transaction. The status guard
     // is what makes that safe to pair — only the winner writes, so only the winner owes.
+    //
+    // HD-17B: so does the order.status_changed event, written with the history row it names. This
+    // is the one function every transition but a counter void goes through (see voidWalkIn).
+    const facts = await this.prisma.order.findUnique({
+      where: { id },
+      select: { depotId: true, isWalkIn: true },
+    });
+    const transitionId = newTransitionId();
+    const changedEvent = orderStatusChangedEvent(
+      { id, depotId: facts?.depotId ?? null, isWalkIn: facts?.isWalkIn ?? false },
+      from,
+      status,
+      transitionId,
+      new Date(),
+    );
     const [row] = await this.prisma
       .$transaction([
         this.prisma.order.update({
@@ -793,11 +830,12 @@ export class OrderPrismaRepository implements OrderRepository {
             ...(driverId != null ? { driverId } : {}),
             ...(driverPhone != null ? { driverPhone } : {}),
             ...(estimatedArrivalAt != null ? { estimatedArrivalAt } : {}),
-            history: { create: { status, changedBy, note } },
+            history: { create: { id: transitionId, status, changedBy, note } },
           },
           include: INCLUDE,
         }),
         ...outbox.map((m) => this.prisma.outboxMessage.create({ data: m })),
+        this.webhookEvent(changedEvent),
       ])
       .catch((error: unknown) => {
         if ((error as { code?: string })?.code === 'P2025') {
@@ -1223,10 +1261,23 @@ export class OrderPrismaRepository implements OrderRepository {
       if (count === 0) {
         throw new OrderAlreadyVoidedError();
       }
+      const transitionId = newTransitionId();
       await tx.orderStatusHistory.create({
-        data: { orderId: id, status: DbOrderStatus.VOIDED, changedBy, note: reason },
+        data: { id: transitionId, orderId: id, status: DbOrderStatus.VOIDED, changedBy, note: reason },
       });
       for (const m of outbox) await tx.outboxMessage.create({ data: m });
+      // HD-17B: a void is a transition that skips applyStatus, so it raises its own event.
+      const facts = await tx.order.findUnique({ where: { id }, select: { depotId: true, isWalkIn: true } });
+      const event = orderStatusChangedEvent(
+        { id, depotId: facts?.depotId ?? null, isWalkIn: facts?.isWalkIn ?? true },
+        OrderStatus.COMPLETED,
+        OrderStatus.VOIDED,
+        transitionId,
+        at,
+      );
+      await tx.webhookEventOutbox.create({
+        data: { ...event, payload: event.payload as Prisma.InputJsonValue },
+      });
     });
     const row = await this.prisma.order.findUnique({ where: { id }, include: INCLUDE });
     return this.toRecord(row!);
