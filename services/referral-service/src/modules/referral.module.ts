@@ -15,6 +15,10 @@ import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.pris
 import { LoyaltyRewardHttpAdapter } from '../infrastructure/http/loyalty-reward.http.adapter';
 import { CustomerDirectoryHttpAdapter } from '../infrastructure/http/customer-directory.http.adapter';
 import { OrderHistoryHttpAdapter } from '../infrastructure/http/order-history.http.adapter';
+import { AiReferralService } from '../application/services/ai-referral.service';
+import { AI_REFERRAL_REPOSITORY } from '../application/ports/ai-referral.repository';
+import { AiReferralPrismaRepository } from '../infrastructure/prisma/ai-referral.prisma.repository';
+import { AiReferralController } from './ai-referral.controller';
 import { ReferralController } from './referral.controller';
 import { SettingsController } from './settings.controller';
 
@@ -30,6 +34,8 @@ const providers: Provider[] = [
   ReferralService,
   SettingsService,
   { provide: REFERRAL_TOKENS.ReferralRepository, useClass: ReferralPrismaRepository },
+  AiReferralService,
+  { provide: AI_REFERRAL_REPOSITORY, useClass: AiReferralPrismaRepository },
   { provide: REFERRAL_TOKENS.LoyaltyReward, useClass: LoyaltyRewardHttpAdapter },
   { provide: REFERRAL_TOKENS.CustomerDirectory, useClass: CustomerDirectoryHttpAdapter },
   { provide: REFERRAL_TOKENS.OrderHistory, useClass: OrderHistoryHttpAdapter },
@@ -40,7 +46,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [ReferralController, SettingsController],
+  controllers: [AiReferralController, ReferralController, SettingsController],
   providers,
   exports: [PrismaService, ReferralConfigService],
 })

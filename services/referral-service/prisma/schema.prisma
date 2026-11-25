@@ -50,6 +50,9 @@ model Referral {
   updatedAt          DateTime       @updatedAt
 
   @@index([referrerCustomerId])
+  /// HD-6 H4 part 2: referrals made, and qualified, inside a month (O-06).
+  @@index([createdAt])
+  @@index([status, qualifiedAt])
   @@map("referrals")
 }
 
