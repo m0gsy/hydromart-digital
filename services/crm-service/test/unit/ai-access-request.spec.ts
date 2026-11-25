@@ -243,7 +243,7 @@ describe('AiAccessRequestService', () => {
     await service.run(EVENT, REQUESTER, [ENTITY]);
     await drain();
     expect([repo.records.length, pushed.length, emailed.length]).toEqual([2, 2, 2]);
-    await service.run(EVENT.replace('3f1e', '4f1e'), REQUESTER, [ENTITY]);
+    await service.run(EVENT.replace(/1$/, '2'), REQUESTER, [ENTITY]);
     expect(repo.records).toHaveLength(4);
   });
 
