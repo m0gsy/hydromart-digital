@@ -38,6 +38,11 @@ export class AiOrgSourcesHttpAdapter implements AiOrgSourcesPort {
 
   constructor(private readonly config: DashboardConfigService) {}
 
+  /**
+   * The attendance answer carries raw employee ids per cell (stable keys into hr-service): they are read
+   * to be counted and must NEVER be logged. Only the path (no query), the status and the error message of
+   * a failure are logged here, never a response body; keep it that way for any new log line.
+   */
   private async get(url: string): Promise<unknown | null> {
     const where = url.split('?')[0];
     try {

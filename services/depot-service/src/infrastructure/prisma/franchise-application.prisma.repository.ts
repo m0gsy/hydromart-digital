@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { Injectable, Logger, UnprocessableEntityException } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
 import {
@@ -43,8 +43,13 @@ interface ApplicationRow {
   updatedAt: Date;
 }
 
+/** How long past the retention cutoff a rejected application may wait for its event to be delivered before it is purged anyway. */
+export const PURGE_GRACE_DAYS = 30;
+
 @Injectable()
 export class FranchiseApplicationPrismaRepository implements FranchiseApplicationRepository {
+  private readonly logger = new Logger(FranchiseApplicationPrismaRepository.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   private toRecord(row: ApplicationRow): FranchiseApplicationRecord {
@@ -137,13 +142,18 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
     // The stage history outlives the application (it keeps the counts), but it must not keep a link
     // to the person: in the same transaction its rows are re-keyed to a fresh random id per
     // application, so counts and the "one application" grouping still work and the link is gone. The
-    // delivered "application submitted" event row (its payload names the application and its city) goes
-    // with it. An application whose event has NOT been delivered yet is left alone this time: the
-    // delivery sweep marks it DONE and the next purge takes it, so no event is ever lost to a purge.
+    // "application submitted" event row (its payload names the application and its city) goes with it.
+    //
+    // An old rejection whose event is not DONE yet waits for delivery, but only for a grace period: this
+    // outbox only retries (PENDING/DONE), so with no webhook configured, the AI web down or a poison row
+    // the event may never be delivered, and the applicant's name, phone and pin must not outlive the
+    // retention window because of it. Past the ceiling (the cutoff + PURGE_GRACE_DAYS) the application is
+    // purged anyway and its PENDING row is deleted with it: THAT EVENT IS THEN NEVER DELIVERED. The count
+    // of such forced purges is logged (a count only, no id) so it is seen.
     return this.prisma.$transaction(async (tx) => {
       const old = await tx.franchiseApplication.findMany({
         where: { stage: FranchiseAppStage.REJECTED, updatedAt: { lt: cutoff } },
-        select: { id: true },
+        select: { id: true, updatedAt: true },
       });
       const keyOf = (id: string): string => franchiseApplicationSubmittedEventId(id);
       const undelivered = new Set(
@@ -154,17 +164,23 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
           })
         ).map((e) => e.eventId),
       );
-      const doomed = old.filter((o) => !undelivered.has(keyOf(o.id)));
+      const ceiling = new Date(cutoff.getTime() - PURGE_GRACE_DAYS * 86_400_000);
+      const waiting = (o: { id: string; updatedAt: Date }): boolean => undelivered.has(keyOf(o.id)) && o.updatedAt >= ceiling;
+      const doomed = old.filter((o) => !waiting(o));
+      const forced = doomed.filter((o) => undelivered.has(keyOf(o.id))).length;
       for (const { id } of doomed) {
         await tx.franchiseApplicationStageEvent.updateMany({
           where: { applicationId: id },
           data: { applicationId: randomUUID() },
         });
       }
-      await tx.webhookEventOutbox.deleteMany({
-        where: { eventId: { in: doomed.map((d) => keyOf(d.id)) }, status: 'DONE' },
-      });
+      await tx.webhookEventOutbox.deleteMany({ where: { eventId: { in: doomed.map((d) => keyOf(d.id)) } } });
       const { count } = await tx.franchiseApplication.deleteMany({ where: { id: { in: doomed.map((d) => d.id) } } });
+      if (forced > 0) {
+        this.logger.warn(
+          `${forced} rejected franchise application(s) purged with an undelivered "application submitted" event (past the ${PURGE_GRACE_DAYS}-day grace): that event will never be delivered`,
+        );
+      }
       return count;
     });
   }

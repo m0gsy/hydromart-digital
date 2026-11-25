@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Prisma } from '../../prisma/generated/client';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { encodeCursor } from '@hydromart/platform';
@@ -1040,7 +1041,7 @@ describe('FranchiseApplicationPrismaRepository', () => {
     expect(await repo.purgeRejectedBefore(cutoff)).toBe(2);
     expect(model.findMany).toHaveBeenCalledWith({
       where: { stage: 'REJECTED', updatedAt: { lt: cutoff } },
-      select: { id: true },
+      select: { id: true, updatedAt: true },
     });
     // each application's history moves to its own fresh random id: counts survive, the link does not
     expect(events.updateMany).toHaveBeenCalledTimes(2);
@@ -1048,32 +1049,50 @@ describe('FranchiseApplicationPrismaRepository', () => {
     expect(events.updateMany.mock.calls.map((c) => c[0].where)).toEqual([{ applicationId: 'fa-1' }, { applicationId: 'fa-2' }]);
     expect(new Set(keys).size).toBe(2);
     expect(keys.every((k) => /^[0-9a-f-]{36}$/.test(k) && k !== 'fa-1' && k !== 'fa-2')).toBe(true);
-    // the DONE "application submitted" rows (payload: application id, city) go in the same transaction
+    // the "application submitted" rows (payload: application id, city) go in the same transaction
     expect(outbox.deleteMany).toHaveBeenCalledWith({
-      where: {
-        eventId: { in: ['franchise.application_submitted:fa-1', 'franchise.application_submitted:fa-2'] },
-        status: 'DONE',
-      },
+      where: { eventId: { in: ['franchise.application_submitted:fa-1', 'franchise.application_submitted:fa-2'] } },
     });
     // deleted by the ids that were re-keyed, so a rejection landing meanwhile is not deleted unkeyed
     expect(model.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['fa-1', 'fa-2'] } } });
   });
 
-  it('leaves an old rejection alone while its event has not been delivered yet, and takes it once it has', async () => {
-    model.findMany.mockResolvedValue([{ id: 'fa-1' }, { id: 'fa-2' }]);
-    outbox.findMany.mockResolvedValueOnce([{ eventId: 'franchise.application_submitted:fa-1' }]);
-    model.deleteMany.mockResolvedValue({ count: 1 });
-    expect(await repo.purgeRejectedBefore(new Date())).toBe(1);
-    expect(outbox.findMany).toHaveBeenCalledWith({
-      where: {
-        eventId: { in: ['franchise.application_submitted:fa-1', 'franchise.application_submitted:fa-2'] },
-        status: { not: 'DONE' },
-      },
-      select: { eventId: true },
+  describe('an undelivered event (grace period, then forced)', () => {
+    const cutoff = new Date('2024-09-02T00:00:00Z');
+    const day = 86_400_000;
+    const inGrace = { id: 'fa-1', updatedAt: new Date(cutoff.getTime() - 10 * day) }; // 10 days past retention
+    const pastCeiling = { id: 'fa-2', updatedAt: new Date(cutoff.getTime() - 31 * day) }; // 31 days past retention
+    const key = (id: string) => `franchise.application_submitted:${id}`;
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    beforeEach(() => warn.mockClear());
+    afterAll(() => warn.mockRestore());
+
+    it('within the grace period a PENDING event still blocks the purge, and nothing is logged', async () => {
+      model.findMany.mockResolvedValue([inGrace]);
+      outbox.findMany.mockResolvedValueOnce([{ eventId: key('fa-1') }]);
+      model.deleteMany.mockResolvedValue({ count: 0 });
+      expect(await repo.purgeRejectedBefore(cutoff)).toBe(0);
+      expect(events.updateMany).not.toHaveBeenCalled();
+      expect(model.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [] } } });
+      expect(warn).not.toHaveBeenCalled();
     });
-    expect(events.updateMany).toHaveBeenCalledTimes(1);
-    expect(events.updateMany.mock.calls[0][0].where).toEqual({ applicationId: 'fa-2' });
-    expect(model.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['fa-2'] } } });
+
+    it('past the ceiling (cutoff + 30 days) the application is purged with its PENDING row, and the forced count is logged', async () => {
+      model.findMany.mockResolvedValue([inGrace, pastCeiling, { id: 'fa-3', updatedAt: new Date(cutoff.getTime() - 40 * day) }]);
+      // fa-1 (in grace) and fa-2 (past the ceiling) are undelivered; fa-3 was delivered
+      outbox.findMany.mockResolvedValueOnce([{ eventId: key('fa-1') }, { eventId: key('fa-2') }]);
+      model.deleteMany.mockResolvedValue({ count: 2 });
+      expect(await repo.purgeRejectedBefore(cutoff)).toBe(2);
+      expect(events.updateMany.mock.calls.map((c) => c[0].where)).toEqual([{ applicationId: 'fa-2' }, { applicationId: 'fa-3' }]);
+      expect(outbox.deleteMany).toHaveBeenCalledWith({ where: { eventId: { in: [key('fa-2'), key('fa-3')] } } });
+      expect(model.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['fa-2', 'fa-3'] } } });
+      // a count only: no application id appears in the line
+      expect(warn).toHaveBeenCalledTimes(1);
+      const line = String(warn.mock.calls[0][0]);
+      expect(line).toContain('1 rejected franchise application');
+      expect(line).toContain('never be delivered');
+      expect(line).not.toMatch(/fa-\d/);
+    });
   });
 
   it('reports zero rather than throwing when nothing is old enough', async () => {

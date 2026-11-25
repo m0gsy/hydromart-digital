@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+
 import { DashboardConfigService } from '../../src/config/dashboard-config.service';
 import { AiOrgSourcesHttpAdapter } from '../../src/infrastructure/http/ai-org-sources.http.adapter';
 
@@ -29,6 +31,23 @@ function answer(body: unknown, ok = true) {
 afterEach(() => jest.restoreAllMocks());
 
 describe('AiOrgSourcesHttpAdapter (HD-6 H5)', () => {
+  it('never logs a response body: the employee ids in an attendance answer stay out of every log line', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const body = { rows: [], heads: { present: ['EMPLOYEE-ID-1'], late: [], absentRecorded: [], leave: [], pending: [] }, rolledUp: false };
+    answer(body, false); // refused
+    await adapter().attendance([D1], '2026-11-01', '2026-11-30');
+    answer(body); // a malformed (short) answer
+    await adapter().attendance([D1], '2026-11-01', '2026-11-30');
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('network down'));
+    await adapter().attendance([D1], '2026-11-01', '2026-11-30');
+    expect(warn).toHaveBeenCalled();
+    for (const call of warn.mock.calls) {
+      expect(String(call[0])).not.toContain('EMPLOYEE-ID');
+      expect(String(call[0])).not.toContain(D1); // nor the query
+    }
+    warn.mockRestore();
+  });
+
   it('asks depot-service for the applications of a window, with the internal key', async () => {
     const calls = answer({ total: 3, byStage: { PENDING: 2, REJECTED: 1 } });
     await expect(adapter().applications(RANGE)).resolves.toEqual({ total: 3, byStage: { PENDING: 2, REJECTED: 1 } });
