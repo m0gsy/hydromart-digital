@@ -529,12 +529,6 @@ export class DashboardService {
       };
     });
 
-    // A total is the sum of every row or it is nothing. Summing the rows that happen to be
-    // readable produces a smaller, confident-looking number that is wrong by exactly the
-    // depots nobody could read — the failure mode E-3 already named on the revenue view.
-    const sum = (pick: (r: NetworkPnlDepotRow) => number | null): number | null =>
-      rows.some((r) => pick(r) === null) ? null : rows.reduce((n, r) => n + pick(r)!, 0);
-
     return {
       month,
       ...range,
@@ -548,20 +542,7 @@ export class DashboardService {
         'statutori maupun surat pemberitahuan pajak.',
       depots: rows,
       payVisible,
-      totals: {
-        revenueIdr: sum((r) => r.revenueIdr),
-        cogsIdr: sum((r) => r.cogsIdr),
-        payrollIdr: sum((r) => r.payrollIdr),
-        courierCommissionIdr: sum((r) => r.courierCommissionIdr),
-        expenseClaimIdr: sum((r) => r.expenseClaimIdr),
-        refundIdr: sum((r) => r.refundIdr),
-        // A total of ENTERED costs only: a depot without rows adds nothing, and the status says so.
-        fixedCostIdr: rows.some((r) => r.fixedCostStatus === 'unavailable') || !rows.some((r) => r.fixedCostStatus === 'entered')
-          ? null
-          : rows.reduce((n, r) => n + (r.fixedCostIdr ?? 0), 0),
-        fixedCostStatus: DashboardService.fixedTotalStatus(rows.map((r) => r.fixedCostStatus)),
-        netProfitIdr: sum((r) => r.netProfitIdr),
-      },
+      totals: DashboardService.pnlTotals(rows),
       sources: {
         depot: depots !== null ? 'ok' : 'unavailable',
         order: depots === null ? 'unavailable' : revenueMissing ? 'partial' : 'ok',
@@ -571,6 +552,33 @@ export class DashboardService {
         refunds: refunds !== null ? 'ok' : 'unavailable',
         fixedCosts: !payVisible ? 'hidden' : fixed !== null ? 'ok' : 'unavailable',
       },
+    };
+  }
+
+  /**
+   * The totals row of a set of P&L rows (the whole network, or the depots of one legal entity): one
+   * formula, so the per-entity report can never disagree with the network one.
+   */
+  static pnlTotals(rows: readonly NetworkPnlDepotRow[]): NetworkPnl['totals'] {
+    // A total is the sum of every row or it is nothing. Summing the rows that happen to be
+    // readable produces a smaller, confident-looking number that is wrong by exactly the
+    // depots nobody could read — the failure mode E-3 already named on the revenue view.
+    const sum = (pick: (r: NetworkPnlDepotRow) => number | null): number | null =>
+      rows.some((r) => pick(r) === null) ? null : rows.reduce((n, r) => n + pick(r)!, 0);
+
+    return {
+      revenueIdr: sum((r) => r.revenueIdr),
+      cogsIdr: sum((r) => r.cogsIdr),
+      payrollIdr: sum((r) => r.payrollIdr),
+      courierCommissionIdr: sum((r) => r.courierCommissionIdr),
+      expenseClaimIdr: sum((r) => r.expenseClaimIdr),
+      refundIdr: sum((r) => r.refundIdr),
+      // A total of ENTERED costs only: a depot without rows adds nothing, and the status says so.
+      fixedCostIdr: rows.some((r) => r.fixedCostStatus === 'unavailable') || !rows.some((r) => r.fixedCostStatus === 'entered')
+        ? null
+        : rows.reduce((n, r) => n + (r.fixedCostIdr ?? 0), 0),
+      fixedCostStatus: DashboardService.fixedTotalStatus(rows.map((r) => r.fixedCostStatus)),
+      netProfitIdr: sum((r) => r.netProfitIdr),
     };
   }
 

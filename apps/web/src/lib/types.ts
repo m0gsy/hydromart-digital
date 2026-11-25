@@ -1498,6 +1498,21 @@ export interface NetworkPnl {
   };
 }
 
+/** HD-16 PR-B (D22, D25): the P&L of each legal entity for a month. */
+export interface LegalEntityPnl {
+  payVisible: boolean;
+  month: string;
+  disclaimer: string;
+  entities: {
+    legalEntityId: string | null;
+    name: string;
+    depots: { depotId: string; code: string; name: string }[];
+    totals: NetworkPnl['totals'];
+  }[];
+  excluded: { depotId: string; code: string; name: string; reason: string }[];
+  sources: { legalEntities: 'ok' | 'unavailable' };
+}
+
 export interface FranchiseHr {
   lateToday: number;
   absentToday: number;

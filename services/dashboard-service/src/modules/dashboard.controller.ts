@@ -12,6 +12,7 @@ import {
   NetworkPnl,
   MonthlyOperationalPnl,
 } from '../application/services/dashboard.service';
+import { LegalEntityPnl, LegalEntityPnlService } from '../application/services/legal-entity-pnl.service';
 import { ExecutiveQueryDto, MonthlyPnlQueryDto, NetworkPnlQueryDto } from './dto/dashboard.dto';
 import { ExecutiveDashboardResponseDto, FranchiseDashboardResponseDto, MonthlyOperationalPnlResponseDto, NetworkDashboardResponseDto, NetworkPnlResponseDto } from './dto/responses.generated.dto';
 
@@ -20,7 +21,10 @@ import { ExecutiveDashboardResponseDto, FranchiseDashboardResponseDto, MonthlyOp
 @Can('dashboard')
 @Controller({ path: 'dashboard', version: '1' })
 export class DashboardController {
-  constructor(private readonly dashboard: DashboardService) {}
+  constructor(
+    private readonly dashboard: DashboardService,
+    private readonly legalEntities: LegalEntityPnlService,
+  ) {}
 
   /*
    * `dashboard` admits MANAGER, SUPERVISOR and ASSISTANT_SUPERVISOR — three depot-scoped
@@ -91,6 +95,22 @@ export class DashboardController {
   ): Promise<NetworkPnl> {
     const scope = depotScopeIds(user);
     return this.dashboard.networkPnl(query.month, token, scope, can('payrollRead', user.role, scope));
+  }
+
+  /**
+   * HD-16 PR-B (D22, D25): the network P&L grouped by legal entity. Same capability as the network P&L;
+   * a depot that changed entity inside the month is listed under `excluded`, in no entity.
+   */
+  @ApiOkResponse({ description: 'LegalEntityPnl: entities[] with totals, excluded[] (moved mid-month), sources' })
+  @Get('legal-entity-pnl')
+  @ApiOperation({ summary: 'Monthly P&L per legal entity (depots held the whole month; movers left out and named)' })
+  legalEntityPnl(
+    @Query() query: NetworkPnlQueryDto,
+    @Headers('authorization') token: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<LegalEntityPnl> {
+    const scope = depotScopeIds(user);
+    return this.legalEntities.legalEntityPnl(query.month, token, scope, can('payrollRead', user.role, scope));
   }
 
   @ApiOkResponse({ type: NetworkDashboardResponseDto })

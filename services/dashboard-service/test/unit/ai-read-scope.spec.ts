@@ -31,6 +31,9 @@ class FakeSources implements AiReadSourcesPort {
     this.asked.push({ depotIds, from, to });
     return this.timeline && this.timeline.filter((s) => depotIds.includes(s.depotId));
   }
+  async entityName() {
+    return null;
+  }
   async aiGrants(role: string) {
     return role in this.grants ? this.grants[role] : { all: false, legalEntityIds: [] };
   }
@@ -162,6 +165,16 @@ describe('AiReadSourcesHttpAdapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [, init] = fetchMock.mock.calls[0];
     expect((init?.headers as Record<string, string>)['x-internal-key']).toBe('k');
+  });
+
+  it('reads the name of one legal entity, null when it cannot', async () => {
+    fetchMock.mockResolvedValueOnce(json({ id: D1, name: 'PT Indowater' }));
+    expect(await adapter.entityName(D1)).toBe('PT Indowater');
+    expect(String(fetchMock.mock.calls[0][0])).toContain(`/legal-entities/internal/${D1}`);
+    fetchMock.mockResolvedValueOnce(json({ name: 5 }));
+    expect(await adapter.entityName(D1)).toBeNull();
+    fetchMock.mockResolvedValueOnce(json({}, false));
+    expect(await adapter.entityName(D1)).toBeNull();
   });
 
   it('answers null for a refusal, a network error and a malformed body', async () => {

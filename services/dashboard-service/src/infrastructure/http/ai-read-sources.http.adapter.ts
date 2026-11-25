@@ -61,6 +61,11 @@ export class AiReadSourcesHttpAdapter implements AiReadSourcesPort {
     return spans;
   }
 
+  async entityName(legalEntityId: string): Promise<string | null> {
+    const body = (await this.get(encodeURIComponent(legalEntityId))) as { name?: unknown } | null;
+    return typeof body?.name === 'string' ? body.name : null;
+  }
+
   async aiGrants(roleKey: string): Promise<AiGrants | null> {
     const body = (await this.get(`ai-grants/${encodeURIComponent(roleKey)}`)) as Partial<AiGrants> | null;
     const ids = body?.legalEntityIds;

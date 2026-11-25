@@ -19,6 +19,8 @@ export interface AiGrants {
 export interface AiReadSourcesPort {
   /** Each depot's legal entity over `[from, to]` (calendar days), the W-06 rule. */
   entityTimeline(depotIds: readonly string[], from: string, to: string): Promise<DepotEntitySpan[] | null>;
+  /** HD-16 PR-B: the registered name of one legal entity, or null when it cannot be read. */
+  entityName(legalEntityId: string): Promise<string | null>;
   /** The legal entities this role key is granted in the AI web. */
   aiGrants(roleKey: string): Promise<AiGrants | null>;
 }

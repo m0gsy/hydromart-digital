@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { ChartPieSlice, WarningCircle } from '@phosphor-icons/react';
 
@@ -86,6 +87,9 @@ export default function HqPnlPage() {
         action={
           <div className="flex items-center gap-2">
             <Badge tone="brand">{t('hq.pnl.operational')}</Badge>
+            <Link href="/hq/pnl/legal-entities" className="rounded-lg border border-app px-3 py-2 text-sm font-medium">
+              {t('hq.pnl.entities.link')}
+            </Link>
             <select
               value={monthKey}
               onChange={(e) => setMonthKey(e.target.value)}
