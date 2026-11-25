@@ -27,7 +27,7 @@ import { InMemoryNotificationRepository } from '../support/fakes';
  * AI-7c: someone in the AI web asks for access. n8n carries ids; hydromart looks up the names,
  * writes the words and tells the people who hold legalEntityAiAccess, one notification each.
  */
-const EVENT = 'ai-access-request:3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807';
+const EVENT = 'ai-access-request:00000000-0000-4000-8000-000000000001';
 const REQUESTER = '11111111-1111-4111-8111-111111111111';
 const ENTITY = '22222222-2222-4222-8222-222222222222';
 const ZERO_WIDTH = String.fromCharCode(0x200b);

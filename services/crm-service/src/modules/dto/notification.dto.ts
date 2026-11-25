@@ -260,7 +260,7 @@ const lowerEach = ({ value }: { value: unknown }): unknown =>
  * requester's name and role and the entities' names are looked up here, never carried by n8n.
  */
 export class AiAccessRequestedDto {
-  @ApiProperty({ example: 'ai-access-request:3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807' })
+  @ApiProperty({ example: 'ai-access-request:00000000-0000-4000-8000-000000000001' })
   @IsString()
   @Matches(/^ai-access-request:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
     message: 'eventId must be ai-access-request:<uuid>',

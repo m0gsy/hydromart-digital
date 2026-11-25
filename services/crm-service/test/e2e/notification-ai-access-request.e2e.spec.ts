@@ -37,7 +37,7 @@ const ROUTE = '/api/v1/notifications/external/ai-access-requested';
 const REQUESTER = '11111111-1111-4111-8111-111111111111';
 const ENTITY = '22222222-2222-4222-8222-222222222222';
 const BODY = {
-  eventId: 'ai-access-request:3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807',
+  eventId: 'ai-access-request:00000000-0000-4000-8000-000000000001',
   requesterAccountId: REQUESTER,
   legalEntityIds: [ENTITY],
 };
