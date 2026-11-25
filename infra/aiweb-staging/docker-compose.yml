@@ -17,7 +17,7 @@
 # never pinned here first). Staging has no backup: its data is made up and `staging-reset` (the
 # Deploy workflow's mode) starts it again from nothing.
 #
-# Pinned now: hydromart-ai bd6de7e (the read screens: Ringkasan, Liga depot, Depot, Minta akses, and the access-request workflow), AHEAD of production (CI run 45564187896).
+# Pinned now: hydromart-ai bd6de7e (the read screens: Ringkasan, Liga depot, Depot, Minta akses, and the access-request workflow), the same as production (CI run 45564187896).
 #
 # Isolation, held by scripts/check-aiweb-staging-compose.mjs in CI and proved on the box after every
 # deploy by the probe in scripts/aiweb-staging-deploy.sh:
