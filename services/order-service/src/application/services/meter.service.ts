@@ -106,6 +106,39 @@ export class MeterService {
     return localDayKey(now, this.config.businessTimeZone);
   }
 
+  /**
+   * HD-15: the water through each depot's meter over WIB days `from`..`to` inclusive, for
+   * volume-based maintenance, one answer per range in the order asked. Only a CLOSED day counts,
+   * as closing minus opening; a day with no closing, or a closing below its opening (a typo or a
+   * replaced meter), adds nothing and is not a reading day, so the caller sees how many days the
+   * figure rests on. One read per depot, covering its earliest `from` to its latest `to`, summed
+   * per range in memory: a network sweep is one query per depot, never one per range.
+   */
+  async volumes(
+    ranges: ReadonlyArray<{ depotId: string; from: string; to: string }>,
+  ): Promise<Array<{ m3: number; readingDays: number; spanDays: number }>> {
+    const span = (r: { from: string; to: string }): number =>
+      r.from > r.to ? 0 : (Date.parse(`${r.to}T00:00:00.000Z`) - Date.parse(`${r.from}T00:00:00.000Z`)) / 86_400_000 + 1;
+    const live = ranges.filter((r) => r.from <= r.to);
+    const depots = [...new Set(live.map((r) => r.depotId))];
+    const rowsOf = new Map<string, Awaited<ReturnType<MeterReadingRepository['listForRange']>>>();
+    for (const depotId of depots) {
+      const mine = live.filter((r) => r.depotId === depotId);
+      const from = mine.reduce((a, r) => (r.from < a ? r.from : a), mine[0].from);
+      const to = mine.reduce((a, r) => (r.to > a ? r.to : a), mine[0].to);
+      rowsOf.set(depotId, await this.readings.listForRange(depotId, from, to));
+    }
+    return ranges.map((r) => {
+      const spanDays = span(r);
+      if (spanDays === 0) return { m3: 0, readingDays: 0, spanDays };
+      const used = (rowsOf.get(r.depotId) ?? []).filter(
+        (x) => x.date >= r.from && x.date <= r.to && x.closingM3 !== null && x.closingM3 >= x.openingM3,
+      );
+      const m3 = used.reduce((sum, x) => sum + (x.closingM3! - x.openingM3), 0);
+      return { m3: Math.round(m3 * 1000) / 1000, readingDays: used.length, spanDays };
+    });
+  }
+
   /** The WIB day key `n` days before the day key `day`. */
   dayKeyBefore(day: string, n: number): string {
     const tz = this.config.businessTimeZone;

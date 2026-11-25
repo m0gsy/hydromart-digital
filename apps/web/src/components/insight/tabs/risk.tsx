@@ -205,7 +205,9 @@ export function RiskTab({ ctx }: { ctx: InsightCtx }) {
                 <li key={m.id} className="flex items-baseline justify-between gap-2 text-sm">
                   <span className="min-w-0 truncate font-semibold">{m.name}</span>
                   <span className="shrink-0 text-xs text-[color:var(--danger)]">
-                    {t('insight.risk.dueSince', { date: formatDate(m.nextDueAt) })}
+                    {m.dueBy !== 'VOLUME' && m.nextDueAt
+                      ? t('insight.risk.dueSince', { date: formatDate(m.nextDueAt) })
+                      : t('dashB.maintenance.dueByVolume')}
                   </span>
                 </li>
               ))}

@@ -40,8 +40,11 @@ class InMemoryMaintenanceRepository implements MaintenanceRepository {
   async listForDepot(depotId: string): Promise<MaintenanceItem[]> {
     return this.rows
       .filter((r) => r.depotId === depotId)
-      .sort((a, b) => a.nextDueAt.getTime() - b.nextDueAt.getTime())
+      .sort((a, b) => (a.nextDueAt?.getTime() ?? Infinity) - (b.nextDueAt?.getTime() ?? Infinity))
       .map((r) => ({ ...r }));
+  }
+  async listAllActive(): Promise<Array<MaintenanceItem & { depotName: string }>> {
+    return this.rows.map((r) => ({ ...r, depotName: 'Depot Cikini' }));
   }
   async findById(id: string): Promise<MaintenanceItem | null> {
     const r = this.rows.find((x) => x.id === id);
@@ -80,11 +83,13 @@ describe('MaintenanceService', () => {
   let repo: InMemoryMaintenanceRepository;
   let service: MaintenanceService;
   let depotId: string;
+  let meter: { volumes: jest.Mock };
 
   beforeEach(async () => {
     const depotRepo = new InMemoryDepotRepository();
     repo = new InMemoryMaintenanceRepository();
-    service = new MaintenanceService(repo, depotRepo);
+    meter = { volumes: jest.fn(async (r: readonly unknown[]) => r.map(() => null)) };
+    service = new MaintenanceService(repo, depotRepo, meter);
     const depot = await new DepotService(depotRepo).create({
       code: 'JKT-01',
       name: 'Depot Cikini',

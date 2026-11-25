@@ -47,6 +47,8 @@ export const DEPOT_TOKENS = {
   SubscriptionRepository: Symbol('SubscriptionRepository'),
   OrderSubscriptionPort: Symbol('OrderSubscriptionPort'),
   OrderLedger: Symbol('OrderLedger'),
+  /** HD-15: water through a depot's meter over a range (order-service), for volume-based maintenance. */
+  MeterVolume: Symbol('MeterVolume'),
   HuddleRepository: Symbol('HuddleRepository'),
   HandoverRepository: Symbol('HandoverRepository'),
   OperationalReportRepository: Symbol('OperationalReportRepository'),

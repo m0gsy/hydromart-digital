@@ -3,7 +3,7 @@
   "info": {
     "title": "hydromart-digital notifications raised by machine accounts",
     "version": "1.0.0",
-    "description": "AI-5, AI-9, AI-7c, HD-18. Routes n8n calls, with a machine token, to raise a notification in hydromart-digital's own staff notifications: a row in the staff feed (the bell on the console) and a push to the phones of the accounts it is for. hydromart-digital writes the text itself (Indonesian, the product default); the caller sends facts, never copy.\n\nAuthentication: a machine token from POST /auth/api/v1/auth/machine/token (auth.openapi.json): ES256, aud hydromart-machine, 15 minutes. Each route names the capability its token's scopes must include. An AI-web token (aud hydromart-ai) is refused on these routes, whoever the person is, and so is any hydromart-digital session token whose role does not hold that capability.\n\nAudit trail: every call is recorded in hydromart-digital's audit trail BEFORE it runs, as the machine account, with the request body, and refused with 503 when it cannot be recorded; nothing is notified then. Send X-Workflow to name the n8n workflow in that record.\n\nRate limit: counted per machine account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: unknown request fields are refused (400), so send only the fields listed. A field may be added to a response within version 1; removing or renaming one is a new contract version."
+    "description": "AI-5, AI-9, AI-7c, HD-18, HD-15. Routes n8n calls, with a machine token, to raise a notification in hydromart-digital's own staff notifications: a row in the staff feed (the bell on the console) and a push to the phones of the accounts it is for. hydromart-digital writes the text itself (Indonesian, the product default); the caller sends facts, never copy.\n\nAuthentication: a machine token from POST /auth/api/v1/auth/machine/token (auth.openapi.json): ES256, aud hydromart-machine, 15 minutes. Each route names the capability its token's scopes must include. An AI-web token (aud hydromart-ai) is refused on these routes, whoever the person is, and so is any hydromart-digital session token whose role does not hold that capability.\n\nAudit trail: every call is recorded in hydromart-digital's audit trail BEFORE it runs, as the machine account, with the request body, and refused with 503 when it cannot be recorded; nothing is notified then. Send X-Workflow to name the n8n workflow in that record.\n\nRate limit: counted per machine account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: unknown request fields are refused (400), so send only the fields listed. A field may be added to a response within version 1; removing or renaming one is a new contract version."
   },
   "servers": [
     {
@@ -468,6 +468,120 @@
           }
         }
       }
+    },
+    "/crm/api/v1/notifications/external/maintenance-due": {
+      "post": {
+        "summary": "Tell who must know that depot equipment maintenance is due.",
+        "description": "Called by n8n once a day (recommended 07:30 WIB) to run the maintenance sweep. The token's scopes must include maintenanceDueNotify. n8n only says 'now' and sends today's WIB date; which items are due, who is told and the words are hydromart-digital's, and no count or sentence passes through n8n.\n\nWhat is due: a piece of depot equipment (filter, UV lamp, RO membrane...) is due when EITHER the days since its last service reach its day limit OR the water through the depot's meter since its last service reaches its volume limit (m3), whichever comes first. The volume is the sum of closing minus opening of the depot's daily meter readings over the complete WIB days after the service day up to yesterday; a day without a closed reading adds nothing, so the figure is a floor. An item whose meter cannot be read is not called due by volume.\n\nWho is told: the depot's Kepala depot, the supervisors over the depot (its assistant supervisor and everyone above them in the reporting line) and HQ Operasional (every head-office account, all depots). The depot's Kepala and supervisors get one notification per depot listing its due items, e.g. 'Perawatan jatuh tempo di Cikini: Membran RO (volume air sudah 520,3 m3 dari batas 500 m3). Buka menu Perawatan untuk menjadwalkan servis.'; HQ gets ONE notification per run with the due count per depot ('Perawatan jatuh tempo di 5 depot: 12 item: Cikini 4, ...'). A depot digest names up to 5 items and 'dan N lainnya'; tapping it opens that depot's maintenance screen, which lists them all. HQ is told again as soon as an item it has not heard of is due, and every HEAD_OFFICE account gets only the HQ row, not a depot row on top.\n\nChannels (owner rule 24 Nov 2026): the bell, a push and an email (plain text; hydromart sends it, n8n holds no email credential; the email reaches staff who can open the HQ console). Each recipient can switch the push and the email off on their profile (/hq/profile, 'Perawatan alat jatuh tempo'); both are on by default. WhatsApp is not sent yet: it waits for the Meta channel, and the response says whatsapp 'pending', never 'sent'.\n\nNot a daily nag: each person is told about an item the first day it is found due for them, then again every 3 days while it stays due; a person who was not reached, or who is new in the role, is told on the next run (remindLater counts the items nobody needed telling about). The first run after release tells about every item already due, as one digest per recipient. Marking it serviced starts a new cycle. `date` must be today in Asia/Jakarta (400 otherwise), so a replay of an old trigger cannot go out under today's name. A retry the same WIB day sends nobody twice: it completes the recipients that were not reached.",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "The n8n workflow making the call, recorded in the audit trail as workflow (trimmed, at most 120 characters). Not checked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "hd15-maintenance-due"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaintenanceDueTrigger"
+              },
+              "example": {
+                "date": "2026-11-26"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The sweep ran: everyone due to be told has the notice, or nothing was due, or every due item was told about less than 3 days ago.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceDueResult"
+                },
+                "example": {
+                  "date": "2026-11-26",
+                  "depots": 2,
+                  "items": 3,
+                  "notified": 12,
+                  "remindLater": 1,
+                  "whatsapp": "pending"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: date missing or malformed, an unknown field, or a date that is not today in Asia/Jakarta. Not worth retrying with the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI and machine access was switched off (the published key set is empty): POST /auth/api/v1/auth/machine/token then answers 503. Get a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include maintenanceDueNotify. Not worth retrying until the machine account's scopes change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this machine account. Wait the seconds in Retry-After, then retry with the same body.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call (nothing was sent), or the due items, the meter volume, the recipients or the earlier notices could not be read, or a recipient could not be filed. An outage never answers as \"nothing due\". Retry the same body the same WIB day: rows already filed stay, and nobody is told twice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -762,6 +876,60 @@
               "pending"
             ],
             "description": "WhatsApp waits for per-number consent (HD-13); it is never reported as sent."
+          }
+        }
+      },
+      "MaintenanceDueTrigger": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "The WIB date of the sweep: today, in Asia/Jakarta."
+          }
+        }
+      },
+      "MaintenanceDueResult": {
+        "type": "object",
+        "required": [
+          "date",
+          "depots",
+          "items",
+          "notified",
+          "remindLater",
+          "whatsapp"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "The WIB date of the sweep."
+          },
+          "depots": {
+            "type": "integer",
+            "description": "Depots with at least one item due or overdue."
+          },
+          "items": {
+            "type": "integer",
+            "description": "Items due or overdue, by days or by volume."
+          },
+          "notified": {
+            "type": "integer",
+            "description": "Notifications filed by this call (digests: one per recipient and depot, one per HQ account). What a retry already filed is not filed or counted again."
+          },
+          "remindLater": {
+            "type": "integer",
+            "description": "Of the items, how many nobody needed telling about this run (everyone was told less than 3 days ago)."
+          },
+          "whatsapp": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ],
+            "description": "WhatsApp waits for the Meta channel; it is never reported as sent."
           }
         }
       }

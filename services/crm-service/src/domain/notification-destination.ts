@@ -207,6 +207,11 @@ export function destinationFor(
     // AI-7c: the screen where access is granted (HQ legal entities, the AI access matrix).
     case NotificationEvent.AI_ACCESS_REQUESTED:
       return '/hq/legal-entities';
+    // HD-15: the depot console's maintenance list (in the Ops APK).
+    // A depot digest carries its depot (a uuid, or nothing), like other depot events; the page
+    // does not filter by it yet, so the tap opens the whole maintenance list.
+    case NotificationEvent.MAINTENANCE_DUE:
+      return forDepot('/dashboard/maintenance', /^[0-9a-f-]{36}$/i.test(vars.depotId ?? '') ? vars.depotId : null);
     case NotificationEvent.MORNING_SUMMARY:
       return /^\/[a-z0-9/-]+$/.test(vars.href ?? '') ? vars.href : INBOX;
     case NotificationEvent.LEAVE_SUBMITTED:

@@ -962,9 +962,13 @@ model MaintenanceItem {
   name          String
   /// Short category label, e.g. "Filter RO", "Genset".
   category      String
-  intervalDays  Int
+  /// HD-15: due by days OR by water volume, whichever comes first. At least one is set (the
+  /// DTO enforces it); a volume-only item has no nextDueAt.
+  intervalDays  Int?
+  /// HD-15: cubic metres of water through the depot's meter between services.
+  intervalM3    Decimal?          @db.Decimal(12, 3)
   lastServicedAt DateTime?
-  nextDueAt     DateTime
+  nextDueAt     DateTime?
   status        MaintenanceStatus @default(HEALTHY)
   note          String?
   createdAt     DateTime          @default(now())

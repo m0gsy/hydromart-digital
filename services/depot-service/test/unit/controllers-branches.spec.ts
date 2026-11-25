@@ -917,7 +917,7 @@ describe('MaintenanceController', () => {
       nextDueAt: ISO,
     } as never);
     expect(svc.create).toHaveBeenCalledWith(
-      expect.objectContaining({ lastServicedAt: null, note: null }),
+      expect.objectContaining({ lastServicedAt: null, note: null, intervalM3: null }),
     );
     await c.create({
       depotId: DEPOT,

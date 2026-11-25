@@ -58,6 +58,9 @@ class InMemoryMaintenanceRepository implements MaintenanceRepository {
   async listForDepot(depotId: string): Promise<MaintenanceItem[]> {
     return this.rows.filter((r) => r.depotId === depotId).map((r) => ({ ...r }));
   }
+  async listAllActive(): Promise<Array<MaintenanceItem & { depotName: string }>> {
+    return this.rows.map((r) => ({ ...r, depotName: 'Depot' }));
+  }
   async findById(id: string): Promise<MaintenanceItem | null> {
     const r = this.rows.find((x) => x.id === id);
     return r ? { ...r } : null;
@@ -77,7 +80,7 @@ describe('MaintenanceService branch fills', () => {
   beforeEach(async () => {
     repo = new InMemoryMaintenanceRepository();
     depots = new InMemoryDepotRepository();
-    service = new MaintenanceService(repo, depots);
+    service = new MaintenanceService(repo, depots, { volumes: async (r) => r.map(() => null) });
     // Register a depot whose id we control so create/list pass the requireDepot guard.
     await depots.create({
       id: KNOWN_DEPOT,

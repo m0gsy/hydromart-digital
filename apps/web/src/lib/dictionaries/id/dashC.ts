@@ -219,6 +219,7 @@ export const dashC = {
       aiAccessRequestNotify: 'Beritahu pemberi akses AI bahwa ada yang meminta akses (akun mesin n8n)',
       orderStatusByPhone: 'Baca status pesanan menurut nomor WhatsApp (akun mesin n8n)',
       customerReminderNotify: 'Picu pengingat pelanggan: langganan, poin, bayar (akun mesin n8n)',
+      maintenanceDueNotify: 'Picu pengingat perawatan alat jatuh tempo (akun mesin n8n)',
       voucherRequestDecide: 'Putuskan permintaan voucher',
       fraudReview: 'Tinjau indikasi fraud',
       refundIssue: 'Ajukan refund',

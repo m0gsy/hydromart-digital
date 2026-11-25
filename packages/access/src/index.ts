@@ -596,6 +596,13 @@ export const CAPABILITIES = {
    */
   customerReminderNotify: ['SUPER_ADMIN'],
   // --- end HD-18 block ---
+  /*
+   * crm-service (HD-15) - the daily "maintenance due" sweep
+   * (POST notifications/external/maintenance-due). Held by the n8n machine account through its
+   * token's `scopes`; same reasoning as the three above, so also in CUSTOM_FORBIDDEN. n8n only
+   * says "now"; which items are due and who is told is hydromart's.
+   */
+  maintenanceDueNotify: ['SUPER_ADMIN'],
   // promo-service — RETIRED: the voucher-request flow was removed, nothing enforces this any more.
   // Kept only so a stored matrix row naming it still validates.
   voucherRequestDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
@@ -1085,6 +1092,8 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   // HD-18: the n8n machine account's two, same reasoning.
   'orderStatusByPhone',
   'customerReminderNotify',
+  // HD-15: the n8n machine account's, same reasoning.
+  'maintenanceDueNotify',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

@@ -346,3 +346,34 @@ export class AiAccessRequestedResultDto {
   })
   whatsapp!: 'pending';
 }
+
+/** HD-15: n8n's trigger: when to sweep, nothing else. Which items, who and what it says are hydromart's. */
+export class MaintenanceDueDto {
+  @ApiProperty({ example: '2026-11-26', description: 'The WIB date of the sweep: today, in Asia/Jakarta.' })
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date must be YYYY-MM-DD' })
+  date!: string;
+}
+
+export class MaintenanceDueResultDto {
+  @ApiProperty({ example: '2026-11-26' })
+  date!: string;
+
+  @ApiProperty({ description: 'Depots with at least one item due or overdue.' })
+  depots!: number;
+
+  @ApiProperty({ description: 'Items due or overdue.' })
+  items!: number;
+
+  @ApiProperty({ description: 'Notifications filed by this call (a retry files none twice).' })
+  notified!: number;
+
+  @ApiProperty({ description: 'Items left out because they were told about less than 3 days ago.' })
+  remindLater!: number;
+
+  @ApiProperty({
+    enum: ['pending'],
+    description: 'WhatsApp is not sent until the Meta channel is ready; never reported as sent.',
+  })
+  whatsapp!: 'pending';
+}

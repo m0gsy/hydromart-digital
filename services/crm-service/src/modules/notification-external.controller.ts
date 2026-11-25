@@ -13,6 +13,7 @@ import { AuditMutationsInterceptor, Can, ExternalAccess } from '@hydromart/platf
 
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
 import { CustomerReminderService } from '../application/services/customer-reminder.service';
+import { MaintenanceDueService } from '../application/services/maintenance-due.service';
 import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { NotificationService } from '../application/services/notification.service';
 import { oneLine } from '../domain/ai-access-request';
@@ -25,6 +26,8 @@ import {
   CustomerReminderResultDto,
   FRANCHISE_EVENT_PREFIX,
   FranchiseApplicationSubmittedDto,
+  MaintenanceDueDto,
+  MaintenanceDueResultDto,
   MORNING_SUMMARY_PREFIX,
   MorningSummaryDto,
   MorningSummaryResultDto,
@@ -51,6 +54,7 @@ export class NotificationExternalController {
     private readonly morningSummary: MorningSummaryService,
     private readonly aiAccessRequests: AiAccessRequestService,
     private readonly customerReminders: CustomerReminderService,
+    private readonly maintenanceDue: MaintenanceDueService,
   ) {}
 
   /*
@@ -163,5 +167,26 @@ export class NotificationExternalController {
       dto.legalEntityIds?.map((id) => id.toLowerCase()),
       dto.group,
     );
+  }
+
+  /*
+   * HD-15: n8n's daily maintenance sweep. It only says "now"; hydromart asks depot-service which
+   * items are due by days or by water volume, tells each depot's Kepala, the supervisors over it
+   * and HQ Operasional once per item and then every 3 days while it stays due, and answers the
+   * counts. `date` must be today in Asia/Jakarta, so a replay of an old trigger cannot be sent
+   * under today's name. A retry the same day sends nothing twice.
+   */
+  @ExternalAccess('machine')
+  @Can('maintenanceDueNotify')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('maintenance-due')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'n8n: tell who must know that depot maintenance is due (HD-15)' })
+  @ApiOkResponse({ type: MaintenanceDueResultDto })
+  async maintenanceDueRun(@Body() dto: MaintenanceDueDto): Promise<MaintenanceDueResultDto> {
+    if (dto.date !== wibDate(new Date())) {
+      throw new BadRequestException('date must be today in Asia/Jakarta');
+    }
+    return this.maintenanceDue.run(dto.date);
   }
 }

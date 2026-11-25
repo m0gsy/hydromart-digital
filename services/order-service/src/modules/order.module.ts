@@ -68,6 +68,7 @@ import { SubscriptionController } from './subscription.controller';
 import { SettingsController } from './settings.controller';
 import { SalesImportController } from './sales-import.controller';
 import { AiCustomerMetricsController } from './ai-customer-metrics.controller';
+import { MeterVolumeController } from './meter-volume.controller';
 import { AiCustomerMetricsService } from '../application/services/ai-customer-metrics.service';
 import { AiCustomerPrismaRepository } from '../infrastructure/prisma/ai-customer.prisma.repository';
 import { CustomerOutreachService } from '../application/services/customer-outreach.service';
@@ -167,6 +168,7 @@ const providers: Provider[] = [
     AiCustomerMetricsController,
     MachineOrdersController,
     CustomerRemindersInternalController,
+    MeterVolumeController,
   ],
   providers,
   exports: [PrismaService, OrderConfigService],

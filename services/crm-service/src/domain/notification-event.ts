@@ -76,6 +76,11 @@ export enum NotificationEvent {
   POINTS_EXPIRING = 'POINTS_EXPIRING',
   // Tokens: {{orderNumber}}, {{orderId}} (the tap opens the order), {{amount}}.
   UNPAID_ORDER = 'UNPAID_ORDER',
+  // HD-15: a piece of depot equipment (filter, UV lamp, RO membrane...) is due for service by days
+  // or by water volume. One row per recipient (the depot's Kepala, the supervisors over it, HQ
+  // Operasional), raised by POST notifications/external/maintenance-due. Tokens: {{depot}},
+  // {{items}} (the due items with the reason each; for HQ the count per depot).
+  MAINTENANCE_DUE = 'MAINTENANCE_DUE',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -244,6 +249,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     '{{points}} poinmu akan hangus pada {{expires}}. Tukarkan dengan voucher di halaman Rewards sebelum hangus ⭐',
   [NotificationEvent.UNPAID_ORDER]:
     'Pesanan {{orderNumber}} ({{amount}}) masih menunggu pembayaran. Selesaikan sekarang, pesanan yang belum dibayar dibatalkan otomatis.',
+  [NotificationEvent.MAINTENANCE_DUE]:
+    'Perawatan jatuh tempo di {{depot}}: {{items}}. Buka menu Perawatan untuk menjadwalkan servis.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
   [NotificationEvent.PAYMENT_REMINDER]:
@@ -361,6 +368,8 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.MORNING_SUMMARY,
   // AI-7c: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
   NotificationEvent.AI_ACCESS_REQUESTED,
+  // HD-15: addressed to one account (also in PERSONAL_OPS_EVENTS); the depot is in the text.
+  NotificationEvent.MAINTENANCE_DUE,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -417,7 +426,8 @@ export type StaffToggle =
   | 'dailySummary'
   | 'newFranchiseApp'
   | 'morningSummary'
-  | 'aiAccessRequest';
+  | 'aiAccessRequest'
+  | 'maintenanceDue';
 
 export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffToggle>> = {
   [NotificationEvent.DEPOT_ORDER_INCOMING]: 'newOrder',
@@ -442,6 +452,8 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.MORNING_SUMMARY]: 'morningSummary',
   // AI-7c: its own switch on /hq/profile, push and email, both defaulting on.
   [NotificationEvent.AI_ACCESS_REQUESTED]: 'aiAccessRequest',
+  // HD-15: its own switch on /hq/profile, push and email, both defaulting on.
+  [NotificationEvent.MAINTENANCE_DUE]: 'maintenanceDue',
   [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
 };
 
@@ -484,6 +496,8 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.MORNING_SUMMARY,
   // AI-7c: one person who can grant AI access; the request names a requester, so for them only.
   NotificationEvent.AI_ACCESS_REQUESTED,
+  // HD-15: one recipient's own row (the same text goes to each of them, but each has their own).
+  NotificationEvent.MAINTENANCE_DUE,
 ];
 
 // English. Same tokens, same order, same meaning — including the operational ones, which go
@@ -518,6 +532,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Order {{orderNumber}} ({{amount}}) is still waiting for payment. Pay now: orders left unpaid are cancelled automatically.',
   [NotificationEvent.AI_ACCESS_REQUESTED]:
     '{{who}} asks for AI web access to {{what}}. Open Legal entities, the AI access section, to grant it.',
+  [NotificationEvent.MAINTENANCE_DUE]:
+    'Maintenance is due at {{depot}}: {{items}}. Open Maintenance to schedule the service.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Hi {{name}}, the payment for order {{orderNumber}} did not go through ({{reason}}). Please pay again from the app.',
   [NotificationEvent.PAYMENT_REMINDER]:

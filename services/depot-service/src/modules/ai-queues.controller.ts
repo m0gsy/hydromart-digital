@@ -18,7 +18,7 @@ export class AiQueuesController {
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
   @Get('open')
-  @ApiOperation({ summary: 'Open incidents, disputes, approvals and overdue maintenance per depot (internal service auth)' })
+  @ApiOperation({ summary: 'Open incidents, disputes, approvals and maintenance overdue by days per depot (internal service auth)' })
   async open(@Query() q: AiStockDepotsQueryDto): Promise<{ items: OpenQueueRow[] }> {
     return { items: await this.queues.open(q.depotIds.split(',')) };
   }

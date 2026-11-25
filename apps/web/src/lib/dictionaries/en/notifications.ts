@@ -37,6 +37,7 @@ export const notifications = {
     REFUND_REQUESTED: 'Refund waiting for approval',
     FRANCHISE_APPLICATION_SUBMITTED: 'New franchise application',
     MORNING_SUMMARY: 'Approvals waiting for you',
+    MAINTENANCE_DUE: 'Equipment maintenance due',
     AI_ACCESS_REQUESTED: 'AI web access request',
     SUBSCRIPTION_TOMORROW: 'Subscription delivery tomorrow',
     POINTS_EXPIRING: 'Points about to expire',

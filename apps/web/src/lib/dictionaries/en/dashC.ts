@@ -214,6 +214,7 @@ export const dashC = {
       aiAccessRequestNotify: 'Tell the AI access granters someone asked for access (n8n machine account)',
       orderStatusByPhone: 'Read order status for one WhatsApp number (n8n machine account)',
       customerReminderNotify: 'Trigger customer reminders: subscription, points, unpaid (n8n machine account)',
+      maintenanceDueNotify: 'Trigger the maintenance-due reminder (n8n machine account)',
       voucherRequestDecide: 'Decide voucher requests',
       fraudReview: 'Review fraud flags',
       refundIssue: 'Raise a refund',
