@@ -356,7 +356,7 @@
     "/crm/api/v1/notifications/external/customer-reminders": {
       "post": {
         "summary": "Trigger one kind of customer reminder: subscription tomorrow, points about to expire, unpaid order.",
-        "description": "Called by n8n on its schedule (HD-18), with the kind and the date of the day. The token's scopes must include customerReminderNotify. n8n only TRIGGERS: it sends a kind and a date and receives counts, never a customer, an order or a number of points. hydromart-digital asks the service that owns the data who is due, writes the text (Indonesian, or the customer's own language) and files one notification per customer per thing.\n\nKinds. SUBSCRIPTION_TOMORROW: every ACTIVE subscription whose next delivery falls tomorrow in Asia/Jakarta; one reminder per subscription per delivery day. POINTS_EXPIRING: every loyalty EARN lot that expires within the next 7 days and has not expired yet (what the customer stands to lose is capped at their balance); one reminder per lot, ever; none while the point-expiry sweep is switched off, because nothing then expires. UNPAID_ORDER: transfer and QRIS orders still waiting for their payment once they are two thirds of the way to the auto-cancel (40 of the default 60 minutes; the window follows the cancel setting and never reaches an order the sweep could already cancel); one reminder per order. Counter sales and subscription deliveries are never reminded.\n\nChannels: the customer's in-app inbox (the bell) and a push to their devices, through the same path as every customer notification, so a customer who switched push off gets the inbox row only. WhatsApp is not sent: it waits for per-number consent (HD-13), and the response says whatsapp 'pending', never 'sent'.\n\ndate is TODAY in Asia/Jakarta (WIB, UTC+7), as YYYY-MM-DD; any other day is refused with 400, so a replay of an old trigger cannot remind about today's state under yesterday's name. Idempotent: a customer who already has a given reminder is not sent it again, so a retry, a second tick or an overlapping run answers 200 with the repeats counted as skipped, and sends nothing twice.\n\nRecommended schedule (WIB): SUBSCRIPTION_TOMORROW once a day at 17.00; POINTS_EXPIRING once a day at 10.00; UNPAID_ORDER every 10 minutes. 200 means everyone due has the reminder; on 503 retry the same body later.",
+        "description": "Called by n8n on its schedule (HD-18), with the kind and the date of the day. The token's scopes must include customerReminderNotify. n8n only TRIGGERS: it sends a kind and a date and receives counts, never a customer, an order or a number of points. hydromart-digital asks the service that owns the data who is due, writes the text (Indonesian, or the customer's own language) and files one notification per customer per thing.\n\nKinds. SUBSCRIPTION_TOMORROW: every ACTIVE subscription whose next delivery falls tomorrow in Asia/Jakarta; one reminder per subscription per delivery day. POINTS_EXPIRING: every loyalty EARN lot that expires within the next 7 days and has not expired yet (what the customer stands to lose is capped at their balance); one reminder per lot, ever; none while the point-expiry sweep is switched off, because nothing then expires. UNPAID_ORDER: transfer and QRIS orders still waiting for their payment once they are two thirds of the way to the auto-cancel (40 of the default 60 minutes; the window follows the cancel setting and never reaches an order the sweep could already cancel); one reminder per order. Counter sales, subscription deliveries and orders booked for a later slot are never reminded (the sweep never cancels them either). The window is a third of the cancel setting wide (20 minutes by default): call this at most every 10 minutes.\n\nChannels: the customer's in-app inbox (the bell) and a push to their devices, through the same path as every customer notification, so a customer who switched push off gets the inbox row only. WhatsApp is not sent: it waits for per-number consent (HD-13), and the response says whatsapp 'pending', never 'sent'.\n\ndate is TODAY in Asia/Jakarta (WIB, UTC+7), as YYYY-MM-DD; any other day is refused with 400, so a replay of an old trigger cannot remind about today's state under yesterday's name. Idempotent: a customer who already has a given reminder is not sent it again, so a retry, a second tick or an overlapping run answers 200 with the repeats counted as skipped, and sends nothing twice.\n\nRecommended schedule (WIB): SUBSCRIPTION_TOMORROW once a day at 17.00; POINTS_EXPIRING once a day at 10.00; UNPAID_ORDER every 10 minutes. 200 means everyone due has the reminder; on 503 retry the same body later.",
         "security": [
           {
             "machineToken": []
@@ -402,7 +402,8 @@
                   "candidates": 3,
                   "notified": 2,
                   "skipped": 1,
-                  "whatsapp": "pending"
+                  "whatsapp": "pending",
+                  "truncated": false
                 }
               }
             }
@@ -722,6 +723,7 @@
           "kind",
           "date",
           "candidates",
+          "truncated",
           "notified",
           "skipped",
           "whatsapp"
@@ -741,6 +743,10 @@
           "candidates": {
             "type": "integer",
             "description": "Who is due a reminder of this kind right now."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "More were due than one answer holds (200 unpaid orders, 1000 subscriptions, 500 point lots); the next tick takes the rest, oldest first."
           },
           "notified": {
             "type": "integer",

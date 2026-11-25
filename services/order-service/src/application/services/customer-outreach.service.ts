@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import { localDayKey, localMinutesOfDay } from '@hydromart/platform';
 
@@ -15,6 +15,7 @@ import { AccountByPhonePort, PaymentsOfOrdersPort } from '../ports/outreach-look
 /** How many finished or cancelled orders the status answer adds to the running ones. */
 export const FINISHED_ORDERS_SHOWN = 3;
 const CANDIDATE_CAP = 200;
+const SUBSCRIPTION_CAP = 1000;
 /**
  * HD-18: an unpaid order is reminded once it is two thirds of the way to the auto-cancel (40 of
  * 60 minutes by default). The abandoned sweep cancels a CREATED order older than `abandonMinutes`;
@@ -37,6 +38,8 @@ const wib = (d: Date): string => {
  */
 @Injectable()
 export class CustomerOutreachService {
+  private readonly logger = new Logger(CustomerOutreachService.name);
+
   constructor(
     @Inject(CUSTOMER_OUTREACH_REPOSITORY) private readonly repo: CustomerOutreachRepository,
     @Inject(ORDER_TOKENS.AccountByPhone) private readonly accounts: AccountByPhonePort,
@@ -51,9 +54,19 @@ export class CustomerOutreachService {
    * cannot answer (503 upstream): "no orders" must not be said for "could not look".
    */
   async statusByPhone(phone: string) {
-    const customerId = await this.accounts.customerIdByPhone(phone);
-    if (!customerId) return { orders: [] };
-    const { running, recent } = await this.repo.statusOrders(customerId, FINISHED_ORDERS_SHOWN);
+    let customerId: string | null;
+    let found: { running: StatusOrderRow[]; recent: StatusOrderRow[] };
+    try {
+      customerId = await this.accounts.customerIdByPhone(phone);
+      if (!customerId) return { orders: [] };
+      found = await this.repo.statusOrders(customerId, FINISHED_ORDERS_SHOWN);
+    } catch (e) {
+      // A fixed message and a log line without the number: neither the number nor the upstream
+      // error text leaves this service.
+      this.logger.warn(`order status lookup failed: ${(e as Error).name}`);
+      throw new ServiceUnavailableException('Order status is temporarily unavailable; retry later');
+    }
+    const { running, recent } = found;
     const rows = [...running, ...recent];
     if (rows.length === 0) return { orders: [] };
     // Both lookups are decoration: an order is still answered when they fail.
@@ -80,7 +93,8 @@ export class CustomerOutreachService {
 
   /** Active subscriptions delivering inside `[from, to)` (crm passes tomorrow's WIB day). */
   async subscriptionsDue(from: Date, to: Date) {
-    return { items: await this.repo.subscriptionsDueBetween(from, to, 1000) };
+    const rows = await this.repo.subscriptionsDueBetween(from, to, SUBSCRIPTION_CAP + 1);
+    return this.capped('subscriptions due', rows, SUBSCRIPTION_CAP);
   }
 
   /**
@@ -93,16 +107,27 @@ export class CustomerOutreachService {
     const created = await this.repo.createdOrdersBetween(
       new Date(now.getTime() - abandon * 60_000),
       new Date(now.getTime() - Math.floor(abandon * REMIND_AT_FRACTION) * 60_000),
-      CANDIDATE_CAP,
+      CANDIDATE_CAP + 1,
     );
-    const payments = await this.payments.latestByOrder(created.map((o) => o.id));
+    // Oldest first, so the orders closest to the auto-cancel are the ones kept; a truncated tick
+    // says so and the next tick (10 minutes on) takes the rest.
+    const { items: kept, truncated } = this.capped('unpaid orders', created, CANDIDATE_CAP);
+    const payments = await this.payments.latestByOrder(kept.map((o) => o.id));
     return {
-      items: created
+      truncated,
+      items: kept
         .filter((o) => {
           const p = payments.get(o.id);
           return p?.status === 'PENDING' && (p.method === 'TRANSFER' || p.method === 'QRIS');
         })
         .map((o) => ({ orderId: o.id, customerId: o.customerId, orderNumber: o.orderNumber, total: o.total })),
     };
+  }
+
+  /** The first `cap` rows, and whether there were more (the caller fetched `cap + 1`). */
+  private capped<T>(what: string, rows: T[], cap: number): { items: T[]; truncated: boolean } {
+    const truncated = rows.length > cap;
+    if (truncated) this.logger.warn(`${what}: more than ${cap} due, answer truncated`);
+    return { items: rows.slice(0, cap), truncated };
   }
 }

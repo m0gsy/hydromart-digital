@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { abandonSweepEligible } from '../../domain/abandon-sweep';
 import { Injectable } from '@nestjs/common';
 import { depotWhere, nextCursor, pageArgs, readAllPages } from '@hydromart/platform';
 
@@ -714,20 +715,9 @@ export class OrderPrismaRepository implements OrderRepository {
         // second question and the sweep was asking the first — see the port for what that
         // cost. The column shipped in B3a; this is the release that reads it.
         statusChangedAt: { lt: before },
-        ...(exemptSubscriptions ? { subscriptionId: null } : {}),
-        // W2b: an order the customer booked for a later day is not abandoned an hour after
-        // checkout — it is waiting, exactly as asked. The sweep read `statusChangedAt`
-        // alone, so a CASH order placed at 22.00 for tomorrow morning was cancelled at
-        // 23.00 while the depot was still shut: the orders the schedule exists for were
-        // the ones it killed. Same reasoning as the D1 exclusion above, and in the query
-        // for the same reason — a backlog of deferred orders must not eat the `take`.
-        // ORD-05: keyed on the validated `scheduledFor` instant. The old rule read the
-        // free-text `deliveryWindow` label (any string a client sent, up to 40 characters) and
-        // protected such an order for four extra days, so typing a label held a depot's stock.
-        // Now an order is protected only until its booked slot has passed by the abandonment
-        // window; with no `scheduledFor` (including express, and any labelled order that never
-        // had one) it is swept like any other.
-        OR: [{ scheduledFor: null }, { scheduledFor: { lt: before } }],
+        // D1 + W2b/ORD-05 (subscription deliveries and orders booked for a later slot are
+        // not abandoned): one shared predicate, also read by the HD-18 unpaid reminder.
+        ...abandonSweepEligible(before, exemptSubscriptions),
       },
       // The sweep cancels and releases stock; it never reads a timeline (audit S-23).
       include: INCLUDE_NO_HISTORY,

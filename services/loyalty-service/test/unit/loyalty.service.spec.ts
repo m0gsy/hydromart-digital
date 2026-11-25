@@ -409,9 +409,27 @@ describe('LoyaltyService', () => {
     lot('past', 'cust-1', 10, -1);
     lot('empty', 'cust-2', 10, 2);
     const now = new Date('2026-12-01T00:00:00Z');
-    const lots = await sweeperFor(repo).expiringLots(now, 7);
-    expect(lots).toEqual([{ lotId: 'in', customerId: 'cust-1', points: 40, expiresAt: new Date('2026-12-04T00:00:00Z') }]);
-    expect(await service.expiringLots(now, 7)).toEqual([]); // sweep switched off: nothing will lapse
+    const out = await sweeperFor(repo).expiringLots(now, 7);
+    expect(out.lots).toEqual([{ lotId: 'in', customerId: 'cust-1', points: 40, expiresAt: new Date('2026-12-04T00:00:00Z') }]);
+    expect(out.truncated).toBe(false);
+    expect(await service.expiringLots(now, 7)).toEqual({ lots: [], truncated: false }); // sweep switched off: nothing will lapse
+  });
+
+  it('reads each customer balance once and says when the answer was cut at the batch size', async () => {
+    const find = jest.spyOn(repo, 'findAccount');
+    for (let i = 0; i < 502; i += 1) {
+      repo.txns.push({
+        id: `l${i}`, customerId: 'cust-1', type: PointsTxnType.EARN, points: 1, orderId: null, reason: null,
+        expiresAt: new Date('2026-12-02T00:00:00Z'), expired: false, createdAt: new Date('2026-06-01T00:00:00Z'),
+      } as never);
+    }
+    await service.getAccount('cust-1');
+    await service.adjust('cust-1', 1000, 'seed', { id: 'admin', capped: false });
+    find.mockClear();
+    const out = await sweeperFor(repo).expiringLots(new Date('2026-12-01T00:00:00Z'), 7);
+    expect(out.lots).toHaveLength(500);
+    expect(out.truncated).toBe(true);
+    expect(find).toHaveBeenCalledTimes(1);
   });
 
   it('does not re-expire an already swept lot', async () => {

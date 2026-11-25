@@ -1,3 +1,9 @@
+/** What a source answered, and whether it held more than one answer can carry (the rest comes on the next tick). */
+export interface Counted<T> {
+  rows: T[];
+  truncated: boolean;
+}
+
 export interface DueSubscription {
   id: string;
   customerId: string;
@@ -27,9 +33,9 @@ export interface UnpaidOrder {
  */
 export interface CustomerReminderSourcePort {
   /** ACTIVE subscriptions whose next delivery falls in `[from, to)`. */
-  subscriptionsDue(from: Date, to: Date): Promise<DueSubscription[]>;
+  subscriptionsDue(from: Date, to: Date): Promise<Counted<DueSubscription>>;
   /** EARN lots that expire within `withinDays` of now and have points left to lose. */
-  expiringPoints(withinDays: number): Promise<ExpiringPointLot[]>;
+  expiringPoints(withinDays: number): Promise<Counted<ExpiringPointLot>>;
   /** Transfer/QR orders still unpaid inside order-service's reminder window. */
-  unpaidOrders(): Promise<UnpaidOrder[]>;
+  unpaidOrders(): Promise<Counted<UnpaidOrder>>;
 }

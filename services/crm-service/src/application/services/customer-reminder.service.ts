@@ -18,6 +18,8 @@ export interface CustomerReminderResult {
   kind: CustomerReminderKind;
   date: string;
   candidates: number;
+  /** More were due than one answer holds; the next tick takes the rest. */
+  truncated: boolean;
   notified: number;
   skipped: number;
   whatsapp: 'pending';
@@ -49,10 +51,16 @@ export class CustomerReminderService {
   ) {}
 
   /** THROWS 503 when the source cannot be read or any reminder could not be filed; the same call finishes the rest. */
-  async run(kind: CustomerReminderKind, date: string, now: Date = new Date()): Promise<CustomerReminderResult> {
-    const reminders = await this.candidates(kind, now).catch((e: Error) => {
+  async run(
+    kind: CustomerReminderKind,
+    date: string,
+    now: Date = new Date(),
+  ): Promise<CustomerReminderResult> {
+    const { reminders, truncated } = await this.candidates(kind, now).catch((e: Error) => {
       this.logger.warn(`customer reminders ${kind}: candidates unreadable: ${e.message}`);
-      throw new ServiceUnavailableException('The recipients could not be read; retry the same call');
+      throw new ServiceUnavailableException(
+        'The recipients could not be read; retry the same call',
+      );
     });
     let notified = 0;
     let skipped = 0;
@@ -75,34 +83,67 @@ export class CustomerReminderService {
       }
     }
     if (failed > 0) {
-      throw new ServiceUnavailableException(`${failed} reminder(s) could not be filed; retry the same call`);
+      throw new ServiceUnavailableException(
+        `${failed} reminder(s) could not be filed; retry the same call`,
+      );
     }
-    return { kind, date, candidates: reminders.length, notified, skipped, whatsapp: 'pending' };
+    if (truncated)
+      this.logger.warn(
+        `customer reminders ${kind}: source answer truncated, the next tick takes the rest`,
+      );
+    return {
+      kind,
+      date,
+      candidates: reminders.length,
+      truncated,
+      notified,
+      skipped,
+      whatsapp: 'pending',
+    };
   }
 
-  private async candidates(kind: CustomerReminderKind, now: Date): Promise<Reminder[]> {
+  private async candidates(
+    kind: CustomerReminderKind,
+    now: Date,
+  ): Promise<{ reminders: Reminder[]; truncated: boolean }> {
     if (kind === 'SUBSCRIPTION_TOMORROW') {
       // Tomorrow in WIB: [tomorrow 00:00, day after 00:00).
-      const due = await this.source.subscriptionsDue(addLocalDays(now, 1), addLocalDays(now, 2));
-      return due.map((s) => ({
-        customerId: s.customerId,
-        dedupeKey: reminderDedupeKey(kind, s.id, localDayKey(s.nextDeliveryAt)),
-        vars: { product: s.productName, quantity: String(s.quantity), date: dayMonth(s.nextDeliveryAt) },
-      }));
+      const { rows: due, truncated } = await this.source.subscriptionsDue(
+        addLocalDays(now, 1),
+        addLocalDays(now, 2),
+      );
+      return {
+        truncated,
+        reminders: due.map((s) => ({
+          customerId: s.customerId,
+          dedupeKey: reminderDedupeKey(kind, s.id, localDayKey(s.nextDeliveryAt)),
+          vars: {
+            product: s.productName,
+            quantity: String(s.quantity),
+            date: dayMonth(s.nextDeliveryAt),
+          },
+        })),
+      };
     }
     if (kind === 'POINTS_EXPIRING') {
-      const lots = await this.source.expiringPoints(POINTS_EXPIRING_DAYS);
-      return lots.map((l) => ({
-        customerId: l.customerId,
-        dedupeKey: reminderDedupeKey(kind, l.lotId),
-        vars: { points: String(l.points), expires: dayMonth(l.expiresAt) },
-      }));
+      const { rows: lots, truncated } = await this.source.expiringPoints(POINTS_EXPIRING_DAYS);
+      return {
+        truncated,
+        reminders: lots.map((l) => ({
+          customerId: l.customerId,
+          dedupeKey: reminderDedupeKey(kind, l.lotId),
+          vars: { points: String(l.points), expires: dayMonth(l.expiresAt) },
+        })),
+      };
     }
-    const orders = await this.source.unpaidOrders();
-    return orders.map((o) => ({
-      customerId: o.customerId,
-      dedupeKey: reminderDedupeKey(kind, o.orderId),
-      vars: { orderNumber: o.orderNumber, orderId: o.orderId, amount: rupiah(o.total) },
-    }));
+    const { rows: orders, truncated } = await this.source.unpaidOrders();
+    return {
+      truncated,
+      reminders: orders.map((o) => ({
+        customerId: o.customerId,
+        dedupeKey: reminderDedupeKey(kind, o.orderId),
+        vars: { orderNumber: o.orderNumber, orderId: o.orderId, amount: rupiah(o.total) },
+      })),
+    };
   }
 }

@@ -7,6 +7,7 @@ import {
   StatusOrderRow,
   UnpaidCandidateRow,
 } from '../../application/ports/customer-outreach.repository';
+import { abandonSweepEligible } from '../../domain/abandon-sweep';
 import { ANONYMOUS_CUSTOMER_ID } from '../../domain/anonymous';
 import { PrismaService } from './prisma.service';
 
@@ -74,7 +75,10 @@ export class CustomerOutreachPrismaRepository implements CustomerOutreachReposit
       where: {
         status: DbOrderStatus.CREATED,
         isWalkIn: false,
-        subscriptionId: null,
+        // The sweep's own exemptions (subscription deliveries, orders booked for a later slot),
+        // judged at the window's lower edge `after`: every order in the window is younger, so it
+        // is cancelled at its window's end for certain, and "cancelled automatically" is true.
+        ...abandonSweepEligible(after),
         customerId: { not: ANONYMOUS_CUSTOMER_ID },
         statusChangedAt: { gt: after, lte: upTo },
       },

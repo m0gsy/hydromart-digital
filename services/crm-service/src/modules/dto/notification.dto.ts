@@ -256,6 +256,9 @@ export class CustomerReminderResultDto {
   @ApiProperty({ description: 'Who is due a reminder of this kind right now.' })
   candidates!: number;
 
+  @ApiProperty({ description: 'True when more were due than one answer holds; the next tick takes the rest.' })
+  truncated!: boolean;
+
   @ApiProperty({ description: 'Of those, how many this call filed (bell and push).' })
   notified!: number;
 

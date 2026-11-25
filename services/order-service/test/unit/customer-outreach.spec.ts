@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { ServiceUnavailableException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
@@ -14,6 +15,7 @@ import {
 import { CustomerOutreachPrismaRepository } from '../../src/infrastructure/prisma/customer-outreach.prisma.repository';
 import { CustomerRemindersInternalController, MachineOrdersController } from '../../src/modules/customer-outreach.controller';
 import { DueWindowDto, MachineOrdersByPhoneDto } from '../../src/modules/dto/customer-outreach.dto';
+import { abandonSweepEligible } from '../../src/domain/abandon-sweep';
 import { redactBody } from '@hydromart/platform';
 
 const NOW = new Date('2026-11-25T10:00:00.000Z'); // 17:00 WIB
@@ -105,10 +107,14 @@ describe('CustomerOutreachService.statusByPhone (HD-18)', () => {
     expect((await nullContacts.service.statusByPhone('0812')).orders[0].depot).toBeNull();
   });
 
-  it('lets an auth-service failure through, so the route says 503 rather than "no orders"', async () => {
+  it('answers a fixed 503 when auth-service or the database fails, never "no orders" and never the number', async () => {
     const { service, accounts } = build();
-    accounts.customerIdByPhone.mockRejectedValue(new Error('auth down'));
-    await expect(service.statusByPhone('0812')).rejects.toThrow('auth down');
+    accounts.customerIdByPhone.mockRejectedValue(new Error('auth down for 0812'));
+    const err = await service.statusByPhone('0812').catch((e) => e);
+    expect(err).toBeInstanceOf(ServiceUnavailableException);
+    expect(JSON.stringify(err.getResponse())).not.toMatch(/0812|auth down/);
+    const dbDown = build({ repo: { statusOrders: jest.fn().mockRejectedValue(new Error('prisma')) } });
+    await expect(dbDown.service.statusByPhone('0812')).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 });
 
@@ -117,8 +123,29 @@ describe('CustomerOutreachService reminders (HD-18)', () => {
     const { service, repo } = build();
     const from = new Date('2026-11-25T17:00:00Z');
     const to = new Date('2026-11-26T17:00:00Z');
-    await expect(service.subscriptionsDue(from, to)).resolves.toEqual({ items: [] });
-    expect(repo.subscriptionsDueBetween).toHaveBeenCalledWith(from, to, 1000);
+    await expect(service.subscriptionsDue(from, to)).resolves.toEqual({ items: [], truncated: false });
+    expect(repo.subscriptionsDueBetween).toHaveBeenCalledWith(from, to, 1001);
+  });
+
+  it('keeps 1000 subscriptions and says when there were more', async () => {
+    const rows = Array.from({ length: 1001 }, (_, i) => ({ id: `s${i}` }));
+    const { service } = build({ repo: { subscriptionsDueBetween: jest.fn().mockResolvedValue(rows) } });
+    const out = await service.subscriptionsDue(new Date(), new Date());
+    expect(out.items).toHaveLength(1000);
+    expect(out.truncated).toBe(true);
+  });
+
+  it('keeps the 200 oldest unpaid orders and says when there were more', async () => {
+    const rows = Array.from({ length: 201 }, (_, i) => ({ id: `o${i}`, customerId: 'c', orderNumber: `n${i}`, total: 1 }));
+    const { service, repo } = build({
+      repo: { createdOrdersBetween: jest.fn().mockResolvedValue(rows) },
+      payments: async () => new Map(rows.map((r) => [r.id, { orderId: r.id, method: 'QRIS', status: 'PENDING' }])),
+    });
+    const out = await service.unpaidOrders(NOW);
+    expect((repo.createdOrdersBetween as jest.Mock).mock.calls[0][2]).toBe(201);
+    expect(out.items).toHaveLength(200);
+    expect(out.items[199].orderId).toBe('o199');
+    expect(out.truncated).toBe(true);
   });
 
   it('asks for CREATED orders between 2/3 of the abandon window and the abandon window, keeping pending transfer/QR payments only', async () => {
@@ -138,6 +165,7 @@ describe('CustomerOutreachService reminders (HD-18)', () => {
     expect(NOW.getTime() - after.getTime()).toBe(60 * 60_000); // never older than the sweep's cut-off
     expect(NOW.getTime() - upTo.getTime()).toBe(40 * 60_000); // two thirds of the way
     expect(out.items.map((i) => i.orderId)).toEqual(['a', 'b']);
+    expect(out.truncated).toBe(false);
     expect(out.items[0]).toEqual({ orderId: 'a', customerId: 'c-a', orderNumber: 'HM-a', total: 1000 });
   });
 
@@ -267,12 +295,22 @@ describe('CustomerOutreachPrismaRepository (HD-18)', () => {
     const after = new Date('2026-11-25T09:00:00Z');
     const upTo = new Date('2026-11-25T09:20:00Z');
     await expect(repo.createdOrdersBetween(after, upTo, 10)).resolves.toEqual([{ id: 'o1', customerId: 'c', orderNumber: 'n', total: 5 }]);
+    // The sweep's own exemptions, judged at the window's lower edge: a booked slot after it is not reminded.
+    expect(findMany.mock.calls[0][0].where.OR).toEqual([{ scheduledFor: null }, { scheduledFor: { lt: after } }]);
     expect(findMany.mock.calls[0][0].where).toMatchObject({
       status: 'CREATED',
       isWalkIn: false,
       subscriptionId: null,
       statusChangedAt: { gt: after, lte: upTo },
     });
+  });
+});
+
+describe('abandonSweepEligible (HD-18)', () => {
+  it('is the one predicate: subscriptions out, booked slots protected until they pass', () => {
+    const before = new Date('2026-11-25T09:00:00Z');
+    expect(abandonSweepEligible(before)).toEqual({ subscriptionId: null, OR: [{ scheduledFor: null }, { scheduledFor: { lt: before } }] });
+    expect(abandonSweepEligible(before, false)).toEqual({ OR: [{ scheduledFor: null }, { scheduledFor: { lt: before } }] });
   });
 });
 

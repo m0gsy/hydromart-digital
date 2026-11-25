@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  Counted,
   CustomerReminderSourcePort,
   DueSubscription,
   ExpiringPointLot,
@@ -29,7 +30,7 @@ const at = (v: unknown, what: string): Date => {
 export class CustomerReminderSourceHttpAdapter implements CustomerReminderSourcePort {
   constructor(private readonly config: CrmConfigService) {}
 
-  private async call(base: string, path: string, what: string, init: RequestInit = {}): Promise<unknown[]> {
+  private async call(base: string, path: string, what: string, init: RequestInit = {}): Promise<{ list: unknown[]; truncated: boolean }> {
     const key = this.config.internalServiceKey;
     if (!base || !key) throw new Error(`${what} URL or internal key missing`);
     const res = await fetch(`${base.replace(/\/+$/, '')}${path}`, {
@@ -38,54 +39,57 @@ export class CustomerReminderSourceHttpAdapter implements CustomerReminderSource
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`${what} responded ${res.status}`);
-    const body = (await res.json()) as { items?: unknown; lots?: unknown } | null;
+    const body = (await res.json()) as { items?: unknown; lots?: unknown; truncated?: unknown } | null;
     const list = body?.items ?? body?.lots;
     if (!Array.isArray(list)) throw new Error(`${what} answered something malformed`);
-    return list;
+    return { list, truncated: body?.truncated === true };
   }
 
-  async subscriptionsDue(from: Date, to: Date): Promise<DueSubscription[]> {
-    const rows = await this.call(
+  async subscriptionsDue(from: Date, to: Date): Promise<Counted<DueSubscription>> {
+    const { list: rows, truncated } = await this.call(
       this.config.orderServiceUrl,
       '/api/v1/customer-reminders/internal/subscriptions-due',
       'order-service',
       { method: 'POST', body: JSON.stringify({ from: from.toISOString(), to: to.toISOString() }) },
     );
-    return (rows as Record<string, unknown>[]).map((r) => ({
+    const mapped = (rows as Record<string, unknown>[]).map((r) => ({
       id: str(r.id, 'order-service'),
       customerId: str(r.customerId, 'order-service'),
       productName: str(r.productName, 'order-service'),
       quantity: num(r.quantity, 'order-service'),
       nextDeliveryAt: at(r.nextDeliveryAt, 'order-service'),
     }));
+    return { rows: mapped, truncated };
   }
 
-  async expiringPoints(withinDays: number): Promise<ExpiringPointLot[]> {
-    const rows = await this.call(
+  async expiringPoints(withinDays: number): Promise<Counted<ExpiringPointLot>> {
+    const { list: rows, truncated } = await this.call(
       this.config.loyaltyServiceUrl,
       `/api/v1/loyalty/internal/expiring-lots?withinDays=${withinDays}`,
       'loyalty-service',
     );
-    return (rows as Record<string, unknown>[]).map((r) => ({
+    const mapped = (rows as Record<string, unknown>[]).map((r) => ({
       lotId: str(r.lotId, 'loyalty-service'),
       customerId: str(r.customerId, 'loyalty-service'),
       points: num(r.points, 'loyalty-service'),
       expiresAt: at(r.expiresAt, 'loyalty-service'),
     }));
+    return { rows: mapped, truncated };
   }
 
-  async unpaidOrders(): Promise<UnpaidOrder[]> {
-    const rows = await this.call(
+  async unpaidOrders(): Promise<Counted<UnpaidOrder>> {
+    const { list: rows, truncated } = await this.call(
       this.config.orderServiceUrl,
       '/api/v1/customer-reminders/internal/unpaid-orders',
       'order-service',
       { method: 'POST', body: '{}' },
     );
-    return (rows as Record<string, unknown>[]).map((r) => ({
+    const mapped = (rows as Record<string, unknown>[]).map((r) => ({
       orderId: str(r.orderId, 'order-service'),
       customerId: str(r.customerId, 'order-service'),
       orderNumber: str(r.orderNumber, 'order-service'),
       total: num(r.total, 'order-service'),
     }));
+    return { rows: mapped, truncated };
   }
 }

@@ -395,16 +395,27 @@ export class LoyaltyService {
   async expiringLots(
     now: Date,
     withinDays: number,
-  ): Promise<{ lotId: string; customerId: string; points: number; expiresAt: Date }[]> {
-    if (!this.config.pointExpirySweepEnabled) return [];
+  ): Promise<{
+    lots: { lotId: string; customerId: string; points: number; expiresAt: Date }[];
+    truncated: boolean;
+  }> {
+    if (!this.config.pointExpirySweepEnabled) return { lots: [], truncated: false };
     const to = new Date(now.getTime() + withinDays * 86_400_000);
-    const out: { lotId: string; customerId: string; points: number; expiresAt: Date }[] = [];
-    for (const lot of await this.repo.findExpiringLots(now, to, LoyaltyService.EXPIRY_BATCH)) {
-      const account = await this.repo.findAccount(lot.customerId);
-      const points = Math.min(lot.points, account?.pointsBalance ?? 0);
-      if (points > 0) out.push({ lotId: lot.id, customerId: lot.customerId, points, expiresAt: lot.expiresAt! });
+    const cap = LoyaltyService.EXPIRY_BATCH;
+    const found = await this.repo.findExpiringLots(now, to, cap + 1);
+    const truncated = found.length > cap;
+    if (truncated) this.logger.warn(`expiring lots: more than ${cap} due, answer truncated`);
+    // One balance read per customer, not per lot (a customer often has several lots due).
+    const balances = new Map<string, number>();
+    const lots: { lotId: string; customerId: string; points: number; expiresAt: Date }[] = [];
+    for (const lot of found.slice(0, cap)) {
+      if (!balances.has(lot.customerId)) {
+        balances.set(lot.customerId, (await this.repo.findAccount(lot.customerId))?.pointsBalance ?? 0);
+      }
+      const points = Math.min(lot.points, balances.get(lot.customerId)!);
+      if (points > 0) lots.push({ lotId: lot.id, customerId: lot.customerId, points, expiresAt: lot.expiresAt! });
     }
-    return out;
+    return { lots, truncated };
   }
 
   /**

@@ -418,7 +418,13 @@ loopback only.
   (`skipped`). crm needs `ORDER_SERVICE_URL` and, new, `LOYALTY_SERVICE_URL` (set in the compose
   files). Recommended cron (WIB): `SUBSCRIPTION_TOMORROW` once a day at 17.00, `POINTS_EXPIRING` once a
   day at 10.00, `UNPAID_ORDER` every 10 minutes (an order is reminded once it is 40 of the 60 minutes
-  to the auto-cancel, i.e. between minute 40 and 50, always before the sweep can cancel it).
+  to the auto-cancel). The reminder window is `abandonMinutes`/3 wide (20 minutes by default), so the
+  n8n cron must run at most every 10 minutes, or an order can slip through between two ticks; if
+  the cancel setting is lowered the window shrinks with it. An admin sweep run with a smaller
+  `olderThanMinutes` can cancel an order before its reminder. Orders booked for a later slot and
+  subscription deliveries are never reminded, because the sweep never cancels them either (one shared
+  predicate). A tick that finds more than 200 unpaid orders (1000 subscriptions, 500 point lots) answers
+  `truncated: true` and logs a warning; the oldest are served first and the next tick takes the rest.
   WhatsApp stays `pending` in every answer until per-number consent (HD-13) exists.
 - **Nightly** at 04:40 [`scripts/aiweb-n8n-check.sh`](scripts/aiweb-n8n-check.sh) (log
   `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is

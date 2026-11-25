@@ -116,10 +116,10 @@ describe('POST notifications/external/customer-reminders (HD-18)', () => {
   });
 
   it('admits n8n with the scope, records the call first, and files one reminder per unpaid order', async () => {
-    source.unpaidOrders.mockResolvedValue([
+    source.unpaidOrders.mockResolvedValue({ truncated: false, rows: [
       { orderId: 'o-1', customerId: 'c-1', orderNumber: 'HM-20261125-000001', total: 45000 },
       { orderId: 'o-2', customerId: 'c-2', orderNumber: 'HM-20261125-000002', total: 9000 },
-    ]);
+    ] });
     const res = await post(machineToken(['customerReminderNotify'])).expect(200);
     await settle();
 
@@ -127,6 +127,7 @@ describe('POST notifications/external/customer-reminders (HD-18)', () => {
       kind: 'UNPAID_ORDER',
       date: TODAY,
       candidates: 2,
+      truncated: false,
       notified: 2,
       skipped: 0,
       whatsapp: 'pending',

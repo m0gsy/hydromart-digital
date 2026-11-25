@@ -73,7 +73,7 @@ describe('LoyaltyController (delegation)', () => {
     reverseReferralReward: jest.fn(async () => ({ account: account(), uncollected: 25 })),
     reward: jest.fn(async () => account()),
     runExpiry: jest.fn(async () => ({ lotsExpired: 0, pointsExpired: 0 })),
-    expiringLots: jest.fn(async () => [{ lotId: 'l1' }]),
+    expiringLots: jest.fn(async () => ({ lots: [{ lotId: 'l1' }], truncated: false })),
     countMembers: jest.fn(async () => 42),
     getAccountInScope: jest.fn(async () => account()),
     depotSummary: jest.fn(async () => ({ depotId: 'd1' })),
@@ -192,7 +192,7 @@ describe('LoyaltyController (delegation)', () => {
   });
 
   it('expiringLots() wraps the service answer for the internal caller (HD-18)', async () => {
-    expect(await ctrl.expiringLots({ withinDays: 7 })).toEqual({ lots: [{ lotId: 'l1' }] });
+    expect(await ctrl.expiringLots({ withinDays: 7 })).toEqual({ lots: [{ lotId: 'l1' }], truncated: false });
     expect(loyalty.expiringLots).toHaveBeenCalledWith(expect.any(Date), 7);
   });
 
