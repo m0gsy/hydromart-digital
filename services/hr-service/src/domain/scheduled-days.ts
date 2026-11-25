@@ -4,9 +4,10 @@ import { RotationPattern, ShiftAssignmentLike, assignmentInForce } from './shift
 /**
  * HD-6 H-02, choice 35A: which days an employee is SCHEDULED to work, for the attendance rate and
  * "tidak hadir". It is the rule payroll's `workingDays` / `employmentWindow` / `rotaFor` already
- * apply, day by day, so a slip's expected days and this denominator cannot disagree:
+ * apply, with two differences: the assignment is read per day (payroll takes the one in force at the period
+ * start for the whole month) and employees with no shift of their own are counted apart. Rules:
  *   - employed: `joinDate`..`exitDate` (an open end when there is none), as payroll's window;
- *   - not a holiday of the employee's depot (national or that depot's), as payroll;
+ *   - not a holiday of the depot the employee is assigned to (Employee.depotId, not the home depot; national or that depot's), as payroll;
  *   - the shift assignment in force on that day decides the week: a rotation's blank weekday is
  *     a rest day, any other shift rests on the depot's weekly-off days (payroll's fallback).
  * An employee with no shift of their own (no assignment, no `Employee.shiftId`) has no schedule.

@@ -33,7 +33,7 @@ export interface AttendanceDepotRow {
   pending: number;
   /**
    * Choice 35A. Employee-days on which the employee is scheduled to work (see domain/scheduled-days.ts:
-   * the rule payroll uses), at the depot they worked that day, else their own depot.
+   * the rule payroll uses), at the depot they worked that day, else the depot the employee is assigned to (Employee.depotId, not the home depot).
    */
   scheduledDays: number;
   /** Scheduled days with a PRESENT or LATE record: the rate's numerator. */

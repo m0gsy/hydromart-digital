@@ -168,13 +168,20 @@ describe('HrMetricsService: H-02 attendance (choice 35A)', () => {
       attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { late: ['e1'], absentRecorded: [], leave: people(2) }), rolledUp: false }),
     });
     const out = await h2(one);
-    expect(out.value).toMatchObject({ present: 60, late: null, leave: null, absent: 9, rate: { status: 'ok' } });
-    expect((out.value as { flags: Record<string, string> }).flags).toEqual({ late: 'kurang dari 3', leave: 'kurang dari 3' });
+    expect(out.value).toMatchObject({ present: 60, late: null, leave: null, absent: 9, scheduledDays: null, rate: { status: 'ditahan' } });
+    expect((out.value as { flags: Record<string, string> }).flags).toEqual({ late: 'kurang dari 3', leave: 'kurang dari 3', scheduledDays: 'kurang dari 3' });
   });
 
   it('masks "tidak hadir" resting on 1 person, and the rate when its people are fewer than 3', async () => {
     const one = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { absentScheduled: ['e1'] }), rolledUp: false }) }));
-    expect(one.value).toMatchObject({ absent: null, scheduledDays: 75, flags: { absent: 'kurang dari 3' }, rate: { status: 'ok' } });
+    // an identity cell held: scheduledDays and the rate go with it, so absent cannot be worked back
+    expect(one.value).toMatchObject({ absent: null, scheduledDays: null, flags: { absent: 'kurang dari 3', scheduledDays: 'kurang dari 3' }, rate: { status: 'ditahan' } });
+    expect((one.value as { rate: { reason: string } }).rate.reason).toContain('dihitung balik');
+    const leave = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { leave: ['e1'] }), rolledUp: false }) }));
+    expect(leave.value).toMatchObject({ leave: null, scheduledDays: null, rate: { status: 'ditahan' } });
+    // absentRecorded is not part of the identity: held alone, the rate and scheduledDays stay
+    const rec = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { absentRecorded: ['e1'] }), rolledUp: false }) }));
+    expect(rec.value).toMatchObject({ absentRecorded: null, scheduledDays: 75, rate: { status: 'ok' } });
     const few = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { scheduledDays: ['e1', 'e2'] }), rolledUp: false }) }));
     expect(few.value).toMatchObject({ scheduledDays: null, flags: { scheduledDays: 'kurang dari 3' }, rate: { status: 'ditahan' } });
     const attending = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { attendedScheduled: ['e1'] }), rolledUp: false }) }));

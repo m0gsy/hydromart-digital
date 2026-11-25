@@ -37,6 +37,9 @@ const readableOn = (scope: ReadScope, day: string): string[] =>
 /** The cells H-02 shows; `attendedScheduled` only feeds the rate. */
 const SHOWN_CELLS = ATTENDANCE_CELLS.filter((c) => c !== 'attendedScheduled');
 
+/** The cells that add up to scheduledDays: holding any one of them holds scheduledDays and the rate. */
+const IDENTITY_CELLS = ['present', 'late', 'absentScheduled', 'leave', 'pending'] as const;
+
 /** The first day a month-or-year ending on `to` is answered: the 8th of the month after it (records entered late are in by then). */
 const closedFrom = (to: string): string => {
   const [y, m] = to.split('-').map(Number);
@@ -143,8 +146,18 @@ export class HrMetricsService {
     if (flagged > 0 && SHOWN_CELLS.every((c) => heads[c].size === 0 || flags[c === 'absentScheduled' ? 'absent' : c])) {
       return env.held(`Karyawan di balik angka kehadiran ${SMALL_GROUP_FLAG}; angkanya tidak diberikan.`);
     }
+    // scheduledDays = present + late (scheduled days) + absent + leave + pending + holiday records, so one held
+    // identity count could be worked back from scheduledDays or the rate: hold both with it.
+    const identityHeld = IDENTITY_CELLS.some((c) => small(heads[c].size));
+    if (identityHeld && value.scheduledDays !== null) {
+      flags.scheduledDays = SMALL_GROUP_FLAG;
+      value.scheduledDays = null;
+    }
+    const flaggedAll = Object.keys(flags).length;
     let rate: Record<string, unknown>;
-    if (sums.scheduledDays === 0) {
+    if (identityHeld) {
+      rate = { status: 'ditahan', reason: 'Salah satu angka kehadiran bertumpu pada kurang dari 3 karyawan, jadi hari terjadwal dan tingkat hadir ikut ditahan supaya angka itu tidak bisa dihitung balik.' };
+    } else if (sums.scheduledDays === 0) {
       rate = { status: 'belum_ada', reason: 'Tidak ada hari kerja terjadwal pada periode ini (karyawan tanpa jadwal sendiri tidak ikut dihitung).' };
     } else if (small(heads.scheduledDays.size) || small(heads.attendedScheduled.size)) {
       rate = { status: 'ditahan', reason: `Karyawan di balik tingkat hadir ${SMALL_GROUP_FLAG}.` };
@@ -152,8 +165,8 @@ export class HrMetricsService {
       rate = { status: 'ok', value: Math.round((sums.attendedScheduled / sums.scheduledDays) * 1000) / 10, unit: 'persen' };
     }
     return env.ok(
-      { ...value, ...(flagged > 0 ? { flags } : {}), rate },
-      'hari kerja menurut tanggal kerja WIB, per bulan atau tahun penuh, untuk bulan yang sudah tutup (dijawab mulai tanggal 8 bulan berikutnya): scheduledDays = hari kerja terjadwal menurut jadwal karyawan (rotasi atau shift, hari libur mingguan depot, tanpa hari libur, hanya selama bekerja; aturan yang sama dengan gaji) di depot tempat bekerja hari itu, atau depot karyawan bila hari itu tanpa catatan; present = hadir, late = terlambat (semua hari, termasuk hari di luar jadwal), absent = hari terjadwal tanpa absen dan tanpa cuti, absentRecorded = hanya catatan ABSEN eksplisit, leave = cuti, pending = absen offline belum diputuskan HR, unscheduledDays = hari kerja menurut aturan depot milik karyawan yang belum punya shift atau rotasi sendiri (tidak ikut tingkat hadir); rate = (hadir + terlambat pada hari terjadwal) / scheduledDays dalam persen, satu desimal; tiap angka yang bertumpu pada kurang dari 3 karyawan berbeda tidak diberikan (null dengan flag)',
+      { ...value, ...(flaggedAll > 0 ? { flags } : {}), rate },
+      'hari kerja menurut tanggal kerja WIB, per bulan atau tahun penuh, untuk bulan yang sudah tutup (dijawab mulai tanggal 8 bulan berikutnya): scheduledDays = hari kerja terjadwal menurut jadwal karyawan (rotasi atau shift, hari libur mingguan depot, tanpa hari libur, hanya selama bekerja; aturan yang sama dengan gaji) di depot tempat bekerja hari itu, atau bila hari itu tanpa catatan di depot penugasan karyawan (Employee.depotId, bukan depot asal; karyawan yang pindah depot: hari tanpa catatan ikut depot penugasan sekarang); hari cuti, absen offline yang belum diputuskan, dan catatan libur pada hari terjadwal tetap dihitung di scheduledDays (hari terjadwal yang tidak hadir dan bukan absen); present = hadir, late = terlambat (semua hari, termasuk hari di luar jadwal), absent = hari terjadwal tanpa absen dan tanpa cuti, absentRecorded = hanya catatan ABSEN eksplisit, leave = cuti, pending = absen offline belum diputuskan HR, unscheduledDays = hari kerja menurut aturan depot penugasan karyawan yang belum punya shift atau rotasi sendiri (tidak ikut tingkat hadir); rate = (hadir + terlambat pada hari terjadwal) / scheduledDays dalam persen, satu desimal; tiap angka yang bertumpu pada kurang dari 3 karyawan berbeda tidak diberikan (null dengan flag); bila salah satu dari present, late, absent, leave, pending ditahan, scheduledDays dan rate ikut ditahan supaya angka itu tidak bisa dihitung balik',
     );
   }
 

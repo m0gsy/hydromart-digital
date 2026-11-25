@@ -39,7 +39,10 @@ export class AiReadPrismaRepository implements AiReadRepository {
   /**
    * Counts by status as before (every record at a depot asked for), plus choice 35A's scheduled days:
    * each employee-day the shift data schedules (domain/scheduled-days.ts, payroll's rule) is placed at
-   * the depot the person worked that day, else their own depot, so every day lands in exactly one depot.
+   * the depot the person worked that day, else the depot the employee is ASSIGNED to (Employee.depotId, not
+   * the home depot: a lent-out employee's no-record days land where they are lent), so every day lands in
+   * exactly one depot. Known limit: there is no depot history, so an employee who moved depot mid-period has
+   * all their no-record days, holidays and weekly-off read at the CURRENT assigned depot.
    * Done in memory over the unique (employeeId, workDate) rows: no raw SQL, the existing
    * (depotId, workDate) and (employeeId, workDate) indexes serve every read.
    */
@@ -55,10 +58,11 @@ export class AiReadPrismaRepository implements AiReadRepository {
     const last = new Date(`${to}T00:00:00Z`);
     const inWindow = { gte: first, lte: last };
     const [seen, rollups, depotStaff] = await Promise.all([
-      this.prisma.attendance.findMany({
+      // SQL GROUP BY (Prisma's `distinct` runs in memory, so `take` would not bound the rows read).
+      this.prisma.attendance.groupBy({
+        by: ['employeeId'],
         where: { depotId: { in: ids }, workDate: inWindow },
-        distinct: ['employeeId'],
-        select: { employeeId: true },
+        orderBy: { employeeId: 'asc' },
         take: MAX_AI_READ_GROUPS + 1,
       }),
       // Leavers' old days are folded into monthly counts after their retention window.
@@ -151,6 +155,7 @@ export class AiReadPrismaRepository implements AiReadRepository {
         assignments: assignments.get(e.id) ?? [],
         patterns,
         ownShift: e.shiftId !== null,
+        // As payroll: holidays and weekly-off follow the assigned depot, even when a record put the day elsewhere.
         weeklyOffCsv: this.config.weeklyOffDays(e.depotId),
         holidays: holidaysFor(e.depotId),
       });

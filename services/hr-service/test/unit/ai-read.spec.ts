@@ -13,7 +13,7 @@ const D2 = '22222222-2222-4222-8222-222222222222';
 
 function setup() {
   const prisma = {
-    attendance: { findMany: jest.fn() },
+    attendance: { findMany: jest.fn(), groupBy: jest.fn() },
     employee: { findMany: jest.fn() },
     shiftAssignment: { findMany: jest.fn() },
     shiftRotation: { findMany: jest.fn() },
@@ -34,9 +34,8 @@ const rec = (employeeId: string, workDate: string, status: string, depotId: stri
 
 /** What the reads of attendance() return, keyed on the shape of each call. */
 function seed(prisma: ReturnType<typeof setup>['prisma'], d: { staff: ReturnType<typeof emp>[]; records: ReturnType<typeof rec>[]; assignments?: unknown[]; rotations?: unknown[]; holidays?: unknown[] }) {
-  prisma.attendance.findMany.mockImplementation(async (args: { distinct?: string[] }) =>
-    args.distinct ? [...new Set(d.records.filter((r) => r.depotId === D1).map((r) => r.employeeId))].map((employeeId) => ({ employeeId })) : d.records,
-  );
+  prisma.attendance.findMany.mockResolvedValue(d.records);
+  prisma.attendance.groupBy.mockResolvedValue([...new Set(d.records.filter((r) => r.depotId === D1).map((r) => r.employeeId))].map((employeeId) => ({ employeeId })));
   prisma.employee.findMany.mockImplementation(async (args: { where: { id?: unknown } }) => (args.where.id ? d.staff : d.staff.filter((e) => e.depotId === D1).map((e) => ({ id: e.id }))));
   prisma.shiftAssignment.findMany.mockResolvedValue(d.assignments ?? []);
   prisma.shiftRotation.findMany.mockResolvedValue(d.rotations ?? []);
@@ -151,20 +150,30 @@ describe('AiReadPrismaRepository.attendance (HD-6 H5, H-02 choice 35A)', () => {
     expect((await repo.attendance([D1], '2026-10-15', '2026-11-15')).rolledUp).toBe(true);
   });
 
+  it('places the no-record scheduled day at the depot they are assigned to, not the home depot', async () => {
+    const { prisma, repo } = setup();
+    // depotId D2 = assigned (lent to), homeDepotId D1 = home; the select does not even ask for homeDepotId
+    seed(prisma, { staff: [emp('e1', D2, '2026-01-01', { homeDepotId: D1, shiftId: 's1' })], records: [] });
+    prisma.attendance.groupBy.mockResolvedValue([{ employeeId: 'e1' }]); // the seed only lists D1's people
+    const out = await repo.attendance([D2], '2026-11-02', '2026-11-02');
+    expect(out.rows[0]).toMatchObject({ depotId: D2, scheduledDays: 1, absentScheduled: 1 });
+  });
+
   it('refuses a window of more people or records than it will count, rather than cutting it', async () => {
     const { prisma, repo } = setup();
     seed(prisma, { staff: [], records: [] });
-    prisma.attendance.findMany.mockResolvedValue(new Array(MAX_AI_READ_GROUPS + 1).fill({ employeeId: 'e' }));
+    prisma.attendance.groupBy.mockResolvedValue(new Array(MAX_AI_READ_GROUPS + 1).fill({ employeeId: 'e' }));
     await expect(repo.attendance([D1], '2026-11-01', '2026-11-30')).rejects.toBeInstanceOf(UnprocessableEntityException);
     seed(prisma, { staff: [], records: [] });
     prisma.employee.findMany.mockResolvedValue(new Array(MAX_AI_READ_GROUPS + 1).fill({ id: 'e' }));
     await expect(repo.attendance([D1], '2026-11-01', '2026-11-30')).rejects.toBeInstanceOf(UnprocessableEntityException);
     // more distinct people than the cap across the two lists
-    prisma.attendance.findMany.mockResolvedValue(Array.from({ length: MAX_AI_READ_GROUPS }, (_, i) => ({ employeeId: `a${i}` })));
+    prisma.attendance.groupBy.mockResolvedValue(Array.from({ length: MAX_AI_READ_GROUPS }, (_, i) => ({ employeeId: `a${i}` })));
     prisma.employee.findMany.mockResolvedValue([{ id: 'b' }]);
     await expect(repo.attendance([D1], '2026-11-01', '2026-11-30')).rejects.toBeInstanceOf(UnprocessableEntityException);
     // too many records for one answer
-    prisma.attendance.findMany.mockImplementation(async (args: { distinct?: string[] }) => (args.distinct ? [{ employeeId: 'e1' }] : new Array(250_001).fill(rec('e1', '2026-11-02', 'PRESENT'))));
+    prisma.attendance.groupBy.mockResolvedValue([{ employeeId: 'e1' }]);
+    prisma.attendance.findMany.mockResolvedValue(new Array(250_001).fill(rec('e1', '2026-11-02', 'PRESENT')));
     prisma.employee.findMany.mockResolvedValue([{ id: 'e1' }]);
     await expect(repo.attendance([D1], '2026-11-01', '2026-11-30')).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
