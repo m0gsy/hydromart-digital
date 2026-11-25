@@ -4,18 +4,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '@/lib/locale-context';
 
 import { Button } from '@/components/ui';
+import { FRAME_CONTRAST_MIN, frameContrast } from '@/lib/frame-quality';
 
-// Liveness thresholds (empirical). Tune per camera; the server verifier still gates identity.
-const MOTION_MIN = 6; // mean per-pixel grayscale delta between two frames ~350ms apart
-const SHARP_MIN = 12; // stddev of grayscale — rejects a black/blurred frame
-const SAMPLE = 64; // downscale size for the cheap motion/sharpness math
+const SAMPLE = 64; // downscale size for the cheap contrast math
 
 /**
- * Live camera preview + single-frame capture. Returns the JPEG data-URL plus a passive
- * liveness verdict computed from inter-frame motion + sharpness (a real photo held still,
- * or a black/blur frame, fails). ponytail: motion+sharpness proxy — a moving printed photo
- * can still pass; upgrade to MediaPipe blink/head-turn landmarks if spoofing matters. The
- * server ArcFace verifier gates identity regardless.
+ * Live camera preview + single-frame capture. Returns the JPEG data-URL plus a capture-quality
+ * verdict (`live`, the prop's historical name): false for a black, covered or washed-out frame,
+ * which is not worth sending. It is not a security control — the server's face match decides
+ * identity (B-7).
+ *
+ * 2026-11-25: it no longer asks the person to move. The old gate wanted motion between two
+ * frames 350 ms after the tap: a blink never cleared it, a head turn had to land in that window,
+ * and the frame sent was the blurred mid-movement one. The frame is now taken the moment the
+ * button is pressed, with the face held still.
  */
 export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: string, live: boolean) => void; disabled?: boolean }) {
   const { t } = useT();
@@ -23,7 +25,6 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   /*
    * CA-1-55: a retry counter, and the whole reason this component needs one.
@@ -66,7 +67,7 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt]);
 
-  /** Downscaled grayscale samples of the current frame, for motion/sharpness math. */
+  /** Downscaled grayscale sample of the current frame, for the contrast math. */
   const graySample = useCallback((video: HTMLVideoElement): Uint8ClampedArray => {
     const c = document.createElement('canvas');
     c.width = SAMPLE;
@@ -81,34 +82,18 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
     return gray;
   }, []);
 
-  const capture = useCallback(async () => {
+  const capture = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
-    setBusy(true);
 
-    // Two grayscale samples ~350ms apart → motion; stddev of the 2nd → sharpness.
-    const a = graySample(video);
-    await new Promise((r) => setTimeout(r, 350));
-    const b = graySample(video);
-    let motion = 0;
-    let sum = 0;
-    for (let i = 0; i < a.length; i++) {
-      motion += Math.abs(a[i]! - b[i]!);
-      sum += b[i]!;
-    }
-    motion /= a.length;
-    const mean = sum / b.length;
-    let variance = 0;
-    for (let i = 0; i < b.length; i++) variance += (b[i]! - mean) ** 2;
-    const sharpness = Math.sqrt(variance / b.length);
-    const live = motion >= MOTION_MIN && sharpness >= SHARP_MIN;
+    // One frame, the one on screen when the button is pressed: judged and sent together.
+    const usable = frameContrast(graySample(video)) >= FRAME_CONTRAST_MIN;
 
     const full = document.createElement('canvas');
     full.width = video.videoWidth || 480;
     full.height = video.videoHeight || 480;
     full.getContext('2d')?.drawImage(video, 0, 0, full.width, full.height);
-    onCapture(full.toDataURL('image/jpeg', 0.85), live);
-    setBusy(false);
+    onCapture(full.toDataURL('image/jpeg', 0.85), usable);
   }, [graySample, onCapture]);
 
   if (error) {
@@ -129,7 +114,7 @@ export function FaceCapture({ onCapture, disabled }: { onCapture: (dataUrl: stri
   return (
     <div className="space-y-3">
       <video ref={videoRef} autoPlay playsInline muted className="mx-auto aspect-square w-full max-w-xs rounded-2xl bg-black object-cover" />
-      <Button type="button" onClick={capture} loading={busy} disabled={disabled || !ready} className="w-full">{t('hrFix.faceCapture.take')}</Button>
+      <Button type="button" onClick={capture} disabled={disabled || !ready} className="w-full">{t('hrFix.faceCapture.take')}</Button>
       <p className="text-center text-xs text-muted">{t('hrFix.faceCapture.hint')}</p>
     </div>
   );
