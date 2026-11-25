@@ -89,9 +89,9 @@ export const opsFix = {
       'This depot has no bank account on file. Set it under depot settings (Depots → this depot → Payment); needs the MANAGER or SUPER_ADMIN role.',
   },
   meter: {
-    noGallonsYet: 'no gallons delivered yet today',
+    noGallonsYet: 'no gallons sold yet today',
     deliveredHint: '{n} gallons delivered · {amount}',
-    perGallonHint: 'from today’s revenue per gallon',
+    perGallonHint: 'variance gallons x today’s average selling price per gallon, after order discounts',
   },
   commission: {
     unnamedCourier: 'Courier {id}',

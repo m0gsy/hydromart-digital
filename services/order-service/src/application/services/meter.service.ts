@@ -12,6 +12,7 @@ import {
   MeterReconciliationWithTank,
   SoldTotals,
   TankStatus,
+  litersBetween,
   reconcile,
   sumSoldLiters,
   tankStatus,
@@ -41,6 +42,12 @@ function totalsFrom(rows: OrderRecord[]): SoldTotals {
       .filter((r) => isDelivered(r.status))
       .reduce((s, r) => s + gallonQty(r), 0),
     revenueIdr: Math.round(live.reduce((s, r) => s + r.total, 0)),
+    // Net of the order's own discount (promo, voucher, member...): a line total is price x quantity, before it.
+    gallonSalesIdr: live.reduce((s, r) => {
+      const net = r.subtotal > 0 ? Math.max(0, (r.subtotal - r.discount) / r.subtotal) : 1;
+      return s + net * r.items.reduce((t, i) => t + (i.isGallon ? i.lineTotal : 0), 0);
+    }, 0),
+    gallonsSold: live.reduce((s, r) => s + gallonQty(r), 0),
   };
 }
 
@@ -280,6 +287,8 @@ export class MeterService {
         soldLiters: result.soldLiters,
         varianceLiters: result.varianceLiters,
         varianceGallons: result.varianceGallons,
+        varianceIdr: result.varianceIdr,
+        sourceLiters: reading.sourceOpeningM3 === null ? null : litersBetween(reading.sourceOpeningM3, reading.sourceClosingM3),
         roYieldPct: result.roYieldPct,
       });
     }

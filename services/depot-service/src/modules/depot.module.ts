@@ -16,6 +16,10 @@ import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/se
 import { SettingsService } from '../application/services/settings.service';
 import { DepotService } from '../application/services/depot.service';
 import { InventoryService } from '../application/services/inventory.service';
+import { AiStockService } from '../application/services/ai-stock.service';
+import { AI_STOCK_REPOSITORY } from '../application/ports/ai-stock.repository';
+import { AiStockPrismaRepository } from '../infrastructure/prisma/ai-stock.prisma.repository';
+import { AiStockController } from './ai-stock.controller';
 import { PricingService } from '../application/services/pricing.service';
 import { GallonReturnService } from '../application/services/gallon-return.service';
 import { GallonIssueService } from '../application/services/gallon-issue.service';
@@ -151,6 +155,8 @@ const providers: Provider[] = [
   DepotService,
   DepotImportService,
   InventoryService,
+  AiStockService,
+  { provide: AI_STOCK_REPOSITORY, useClass: AiStockPrismaRepository },
   StockTransferService,
   PricingService,
   GallonReturnService,
@@ -282,6 +288,7 @@ const providers: Provider[] = [
     SupplierController,
     LegalEntityController,
     PurchaseOrderController,
+    AiStockController,
     RosterController,
     DepotTargetController,
     CashbookController,

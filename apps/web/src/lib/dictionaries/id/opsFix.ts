@@ -90,9 +90,9 @@ const opsFixShared = {
       'Depot ini belum mengisi rekening bank. Isi di Pengaturan depot (menu Depot → pilih depot ini → Pembayaran); butuh peran MANAGER atau SUPER_ADMIN.',
   },
   meter: {
-    noGallonsYet: 'belum ada galon terkirim hari ini',
+    noGallonsYet: 'belum ada galon terjual hari ini',
     deliveredHint: '{n} galon terkirim · {amount}',
-    perGallonHint: 'dihitung dari omzet per galon hari ini',
+    perGallonHint: 'galon selisih x harga jual rata-rata per galon hari ini, setelah diskon pesanan',
   },
   commission: {
     unnamedCourier: 'Kurir {id}',

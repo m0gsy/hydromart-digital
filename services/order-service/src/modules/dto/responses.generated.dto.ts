@@ -568,6 +568,10 @@ export class MeterReconciliationResponseDto {
   gallonsDelivered!: number;
   @ApiProperty({ type: Number })
   revenueIdr!: number;
+  @ApiProperty({ type: Number })
+  gallonSalesIdr!: number;
+  @ApiProperty({ type: Number })
+  gallonsSold!: number;
   @ApiProperty({ type: String })
   depotId!: string;
   @ApiProperty({ type: String })
@@ -608,6 +612,10 @@ export class MeterHistoryRowResponseDto {
   varianceLiters!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   varianceGallons!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  varianceIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  sourceLiters!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   roYieldPct!: number | null;
 }

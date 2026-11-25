@@ -49,6 +49,7 @@ import { DEPOT_TOKENS } from '../tokens';
 import { Approval, ApprovalType, needsApproval } from '../../domain/approval';
 import { ApprovalService } from './approval.service';
 import { DepotConfigService } from '../../config/depot-config.service';
+import { OPNAME_REVERSAL_REASON } from '../../domain/stock-reasons';
 
 export interface CreateLineInput {
   itemType: InventoryItemType;
@@ -131,7 +132,7 @@ export class InventoryService {
     await this.adjust(
       payload.itemId,
       -payload.variance,
-      `Opname ditolak HQ: selisih ${payload.variance} dibalik`,
+      `${OPNAME_REVERSAL_REASON}: selisih ${payload.variance} dibalik`,
       decidedBy,
     );
   }

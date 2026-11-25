@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import { can } from '@hydromart/access';
-import { AuthenticatedUser, addLocalDays, dayStartUtc, localDayKey } from '@hydromart/platform';
+import { AuthenticatedUser, localDayKey } from '@hydromart/platform';
 
 import { AiMoneySourcesPort, DepotMoneyRow, InstantRange, MoneyKind, UnplacedMoney } from '../ports/ai-money-sources.port';
 import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
@@ -10,6 +10,7 @@ import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerEnvelope, ditahan, belumAda, ok } from './envelope';
 import { PeriodQuery, ResolvedPeriod, parsePeriod } from './period';
 import { ReadScope, ReadScopeService, grantedRanges } from './scope.service';
+import { DEPOTS_PER_READ, Stretch, stretchesOf } from './stretches';
 
 /**
  * HD-6 H2, the money metrics of the metric dictionary (sections 3.1, 3.3, 3.4). `month` = only
@@ -52,12 +53,6 @@ export const MONEY_METRICS = {
 export type MoneyMetricId = keyof typeof MONEY_METRICS;
 export const MONEY_METRIC_IDS = Object.keys(MONEY_METRICS) as MoneyMetricId[];
 
-/** One run of days during which the same depots were readable: the unit a source is asked in. */
-interface Stretch {
-  depotIds: string[];
-  range: InstantRange;
-}
-
 interface Ctx {
   user: AuthenticatedUser;
   period: ResolvedPeriod;
@@ -87,7 +82,6 @@ function coversWhole(ranges: readonly { from: string; to: string; legalEntityId:
   return reach > to;
 }
 
-const DEPOTS_PER_READ = 100;
 /** Most one-depot reads a single answer will make; past it the answer is "belum ada", not a partial sum. */
 const MAX_DEPOT_READS = 300;
 const DOWN = 'Sumber datanya sedang tidak bisa dibaca; coba lagi nanti.';
@@ -143,7 +137,7 @@ export class MoneyMetricsService {
         held: (reason: string) => ditahan(base, reason),
       };
     };
-    const ctx: Ctx = { user, period, scope, stretches: this.stretches(scope, period), today: localDayKey(now, period.timeZone), ...make(scope) };
+    const ctx: Ctx = { user, period, scope, stretches: stretchesOf(scope, period), today: localDayKey(now, period.timeZone), ...make(scope) };
     if (scope.spans.length === 0) return ctx.none('Tidak ada depot yang boleh Anda baca pada periode ini.');
     try {
       return await this.compute(id, ctx, make);
@@ -153,25 +147,6 @@ export class MoneyMetricsService {
       }
       throw error;
     }
-  }
-
-  /** Each depot's granted stretches, grouped by the days they cover, as the instants a source takes. */
-  private stretches(scope: ReadScope, period: ResolvedPeriod): Stretch[] {
-    const groups = new Map<string, { from: string; to: string; depotIds: Set<string> }>();
-    for (const s of scope.spans) {
-      const key = `${s.from}|${s.to}`;
-      const g = groups.get(key) ?? { from: s.from, to: s.to, depotIds: new Set<string>() };
-      g.depotIds.add(s.depotId);
-      groups.set(key, g);
-    }
-    const tz = period.timeZone;
-    return [...groups.values()].map((g) => ({
-      depotIds: [...g.depotIds].sort(),
-      range: {
-        from: dayStartUtc(g.from, tz).toISOString(),
-        to: addLocalDays(dayStartUtc(g.to, tz), 1, tz).toISOString(),
-      },
-    }));
   }
 
   /** Reads a many-depot source once per stretch (and per 100 depots) and pools the rows; null if any read fails. */
@@ -475,7 +450,7 @@ export class MoneyMetricsService {
       spans,
       echo: { depotIds: ids, legalEntityIds: [...new Set(spans.flatMap((s) => (s.legalEntityId ? [s.legalEntityId] : [])))].sort() },
     };
-    return { ids, c: { ...c, scope: narrowed, stretches: this.stretches(narrowed, c.period), ...make(narrowed) } };
+    return { ids, c: { ...c, scope: narrowed, stretches: stretchesOf(narrowed, c.period), ...make(narrowed) } };
   }
 
   private async cashFlow(c0: Ctx, make: (s: ReadScope) => Pick<Ctx, 'ok' | 'none' | 'held'>): Promise<AnswerEnvelope> {
