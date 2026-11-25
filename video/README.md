@@ -41,14 +41,16 @@ untuk mengecek tata letak tanpa render penuh.
 
 ## Suara (voice-over)
 
-Narasi dibuat dengan text-to-speech ElevenLabs (model `eleven_multilingual_v2`), memakai suara dari
-Voice Library berlogat Indonesia standar:
+Narasi dibuat dengan text-to-speech ElevenLabs, memakai suara dari Voice Library berlogat
+Indonesia standar:
 
-- **Arunika** ("National TV Voice Over"), dibacakan tenang, untuk Staff Depot, Kepala Depot, dan
-  Pelanggan.
-- **Nilasari** ("Natural, Clear and Inviting"), gaya ngobrol dan lebih ekspresif, untuk Absensi.
+- **Arunika** ("National TV Voice Over", model `eleven_multilingual_v2`), dibacakan tenang, untuk
+  Staff Depot, Kepala Depot, dan Pelanggan.
+- **Cahaya** ("Youthful, Clear and Engaging", model `eleven_v4`) untuk Absensi. Suara ini dipilih
+  pemilik dari empat contoh. Naskahnya ditulis dalam bahasa lisan ("udah", "nggak", "sih"), dan
+  tanda "..." dibaca sebagai jeda.
 
-Pilihan suara dan gaya bacanya ada di `VIDEOS` di `vo.ts`. Berkasnya ada di
+Pilihan suara, model, dan gaya bacanya ada di `VIDEOS` di `vo.ts`. Berkasnya ada di
 `public/vo/<video>-NN.mp3`, satu per adegan, dan sudah di-commit supaya render tidak butuh API
 key. Tiap suara mulai 12 frame (0,4 detik) setelah adegannya dimulai.
 

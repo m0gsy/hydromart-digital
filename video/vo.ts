@@ -11,20 +11,22 @@ import { ABSENSI, FPS, KEPALA, PELANGGAN, STAFF, VO_DELAY, type Scene } from './
 const KEY = process.env.XI_API_KEY;
 if (!KEY) throw new Error('Set XI_API_KEY (ElevenLabs API key).');
 const MODEL = 'eleven_multilingual_v2';
+// The "most emotive" model (ElevenLabs, 2026). It takes no style knob: the delivery comes from the
+// voice and from how the line is written.
+const V4 = 'eleven_v4';
 
 // Both voices are standard-accent Indonesian voices from the ElevenLabs Voice Library.
 const ARUNIKA = 'o5s6XRBkPSTD4syv6mZg'; // "National TV Voice Over": a calm, even read
-const NILASARI = 'NPDHDOOQCSyifTJZOe6J'; // "Natural, Clear and Inviting": a conversational read
+const CAHAYA = 'iWydkXKoiVtvdn4vLKp9'; // "Youthful, Clear and Engaging": picked by the owner from four v4 samples
 const STEADY = { stability: 0.5, similarity_boost: 0.75, style: 0.15, use_speaker_boost: true };
-// Lower stability + more style = more pitch movement and emphasis: the "not stiff" delivery the
-// attendance video was asked for.
-const CHATTY = { stability: 0.35, similarity_boost: 0.75, style: 0.4, use_speaker_boost: true };
 
-const VIDEOS: { prefix: string; scenes: Scene[]; voice: string; settings: typeof STEADY }[] = [
-  { prefix: 'staff', scenes: STAFF, voice: ARUNIKA, settings: STEADY },
-  { prefix: 'kepala', scenes: KEPALA, voice: ARUNIKA, settings: STEADY },
-  { prefix: 'pelanggan', scenes: PELANGGAN, voice: ARUNIKA, settings: STEADY },
-  { prefix: 'absensi', scenes: ABSENSI, voice: NILASARI, settings: CHATTY },
+type Settings = typeof STEADY | undefined;
+const VIDEOS: { prefix: string; scenes: Scene[]; voice: string; model: string; settings: Settings }[] = [
+  { prefix: 'staff', scenes: STAFF, voice: ARUNIKA, model: MODEL, settings: STEADY },
+  { prefix: 'kepala', scenes: KEPALA, voice: ARUNIKA, model: MODEL, settings: STEADY },
+  { prefix: 'pelanggan', scenes: PELANGGAN, voice: ARUNIKA, model: MODEL, settings: STEADY },
+  // A written-style read on multilingual_v2 was found stiff twice; v4 with its default delivery.
+  { prefix: 'absensi', scenes: ABSENSI, voice: CAHAYA, model: V4, settings: undefined },
 ];
 
 const dir = new URL('./public/vo/', import.meta.url);
@@ -39,26 +41,26 @@ const seconds = (file: URL) =>
     }).trim(),
   );
 
-async function speak(text: string, voice: string, settings: typeof STEADY, out: URL) {
+async function speak(text: string, voice: string, model: string, settings: Settings, out: URL) {
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}?output_format=mp3_44100_128`, {
     method: 'POST',
     headers: { 'xi-api-key': KEY!, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, model_id: MODEL, language_code: 'id', voice_settings: settings }),
+    body: JSON.stringify({ text, model_id: model, language_code: 'id', ...(settings ? { voice_settings: settings } : {}) }),
   });
   if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${await res.text()}`);
   writeFileSync(out, Buffer.from(await res.arrayBuffer()));
 }
 
 const tooLong: string[] = [];
-for (const { prefix, scenes, voice, settings } of VIDEOS) {
+for (const { prefix, scenes, voice, model, settings } of VIDEOS) {
   for (const [i, s] of scenes.entries()) {
     const name = `${prefix}-${String(i + 1).padStart(2, '0')}.mp3`;
     const file = new URL(name, dir);
     // The STEADY lines keep the key they were first made under, so they are not made again.
-    const key = `${voice}|${MODEL}|${s.vo}` + (settings === STEADY ? '' : `|${JSON.stringify(settings)}`);
+    const key = `${voice}|${model}|${s.vo}` + (settings === STEADY ? '' : `|${JSON.stringify(settings ?? null)}`);
     const hash = createHash('sha256').update(key).digest('hex').slice(0, 16);
     if (manifest[name] !== hash || !existsSync(file)) {
-      await speak(s.vo, voice, settings, file);
+      await speak(s.vo, voice, model, settings, file);
       manifest[name] = hash;
       writeFileSync(manifestUrl, JSON.stringify(manifest, null, 2) + '\n');
       console.log('dibuat', name);

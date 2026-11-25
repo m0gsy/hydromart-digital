@@ -334,94 +334,94 @@ Berkas: `out/tutorial-pelanggan.mp4` · durasi 5:24 · 9720 frame @ 30 fps
 
 ## Video 4 — Absensi
 
-Berkas: `out/tutorial-absensi.mp4` · durasi 4:46 · 8580 frame @ 30 fps
+Berkas: `out/tutorial-absensi.mp4` · durasi 4:28 · 8040 frame @ 30 fps
 
-### 1. Absen Lancar  `0:00–0:19`
+### 1. Absen Lancar  `0:00–0:14`
 
 **Teks layar:** Cara absen wajah & check-in shift yang benar, plus solusi kalau lokasimu ditolak.
 
-> Hai, teman-teman Hydromart! Pernah nggak, absen atau check-in shift ditolak, padahal kamu udah ada di depot? Tenang, kamu nggak sendirian kok. Yuk, kita bahas penyebabnya, dan cara beresinnya, pelan-pelan.
+> Hai, teman-teman Hydromart! Pernah nggak sih, absen atau check-in shift ditolak... padahal kamu udah ada di depot? Tenang, kamu nggak sendirian kok. Yuk, kita beresin bareng-bareng!
 
-### 2. Kenapa ditolak? — Lokasi "Perkiraan"  `0:19–0:43`
+### 2. Kenapa ditolak? — Lokasi "Perkiraan"  `0:14–0:39`
 
 **Teks layar:** Mode "Perkiraan" cuma kirim lokasi kira-kira: bisa meleset beberapa kilometer.
 
-> Biasanya, masalahnya ada di izin lokasi. Android punya dua pilihan: Tepat, dan Perkiraan. Kalau HP kamu masih di Perkiraan, yang dikirim cuma lokasi kira-kira, dan itu bisa meleset sampai beberapa kilometer. Jadi, walaupun kamu berdiri di depan depot, sistem ngira kamu masih jauh.
+> Jadi gini... biasanya masalahnya ada di izin lokasi. Di Android, ada dua pilihan: Tepat, sama Perkiraan. Nah, kalau HP kamu masih di Perkiraan, lokasinya cuma kira-kira, dan bisa meleset sampai beberapa kilometer! Makanya, walaupun kamu udah berdiri di depan depot, sistemnya ngira kamu masih jauh.
 
-### 3. Tanda-tandanya — Peringatan kuning  `0:43–1:00`
+### 3. Tanda-tandanya — Peringatan kuning  `0:39–0:58`
 
 **Teks layar:** Muncul "Lokasi HP masih Perkiraan", dan check-in shift ditolak.
 
-> Gimana cara tahunya? Di layar absen dan check-in shift, bakal muncul peringatan kuning: Lokasi HP masih Perkiraan. Kalau kamu tetap coba check-in shift, aplikasinya akan menolak, sekaligus kasih tahu cara memperbaikinya.
+> Terus, gimana cara tahunya? Gampang. Di layar absen, bakal muncul peringatan warna kuning: Lokasi HP masih Perkiraan. Kalau kamu nekat check-in shift, pasti ditolak... tapi tenang, di situ juga ada petunjuk cara benerinnya.
 
-### 4. Langkah 1 — Pilih "Tepat"  `1:00–1:23`
+### 4. Langkah 1 — Pilih "Tepat"  `0:58–1:19`
 
 **Teks layar:** Saat diminta izin lokasi: pilih Tepat → Saat aplikasi digunakan.
 
-> Cara paling gampang: waktu aplikasi minta izin lokasi, pilih Tepat, terus ketuk Saat aplikasi digunakan. Tapi hati-hati ya. Kalau kamu sudah dua kali pilih Perkiraan, Android nggak bakal nanya lagi. Nah, kalau udah begitu, ubahnya harus lewat Setelan HP.
+> Oke, cara paling gampang: pas aplikasi minta izin lokasi, pilih Tepat, terus ketuk Saat aplikasi digunakan. Eh, tapi hati-hati ya! Kalau kamu udah dua kali pilih Perkiraan, Android nggak bakal nanya lagi. Nah, kalau udah kayak gitu, kita harus ubah lewat Setelan HP.
 
-### 5. Langkah 2 — Buka izin aplikasi  `1:23–1:44`
+### 5. Langkah 2 — Buka izin aplikasi  `1:19–1:37`
 
 **Teks layar:** Setelan HP → Aplikasi → Hydromart Ops → Izin. Atau tekan lama ikon → Info aplikasi.
 
-> Buka Setelan, atau Pengaturan HP kamu. Masuk ke Aplikasi, lalu cari Hydromart Ops. Ada cara cepatnya juga: tekan lama ikon Hydromart Ops di layar, terus ketuk Info aplikasi. Setelah itu, ketuk Izin.
+> Yuk, buka Setelan, atau Pengaturan di HP kamu. Masuk ke Aplikasi, terus cari Hydromart Ops. Mau yang lebih cepat? Tekan aja agak lama ikon Hydromart Ops di layar, lalu pilih Info aplikasi. Habis itu, ketuk Izin.
 
-### 6. Langkah 3 — Nyalakan lokasi akurat  `1:44–2:03`
+### 6. Langkah 3 — Nyalakan lokasi akurat  `1:37–1:55`
 
 **Teks layar:** Lokasi → Izinkan hanya saat aplikasi digunakan → nyalakan "Gunakan lokasi akurat".
 
-> Di halaman Izin, ketuk Lokasi. Pilih Izinkan hanya saat aplikasi digunakan. Terus, ini yang paling penting: nyalakan Gunakan lokasi akurat. Kalau tombolnya sudah aktif, berarti lokasi kamu sudah Tepat. Beres!
+> Di halaman Izin, ketuk Lokasi. Pilih Izinkan hanya saat aplikasi digunakan. Terus... ini nih yang paling penting: nyalain Gunakan lokasi akurat. Kalau tombolnya udah aktif, berarti lokasi kamu udah Tepat. Beres deh!
 
-### 7. Langkah 4 — GPS harus nyala  `2:03–2:22`
+### 7. Langkah 4 — GPS harus nyala  `1:55–2:12`
 
 **Teks layar:** Usap layar dari atas → nyalakan Lokasi. Tunggu beberapa detik.
 
-> Satu lagi nih. Pastikan Lokasi, atau GPS di HP kamu, menyala. Usap layar dari atas, lalu nyalakan ikon Lokasi. Kalau baru dinyalakan, tunggu beberapa detik dulu, apalagi kalau kamu lagi di dalam ruangan.
+> Oh iya, satu lagi! Pastiin Lokasi atau GPS di HP kamu nyala. Usap layar dari atas, terus nyalain ikon Lokasi. Kalau baru dinyalain, tunggu beberapa detik dulu ya, apalagi kalau kamu lagi di dalam ruangan.
 
-### 8. Langkah 5 — Cek lagi di aplikasi  `2:22–2:33`
+### 8. Langkah 5 — Cek lagi di aplikasi  `2:12–2:24`
 
 **Teks layar:** Kembali ke aplikasi: peringatan kuning hilang sendiri kalau sudah benar.
 
-> Sekarang balik lagi ke aplikasi. Kalau pengaturannya sudah benar, peringatan kuning tadi bakal hilang sendiri. Artinya, kamu udah siap absen.
+> Sekarang, balik lagi ke aplikasi. Kalau pengaturannya udah bener, peringatan kuning tadi bakal hilang sendiri. Artinya... kamu udah siap absen!
 
-### 9. Sebelum absen pertama — Daftarkan wajah  `2:33–2:49`
+### 9. Sebelum absen pertama — Daftarkan wajah  `2:24–2:39`
 
 **Teks layar:** Daftar / Perbarui Wajah → 1–3 foto di tempat terang → centang → Simpan.
 
-> Sebelum absen pertama kali, daftarkan wajah kamu dulu. Buka Daftar atau Perbarui Wajah. Cari tempat yang terang, ambil satu sampai tiga foto, centang persetujuan, lalu ketuk Simpan.
+> Kalau ini absen pertama kamu, daftarin wajah dulu, ya. Buka Daftar atau Perbarui Wajah. Cari tempat yang terang, ambil satu sampai tiga foto, centang persetujuannya, terus ketuk Simpan.
 
-### 10. Absen masuk — Tatap & tahan  `2:49–3:08`
+### 10. Absen masuk — Tatap & tahan  `2:39–2:56`
 
 **Teks layar:** Absen Sekarang → Check-in → tatap kamera, tahan sebentar → Ambil Foto.
 
-> Waktunya absen! Buka Absen Sekarang, pilih Check-in. Tatap kamera, tahan sebentar, lalu ketuk Ambil Foto. Sekarang nggak perlu geleng kepala atau kedip lagi, kok. Kalau berhasil, muncul tulisan Check-in berhasil.
+> Nah, waktunya absen! Buka Absen Sekarang, pilih Check-in. Tatap kamera, tahan sebentar, terus ketuk Ambil Foto. Sekarang nggak perlu geleng-geleng atau kedip lagi kok! Kalau berhasil, bakal muncul tulisan Check-in berhasil.
 
-### 11. Khusus kurir — Check-in shift  `3:08–3:23`
+### 11. Khusus kurir — Check-in shift  `2:56–3:11`
 
 **Teks layar:** Mulai shift · check-in di area depot. Lokasi harus "Tepat".
 
-> Buat kamu yang kurir, setelah absen, lanjut ke Mulai shift, check-in. Bagian ini ngecek jarak kamu ke depot. Jadi, pastikan kamu sudah di area depot, dan lokasinya sudah Tepat ya.
+> Buat kamu yang kurir, habis absen, lanjut ke Mulai shift, check-in. Bagian ini ngecek jarak kamu ke depot. Jadi, pastiin kamu udah di area depot, dan lokasinya udah Tepat, ya.
 
-### 12. Masih ditolak? — Cek 4 hal ini  `3:23–3:46`
+### 12. Masih ditolak? — Cek 4 hal ini  `3:11–3:32`
 
 **Teks layar:** Lokasi Tepat, GPS nyala, tunggu sebentar, aplikasi versi terbaru.
 
-> Masih ditolak juga? Coba cek empat hal ini. Satu, lokasi akurat sudah nyala. Dua, GPS menyala. Tiga, tunggu sebentar, atau geser ke dekat pintu biar sinyal GPS-nya lebih bagus. Empat, pastikan aplikasi Hydromart Ops kamu versi terbaru di Play Store.
+> Masih ditolak juga? Coba cek empat hal ini, ya. Satu, lokasi akurat udah nyala. Dua, GPS nyala. Tiga, tunggu sebentar, atau geser ke dekat pintu biar sinyalnya lebih bagus. Empat, pastiin aplikasi Hydromart Ops kamu udah versi terbaru di Play Store.
 
-### 13. Kalau ada pesan ini — Arti pesan error  `3:46–4:10`
+### 13. Kalau ada pesan ini — Arti pesan error  `3:32–3:54`
 
 **Teks layar:** Baca pesannya, lalu ikuti solusinya.
 
-> Kalau muncul pesan error, jangan panik. Foto terlalu gelap? Cari tempat yang lebih terang. Wajah tidak cocok? Ulangi fotonya, atau perbarui wajah kamu. Wajah belum terdaftar? Daftar dulu. Nggak ada sinyal? Santai, absennya disimpan dan dikirim otomatis nanti.
+> Kalau muncul pesan error, jangan panik dulu! Foto terlalu gelap? Cari tempat yang lebih terang. Wajah tidak cocok? Coba foto ulang, atau perbarui wajah kamu. Wajah belum terdaftar? Daftar dulu, ya. Nggak ada sinyal? Santai aja, absennya disimpan, terus dikirim otomatis nanti.
 
-### 14. Absen pulang — Jangan lupa Check-out  `4:10–4:28`
+### 14. Absen pulang — Jangan lupa Check-out  `3:54–4:11`
 
 **Teks layar:** Absen Sekarang → Check-out → foto. Kurir: akhiri shift ≠ absen pulang.
 
-> Terakhir, jangan lupa absen pulang. Buka lagi Absen Sekarang, pilih Check-out, lalu ambil foto. Buat kurir, ingat ya: mengakhiri shift itu beda dengan absen pulang. Dua-duanya tetap harus dilakukan.
+> Terakhir nih, jangan lupa absen pulang! Buka lagi Absen Sekarang, pilih Check-out, terus ambil foto. Buat kurir, inget ya: akhiri shift itu beda sama absen pulang. Dua-duanya tetap harus dilakuin.
 
-### 15. Siap absen!  `4:28–4:46`
+### 15. Siap absen!  `4:11–4:28`
 
 **Teks layar:** Masih ada kendala? Hubungi kepala depot atau HR.
 
-> Oke, segitu dulu! Ingat ya: lokasi Tepat, GPS nyala, wajah terdaftar, dan jangan lupa absen pulang. Kalau masih ada kendala, langsung hubungi kepala depot atau tim HR. Semangat kerjanya!
+> Oke, segitu dulu dari aku! Inget ya: lokasi Tepat, GPS nyala, wajah terdaftar, dan jangan lupa absen pulang. Kalau masih ada kendala, langsung aja hubungi kepala depot atau tim HR. Semangat kerjanya, teman-teman!

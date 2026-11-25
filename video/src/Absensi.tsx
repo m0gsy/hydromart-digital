@@ -283,11 +283,11 @@ const Pop: React.FC<{ at: number; children: React.ReactNode; style?: React.CSSPr
 
 const Why: React.FC = () => {
   const frame = useCurrentFrame();
-  const jump = ease(frame, 372, 45);
+  const jump = ease(frame, 380, 45);
   const depot = { x: 330, y: 470 };
   const far = { x: 790, y: 120 };
   const dot = { x: depot.x + (far.x - depot.x) * jump, y: depot.y + 18 + (far.y - depot.y - 18) * jump };
-  const grid = ease(frame, 360, 20);
+  const grid = ease(frame, 368, 20);
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div style={{ position: 'relative', height: 1000, borderRadius: 40, overflow: 'hidden', background: '#e7eee9', opacity: ease(frame, 0, 15) }}>
@@ -312,7 +312,7 @@ const Why: React.FC = () => {
         <div style={{ position: 'absolute', left: depot.x + 98, top: depot.y - 30, color: C.success, fontWeight: 800, fontSize: 30 }}>
           Area depot
         </div>
-        {frame >= 176 && (
+        {frame >= 202 && (
           <div
             style={{
               position: 'absolute',
@@ -323,12 +323,12 @@ const Why: React.FC = () => {
               borderRadius: 22,
               background: C.success,
               border: '6px solid white',
-              transform: `scale(${ease(frame, 176, 10)})`,
+              transform: `scale(${ease(frame, 202, 10)})`,
               boxShadow: `0 0 0 ${10 + Math.sin(frame / 6) * 6}px rgba(24,115,74,0.25)`,
             }}
           />
         )}
-        {frame >= 203 && (
+        {frame >= 230 && (
           <div
             style={{
               position: 'absolute',
@@ -339,7 +339,7 @@ const Why: React.FC = () => {
               borderRadius: 24,
               background: C.amber,
               border: '6px solid white',
-              transform: `scale(${ease(frame, 203, 10)})`,
+              transform: `scale(${ease(frame, 230, 10)})`,
             }}
           />
         )}
@@ -348,21 +348,21 @@ const Why: React.FC = () => {
             <div style={{ background: C.danger, color: 'white', borderRadius: 18, padding: '10px 18px', fontWeight: 800, fontSize: 34 }}>± 1.400 m</div>
           </Pop>
         )}
-        {frame >= 600 && (
-          <Pop at={600} style={{ position: 'absolute', left: 470, top: 26 }}>
+        {frame >= 640 && (
+          <Pop at={640} style={{ position: 'absolute', left: 470, top: 26 }}>
             <div style={{ background: 'white', color: C.danger, borderRadius: 18, padding: '10px 18px', fontWeight: 800, fontSize: 30, display: 'flex', gap: 10, alignItems: 'center' }}>
               <XCircle size={36} weight="fill" /> Check-in ditolak
             </div>
           </Pop>
         )}
-        {frame >= 540 && (
-          <Pop at={540} style={{ position: 'absolute', left: depot.x - 140, top: depot.y + 110 }}>
+        {frame >= 560 && (
+          <Pop at={560} style={{ position: 'absolute', left: depot.x - 140, top: depot.y + 110 }}>
             <div style={{ background: C.text, color: 'white', borderRadius: 16, padding: '8px 16px', fontWeight: 700, fontSize: 28 }}>Kamu di sini, di depot</div>
           </Pop>
         )}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginTop: 30 }}>
-        <Pop at={176}>
+        <Pop at={202}>
           <div style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 28, padding: 26 }}>
             <div style={{ fontSize: 38, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 14 }}>
               <span style={{ width: 26, height: 26, borderRadius: 13, background: C.success, border: '5px solid white' }} /> Tepat
@@ -370,7 +370,7 @@ const Why: React.FC = () => {
             <div style={{ fontSize: 27, opacity: 0.85, marginTop: 6, lineHeight: 1.3 }}>Titik asli, selisih beberapa meter</div>
           </div>
         </Pop>
-        <Pop at={203}>
+        <Pop at={230}>
           <div style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 28, padding: 26 }}>
             <div style={{ fontSize: 38, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 14 }}>
               <span style={{ width: 26, height: 26, borderRadius: 13, background: C.amber, border: '5px solid white' }} /> Perkiraan
@@ -442,11 +442,11 @@ const BoardCard: React.FC<{ at: number; n: string; icon: Icon; title: string; su
 
 const LocationChecklist: React.FC = () => (
   <div style={{ display: 'grid', gap: 34 }}>
-    <BoardCard at={120} n="1" icon={MapPinArea} title='Lokasi akurat nyala' sub='Setelan → Aplikasi → Hydromart Ops → Izin → Lokasi → "Gunakan lokasi akurat"' />
-    <BoardCard at={208} n="2" icon={NavigationArrow} title="GPS / Lokasi HP nyala" sub="Usap layar dari atas → ikon Lokasi" />
-    <BoardCard at={256} n="3" icon={Hourglass} title="Tunggu sebentar" sub="Geser ke dekat pintu atau ke luar ruangan biar sinyal GPS lebih kuat" />
-    <BoardCard at={472} n="4" icon={ArrowsClockwise} title="Aplikasi versi terbaru" sub="Play Store → Hydromart Ops → Perbarui" />
-    <Pop at={600}>
+    <BoardCard at={118} n="1" icon={MapPinArea} title='Lokasi akurat nyala' sub='Setelan → Aplikasi → Hydromart Ops → Izin → Lokasi → "Gunakan lokasi akurat"' />
+    <BoardCard at={194} n="2" icon={NavigationArrow} title="GPS / Lokasi HP nyala" sub="Usap layar dari atas → ikon Lokasi" />
+    <BoardCard at={234} n="3" icon={Hourglass} title="Tunggu sebentar" sub="Geser ke dekat pintu atau ke luar ruangan biar sinyal GPS lebih kuat" />
+    <BoardCard at={416} n="4" icon={ArrowsClockwise} title="Aplikasi versi terbaru" sub="Play Store → Hydromart Ops → Perbarui" />
+    <Pop at={540}>
       <div style={{ textAlign: 'center', fontSize: 36, fontWeight: 700, opacity: 0.9, marginTop: 14 }}>
         Sudah semua tapi masih gagal? Hubungi kepala depot.
       </div>
@@ -470,10 +470,10 @@ const ErrorRow: React.FC<{ at: number; icon: Icon; msg: string; fix: string }> =
 
 const FaceErrors: React.FC = () => (
   <div style={{ display: 'grid', gap: 30 }}>
-    <ErrorRow at={140} icon={ImageSquare} msg="Foto terlalu gelap atau kamera tertutup." fix="Cari tempat lebih terang, wajah terlihat jelas" />
-    <ErrorRow at={255} icon={SmileySad} msg="Wajah tidak cocok" fix="Ulangi foto, atau Daftar / Perbarui Wajah" />
-    <ErrorRow at={412} icon={UserFocus} msg="Wajah belum di-enroll" fix="Daftarkan wajah dulu" />
-    <ErrorRow at={515} icon={CloudSlash} msg="Tidak ada sinyal. Absen disimpan di perangkat dan dikirim otomatis nanti." fix="Santai, absennya terkirim sendiri" />
+    <ErrorRow at={128} icon={ImageSquare} msg="Foto terlalu gelap atau kamera tertutup." fix="Cari tempat lebih terang, wajah terlihat jelas" />
+    <ErrorRow at={224} icon={SmileySad} msg="Wajah tidak cocok" fix="Ulangi foto, atau Daftar / Perbarui Wajah" />
+    <ErrorRow at={360} icon={UserFocus} msg="Wajah belum di-enroll" fix="Daftarkan wajah dulu" />
+    <ErrorRow at={456} icon={CloudSlash} msg="Tidak ada sinyal. Absen disimpan di perangkat dan dikirim otomatis nanti." fix="Santai, absennya terkirim sendiri" />
   </div>
 );
 Object.assign(FaceErrors, { bare: true });
@@ -483,10 +483,10 @@ const Signs: React.FC = () => (
   <ShiftScreen
     verified={false}
     notice
-    noticeSpot={{ at: 150, until: 270, text: 'Peringatan kuning = lokasi masih "Perkiraan"' }}
-    tapAt={290}
-    errorAt={305}
-    errorSpot={{ at: 370, text: 'Ditolak, plus cara memperbaikinya' }}
+    noticeSpot={{ at: 160, until: 290, text: 'Peringatan kuning = lokasi masih "Perkiraan"' }}
+    tapAt={330}
+    errorAt={345}
+    errorSpot={{ at: 455, text: 'Ditolak, plus cara memperbaikinya' }}
   />
 );
 
@@ -587,12 +587,12 @@ const LocationDialog: React.FC<{ at: number; until?: number; pick?: 'Tepat' | 'P
 
 const Dialog: React.FC = () => {
   const frame = useCurrentFrame();
-  const warn = ease(frame, 376, 14);
+  const warn = ease(frame, 327, 14);
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <ShiftScreen verified={false} />
-      <LocationDialog at={20} until={232} tapTepat={150} tapUse={215} />
-      <LocationDialog at={290} until={372} pick="Tepat" spotPerkiraan={298} />
+      <LocationDialog at={20} until={210} tapTepat={136} tapUse={190} />
+      <LocationDialog at={248} until={322} pick="Tepat" spotPerkiraan={256} />
       {warn > 0 && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 40, background: `rgba(22,40,46,${0.55 * warn})`, display: 'flex', alignItems: 'center', padding: 20 }}>
           <div
@@ -758,13 +758,13 @@ const Circle: React.FC<{ I: Icon; color: string }> = ({ I, color }) => (
 );
 
 const Settings: React.FC = () => (
-  <Screens at={[0, 150, 255, 290, 495]}>
+  <Screens at={[0, 140, 215, 245, 425]}>
     {[
-      <SettingsHome key="s" tapAt={138} />,
-      <AppsList key="l" spotAt={180} tapAt={240} />,
+      <SettingsHome key="s" tapAt={128} />,
+      <AppsList key="l" spotAt={165} tapAt={200} />,
       <AppInfo key="i" />,
-      <HomeScreen key="h" pressAt={325} menuAt={362} tapInfo={480} />,
-      <AppInfo key="j" tapIzin={575} />,
+      <HomeScreen key="h" pressAt={273} menuAt={310} tapInfo={410} />,
+      <AppInfo key="j" tapIzin={482} />,
     ]}
   </Screens>
 );
@@ -827,15 +827,15 @@ const LocationPerm: React.FC<{ whileUseAt: number; toggleAt: number; spotAt: num
 
 const Precise: React.FC = () => (
   <Screens at={[0, 58]}>
-    {[<PermsList key="p" tapAt={45} />, <LocationPerm key="l" whileUseAt={100} spotAt={215} toggleAt={290} doneAt={405} />]}
+    {[<PermsList key="p" tapAt={45} />, <LocationPerm key="l" whileUseAt={95} spotAt={215} toggleAt={275} doneAt={385} />]}
   </Screens>
 );
 
 const Gps: React.FC = () => {
   const frame = useCurrentFrame();
-  const shade = ease(frame, 150, 16);
-  const swipe = ease(frame, 120, 26);
-  const on = frame >= 247;
+  const shade = ease(frame, 158, 16);
+  const swipe = ease(frame, 128, 26);
+  const on = frame >= 221;
   const tiles: [string, Icon, boolean][] = [
     ['Internet', WifiHigh, true],
     ['Bluetooth', Bluetooth, false],
@@ -845,7 +845,7 @@ const Gps: React.FC = () => {
   return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <ShiftScreen verified={false} />
-      {frame >= 112 && frame < 160 && (
+      {frame >= 120 && frame < 168 && (
         <div style={{ position: 'absolute', left: '50%', top: 20 + swipe * 260, width: 40, height: 40, marginLeft: -20, borderRadius: 20, background: 'rgba(22,40,46,0.35)', border: '2px solid white', zIndex: 50 }} />
       )}
       {shade > 0 && (
@@ -890,8 +890,8 @@ const Gps: React.FC = () => {
                 </div>
               );
               return label === 'Lokasi' ? (
-                <Spot key={label} at={190} until={360} text="Nyalakan Lokasi" align="right">
-                  <Tapped at={243}>{tile}</Tapped>
+                <Spot key={label} at={185} until={330} text="Nyalakan Lokasi" align="right">
+                  <Tapped at={217}>{tile}</Tapped>
                 </Spot>
               ) : (
                 <div key={label}>{tile}</div>
@@ -900,9 +900,9 @@ const Gps: React.FC = () => {
           </div>
         </div>
       )}
-      {frame >= 360 && (
+      {frame >= 314 && (
         <div style={{ position: 'absolute', left: 16, right: 16, bottom: 30, zIndex: 45 }}>
-          <Spot at={362} text="Tunggu beberapa detik, terutama di dalam ruangan" place="above">
+          <Spot at={316} text="Tunggu beberapa detik, terutama di dalam ruangan" place="above">
             <Card style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <Hourglass size={28} weight="fill" color={C.brand700} />
               <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>GPS baru menyala butuh waktu untuk menemukan lokasimu.</div>
@@ -923,20 +923,20 @@ const Back: React.FC = () => (
     result=""
     hint={HINT_V163}
     above={
-      <Spot at={50} until={205} text="Masih ada? Berarti masih Perkiraan" place="below">
+      <Spot at={45} until={205} text="Masih ada? Berarti masih Perkiraan" place="below">
         <PreciseNotice />
       </Spot>
     }
-    aboveUntil={212}
+    aboveUntil={215}
     spot={{ on: 'toggle', at: 232, text: 'Peringatan hilang = lokasi sudah Tepat ✓' }}
   />
 );
 
 const Enroll: React.FC = () => (
-  <Screens at={[0, 155]}>
+  <Screens at={[0, 150]}>
     {[
-      <HrHome key="h" name={NAME} tap="enroll" tapAt={140} />,
-      <EnrollScreen key="e" shots={[300, 325, 345]} consentAt={378} saveAt={430} spot={{ at: 252, until: 296, text: 'Cari tempat yang terang' }} />,
+      <HrHome key="h" name={NAME} tap="enroll" tapAt={135} />,
+      <EnrollScreen key="e" shots={[290, 306, 322]} consentAt={342} saveAt={400} spot={{ at: 236, until: 284, text: 'Cari tempat yang terang' }} />,
     ]}
   </Screens>
 );
@@ -949,14 +949,14 @@ const CheckIn: React.FC = () => (
         key="f"
         depot={DEPOT}
         mode="Check-in"
-        shootAt={255}
-        doneAt={340}
+        shootAt={225}
+        doneAt={312}
         result="Masuk 07.28"
         hint={HINT_V163}
         spot={[
-          { on: 'hint', at: 140, until: 245, text: 'Tatap kamera & tahan sebentar', place: 'above' },
-          { on: 'camera', at: 262, until: 336, text: 'Tidak perlu geleng atau kedip lagi', place: 'below' },
-          { on: 'result', at: 425, text: 'Check-in berhasil = absen tercatat' },
+          { on: 'hint', at: 128, until: 218, text: 'Tatap kamera & tahan sebentar', place: 'above' },
+          { on: 'camera', at: 238, until: 308, text: 'Tidak perlu geleng atau kedip lagi', place: 'below' },
+          { on: 'result', at: 378, text: 'Check-in berhasil = absen tercatat' },
         ]}
       />,
     ]}
@@ -964,9 +964,9 @@ const CheckIn: React.FC = () => (
 );
 
 const Shift: React.FC = () => (
-  <Screens at={[0, 378]}>
+  <Screens at={[0, 345]}>
     {[
-      <ShiftScreen key="s" verified checkSpot={{ at: 205, until: 345, text: 'Jarak ke depot diperiksa di sini' }} tapAt={362} />,
+      <ShiftScreen key="s" verified checkSpot={{ at: 200, until: 318, text: 'Jarak ke depot diperiksa di sini' }} tapAt={330} />,
       <DriverHome key="d" />,
     ]}
   </Screens>
@@ -980,12 +980,12 @@ const CheckOut: React.FC = () => (
         key="f"
         depot={DEPOT}
         mode="Check-out"
-        modeAt={176}
-        shootAt={238}
-        doneAt={285}
+        modeAt={172}
+        shootAt={225}
+        doneAt={268}
         result="Masuk 07.28 · Keluar 17.05"
         hint={HINT_V163}
-        spot={{ on: 'result', at: 300, text: 'Kurir: akhiri shift ≠ absen pulang. Lakukan dua-duanya.' }}
+        spot={{ on: 'result', at: 288, text: 'Kurir: akhiri shift ≠ absen pulang. Lakukan dua-duanya.' }}
       />,
     ]}
   </Screens>
