@@ -109,7 +109,10 @@ export const HQ_GROUPS: HqRailGroup[] = [
   },
   {
     headKey: 'hr',
-    items: [{ href: '/hr', labelKey: 'hr', cap: 'hrView' }],
+    items: [
+      { href: '/hr', labelKey: 'hr', cap: 'hrView' },
+      { href: '/hq/sop', labelKey: 'sop', cap: 'sopRead' },
+    ],
   },
   {
     headKey: 'operations',

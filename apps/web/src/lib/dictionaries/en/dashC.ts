@@ -202,6 +202,8 @@ export const dashC = {
       hrPayroll: 'Payroll',
       payrollRead: 'Pay figures & net profit (read)',
       leaveApprove: 'Approve leave',
+      sopManage: 'Write and publish SOPs',
+      sopRead: 'View SOPs',
       kasbonApprove: 'Approve cash advance',
       hrView: 'HR reports (view)',
       hrViewOwn: 'Attendance at their own depots (franchise)',

@@ -118,7 +118,7 @@ const HQ = R(`
 /hq/staff /hq/staff/import /hq/depots/import /hq/catalog/import /hq/catalog/import-categories /hq/subscriptions /hq/tax /hq/tickets /hq/vouchers
 /hq/webhooks /hq/wizard /hq/access/landing
 /hq/access/detail /hq/applications/detail /hq/depots/detail /hq/forecast-models
-/hq/orders/detail /hq/pnl /hq/policy-changes
+/hq/orders/detail /hq/pnl /hq/policy-changes /hq/sop /hq/sop/detail
 `);
 
 // The `/dashboard` pages the ops binary actually ships (counted off apps/web/mobile-out-ops, not
@@ -245,6 +245,7 @@ const ID_SOURCE = {
   '/hq/depots/detail': '/hq/inventory',
   '/hq/orders/detail': '/hq/orders',
   '/hq/applications/detail': '/hq/applications',
+  '/hq/sop/detail': '/hq/sop',
 };
 
 /** A detail screen keyed by something other than `?id=`. */

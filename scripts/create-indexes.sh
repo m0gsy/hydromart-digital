@@ -333,3 +333,8 @@ echo "All indexes present."
 # attendance_month_rollups_employeeId_month_depotId_key and attendance_month_rollups_depotId_month_idx
 # (hr-service, 2026-11-24, HD-6 A7) are built by their own migration, not here: they index a table
 # that migration creates, so it is empty and the build is instant.
+
+# sop_versions_sopId_versionNo_key, sop_versions_sopId_effectiveFrom_idx, sop_version_depots_depotId_idx,
+# sop_acks_versionId_employeeId_key and sop_acks_employeeId_idx (hr-service, 2026-11-27, HD-16) are
+# built by their own migration, not here: they index tables that migration creates, so they are
+# empty and the build is instant.
