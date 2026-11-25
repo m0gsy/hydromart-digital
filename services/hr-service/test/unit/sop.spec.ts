@@ -247,17 +247,43 @@ describe('SopService', () => {
       ['yesterday (WIB), which is today in UTC', { effectiveFrom: '2026-11-27' }],
       ['no text and no file', { body: '  ' }],
       ['a file key from another folder', { fileKey: 'hr/documents/00000000-0000-4000-8000-0000000000f1.pdf' }],
+      ['a file key made of 36 dashes', { fileKey: `hr/sop/${'-'.repeat(36)}.pdf` }],
       ['a file key that is not a pdf', { fileKey: 'hr/sop/00000000-0000-4000-8000-0000000000f1.png' }],
     ])('refuses %s', async (_name, over) => {
       await expect(service.create(head, 'SOP', input(over))).rejects.toBeInstanceOf(BadRequestException);
       expect(repo.sops).toHaveLength(0);
     });
 
-    it('accepts today and a future day, and says so when the audience was truncated', async () => {
+    it('accepts today and a future day, and stops reading a roster that never ends', async () => {
       await expect(service.create(head, 'SOP', input({ effectiveFrom: '2027-01-01' }))).resolves.toBeDefined();
       employees.list.mockResolvedValue({ rows: roster, total: 9999 });
       await service.create(head, 'SOP', input());
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('audience truncated'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('roster not fully read'));
+      expect(employees.list).toHaveBeenCalledTimes(101);
+    });
+
+    it('reads the whole roster page by page, so a large audience is counted in full', async () => {
+      const big = Array.from({ length: 2500 }, (_, i) => staff(`b${i}`, D1));
+      employees.list.mockImplementation(async ({ skip, take }: { skip: number; take: number }) => ({ rows: big.slice(skip, skip + take), total: big.length }));
+      const out = await service.create(head, 'SOP besar', input());
+      expect(out.versions[0].audienceSize).toBe(2500);
+      expect(employees.list).toHaveBeenCalledTimes(3);
+      employees.list.mockResolvedValue({ rows: [], total: 5 });
+      expect((await service.create(head, 'SOP kosong', input())).versions[0].audienceSize).toBe(0);
+    });
+
+    it('refuses a depot id that depot-service does not know, and passes a 503 on', async () => {
+      const isActive = jest.fn(async (id: string) => {
+        if (id === D2) throw new NotFoundException('x');
+        if (id === D3) throw new ServiceUnavailableException('down');
+        return true;
+      });
+      const checked = new SopService(repo, employees as never, storage as never, { isActive } as never);
+      await expect(checked.create(head, 'SOP', input({ allDepots: false, depotIds: [D1, D2] }))).rejects.toBeInstanceOf(BadRequestException);
+      await expect(checked.create(head, 'SOP', input({ allDepots: false, depotIds: [D1, D3] }))).rejects.toBeInstanceOf(ServiceUnavailableException);
+      await expect(checked.create(head, 'SOP', input({ allDepots: false, depotIds: [D1] }))).resolves.toBeDefined();
+      await expect(checked.create(head, 'SOP', input())).resolves.toBeDefined(); // everyone: nothing to look up
+      expect(repo.sops).toHaveLength(2);
     });
 
     it('adds version n+1 and leaves the old one untouched', async () => {
@@ -354,13 +380,17 @@ describe('SopService', () => {
       expect(page.items.map((i) => i.employeeId)).toEqual(['e3']);
     });
 
-    it('404s an unknown version and warns on a truncated roster', async () => {
+    it('404s an unknown version', async () => {
       await expect(service.unread(hr, SOP1, {})).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('counts only acks of audience members the caller may see, so the numbers reconcile', async () => {
       const a = await service.create(head, 'SOP A', input());
-      warn.mockClear();
-      employees.list.mockResolvedValue({ rows: roster, total: 9999 });
-      await service.unread(hr, a.versions[0].id, {});
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('audience truncated'));
+      repo.acks.set(a.versions[0].id, ['e1', 'e3', 'gone']); // e3 is another depot, gone has left
+      const page = await service.unread(kepala, a.versions[0].id, {});
+      expect(page).toMatchObject({ ackCount: 1, unreadTotal: 1 });
+      const all = await service.unread(hr, a.versions[0].id, {});
+      expect(all).toMatchObject({ ackCount: 2, unreadTotal: 3 });
     });
   });
 
@@ -523,7 +553,7 @@ describe('SopPrismaRepository', () => {
     await repo.findById('s1');
     expect(p.sop.findUnique).toHaveBeenCalledWith({ where: { id: 's1' }, include: { versions: { include: depots, orderBy: { versionNo: 'desc' } } } });
     await repo.list();
-    expect(p.sop.findMany).toHaveBeenCalledWith({ orderBy: { createdAt: 'desc' }, include: { versions: { include: depots, orderBy: { versionNo: 'desc' } } } });
+    expect(p.sop.findMany).toHaveBeenCalledWith({ orderBy: { createdAt: 'desc' }, include: { versions: { select: { id: true, sopId: true, versionNo: true, title: true, fileKey: true, fileName: true, sizeBytes: true, effectiveFrom: true, allDepots: true, audienceSize: true, publishedBy: true, createdAt: true, depots: { select: { depotId: true } } }, orderBy: { versionNo: 'desc' } } } });
     await repo.findVersion('v1');
     expect(p.sopVersion.findUnique).toHaveBeenCalledWith({ where: { id: 'v1' }, include: { ...depots, sop: true } });
     await repo.listVersions([SOP1]);

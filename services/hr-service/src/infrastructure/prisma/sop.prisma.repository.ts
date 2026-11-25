@@ -2,12 +2,30 @@ import { Injectable } from '@nestjs/common';
 
 import { Sop } from '../../../prisma/generated/client';
 import {
+  SopListRow,
   SopRepository,
   SopVersionWithDepots,
   SopVersionWrite,
   SopWithVersions,
 } from '../../application/ports/sop.repository';
 import { PrismaService } from './prisma.service';
+
+/** Every column of a version except `body`. */
+const noBody = {
+  id: true,
+  sopId: true,
+  versionNo: true,
+  title: true,
+  fileKey: true,
+  fileName: true,
+  sizeBytes: true,
+  effectiveFrom: true,
+  allDepots: true,
+  audienceSize: true,
+  publishedBy: true,
+  createdAt: true,
+  depots: { select: { depotId: true } },
+} as const;
 
 const withDepots = { depots: { select: { depotId: true } } } as const;
 
@@ -45,10 +63,10 @@ export class SopPrismaRepository implements SopRepository {
     });
   }
 
-  list(): Promise<SopWithVersions[]> {
+  list(): Promise<SopListRow[]> {
     return this.prisma.sop.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { versions: { include: withDepots, orderBy: { versionNo: 'desc' } } },
+      include: { versions: { select: noBody, orderBy: { versionNo: 'desc' } } },
     });
   }
 

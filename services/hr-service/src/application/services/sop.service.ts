@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   PayloadTooLargeException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -12,10 +13,12 @@ import { AuthenticatedUser, SNIFFED_MIME, depotScopeIds, localDayKey, sniffFileT
 
 import { resolveAudience } from '../../domain/announcement';
 import { audienceTargets, currentVersion, dayKeyOf, inForce } from '../../domain/sop';
+import { DEPOT_DIRECTORY_PORT, DepotDirectoryPort } from '../ports/depot-directory.port';
 import { EMPLOYEE_REPOSITORY, EmployeeRepository } from '../ports/employee.repository';
 import {
   SOP_REPOSITORY,
   SopRepository,
+  SopVersionRow,
   SopVersionWithDepots,
   SopVersionWrite,
   SopWithVersions,
@@ -24,11 +27,12 @@ import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 
 export const MAX_SOP_PDF_BYTES = 10 * 1024 * 1024;
 
-/** Same ceiling as an announcement's audience, for the same reason (a runaway COMPANY target). */
-const AUDIENCE_LIMIT = 5000;
+/** Roster read size, and a bound on the loop so a misbehaving `total` cannot spin it forever. */
+const ROSTER_PAGE = 1000;
+const ROSTER_MAX_PAGES = 100;
 
 /** A key this service minted: `hr/sop/<uuid>.pdf`. Anything else is another bucket folder. */
-const SOP_FILE_KEY = new RegExp('^hr/sop/[0-9a-f-]{36}[.]pdf$');
+const SOP_FILE_KEY = new RegExp('^hr/sop/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.]pdf$');
 
 export interface UploadedSopFile {
   buffer: Buffer;
@@ -126,6 +130,7 @@ export class SopService {
     @Inject(SOP_REPOSITORY) private readonly repo: SopRepository,
     @Inject(EMPLOYEE_REPOSITORY) private readonly employees: EmployeeRepository,
     @Inject(STORAGE_PORT) private readonly storage: StoragePort,
+    @Optional() @Inject(DEPOT_DIRECTORY_PORT) private readonly directory?: DepotDirectoryPort,
   ) {}
 
   // -- writing ---------------------------------------------------------
@@ -216,14 +221,14 @@ export class SopService {
     const version = await this.repo.findVersion(versionId);
     if (!version) throw new NotFoundException('Versi SOP tidak ditemukan');
     const scope = depotScopeIds(user, opts.depotId);
-    const { rows, total } = await this.employees.list({ status: 'ACTIVE', skip: 0, take: AUDIENCE_LIMIT });
-    if (total > rows.length) {
-      this.logger.warn(`audience truncated: ${total} active employees, only ${rows.length} considered`);
-    }
+    const rows = await this.activeRoster();
     const acked = new Set(await this.repo.listAckedEmployeeIds(versionId));
-    const unread = resolveAudience(audienceTargets(SopService.shape(version)), rows).filter(
-      (e) => !acked.has(e.id) && (!scope || (!!e.depotId && scope.includes(e.depotId))),
+    // Only audience members the caller may see: acks of leavers or of other depots would not
+    // reconcile with the unread list beside them.
+    const inScope = resolveAudience(audienceTargets(SopService.shape(version)), rows).filter(
+      (e) => !scope || (!!e.depotId && scope.includes(e.depotId)),
     );
+    const unread = inScope.filter((e) => !acked.has(e.id));
 
     const perDepot = new Map<string | null, number>();
     for (const e of unread) perDepot.set(e.depotId, (perDepot.get(e.depotId) ?? 0) + 1);
@@ -233,7 +238,7 @@ export class SopService {
       versionId,
       versionNo: version.versionNo,
       audienceSize: version.audienceSize,
-      ackCount: acked.size,
+      ackCount: inScope.length - unread.length,
       unreadTotal: unread.length,
       byDepot: [...perDepot].map(([depotId, count]) => ({ depotId, unread: count })),
       page,
@@ -291,7 +296,7 @@ export class SopService {
     };
   }
 
-  private static shape(v: SopVersionWithDepots) {
+  private static shape(v: SopVersionRow) {
     return {
       versionNo: v.versionNo,
       effectiveFrom: dayKeyOf(v.effectiveFrom),
@@ -300,7 +305,7 @@ export class SopService {
     };
   }
 
-  private static view(v: SopVersionWithDepots, ackCount: number): SopVersionView {
+  private static view(v: SopVersionRow, ackCount: number): SopVersionView {
     return {
       id: v.id,
       versionNo: v.versionNo,
@@ -316,6 +321,36 @@ export class SopService {
       unread: Math.max(0, v.audienceSize - ackCount),
       createdAt: v.createdAt,
     };
+  }
+
+  /** Every active employee, page by page: an audience is never silently cut short. */
+  private async activeRoster() {
+    const all = [];
+    for (let page = 0; page < ROSTER_MAX_PAGES; page += 1) {
+      const { rows, total } = await this.employees.list({ status: 'ACTIVE', skip: all.length, take: ROSTER_PAGE });
+      all.push(...rows);
+      if (rows.length === 0 || all.length >= total) return all;
+    }
+    this.logger.warn(`roster not fully read after ${ROSTER_MAX_PAGES} pages`);
+    return all;
+  }
+
+  /** A depot id typed wrong would cover nobody and say nothing. depot-service 404 = unknown. */
+  private async assertDepotsExist(depotIds: readonly string[]): Promise<void> {
+    if (!this.directory) return;
+    const directory = this.directory;
+    const unknown = await Promise.all(
+      depotIds.map((id) =>
+        directory.isActive(id).then(
+          () => false,
+          (error: unknown) => {
+            if (error instanceof NotFoundException) return true;
+            throw error;
+          },
+        ),
+      ),
+    );
+    if (unknown.some(Boolean)) throw new BadRequestException('Ada depot yang tidak dikenal');
   }
 
   /** Validate one version's input and freeze its audience. */
@@ -338,10 +373,8 @@ export class SopService {
       throw new BadRequestException('File SOP tidak dikenali. Unggah ulang PDF-nya');
     }
 
-    const { rows, total } = await this.employees.list({ status: 'ACTIVE', skip: 0, take: AUDIENCE_LIMIT });
-    if (total > rows.length) {
-      this.logger.warn(`audience truncated: ${total} active employees, only ${rows.length} considered`);
-    }
+    await this.assertDepotsExist(depotIds);
+    const rows = await this.activeRoster();
     return {
       title,
       body,

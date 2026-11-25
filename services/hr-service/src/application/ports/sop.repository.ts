@@ -4,6 +4,9 @@ export const SOP_REPOSITORY = Symbol('SOP_REPOSITORY');
 
 export type SopVersionWithDepots = SopVersion & { depots: { depotId: string }[] };
 export type SopWithVersions = Sop & { versions: SopVersionWithDepots[] };
+/** What the list screen needs: a version without its text (up to 50k characters each). */
+export type SopVersionRow = Omit<SopVersionWithDepots, 'body'>;
+export type SopListRow = Sop & { versions: SopVersionRow[] };
 
 export interface SopVersionWrite {
   title: string;
@@ -28,8 +31,8 @@ export interface SopRepository {
    */
   addVersion(sopId: string, version: SopVersionWrite): Promise<SopVersionWithDepots | null>;
   findById(id: string): Promise<SopWithVersions | null>;
-  /** Every SOP, versions newest first. HQ keeps tens of these, not thousands. */
-  list(): Promise<SopWithVersions[]>;
+  /** Every SOP, versions newest first, without the version text. HQ keeps tens of these. */
+  list(): Promise<SopListRow[]>;
   findVersion(versionId: string): Promise<(SopVersionWithDepots & { sop: Sop }) | null>;
   /** Versions of the given SOPs, for the in-force lookup. */
   listVersions(sopIds: readonly string[]): Promise<(SopVersionWithDepots & { sop: Sop })[]>;
