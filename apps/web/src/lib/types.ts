@@ -1113,6 +1113,9 @@ export interface Campaign {
   sentAt: string | null;
   /** When a scheduled campaign is due; null = due the moment it is queued. */
   scheduledFor: string | null;
+  /** HD-17: AI = a DRAFT the AI web made; a person reviews it and presses Kirim. Absent on older responses. */
+  source?: 'STAFF' | 'AI';
+  aiReason?: string | null;
 }
 
 /* ---------- Operational dashboard (MVP #6, staff-facing) ---------- */

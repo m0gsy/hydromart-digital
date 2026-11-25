@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 
+import { DraftSource } from '../../domain/draft-source';
 import { CampaignChannel } from '../../domain/channel';
 import { CampaignStatus } from '../../domain/campaign-status';
 import { RecipientStatus } from '../../domain/recipient-status';
@@ -46,6 +47,9 @@ interface CampaignRow {
   updatedAt: Date;
   sentAt: Date | null;
   scheduledFor: Date | null;
+  source: string;
+  aiSuggestionId: string | null;
+  aiReason: string | null;
 }
 
 @Injectable()
@@ -67,6 +71,9 @@ export class CampaignPrismaRepository implements CampaignRepository {
       // Rows written before the column existed read as null, which is the pre-scheduling
       // meaning of "due now" — no backfill, no campaign stranded by the migration.
       scheduledFor: row.scheduledFor ?? null,
+      source: row.source as DraftSource,
+      aiSuggestionId: row.aiSuggestionId,
+      aiReason: row.aiReason,
       recipients: recipients.map((r) => this.toRecipient(r)),
     };
   }
@@ -80,6 +87,9 @@ export class CampaignPrismaRepository implements CampaignRepository {
           createdBy: data.createdBy,
           totalRecipients: data.recipients.length,
           scheduledFor: data.scheduledFor ?? null,
+          source: data.source,
+          aiSuggestionId: data.aiSuggestionId ?? null,
+          aiReason: data.aiReason ?? null,
           recipients: {
             create: data.recipients.map((r) => ({
               customerId: r.customerId ?? null,
@@ -97,6 +107,14 @@ export class CampaignPrismaRepository implements CampaignRepository {
   async findById(id: string): Promise<CampaignRecord | null> {
     const row = await this.prisma.campaign.findUnique({
       where: { id },
+      include: { recipients: { orderBy: { createdAt: 'asc' } } },
+    });
+    return row ? this.toCampaign(row, row.recipients) : null;
+  }
+
+  async findByAiSuggestionId(aiSuggestionId: string): Promise<CampaignRecord | null> {
+    const row = await this.prisma.campaign.findUnique({
+      where: { aiSuggestionId },
       include: { recipients: { orderBy: { createdAt: 'asc' } } },
     });
     return row ? this.toCampaign(row, row.recipients) : null;

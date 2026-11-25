@@ -214,6 +214,8 @@ export const dashboard = {
     sent: 'Sent',
     failed: 'Failed',
     viewReport: 'View report',
+    aiBadge: 'AI suggestion',
+    aiReason: 'AI reason',
     sendNow: 'Send now',
     scheduledFor: 'scheduled {at}',
     noCampaigns: 'No campaigns yet',

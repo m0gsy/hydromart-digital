@@ -1,9 +1,11 @@
 import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 
+import { DraftSource } from '../../domain/draft-source';
 import { CampaignStatus, canCancel, canSend } from '../../domain/campaign-status';
 import { RecipientStatus } from '../../domain/recipient-status';
 import { renderTemplate } from '../../domain/template';
 import {
+  AiSuggestionReusedError,
   CampaignNotCancellableError,
   CampaignNotDraftError,
   CampaignNotFoundError,
@@ -16,6 +18,7 @@ import { Page, buildPage } from '../pagination';
 import {
   CampaignRecord,
   CampaignRepository,
+  CreateCampaignData,
   CreateRecipientData,
 } from '../ports/campaign.repository';
 import {
@@ -191,6 +194,7 @@ export class CampaignService {
     messageTemplate: string,
     segment: SegmentFilter = {},
     scheduledFor?: Date | null,
+    ai: Pick<CreateCampaignData, 'source' | 'aiSuggestionId' | 'aiReason'> = {},
   ): Promise<CampaignRecord> {
     this.assertNotPast(scheduledFor);
     const { city, ...activityConditions } = { ...segment, depotId };
@@ -202,7 +206,52 @@ export class CampaignService {
 
     const deduped = [...new Map(list.map((r) => [r.phone, r])).values()];
     if (deduped.length === 0) throw new NoRecipientsError();
-    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor });
+    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor, ...ai });
+  }
+
+  /**
+   * HD-17: the AI web's draft. The depot blast a manager would make (same audience rules, same
+   * validation), left DRAFT and marked AI with the suggestion id and the AI's reason. Nothing is
+   * sent: a person with the campaign permission presses Kirim, exactly as for their own draft.
+   * Idempotent per suggestion id: the same id and body answers the row it made (replayed), another
+   * body is a 409. ponytail: the audience (segment) is not stored, so a replay compares the name,
+   * message, schedule, reason and author; the unique index still stops a second row either way.
+   */
+  async draftFromAi(
+    createdBy: string,
+    depotId: string,
+    input: { name: string; messageTemplate: string; segment?: SegmentFilter; scheduledFor?: Date | null },
+    ai: { suggestionId: string; reason: string },
+  ): Promise<{ draft: CampaignRecord; replayed: boolean }> {
+    const replay = (r: CampaignRecord) => {
+      const same =
+        r.createdBy === createdBy &&
+        r.name === input.name &&
+        r.messageTemplate === input.messageTemplate &&
+        (r.scheduledFor?.getTime() ?? null) === (input.scheduledFor?.getTime() ?? null) &&
+        r.aiReason === ai.reason;
+      if (!same) throw new AiSuggestionReusedError();
+      return { draft: r, replayed: true };
+    };
+    const existing = await this.repo.findByAiSuggestionId(ai.suggestionId);
+    if (existing) return replay(existing);
+    try {
+      const draft = await this.createForDepot(
+        createdBy,
+        depotId,
+        input.name,
+        input.messageTemplate,
+        input.segment,
+        input.scheduledFor,
+        { source: DraftSource.AI, aiSuggestionId: ai.suggestionId, aiReason: ai.reason },
+      );
+      return { draft, replayed: false };
+    } catch (e) {
+      // Two calls with one id at once: the unique index let one in; the other answers it.
+      const raced = await this.repo.findByAiSuggestionId(ai.suggestionId);
+      if (!raced) throw e;
+      return replay(raced);
+    }
   }
 
   // No defaults here on purpose: the only caller already defaults, so a second set

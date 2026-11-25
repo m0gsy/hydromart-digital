@@ -216,6 +216,8 @@ export const dashboard = {
     sent: 'Terkirim',
     failed: 'Gagal',
     viewReport: 'Lihat laporan',
+    aiBadge: 'Usulan AI',
+    aiReason: 'Alasan AI',
     sendNow: 'Kirim sekarang',
     scheduledFor: 'terjadwal {at}',
     noCampaigns: 'Belum ada campaign',

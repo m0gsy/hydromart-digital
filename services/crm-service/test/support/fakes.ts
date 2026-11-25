@@ -1,3 +1,4 @@
+import { DraftSource } from '../../src/domain/draft-source';
 import { randomUUID } from 'node:crypto';
 
 import { CampaignChannel } from '../../src/domain/channel';
@@ -76,6 +77,9 @@ export class InMemoryCampaignRepository implements CampaignRepository {
       updatedAt: now,
       sentAt: null,
       scheduledFor: data.scheduledFor ?? null,
+      source: data.source ?? DraftSource.STAFF,
+      aiSuggestionId: data.aiSuggestionId ?? null,
+      aiReason: data.aiReason ?? null,
       recipients,
     };
     this.campaigns.push(campaign);
@@ -84,6 +88,11 @@ export class InMemoryCampaignRepository implements CampaignRepository {
 
   async findById(id: string): Promise<CampaignRecord | null> {
     const c = this.campaigns.find((x) => x.id === id);
+    return c ? this.clone(c) : null;
+  }
+
+  async findByAiSuggestionId(id: string): Promise<CampaignRecord | null> {
+    const c = this.campaigns.find((x) => x.aiSuggestionId === id);
     return c ? this.clone(c) : null;
   }
 

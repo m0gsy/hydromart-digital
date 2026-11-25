@@ -35,7 +35,15 @@ export function CampaignReport({ campaignId, onClose }: { campaignId: string; on
       ) : detail.data ? (
         <div className="flex flex-col gap-4">
           <div>
-            <p className="font-semibold">{detail.data.name}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="font-semibold">{detail.data.name}</p>
+              {detail.data.source === 'AI' ? <Badge tone="brand">{t('dashboard.campaigns.aiBadge')}</Badge> : null}
+            </div>
+            {detail.data.source === 'AI' && detail.data.aiReason ? (
+              <p className="text-xs text-muted">
+                <span className="font-semibold">{t('dashboard.campaigns.aiReason')}:</span> {detail.data.aiReason}
+              </p>
+            ) : null}
             <p className="whitespace-pre-wrap text-sm text-muted">{detail.data.messageTemplate}</p>
           </div>
 

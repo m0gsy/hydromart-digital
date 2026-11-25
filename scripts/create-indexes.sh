@@ -40,6 +40,10 @@
 # 2026-11-25, HD-17 part A) are built by their own migration, not here: the aiSuggestionId column is
 # created by that very migration and every value is NULL, so the build is instant.
 #
+# campaigns_aiSuggestionId_key (crm-service, 2026-11-26, HD-17 campaign drafts) is built by its own
+# migration, not here: the aiSuggestionId column is created by that very migration and every value is
+# NULL, so the build is instant.
+#
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh
 # database — CI, a new environment — the migration builds it itself, where locking an

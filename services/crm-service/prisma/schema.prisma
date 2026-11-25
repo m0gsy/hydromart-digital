@@ -52,6 +52,12 @@ enum RecipientStatus {
   SKIPPED
 }
 
+/// HD-17: who made a draft. AI = the AI web, through its closed draft endpoint.
+enum DraftSource {
+  STAFF
+  AI
+}
+
 /// Delivery outcome of a single transactional notification.
 enum NotificationStatus {
   SENT
@@ -76,6 +82,12 @@ model Campaign {
   /// When the campaign becomes due. NULL = as soon as the sweep sees it, which is what
   /// every campaign meant before scheduling existed.
   scheduledFor    DateTime?
+  /// HD-17: STAFF or AI. An AI campaign stays DRAFT until a person presses Kirim (that IS the approval).
+  source          DraftSource         @default(STAFF)
+  /// The AI web's X-AI-Suggestion-Id; unique, so a retried call answers the same row.
+  aiSuggestionId  String?             @unique @db.Uuid
+  /// Why the AI proposes this campaign, shown beside the draft.
+  aiReason        String?
 
   recipients CampaignRecipient[]
 

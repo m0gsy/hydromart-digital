@@ -1,3 +1,4 @@
+import { DraftSource } from '../../domain/draft-source';
 import { CampaignChannel } from '../../domain/channel';
 import { CampaignStatus } from '../../domain/campaign-status';
 import { RecipientStatus } from '../../domain/recipient-status';
@@ -29,6 +30,10 @@ export interface CampaignRecord {
   sentAt: Date | null;
   /** When it becomes due. NULL = immediately, which is what every pre-scheduling row meant. */
   scheduledFor: Date | null;
+  /** HD-17: STAFF, or AI = a DRAFT the AI web made; staff review it and press Kirim. */
+  source: DraftSource;
+  aiSuggestionId: string | null;
+  aiReason: string | null;
   recipients: CampaignRecipientRecord[];
 }
 
@@ -46,11 +51,17 @@ export interface CreateCampaignData {
   recipients: CreateRecipientData[];
   /** When it becomes due. Absent/null = immediately, the pre-scheduling behaviour. */
   scheduledFor?: Date | null;
+  /** HD-17: omitted = STAFF. */
+  source?: DraftSource;
+  aiSuggestionId?: string;
+  aiReason?: string;
 }
 
 export interface CampaignRepository {
   /** Persist a DRAFT campaign and its PENDING recipients atomically ($transaction). */
   create(data: CreateCampaignData): Promise<CampaignRecord>;
+  /** HD-17: the draft an AI suggestion id already made, if any. */
+  findByAiSuggestionId(aiSuggestionId: string): Promise<CampaignRecord | null>;
   /** Load a campaign with its recipients, or null if it does not exist. */
   findById(id: string): Promise<CampaignRecord | null>;
   /** Load just the recipients for a campaign. */
