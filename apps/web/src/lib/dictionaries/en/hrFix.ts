@@ -1922,7 +1922,8 @@ export const hrFix = {
     checkOut: 'Check out',
     noGps: 'This device has no GPS',
     allowGps: 'Allow location access (GPS) to clock in',
-    faceUnsure: 'The face match is not confident enough. Move your head or blink, then try again.',
+    faceUnsure:
+      'The photo is too dark or the camera is covered. Move somewhere brighter, make sure your face is clearly visible, then take the photo again.',
     offlineQueued: 'No signal. The punch is stored on the device and sent automatically later.',
     failed: 'Could not clock in',
   },
@@ -1955,7 +1956,7 @@ export const hrFix = {
   },
   faceCapture: {
     take: 'Take photo',
-    hint: 'Move your head slightly or blink while the photo is taken.',
+    hint: 'Look at the camera and hold still as you tap Take photo.',
   },
   imports: {
     productsTitle: 'Import product catalogue',

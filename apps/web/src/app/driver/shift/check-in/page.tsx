@@ -117,7 +117,7 @@ function CheckIn() {
 
   const capture = async (image: string, live: boolean) => {
     if (!depotId) return;
-    // The on-device gate only: a blurred or still frame is not sent at all (the server's
+    // The on-device gate only: a black or covered frame is not sent at all (the server's
     // face match is the control, B-7).
     if (!live) return setError(t('hrFix.checkIn.faceUnsure'));
     setBusy(true);

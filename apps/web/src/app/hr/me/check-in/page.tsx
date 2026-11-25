@@ -70,7 +70,7 @@ export default function MeCheckInPage() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Attendance | null>(null);
 
-  // `live` is the on-device capture gate: it keeps a blurred or still frame from being sent
+  // `live` is the on-device capture gate: it keeps a black or covered frame from being sent
   // at all. It is NOT sent to the server — a verdict the caller fills in themselves cannot
   // be an anti-spoofing control there (B-7); the face match is.
   async function punch(dataUrl: string, live: boolean) {

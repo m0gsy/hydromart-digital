@@ -1943,7 +1943,8 @@ export const hrFix = {
     checkOut: 'Check-out',
     noGps: 'Perangkat tidak mendukung GPS',
     allowGps: 'Izinkan akses lokasi (GPS) untuk absen',
-    faceUnsure: 'Deteksi wajah kurang meyakinkan. Gerakkan kepala/kedip lalu coba lagi.',
+    faceUnsure:
+      'Foto terlalu gelap atau kamera tertutup. Cari tempat lebih terang, pastikan wajah terlihat jelas, lalu ambil foto lagi.',
     offlineQueued: 'Tidak ada sinyal. Absen disimpan di perangkat dan dikirim otomatis nanti.',
     failed: 'Gagal absen',
   },
@@ -1976,7 +1977,7 @@ export const hrFix = {
   },
   faceCapture: {
     take: 'Ambil Foto',
-    hint: 'Gerakkan kepala sedikit / kedipkan mata saat mengambil foto.',
+    hint: 'Tatap kamera dan tahan sebentar saat menekan Ambil Foto.',
   },
   imports: {
     productsTitle: 'Import Katalog Produk',
