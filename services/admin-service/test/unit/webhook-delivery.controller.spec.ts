@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
+import { WEBHOOK_EVENTS } from '../../src/domain/webhook-delivery';
 
 import {
   PartnerDeliveryController,
@@ -153,12 +154,12 @@ describe('webhook delivery DTOs', () => {
   // An event name is what an endpoint subscribes to, so a typo'd or free-form name is a
   // subscription that silently never matches. HD-7: only the events that exist.
   it('takes only an event some service publishes', () => {
-    const bad = ['delivery delivered', 'Delivery.Delivered', 'delivered', '', 'order.created'];
+    const bad = ['delivery delivered', 'Delivery.Delivered', 'delivered', '', 'order.shipped'];
     for (const event of bad) {
       const dto = plainToInstance(PublishEventDto, { event, payload: {}, eventId: 'k' });
       expect(validateSync(dto).map((e) => e.property)).toContain('event');
     }
-    for (const event of ['delivery.delivered', 'franchise.application_submitted']) {
+    for (const event of [...WEBHOOK_EVENTS]) {
       const ok = plainToInstance(PublishEventDto, { event, payload: {}, eventId: `${event}:1` });
       expect(validateSync(ok)).toHaveLength(0);
     }

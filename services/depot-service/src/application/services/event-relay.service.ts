@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { alertServerError } from '@hydromart/platform';
 
-import { EventOutboxRecord, EventOutboxRepository } from '../ports/event-outbox.repository';
+import { EventOutboxRecord, EventOutboxRepository, NewOutboxEvent } from '../ports/event-outbox.repository';
 import { EventPublisherPort } from '../ports/event-publisher.port';
 import { DEPOT_TOKENS } from '../tokens';
 
@@ -76,6 +76,20 @@ export class EventRelayService {
     @Inject(DEPOT_TOKENS.EventOutbox) private readonly outbox: EventOutboxRepository,
     @Inject(DEPOT_TOKENS.EventTransport) private readonly transport: EventPublisherPort,
   ) {}
+
+  /**
+   * Records an event nobody else's transaction owns, for the sweep to send. Deliberately no
+   * inline send: the caller is a stock movement (a checkout among them) and must not wait on
+   * admin-service's 5 s timeout. Never rejects: what raised it is already saved, and a row that
+   * could not be written is simply not owed (the next crossing writes it).
+   */
+  async emit(event: NewOutboxEvent): Promise<void> {
+    try {
+      await this.outbox.record(event);
+    } catch (error) {
+      this.logger.warn(`${event.eventId} not recorded: ${reasonOf(error)}`);
+    }
+  }
 
   /**
    * Sends one recorded event now, if it is still owed. Never rejects: what it reports is already

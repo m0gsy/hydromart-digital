@@ -13,6 +13,7 @@ import { EventPublisherPort } from '../../src/application/ports/event-publisher.
 import {
   EventOutboxRecord,
   EventOutboxRepository,
+  NewOutboxEvent,
 } from '../../src/application/ports/event-outbox.repository';
 import { EventRelayService } from '../../src/application/services/event-relay.service';
 
@@ -24,7 +25,7 @@ class FakeOutbox implements EventOutboxRepository {
   rows: EventOutboxRecord[] = [];
   pruned: { before: Date; limit: number }[] = [];
   /** What the application transaction does: one row per key. */
-  record(eventId: string, over: Partial<EventOutboxRecord> = {}): EventOutboxRecord {
+  seed(eventId: string, over: Partial<EventOutboxRecord> = {}): EventOutboxRecord {
     const rec: EventOutboxRecord = {
       id: `o-${this.rows.length + 1}`,
       event: 'franchise.application_submitted',
@@ -39,6 +40,11 @@ class FakeOutbox implements EventOutboxRepository {
     };
     this.rows.push(rec);
     return rec;
+  }
+  async record(e: NewOutboxEvent): Promise<boolean> {
+    if (this.rows.some((r) => r.eventId === e.eventId)) return false;
+    this.seed(e.eventId, { event: e.event, payload: e.payload, occurredAt: e.occurredAt });
+    return true;
   }
   async findByEventId(eventId: string): Promise<EventOutboxRecord | null> {
     return this.rows.find((r) => r.eventId === eventId) ?? null;
@@ -82,7 +88,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
 
   it('flush sends a recorded event and closes it', async () => {
     const { outbox, transport, svc } = make();
-    outbox.record('franchise.application_submitted:a1');
+    outbox.seed('franchise.application_submitted:a1');
     await svc.flush('franchise.application_submitted:a1');
     expect(transport.publish).toHaveBeenCalledWith(
       'franchise.application_submitted',
@@ -97,7 +103,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
     const { outbox, svc } = make(async () => {
       throw new Error('ECONNREFUSED');
     });
-    outbox.record('k1');
+    outbox.seed('k1');
     await expect(svc.flush('k1')).resolves.toBeUndefined();
     expect(outbox.rows[0]).toMatchObject({ status: 'PENDING', attempts: 1, lastError: 'ECONNREFUSED' });
     expect(outbox.rows[0].nextAttemptAt.getTime()).toBeGreaterThan(Date.now());
@@ -106,7 +112,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
   it('flush sends nothing for a key it does not hold, or one already closed', async () => {
     const { outbox, transport, svc } = make();
     await svc.flush('never-recorded');
-    outbox.record('done', { status: 'DONE' });
+    outbox.seed('done', { status: 'DONE' });
     await svc.flush('done');
     expect(transport.publish).not.toHaveBeenCalled();
   });
@@ -126,7 +132,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
     const { outbox, svc } = make(async () => {
       if (down) throw new Error('admin-service responded 503');
     });
-    outbox.record('k1');
+    outbox.seed('k1');
     await svc.flush('k1');
     // Not due yet: the backoff has not elapsed.
     await expect(svc.processDue(NOW)).resolves.toMatchObject({ claimed: 0, ok: true });
@@ -148,7 +154,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
     const { outbox, svc } = make(async () => {
       throw new Error('down');
     });
-    outbox.record('k1');
+    outbox.seed('k1');
     const waits: number[] = [];
     let at = NOW;
     for (let i = 0; i < 8; i += 1) {
@@ -163,7 +169,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
     const { outbox, svc } = make(async () => {
       throw new Error('down');
     });
-    outbox.record('k1');
+    outbox.seed('k1');
     await svc.processDue(NOW);
     expect(outbox.rows[0].nextAttemptAt.getTime()).toBe(NOW.getTime() + 60_000);
     const second = new Date(NOW.getTime() + 60_000);
@@ -180,7 +186,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
     const { outbox, svc } = make(async () => {
       throw new Error('admin-service responded 401');
     });
-    outbox.record('k1', { attempts: 9, occurredAt: new Date(NOW.getTime() - 30 * 86_400_000) });
+    outbox.seed('k1', { attempts: 9, occurredAt: new Date(NOW.getTime() - 30 * 86_400_000) });
     const res = await svc.processDue(NOW);
     expect(res).toMatchObject({ claimed: 1, delivered: 0, failed: 1, ok: false });
     expect(outbox.rows[0]).toMatchObject({ status: 'PENDING', attempts: 10 });
@@ -198,7 +204,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
     const { outbox, svc } = make(async () => {
       if (down) throw new Error('admin-service responded 503');
     });
-    outbox.record('k1', {
+    outbox.seed('k1', {
       occurredAt: new Date(NOW.getTime() - 3_600_000),
       nextAttemptAt: new Date(NOW.getTime() + 30 * 60_000),
     });
@@ -220,7 +226,7 @@ describe('EventRelayService (HD-7 outbox)', () => {
     const { outbox, svc } = make(async () => {
       throw new Error('admin-service responded 400');
     });
-    outbox.record('k1', { attempts: 4 });
+    outbox.seed('k1', { attempts: 4 });
     await svc.processDue(NOW); // fifth try
     expect(alert).not.toHaveBeenCalled();
     outbox.rows[0].nextAttemptAt = NOW;
@@ -249,21 +255,21 @@ describe('EventRelayService (HD-7 outbox)', () => {
       n += 1;
       if (n === 2) throw new Error('blip');
     });
-    outbox.record('k1');
-    outbox.record('k2');
+    outbox.seed('k1');
+    outbox.seed('k2');
     await expect(svc.processDue(NOW)).resolves.toMatchObject({ delivered: 1, failed: 1, ok: true });
   });
 
   it('records a thrown non-Error as its string form', async () => {
     const { outbox, svc } = make(() => Promise.reject('socket hang up'));
-    outbox.record('k1');
+    outbox.seed('k1');
     await svc.processDue(NOW);
     expect(outbox.rows[0].lastError).toBe('socket hang up');
   });
 
   it('prunes DONE rows older than a week, and a failing prune never fails the sweep', async () => {
     const { outbox, svc } = make();
-    outbox.record('k1', { status: 'DONE', nextAttemptAt: new Date(Date.now() - 8 * 86_400_000) });
+    outbox.seed('k1', { status: 'DONE', nextAttemptAt: new Date(Date.now() - 8 * 86_400_000) });
     const res = await svc.processDue(new Date());
     expect(res.pruned).toBe(1);
     const cutoff = outbox.pruned[0].before.getTime();
@@ -278,9 +284,27 @@ describe('EventRelayService (HD-7 outbox)', () => {
     await expect(svc.processDue(new Date())).resolves.toMatchObject({ pruned: 0, ok: true });
   });
 
+  it('emit only records (the sweep sends); a repeated key is not recorded again', async () => {
+    const { outbox, transport, svc } = make();
+    const ev = { event: 'stock.low', eventId: 'stock.low:d:i:2026-11-25', payload: { onHand: 1 }, occurredAt: OCC };
+    await svc.emit(ev);
+    await svc.emit(ev);
+    expect(outbox.rows).toHaveLength(1);
+    expect(outbox.rows[0].status).toBe('PENDING');
+    expect(transport.publish).not.toHaveBeenCalled();
+  });
+
+  it('emit never rejects when the outbox cannot be written', async () => {
+    const { outbox, svc } = make();
+    outbox.record = () => Promise.reject(new Error('db down'));
+    await expect(
+      svc.emit({ event: 'stock.low', eventId: 'k', payload: {}, occurredAt: OCC }),
+    ).resolves.toBeUndefined();
+  });
+
   it('uses the wall clock when the sweep is given no time', async () => {
     const { outbox, svc } = make();
-    outbox.record('k1', { nextAttemptAt: new Date(Date.now() - 1000) });
+    outbox.seed('k1', { nextAttemptAt: new Date(Date.now() - 1000) });
     await expect(svc.processDue()).resolves.toMatchObject({ claimed: 1, delivered: 1 });
   });
 });

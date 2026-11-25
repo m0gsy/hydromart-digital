@@ -3,6 +3,8 @@ export const ORDER_TOKENS = {
   AccountNames: Symbol('AccountNames'),
   CartRepository: Symbol('CartRepository'),
   OutboxRepository: Symbol('OutboxRepository'),
+  EventOutbox: Symbol('EventOutbox'),
+  EventTransport: Symbol('EventTransport'),
   OrderRepository: Symbol('OrderRepository'),
   SubscriptionRepository: Symbol('SubscriptionRepository'),
   ProductCatalog: Symbol('ProductCatalog'),

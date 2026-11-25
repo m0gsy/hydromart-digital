@@ -170,6 +170,13 @@
 # the event key, so an overlap costs one wasted call, never a duplicate.
 */10 * * * * sh /scripts/sweep.sh event-outbox/internal/process depot:3007
 
+# HD-17B: order-service's webhook events (order.created, order.status_changed) for the AI web. Rows
+# are written in the order's own transaction; this sends them (every minute: a status change is an
+# event, and n8n reacts to it). Under its own path, so its lock and /hq/health row are its own. A
+# round stops after 3 failures in a row (admin-service down); retries back off 1m ... 1h and never
+# give up, admin dedupes on the event key.
+* * * * * sh /scripts/sweep.sh orders/event-outbox/internal/process
+
 # Face upkeep (owner decision 2026-11-21): HR's enrolments checked against NEO's gallery — a face
 # NEO lost is retired so the app asks for a new one before the morning check-ins (32 refused punches
 # on 2026-11-21), a face NEO keeps for a leaver is deleted there — and shadow samples past 30 days

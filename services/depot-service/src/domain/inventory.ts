@@ -1,6 +1,8 @@
 // Depot-service domain vocabulary (PRD Module 9 Inventory + Module 10 Depot Management).
 // Mirrors the Prisma enums; the domain never imports the generated client.
 
+import { localDayKey } from '@hydromart/platform';
+
 export enum OwnershipType {
   WARALABA = 'WARALABA',
   HKP = 'HKP',
@@ -48,4 +50,45 @@ export function isProductLine(type: InventoryItemType): boolean {
 /** A line is low when at or below its minimum (FR-074). Minimum 0 disables the alert. */
 export function isLowStock(quantity: number, minimumStock: number): boolean {
   return minimumStock > 0 && quantity <= minimumStock;
+}
+
+/** HD-17B: the event a stock line crossing below its reorder point (minimumStock) raises. */
+export const STOCK_LOW = 'stock.low';
+
+/** The business-zone (WIB) calendar day (YYYY-MM-DD) of an instant. */
+export function wibDay(at: Date): string {
+  return localDayKey(at);
+}
+
+/**
+ * The outbox row for a low line. eventId carries the WIB day, so the outbox's unique key lets a
+ * line raise at most one per day however often it crosses. No personal data: ids and counts.
+ */
+export function stockLowEvent(
+  line: {
+    id: string;
+    depotId: string;
+    productId: string | null;
+    itemType: string;
+    unit: string;
+    minimumStock: number;
+  },
+  onHand: number,
+  at: Date,
+): { event: string; eventId: string; payload: Record<string, unknown>; occurredAt: Date } {
+  return {
+    event: STOCK_LOW,
+    eventId: `${STOCK_LOW}:${line.depotId}:${line.id}:${wibDay(at)}`,
+    payload: {
+      depotId: line.depotId,
+      itemId: line.id,
+      itemType: line.itemType,
+      productId: line.productId,
+      onHand,
+      reorderPoint: line.minimumStock,
+      unit: line.unit,
+      occurredAt: at.toISOString(),
+    },
+    occurredAt: at,
+  };
 }

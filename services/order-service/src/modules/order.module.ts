@@ -16,6 +16,7 @@ import { SETTINGS_REPOSITORY, SettingsRepository } from '../application/ports/se
 import { CartService } from '../application/services/cart.service';
 import { OrderService } from '../application/services/order.service';
 import { OutboxService } from '../application/services/outbox.service';
+import { EventRelayService } from '../application/services/event-relay.service';
 import { MeterService } from '../application/services/meter.service';
 import { ReportService } from '../application/services/report.service';
 import { SubscriptionService } from '../application/services/subscription.service';
@@ -26,6 +27,8 @@ import { CartPrismaRepository } from '../infrastructure/prisma/cart.prisma.repos
 import { MeterReadingPrismaRepository } from '../infrastructure/prisma/meter-reading.prisma.repository';
 import { OrderPrismaRepository } from '../infrastructure/prisma/order.prisma.repository';
 import { OutboxPrismaRepository } from '../infrastructure/prisma/outbox.prisma.repository';
+import { EventOutboxPrismaRepository } from '../infrastructure/prisma/event-outbox.prisma.repository';
+import { EventPublisherHttpAdapter } from '../infrastructure/http/event-publisher.http.adapter';
 import { SubscriptionPrismaRepository } from '../infrastructure/prisma/subscription.prisma.repository';
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
 import { SalesImportPrismaRepository } from '../infrastructure/prisma/sales-import.prisma.repository';
@@ -79,6 +82,7 @@ const providers: Provider[] = [
   CartService,
   OrderService,
   OutboxService,
+  EventRelayService,
   MeterService,
   ReportService,
   AiEngagementService,
@@ -92,6 +96,8 @@ const providers: Provider[] = [
   { provide: ORDER_TOKENS.CartRepository, useClass: CartPrismaRepository },
   { provide: ORDER_TOKENS.OrderRepository, useClass: OrderPrismaRepository },
   { provide: ORDER_TOKENS.OutboxRepository, useClass: OutboxPrismaRepository },
+  { provide: ORDER_TOKENS.EventOutbox, useClass: EventOutboxPrismaRepository },
+  { provide: ORDER_TOKENS.EventTransport, useClass: EventPublisherHttpAdapter },
   { provide: ORDER_TOKENS.MeterReadingRepository, useClass: MeterReadingPrismaRepository },
   { provide: ORDER_TOKENS.SubscriptionRepository, useClass: SubscriptionPrismaRepository },
   { provide: ORDER_TOKENS.ProductCatalog, useClass: ProductCatalogHttpAdapter },

@@ -158,15 +158,22 @@ describe('OrderPrismaRepository empty-aggregate and unbounded-window branches', 
     aggregate: jest.fn(),
     findMany: jest.fn().mockResolvedValue([]),
     update: jest.fn(),
+    findUnique: jest.fn(),
   };
   const orderReview = { findUnique: jest.fn() };
   // The status write and its outbox rows go in one transaction (H-10); resolve the ops
   // array as-is so the repo's positional destructuring sees the row it seeded.
-  const repo = new OrderPrismaRepository({
+  const models = {
     order,
     orderReview,
     outboxMessage: { create: jest.fn() },
-    $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
+    webhookEventOutbox: { create: jest.fn() },
+  };
+  const repo = new OrderPrismaRepository({
+    ...models,
+    $transaction: jest.fn((ops: unknown) =>
+      typeof ops === 'function' ? (ops as (tx: unknown) => unknown)(models) : Promise.all(ops as unknown[]),
+    ),
   } as unknown as PrismaService);
 
   beforeEach(() => jest.clearAllMocks());

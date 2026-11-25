@@ -131,8 +131,11 @@ describe('webhook request DTOs (HD-7)', () => {
   it('takes only events some service publishes', () => {
     expect(errors(CreateWebhookDto, { url, events: ['franchise.application_submitted'] })).toEqual([]);
     expect(errors(CreateWebhookDto, { url, events: ['delivery.delivered'] })).toEqual([]);
-    // order.created was the form's own example and nothing ever published it.
-    for (const events of [['order.created'], ['franchise.application_submited'], ['delivery.delivered', 'x.y']]) {
+    // Every event a service now publishes is accepted (HD-17B added order.created, order.status_changed, stock.low).
+    for (const event of ['order.created', 'order.status_changed', 'stock.low']) {
+      expect(errors(CreateWebhookDto, { url, events: [event] })).toEqual([]);
+    }
+    for (const events of [['order.shipped'], ['franchise.application_submited'], ['delivery.delivered', 'x.y']]) {
       expect(errors(CreateWebhookDto, { url, events })).toContain('events');
       expect(errors(UpdateWebhookDto, { events })).toContain('events');
     }

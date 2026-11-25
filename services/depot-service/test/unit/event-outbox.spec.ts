@@ -13,6 +13,7 @@ import {
 } from '../../src/domain/franchise-application';
 import { EventPublisherHttpAdapter } from '../../src/infrastructure/http/event-publisher.http.adapter';
 import { EventOutboxPrismaRepository } from '../../src/infrastructure/prisma/event-outbox.prisma.repository';
+import { STOCK_LOW, stockLowEvent, wibDay } from '../../src/domain/inventory';
 import { EventOutboxController } from '../../src/modules/event-outbox.controller';
 
 const NOW = new Date('2026-11-22T10:00:00.000Z');
@@ -62,6 +63,21 @@ describe('EventOutboxPrismaRepository (HD-7)', () => {
     await expect(repo.countStuck(NOW)).resolves.toBe(2);
     expect((webhookEventOutbox as unknown as { count: jest.Mock }).count).toHaveBeenCalledWith({
       where: { status: 'PENDING', createdAt: { lte: NOW } },
+    });
+  });
+
+  it('HD-17B: record writes one row and answers false when the key is already there', async () => {
+    const { repo, webhookEventOutbox } = makeRepo();
+    (webhookEventOutbox as unknown as { createMany: jest.Mock }).createMany = jest
+      .fn()
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 });
+    const e = { event: 'stock.low', eventId: 'k9', payload: { onHand: 1 }, occurredAt: NOW };
+    await expect(repo.record(e)).resolves.toBe(true);
+    await expect(repo.record(e)).resolves.toBe(false);
+    expect((webhookEventOutbox as unknown as { createMany: jest.Mock }).createMany).toHaveBeenCalledWith({
+      data: [e],
+      skipDuplicates: true,
     });
   });
 
@@ -173,6 +189,49 @@ describe('EventPublisherHttpAdapter (HD-7)', () => {
       ).rejects.toThrow(/not configured/);
     }
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('stock.low (HD-17B)', () => {
+  const line = {
+    id: '00000000-0000-4000-8000-000000000005',
+    depotId: '00000000-0000-4000-8000-000000000003',
+    productId: null,
+    itemType: 'GALON',
+    unit: 'unit',
+    minimumStock: 20,
+  };
+
+  it('is keyed by depot, line and WIB day, so a line raises at most one per day', () => {
+    // 23:30 UTC on the 24th is 06:30 WIB on the 25th.
+    const e = stockLowEvent(line, 15, new Date('2026-11-24T23:30:00.000Z'));
+    expect(e.eventId).toBe(`stock.low:${line.depotId}:${line.id}:2026-11-25`);
+    expect(wibDay(new Date('2026-11-25T16:59:59.000Z'))).toBe('2026-11-25');
+    expect(wibDay(new Date('2026-11-25T17:00:00.000Z'))).toBe('2026-11-26');
+    expect(e.payload).toEqual({
+      depotId: line.depotId,
+      itemId: line.id,
+      itemType: 'GALON',
+      productId: null,
+      onHand: 15,
+      reorderPoint: 20,
+      unit: 'unit',
+      occurredAt: '2026-11-24T23:30:00.000Z',
+    });
+  });
+
+  it('matches the contract the AI web codes against', () => {
+    const contract = JSON.parse(
+      readFileSync(join(__dirname, '../../../../contracts/ai-v1/events.openapi.json'), 'utf8'),
+    );
+    const e = stockLowEvent(line, 15, NOW);
+    const envelope = contract.components.schemas.StockLow;
+    const data = contract.components.schemas.StockLowData;
+    expect(e.event).toBe(STOCK_LOW);
+    expect(envelope.properties.event.const).toBe(STOCK_LOW);
+    expect(e.eventId).toMatch(new RegExp(envelope.properties.eventId.pattern));
+    expect(Object.keys(e.payload).sort()).toEqual([...data.required].sort());
+    expect(Object.keys(contract.webhooks)).toContain(STOCK_LOW);
   });
 });
 

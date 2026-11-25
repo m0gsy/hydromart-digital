@@ -305,10 +305,11 @@ describe('OrderPrismaRepository', () => {
   // H-10: the order write and its outbox rows go in one transaction. Promise.all so a
   // rejected op (the P2002 / P2025 cases below) still reaches the repository's catch.
   const outboxMessage = { create: jest.fn() };
+  const webhookEventOutbox = { create: jest.fn() };
   // An interactive transaction (voidWalkIn) gets the same models back as its client.
   const $transaction = jest.fn((ops: unknown) =>
     typeof ops === 'function'
-      ? (ops as (tx: unknown) => unknown)({ order, orderStatusHistory, outboxMessage })
+      ? (ops as (tx: unknown) => unknown)({ order, orderStatusHistory, outboxMessage, webhookEventOutbox })
       : Promise.all(ops as unknown[]),
   );
   const prisma = {
@@ -317,6 +318,7 @@ describe('OrderPrismaRepository', () => {
     orderItem,
     orderStatusHistory,
     outboxMessage,
+    webhookEventOutbox,
     $transaction,
     $queryRaw,
   } as unknown as PrismaService;
@@ -579,6 +581,88 @@ describe('OrderPrismaRepository', () => {
     });
     expect(outboxMessage.create).toHaveBeenCalledWith({
       data: { topic: 'INVENTORY_CONSUME', orderId: 'ord-1' },
+    });
+  });
+
+  // HD-17B: every transition raises an event, written in the same transaction as the change.
+  it('writes order.created with the order, and order.status_changed with its history row', async () => {
+    order.create.mockResolvedValue(orderRow());
+    await repo.create({ ...createData, id: 'ord-9' });
+    expect(webhookEventOutbox.create.mock.calls.at(-1)![0].data).toMatchObject({
+      event: 'order.created',
+      eventId: 'order.created:ord-9',
+      payload: { orderId: 'ord-9', depotId: 'depot-1', channel: 'ONLINE', status: 'CREATED' },
+    });
+    expect(order.create.mock.calls.at(-1)![0].data.id).toBe('ord-9');
+    await repo.create(createData);
+    expect(order.create.mock.calls.at(-1)![0].data.id).toEqual(expect.any(String));
+
+    order.update.mockResolvedValue({ ...orderRow(), status: 'CONFIRMED', isWalkIn: true });
+    await repo.applyStatus('ord-1', OrderStatus.CREATED, OrderStatus.CONFIRMED, 'staff', null);
+    const historyId = order.update.mock.calls.at(-1)![0].data.history.create.id;
+    const sent = webhookEventOutbox.create.mock.calls.at(-1)![0].data;
+    expect(sent.eventId).toBe('order.status_changed:ord-1:' + historyId);
+    expect(sent.payload).toMatchObject({
+      channel: 'WALK_IN',
+      from: 'CREATED',
+      to: 'CONFIRMED',
+      status: 'CONFIRMED',
+    });
+  });
+
+  // Removing the outbox insert from the transaction must fail a test: the insert goes through the
+  // transaction's own client (interactive) or is one of the array operations handed to it.
+  it('writes every event through the transaction, never beside it', async () => {
+    const sentinel = { sentinel: true };
+    webhookEventOutbox.create.mockReturnValue(sentinel);
+    order.create.mockResolvedValue(orderRow());
+    await repo.create(createData);
+    const ops = $transaction.mock.calls.at(-1)![0] as unknown[];
+    expect(ops).toContain(sentinel);
+
+    const txClient = {
+      order: { update: jest.fn().mockResolvedValue({ ...orderRow(), depotId: 'depot-NEW', isWalkIn: false }) },
+      outboxMessage: { create: jest.fn() },
+      webhookEventOutbox: { create: jest.fn() },
+    };
+    const outer = webhookEventOutbox.create.mock.calls.length;
+    $transaction.mockImplementationOnce((fn: unknown) => (fn as (tx: unknown) => unknown)(txClient));
+    await repo.applyStatus('ord-1', OrderStatus.CREATED, OrderStatus.CONFIRMED, 'staff', null);
+    expect(webhookEventOutbox.create.mock.calls.length).toBe(outer);
+    // Built from the row the update returned, not from an earlier read.
+    expect(txClient.webhookEventOutbox.create.mock.calls[0][0].data.payload.depotId).toBe('depot-NEW');
+
+    const voidTx = {
+      order: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn().mockResolvedValue({ depotId: 'd', isWalkIn: true }) },
+      orderStatusHistory: { create: jest.fn() },
+      outboxMessage: { create: jest.fn() },
+      webhookEventOutbox: { create: jest.fn() },
+    };
+    $transaction.mockImplementationOnce((fn: unknown) => (fn as (tx: unknown) => unknown)(voidTx));
+    order.findUnique.mockResolvedValue(orderRow());
+    await repo.voidWalkIn('ord-1', 'x', 'c', new Date());
+    expect(voidTx.webhookEventOutbox.create).toHaveBeenCalledTimes(1);
+    webhookEventOutbox.create.mockReset();
+  });
+
+  it('a void raises order.status_changed COMPLETED to VOIDED in its own transaction', async () => {
+    order.updateMany.mockResolvedValue({ count: 1 });
+    order.findUnique
+      .mockResolvedValueOnce({ depotId: 'depot-1', isWalkIn: true })
+      .mockResolvedValue(orderRow());
+    const at = new Date('2026-08-22T04:00:00.000Z');
+    await repo.voidWalkIn('ord-1', 'salah input', 'cashier-1', at);
+    expect(webhookEventOutbox.create.mock.calls.at(-1)![0].data).toMatchObject({
+      event: 'order.status_changed',
+      occurredAt: at,
+      payload: { from: 'COMPLETED', to: 'VOIDED', channel: 'WALK_IN', depotId: 'depot-1' },
+    });
+    // A row that vanished between the two statements still voids, as the counter sale it was.
+    order.findUnique.mockResolvedValueOnce(null).mockResolvedValue(orderRow());
+    await repo.voidWalkIn('ord-1', 'salah input', 'cashier-1', at);
+    expect(webhookEventOutbox.create.mock.calls.at(-1)![0].data.payload).toMatchObject({
+      depotId: null,
+      channel: 'WALK_IN',
     });
   });
 
@@ -1089,7 +1173,7 @@ describe('OrderPrismaRepository', () => {
         status: OrderStatus.CONFIRMED,
         // B3: every transition now stamps when the order entered the status it is in.
         statusChangedAt: expect.any(Date),
-        history: { create: { status: OrderStatus.CONFIRMED, changedBy: 'admin-1', note: 'ok' } },
+        history: { create: { id: expect.any(String), status: OrderStatus.CONFIRMED, changedBy: 'admin-1', note: 'ok' } },
       },
       include: expect.any(Object),
     });
@@ -2008,7 +2092,7 @@ describe('OrderPrismaRepository', () => {
         data: { status: 'VOIDED', statusChangedAt: at, voidedAt: at, voidReason: 'Salah ukuran' },
       });
       expect(orderStatusHistory.create).toHaveBeenCalledWith({
-        data: { orderId: 'ord-1', status: 'VOIDED', changedBy: 'cashier-1', note: 'Salah ukuran' },
+        data: { id: expect.any(String), orderId: 'ord-1', status: 'VOIDED', changedBy: 'cashier-1', note: 'Salah ukuran' },
       });
     });
 

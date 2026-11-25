@@ -86,6 +86,260 @@
           }
         }
       }
+    },
+    "order.created": {
+      "post": {
+        "summary": "An order was placed (online checkout or counter sale)",
+        "description": "Raised once per order, in the same database transaction that writes the order (HD-17 part B), and delivered like every event (see info.description). A counter sale is born COMPLETED, so its status here is COMPLETED and no order.status_changed follows for the creation itself. It carries no personal data: ids, the depot, the channel and statuses only (no customer id, name, phone or address). Events of one order can arrive out of order after retries: receivers order them by occurredAt, never by arrival.",
+        "parameters": [
+          {
+            "name": "X-Hydromart-Event",
+            "in": "header",
+            "required": true,
+            "description": "The event name. NOT signed: a copy of the body field event, for logs only. Route on the verified body.",
+            "schema": {
+              "type": "string",
+              "const": "order.created"
+            },
+            "example": "order.created"
+          },
+          {
+            "name": "X-Hydromart-Delivery",
+            "in": "header",
+            "required": true,
+            "description": "The delivery id. NOT signed: a copy of the body field id, for logs only. Read the verified body.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7d0c8a52-5f5e-4c51-9a4e-2b9e0f6f3a11"
+          },
+          {
+            "name": "X-Hydromart-Timestamp",
+            "in": "header",
+            "required": true,
+            "description": "Unix time in seconds at which THIS attempt was sent. Part of the signed string.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{10}$"
+            },
+            "example": "1795400100"
+          },
+          {
+            "name": "X-Hydromart-Signature",
+            "in": "header",
+            "required": true,
+            "description": "sha256= followed by the lowercase hex HMAC-SHA256 of \"<X-Hydromart-Timestamp>.<raw body>\", keyed with the endpoint secret.",
+            "schema": {
+              "type": "string",
+              "pattern": "^sha256=[0-9a-f]{64}$"
+            },
+            "example": "sha256=1a7c1beb56aec596c1c7a070be9d842f372fb7343f5b71c3cfaedf8f6c084380"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderCreated"
+              },
+              "example": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "event": "order.created",
+                "occurredAt": "2026-11-25T03:00:00.000Z",
+                "eventId": "order.created:00000000-0000-4000-8000-000000000002",
+                "data": {
+                  "orderId": "00000000-0000-4000-8000-000000000002",
+                  "depotId": "00000000-0000-4000-8000-000000000003",
+                  "channel": "ONLINE",
+                  "status": "CREATED",
+                  "occurredAt": "2026-11-25T03:00:00.000Z"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Taken (or already taken: a repeated eventId). The delivery is marked DELIVERED."
+          },
+          "default": {
+            "description": "Anything else is retried (see info.description), and DEAD after the 6th failed attempt."
+          }
+        }
+      }
+    },
+    "order.status_changed": {
+      "post": {
+        "summary": "An order moved from one status to another",
+        "description": "Raised for EVERY status change of an order (about five per order), in the same database transaction as the change, including a counter void (COMPLETED to VOIDED). Events of one order can arrive out of order after retries: order them by occurredAt, never by arrival. It carries no personal data: ids, the depot, the channel and statuses only (no customer id, name, phone or address).",
+        "parameters": [
+          {
+            "name": "X-Hydromart-Event",
+            "in": "header",
+            "required": true,
+            "description": "The event name. NOT signed: a copy of the body field event, for logs only. Route on the verified body.",
+            "schema": {
+              "type": "string",
+              "const": "order.status_changed"
+            },
+            "example": "order.status_changed"
+          },
+          {
+            "name": "X-Hydromart-Delivery",
+            "in": "header",
+            "required": true,
+            "description": "The delivery id. NOT signed: a copy of the body field id, for logs only. Read the verified body.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7d0c8a52-5f5e-4c51-9a4e-2b9e0f6f3a11"
+          },
+          {
+            "name": "X-Hydromart-Timestamp",
+            "in": "header",
+            "required": true,
+            "description": "Unix time in seconds at which THIS attempt was sent. Part of the signed string.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{10}$"
+            },
+            "example": "1795400100"
+          },
+          {
+            "name": "X-Hydromart-Signature",
+            "in": "header",
+            "required": true,
+            "description": "sha256= followed by the lowercase hex HMAC-SHA256 of \"<X-Hydromart-Timestamp>.<raw body>\", keyed with the endpoint secret.",
+            "schema": {
+              "type": "string",
+              "pattern": "^sha256=[0-9a-f]{64}$"
+            },
+            "example": "sha256=1a7c1beb56aec596c1c7a070be9d842f372fb7343f5b71c3cfaedf8f6c084380"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrderStatusChanged"
+              },
+              "example": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "event": "order.status_changed",
+                "occurredAt": "2026-11-25T03:05:00.000Z",
+                "eventId": "order.status_changed:00000000-0000-4000-8000-000000000002:00000000-0000-4000-8000-000000000004",
+                "data": {
+                  "orderId": "00000000-0000-4000-8000-000000000002",
+                  "depotId": "00000000-0000-4000-8000-000000000003",
+                  "channel": "ONLINE",
+                  "status": "CONFIRMED",
+                  "from": "CREATED",
+                  "to": "CONFIRMED",
+                  "occurredAt": "2026-11-25T03:05:00.000Z"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Taken (or already taken: a repeated eventId). The delivery is marked DELIVERED."
+          },
+          "default": {
+            "description": "Anything else is retried (see info.description), and DEAD after the 6th failed attempt."
+          }
+        }
+      }
+    },
+    "stock.low": {
+      "post": {
+        "summary": "A depot stock line fell below its reorder point",
+        "description": "Raised when the sellable stock (on hand minus units held by open orders) of a depot line crosses to AT OR BELOW its reorder point (the depot's minimum stock; 0 disables it): onHand <= reorderPoint. Edge-triggered: it fires on the crossing, not on every later drop. At most one event per depot line per WIB calendar day (the date is the last part of eventId): a second crossing the same day is deduped silently, by design, so the AI web hears of a line once a day however often it crosses. It carries no personal data.",
+        "parameters": [
+          {
+            "name": "X-Hydromart-Event",
+            "in": "header",
+            "required": true,
+            "description": "The event name. NOT signed: a copy of the body field event, for logs only. Route on the verified body.",
+            "schema": {
+              "type": "string",
+              "const": "stock.low"
+            },
+            "example": "stock.low"
+          },
+          {
+            "name": "X-Hydromart-Delivery",
+            "in": "header",
+            "required": true,
+            "description": "The delivery id. NOT signed: a copy of the body field id, for logs only. Read the verified body.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7d0c8a52-5f5e-4c51-9a4e-2b9e0f6f3a11"
+          },
+          {
+            "name": "X-Hydromart-Timestamp",
+            "in": "header",
+            "required": true,
+            "description": "Unix time in seconds at which THIS attempt was sent. Part of the signed string.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{10}$"
+            },
+            "example": "1795400100"
+          },
+          {
+            "name": "X-Hydromart-Signature",
+            "in": "header",
+            "required": true,
+            "description": "sha256= followed by the lowercase hex HMAC-SHA256 of \"<X-Hydromart-Timestamp>.<raw body>\", keyed with the endpoint secret.",
+            "schema": {
+              "type": "string",
+              "pattern": "^sha256=[0-9a-f]{64}$"
+            },
+            "example": "sha256=1a7c1beb56aec596c1c7a070be9d842f372fb7343f5b71c3cfaedf8f6c084380"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockLow"
+              },
+              "example": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "event": "stock.low",
+                "occurredAt": "2026-11-25T03:10:00.000Z",
+                "eventId": "stock.low:00000000-0000-4000-8000-000000000003:00000000-0000-4000-8000-000000000005:2026-11-25",
+                "data": {
+                  "depotId": "00000000-0000-4000-8000-000000000003",
+                  "itemId": "00000000-0000-4000-8000-000000000005",
+                  "itemType": "GALON",
+                  "productId": null,
+                  "onHand": 15,
+                  "reorderPoint": 20,
+                  "unit": "unit",
+                  "occurredAt": "2026-11-25T03:10:00.000Z"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Taken (or already taken: a repeated eventId). The delivery is marked DELIVERED."
+          },
+          "default": {
+            "description": "Anything else is retried (see info.description), and DEAD after the 6th failed attempt."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -148,6 +402,293 @@
             "minLength": 1,
             "pattern": "^(?=.*\\p{L})(?!.*\\.[\\p{L}\\p{M}]{2})[\\p{L}\\p{M} .,'’()-]+$",
             "description": "Province of the proposed depot, as the applicant typed it (same rule as city)."
+          }
+        }
+      },
+      "OrderCreated": {
+        "type": "object",
+        "required": [
+          "id",
+          "event",
+          "occurredAt",
+          "eventId",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The delivery id: one per receiver endpoint, the same on its retries and replays. Not the dedupe key."
+          },
+          "event": {
+            "type": "string",
+            "const": "order.created"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it happened (UTC)."
+          },
+          "eventId": {
+            "type": "string",
+            "pattern": "^order.created:[0-9a-f-]{36}$",
+            "description": "order.created:<orderId>. The same on every retry, replay and producer re-send: the dedupe key."
+          },
+          "data": {
+            "$ref": "#/components/schemas/OrderCreatedData"
+          }
+        }
+      },
+      "OrderStatusChanged": {
+        "type": "object",
+        "required": [
+          "id",
+          "event",
+          "occurredAt",
+          "eventId",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The delivery id: one per receiver endpoint, the same on its retries and replays. Not the dedupe key."
+          },
+          "event": {
+            "type": "string",
+            "const": "order.status_changed"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it happened (UTC)."
+          },
+          "eventId": {
+            "type": "string",
+            "pattern": "^order.status_changed:[0-9a-f-]{36}:[0-9a-f-]{36}$",
+            "description": "order.status_changed:<orderId>:<transitionId>. The transition id is unique per status change, so a status an order revisits is a different event. The same on every retry, replay and producer re-send: the dedupe key."
+          },
+          "data": {
+            "$ref": "#/components/schemas/OrderStatusChangedData"
+          }
+        }
+      },
+      "StockLow": {
+        "type": "object",
+        "required": [
+          "id",
+          "event",
+          "occurredAt",
+          "eventId",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The delivery id: one per receiver endpoint, the same on its retries and replays. Not the dedupe key."
+          },
+          "event": {
+            "type": "string",
+            "const": "stock.low"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it happened (UTC)."
+          },
+          "eventId": {
+            "type": "string",
+            "pattern": "^stock.low:[0-9a-f-]{36}:[0-9a-f-]{36}:[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "description": "stock.low:<depotId>:<itemId>:<WIB date YYYY-MM-DD>. The same on every retry, replay and producer re-send: the dedupe key."
+          },
+          "data": {
+            "$ref": "#/components/schemas/StockLowData"
+          }
+        }
+      },
+      "OrderCreatedData": {
+        "type": "object",
+        "required": [
+          "orderId",
+          "depotId",
+          "channel",
+          "status",
+          "occurredAt"
+        ],
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The order (order-service)."
+          },
+          "depotId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The depot that fulfils it; null for an order not yet assigned to one."
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "ONLINE",
+              "WALK_IN"
+            ],
+            "description": "WALK_IN is a counter sale; ONLINE is every other order."
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "CONFIRMED",
+              "PREPARING",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "COMPLETED",
+              "CANCELLED",
+              "VOIDED"
+            ],
+            "description": "An order status. The list may grow within version 1: treat an unknown value as a plain string."
+          }
+        }
+      },
+      "OrderStatusChangedData": {
+        "type": "object",
+        "required": [
+          "orderId",
+          "depotId",
+          "channel",
+          "status",
+          "from",
+          "to",
+          "occurredAt"
+        ],
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The order (order-service)."
+          },
+          "depotId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The depot that fulfils it; null for an order not yet assigned to one."
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "ONLINE",
+              "WALK_IN"
+            ],
+            "description": "WALK_IN is a counter sale; ONLINE is every other order."
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "CONFIRMED",
+              "PREPARING",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "COMPLETED",
+              "CANCELLED",
+              "VOIDED"
+            ],
+            "description": "Same as to."
+          },
+          "from": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "CONFIRMED",
+              "PREPARING",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "COMPLETED",
+              "CANCELLED",
+              "VOIDED"
+            ],
+            "description": "An order status. The list may grow within version 1: treat an unknown value as a plain string."
+          },
+          "to": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "CONFIRMED",
+              "PREPARING",
+              "OUT_FOR_DELIVERY",
+              "DELIVERED",
+              "COMPLETED",
+              "CANCELLED",
+              "VOIDED"
+            ],
+            "description": "An order status. The list may grow within version 1: treat an unknown value as a plain string."
+          }
+        }
+      },
+      "StockLowData": {
+        "type": "object",
+        "required": [
+          "depotId",
+          "itemId",
+          "itemType",
+          "productId",
+          "onHand",
+          "reorderPoint",
+          "unit",
+          "occurredAt"
+        ],
+        "properties": {
+          "depotId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The depot."
+          },
+          "itemId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The depot stock line (depot-service)."
+          },
+          "itemType": {
+            "type": "string",
+            "description": "AIR, GALON, TUTUP, SEGEL or PRODUK."
+          },
+          "productId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The catalog product, for a PRODUK line; otherwise null."
+          },
+          "onHand": {
+            "type": "integer",
+            "description": "Sellable stock after the change (physical quantity minus units held by open orders)."
+          },
+          "reorderPoint": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The line's minimum stock; the event fires when onHand is at or below it."
+          },
+          "unit": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

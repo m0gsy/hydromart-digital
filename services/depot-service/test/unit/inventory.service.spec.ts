@@ -398,6 +398,33 @@ describe('InventoryService', () => {
     expect(after.quantity).toBe(90);
   });
 
+  it('HD-17B: raises stock.low once when a line crosses below its minimum, without the line having to be sold twice', async () => {
+    const emit = jest.fn(async () => undefined);
+    const withEvents = new InventoryService(
+      invRepo,
+      depotRepo,
+      alerts,
+      untracked,
+      catalog,
+      approvals,
+      buildTestConfig(),
+      { emit } as never,
+    );
+    const item = await withEvents.createLine(depotId, raw(), ACTOR);
+    await withEvents.adjust(item.id, -85, 'sales', ACTOR); // 100 -> 15
+    await withEvents.adjust(item.id, -1, 'sales', ACTOR); // already low: no new edge
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'stock.low',
+        payload: expect.objectContaining({ depotId, itemId: item.id, onHand: 15, reorderPoint: 20, unit: 'unit' }),
+      }),
+    );
+    const id = (emit.mock.calls[0] as unknown as [{ eventId: string }])[0].eventId;
+    expect(id.startsWith(`stock.low:${depotId}:${item.id}:`)).toBe(true);
+    expect(id.split(":").pop()).toMatch(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/);
+  });
+
   it('flags low stock and lists it', async () => {
     const item = await inventory.createLine(depotId, raw(), ACTOR);
     await inventory.adjust(item.id, -85, 'sales', ACTOR); // 100 -> 15, below minimum 20
