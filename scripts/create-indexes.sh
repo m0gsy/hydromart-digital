@@ -330,6 +330,10 @@ echo "All indexes present."
 # in depot-service's own database, on a table that migration creates, so it is empty and the build
 # is instant. admin-service's 20261122220000_webhook_secret_required builds no index.
 
+# depot_fixed_costs_depotId_month_category_key and depot_fixed_costs_month_idx (depot-service,
+# 2026-11-26, HD-16) are built by their own migration, not here: they index a table that migration
+# creates, so it is empty and the build is instant.
+
 # attendance_month_rollups_employeeId_month_depotId_key and attendance_month_rollups_depotId_month_idx
 # (hr-service, 2026-11-24, HD-6 A7) are built by their own migration, not here: they index a table
 # that migration creates, so it is empty and the build is instant.

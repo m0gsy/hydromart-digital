@@ -255,6 +255,7 @@ export const dashC = {
       orderManageRead: 'Baca pesanan (tanpa mengubah)',
       depotLifecycle: 'Buka & nonaktifkan depot',
       legalEntityAdmin: 'Kelola badan hukum depot & karyawan',
+      depotCostAdmin: 'Kelola biaya tetap depot per bulan',
       legalEntityAiAccess: 'Matriks akses web AI per badan hukum',
       driverRosterRead: 'Lihat nama kurir (keuangan)',
       staffDirectoryFinance: 'Lihat pemilik waralaba (keuangan)',

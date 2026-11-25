@@ -36,6 +36,8 @@ export const DEPOT_TOKENS = {
   PurchaseOrderRepository: Symbol('PurchaseOrderRepository'),
   RosterRepository: Symbol('RosterRepository'),
   DepotTargetRepository: Symbol('DepotTargetRepository'),
+  /** HD-16: fixed costs per depot, month and category. */
+  DepotFixedCostRepository: Symbol('DepotFixedCostRepository'),
   CashbookRepository: Symbol('CashbookRepository'),
   CashierShiftRepository: Symbol('CashierShiftRepository'),
   DepotCash: Symbol('DepotCash'),

@@ -52,6 +52,7 @@ export const hq = {
     earningRules: 'Aturan penghasilan kurir',
     cashbook: 'Buku kas',
     pnl: 'Laba rugi jaringan',
+    depotCosts: 'Biaya tetap depot',
     reportsExport: 'Ekspor laporan',
     inventory: 'Inventory jaringan',
     returns: 'Retur galon',
@@ -365,6 +366,7 @@ export const hq = {
       driverRosterRead: 'Lihat nama kurir (layar keuangan)',
       depotLifecycle: 'Buka & nonaktifkan depot',
       legalEntityAdmin: 'Kelola badan hukum depot & karyawan',
+      depotCostAdmin: 'Kelola biaya tetap depot per bulan',
       legalEntityAiAccess: 'Sunting matriks akses web AI per badan hukum',
       orderManageRead: 'Baca daftar & detail pesanan (tanpa mengubahnya)',
       depotDirectory: 'Lihat data lengkap depot',
@@ -1115,6 +1117,25 @@ export const hq = {
     orders: 'Pesanan',
     sla: 'SLA',
     empty: 'Belum ada data depot pada rentang ini.',
+  },
+  // HD-16 (D22): biaya tetap per depot, per bulan, per kategori; masuk lewat impor.
+  depotCosts: {
+    title: 'Biaya tetap depot',
+    subtitle: 'Per depot dan kategori, {month}',
+    monthLabel: 'Pilih bulan',
+    importButton: 'Impor biaya',
+    empty: 'Belum ada biaya tetap untuk bulan ini. Unggah lewat Impor biaya.',
+    colDepot: 'Depot',
+    colCategory: 'Kategori',
+    colAmount: 'Jumlah',
+    colNote: 'Catatan',
+    colDepotTotal: 'Total biaya tetap',
+    total: 'Total',
+    import: {
+      title: 'Impor Biaya Tetap Depot',
+      desc: 'Satu baris per depot, bulan, dan kategori (sewa, listrik, penyusutan, BPJS pemberi kerja, dan seterusnya). Jumlah dalam rupiah bulat; tulis 0 bila memang tidak ada biaya. Baris yang sama (depot, bulan, kategori) menimpa jumlah sebelumnya, jadi file koreksi aman diunggah ulang. Biaya kantor pusat tidak dibebankan ke depot.',
+      notAMonth: '"{value}" bukan bulan. Tulis YYYY-MM (2026-11), dan format kolom bulan sebagai Teks.',
+    },
   },
   // CA-2-59: laba-rugi jaringan, dari biaya yang sudah tercatat saja.
   pnl: {

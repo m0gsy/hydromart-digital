@@ -142,6 +142,13 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('legalEntityAdmin');
   });
 
+  // HD-16 (D22): the depot fixed-cost sheet is finance and head office only.
+  it('gives the depot fixed costs to finance and head office, not to depots', () => {
+    expect(CAPABILITIES.depotCostAdmin).toEqual(['FINANCE', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);
+    expect(can('depotCostAdmin', 'MANAGER')).toBe(false);
+    expect(can('depotCostAdmin', 'FRANCHISE_OWNER')).toBe(false);
+  });
+
   // HD-16: head office authors SOPs; HR may read the list and chase the unread.
   it('lets head office write SOPs and HR read them', () => {
     expect(CAPABILITIES.sopManage).toEqual(['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);

@@ -232,6 +232,13 @@ export const CAPABILITIES = {
    */
   legalEntityAdmin: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   /*
+   * depot-service (HD-16, owner decision D22) — the fixed costs of each depot per month and per
+   * category (rent, electricity, depreciation, employer BPJS, ...), entered by spreadsheet import
+   * and read on /hq/depot-costs. One capability for read and write: the figures include the
+   * employer's share of BPJS, so a depot manager or franchise owner does not see the sheet.
+   */
+  depotCostAdmin: ['FINANCE', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  /*
    * depot-service (HD-5) — the role x legal entity matrix: which roles may read which entity's
    * data in the AI web and the AI read API (HD-6). Owner decision 2026-11-22: it limits ONLY
    * those two; nothing in hydromart-digital reads it, so every permission and depot scope here

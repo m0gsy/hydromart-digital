@@ -40,6 +40,7 @@ import { SupplierService } from '../application/services/supplier.service';
 import { LegalEntityService } from '../application/services/legal-entity.service';
 import { PurchaseOrderService } from '../application/services/purchase-order.service';
 import { RosterService } from '../application/services/roster.service';
+import { DepotFixedCostService } from '../application/services/depot-fixed-cost.service';
 import { DepotTargetService } from '../application/services/depot-target.service';
 import { DepotCostsService } from '../application/services/depot-costs.service';
 import { DepotGovernanceService } from '../application/services/depot-governance.service';
@@ -91,6 +92,7 @@ import { SupplierPrismaRepository } from '../infrastructure/prisma/supplier.pris
 import { LegalEntityPrismaRepository } from '../infrastructure/prisma/legal-entity.prisma.repository';
 import { PurchaseOrderPrismaRepository } from '../infrastructure/prisma/purchase-order.prisma.repository';
 import { RosterPrismaRepository } from '../infrastructure/prisma/roster.prisma.repository';
+import { DepotFixedCostPrismaRepository } from '../infrastructure/prisma/depot-fixed-cost.prisma.repository';
 import { DepotTargetPrismaRepository } from '../infrastructure/prisma/depot-target.prisma.repository';
 import { CashbookPrismaRepository } from '../infrastructure/prisma/cashbook.prisma.repository';
 import { DisputePrismaRepository } from '../infrastructure/prisma/dispute.prisma.repository';
@@ -137,6 +139,7 @@ import { SupplierController } from './supplier.controller';
 import { LegalEntityController } from './legal-entity.controller';
 import { PurchaseOrderController } from './purchase-order.controller';
 import { RosterController } from './roster.controller';
+import { DepotFixedCostController } from './depot-fixed-cost.controller';
 import { DepotTargetController } from './depot-target.controller';
 import { DepotTargetInternalController } from './depot-target-internal.controller';
 import { CashbookController } from './cashbook.controller';
@@ -191,6 +194,7 @@ const providers: Provider[] = [
   PurchaseOrderService,
   RosterService,
   DepotTargetService,
+  DepotFixedCostService,
   CashbookService,
   DepotCostsService,
   DepotGovernanceService,
@@ -243,6 +247,7 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.PurchaseOrderRepository, useClass: PurchaseOrderPrismaRepository },
   { provide: DEPOT_TOKENS.RosterRepository, useClass: RosterPrismaRepository },
   { provide: DEPOT_TOKENS.DepotTargetRepository, useClass: DepotTargetPrismaRepository },
+  { provide: DEPOT_TOKENS.DepotFixedCostRepository, useClass: DepotFixedCostPrismaRepository },
   { provide: DEPOT_TOKENS.CashbookRepository, useClass: CashbookPrismaRepository },
   { provide: DEPOT_TOKENS.CashierShiftRepository, useClass: CashierShiftPrismaRepository },
   { provide: DAILY_CLOSE_REPOSITORY, useClass: DailyClosePrismaRepository },
@@ -313,6 +318,7 @@ const providers: Provider[] = [
     MaintenanceInternalController,
     RosterController,
     DepotTargetController,
+    DepotFixedCostController,
     DepotTargetInternalController,
     CashbookController,
     CashierShiftController,
