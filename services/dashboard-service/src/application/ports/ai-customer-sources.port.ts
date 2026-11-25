@@ -47,6 +47,10 @@ export interface RefillTotals {
   notAsked: number;
 }
 
+/** The courier's fixed failure reasons (delivery-service failure-reason.ts), in the order they are shown. */
+export const FAILURE_REASON_CODES = ['ADDRESS_NOT_FOUND', 'CUSTOMER_REFUSED', 'GOODS_DAMAGED', 'CANNOT_CONTACT', 'OTHER', 'NO_SHOW', 'DEPOT_CANCELLED'] as const;
+export type FailureReasonCode = (typeof FAILURE_REASON_CODES)[number];
+
 export interface DeliverySummary {
   delivered: number;
   onTime: number;
@@ -59,6 +63,8 @@ export interface DeliverySummary {
   failed: number;
   noShow: number;
   otherFailed: number;
+  /** Failed by fixed reason code; null when the source is older than the breakdown or sent a shape we do not know. */
+  byReason: Record<FailureReasonCode, number> | null;
   rescheduled: number;
 }
 
