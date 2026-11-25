@@ -55,6 +55,10 @@ import { InventoryHttpAdapter } from '../infrastructure/http/inventory.http.adap
 import { CartController } from './cart.controller';
 import { OrderController } from './order.controller';
 import { MeterController } from './meter.controller';
+import { AiEngagementService } from '../application/services/ai-engagement.service';
+import { AI_ENGAGEMENT_REPOSITORY } from '../application/ports/ai-engagement.repository';
+import { AiEngagementPrismaRepository } from '../infrastructure/prisma/ai-engagement.prisma.repository';
+import { AiEngagementController } from './ai-engagement.controller';
 import { ReportController } from './report.controller';
 import { SubscriptionController } from './subscription.controller';
 import { SettingsController } from './settings.controller';
@@ -77,6 +81,8 @@ const providers: Provider[] = [
   OutboxService,
   MeterService,
   ReportService,
+  AiEngagementService,
+  { provide: AI_ENGAGEMENT_REPOSITORY, useClass: AiEngagementPrismaRepository },
   SubscriptionService,
   SettingsService,
   SalesImportService,
@@ -132,6 +138,7 @@ const providers: Provider[] = [
     OrderController,
     MeterController,
     ReportController,
+    AiEngagementController,
     SubscriptionController,
     SettingsController,
     SalesImportController,
