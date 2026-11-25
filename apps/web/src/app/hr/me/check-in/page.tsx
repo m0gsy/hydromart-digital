@@ -5,6 +5,7 @@ import { useT } from '@/lib/locale-context';
 import { useDepot } from '@/lib/depot-context';
 
 import { FaceCapture } from '@/components/hr/face-capture';
+import { PreciseLocationNotice } from '@/components/hr/precise-location-notice';
 import { OfflineQueueBanner } from '@/components/offline-queue-banner';
 import { useToast } from '@/components/toast';
 import { Button, Card, SectionHeader } from '@/components/ui';
@@ -121,6 +122,9 @@ export default function MeCheckInPage() {
       )}
 
       <OfflineQueueBanner />
+
+      {/* With the HR fence off nothing else tells a phone on "Perkiraan" (2026-11-25). */}
+      <PreciseLocationNotice />
 
       {/*
         * CA-1-77 — which of these is selected was said in colour alone. A screen reader

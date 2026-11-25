@@ -2350,6 +2350,12 @@ export const hrFix = {
       'If camera access was denied, re-enable it in your browser settings, then press Try again.',
     cameraDenied: 'The camera is unavailable. Allow camera access, then reload.',
   },
+  preciseLocation: {
+    title: 'Phone location is still "Approximate".',
+    body:
+      'A location like this can be several kilometres off, so it cannot show you are at the depot, and a shift check-in will be refused. ' +
+      'Switch it to "Precise": phone Settings → Apps → Hydromart Ops → Permissions → Location → turn on "Use precise location".',
+  },
   nav: {
     hqConsole: 'HQ console',
     dashboard: 'Dashboard',

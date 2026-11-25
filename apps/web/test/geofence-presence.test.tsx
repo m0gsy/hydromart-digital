@@ -15,10 +15,11 @@ import type { Depot } from '@/lib/types';
  *    override a key and where the picked depot's own master location is.
  */
 
-const { get, runOrQueue, currentPosition, depotState } = vi.hoisted(() => ({
+const { get, runOrQueue, currentPosition, approximateOnly, depotState } = vi.hoisted(() => ({
   get: vi.fn(),
   runOrQueue: vi.fn<(job: Job) => Promise<{ outcome: 'queued' }>>(),
   currentPosition: vi.fn<() => Promise<{ coords: { latitude: number; longitude: number; accuracy: number } }>>(),
+  approximateOnly: vi.fn<() => Promise<boolean>>(() => Promise.resolve(false)),
   depotState: { depots: [] as Depot[] },
 }));
 
@@ -42,7 +43,7 @@ vi.mock('@/lib/depot-context', () => ({
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
 vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: vi.fn() }) }));
 vi.mock('@/lib/offline-queue', () => ({ runOrQueue }));
-vi.mock('@/lib/geo', () => ({ currentPosition, geoReason: () => 'timeout' }));
+vi.mock('@/lib/geo', () => ({ currentPosition, approximateOnly, geoReason: () => 'timeout' }));
 vi.mock('@/components/offline-queue-banner', () => ({ OfflineQueueBanner: () => null }));
 vi.mock('@/components/hr/face-capture', () => ({
   FaceCapture: ({ onCapture }: { onCapture: (image: string, live: boolean) => void }) => (
@@ -61,6 +62,7 @@ describe('the punch says how sure the phone was', () => {
   beforeEach(() => {
     runOrQueue.mockReset().mockResolvedValue({ outcome: 'queued' });
     currentPosition.mockReset();
+    approximateOnly.mockClear();
   });
 
   it('sends the accuracy in whole metres, and refuses nothing itself however rough it is', async () => {
@@ -87,6 +89,25 @@ describe('the punch says how sure the phone was', () => {
       lat: -6.27027,
       lng: 106.96421,
     });
+  });
+
+  // 2026-11-25: with the HR fence off, a phone on "Perkiraan" punched from kilometres away and
+  // nothing said so. The screen says it now — and still lets the punch through.
+  it('tells a phone on "Perkiraan" so, and still takes the punch', async () => {
+    approximateOnly.mockResolvedValueOnce(true);
+    currentPosition.mockResolvedValue(fix(2000));
+    render(<CheckInPage />);
+    expect(await screen.findByText('hrFix.preciseLocation.title')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('capture'));
+    await waitFor(() => expect(runOrQueue).toHaveBeenCalledTimes(1));
+  });
+
+  it('says nothing on a phone with precise location', async () => {
+    approximateOnly.mockResolvedValueOnce(false);
+    render(<CheckInPage />);
+    await waitFor(() => expect(approximateOnly).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText('hrFix.preciseLocation.title')).toBeNull();
   });
 });
 

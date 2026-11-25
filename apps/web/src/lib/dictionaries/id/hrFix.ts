@@ -2371,6 +2371,12 @@ export const hrFix = {
       'Kalau izin kamera pernah ditolak, aktifkan lagi lewat setelan peramban, lalu tekan Coba lagi.',
     cameraDenied: 'Tidak bisa mengakses kamera. Izinkan akses kamera lalu muat ulang.',
   },
+  preciseLocation: {
+    title: 'Lokasi HP masih "Perkiraan".',
+    body:
+      'Lokasi seperti ini bisa meleset beberapa kilometer, jadi kehadiranmu di depot tidak terbukti dan check-in shift akan ditolak. ' +
+      'Ubah ke "Tepat": Setelan HP → Aplikasi → Hydromart Ops → Izin → Lokasi → nyalakan "Gunakan lokasi akurat".',
+  },
   nav: {
     hqConsole: 'Konsol HQ',
     dashboard: 'Dashboard',
