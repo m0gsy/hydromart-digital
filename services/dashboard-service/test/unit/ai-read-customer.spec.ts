@@ -496,6 +496,10 @@ describe('delivery metrics (K-)', () => {
     expect(small.v.byReason).toMatchObject({ ADDRESS_NOT_FOUND: null, CUSTOMER_REFUSED: null, OTHER: null, NO_SHOW: 6 });
     expect(small.v.held).toMatchObject({ ADDRESS_NOT_FOUND: 'kurang dari 3', CUSTOMER_REFUSED: 'ditahan', OTHER: 'ditahan' });
     expect(small.v).toMatchObject({ failed: 16, noShow: 6, otherReason: 10 });
+    // total and NO_SHOW shown while a small non-NO_SHOW cell is held with its complement: otherReason is shown
+    const mid = await k4({ ...NO_REASONS, GOODS_DAMAGED: 1, CUSTOMER_REFUSED: 5, OTHER: 7, NO_SHOW: 9 }, 22);
+    expect(mid.v.byReason).toMatchObject({ GOODS_DAMAGED: null, CUSTOMER_REFUSED: null, OTHER: 7, NO_SHOW: 9 });
+    expect(mid.v).toMatchObject({ failed: 22, noShow: 9, otherReason: 13 });
     // NO_SHOW itself held: noShow null, and otherReason (failed - noShow) held with it
     const ns = await k4({ ...NO_REASONS, OTHER: 8, NO_SHOW: 2 }, 10);
     expect(ns.v).toMatchObject({ noShow: null, otherReason: null, failed: 10 });

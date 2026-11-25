@@ -144,9 +144,9 @@ export class DeliveryMetricsService {
         cancelledBeforeDeparture: cancel.value,
         held,
       },
-      'gagal = pengiriman yang berakhir GAGAL menurut tanggal gagal; noShow = pelanggan tidak di tempat; otherReason = semua alasan selain noShow (gagal dikurangi noShow), ditahan bila noShow atau gagal ditahan; ' +
+      'gagal = pengiriman yang berakhir GAGAL menurut tanggal gagal; noShow = pelanggan tidak di tempat; otherReason = semua alasan selain noShow (gagal dikurangi noShow); ' +
         (reasons
-          ? 'byReason = gagal menurut alasan tetap pilihan kurir: ADDRESS_NOT_FOUND Alamat tidak ditemukan, CUSTOMER_REFUSED Pelanggan menolak, GOODS_DAMAGED Barang rusak, CANNOT_CONTACT Pelanggan tidak bisa dihubungi, OTHER Lainnya, NO_SHOW Pelanggan tidak di tempat, DEPOT_CANCELLED Dibatalkan depot; "Lainnya" (OTHER) juga memuat alasan lama berupa teks bebas yang tidak punya kode; semua sel alasan dan gagal ditahan bersama (sel 1 atau 2 ditahan, pelengkapnya ikut ditahan); teks bebas tidak pernah dikirim; '
+          ? 'bila byReason ada, otherReason ditahan bila noShow atau gagal ditahan; byReason = gagal menurut alasan tetap pilihan kurir: ADDRESS_NOT_FOUND Alamat tidak ditemukan, CUSTOMER_REFUSED Pelanggan menolak, GOODS_DAMAGED Barang rusak, CANNOT_CONTACT Pelanggan tidak bisa dihubungi, OTHER Lainnya, NO_SHOW Pelanggan tidak di tempat, DEPOT_CANCELLED Dibatalkan depot; "Lainnya" (OTHER) juga memuat alasan lama berupa teks bebas yang tidak punya kode; semua sel alasan dan gagal ditahan bersama (sel 1 atau 2 ditahan, pelengkapnya ikut ditahan); teks bebas tidak pernah dikirim; '
           : 'byReason = null: rincian alasan belum tersedia dari layanan pengiriman; ') +
         'alasan lain yang diketik kurir tidak diperinci karena teks bebas bisa memuat nama atau nomor orang; rescheduled = kali dijadwalkan ulang menurut tanggal kejadian; cancelledBeforeDeparture = pesanan antar yang dibatalkan sebelum kurir berangkat (belum sampai diambil atau dalam perjalanan), menurut tanggal batal. Ketiganya dihitung terpisah, bukan bagian dari gagal. Hitungan kurang dari 3 ditahan (held)',
     );

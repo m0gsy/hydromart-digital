@@ -141,7 +141,8 @@ export class AiCustomerSourcesHttpAdapter implements AiCustomerSourcesPort {
     return { ...d, byReason: AiCustomerSourcesHttpAdapter.reasons(b.byReason, d) };
   }
 
-  /** The breakdown or null: missing, malformed, or not adding up to failed / noShow (unknown extra codes are ignored). */
+  /** The breakdown or null: missing, malformed, or not adding up to failed / noShow. Unknown extra codes are not read; one that carries a count leaves the known cells
+   * summing to less than failed, so the sum check returns null (fail-safe). */
   private static reasons(v: unknown, d: DeliverySummary): DeliverySummary['byReason'] {
     if (!isObj(v) || !allCounts(v, FAILURE_REASON_CODES)) return null;
     const r = Object.fromEntries(FAILURE_REASON_CODES.map((k) => [k, v[k] as number])) as Record<FailureReasonCode, number>;
