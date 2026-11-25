@@ -20,6 +20,10 @@ import { AiStockService } from '../application/services/ai-stock.service';
 import { AI_STOCK_REPOSITORY } from '../application/ports/ai-stock.repository';
 import { AiStockPrismaRepository } from '../infrastructure/prisma/ai-stock.prisma.repository';
 import { AiStockController } from './ai-stock.controller';
+import { AiQueuesService } from '../application/services/ai-queues.service';
+import { AI_QUEUES_REPOSITORY } from '../application/ports/ai-queues.repository';
+import { AiQueuesPrismaRepository } from '../infrastructure/prisma/ai-queues.prisma.repository';
+import { AiQueuesController } from './ai-queues.controller';
 import { PricingService } from '../application/services/pricing.service';
 import { GallonReturnService } from '../application/services/gallon-return.service';
 import { GallonIssueService } from '../application/services/gallon-issue.service';
@@ -159,6 +163,8 @@ const providers: Provider[] = [
   InventoryService,
   AiStockService,
   { provide: AI_STOCK_REPOSITORY, useClass: AiStockPrismaRepository },
+  AiQueuesService,
+  { provide: AI_QUEUES_REPOSITORY, useClass: AiQueuesPrismaRepository },
   StockTransferService,
   PricingService,
   GallonReturnService,
@@ -293,6 +299,7 @@ const providers: Provider[] = [
     LegalEntityController,
     PurchaseOrderController,
     AiStockController,
+    AiQueuesController,
     RosterController,
     DepotTargetController,
     CashbookController,
