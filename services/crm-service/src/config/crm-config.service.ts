@@ -68,6 +68,10 @@ export class CrmConfigService {
   get adminServiceUrl(): string {
     return this.config.get<string>('ADMIN_SERVICE_URL', '').trim();
   }
+  /** loyalty-service base URL, for the point lots about to expire (HD-18). Blank = that reminder fails 503. */
+  get loyaltyServiceUrl(): string {
+    return this.config.get<string>('LOYALTY_SERVICE_URL', '').trim();
+  }
   /** dashboard-service base URL, for the approval queues of the morning summary (AI-9). */
   get dashboardServiceUrl(): string {
     return this.config.get<string>('DASHBOARD_SERVICE_URL', '').trim().replace(/\/+$/, '');

@@ -59,6 +59,11 @@ const EXEMPT = new Map([
     'replays a delivery already recorded in the delivery log, which keeps its own history',
   ],
 
+  [
+    'auth-service:internal.controller.ts:customerByPhone',
+    'a READ over POST (it keeps the number out of a URL and the access log): looks an account up by phone and changes nothing; the machine call that asked is in the order-service trail',
+  ],
+
   /*
    * auth-service writes these itself, and better than an interceptor could: the phone
    * routes mask the number before it reaches the table (K1.4), and the login and OTP

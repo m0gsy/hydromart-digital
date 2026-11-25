@@ -189,6 +189,17 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('aiAccessRequestNotify');
   });
 
+  // HD-18: n8n only; no human role reads an order by phone or triggers customer reminders.
+  it('leaves the HD-18 n8n routes to the machine account', () => {
+    for (const cap of ['orderStatusByPhone', 'customerReminderNotify'] as const) {
+      expect(CAPABILITIES[cap]).toEqual(['SUPER_ADMIN']);
+      for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING', 'MANAGER']) {
+        expect(can(cap, role)).toBe(false);
+      }
+      expect(CUSTOM_FORBIDDEN).toContain(cap);
+    }
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);

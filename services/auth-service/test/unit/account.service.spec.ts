@@ -1247,6 +1247,16 @@ describe('AccountService', () => {
     expect(operator.plateNumber).toBeNull();
   });
 
+  it('HD-18: finds the account behind any spelling of a phone and never creates one', async () => {
+    const known = makeCustomer({ phone: '+628990009001' });
+    customers.seed(known);
+    await expect(service.customerIdByPhone('0899-0009-001')).resolves.toBe(known.id);
+    await expect(service.customerIdByPhone('62899000 9001')).resolves.toBe(known.id);
+    await expect(service.customerIdByPhone('+628990009002')).resolves.toBeNull();
+    await expect(service.customerIdByPhone('not a phone')).resolves.toBeNull();
+    expect(await customers.findByPhone('+628990009002')).toBeNull();
+  });
+
   it('pre-registers an unknown phone as a PENDING customer the buyer can claim', async () => {
     const result = await service.preRegisterCustomer('081299887766', 'Siti');
     expect(result.status).toBe('created');

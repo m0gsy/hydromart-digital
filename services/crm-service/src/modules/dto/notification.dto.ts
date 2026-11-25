@@ -16,6 +16,7 @@ import {
   MaxLength,
 } from 'class-validator';
 
+import { CUSTOMER_REMINDER_KINDS, CustomerReminderKind } from '../../domain/customer-reminder';
 import { NotificationEvent } from '../../domain/notification-event';
 import { NotificationStatus } from '../../domain/notification-status';
 import { NotificationRecord, OpsNotificationRecord } from '../../application/ports/notification.repository';
@@ -229,6 +230,44 @@ export class MorningSummaryResultDto {
   @ApiProperty({
     enum: ['pending'],
     description: 'WhatsApp is not sent until the Meta channel is ready; never reported as sent.',
+  })
+  whatsapp!: 'pending';
+}
+
+/** HD-18 — n8n's trigger for one kind of customer reminder: which, and the day it believes it is. */
+export class CustomerReminderDto {
+  @ApiProperty({ enum: CUSTOMER_REMINDER_KINDS })
+  @IsIn(CUSTOMER_REMINDER_KINDS)
+  kind!: CustomerReminderKind;
+
+  @ApiProperty({ example: '2026-11-25', description: 'The WIB date of the run: today, in Asia/Jakarta.' })
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date must be YYYY-MM-DD' })
+  date!: string;
+}
+
+export class CustomerReminderResultDto {
+  @ApiProperty({ enum: CUSTOMER_REMINDER_KINDS })
+  kind!: CustomerReminderKind;
+
+  @ApiProperty({ example: '2026-11-25' })
+  date!: string;
+
+  @ApiProperty({ description: 'Who is due a reminder of this kind right now.' })
+  candidates!: number;
+
+  @ApiProperty({ description: 'True when more were due than one answer holds; the next tick takes the rest.' })
+  truncated!: boolean;
+
+  @ApiProperty({ description: 'Of those, how many this call filed (bell and push).' })
+  notified!: number;
+
+  @ApiProperty({ description: 'Of those, how many already had it (a retry or a later tick files none twice).' })
+  skipped!: number;
+
+  @ApiProperty({
+    enum: ['pending'],
+    description: 'WhatsApp is not sent until per-number consent (HD-13) is built; never reported as sent.',
   })
   whatsapp!: 'pending';
 }

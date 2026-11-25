@@ -355,6 +355,7 @@ services:
       CUSTOMER_SERVICE_URL: http://customer:3002
       ADMIN_SERVICE_URL: http://admin:3017
       DASHBOARD_SERVICE_URL: http://dashboard:3008
+      LOYALTY_SERVICE_URL: http://loyalty:3009
       # Activity half of a broadcast segment; blank would fail closed, not send wider.
       ORDER_SERVICE_URL: http://order:3004
     healthcheck:

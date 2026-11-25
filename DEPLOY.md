@@ -404,6 +404,28 @@ loopback only.
   until then the route answers 403 to n8n. crm needs `DEPOT_SERVICE_URL` (already set) for entity names;
   a 503 means the requester, the entities or a recipient could not be read: n8n retries the same body.
   The route caps itself: 3 distinct requests per requester and 30 overall per rolling hour; past it the answer is 200 with `capped: true` and nothing is sent (a warning is logged).
+- **Scopes** (HD-18): a fourth and fifth capability, `orderStatusByPhone` and `customerReminderNotify`,
+  for the machine routes behind n8n's WhatsApp answers and customer reminders.
+  `aiweb-secrets.sh` adds each to n8n's `MACHINE_ACCOUNTS` entry on the first deploy after the release
+  holding it is the last good one; until then the routes answer 403 to n8n.
+  `POST order/api/v1/machine/orders/by-phone` (body `{ "msisdn": "<WhatsApp number>" }`: a POST on
+  purpose, so the number is in no access log, and `msisdn` is redacted from the audit entry) answers
+  that number's running orders and last 3 finished ones, and an empty list for an unknown number
+  (a 503 means auth-service could not be asked: retry, never read it as "no orders").
+  `POST crm/api/v1/notifications/external/customer-reminders` (`{ "kind", "date" }`, kind one of
+  `SUBSCRIPTION_TOMORROW`, `POINTS_EXPIRING`, `UNPAID_ORDER`; date today in WIB, else 400) files the in-app
+  and push reminder per due customer and answers counts; a retry or a second tick sends nothing twice
+  (`skipped`). crm needs `ORDER_SERVICE_URL` and, new, `LOYALTY_SERVICE_URL` (set in the compose
+  files). Recommended cron (WIB): `SUBSCRIPTION_TOMORROW` once a day at 17.00, `POINTS_EXPIRING` once a
+  day at 10.00, `UNPAID_ORDER` every 10 minutes (an order is reminded once it is 40 of the 60 minutes
+  to the auto-cancel). The reminder window is `abandonMinutes`/3 wide (20 minutes by default), so the
+  n8n cron must run at most every 10 minutes, or an order can slip through between two ticks; if
+  the cancel setting is lowered the window shrinks with it. An admin sweep run with a smaller
+  `olderThanMinutes` can cancel an order before its reminder. Orders booked for a later slot and
+  subscription deliveries are never reminded, because the sweep never cancels them either (one shared
+  predicate). A tick that finds more than 200 unpaid orders (1000 subscriptions, 500 point lots) answers
+  `truncated: true` and logs a warning; the oldest are served first and the next tick takes the rest.
+  WhatsApp stays `pending` in every answer until per-number consent (HD-13) exists.
 - **Nightly** at 04:40 [`scripts/aiweb-n8n-check.sh`](scripts/aiweb-n8n-check.sh) (log
   `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is
   published, and the credentials n8n holds, must be what the image's copy of git holds. A drift

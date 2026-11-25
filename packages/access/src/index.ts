@@ -581,6 +581,21 @@ export const CAPABILITIES = {
    * TOLD is whoever holds `legalEntityAiAccess`; n8n passes ids only, the text is hydromart's.
    */
   aiAccessRequestNotify: ['SUPER_ADMIN'],
+  // --- HD-18 block (n8n machine routes: order status per WhatsApp number, customer reminders) ---
+  /*
+   * order-service (HD-18) — "where is my order" for one WhatsApp number
+   * (POST machine/orders/by-phone). Held by the n8n machine account through its token's `scopes`.
+   * It reads a customer's orders by phone, so no human role and no custom role holds it.
+   */
+  orderStatusByPhone: ['SUPER_ADMIN'],
+  /*
+   * crm-service (HD-18) — trigger one kind of customer reminder
+   * (POST notifications/external/customer-reminders). n8n only says "now"; who is reminded and
+   * of what is hydromart's own. It fans notifications out to customers network-wide, so it is
+   * machine-only and in CUSTOM_FORBIDDEN, like morningSummaryNotify.
+   */
+  customerReminderNotify: ['SUPER_ADMIN'],
+  // --- end HD-18 block ---
   // promo-service — RETIRED: the voucher-request flow was removed, nothing enforces this any more.
   // Kept only so a stored matrix row naming it still validates.
   voucherRequestDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
@@ -1067,6 +1082,9 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'morningSummaryNotify',
   // AI-7c: the n8n machine account's, same reasoning.
   'aiAccessRequestNotify',
+  // HD-18: the n8n machine account's two, same reasoning.
+  'orderStatusByPhone',
+  'customerReminderNotify',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

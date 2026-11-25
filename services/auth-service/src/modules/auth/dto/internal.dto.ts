@@ -165,6 +165,18 @@ export class PreRegisterCustomerDto {
   fullName?: string;
 }
 
+export class CustomerByPhoneDto {
+  @ApiProperty({ example: '+628123456789' })
+  @IsString()
+  @MaxLength(32)
+  phone!: string;
+}
+
+export class CustomerByPhoneResultDto {
+  @ApiProperty({ format: 'uuid', nullable: true, description: 'Null: no account holds that number.' })
+  customerId!: string | null;
+}
+
 export class PreRegisterResultDto {
   @ApiProperty({ format: 'uuid' })
   customerId!: string;

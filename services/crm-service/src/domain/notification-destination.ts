@@ -77,6 +77,8 @@ const ORDER_EVENTS = new Set<NotificationEvent>([
   NotificationEvent.PAYMENT_FAILED,
   NotificationEvent.PAYMENT_REMINDER,
   NotificationEvent.REFUND_PROCESSED,
+  // HD-18: the unpaid-order reminder opens the order to pay it.
+  NotificationEvent.UNPAID_ORDER,
 ]);
 
 export function destinationFor(
@@ -93,6 +95,7 @@ export function destinationFor(
   }
   switch (event) {
     case NotificationEvent.POINTS_EARNED:
+    case NotificationEvent.POINTS_EXPIRING:
     case NotificationEvent.MEMBERSHIP_TIER_UPGRADED:
       return '/rewards';
     case NotificationEvent.VOUCHER_GRANTED:
@@ -106,6 +109,9 @@ export function destinationFor(
     // and how much deposit is waiting for them is exactly what the message is about.
     case NotificationEvent.GALLON_RETURN_REMINDER:
       return '/account';
+    // HD-18: tomorrow's delivery is looked up (and paused) on the subscriptions screen.
+    case NotificationEvent.SUBSCRIPTION_TOMORROW:
+      return '/subscriptions';
     case NotificationEvent.CUSTOMER_REGISTERED:
       return '/';
     /*

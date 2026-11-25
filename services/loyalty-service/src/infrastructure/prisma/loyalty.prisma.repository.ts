@@ -262,6 +262,15 @@ export class LoyaltyPrismaRepository implements LoyaltyRepository {
     return { items: rows.map((r) => this.toTxn(r)), total };
   }
 
+  async findExpiringLots(from: Date, to: Date, limit: number): Promise<PointsTransactionRecord[]> {
+    const rows = await this.prisma.pointsTransaction.findMany({
+      where: { type: PrismaTxnType.EARN, expired: false, expiresAt: { gt: from, lte: to } },
+      orderBy: { expiresAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((r) => this.toTxn(r));
+  }
+
   async findExpirableLots(now: Date, limit: number): Promise<PointsTransactionRecord[]> {
     const rows = await this.prisma.pointsTransaction.findMany({
       where: { type: PrismaTxnType.EARN, expired: false, expiresAt: { lte: now } },

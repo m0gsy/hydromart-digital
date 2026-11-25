@@ -533,6 +533,15 @@ describe('AccessController', () => {
   });
 });
 
+describe('InternalAccountController.customerByPhone (HD-18)', () => {
+  it('answers the id the service found, or null', async () => {
+    const account = { customerIdByPhone: jest.fn().mockResolvedValueOnce('c-1').mockResolvedValueOnce(null) };
+    const controller = new InternalAccountController(account as never, {} as never, {} as never);
+    await expect(controller.customerByPhone({ phone: '0812' })).resolves.toEqual({ customerId: 'c-1' });
+    await expect(controller.customerByPhone({ phone: '0813' })).resolves.toEqual({ customerId: null });
+  });
+});
+
 describe('InternalAccountController.assignStaffRole', () => {
   it('changes an existing account role without ever creating one', async () => {
     const account = { setStaffRole: jest.fn().mockResolvedValue(publicCustomer()) };

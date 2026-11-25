@@ -217,6 +217,8 @@ export const dashC = {
       franchiseApplicationNotify: 'Kirim notifikasi lamaran waralaba baru (akun mesin n8n)',
       morningSummaryNotify: 'Picu ringkasan pagi Direksi (akun mesin n8n)',
       aiAccessRequestNotify: 'Beritahu pemberi akses AI bahwa ada yang meminta akses (akun mesin n8n)',
+      orderStatusByPhone: 'Baca status pesanan menurut nomor WhatsApp (akun mesin n8n)',
+      customerReminderNotify: 'Picu pengingat pelanggan: langganan, poin, bayar (akun mesin n8n)',
       voucherRequestDecide: 'Putuskan permintaan voucher',
       fraudReview: 'Tinjau indikasi fraud',
       refundIssue: 'Ajukan refund',

@@ -23,4 +23,6 @@ export const CRM_TOKENS = {
   PendingApprovals: Symbol('PendingApprovals'),
   // AI-7c: the names of the legal entities an AI access request names (depot-service).
   LegalEntityNames: Symbol('LegalEntityNames'),
+  // HD-18: who the customer reminders are for (order-service, loyalty-service).
+  CustomerReminderSource: Symbol('CustomerReminderSource'),
 } as const;

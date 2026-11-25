@@ -11,6 +11,8 @@ import { SavedSegmentService } from '../application/services/saved-segment.servi
 import { NotificationService } from '../application/services/notification.service';
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
 import { MorningSummaryService } from '../application/services/morning-summary.service';
+import { CustomerReminderService } from '../application/services/customer-reminder.service';
+import { CustomerReminderSourceHttpAdapter } from '../infrastructure/http/customer-reminder-source.http.adapter';
 import { BroadcastService } from '../application/services/broadcast.service';
 import { PushService } from '../application/services/push.service';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
@@ -83,6 +85,9 @@ const providers: Provider[] = [
   { provide: CRM_TOKENS.PushSender, useClass: CompositePushSender },
   // AI-5: the trail AuditMutationsInterceptor writes to, on the routes that attach it.
   { provide: AUDIT_MUTATION_SINK, useClass: CrmAuditSink },
+  // HD-18: customer reminders n8n triggers.
+  CustomerReminderService,
+  { provide: CRM_TOKENS.CustomerReminderSource, useClass: CustomerReminderSourceHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },

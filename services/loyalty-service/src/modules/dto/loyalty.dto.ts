@@ -189,6 +189,15 @@ export class LoyaltyRulesDto {
   pointExpiryMonths!: number;
 }
 
+export class ExpiringLotsQueryDto {
+  @ApiProperty({ example: 7, description: 'Lots expiring within this many days from now (1..30).' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  withinDays!: number;
+}
+
 export class ListTransactionsQueryDto {
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000 })
   @IsInt()

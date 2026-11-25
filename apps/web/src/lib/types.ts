@@ -938,6 +938,10 @@ export type NotificationEvent =
   | 'MORNING_SUMMARY'
   // AI-7c: someone asks for AI web access, one row per person who can grant it.
   | 'AI_ACCESS_REQUESTED'
+  // HD-18: customer reminders n8n triggers, one row per customer per thing.
+  | 'SUBSCRIPTION_TOMORROW'
+  | 'POINTS_EXPIRING'
+  | 'UNPAID_ORDER'
   | 'VOUCHER_EXPIRING'
   | 'COURIER_DELIVERY_ASSIGNED'
   | 'DELIVERY_SLA_BREACHED'

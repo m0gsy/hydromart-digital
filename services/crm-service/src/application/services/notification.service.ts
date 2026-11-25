@@ -320,6 +320,18 @@ export class NotificationService {
     depotId: string | null = null,
     dedupeKey: string | null = null,
   ): Promise<NotificationRecord> {
+    return (await this.notifyOnce(event, phone, vars, customerId, depotId, dedupeKey)).record;
+  }
+
+  /** `notify`, also saying whether this call filed the row (false: the dedupe key already had one, nothing was sent). */
+  async notifyOnce(
+    event: NotificationEvent,
+    phone: string,
+    vars: Record<string, string>,
+    customerId: string | null = null,
+    depotId: string | null = null,
+    dedupeKey: string | null = null,
+  ): Promise<{ record: NotificationRecord; created: boolean }> {
     const message = renderMessage(templateFor(event, await this.localeFor(customerId, event)), vars);
     const destination: DestinationOptions = {
       ...(await this.destinationOptions(event)),
@@ -360,7 +372,7 @@ export class NotificationService {
     // A retried send of the same event: the customer already has this row (and its push),
     // so nothing is sent a second time. A row that FAILED to push is not retried here either -
     // the failure is recorded on it, and a duplicate push is the worse outcome.
-    if (!created) return record;
+    if (!created) return { record, created };
 
     const failed = (e: unknown) => {
       const reason = (e as Error).message;
@@ -405,7 +417,7 @@ export class NotificationService {
       // updates, not a staff member's opt-out from an incident at the depot they work at.
       this.pushToDepotStaff(event, message, depotId, vars);
     }
-    return record;
+    return { record, created };
   }
 
   /** The dedupe keys of this event's rows from `since` on: how a sender counts what it already raised. */

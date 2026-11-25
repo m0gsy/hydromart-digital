@@ -929,6 +929,22 @@ export class AccountService {
   }
 
   /**
+   * HD-18: the account id behind a phone number, WITHOUT creating anything (the counter's
+   * `preRegisterCustomer` mints one; a status question must not). The number is read the same way
+   * (PhoneNumber), so 0812…, 62812… and +62812… are one account. A number nobody can have, or one
+   * with no account, answers null: the caller says nothing more than "no orders".
+   */
+  async customerIdByPhone(rawPhone: string): Promise<string | null> {
+    let phone: string;
+    try {
+      phone = PhoneNumber.create(rawPhone).value;
+    } catch {
+      return null;
+    }
+    return (await this.customers.findByPhone(phone))?.id ?? null;
+  }
+
+  /**
    * Set the caller's avatar to a freshly uploaded image URL (FR-009). The upload
    * itself is handled by the storage port at the controller edge; this only
    * persists the resulting public URL onto the account.
