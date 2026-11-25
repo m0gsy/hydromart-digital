@@ -9,7 +9,7 @@ import { createHash, createPublicKey, randomBytes, randomUUID, verify } from 'no
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { PATTERNS, RECOVERY_CODE, TOTP_CODE, createMock, signEvent } from '../infra/aiweb-staging/mock/server.mjs';
+import { PATTERNS, RECOVERY_CODE, REMINDER_KINDS, TOTP_CODE, createMock, signEvent } from '../infra/aiweb-staging/mock/server.mjs';
 
 const contract = (name) => JSON.parse(readFileSync(new URL(`../contracts/ai-v1/${name}.openapi.json`, import.meta.url), 'utf8'));
 const auth = contract('auth');
@@ -290,7 +290,9 @@ test('n8n: machine token, then the franchise notification, idempotent, validated
     const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
     const claims = verifyToken(accessToken, await jwks(mock));
     assert.equal(claims.aud, 'hydromart-machine');
-    assert.deepEqual(claims.scopes, ['franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify']);
+    assert.deepEqual(claims.scopes, [
+      'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
+    ]);
 
     const applicationId = randomUUID();
     const body = { eventId: `franchise.application_submitted:${applicationId}`, applicationId, city: 'Bekasi', province: 'Jawa Barat' };
@@ -351,6 +353,55 @@ test('the morning summary day is Jakarta’s, not UTC’s: 17:30Z on 24 Nov is 2
     const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
     assert.equal((await send(accessToken, '2026-11-25')).status, 200);
     assert.equal((await send(accessToken, '2026-11-24')).status, 400);
+  } finally {
+    await mock.close();
+  }
+});
+
+test('n8n: customer reminders and the maintenance sweep need the machine token, today in Jakarta and nothing else', async () => {
+  // 17:30Z on 25 Nov is 26 Nov in Jakarta: the mock's clock, so the date never straddles midnight.
+  const mock = await boot({}, () => Date.parse('2026-11-25T17:30:00Z'));
+  const send = (route, token, body) =>
+    json('POST', mock.base, `/crm/api/v1/notifications/external/${route}`, body, token ? { authorization: `Bearer ${token}`, 'x-workflow': 'wf' } : {});
+  const s = notifications.components.schemas;
+  try {
+    for (const route of ['customer-reminders', 'maintenance-due']) {
+      assert.deepEqual(notifications.paths[`/crm/api/v1/notifications/external/${route}`].post.security, [{ machineToken: [] }]);
+    }
+    assert.deepEqual(REMINDER_KINDS, s.CustomerReminderTrigger.properties.kind.enum);
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    const date = '2026-11-26';
+    for (const kind of REMINDER_KINDS) {
+      const ok = await send('customer-reminders', accessToken, { kind, date });
+      assert.equal(ok.status, 200);
+      const body = await ok.json();
+      assert.deepEqual(body, { kind, date, candidates: 0, truncated: false, notified: 0, skipped: 0, whatsapp: 'pending' });
+      assert.deepEqual(Object.keys(body).sort(), [...s.CustomerReminderResult.required].sort());
+    }
+    const due = await send('maintenance-due', accessToken, { date });
+    assert.equal(due.status, 200);
+    const dueBody = await due.json();
+    assert.deepEqual(dueBody, { date, depots: 0, items: 0, notified: 0, remindLater: 0, whatsapp: 'pending' });
+    assert.deepEqual(Object.keys(dueBody).sort(), [...s.MaintenanceDueResult.required].sort());
+    assert.deepEqual(mock.state.calls.notifications.map((n) => n.eventId), [
+      ...REMINDER_KINDS.map((k) => `customerReminderNotify:${k}:${date}`), `maintenanceDueNotify:${date}`,
+    ]);
+
+    for (const bad of [{ kind: 'NOPE', date }, { kind: 'UNPAID_ORDER', date: '2020-01-01' }, { kind: 'UNPAID_ORDER' }, { kind: 'UNPAID_ORDER', date, extra: 1 }, { date }, { kind: null, date }]) {
+      assert.equal((await send('customer-reminders', accessToken, bad)).status, 400, JSON.stringify(bad));
+    }
+    assert.equal((await send('customer-reminders', accessToken, { kind: 'UNPAID_ORDER', date: '2026-11-25' })).status, 400, 'the UTC day is not today');
+    for (const bad of [{ date: '2020-01-01' }, { date: '2026-11-25' }, {}, { date, kind: 'UNPAID_ORDER' }]) {
+      assert.equal((await send('maintenance-due', accessToken, bad)).status, 400, JSON.stringify(bad));
+    }
+    assert.equal((await json('POST', mock.base, '/crm/api/v1/notifications/external/maintenance-due', [date], { authorization: `Bearer ${accessToken}` })).status, 400);
+    const p = pkce();
+    const { code } = await pick(mock, user('SUPER_ADMIN'), p);
+    const human = await (await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE })).json();
+    for (const [route, body] of [['customer-reminders', { kind: 'UNPAID_ORDER', date }], ['maintenance-due', { date }]]) {
+      assert.equal((await send(route, human.accessToken, body)).status, 401);
+      assert.equal((await send(route, null, body)).status, 401);
+    }
   } finally {
     await mock.close();
   }
