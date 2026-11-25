@@ -243,7 +243,7 @@ describe('MorningSummaryService', () => {
 
 describe('NotificationExternalController.morningSummaryRun', () => {
   const run = jest.fn(async () => ({ date: '2026-11-25', recipients: 1, notified: 1, nothingWaiting: 0, whatsapp: 'pending' as const }));
-  const controller = new NotificationExternalController({} as never, { run } as never, {} as never, {} as never);
+  const controller = new NotificationExternalController({} as never, { run } as never, {} as never, {} as never, {} as never);
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-11-25T00:30:00.000Z'));
     run.mockClear();
