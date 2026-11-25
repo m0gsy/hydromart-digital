@@ -9,7 +9,13 @@ export const dashA = {
       approval: { label: 'New approval', sub: 'When an operator requests sign-off' },
       lowStock: { label: 'Low stock', sub: 'When stock falls below threshold' },
       dailySummary: { label: 'Daily summary', sub: 'Operations recap every morning' },
+      maintenanceDue: {
+        label: 'Equipment maintenance due',
+        sub: 'Depot equipment maintenance reminder, by notification and email',
+      },
     },
+    channelPush: 'Push',
+    channelEmail: 'Email',
     devicePush: {
       label: 'Notifications on this phone',
       sub: 'New orders and alerts reach this phone even when the app is closed.',

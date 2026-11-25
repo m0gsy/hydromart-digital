@@ -2316,6 +2316,23 @@ describe('EmployeePrismaRepository', () => {
     });
   });
 
+  it('emailsByAuthSubjectIds answers only linked accounts with a non-blank email', async () => {
+    const p = makePrisma();
+    m(p, 'employee').findMany.mockResolvedValue([
+      { authSubjectId: 'a1', email: ' budi@example.com ' },
+      { authSubjectId: 'a2', email: '   ' },
+      { authSubjectId: null, email: 'x@example.com' },
+    ]);
+    const repo = new EmployeePrismaRepository(asService(p));
+    await expect(repo.emailsByAuthSubjectIds(['a1', 'a2'])).resolves.toEqual([
+      { accountId: 'a1', email: 'budi@example.com' },
+    ]);
+    expect(m(p, 'employee').findMany).toHaveBeenCalledWith({
+      where: { authSubjectId: { in: ['a1', 'a2'] }, status: 'ACTIVE', email: { not: null } },
+      select: { authSubjectId: true, email: true },
+    });
+  });
+
   it('findById / findByAuthSubjectId / listHistory passthrough', async () => {
     const p = makePrisma();
     m(p, 'employee').findUnique.mockResolvedValue(null);

@@ -506,6 +506,7 @@ describe('EmployeesController', () => {
     'setActiveInternal',
     'setDepotInternal',
     'anonymiseByAccount',
+    'emailsByAccounts',
     'createAccountFor',
   ]);
   const c = new EmployeesController(emp as never);
@@ -566,6 +567,9 @@ describe('EmployeesController', () => {
 
     c.anonymiseByAccount({ authSubjectId: 'a1' } as never);
     expect(emp.anonymiseByAccount).toHaveBeenCalledWith('a1');
+
+    c.emailsByAccounts({ accountIds: ['a1'] } as never);
+    expect(emp.emailsByAccounts).toHaveBeenCalledWith(['a1']);
 
     c.createAccount('e1', user);
     expect(emp.createAccountFor).toHaveBeenCalledWith(user, 'e1');

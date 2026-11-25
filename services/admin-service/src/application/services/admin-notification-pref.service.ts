@@ -20,7 +20,6 @@ export const HQ_EVENT_IDS = [
   'newFranchiseApp',
   'morningSummary',
   'aiAccessRequest',
-  'maintenanceDue',
   'payoutPending',
   'systemIncident',
   'dailyDigest',
@@ -32,6 +31,8 @@ export const DEPOT_EVENT_IDS = [
   'courierFail',
   'approval',
   'dailySummary',
+  // HD-15: also the depot heads' and supervisors' own switch (/dashboard/account), push and email.
+  'maintenanceDue',
 ] as const;
 
 export const NOTIFICATION_EVENT_IDS = [...HQ_EVENT_IDS, ...DEPOT_EVENT_IDS] as const;
@@ -41,7 +42,7 @@ export const NOTIFICATION_EVENT_IDS = [...HQ_EVENT_IDS, ...DEPOT_EVENT_IDS] as c
  * toggle with a push behind it, "Lamaran waralaba baru" (AI-5: n8n raises that notification).
  * The other HQ toggles are kept on /hq/profile but nothing pushes for them yet.
  */
-export const PUSH_TOGGLE_IDS = [...DEPOT_EVENT_IDS, 'newFranchiseApp', 'morningSummary', 'aiAccessRequest', 'maintenanceDue'] as const;
+export const PUSH_TOGGLE_IDS = [...DEPOT_EVENT_IDS, 'newFranchiseApp', 'morningSummary', 'aiAccessRequest'] as const;
 
 /**
  * Which list an account gets. There is no HQ-only scope on purpose: every role holding
@@ -57,8 +58,6 @@ const HQ_DEFAULTS: NotificationChannelPref[] = [
   { id: 'morningSummary', push: true, email: true, wa: false },
   // AI-7c: someone asks for AI web access; WhatsApp is pending until Meta is ready.
   { id: 'aiAccessRequest', push: true, email: true, wa: false },
-  // HD-15: depot maintenance due by days or water volume; WhatsApp is pending until Meta is ready.
-  { id: 'maintenanceDue', push: true, email: true, wa: false },
   { id: 'payoutPending', push: true, email: true, wa: true },
   { id: 'systemIncident', push: true, email: true, wa: true },
   { id: 'dailyDigest', push: false, email: true, wa: false },
@@ -74,6 +73,9 @@ const DEPOT_DEFAULTS: NotificationChannelPref[] = [
   { id: 'courierFail', push: true, email: false, wa: false },
   { id: 'approval', push: true, email: false, wa: false },
   { id: 'dailySummary', push: true, email: false, wa: false },
+  // HD-15: depot maintenance due by days or water volume. The one depot toggle with email on, as
+  // it always resolved for a depot account (it came from the HQ list); WhatsApp is pending Meta.
+  { id: 'maintenanceDue', push: true, email: true, wa: false },
 ];
 
 function defaultsFor(scope: NotificationScope): NotificationChannelPref[] {

@@ -15,7 +15,7 @@ import type { AdminNotificationPrefs, NotificationChannelPref } from '@/lib/type
  *
  * These screens offer ONE switch per event where the server carries three channels. The
  * switch is `push` — the channel a depot phone actually uses — and `email`/`wa` are written
- * back untouched, so flipping a toggle here can never silently unsubscribe somebody from a
+ * back untouched (the one exception: an event the screen shows with an `email` switch too), so flipping a toggle here can never silently unsubscribe somebody from a
  * channel this screen does not show.
  *
  * The toggles used to be `useState` with a "TODO persist" comment: they moved, looked saved,
@@ -30,12 +30,18 @@ export function usePushPrefs() {
   const events = rows ?? query.data?.events ?? [];
 
   /** `undefined` while the read is in flight or failed — the caller decides what to render. */
-  const isOn = (id: string): boolean | undefined => events.find((e) => e.id === id)?.push;
+  const isOn = (id: string, channel: 'push' | 'email' = 'push'): boolean | undefined =>
+    events.find((e) => e.id === id)?.[channel];
 
-  async function setOn(id: string, value: boolean, label: string): Promise<void> {
+  async function setOn(
+    id: string,
+    value: boolean,
+    label: string,
+    channel: 'push' | 'email' = 'push',
+  ): Promise<void> {
     const current = events.find((e) => e.id === id);
     if (!current) return;
-    const next = events.map((e) => (e.id === id ? { ...e, push: value } : e));
+    const next = events.map((e) => (e.id === id ? { ...e, [channel]: value } : e));
     setRows(next);
     try {
       const saved = await api.put<AdminNotificationPrefs>(

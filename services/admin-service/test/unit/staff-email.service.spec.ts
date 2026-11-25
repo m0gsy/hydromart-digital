@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 
 import { StaffAccount, StaffDirectoryPort } from '../../src/application/ports/staff-directory.port';
+import { StaffHrEmailPort } from '../../src/application/ports/staff-hr-email.port';
 import { StaffMail, StaffMailer } from '../../src/application/ports/staff-mailer.port';
 import { AdminNotificationPrefService } from '../../src/application/services/admin-notification-pref.service';
 import {
@@ -38,7 +39,13 @@ const request = (accountIds: string[], over: Partial<StaffEmailRequest> = {}): S
 });
 
 function build(
-  opts: { smtp?: typeof SMTP | null; origin?: string; accounts?: StaffAccount[]; mailer?: StaffMailer } = {},
+  opts: {
+    smtp?: typeof SMTP | null;
+    origin?: string;
+    accounts?: StaffAccount[];
+    mailer?: StaffMailer;
+    hr?: StaffHrEmailPort;
+  } = {},
 ) {
   const prefs = new AdminNotificationPrefService(new InMemoryAdminNotificationPrefRepository());
   const sent: StaffMail[] = [];
@@ -52,7 +59,8 @@ function build(
   };
   const mailer: StaffMailer = opts.mailer ?? { send: async (mail) => void sent.push(mail) };
   const config = { smtp: opts.smtp === undefined ? SMTP : opts.smtp, webOrigin: opts.origin ?? ORIGIN };
-  return { service: new StaffEmailService(config as never, prefs, directory, mailer), prefs, sent, lookups };
+  const hr: StaffHrEmailPort = opts.hr ?? { emailsByAccounts: async () => [] };
+  return { service: new StaffEmailService(config as never, prefs, directory, hr, mailer), prefs, sent, lookups };
 }
 
 let log: jest.SpyInstance;
@@ -74,7 +82,7 @@ describe('StaffEmailService', () => {
       text: staffEmailText(TEXT, PATH, ORIGIN),
     });
     expect(log).toHaveBeenCalledWith(
-      `staff email newFranchiseApp ${PATH}: 2 accounts, 0 switched off, 0 not active HQ staff, 0 without an address, 0 over the hourly cap, 2 sent, 0 failed`,
+      `staff email newFranchiseApp ${PATH}: 2 accounts, 0 switched off, 0 not active staff, 0 without an address, 0 sharing an address, 0 over the hourly cap, 2 sent, 0 failed`,
     );
   });
 
@@ -103,14 +111,62 @@ describe('StaffEmailService', () => {
       skipped: 4,
     });
     expect(sent.map((m) => m.to)).toEqual(['di-1@hydromart.id']);
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('3 not active HQ staff, 1 without an address'));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('3 not active staff, 1 without an address, 0 sharing an address'));
   });
 
-  it('writes only to roles that can open the HQ console, even with the email switch on', async () => {
-    const roles = ['STAFF_DEPOT', 'KEPALA_DEPOT', 'HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'];
+  it('writes to any active staff role, not a customer or a franchise owner, each footer pointing at its own switch', async () => {
+    const roles = ['STAFF_DEPOT', 'KEPALA_DEPOT', 'HEAD_OFFICE', 'DIREKTUR', 'C_kasir', 'CUSTOMER', 'FRANCHISE_OWNER'];
     const { service, sent } = build({ accounts: roles.map((role) => account(role, { role })) });
-    await expect(service.send(request(roles))).resolves.toEqual({ sent: 4, failed: 0, skipped: 2 });
-    expect(sent.map((m) => m.to)).toEqual(['HEAD_OFFICE', 'DIREKTUR', 'FINANCE', 'SUPER_ADMIN'].map((r) => `${r}@hydromart.id`));
+    await expect(service.send(request(roles))).resolves.toEqual({ sent: 5, failed: 0, skipped: 2 });
+    expect(sent.map((m) => m.to)).toEqual(
+      ['STAFF_DEPOT', 'KEPALA_DEPOT', 'HEAD_OFFICE', 'DIREKTUR', 'C_kasir'].map((r) => `${r}@hydromart.id`),
+    );
+    expect(sent[0].text).toBe(staffEmailText(TEXT, PATH, ORIGIN, '/dashboard/account'));
+    expect(sent[0].text).toContain(`Ubah di ${ORIGIN}/dashboard/account.`);
+    expect(sent[2].text).toBe(staffEmailText(TEXT, PATH, ORIGIN));
+    expect(sent[2].text).toContain(`Ubah di ${ORIGIN}/hq/profile.`);
+  });
+
+  it('prefers the HR email over the login email, per person', async () => {
+    const hr: StaffHrEmailPort = {
+      emailsByAccounts: jest.fn(async () => [{ accountId: 'ho-1', email: 'hr-budi@hydromart.id' }]),
+    };
+    const { service, sent } = build({ hr });
+    await service.send(request(['ho-1', 'di-1']));
+    expect(sent.map((m) => m.to)).toEqual(['hr-budi@hydromart.id', 'di-1@hydromart.id']);
+    expect(hr.emailsByAccounts).toHaveBeenCalledWith(['ho-1', 'di-1']);
+  });
+
+  it('uses the HR email for a login that has none, and does not ask HR when nobody is staff', async () => {
+    const hr: StaffHrEmailPort = {
+      emailsByAccounts: jest.fn(async () => [{ accountId: 'ho-1', email: 'hr@hydromart.id' }]),
+    };
+    const { service, sent } = build({ hr, accounts: [account('ho-1', { email: null }), account('cu-1', { role: 'CUSTOMER' })] });
+    await service.send(request(['ho-1']));
+    expect(sent.map((m) => m.to)).toEqual(['hr@hydromart.id']);
+    await service.send(request(['cu-1']));
+    expect(hr.emailsByAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes one message to an address two accounts share, whatever its case', async () => {
+    const { service, sent } = build({
+      accounts: [account('ho-1', { email: 'Shared@hydromart.id' }), account('di-1', { email: 'shared@HYDROMART.id' })],
+    });
+    await expect(service.send(request(['ho-1', 'di-1']))).resolves.toEqual({ sent: 1, failed: 0, skipped: 1 });
+    expect(sent).toHaveLength(1);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('1 sharing an address'));
+  });
+
+  it('falls back to the login emails, with a warning that names no address, when HR cannot answer', async () => {
+    const hr: StaffHrEmailPort = {
+      emailsByAccounts: async () => {
+        throw new Error('hr-service responded 503 for budi@hydromart.id');
+      },
+    };
+    const { service, sent } = build({ hr });
+    await expect(service.send(request(['ho-1', 'di-1']))).resolves.toEqual({ sent: 2, failed: 0, skipped: 0 });
+    expect(sent.map((m) => m.to)).toEqual(['ho-1@hydromart.id', 'di-1@hydromart.id']);
+    expect(warn).toHaveBeenCalledWith('hr-service email lookup failed, using login emails: hr-service responded 503 for <address>');
   });
 
   it('sends in batches of 3: never more than 3 sends open at once', async () => {

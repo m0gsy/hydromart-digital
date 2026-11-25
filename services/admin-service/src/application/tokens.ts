@@ -11,6 +11,7 @@ export const ADMIN_TOKENS = {
   ReportMailer: Symbol('ReportMailer'),
   StaffMailer: Symbol('StaffMailer'),
   StaffDirectory: Symbol('StaffDirectory'),
+  StaffHrEmail: Symbol('StaffHrEmail'),
   SupportTicketRepository: Symbol('SupportTicketRepository'),
   FraudFlagRepository: Symbol('FraudFlagRepository'),
   /** CA-2-05: suspends the account behind a fraud flag. Fails CLOSED — see the port. */

@@ -10,7 +10,13 @@ export const dashA = {
       approval: { label: 'Approval baru', sub: 'Saat operator minta persetujuan' },
       lowStock: { label: 'Stok kritis', sub: 'Saat stok di bawah ambang' },
       dailySummary: { label: 'Ringkasan harian', sub: 'Rekap operasional tiap pagi' },
+      maintenanceDue: {
+        label: 'Perawatan alat jatuh tempo',
+        sub: 'Pengingat perawatan alat depot, lewat notifikasi dan email',
+      },
     },
+    channelPush: 'Notifikasi',
+    channelEmail: 'Email',
     devicePush: {
       label: 'Notifikasi di HP ini',
       sub: 'Pesanan masuk dan peringatan sampai ke HP ini meski aplikasi ditutup.',

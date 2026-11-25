@@ -3,6 +3,7 @@ import { can } from '@hydromart/access';
 
 import { AdminConfigService } from '../../config/admin-config.service';
 import { StaffDirectoryPort } from '../ports/staff-directory.port';
+import { StaffHrEmailPort } from '../ports/staff-hr-email.port';
 import { StaffMailer } from '../ports/staff-mailer.port';
 import { ADMIN_TOKENS } from '../tokens';
 import { AdminNotificationPrefService } from './admin-notification-pref.service';
@@ -25,6 +26,9 @@ export interface StaffEmailResult {
   skipped: number;
 }
 
+/** Logins that are not staff: end customers and franchise owners. Custom roles are staff. */
+const NOT_STAFF: ReadonlySet<string> = new Set(['CUSTOMER', 'FRANCHISE_OWNER']);
+
 /** At most this many messages per toggle per hour: internal calls skip the throttler. */
 export const STAFF_EMAIL_HOURLY_CAP = 120;
 const HOUR_MS = 60 * 60 * 1000;
@@ -43,14 +47,14 @@ const withoutAddresses = (reason: unknown): string =>
  * The body as sent: crm's text, the full link to the notification's screen, and why this person
  * got it. Plain text only: the applicant-typed values in crm's text are never read as HTML.
  */
-export function staffEmailText(text: string, path: string, origin: string): string {
+export function staffEmailText(text: string, path: string, origin: string, profilePath = '/hq/profile'): string {
   return [
     text,
     '',
     `${origin}${path}`,
     '',
     'Email ini terkirim karena email untuk notifikasi ini menyala di profil Anda. ' +
-      `Ubah di ${origin}/hq/profile.`,
+      `Ubah di ${origin}${profilePath}.`,
   ].join('\n');
 }
 
@@ -75,6 +79,7 @@ export class StaffEmailService {
     private readonly config: AdminConfigService,
     private readonly prefs: AdminNotificationPrefService,
     @Inject(ADMIN_TOKENS.StaffDirectory) private readonly directory: StaffDirectoryPort,
+    @Inject(ADMIN_TOKENS.StaffHrEmail) private readonly hrEmails: StaffHrEmailPort,
     @Inject(ADMIN_TOKENS.StaffMailer) private readonly mailer: StaffMailer,
   ) {}
 
@@ -88,19 +93,42 @@ export class StaffEmailService {
     }
     const wanted = await this.prefs.emailOnFor(req.accountIds, req.toggle);
     const accounts = wanted.length > 0 ? await this.directory.accountsByIds(wanted) : [];
-    // Staff email is for HQ staff: active, and able to open /hq/profile (where the switch lives)
-    // and the /hq screen the link points to.
-    const staff = accounts.filter((a) => a.status === 'ACTIVE' && can('hqConsole', a.role));
-    const withAddress = staff.flatMap((a) => (a.email ? [{ id: a.id, email: a.email }] : []));
+    // Staff email is for any active staff login (a customer or a franchise owner is not staff).
+    const staff = accounts.filter((a) => a.status === 'ACTIVE' && !NOT_STAFF.has(a.role));
+    const hr = staff.length > 0 ? await this.hrEmailsOf(staff.map((a) => a.id)) : new Map<string, string>();
+    // The address HR keeps for the person first, else the login's own.
+    const addressed = staff.flatMap((a) => {
+      const email = hr.get(a.id) ?? a.email;
+      return email ? [{ id: a.id, email, role: a.role }] : [];
+    });
+    // Two accounts sharing one address get one message (and one slot of the hourly cap).
+    const seen = new Set<string>();
+    const withAddress = addressed.filter((r) => {
+      const key = r.email.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     const room = this.room(req.toggle, withAddress.length);
     const to = withAddress.slice(0, room);
     const subject = oneLine(req.subject);
-    const text = staffEmailText(req.text, req.path, this.config.webOrigin);
     let failed = 0;
     for (let at = 0; at < to.length; at += BATCH) {
       const batch = to.slice(at, at + BATCH);
       const results = await Promise.allSettled(
-        batch.map((r) => this.mailer.send({ to: r.email, subject, text })),
+        batch.map((r) =>
+          this.mailer.send({
+            to: r.email,
+            subject,
+            text: staffEmailText(
+              req.text,
+              req.path,
+              this.config.webOrigin,
+              // Each person's switch lives on their own screen: HQ roles on /hq/profile, the rest here.
+              can('hqConsole', r.role) ? '/hq/profile' : '/dashboard/account',
+            ),
+          }),
+        ),
       );
       results.forEach((result, i) => {
         if (result.status === 'fulfilled') return;
@@ -111,11 +139,22 @@ export class StaffEmailService {
     this.logger.log(
       `staff email ${req.toggle} ${req.path}: ${req.accountIds.length} accounts, ` +
         `${req.accountIds.length - wanted.length} switched off, ` +
-        `${wanted.length - staff.length} not active HQ staff, ` +
-        `${staff.length - withAddress.length} without an address, ` +
+        `${wanted.length - staff.length} not active staff, ` +
+        `${staff.length - addressed.length} without an address, ` +
+        `${addressed.length - withAddress.length} sharing an address, ` +
         `${withAddress.length - to.length} over the hourly cap, ${to.length - failed} sent, ${failed} failed`,
     );
     return { sent: to.length - failed, failed, skipped: req.accountIds.length - to.length };
+  }
+
+  /** HR's address per account. HR down is not a reason to drop the email: the login's own is used. */
+  private async hrEmailsOf(ids: string[]): Promise<Map<string, string>> {
+    try {
+      return new Map((await this.hrEmails.emailsByAccounts(ids)).map((r) => [r.accountId, r.email]));
+    } catch (err) {
+      this.logger.warn(`hr-service email lookup failed, using login emails: ${withoutAddresses(err)}`);
+      return new Map();
+    }
   }
 
   /** How many of `want` messages the toggle may still send in its current one-hour window. */

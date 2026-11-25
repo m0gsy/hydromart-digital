@@ -2,6 +2,7 @@ import { ApiProperty, OmitType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsEnum,
@@ -251,6 +252,15 @@ export class ProvisionEmployeesDto {
 export class AnonymiseEmployeeDto {
   @IsUUID()
   authSubjectId!: string;
+}
+
+/** Staff notification email: the accounts whose HR email admin-service wants. */
+export class EmailsByAccountsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @IsUUID('all', { each: true })
+  accountIds!: string[];
 }
 
 /** A login switched off (or back on) in the staff console, arriving over the internal key. */

@@ -129,6 +129,8 @@ export interface EmployeeRepository {
     authSubjectId: string,
     phone: string,
   ): Promise<{ linked: Employee | null; oldestByPhone: Employee | null }>;
+  /** The HR email of each linked account, only where one is filled in (staff notification email). */
+  emailsByAuthSubjectIds(authSubjectIds: string[]): Promise<{ accountId: string; email: string }[]>;
   /** Resolve the HR record linked to an auth account (self-service check-in/profile). */
   findByAuthSubjectId(authSubjectId: string): Promise<Employee | null>;
   /**

@@ -57,6 +57,7 @@ import { SecurityPolicyPrismaRepository } from '../infrastructure/prisma/securit
 import { AdminNotificationPrefPrismaRepository } from '../infrastructure/prisma/admin-notification-pref.prisma.repository';
 import { OnboardingStatePrismaRepository } from '../infrastructure/prisma/onboarding-state.prisma.repository';
 import { SmtpReportMailer, SmtpStaffMailer } from '../infrastructure/mail/smtp-report-mailer';
+import { StaffHrEmailHttpAdapter } from '../infrastructure/http/staff-hr-email.http.adapter';
 import { StaffDirectoryHttpAdapter } from '../infrastructure/http/staff-directory.http.adapter';
 import { HealthProbeHttpAdapter } from '../infrastructure/http/health-probe.http.adapter';
 import { FeatureFlagsController } from './feature-flags.controller';
@@ -125,6 +126,7 @@ const providers: Provider[] = [
   { provide: ADMIN_TOKENS.ReportMailer, useClass: SmtpReportMailer },
   { provide: ADMIN_TOKENS.StaffMailer, useClass: SmtpStaffMailer },
   { provide: ADMIN_TOKENS.StaffDirectory, useClass: StaffDirectoryHttpAdapter },
+  { provide: ADMIN_TOKENS.StaffHrEmail, useClass: StaffHrEmailHttpAdapter },
   { provide: ADMIN_TOKENS.SupportTicketRepository, useClass: SupportTicketPrismaRepository },
   { provide: ADMIN_TOKENS.FraudFlagRepository, useClass: FraudFlagPrismaRepository },
   { provide: ADMIN_TOKENS.FraudSignals, useClass: FraudSignalsHttpAdapter },
