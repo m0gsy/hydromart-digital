@@ -33,8 +33,9 @@ import { depotsOn, plusDays } from './stretches';
  *    held-back cell away by subtraction holds its smallest neighbour back too (masking.ts);
  *  - except C-08, a metric is answered for ONE whole calendar month only, so two answers never
  *    overlap and a month cannot be subtracted from a week to isolate the few people between them;
- *  - only a CLOSED month is answered ("bulan berjalan belum ditutup" otherwise): a running month's count,
- *    watched day by day, steps by the one person who ordered that day;
+ *  - only a CLOSED month is answered, and only from the 8th of the next month (owner, 25 Nov 2026: late
+ *    cancellations settle first; `isOpen` in group-context.ts): a running month's count, watched day by
+ *    day, steps by the one person who ordered that day;
  *  - C-06 is a total as of a date, so it is answered only as of the last day of a closed month, with every
  *    cell and the total rounded to a multiple of 5; C-08's sizes and cells are ALWAYS rounded to 5 too,
  *    because the exact repeat/active of C-05 minus an exact cohort diagonal would give a held row away.

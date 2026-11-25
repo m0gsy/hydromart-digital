@@ -219,8 +219,10 @@ describe('GET ai/read/stock and ai/read/loyalty (HD-6 H4)', () => {
     expect((await get(aiToken('SUPER_ADMIN'), 'loyalty', 'O-09', CLOSED).expect(200)).body.value).toMatchObject({ campaigns: 3, recipients: 1000 });
     // a role that does not read every legal entity is not given the network's numbers
     expect((await get(aiToken('FINANCE'), 'loyalty', 'O-04', CLOSED).expect(200)).body).toMatchObject({ status: 'ditahan', value: null });
-    // the running month, and anything but one whole month, are refused
-    expect((await get(aiToken('SUPER_ADMIN'), 'loyalty', 'O-04', MONTH).expect(200)).body).toMatchObject({ status: 'ditahan' });
+    // the running month, and anything but one whole month, are refused. Today's UTC date always names a
+    // month still running or closed under 8 days in WIB, so this never turns into a date bomb.
+    const running = `period=month&date=${new Date().toISOString().slice(0, 10)}`;
+    expect((await get(aiToken('SUPER_ADMIN'), 'loyalty', 'O-04', running).expect(200)).body).toMatchObject({ status: 'ditahan' });
     await get(aiToken('SUPER_ADMIN'), 'loyalty', 'O-04', 'period=week&date=2026-01-10').expect(400);
     await get(aiToken('SUPER_ADMIN'), 'loyalty', 'O-06', 'from=2026-01-01&to=2026-02-28').expect(400);
   });
