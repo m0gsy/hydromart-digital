@@ -709,6 +709,41 @@ why="$(accounts_ok 2 "$BASE")" && [ "$RC" = 0 ] && cmp -s "$BOX/.env" "$BASE_ENV
   ok "morningSummaryNotifyX does not make morningSummaryNotify capable" || bad "prefix capability: rc=$RC $why $OUT"
 printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
 cp "$W/good.env" "$BOX/.env"
+# AI-7c: the AI access request scope rides along the same way: only while the tree AND the last good
+# release both hold it (the box above has not got it, which is why the cases above stay as they were).
+CAPS3="$(printf '%s\n' "$CAPS" | sed "s/^  morningSummaryNotify:.*/&\n  aiAccessRequestNotify: ['SUPER_ADMIN'],/")"
+ALL='["franchiseApplicationNotify","morningSummaryNotify","aiAccessRequestNotify"]'
+cp "$W/good.env" "$BOX/.env"
+printf '%s\n' "$CAPS3" > "$BOX/packages/access/src/index.ts"
+ids_before="$(ids)"
+secrets
+why="$(accounts_ok 2 "$ALL")" && [ "$RC" = 0 ] && [ "$(ids)" = "$ids_before" ] &&
+  ok "aiAccessRequestNotify capable: both n8n entries carry all three scopes in place (same id, secret hash, day, order)" ||
+  bad "all three scopes: rc=$RC $why $OUT"
+cp "$BOX/.env" "$W/before"
+secrets
+cmp -s "$BOX/.env" "$W/before" && ok "  ...and a second run changes nothing (.env byte-identical)" || bad "second run, three scopes: $OUT"
+# The last good release lacks it: left out with one plain line, the other two scopes stay, exit 0.
+git -C "$BOX" init -q
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
+git -C "$BOX" -c user.name=t -c user.email=t@example.invalid add packages >/dev/null
+git -C "$BOX" -c user.name=t -c user.email=t@example.invalid commit -qm 'before AI-7c' >/dev/null
+mkdir -p "$BOX/.deploy"
+git -C "$BOX" rev-parse HEAD > "$BOX/.deploy/last-good-sha"
+printf '%s\n' "$CAPS3" > "$BOX/packages/access/src/index.ts"
+cp "$W/good.env" "$BOX/.env"
+secrets
+why="$(accounts_ok 2 "$BOTH")" && [ "$RC" = 0 ] && cmp -s "$BOX/.env" "$W/good.env" &&
+  [ "$(printf '%s\n' "$OUT" | grep -c 'aiAccessRequestNotify')" = 1 ] &&
+  printf '%s' "$OUT" | grep -q 'last good release [0-9a-f]\{12\} has no capability aiAccessRequestNotify yet' &&
+  ok "the last good release lacks aiAccessRequestNotify: entries keep the other two scopes, one log line says why, exit 0" ||
+  bad "last good lacks aiAccessRequestNotify: rc=$RC $why $OUT"
+rm -rf "$BOX/.deploy" "$BOX/.git"
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
+cp "$W/good.env" "$BOX/.env"
+sed -n '/^export const CAPABILITIES = {/,/^}/p' packages/access/src/index.ts | grep -qE '^  aiAccessRequestNotify:' &&
+  ok "packages/access declares aiAccessRequestNotify where aiweb-secrets.sh reads it" ||
+  bad "aiweb-secrets.sh cannot find aiAccessRequestNotify in packages/access/src/index.ts"
 # The real packages/access declares CAPABILITIES the way the lookup above reads it.
 sed -n '/^export const CAPABILITIES = {/,/^}/p' packages/access/src/index.ts | grep -qE '^  dashboard:' &&
   ok "packages/access/src/index.ts declares CAPABILITIES in the shape aiweb-secrets.sh reads" ||

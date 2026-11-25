@@ -198,6 +198,9 @@ export function destinationFor(
     case NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED:
       return vars.applicationId ? withId('/hq/applications/detail', vars.applicationId) : '/hq/applications';
     // AI-9: the queue screen the summary names (an href of the HD-11 queue contract), else the inbox.
+    // AI-7c: the screen where access is granted (HQ legal entities, the AI access matrix).
+    case NotificationEvent.AI_ACCESS_REQUESTED:
+      return '/hq/legal-entities';
     case NotificationEvent.MORNING_SUMMARY:
       return /^\/[a-z0-9/-]+$/.test(vars.href ?? '') ? vars.href : INBOX;
     case NotificationEvent.LEAVE_SUBMITTED:

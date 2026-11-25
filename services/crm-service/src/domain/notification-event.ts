@@ -65,6 +65,10 @@ export enum NotificationEvent {
   // (queue labels with their counts), {{oldest}} (" Tertua sejak 12 Nov." or empty), `href`
   // rides along for the tap. Counts only, nothing personal.
   MORNING_SUMMARY = 'MORNING_SUMMARY',
+  // AI-7c: someone in the AI web asked for access to data their role may not read. One row per
+  // person who can grant it (legalEntityAiAccess), raised by POST notifications/external/
+  // ai-access-requested. Tokens: {{who}} (name and role), {{what}} (entities or data group).
+  AI_ACCESS_REQUESTED = 'AI_ACCESS_REQUESTED',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -225,6 +229,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]:
     'Lamaran waralaba baru dari calon mitra di {{city}}, {{province}}. Buka menu Lamaran waralaba untuk meninjau.',
   [NotificationEvent.MORNING_SUMMARY]: 'Persetujuan yang menunggu Anda: {{summary}}.{{oldest}}',
+  [NotificationEvent.AI_ACCESS_REQUESTED]:
+    '{{who}} meminta akses AI web untuk {{what}}. Buka Badan hukum, bagian akses AI, untuk memberikannya.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
   [NotificationEvent.PAYMENT_REMINDER]:
@@ -340,6 +346,8 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED,
   // AI-9: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
   NotificationEvent.MORNING_SUMMARY,
+  // AI-7c: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
+  NotificationEvent.AI_ACCESS_REQUESTED,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -395,7 +403,8 @@ export type StaffToggle =
   | 'approval'
   | 'dailySummary'
   | 'newFranchiseApp'
-  | 'morningSummary';
+  | 'morningSummary'
+  | 'aiAccessRequest';
 
 export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffToggle>> = {
   [NotificationEvent.DEPOT_ORDER_INCOMING]: 'newOrder',
@@ -418,6 +427,8 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: 'newFranchiseApp',
   // AI-9: its own switch on /hq/profile, push and email, both defaulting on.
   [NotificationEvent.MORNING_SUMMARY]: 'morningSummary',
+  // AI-7c: its own switch on /hq/profile, push and email, both defaulting on.
+  [NotificationEvent.AI_ACCESS_REQUESTED]: 'aiAccessRequest',
   [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
 };
 
@@ -458,6 +469,8 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.ATTENDANCE_LATE,
   // AI-9: counts for one recipient, shown to that recipient only.
   NotificationEvent.MORNING_SUMMARY,
+  // AI-7c: one person who can grant AI access; the request names a requester, so for them only.
+  NotificationEvent.AI_ACCESS_REQUESTED,
 ];
 
 // English. Same tokens, same order, same meaning — including the operational ones, which go
@@ -484,6 +497,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]:
     'New franchise application from a prospective partner in {{city}}, {{province}}. Open Franchise applications to review it.',
   [NotificationEvent.MORNING_SUMMARY]: 'Approvals waiting for you: {{summary}}.{{oldest}}',
+  [NotificationEvent.AI_ACCESS_REQUESTED]:
+    '{{who}} asks for AI web access to {{what}}. Open Legal entities, the AI access section, to grant it.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Hi {{name}}, the payment for order {{orderNumber}} did not go through ({{reason}}). Please pay again from the app.',
   [NotificationEvent.PAYMENT_REMINDER]:

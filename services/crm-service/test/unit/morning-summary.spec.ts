@@ -125,6 +125,7 @@ function build(answers: Record<string, PendingQueueAnswer[] | Error>, staff: Rec
       Object.keys(staff).filter((id) => roles.includes(staff[id]!)),
     ),
     rolesOf: async (ids) => new Map(ids.filter((i) => staff[i]).map((i) => [i, staff[i]!])),
+    profileOf: async () => null,
   };
   const forAccount = jest.fn(async (id: string) => {
     const a = answers[id] ?? [];
@@ -242,7 +243,7 @@ describe('MorningSummaryService', () => {
 
 describe('NotificationExternalController.morningSummaryRun', () => {
   const run = jest.fn(async () => ({ date: '2026-11-25', recipients: 1, notified: 1, nothingWaiting: 0, whatsapp: 'pending' as const }));
-  const controller = new NotificationExternalController({} as never, { run } as never);
+  const controller = new NotificationExternalController({} as never, { run } as never, {} as never);
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-11-25T00:30:00.000Z'));
     run.mockClear();

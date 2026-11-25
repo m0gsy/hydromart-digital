@@ -11,11 +11,14 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 
 import { AuditMutationsInterceptor, Can, ExternalAccess } from '@hydromart/platform';
 
+import { AiAccessRequestService } from '../application/services/ai-access-request.service';
 import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { NotificationService } from '../application/services/notification.service';
 import { wibDate } from '../domain/morning-summary';
 import { NotificationEvent } from '../domain/notification-event';
 import {
+  AiAccessRequestedDto,
+  AiAccessRequestedResultDto,
   FRANCHISE_EVENT_PREFIX,
   FranchiseApplicationSubmittedDto,
   MORNING_SUMMARY_PREFIX,
@@ -30,7 +33,10 @@ import {
  * control characters and runs of whitespace (newlines, tabs) read as one space, then trimmed.
  */
 const oneLine = (value: string): string =>
-  value.replace(/\p{Cf}/gu, '').replace(/[\p{Cc}\s]+/gu, ' ').trim();
+  value
+    .replace(/\p{Cf}/gu, '')
+    .replace(/[\p{Cc}\s]+/gu, ' ')
+    .trim();
 
 /*
  * AI-5 — notifications a machine account (n8n) raises in hydromart's own staff feed and push.
@@ -50,6 +56,7 @@ export class NotificationExternalController {
   constructor(
     private readonly notifications: NotificationService,
     private readonly morningSummary: MorningSummaryService,
+    private readonly aiAccessRequests: AiAccessRequestService,
   ) {}
 
   /*
@@ -63,7 +70,9 @@ export class NotificationExternalController {
   @UseInterceptors(AuditMutationsInterceptor)
   @Post('franchise-application-submitted')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'n8n: tell the application reviewers a franchise application arrived (AI-5)' })
+  @ApiOperation({
+    summary: 'n8n: tell the application reviewers a franchise application arrived (AI-5)',
+  })
   @ApiOkResponse({ type: NotificationIdDto })
   async franchiseApplicationSubmitted(
     @Body() dto: FranchiseApplicationSubmittedDto,
@@ -115,5 +124,30 @@ export class NotificationExternalController {
       throw new BadRequestException('date must be today in Asia/Jakarta');
     }
     return this.morningSummary.run(eventId, dto.date);
+  }
+
+  /*
+   * AI-7c: someone in the AI web pressed "Minta akses". n8n passes ids only (the event's eventId,
+   * the requester and what was asked); hydromart looks up the names, composes the text and tells
+   * whoever holds `legalEntityAiAccess`. A requester who does not exist or can already grant
+   * access answers 200 with notified 0, so the route says nothing about who exists.
+   */
+  @ExternalAccess('machine')
+  @Can('aiAccessRequestNotify')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('ai-access-requested')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'n8n: tell the people who can grant AI web access that someone asked (AI-7c)',
+  })
+  @ApiOkResponse({ type: AiAccessRequestedResultDto })
+  async aiAccessRequested(@Body() dto: AiAccessRequestedDto): Promise<AiAccessRequestedResultDto> {
+    // One spelling, so an upper-case retry is still the same event (and the same dedupe key).
+    return this.aiAccessRequests.run(
+      dto.eventId.toLowerCase(),
+      dto.requesterAccountId.toLowerCase(),
+      dto.legalEntityIds?.map((id) => id.toLowerCase()),
+      dto.group,
+    );
   }
 }

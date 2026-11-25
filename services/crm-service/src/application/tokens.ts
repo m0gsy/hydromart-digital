@@ -21,4 +21,6 @@ export const CRM_TOKENS = {
   StaffEmail: Symbol('StaffEmail'),
   // AI-9: what one account's approval queues hold (dashboard-service).
   PendingApprovals: Symbol('PendingApprovals'),
+  // AI-7c: the names of the legal entities an AI access request names (depot-service).
+  LegalEntityNames: Symbol('LegalEntityNames'),
 } as const;

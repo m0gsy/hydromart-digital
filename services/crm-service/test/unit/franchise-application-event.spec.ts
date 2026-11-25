@@ -82,6 +82,7 @@ function build(
   const approvers: ApproverDirectoryPort = {
     staffIdsByRoles: byRoles,
     rolesOf: async (ids) => new Map(ids.filter((i) => ROLES[i]).map((i) => [i, ROLES[i]!])),
+    profileOf: async () => null,
   };
   const repo = new InMemoryNotificationRepository();
   const roster = jest.fn(async () => ['op-1']);
@@ -221,6 +222,7 @@ describe('the email of a new franchise application', () => {
       {
         staffIdsByRoles: async () => ['ho-1'],
         rolesOf: async (ids) => new Map(ids.map((i) => [i, 'HEAD_OFFICE'])),
+        profileOf: async () => null,
       },
     );
     await raise(service);

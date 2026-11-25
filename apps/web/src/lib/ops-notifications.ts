@@ -57,6 +57,8 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   FRANCHISE_APPLICATION_SUBMITTED: 'sales',
   // AI-9: approvals waiting are decisions, the same bucket as the other approval alerts.
   MORNING_SUMMARY: 'orders',
+  // AI-7c: a request waiting for a decision, the same bucket.
+  AI_ACCESS_REQUESTED: 'orders',
   COURIER_DELIVERY_ASSIGNED: 'courier',
   DELIVERY_SLA_BREACHED: 'courier',
   STOCK_LOW: 'stock',

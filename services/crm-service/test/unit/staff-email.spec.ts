@@ -15,8 +15,8 @@ import { STAFF_EMAIL_TEMPLATES } from '../../src/domain/staff-email';
  * email: a template, and the switch it is sent under (the push's own). A new route that names a
  * kind with neither fails here.
  */
-// AI-9: the morning summary is raised by its service, which the same controller calls.
-const EXTERNAL = ['modules/notification-external.controller.ts', 'application/services/morning-summary.service.ts']
+// AI-9 and AI-7c: the morning summary and the AI access request are raised by their services, which the same controller calls.
+const EXTERNAL = ['modules/notification-external.controller.ts', 'application/services/morning-summary.service.ts', 'application/services/ai-access-request.service.ts']
   .map((file) => readFileSync(join(__dirname, '../../src', file), 'utf8'))
   .join(' ');
 const RAISED = [
@@ -28,6 +28,7 @@ describe('the email channel of the notifications n8n raises', () => {
   it('reads the kinds the external route raises', () => {
     expect(RAISED).toContain(NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED);
     expect(RAISED).toContain(NotificationEvent.MORNING_SUMMARY);
+    expect(RAISED).toContain(NotificationEvent.AI_ACCESS_REQUESTED);
   });
 
   it.each(RAISED)('%s has an email template and a switch to send it under', (event) => {
