@@ -1025,6 +1025,15 @@ export class SetActive2ResponseDto {
   updated!: boolean;
 }
 
+/** One account's HR email, as admin-service's staff email reads it. */
+export class AccountEmailResponseDto {
+  @ApiProperty({ type: String, format: 'uuid' })
+  accountId!: string;
+
+  @ApiProperty({ type: String })
+  email!: string;
+}
+
 /** Mirrors the inline response shape this route already returns (audit D-6). */
 export class AnonymiseByAccountResponseDto {
   @ApiProperty({ type: Number })

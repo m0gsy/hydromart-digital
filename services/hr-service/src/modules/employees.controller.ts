@@ -31,7 +31,7 @@ import {
   UpdateEmployeeDto,
 } from './dto/employee.dto';
 import { Employee, EmploymentHistory } from '../../prisma/generated/client';
-import { AnonymiseByAccountResponseDto, EmployeeResponseDto, EmploymentHistoryResponseDto, ImportResponseDto, List6ResponseDto, ProvisionMany2ResponseDto, RetentionAnonymise2ResponseDto, RetentionReport2ResponseDto, SetActive2ResponseDto } from './dto/responses.generated.dto';
+import { AccountEmailResponseDto, AnonymiseByAccountResponseDto, EmployeeResponseDto, EmploymentHistoryResponseDto, ImportResponseDto, List6ResponseDto, ProvisionMany2ResponseDto, RetentionAnonymise2ResponseDto, RetentionReport2ResponseDto, SetActive2ResponseDto } from './dto/responses.generated.dto';
 
 /** Employee directory (M1). Read = hrView (incl. depot manager, depot-scoped); write = hrAdmin. */
 @ApiTags('HR Employees')
@@ -157,6 +157,7 @@ export class EmployeesController {
   }
 
   /** HR emails by login id, for admin-service's staff email. Only accounts with an email answer. */
+  @ApiOkResponse({ type: [AccountEmailResponseDto] })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
