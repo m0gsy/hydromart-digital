@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { DraftSource } from '../../domain/draft-source';
 import { PricingAdjustType } from '../../domain/pricing-rule';
 import {
   PriceOverrideProposalRecord,
@@ -27,6 +28,9 @@ interface ProposalRow {
   proposedBy: string;
   decidedBy: string | null;
   decisionReason: string | null;
+  source: string;
+  aiSuggestionId: string | null;
+  aiReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,6 +54,9 @@ export class PriceOverrideProposalPrismaRepository implements PriceOverridePropo
       proposedBy: row.proposedBy,
       decidedBy: row.decidedBy,
       decisionReason: row.decisionReason,
+      source: row.source as DraftSource,
+      aiSuggestionId: row.aiSuggestionId,
+      aiReason: row.aiReason,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -89,6 +96,11 @@ export class PriceOverrideProposalPrismaRepository implements PriceOverridePropo
 
   async findById(id: string): Promise<PriceOverrideProposalRecord | null> {
     const row = await this.prisma.priceOverrideProposal.findUnique({ where: { id } });
+    return row ? this.toRecord(row as unknown as ProposalRow) : null;
+  }
+
+  async findByAiSuggestionId(aiSuggestionId: string): Promise<PriceOverrideProposalRecord | null> {
+    const row = await this.prisma.priceOverrideProposal.findUnique({ where: { aiSuggestionId } });
     return row ? this.toRecord(row as unknown as ProposalRow) : null;
   }
 

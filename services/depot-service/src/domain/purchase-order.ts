@@ -2,6 +2,7 @@
 // receiving posts a RECEIPT stock movement per line into the depot's inventory.
 // Mirrors the Prisma model; the domain never imports the generated client.
 
+import { DraftSource } from './draft-source';
 import { InventoryItemType } from './inventory';
 
 export enum PoStatus {
@@ -93,6 +94,10 @@ export interface PurchaseOrder {
   totalIdr: number;
   expectedAt: Date | null;
   receivedAt: Date | null;
+  /** HD-17: STAFF, or AI for a DRAFT the AI web made; staff review it and press Kirim. */
+  source: DraftSource;
+  aiSuggestionId: string | null;
+  aiReason: string | null;
   createdAt: Date;
 }
 

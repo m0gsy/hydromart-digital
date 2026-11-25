@@ -1044,6 +1044,10 @@ export class PriceOverrideProposalResponseDto {
   decidedBy!: string | null;
   @ApiProperty({ type: String, nullable: true, description: 'Reason given with the decision.' })
   decisionReason!: string | null;
+  @ApiProperty({ enum: ['STAFF', 'AI'], description: 'AI = drafted by the AI web (HD-17).' })
+  source!: string;
+  @ApiProperty({ type: String, nullable: true, description: 'Why the AI proposed it.' })
+  aiReason!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
   @ApiProperty({ type: String, format: 'date-time' })
@@ -1177,6 +1181,10 @@ export class PurchaseOrderResponseDto {
   expectedAt!: string | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   receivedAt!: string | null;
+  @ApiProperty({ enum: ['STAFF', 'AI'], description: 'AI = drafted by the AI web (HD-17).' })
+  source!: string;
+  @ApiProperty({ type: String, nullable: true, description: 'Why the AI proposed it.' })
+  aiReason!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
   @ApiPropertyOptional({

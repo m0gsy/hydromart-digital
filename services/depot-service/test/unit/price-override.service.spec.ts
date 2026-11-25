@@ -1,8 +1,10 @@
 import { PriceOverrideService } from '../../src/application/services/price-override.service';
 import { PricingService, CreateRuleInput } from '../../src/application/services/pricing.service';
+import { DraftSource } from '../../src/domain/draft-source';
 import { PricingAdjustType } from '../../src/domain/pricing-rule';
 import { PriceOverrideStatus } from '../../src/domain/price-override-proposal';
 import {
+  AiSuggestionReusedError,
   DepotNotFoundError,
   PriceOverrideProposalDecidedError,
   PriceOverrideProposalNotFoundError,
@@ -29,6 +31,9 @@ class InMemoryProposalRepository implements PriceOverrideProposalRepository {
     const at = new Date(1_800_000_000_000 + this.seq * 1000);
     const row: PriceOverrideProposalRecord = {
       id: `p${++this.seq}`,
+      source: DraftSource.STAFF,
+      aiSuggestionId: null,
+      aiReason: null,
       ...data,
       status: PriceOverrideStatus.PENDING,
       decidedBy: null,
@@ -56,6 +61,9 @@ class InMemoryProposalRepository implements PriceOverrideProposalRepository {
   }
   async findById(id: string) {
     return this.rows.find((r) => r.id === id) ?? null;
+  }
+  async findByAiSuggestionId(aiSuggestionId: string) {
+    return this.rows.find((r) => r.aiSuggestionId === aiSuggestionId) ?? null;
   }
   async update(id: string, patch: UpdatePriceOverrideProposalData) {
     const row = this.rows.find((r) => r.id === id)!;
@@ -425,5 +433,85 @@ describe('PriceOverrideService', () => {
       ['mgr-1', 'Budi'],
       ['mgr-2', null],
     ]);
+  });
+  // HD-17: the AI web's draft is an ordinary PENDING proposal, marked AI, once per suggestion id.
+  describe('draftFromAi (HD-17)', () => {
+    const SUGGESTION = '5c1e2f3a-0000-4000-8000-000000000001';
+    const ai = { suggestionId: SUGGESTION, reason: 'Harga pesaing turun 10%.' };
+
+    it('makes a PENDING AI proposal carrying the suggestion id and reason, and tells the deciders', async () => {
+      const alerts: unknown[] = [];
+      const alert = { emit: jest.fn(async (a: unknown) => void alerts.push(a)) };
+      const svc = new PriceOverrideService(repo, fakeDepots('Depot A'), pricing, fakeConfig(), noNames, alert);
+      const { draft, replayed } = await svc.draftFromAi('d1', 'mgr-1', PROPOSE, ai);
+      expect(replayed).toBe(false);
+      expect(draft).toMatchObject({
+        status: PriceOverrideStatus.PENDING,
+        source: DraftSource.AI,
+        aiSuggestionId: SUGGESTION,
+        aiReason: ai.reason,
+        proposedBy: 'mgr-1',
+      });
+      expect(alerts).toHaveLength(1);
+    });
+
+    it('replays a body whose float noise the column stores rounded (no spurious 409)', async () => {
+      const svc = service();
+      const body = { ...PROPOSE, value: 0.1 + 0.2 };
+      jest.spyOn(repo, 'create').mockImplementationOnce(async (data) => {
+        const row = await InMemoryProposalRepository.prototype.create.call(repo, { ...data, value: 0.3 });
+        return row;
+      });
+      await svc.draftFromAi('d1', 'mgr-1', body, ai);
+      await expect(svc.draftFromAi('d1', 'mgr-1', body, ai)).resolves.toMatchObject({ replayed: true });
+    });
+
+    it('answers the same draft for the same id and body, making no second row', async () => {
+      const svc = service();
+      const first = await svc.draftFromAi('d1', 'mgr-1', PROPOSE, ai);
+      const again = await svc.draftFromAi('d1', 'mgr-1', PROPOSE, ai);
+      expect(again).toEqual({ draft: first.draft, replayed: true });
+      expect(repo.rows).toHaveLength(1);
+    });
+
+    it.each([
+      ['another value', 'd1', 'mgr-1', { ...PROPOSE, value: -20 }, ai.reason],
+      ['another depot', 'd2', 'mgr-1', PROPOSE, ai.reason],
+      ['another person', 'd1', 'mgr-2', PROPOSE, ai.reason],
+      ['another reason', 'd1', 'mgr-1', PROPOSE, 'Lain.'],
+    ])('refuses the same id with %s (409)', async (_n, depot, who, input, reason) => {
+      const svc = service();
+      await svc.draftFromAi('d1', 'mgr-1', PROPOSE, ai);
+      await expect(
+        svc.draftFromAi(depot, who, input, { suggestionId: SUGGESTION, reason }),
+      ).rejects.toBeInstanceOf(AiSuggestionReusedError);
+      expect(repo.rows).toHaveLength(1);
+    });
+
+    it('answers the winner when two calls with one id race on the unique index', async () => {
+      const svc = service();
+      const winner = await svc.draftFromAi('d1', 'mgr-1', PROPOSE, ai);
+      let looks = 0;
+      jest.spyOn(repo, 'findByAiSuggestionId').mockImplementation(async (id) =>
+        ++looks === 1 ? null : (repo.rows.find((r) => r.aiSuggestionId === id) ?? null),
+      );
+      jest.spyOn(repo, 'create').mockRejectedValueOnce(new Error('unique violation'));
+      await expect(svc.draftFromAi('d1', 'mgr-1', PROPOSE, ai)).resolves.toEqual({
+        draft: winner.draft,
+        replayed: true,
+      });
+    });
+
+    it('rethrows a failure that is not a lost race', async () => {
+      const svc = service();
+      jest.spyOn(repo, 'create').mockRejectedValueOnce(new Error('db down'));
+      await expect(svc.draftFromAi('d1', 'mgr-1', PROPOSE, ai)).rejects.toThrow('db down');
+    });
+
+    it('refuses an unknown depot like the staff route', async () => {
+      await expect(service(null).draftFromAi('d1', 'mgr-1', PROPOSE, ai)).rejects.toBeInstanceOf(
+        DepotNotFoundError,
+      );
+    });
   });
 });

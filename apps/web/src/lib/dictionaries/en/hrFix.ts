@@ -1527,6 +1527,8 @@ export const hrFix = {
     cash: 'Cash',
   },
   purchaseOrders: {
+    aiBadge: 'AI suggestion',
+    aiReason: 'AI reason',
     value: 'Value',
     title: 'Purchase orders',
     noDepot: 'No depot yet',

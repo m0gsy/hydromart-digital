@@ -786,6 +786,8 @@ export const hq = {
     queue: {
       title: 'Overrides pending',
       by: 'Proposed by {who} · {depot}',
+      aiBadge: 'AI suggestion',
+      aiReason: 'AI reason',
       from: 'Current',
       to: 'Proposed',
       approve: 'Approve',

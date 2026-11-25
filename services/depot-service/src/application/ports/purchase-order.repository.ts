@@ -1,3 +1,4 @@
+import { DraftSource } from '../../domain/draft-source';
 import { PoLine, PoStatus, PurchaseOrder } from '../../domain/purchase-order';
 
 export interface CreatePurchaseOrderData {
@@ -10,6 +11,10 @@ export interface CreatePurchaseOrderData {
   shippingIdr: number;
   totalIdr: number;
   expectedAt: Date | null;
+  /** HD-17: omitted = STAFF. */
+  source?: DraftSource;
+  aiSuggestionId?: string;
+  aiReason?: string;
 }
 
 /** Partial patch: status transition and/or receivedAt stamp. */
@@ -42,6 +47,8 @@ export interface PurchaseOrderRepository {
    */
   receivedTotalInRange(depotId: string, from: Date, to: Date): Promise<number>;
   findById(id: string): Promise<PurchaseOrder | null>;
+  /** HD-17: the draft an AI suggestion id already made, if any. */
+  findByAiSuggestionId(aiSuggestionId: string): Promise<PurchaseOrder | null>;
   update(id: string, data: UpdatePurchaseOrderData): Promise<PurchaseOrder>;
   /**
    * D1-03: compare-and-set of a partial receipt. Writes `lines` only if the PO is still SENT

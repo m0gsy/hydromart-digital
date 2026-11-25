@@ -522,7 +522,7 @@ describe('AuditMutationsInterceptor for an external caller (HD-2)', () => {
     const { sink, strict, plain } = recordingSink();
     const run = jest.fn(() => of('done'));
     const out = new AuditMutationsInterceptor(sink).intercept(
-      ctx(externalPost({ 'x-workflow': ' daily-price ', 'x-ai-proposal': 'P-17', 'x-other': 'x' })),
+      ctx(externalPost({ 'x-workflow': ' daily-price ', 'x-ai-proposal': 'P-17', 'x-ai-suggestion-id': 'S-9', 'x-other': 'x' })),
       { handle: run } as CallHandler,
     );
     await expect(firstValueFrom(out)).resolves.toBe('done');
@@ -534,6 +534,7 @@ describe('AuditMutationsInterceptor for an external caller (HD-2)', () => {
       via: 'machine',
       workflow: 'daily-price',
       proposalId: 'P-17',
+      suggestionId: 'S-9',
       price: 18000,
     });
   });

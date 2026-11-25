@@ -167,10 +167,16 @@ function Detail({ id }: { id: string }) {
             · {formatDateTime(po.createdAt)}
           </p>
         </div>
+        {po.source === 'AI' ? <Badge tone="brand">{t('hrFix.purchaseOrders.aiBadge')}</Badge> : null}
         <Badge tone={STATUS_TONE[po.status]}>
           {t(STEPS.find((s) => s.status === po.status)?.label ?? '')}
         </Badge>
       </header>
+      {po.source === 'AI' && po.aiReason ? (
+        <p className="text-sm text-muted">
+          <span className="font-semibold">{t('hrFix.purchaseOrders.aiReason')}:</span> {po.aiReason}
+        </p>
+      ) : null}
 
       <Card className="p-4">
         <Stepper status={po.status} />

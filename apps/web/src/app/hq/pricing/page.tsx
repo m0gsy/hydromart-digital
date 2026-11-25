@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Tag } from '@phosphor-icons/react';
 
 import { HqPageHeader } from '@/components/hq/page-header';
-import { Card, ErrorState, Money, Skeleton } from '@/components/ui';
+import { Badge, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api, ApiError } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
@@ -159,6 +159,7 @@ export default function HqPricingPage() {
                   <li key={p.id} className="flex flex-col gap-2 rounded-xl border border-app p-3">
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="min-w-0 truncate font-medium">{p.productName}</span>
+                      {p.source === 'AI' ? <Badge tone="brand">{t('hq.pricing.queue.aiBadge')}</Badge> : null}
                     </div>
                     <p className="text-xs text-muted">
                       {t('hq.pricing.queue.by', {
@@ -167,6 +168,12 @@ export default function HqPricingPage() {
                       })}
                     </p>
                     {p.note ? <p className="text-xs text-muted">{p.note}</p> : null}
+                    {p.source === 'AI' && p.aiReason ? (
+                      <p className="text-xs text-muted">
+                        <span className="font-semibold">{t('hq.pricing.queue.aiReason')}:</span>{' '}
+                        {p.aiReason}
+                      </p>
+                    ) : null}
                     {p.decisionReason ? (
                       <p className="text-xs text-muted">
                         <span className="font-semibold">{t('hrFix.decisionGap.reason')}:</span>{' '}

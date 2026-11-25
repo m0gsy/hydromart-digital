@@ -1543,6 +1543,8 @@ export const hrFix = {
     cash: 'Tunai',
   },
   purchaseOrders: {
+    aiBadge: 'Usulan AI',
+    aiReason: 'Alasan AI',
     value: 'Nilai',
     title: 'Pesanan pembelian',
     noDepot: 'Belum ada depot',

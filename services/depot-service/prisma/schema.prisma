@@ -391,6 +391,12 @@ enum PriceOverrideStatus {
   REJECTED
 }
 
+/// HD-17: who made a draft. AI = the AI web, through the closed draft endpoints.
+enum DraftSource {
+  STAFF
+  AI
+}
+
 /// A depot manager's proposal to override a product's price at their depot (design 7a).
 /// HQ approves (priority-wins) or rejects. On approval a PricingRule is created through
 /// the existing pricing mechanism; this row only records the proposal + decision.
@@ -416,6 +422,12 @@ model PriceOverrideProposal {
   decidedBy    String?             @db.Uuid
   /// The reason HQ typed with the decision (a rejection's "why"); null when none was given.
   decisionReason String?
+  /// HD-17: STAFF (a person proposed it) or AI (the AI web drafted it for a person; HQ still decides).
+  source       DraftSource         @default(STAFF)
+  /// The AI web's X-AI-Suggestion-Id; unique, so a retried call answers the same row.
+  aiSuggestionId String?           @unique @db.Uuid
+  /// Why the AI proposed it, shown beside the proposal in /hq/pricing.
+  aiReason     String?
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 
@@ -615,6 +627,10 @@ model PurchaseOrder {
   totalIdr     Int
   expectedAt   DateTime?
   receivedAt   DateTime?
+  /// HD-17: STAFF or AI. An AI PO stays DRAFT until staff press Kirim (that IS the approval).
+  source       DraftSource @default(STAFF)
+  aiSuggestionId String?   @unique @db.Uuid
+  aiReason     String?
   createdAt    DateTime  @default(now())
 
   @@unique([depotId, poNumber])

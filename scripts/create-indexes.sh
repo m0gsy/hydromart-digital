@@ -36,6 +36,10 @@
 # `column "lineNo" does not exist` and, failing closed, aborted EVERY deploy after #838). Every existing row is
 # lineNo 0, so the widened unique index cannot collide, and the table is the small go-live import log.
 #
+# price_override_proposals_aiSuggestionId_key and purchase_orders_aiSuggestionId_key (depot-service,
+# 2026-11-25, HD-17 part A) are built by their own migration, not here: the aiSuggestionId column is
+# created by that very migration and every value is NULL, so the build is instant.
+#
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh
 # database — CI, a new environment — the migration builds it itself, where locking an

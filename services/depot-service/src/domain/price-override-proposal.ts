@@ -4,6 +4,7 @@
 // mechanism (PricingService.create) — this model only carries the proposal itself.
 // Mirrors the Prisma enum; the domain never imports the generated client.
 
+import { DraftSource } from './draft-source';
 import { PricingAdjustType } from './pricing-rule';
 
 export enum PriceOverrideStatus {
@@ -31,6 +32,10 @@ export interface PriceOverrideProposalRecord {
   decidedBy: string | null;
   /** The reason HQ gave with the decision (trimmed, <= 300 chars), if any. */
   decisionReason: string | null;
+  /** HD-17: STAFF, or AI when the AI web drafted it (HQ still decides). */
+  source: DraftSource;
+  aiSuggestionId: string | null;
+  aiReason: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

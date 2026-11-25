@@ -2243,6 +2243,9 @@ export interface PurchaseOrder {
   totalIdr: number;
   expectedAt: string | null;
   receivedAt: string | null;
+  /** HD-17: AI = a DRAFT the AI web made; staff review it and press Kirim. */
+  source?: 'STAFF' | 'AI';
+  aiReason?: string | null;
   createdAt: string;
   /** Only on a receive response: lines that arrived but could not be booked to stock. */
   unbooked?: { index: number; label: string; quantity: number; reason: string }[];
@@ -2492,6 +2495,9 @@ export interface PriceOverrideProposalItem {
   decidedBy: string | null;
   /** The reason HQ gave when deciding; null when none was given. */
   decisionReason?: string | null;
+  /** HD-17: AI = drafted by the AI web; HQ still decides. Absent on older responses. */
+  source?: 'STAFF' | 'AI';
+  aiReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }

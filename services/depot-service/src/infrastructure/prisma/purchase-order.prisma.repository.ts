@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { DraftSource } from '../../domain/draft-source';
 import { PoLine, PoStatus, PurchaseOrder, receivedOf } from '../../domain/purchase-order';
 import {
   CreatePurchaseOrderData,
@@ -22,6 +23,9 @@ interface PurchaseOrderRow {
   totalIdr: number;
   expectedAt: Date | null;
   receivedAt: Date | null;
+  source: string;
+  aiSuggestionId: string | null;
+  aiReason: string | null;
   createdAt: Date;
 }
 
@@ -33,6 +37,7 @@ export class PurchaseOrderPrismaRepository implements PurchaseOrderRepository {
     return {
       ...row,
       status: row.status as PoStatus,
+      source: row.source as DraftSource,
       lines: (row.lines ?? []) as PoLine[],
     };
   }
@@ -70,6 +75,11 @@ export class PurchaseOrderPrismaRepository implements PurchaseOrderRepository {
 
   async findById(id: string): Promise<PurchaseOrder | null> {
     const row = await this.prisma.purchaseOrder.findUnique({ where: { id } });
+    return row ? this.toRecord(row) : null;
+  }
+
+  async findByAiSuggestionId(aiSuggestionId: string): Promise<PurchaseOrder | null> {
+    const row = await this.prisma.purchaseOrder.findUnique({ where: { aiSuggestionId } });
     return row ? this.toRecord(row) : null;
   }
 
