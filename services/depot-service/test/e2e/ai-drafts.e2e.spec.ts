@@ -278,12 +278,25 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       expect(proposals.rows).toHaveLength(0);
     });
 
-    it('refuses a third decimal on a money field (400), and a staff token with a bad body is 403 first', async () => {
-      await post(PRICE, manager(), { ...priceBody(), value: -10.555 }).expect(400);
-      await post(PRICE, manager(), { ...priceBody(), currentPrice: 20000.001 }).expect(400);
+    it('stores a third decimal rounded to 2 dp (a retry still replays), and a staff token with a bad body is 403 first', async () => {
+      const body = { ...priceBody(), value: -10.555, currentPrice: 20000.004 };
+      const first = await post(PRICE, manager(), body).expect(201);
+      expect(first.body.currentPrice).toBe(20000);
+      expect(String(first.body.value)).toMatch(/^-10.5[56]$/);
+      await post(PRICE, manager(), body).expect(200);
       await post(PRICE, staff(Role.MANAGER, depotId), { nonsense: true }, null).expect(403);
       await post(PO, staff(Role.MANAGER, depotId), { nonsense: true }, null).expect(403);
-      expect(proposals.rows).toHaveLength(0);
+      expect(proposals.rows).toHaveLength(1);
+    });
+
+    it('the staff CSV import accepts a cell with many decimals, stored rounded', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/api/v1/depots/${depotId}/price-overrides/import`)
+        .set('Authorization', `Bearer ${staff(Role.MANAGER, depotId)}`)
+        .send({ rows: [{ ...priceBody(), reason: undefined, depotId: undefined, value: 15.3333333 }] })
+        .expect(201);
+      expect(res.body.created).toBe(1);
+      expect(proposals.rows[0]!.value).toBe(15.33);
     });
 
     it('gives the person exactly what the staff route gives them', async () => {

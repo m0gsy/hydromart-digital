@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -20,6 +20,15 @@ import { decimalMax } from '@hydromart/platform';
 import { PricingAdjustType } from '../../domain/pricing-rule';
 import { PriceOverrideStatus } from '../../domain/price-override-proposal';
 
+/**
+ * The columns are Decimal(12,2): round here, before validation, so the staff route, the CSV import
+ * (one stray Excel cell must not fail the file) and the AI draft all store, and compare, the same value.
+ */
+const round2 = ({ value }: { value: unknown }): unknown => {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : value;
+};
+
 export class ProposePriceOverrideDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
@@ -31,10 +40,9 @@ export class ProposePriceOverrideDto {
   productName!: string;
 
   @ApiProperty({ example: 20000, description: "Depot's current price for the product (IDR)." })
-  @Type(() => Number)
+  @Transform(round2)
   @IsPositive()
-  // Decimal(12,2) column: a third decimal would be stored rounded.
-  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsNumber()
   currentPrice!: number;
 
   @ApiProperty({ enum: PricingAdjustType })
@@ -45,8 +53,8 @@ export class ProposePriceOverrideDto {
     example: -10,
     description: 'PERCENT = signed percent; FIXED = signed rupiah delta.',
   })
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
+  @Transform(round2)
+  @IsNumber()
   @Max(decimalMax(12, 2))
   value!: number;
 
