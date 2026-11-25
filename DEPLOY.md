@@ -403,6 +403,7 @@ loopback only.
   `MACHINE_ACCOUNTS` entry on the first deploy after the release holding it is the last good one;
   until then the route answers 403 to n8n. crm needs `DEPOT_SERVICE_URL` (already set) for entity names;
   a 503 means the requester, the entities or a recipient could not be read: n8n retries the same body.
+  The route caps itself: 3 distinct requests per requester and 30 overall per rolling hour; past it the answer is 200 with `capped: true` and nothing is sent (a warning is logged).
 - **Nightly** at 04:40 [`scripts/aiweb-n8n-check.sh`](scripts/aiweb-n8n-check.sh) (log
   `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is
   published, and the credentials n8n holds, must be what the image's copy of git holds. A drift

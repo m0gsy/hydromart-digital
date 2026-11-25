@@ -408,6 +408,11 @@ export class NotificationService {
     return record;
   }
 
+  /** The dedupe keys of this event's rows from `since` on: how a sender counts what it already raised. */
+  async recentDedupeKeys(event: NotificationEvent, since: Date): Promise<string[]> {
+    return this.repo.dedupeKeysSince(event, since);
+  }
+
   /** A customer's own notification inbox, newest first. */
   async listForCustomer(customerId: string, limit = 30): Promise<NotificationRecord[]> {
     return this.repo.listForCustomer(customerId, Math.min(Math.max(limit, 1), 100));

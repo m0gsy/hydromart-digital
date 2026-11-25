@@ -12,8 +12,17 @@ import { NotificationService } from './notification.service';
 export interface AiAccessRequestResult {
   recipients: number;
   notified: number;
+  /** Set when the hourly cap was reached: nothing was sent, and it is not worth retrying. */
+  capped?: true;
   whatsapp: 'pending';
 }
+
+/** Rolling hour: at most this many distinct requests per requester, and this many overall. */
+const CAP_WINDOW_MS = 3_600_000;
+const CAP_PER_REQUESTER = 3;
+const CAP_OVERALL = 30;
+// The row key is `<eventId>:<requesterId>:<recipientId>`, which is how the cap counts requests.
+const KEY = /^(ai-access-request:[0-9a-f-]{36}):([0-9a-f-]{36}):/;
 
 /**
  * AI-7c: someone in the AI web pressed "Minta akses". n8n only carries ids; the requester's
@@ -55,11 +64,15 @@ export class AiAccessRequestService {
     if (!requester || can(AI_ACCESS_CAPABILITY, requester.role)) {
       return { recipients: 0, notified: 0, whatsapp: 'pending' };
     }
+    const recipients = await this.recipients().catch(unreadable('recipients'));
+    if (await this.capped(eventId, requesterAccountId, unreadable('recent requests'))) {
+      this.logger.warn(`ai access request ${eventId} from ${requesterAccountId} capped`);
+      return { recipients: recipients.length, notified: 0, capped: true, whatsapp: 'pending' };
+    }
     const names =
       legalEntityIds.length > 0
         ? await this.entities.namesOf(legalEntityIds).catch(unreadable('legal entities'))
         : [];
-    const recipients = await this.recipients().catch(unreadable('recipients'));
     const vars = accessRequestText(requester, names, group);
     let notified = 0;
     let failed = 0;
@@ -71,7 +84,7 @@ export class AiAccessRequestService {
           vars,
           id,
           null,
-          `${eventId}:${id}`,
+          `${eventId}:${requesterAccountId}:${id}`,
         );
         notified += 1;
       } catch (e) {
@@ -85,6 +98,29 @@ export class AiAccessRequestService {
       );
     }
     return { recipients: recipients.length, notified, whatsapp: 'pending' };
+  }
+
+  /**
+   * Whether this would be one request too many in the last hour. An eventId already filed (a retry
+   * finishing its recipients) is not a new request. Not atomic: two calls at the same instant can both
+   * pass, so the cap holds to within a call or two, which is all it is for.
+   */
+  private async capped(
+    eventId: string,
+    requesterId: string,
+    unreadable: (e: Error) => never,
+  ): Promise<boolean> {
+    const keys = await this.notifications
+      .recentDedupeKeys(NotificationEvent.AI_ACCESS_REQUESTED, new Date(Date.now() - CAP_WINDOW_MS))
+      .catch(unreadable);
+    const requests = new Map<string, string>();
+    for (const key of keys) {
+      const m = KEY.exec(key);
+      if (m) requests.set(m[1]!, m[2]!);
+    }
+    if (requests.has(eventId)) return false;
+    const mine = [...requests.values()].filter((r) => r === requesterId).length;
+    return mine >= CAP_PER_REQUESTER || requests.size >= CAP_OVERALL;
   }
 
   /** Active accounts whose role holds the capability that grants AI access. */

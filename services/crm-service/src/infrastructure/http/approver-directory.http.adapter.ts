@@ -14,9 +14,7 @@ export class ApproverDirectoryHttpAdapter implements ApproverDirectoryPort {
   async staffIdsByRoles(roles: readonly string[]): Promise<string[]> {
     if (roles.length === 0) return [];
     const body = await this.post<{ ids?: unknown }>('staff/by-roles', { roles });
-    return Array.isArray(body.ids)
-      ? body.ids.filter((i): i is string => typeof i === 'string')
-      : [];
+    return Array.isArray(body.ids) ? body.ids.filter((i): i is string => typeof i === 'string') : [];
   }
 
   async rolesOf(ids: readonly string[]): Promise<Map<string, string>> {
@@ -32,15 +30,15 @@ export class ApproverDirectoryHttpAdapter implements ApproverDirectoryPort {
     return roles;
   }
 
+  /** A suspended, deleted or unverified account reads as no account (null), like an unknown id. */
   async profileOf(id: string): Promise<{ fullName: string | null; role: string } | null> {
     const rows = await this.post<unknown>('customers/by-ids', { ids: [id] });
     const row = (Array.isArray(rows) ? rows : []).find((r) => (r ?? {}).id === id) as
-      { fullName?: unknown; role?: unknown } | undefined;
+      | { fullName?: unknown; role?: unknown; status?: unknown }
+      | undefined;
     if (!row || typeof row.role !== 'string') return null;
-    return {
-      fullName: typeof row.fullName === 'string' && row.fullName.trim() ? row.fullName : null,
-      role: row.role,
-    };
+    if (typeof row.status === 'string' && row.status !== 'ACTIVE') return null;
+    return { fullName: typeof row.fullName === 'string' && row.fullName.trim() ? row.fullName : null, role: row.role };
   }
 
   private async post<T>(path: string, payload: unknown): Promise<T> {

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayUnique,
@@ -17,16 +18,10 @@ import {
 
 import { NotificationEvent } from '../../domain/notification-event';
 import { NotificationStatus } from '../../domain/notification-status';
-import {
-  NotificationRecord,
-  OpsNotificationRecord,
-} from '../../application/ports/notification.repository';
+import { NotificationRecord, OpsNotificationRecord } from '../../application/ports/notification.repository';
 
 export class SendNotificationDto {
-  @ApiProperty({
-    enum: NotificationEvent,
-    description: 'Lifecycle event that triggered the message.',
-  })
+  @ApiProperty({ enum: NotificationEvent, description: 'Lifecycle event that triggered the message.' })
   @IsEnum(NotificationEvent)
   event!: NotificationEvent;
 
@@ -36,10 +31,7 @@ export class SendNotificationDto {
   @MaxLength(20)
   phone!: string;
 
-  @ApiPropertyOptional({
-    format: 'uuid',
-    description: 'Customer the notification is about (audit).',
-  })
+  @ApiPropertyOptional({ format: 'uuid', description: 'Customer the notification is about (audit).' })
   @IsOptional()
   @IsUUID()
   customerId?: string;
@@ -49,10 +41,7 @@ export class SendNotificationDto {
    * addressed to a phone number — so this is what gives them a set of devices to reach:
    * the depot's own active staff. Ignored for customer events, which already have one.
    */
-  @ApiPropertyOptional({
-    format: 'uuid',
-    description: 'Depot an operational alert is about (ops push routing).',
-  })
+  @ApiPropertyOptional({ format: 'uuid', description: 'Depot an operational alert is about (ops push routing).' })
   @IsOptional()
   @IsUUID()
   depotId?: string;
@@ -119,7 +108,7 @@ export class OpsNotificationDto extends NotificationDto {
     type: String,
     format: 'date-time',
     nullable: true,
-    description: 'When the *calling* staff member read it; null = unread by them.',
+    description: "When the *calling* staff member read it; null = unread by them.",
   })
   readAt!: Date | null;
 
@@ -129,18 +118,12 @@ export class OpsNotificationDto extends NotificationDto {
 }
 
 export class OpsReadResultDto {
-  @ApiProperty({
-    type: String,
-    format: 'date-time',
-    description: 'When it was read (first read wins).',
-  })
+  @ApiProperty({ type: String, format: 'date-time', description: 'When it was read (first read wins).' })
   readAt!: Date;
 }
 
 export class OpsReadAllResultDto {
-  @ApiProperty({
-    description: 'How many feed rows were newly marked read (0 when already all read).',
-  })
+  @ApiProperty({ description: 'How many feed rows were newly marked read (0 when already all read).' })
   marked!: number;
 }
 
@@ -200,8 +183,7 @@ export class FranchiseApplicationSubmittedDto {
   @IsNotEmpty()
   @MaxLength(100)
   @Matches(PLACE_NAME_PATTERN, {
-    message:
-      "city: kota hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -; beri spasi setelah titik",
+    message: "city: kota hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -; beri spasi setelah titik",
   })
   city!: string;
 
@@ -210,8 +192,7 @@ export class FranchiseApplicationSubmittedDto {
   @IsNotEmpty()
   @MaxLength(100)
   @Matches(PLACE_NAME_PATTERN, {
-    message:
-      "province: provinsi hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -; beri spasi setelah titik",
+    message: "province: provinsi hanya boleh berisi huruf, spasi, dan tanda . , ' ( ) -; beri spasi setelah titik",
   })
   province!: string;
 }
@@ -223,15 +204,10 @@ export const MORNING_SUMMARY_PREFIX = 'morning-summary:';
 export class MorningSummaryDto {
   @ApiProperty({ example: 'morning-summary:2026-11-25' })
   @IsString()
-  @Matches(/^morning-summary:\d{4}-\d{2}-\d{2}$/, {
-    message: 'eventId must be morning-summary:<YYYY-MM-DD>',
-  })
+  @Matches(/^morning-summary:\d{4}-\d{2}-\d{2}$/, { message: 'eventId must be morning-summary:<YYYY-MM-DD>' })
   eventId!: string;
 
-  @ApiProperty({
-    example: '2026-11-25',
-    description: 'The WIB date of the summary: today, in Asia/Jakarta.',
-  })
+  @ApiProperty({ example: '2026-11-25', description: 'The WIB date of the summary: today, in Asia/Jakarta.' })
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'date must be YYYY-MM-DD' })
   date!: string;
@@ -244,9 +220,7 @@ export class MorningSummaryResultDto {
   @ApiProperty({ description: 'Accounts holding a recipient role.' })
   recipients!: number;
 
-  @ApiProperty({
-    description: 'Of those, how many have the summary of the day (a retry files none twice).',
-  })
+  @ApiProperty({ description: 'Of those, how many have the summary of the day (a retry files none twice).' })
   notified!: number;
 
   @ApiProperty({ description: 'Of those, how many had nothing waiting and so got nothing.' })
@@ -260,10 +234,7 @@ export class MorningSummaryResultDto {
 }
 
 export class NotificationIdDto {
-  @ApiProperty({
-    format: 'uuid',
-    description: 'The notification row; a repeated eventId answers the same one.',
-  })
+  @ApiProperty({ format: 'uuid', description: 'The notification row; a repeated eventId answers the same one.' })
   id!: string;
 }
 
@@ -281,6 +252,9 @@ export const AI_ACCESS_GROUPS = [
 ] as const;
 export type AiAccessGroup = (typeof AI_ACCESS_GROUPS)[number];
 
+const lowerEach = ({ value }: { value: unknown }): unknown =>
+  Array.isArray(value) ? value.map((v) => (typeof v === 'string' ? v.toLowerCase() : v)) : value;
+
 /**
  * AI-7c — what n8n forwards when someone presses "Minta akses" in the AI web: ids only. The
  * requester's name and role and the entities' names are looked up here, never carried by n8n.
@@ -293,12 +267,15 @@ export class AiAccessRequestedDto {
   })
   eventId!: string;
 
-  @ApiProperty({ format: 'uuid', description: 'The account that asked.' })
-  @IsUUID()
+  // v4 only: auth-service's by-ids lookup refuses any other version, which would loop as a 503.
+  @ApiProperty({ format: 'uuid', description: 'The account that asked (a v4 uuid).' })
+  @IsUUID('4')
   requesterAccountId!: string;
 
+  // Lower-cased first, so the same entity in two spellings is a repeat (and never a double lookup).
   @ApiPropertyOptional({ type: [String], format: 'uuid', maxItems: 20 })
   @IsOptional()
+  @Transform(lowerEach)
   @IsArray()
   @ArrayMaxSize(20)
   @ArrayUnique()
@@ -315,10 +292,14 @@ export class AiAccessRequestedResultDto {
   @ApiProperty({ description: 'People who can grant AI access (holders of legalEntityAiAccess).' })
   recipients!: number;
 
-  @ApiProperty({
-    description: 'Of those, how many now have the request (a retry files none twice).',
-  })
+  @ApiProperty({ description: 'Of those, how many now have the request (a retry files none twice).' })
   notified!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'True when the hourly cap on requests was reached: nothing was sent, and it is not worth retrying.',
+  })
+  capped?: true;
 
   @ApiProperty({
     enum: ['pending'],

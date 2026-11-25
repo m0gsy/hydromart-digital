@@ -14,6 +14,7 @@ import { AuditMutationsInterceptor, Can, ExternalAccess } from '@hydromart/platf
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
 import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { NotificationService } from '../application/services/notification.service';
+import { oneLine } from '../domain/ai-access-request';
 import { wibDate } from '../domain/morning-summary';
 import { NotificationEvent } from '../domain/notification-event';
 import {
@@ -26,17 +27,6 @@ import {
   MorningSummaryResultDto,
   NotificationIdDto,
 } from './dto/notification.dto';
-
-/**
- * One line of visible text, for a value typed into a public form that ends up in a staff
- * feed and a phone's tray: invisible format characters (zero-width, bidi overrides) dropped,
- * control characters and runs of whitespace (newlines, tabs) read as one space, then trimmed.
- */
-const oneLine = (value: string): string =>
-  value
-    .replace(/\p{Cf}/gu, '')
-    .replace(/[\p{Cc}\s]+/gu, ' ')
-    .trim();
 
 /*
  * AI-5 — notifications a machine account (n8n) raises in hydromart's own staff feed and push.

@@ -222,4 +222,17 @@ describe('POST notifications/external/ai-access-requested (AI-7c)', () => {
     await post(token, { ...BODY, group: 'secrets' }).expect(400);
     expect(repo.records).toHaveLength(2);
   });
+
+  it('answers 200 capped, sending nothing, past three requests an hour from one requester', async () => {
+    const token = machineToken(['aiAccessRequestNotify']);
+    const event = (n: number) => `ai-access-request:${n}f1e2d4c-8b7a-4f60-9e21-5c4b3a291807`;
+    await post(token, { ...BODY, eventId: event(5) }).expect(200);
+    await post(token, { ...BODY, eventId: event(6) }).expect(200);
+    const res = await post(token, { ...BODY, eventId: event(7) }).expect(200);
+    expect(res.body).toEqual({ recipients: 2, notified: 0, capped: true, whatsapp: 'pending' });
+    expect(repo.records).toHaveLength(6);
+    // The first request is still not a new one: its retry answers as before.
+    await post(token).expect(200);
+    expect(repo.records).toHaveLength(6);
+  });
 });

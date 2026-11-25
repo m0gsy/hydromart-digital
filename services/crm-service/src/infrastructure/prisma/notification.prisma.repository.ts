@@ -126,6 +126,14 @@ export class NotificationPrismaRepository implements NotificationRepository {
     }
   }
 
+  async dedupeKeysSince(event: string, since: Date): Promise<string[]> {
+    const rows = await this.prisma.notification.findMany({
+      where: { event, createdAt: { gte: since }, dedupeKey: { not: null } },
+      select: { dedupeKey: true },
+    });
+    return rows.flatMap((r) => (r.dedupeKey ? [r.dedupeKey] : []));
+  }
+
   async markFailed(id: string, error: string): Promise<void> {
     // `updateMany` rather than `update`: a retention purge can delete the row between the
     // write and the push settling, and a rejected promise there would land in a `.catch`

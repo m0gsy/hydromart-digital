@@ -17,7 +17,7 @@ const GROUP_LABEL: Record<string, string> = {
 };
 
 /** One line of visible text: whatever a name carries, a newline or invisible character is not in the message. */
-const oneLine = (value: string): string =>
+export const oneLine = (value: string): string =>
   value
     .replace(/\p{Cf}/gu, '')
     .replace(/[\p{Cc}\s]+/gu, ' ')

@@ -240,7 +240,7 @@
     "/crm/api/v1/notifications/external/ai-access-requested": {
       "post": {
         "summary": "Tell the people who can grant AI web access that someone asked for it.",
-        "description": "Called by n8n when someone presses 'Minta akses' in the AI web, after the AI web has recorded the request. The token's scopes must include aiAccessRequestNotify. n8n carries ids only: the event id, the account that asked, and what it asked for (legal entity ids and/or a data group). hydromart-digital looks up who the requester is (their name and role) and the legal entities' names, writes the text itself (Indonesian) and sends it; no name or sentence passes through n8n.\n\nWho is told: every active account whose role holds the legalEntityAiAccess capability (SUPER_ADMIN by default; the same people who save the AI access matrix on /hq/legal-entities). Each gets one notification, e.g. 'Budi Santoso (HEAD OFFICE) meminta akses AI web untuk Indowater. Buka Badan hukum, bagian akses AI, untuk memberikannya.' When no legal entity is named the data group is said instead ('data keuangan'); a requester with no name on file is 'Seorang staf'. Tapping it opens /hq/legal-entities, where the AI access matrix is.\n\nChannels (owner rule 24 Nov 2026, every staff notification n8n raises): the bell in the staff notifications, a push, and an email (plain text; hydromart sends it, n8n holds no email credential). Each recipient can switch the push and the email off on their profile (/hq/profile, 'Permintaan akses AI web'); both are on by default. WhatsApp is not sent yet: it waits for the Meta channel, and the response says whatsapp 'pending', never 'sent'.\n\nA requester who does not exist, or who can already grant AI access, answers 200 with recipients 0 and notified 0: nothing is sent and nothing says who exists. Idempotent per recipient on eventId: a retry or a replay answers 200 and sends nobody twice. A retry after a 503 completes the recipients that were not reached.",
+        "description": "Called by n8n when someone presses 'Minta akses' in the AI web, after the AI web has recorded the request. The token's scopes must include aiAccessRequestNotify. n8n carries ids only: the event id, the account that asked, and what it asked for (legal entity ids and/or a data group). hydromart-digital looks up who the requester is (their name and role) and the legal entities' names, writes the text itself (Indonesian) and sends it; no name or sentence passes through n8n.\n\nWho is told: every active account whose role holds the legalEntityAiAccess capability (SUPER_ADMIN by default; the same people who save the AI access matrix on /hq/legal-entities). Each gets one notification, e.g. 'Budi Santoso (HEAD OFFICE) meminta akses AI web untuk Indowater. Buka Badan hukum, bagian akses AI, untuk memberikannya.' When no legal entity is named the data group is said instead ('data keuangan'); a requester with no name on file is 'Seorang staf'. Tapping it opens /hq/legal-entities, where the AI access matrix is.\n\nChannels (owner rule 24 Nov 2026, every staff notification n8n raises): the bell in the staff notifications, a push, and an email (plain text; hydromart sends it, n8n holds no email credential). Each recipient can switch the push and the email off on their profile (/hq/profile, 'Permintaan akses AI web'); both are on by default. WhatsApp is not sent yet: it waits for the Meta channel, and the response says whatsapp 'pending', never 'sent'.\n\nA requester who does not exist, or who can already grant AI access, answers 200 with recipients 0 and notified 0: nothing is sent and nothing says who exists. Rate cap, inside hydromart-digital: at most 3 distinct eventIds per requesterAccountId and 30 overall in any rolling hour. Past it the answer is still 200, with capped true and notified 0 (nothing is sent, a warning is logged): it is not worth retrying. A retry of an eventId already filed is never counted as new. Requests for an unknown or already-capable requester are not counted.\n\nIdempotent per recipient on eventId: a retry or a replay answers 200 and sends nobody twice. A retry after a 503 completes the recipients that were not reached.",
         "security": [
           {
             "machineToken": []
@@ -278,7 +278,7 @@
         },
         "responses": {
           "200": {
-            "description": "Every person who can grant AI access has the request, or there was nobody to tell (see notified).",
+            "description": "Every person who can grant AI access has the request, or there was nobody to tell, or the hourly cap was reached (capped true; see notified).",
             "content": {
               "application/json": {
                 "schema": {
@@ -517,7 +517,7 @@
           "requesterAccountId": {
             "type": "string",
             "format": "uuid",
-            "description": "The hydromart account that asked. Its name and role are looked up by hydromart-digital."
+            "description": "The hydromart account that asked (a v4 uuid). Its name and role are looked up by hydromart-digital; an account that is not active reads as unknown."
           },
           "legalEntityIds": {
             "type": "array",
@@ -527,7 +527,7 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "The legal entities asked for. Their names are looked up by hydromart-digital."
+            "description": "The legal entities asked for; a repeat in another letter case counts as a repeat (400). Their names are looked up by hydromart-digital."
           },
           "group": {
             "type": "string",
@@ -568,6 +568,13 @@
               "pending"
             ],
             "description": "WhatsApp waits for the Meta channel; it is never reported as sent."
+          },
+          "capped": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Present and true only when the hourly cap on requests was reached: nothing was sent, and retrying is pointless."
           }
         }
       }

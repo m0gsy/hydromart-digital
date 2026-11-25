@@ -124,6 +124,10 @@ describe('AiAccessRequestedDto', () => {
       'an eventId without the prefix',
       { eventId: '3f1e2d4c-8b7a-4f60-9e21-5c4b3a291807', requesterAccountId: REQUESTER },
     ],
+    [
+      'a requester that is a uuid but not a v4',
+      { eventId: EVENT, requesterAccountId: '11111111-1111-1111-8111-111111111111' },
+    ],
     ['a requester that is not a uuid', { eventId: EVENT, requesterAccountId: 'budi' }],
     [
       'an entity that is not a uuid',
@@ -136,6 +140,14 @@ describe('AiAccessRequestedDto', () => {
     [
       'the same entity twice',
       { eventId: EVENT, requesterAccountId: REQUESTER, legalEntityIds: [ENTITY, ENTITY] },
+    ],
+    [
+      'the same entity twice in two spellings',
+      {
+        eventId: EVENT,
+        requesterAccountId: REQUESTER,
+        legalEntityIds: [ENTITY, ENTITY.toUpperCase()],
+      },
     ],
     ['an unknown group', { eventId: EVENT, requesterAccountId: REQUESTER, group: 'secrets' }],
     [
@@ -303,6 +315,56 @@ describe('AiAccessRequestService', () => {
   });
 });
 
+describe('the hourly cap', () => {
+  const event = (n: number) =>
+    `ai-access-request:${String(n).padStart(8, '0')}-8b7a-4f60-9e21-5c4b3a291807`;
+
+  it('lets one requester raise three requests an hour, then answers 200 capped with nothing sent', async () => {
+    const { service, repo } = build();
+    for (const n of [1, 2, 3])
+      await expect(service.run(event(n), REQUESTER)).resolves.toMatchObject({ notified: 2 });
+    await expect(service.run(event(4), REQUESTER)).resolves.toEqual({
+      recipients: 2,
+      notified: 0,
+      capped: true,
+      whatsapp: 'pending',
+    });
+    expect(repo.records).toHaveLength(6);
+  });
+
+  it('does not count a retry of a request already filed, so a retry still finishes its recipients', async () => {
+    const { service, repo } = build();
+    for (const n of [1, 2, 3]) await service.run(event(n), REQUESTER);
+    await expect(service.run(event(3), REQUESTER)).resolves.toMatchObject({ notified: 2 });
+    expect(repo.records).toHaveLength(6);
+  });
+
+  const requester = (n: number) => `${String(n).padStart(8, '0')}-0000-4000-8000-000000000000`;
+  it('counts each requester on their own, and thirty requests overall', async () => {
+    const { service, repo } = build();
+    for (let n = 1; n <= 30; n += 1) {
+      STAFF[requester(n)] = { fullName: 'Staf', role: 'MANAGER' };
+      await expect(service.run(event(n), requester(n))).resolves.toMatchObject({ notified: 2 });
+    }
+    STAFF[requester(31)] = { fullName: 'Staf', role: 'MANAGER' };
+    await expect(service.run(event(31), requester(31))).resolves.toMatchObject({
+      notified: 0,
+      capped: true,
+    });
+    expect(repo.records).toHaveLength(60);
+  });
+
+  it('does not count a request that was refused as unknown, and says 503 when the recent requests cannot be read', async () => {
+    const { service, repo } = build();
+    for (const n of [1, 2, 3, 4]) await service.run(event(n), ENTITY);
+    await expect(service.run(event(5), REQUESTER)).resolves.toMatchObject({ notified: 2 });
+    jest.spyOn(repo, 'dedupeKeysSince').mockRejectedValue(new Error('db down'));
+    await expect(service.run(event(6), REQUESTER)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+});
+
 describe('NotificationExternalController.aiAccessRequested', () => {
   it('hands the service one spelling of every id, so an upper-case retry is the same event', async () => {
     const run = jest.fn(async () => ({ recipients: 1, notified: 1, whatsapp: 'pending' as const }));
@@ -337,6 +399,10 @@ describe('the directory and entity adapters', () => {
     answer([{ id: 'a', fullName: 'Budi', role: 'FINANCE' }]);
     expect(await adapter.profileOf('a')).toEqual({ fullName: 'Budi', role: 'FINANCE' });
     answer([{ id: 'a', fullName: '  ', role: 'FINANCE' }]);
+    expect(await adapter.profileOf('a')).toEqual({ fullName: null, role: 'FINANCE' });
+    answer([{ id: 'a', role: 'FINANCE', status: 'SUSPENDED' }]);
+    expect(await adapter.profileOf('a')).toBeNull();
+    answer([{ id: 'a', role: 'FINANCE', status: 'ACTIVE' }]);
     expect(await adapter.profileOf('a')).toEqual({ fullName: null, role: 'FINANCE' });
     answer([{ id: 'b', role: 'FINANCE' }, null, { id: 'a', role: 7 }]);
     expect(await adapter.profileOf('a')).toBeNull();
