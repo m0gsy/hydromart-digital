@@ -18,6 +18,8 @@ const PT_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const PT_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const NOW = new Date('2026-11-25T03:00:00.000Z');
 const NOVEMBER = { period: 'month', date: '2026-11-10' };
+/** H-02 answers a closed month from the 8th of the next one (WIB). */
+const CLOSED = new Date('2026-12-08T03:00:00.000Z');
 const TODAY = { period: 'day', date: '2026-11-25' };
 
 const user = (role: string): AuthenticatedUser => ({ sub: 'u1', role, depotId: null }) as unknown as AuthenticatedUser;
@@ -33,8 +35,8 @@ const scopeOf = (spans: ReadScope['spans']): ReadScope => ({
 const SCOPE = scopeOf([span(D1, '2026-11-01', '2026-11-15'), span(D1, '2026-11-16', '2026-11-30', PT_B), span(D2, '2026-11-01', '2026-11-30', PT_B)]);
 
 const people = (n: number, from = 0): string[] => Array.from({ length: n }, (_, i) => `e${from + i}`);
-const heads = (n: number, o: Partial<AttendanceHeads> = {}): AttendanceHeads => ({ present: people(n), late: people(n), absentRecorded: people(n), leave: people(n), pending: [], ...o });
-const att = (depotId: string, o: Partial<AttendanceRow> = {}): AttendanceRow => ({ depotId, present: 20, late: 2, absentRecorded: 1, leave: 1, pending: 0, ...o });
+const heads = (n: number, o: Partial<AttendanceHeads> = {}): AttendanceHeads => ({ present: people(n), late: people(n), absentRecorded: people(n), leave: people(n), pending: [], scheduledDays: people(n), attendedScheduled: people(n), absentScheduled: people(n), unscheduledDays: [], ...o });
+const att = (depotId: string, o: Partial<AttendanceRow> = {}): AttendanceRow => ({ depotId, present: 20, late: 2, absentRecorded: 1, leave: 1, pending: 0, scheduledDays: 25, attendedScheduled: 21, absentScheduled: 3, unscheduledDays: 0, ...o });
 const gate = (depotId: string, o: Partial<PayrollGateRow> = {}): PayrollGateRow => ({ depotId, expected: 4, draft: 0, final: 4, ...o });
 const pay = (depotId: string, o: Partial<PayrollRow> = {}): PayrollRow => ({
   depotId,
@@ -60,7 +62,7 @@ function build(scope: ReadScope = SCOPE, over: Partial<Record<keyof AiOrgSources
   const depots = { hrSummaryMany: jest.fn(async (ids: string[]) => finished(ids) as unknown[]) };
   const scopes = { resolve: jest.fn(async () => scope) } as unknown as ReadScopeService;
   const service = new HrMetricsService(scopes, sources as unknown as AiOrgSourcesPort, depots as unknown as DashboardSourcesPort);
-  const ask = (id: string, role = 'SUPER_ADMIN', query: Record<string, string> = NOVEMBER) => service.answer(id, user(role), query, NOW);
+  const ask = (id: string, role = 'SUPER_ADMIN', query: Record<string, string> = NOVEMBER, now: Date = NOW) => service.answer(id, user(role), query, now);
   return { sources, depots, ask };
 }
 
@@ -117,47 +119,106 @@ describe('HrMetricsService: H-01 active employees', () => {
   });
 });
 
-describe('HrMetricsService: H-02 attendance', () => {
-  it('adds the counts over each stretch a depot was readable, with the WIB calendar days asked for', async () => {
-    const { sources, ask } = build();
-    const out = await ask('H-02');
-    // D1 has two stretches and D2 one: 3 depot-stretches of 20 present, 2 late, 1 absentRecorded, 1 leave
-    expect(out.value).toMatchObject({ present: 60, late: 6, absentRecorded: 3, leave: 3, pending: 0, rate: { status: 'belum_ada' } });
+describe('HrMetricsService: H-02 attendance (choice 35A)', () => {
+  const h2 = (b: ReturnType<typeof build>, query: Record<string, string> = NOVEMBER, now: Date = CLOSED) => b.ask('H-02', 'SUPER_ADMIN', query, now);
+
+  it('adds the counts over each stretch a depot was readable, answers "tidak hadir" per 35A and the rate in percent', async () => {
+    const b = build();
+    const out = await h2(b);
+    // D1 has two stretches and D2 one: 3 depot-stretches, each 20 present, 2 late, 1 absentRecorded, 1 leave,
+    // 25 scheduled days of which 21 attended and 3 absent (no punch, no leave)
+    expect(out.value).toMatchObject({
+      present: 60,
+      late: 6,
+      absentRecorded: 3,
+      leave: 3,
+      pending: 0,
+      scheduledDays: 75,
+      absent: 9,
+      unscheduledDays: 0,
+      rate: { status: 'ok', value: 84, unit: 'persen' },
+    });
     expect(out.value).not.toHaveProperty('flags');
-    expect(out.value).not.toHaveProperty('absent');
-    expect(out.label).toContain('BUKAN');
-    const asked = sources.attendance.mock.calls.map((c) => `${(c[0] as string[]).join('+')}@${c[1]}..${c[2]}`).sort();
+    expect(out.value).not.toHaveProperty('attendedScheduled');
+    expect(out.label).toContain('tanpa absen dan tanpa cuti');
+    const asked = b.sources.attendance.mock.calls.map((c) => `${(c[0] as string[]).join('+')}@${c[1]}..${c[2]}`).sort();
     expect(asked).toEqual([`${D1}@2026-11-01..2026-11-15`, `${D1}@2026-11-16..2026-11-30`, `${D2}@2026-11-01..2026-11-30`].sort());
+  });
+
+  it('rounds the rate to one decimal', async () => {
+    const out = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { scheduledDays: 3, attendedScheduled: 2 })), heads: heads(5), rolledUp: false }) }));
+    expect(out.value).toMatchObject({ rate: { status: 'ok', value: 66.7 } });
+  });
+
+  it('has no rate when nobody is scheduled, and says so apart from the people left out', async () => {
+    const none = await h2(
+      build(SCOPE, {
+        attendance: async (ids: readonly string[]) => ({
+          rows: ids.map((d) => att(d, { scheduledDays: 0, attendedScheduled: 0, absentScheduled: 0, unscheduledDays: 20 })),
+          heads: heads(5, { scheduledDays: [], attendedScheduled: [], absentScheduled: [], unscheduledDays: people(4) }),
+          rolledUp: false,
+        }),
+      }),
+    );
+    expect(none.value).toMatchObject({ scheduledDays: 0, absent: 0, unscheduledDays: 60, rate: { status: 'belum_ada' } });
   });
 
   it('holds back each count on its OWN distinct people: one person late is not a number even when many were present', async () => {
     const one = build(SCOPE, {
       attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { late: ['e1'], absentRecorded: [], leave: people(2) }), rolledUp: false }),
     });
-    const out = await one.ask('H-02');
-    expect(out.value).toMatchObject({ present: 60, late: null, leave: null });
-    expect((out.value as { flags: Record<string, string> }).flags).toEqual({ late: 'kurang dari 3', leave: 'kurang dari 3' });
+    const out = await h2(one);
+    expect(out.value).toMatchObject({ present: 60, late: null, leave: null, absent: 9, scheduledDays: null, rate: { status: 'ditahan' } });
+    expect((out.value as { flags: Record<string, string> }).flags).toEqual({ late: 'kurang dari 3', leave: 'kurang dari 3', scheduledDays: 'kurang dari 3' });
+  });
+
+  it('masks "tidak hadir" resting on 1 person, and the rate when its people are fewer than 3', async () => {
+    const one = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { absentScheduled: ['e1'] }), rolledUp: false }) }));
+    // an identity cell held: scheduledDays and the rate go with it, so absent cannot be worked back
+    expect(one.value).toMatchObject({ absent: null, scheduledDays: null, flags: { absent: 'kurang dari 3', scheduledDays: 'kurang dari 3' }, rate: { status: 'ditahan' } });
+    expect((one.value as { rate: { reason: string } }).rate.reason).toContain('dihitung balik');
+    const leave = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { leave: ['e1'] }), rolledUp: false }) }));
+    expect(leave.value).toMatchObject({ leave: null, scheduledDays: null, rate: { status: 'ditahan' } });
+    // absentRecorded is not part of the identity: held alone, the rate and scheduledDays stay
+    const rec = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { absentRecorded: ['e1'] }), rolledUp: false }) }));
+    expect(rec.value).toMatchObject({ absentRecorded: null, scheduledDays: 75, rate: { status: 'ok' } });
+    const few = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { scheduledDays: ['e1', 'e2'] }), rolledUp: false }) }));
+    expect(few.value).toMatchObject({ scheduledDays: null, flags: { scheduledDays: 'kurang dari 3' }, rate: { status: 'ditahan' } });
+    const attending = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { attendedScheduled: ['e1'] }), rolledUp: false }) }));
+    expect(attending.value).toMatchObject({ rate: { status: 'ditahan' } });
+    expect((attending.value as { rate: Record<string, unknown> }).rate).not.toHaveProperty('value');
+    // nobody attended: the people behind the numerator are none, so 0 percent is a plain answer
+    const nobody = await h2(build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { attendedScheduled: 0 })), heads: heads(5, { attendedScheduled: [] }), rolledUp: false }) }));
+    expect(nobody.value).toMatchObject({ rate: { status: 'ok', value: 0 } });
   });
 
   it('counts a person with records at two depots once: 2 people stay 2, they do not publish as 4', async () => {
     // every depot-stretch read reports the same two people on leave
-    const out = await build(SCOPE, {
-      attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { leave: ['e1', 'e2'] }), rolledUp: false }),
-    }).ask('H-02');
+    const out = await h2(
+      build(SCOPE, {
+        attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { leave: ['e1', 'e2'] }), rolledUp: false }),
+      }),
+    );
     expect(out.value).toMatchObject({ leave: null, flags: { leave: 'kurang dari 3' } });
     // different people in different reads do add up: 2 + 1 distinct = 3
     let n = 0;
-    const three = await build(SCOPE, {
-      attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { leave: n++ === 0 ? ['e1', 'e2'] : ['e3'] }), rolledUp: false }),
-    }).ask('H-02');
+    const three = await h2(
+      build(SCOPE, {
+        attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(5, { leave: n++ === 0 ? ['e1', 'e2'] : ['e3'] }), rolledUp: false }),
+      }),
+    );
     expect(three.value).toMatchObject({ leave: 3 });
   });
 
   it('holds the whole answer when every count that has people is held, and answers a window without records as zeros', async () => {
-    const tiny = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(1, { pending: [] }), rolledUp: false }) });
-    expect(await tiny.ask('H-02')).toMatchObject({ status: 'ditahan', value: null });
-    const none = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, { present: 0, late: 0, absentRecorded: 0, leave: 0 })), heads: heads(0), rolledUp: false }) });
-    expect((await none.ask('H-02')).value).toMatchObject({ present: 0, late: 0, leave: 0 });
+    const tiny = build(SCOPE, {
+      attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d)), heads: heads(1, { pending: [], unscheduledDays: [] }), rolledUp: false }),
+    });
+    expect(await h2(tiny)).toMatchObject({ status: 'ditahan', value: null });
+    const zero = { present: 0, late: 0, absentRecorded: 0, leave: 0, scheduledDays: 0, attendedScheduled: 0, absentScheduled: 0 };
+    const empty = { present: [], late: [], absentRecorded: [], leave: [], pending: [], scheduledDays: [], attendedScheduled: [], absentScheduled: [], unscheduledDays: [] };
+    const none = build(SCOPE, { attendance: async (ids: readonly string[]) => ({ rows: ids.map((d) => att(d, zero)), heads: empty, rolledUp: false }) });
+    expect((await h2(none)).value).toMatchObject({ present: 0, late: 0, leave: 0, absent: 0, rate: { status: 'belum_ada' } });
   });
 
   it.each([
@@ -167,28 +228,45 @@ describe('HrMetricsService: H-02 attendance', () => {
     ['an arbitrary range', { from: '2026-11-05', to: '2026-12-20' }],
   ])('refuses %s (a month less a day would isolate one day) and never asks the source', async (_name, query) => {
     const b = build();
-    const out = await b.ask('H-02', 'SUPER_ADMIN', query as Record<string, string>);
+    const out = await h2(b, query as Record<string, string>);
     expect(out).toMatchObject({ status: 'belum_ada', value: null });
     expect(out.reason).toContain('bulan atau tahun penuh');
     expect(b.sources.attendance).not.toHaveBeenCalled();
   });
 
-  it('answers a whole year', async () => {
-    expect((await build().ask('H-02', 'SUPER_ADMIN', { period: 'year', date: '2026-06-01' })).status).toBe('ok');
+  it('answers a closed month only from the 8th of the next one, by the WIB calendar', async () => {
+    const early = build();
+    const refused = await h2(early, NOVEMBER, new Date('2026-12-07T16:59:00.000Z')); // 23:59 on 7 Dec in WIB
+    expect(refused).toMatchObject({ status: 'belum_ada', value: null });
+    expect(refused.reason).toContain('tanggal 8');
+    expect(early.sources.attendance).not.toHaveBeenCalled();
+    expect((await h2(build(), NOVEMBER, new Date('2026-12-07T17:00:00.000Z'))).status).toBe('ok'); // 00:00 on 8 Dec
+    // the month still running, and one that ends in December (answered from 8 January), are not closed either
+    expect((await h2(build(), NOVEMBER, NOW)).status).toBe('belum_ada');
+    const dec = { period: 'month', date: '2026-12-10' };
+    expect((await h2(build(scopeOf([span(D1, '2026-12-01', '2026-12-31')]), {}), dec, new Date('2027-01-07T03:00:00.000Z'))).status).toBe('belum_ada');
+    expect((await h2(build(scopeOf([span(D1, '2026-12-01', '2026-12-31')]), {}), dec, new Date('2027-01-08T03:00:00.000Z'))).status).toBe('ok');
+  });
+
+  it('answers a whole year once it has closed', async () => {
+    const year = { period: 'year', date: '2026-06-01' };
+    expect((await h2(build(), year, new Date('2027-01-08T03:00:00.000Z'))).status).toBe('ok');
+    expect((await h2(build(), year, new Date('2027-01-07T03:00:00.000Z'))).status).toBe('belum_ada');
   });
 
   it('is belum_ada when old days were folded into monthly counts, or hr-service cannot answer', async () => {
-    const folded = await build(SCOPE, { attendance: async () => ({ rows: [], heads: heads(0), rolledUp: true }) }).ask('H-02');
+    const empty = { present: [], late: [], absentRecorded: [], leave: [], pending: [], scheduledDays: [], attendedScheduled: [], absentScheduled: [], unscheduledDays: [] };
+    const folded = await h2(build(SCOPE, { attendance: async () => ({ rows: [], heads: empty, rolledUp: true }) }));
     expect(folded.status).toBe('belum_ada');
     expect(folded.reason).toContain('dirangkum');
-    expect((await build(SCOPE, { attendance: async () => null }).ask('H-02')).status).toBe('belum_ada');
+    expect((await h2(build(SCOPE, { attendance: async () => null }))).status).toBe('belum_ada');
   });
 
   it('asks 100 depots at a time', async () => {
     const many = scopeOf(Array.from({ length: 150 }, (_, i) => span(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, '2026-11-01', '2026-11-30')));
-    const { sources, ask } = build(many);
-    await ask('H-02');
-    expect(sources.attendance.mock.calls.map((c) => (c[0] as string[]).length)).toEqual([100, 50]);
+    const b = build(many);
+    await h2(b);
+    expect(b.sources.attendance.mock.calls.map((c) => (c[0] as string[]).length)).toEqual([100, 50]);
   });
 });
 

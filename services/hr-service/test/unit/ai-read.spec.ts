@@ -13,68 +13,168 @@ const D2 = '22222222-2222-4222-8222-222222222222';
 
 function setup() {
   const prisma = {
-    attendance: { groupBy: jest.fn() },
+    attendance: { findMany: jest.fn(), groupBy: jest.fn() },
+    employee: { findMany: jest.fn() },
+    shiftAssignment: { findMany: jest.fn() },
+    shiftRotation: { findMany: jest.fn() },
+    holiday: { findMany: jest.fn() },
     attendanceMonthRollup: { count: jest.fn().mockResolvedValue(0) },
     loan: { findMany: jest.fn() },
     payrollItem: { groupBy: jest.fn() },
     $queryRaw: jest.fn(),
   };
-  return { prisma, repo: new AiReadPrismaRepository(prisma as never) };
+  // the depot rest day is Sunday unless a test says otherwise (HR_WEEKLY_OFF_DAYS)
+  const off = jest.fn((_depotId: string | null) => '0');
+  return { prisma, off, repo: new AiReadPrismaRepository(prisma as never, { weeklyOffDays: off }) };
 }
 
-describe('AiReadPrismaRepository.attendance (HD-6 H5)', () => {
-  it('counts statuses per depot and distinct people, with a row for a depot that has no record', async () => {
+const day = (d: string) => new Date(`${d}T00:00:00Z`);
+const emp = (id: string, depotId: string | null, joinDate: string, o: Record<string, unknown> = {}) => ({ id, depotId, joinDate: day(joinDate), exitDate: null, shiftId: null, ...o });
+const rec = (employeeId: string, workDate: string, status: string, depotId: string | null = D1) => ({ employeeId, workDate: day(workDate), depotId, status });
+
+/** What the reads of attendance() return, keyed on the shape of each call. */
+function seed(prisma: ReturnType<typeof setup>['prisma'], d: { staff: ReturnType<typeof emp>[]; records: ReturnType<typeof rec>[]; assignments?: unknown[]; rotations?: unknown[]; holidays?: unknown[] }) {
+  prisma.attendance.findMany.mockResolvedValue(d.records);
+  prisma.attendance.groupBy.mockResolvedValue([...new Set(d.records.filter((r) => r.depotId === D1).map((r) => r.employeeId))].map((employeeId) => ({ employeeId })));
+  prisma.employee.findMany.mockImplementation(async (args: { where: { id?: unknown } }) => (args.where.id ? d.staff : d.staff.filter((e) => e.depotId === D1).map((e) => ({ id: e.id }))));
+  prisma.shiftAssignment.findMany.mockResolvedValue(d.assignments ?? []);
+  prisma.shiftRotation.findMany.mockResolvedValue(d.rotations ?? []);
+  prisma.holiday.findMany.mockResolvedValue(d.holidays ?? []);
+}
+
+describe('AiReadPrismaRepository.attendance (HD-6 H5, H-02 choice 35A)', () => {
+  const MON_FRI = { 0: null, 1: 'S', 2: 'S', 3: 'S', 4: 'S', 5: 'S', 6: null };
+
+  it('counts statuses as before and adds the scheduled days by the rule payroll uses, apart from the unscheduled', async () => {
     const { prisma, repo } = setup();
-    prisma.attendance.groupBy.mockResolvedValue([
-      { depotId: D1, employeeId: 'e1', status: 'PRESENT', _count: { _all: 10 } },
-      { depotId: D1, employeeId: 'e1', status: 'LATE', _count: { _all: 2 } },
-      { depotId: D1, employeeId: 'e2', status: 'PRESENT', _count: { _all: 8 } },
-      { depotId: D1, employeeId: 'e2', status: 'ABSENT', _count: { _all: 1 } },
-      { depotId: D1, employeeId: 'e3', status: 'LEAVE', _count: { _all: 3 } },
-      { depotId: D1, employeeId: 'e3', status: 'PENDING', _count: { _all: 1 } },
-      { depotId: D1, employeeId: 'e3', status: 'HOLIDAY', _count: { _all: 4 } },
-      { depotId: null, employeeId: 'e4', status: 'PRESENT', _count: { _all: 9 } },
-      { depotId: 'unasked', employeeId: 'e5', status: 'PRESENT', _count: { _all: 9 } },
-    ]);
-    const out = await repo.attendance([D1, D2], '2026-11-01', '2026-11-30');
-    expect(out).toEqual({
-      rolledUp: false,
-      rows: [
-        { depotId: D1, present: 18, late: 2, absentRecorded: 1, leave: 3, pending: 1 },
-        { depotId: D2, present: 0, late: 0, absentRecorded: 0, leave: 0, pending: 0 },
+    seed(prisma, {
+      // 1-7 Nov 2026 is Sun..Sat; 4 Nov (Wed) is a national holiday
+      staff: [
+        emp('e1', D1, '2026-01-01'), // a Mon-Fri rotation: 2, 3, 5, 6 Nov are workdays
+        emp('e2', D1, '2026-01-01'), // no shift of their own: the depot rest day is Sunday, so 2, 3, 5, 6, 7 Nov are unscheduled
+        emp('e3', D1, '2026-11-05', { shiftId: 's1' }), // joined Thursday 5 Nov on a fixed shift: 5, 6, 7 Nov
+        emp('e4', D1, '2026-01-01', { exitDate: day('2026-11-03'), shiftId: 's1' }), // left Tue 3 Nov: 2, 3 Nov
       ],
-      // distinct employees per count over the WHOLE call: e1 is present and late, e2 present, e3 leave and pending;
-      // a person is one id even with records at two depots, and a depot-less or unasked row names nobody
-      heads: { present: ['e1', 'e2'], late: ['e1'], absentRecorded: ['e2'], leave: ['e3'], pending: ['e3'] },
+      records: [
+        rec('e1', '2026-11-02', 'PRESENT'),
+        rec('e1', '2026-11-03', 'LATE'),
+        rec('e1', '2026-11-05', 'LEAVE'),
+        rec('e2', '2026-11-02', 'PENDING'),
+        rec('e4', '2026-11-02', 'PRESENT', D2), // worked at D2 that day: that day belongs to D2
+        rec('e4', '2026-11-03', 'ABSENT'),
+        rec('e5', '2026-11-04', 'PRESENT', null), // no depot: counts nowhere
+        rec('e6', '2026-11-04', 'HOLIDAY'),
+      ],
+      assignments: [{ employeeId: 'e1', shiftId: null, rotationId: 'r1', effectiveFrom: day('2026-06-01') }],
+      rotations: [{ id: 'r1', pattern: MON_FRI }],
+      holidays: [
+        { date: day('2026-11-04'), depotId: null },
+        { date: day('2026-11-06'), depotId: D2 }, // another depot's holiday does not apply here
+      ],
     });
-    const where = prisma.attendance.groupBy.mock.calls[0][0].where;
-    expect(where.workDate).toEqual({ gte: new Date('2026-11-01T00:00:00Z'), lte: new Date('2026-11-30T00:00:00Z') });
-    expect(prisma.attendanceMonthRollup.count).toHaveBeenCalledWith({
-      where: { depotId: { in: [D1, D2] }, month: { gte: '2026-11', lte: '2026-11' } },
+    const out = await repo.attendance([D1, D2], '2026-11-01', '2026-11-07');
+    const stub = (id: string, o: Record<string, number>) => ({ depotId: id, present: 0, late: 0, absentRecorded: 0, leave: 0, pending: 0, scheduledDays: 0, attendedScheduled: 0, absentScheduled: 0, unscheduledDays: 0, ...o });
+    expect(out.rows).toEqual([
+      // e1: 4 scheduled (attended 2, leave 1, absent 6 Nov); e3: 3 scheduled, all absent; e4: 3 Nov only (2 Nov is D2's), explicit ABSENT; e2: 5 unscheduled
+      stub(D1, { present: 1, late: 1, absentRecorded: 1, leave: 1, pending: 1, scheduledDays: 8, attendedScheduled: 2, absentScheduled: 5, unscheduledDays: 5 }),
+      stub(D2, { present: 1, scheduledDays: 1, attendedScheduled: 1 }),
+    ]);
+    expect(out.heads).toEqual({
+      present: ['e1', 'e4'],
+      late: ['e1'],
+      absentRecorded: ['e4'],
+      leave: ['e1'],
+      pending: ['e2'],
+      scheduledDays: ['e1', 'e3', 'e4'],
+      attendedScheduled: ['e1', 'e4'],
+      absentScheduled: ['e1', 'e3', 'e4'],
+      unscheduledDays: ['e2'],
     });
+    expect(out.rolledUp).toBe(false);
+    // the window is read as calendar days, both ends included; the rolled-up months are asked for the depots
+    const where = prisma.attendance.findMany.mock.calls[0][0].where;
+    expect(where.workDate).toEqual({ gte: day('2026-11-01'), lte: day('2026-11-07') });
+    expect(prisma.attendanceMonthRollup.count).toHaveBeenCalledWith({ where: { depotId: { in: [D1, D2] }, month: { gte: '2026-11', lte: '2026-11' } } });
   });
 
-  it('counts one employee once across two depots', async () => {
+  it('reads the weekly-off days of the depot the employee belongs to', async () => {
+    const { prisma, repo, off } = setup();
+    off.mockImplementation((depotId: string | null) => (depotId === D1 ? '0,6' : ''));
+    seed(prisma, { staff: [emp('e1', D1, '2026-01-01', { shiftId: 's1' })], records: [] });
+    const out = await repo.attendance([D1], '2026-11-01', '2026-11-07');
+    expect(out.rows[0].scheduledDays).toBe(5); // Mon-Fri
+    expect(off).toHaveBeenCalledWith(D1);
+  });
+
+  it('puts a scheduled day at the depot worked, and counts one employee once across two depots', async () => {
     const { prisma, repo } = setup();
-    prisma.attendance.groupBy.mockResolvedValue([
-      { depotId: D1, employeeId: 'e1', status: 'LEAVE', _count: { _all: 2 } },
-      { depotId: D2, employeeId: 'e1', status: 'LEAVE', _count: { _all: 3 } },
-    ]);
-    const out = await repo.attendance([D1, D2], '2026-11-01', '2026-11-30');
+    seed(prisma, {
+      staff: [emp('e1', D1, '2026-01-01', { shiftId: 's1' })],
+      records: [rec('e1', '2026-11-02', 'LEAVE', D1), rec('e1', '2026-11-03', 'LEAVE', D2)],
+    });
+    const out = await repo.attendance([D1, D2], '2026-11-02', '2026-11-03');
     expect(out.heads.leave).toEqual(['e1']);
-    expect(out.rows.map((r) => r.leave)).toEqual([2, 3]);
+    expect(out.rows.map((r) => [r.leave, r.scheduledDays, r.absentScheduled])).toEqual([[1, 1, 0], [1, 1, 0]]);
+  });
+
+  it('follows the assignment in force on each day, and a fixed-shift assignment rests on the depot days', async () => {
+    const { prisma, repo } = setup();
+    seed(prisma, {
+      staff: [emp('e1', D1, '2026-01-01')],
+      records: [],
+      assignments: [
+        { employeeId: 'e1', shiftId: null, rotationId: 'r1', effectiveFrom: day('2026-11-01') },
+        { employeeId: 'e1', shiftId: 's1', rotationId: null, effectiveFrom: day('2026-11-04') },
+      ],
+      rotations: [{ id: 'r1', pattern: { 1: 'S' } }], // Mondays only
+    });
+    // 2 Nov (Mon) on the rotation; from 4 Nov a fixed shift, the depot rests Sunday: 4, 5, 6, 7 Nov
+    expect((await repo.attendance([D1], '2026-11-01', '2026-11-07')).rows[0].scheduledDays).toBe(5);
+  });
+
+  it('treats a rotation that was deleted like no rotation, and an employee with nothing as unscheduled', async () => {
+    const { prisma, repo } = setup();
+    seed(prisma, {
+      staff: [emp('e1', D1, '2026-01-01')],
+      records: [],
+      assignments: [{ employeeId: 'e1', shiftId: null, rotationId: 'gone', effectiveFrom: day('2026-01-01') }],
+    });
+    const out = await repo.attendance([D1], '2026-11-02', '2026-11-03');
+    expect(out.rows[0]).toMatchObject({ scheduledDays: 0, unscheduledDays: 2 });
   });
 
   it('says the window is incomplete when leavers days were folded into monthly counts', async () => {
     const { prisma, repo } = setup();
-    prisma.attendance.groupBy.mockResolvedValue([]);
+    seed(prisma, { staff: [], records: [] });
     prisma.attendanceMonthRollup.count.mockResolvedValue(2);
     expect((await repo.attendance([D1], '2026-10-15', '2026-11-15')).rolledUp).toBe(true);
   });
 
-  it('refuses a window of more groups than it will count, rather than cutting it', async () => {
+  it('places the no-record scheduled day at the depot they are assigned to, not the home depot', async () => {
     const { prisma, repo } = setup();
-    prisma.attendance.groupBy.mockResolvedValue(new Array(MAX_AI_READ_GROUPS + 1).fill({ depotId: D1, employeeId: 'e', status: 'PRESENT', _count: { _all: 1 } }));
+    // depotId D2 = assigned (lent to), homeDepotId D1 = home; the select does not even ask for homeDepotId
+    seed(prisma, { staff: [emp('e1', D2, '2026-01-01', { homeDepotId: D1, shiftId: 's1' })], records: [] });
+    prisma.attendance.groupBy.mockResolvedValue([{ employeeId: 'e1' }]); // the seed only lists D1's people
+    const out = await repo.attendance([D2], '2026-11-02', '2026-11-02');
+    expect(out.rows[0]).toMatchObject({ depotId: D2, scheduledDays: 1, absentScheduled: 1 });
+  });
+
+  it('refuses a window of more people or records than it will count, rather than cutting it', async () => {
+    const { prisma, repo } = setup();
+    seed(prisma, { staff: [], records: [] });
+    prisma.attendance.groupBy.mockResolvedValue(new Array(MAX_AI_READ_GROUPS + 1).fill({ employeeId: 'e' }));
+    await expect(repo.attendance([D1], '2026-11-01', '2026-11-30')).rejects.toBeInstanceOf(UnprocessableEntityException);
+    seed(prisma, { staff: [], records: [] });
+    prisma.employee.findMany.mockResolvedValue(new Array(MAX_AI_READ_GROUPS + 1).fill({ id: 'e' }));
+    await expect(repo.attendance([D1], '2026-11-01', '2026-11-30')).rejects.toBeInstanceOf(UnprocessableEntityException);
+    // more distinct people than the cap across the two lists
+    prisma.attendance.groupBy.mockResolvedValue(Array.from({ length: MAX_AI_READ_GROUPS }, (_, i) => ({ employeeId: `a${i}` })));
+    prisma.employee.findMany.mockResolvedValue([{ id: 'b' }]);
+    await expect(repo.attendance([D1], '2026-11-01', '2026-11-30')).rejects.toBeInstanceOf(UnprocessableEntityException);
+    // too many records for one answer
+    prisma.attendance.groupBy.mockResolvedValue([{ employeeId: 'e1' }]);
+    prisma.attendance.findMany.mockResolvedValue(new Array(250_001).fill(rec('e1', '2026-11-02', 'PRESENT')));
+    prisma.employee.findMany.mockResolvedValue([{ id: 'e1' }]);
     await expect(repo.attendance([D1], '2026-11-01', '2026-11-30')).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 });

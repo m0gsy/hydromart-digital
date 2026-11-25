@@ -34,6 +34,18 @@ export const HR_METRIC_IDS = Object.keys(HR_METRICS) as HrMetricId[];
 const readableOn = (scope: ReadScope, day: string): string[] =>
   [...new Set(scope.spans.filter((s) => s.from <= day && day <= s.to).map((s) => s.depotId))].sort();
 
+/** The cells H-02 shows; `attendedScheduled` only feeds the rate. */
+const SHOWN_CELLS = ATTENDANCE_CELLS.filter((c) => c !== 'attendedScheduled');
+
+/** The cells that add up to scheduledDays: holding any one of them holds scheduledDays and the rate. */
+const IDENTITY_CELLS = ['present', 'late', 'absentScheduled', 'leave', 'pending'] as const;
+
+/** The first day a month-or-year ending on `to` is answered: the 8th of the month after it (records entered late are in by then). */
+const closedFrom = (to: string): string => {
+  const [y, m] = to.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01-08` : `${y}-${String(m + 1).padStart(2, '0')}-08`;
+};
+
 const small = (people: number): boolean => people > 0 && people < SMALL_GROUP_MIN;
 
 @Injectable()
@@ -90,15 +102,21 @@ export class HrMetricsService {
   }
 
   /**
-   * H-02: attendance counts. Only what is recorded: the scheduled-days denominator (the rate) is not
-   * built, so `absentRecorded` is explicit ABSENT rows, NOT choice 35A's "scheduled day with no punch
-   * and no leave". Whole calendar months or years only (differencing: a month less a day would isolate
-   * one day's few people). Each count is held back on its OWN distinct employees, unioned over every
-   * depot and stretch read, so one person with records at two depots is one head.
+   * H-02: attendance, choice 35A. `absent` is a SCHEDULED workday with no punch and no leave, and the
+   * rate is (hadir + terlambat) / scheduled workdays, both from hr-service's scheduled-days rule (the
+   * one payroll uses). `absentRecorded` (explicit ABSENT rows) stays for continuity. Employees with no
+   * shift of their own are left out of the rate and counted apart (`unscheduledDays`). Whole calendar
+   * months or years only (differencing: a month less a day would isolate one day's few people), and a
+   * closed month only from the 8th of the next one, so records entered late are in. Each count is held
+   * back on its OWN distinct employees, unioned over every depot and stretch read, so one person with
+   * records at two depots is one head; the rate rests on the scheduled-days people and the attending ones.
    */
   private async attendance(env: ReadEnv): Promise<AnswerEnvelope> {
     if (!isWholeMonthOrYear(env.period.from, env.period.to)) {
       return env.none('Kehadiran hanya dijawab per bulan atau tahun penuh, supaya selisih dua jawaban tidak menunjuk beberapa orang saja.');
+    }
+    if (env.today < closedFrom(env.period.to)) {
+      return env.none('Kehadiran hanya dijawab untuk bulan yang sudah tutup, mulai tanggal 8 bulan berikutnya, supaya catatan yang terlambat masuk sudah ikut.');
     }
     const sums = Object.fromEntries(ATTENDANCE_CELLS.map((c) => [c, 0])) as Record<AttendanceCell, number>;
     const heads = Object.fromEntries(ATTENDANCE_CELLS.map((c) => [c, new Set<string>()])) as Record<AttendanceCell, Set<string>>;
@@ -113,27 +131,42 @@ export class HrMetricsService {
         for (const c of ATTENDANCE_CELLS) for (const id of got.heads[c]) heads[c].add(id);
       }
     }
-    const flags: Partial<Record<AttendanceCell, string>> = {};
+    const flags: Record<string, string> = {};
     const value: Record<string, unknown> = {};
-    for (const c of ATTENDANCE_CELLS) {
+    for (const c of SHOWN_CELLS) {
+      const key = c === 'absentScheduled' ? 'absent' : c;
       if (small(heads[c].size)) {
-        flags[c] = SMALL_GROUP_FLAG;
-        value[c] = null;
+        flags[key] = SMALL_GROUP_FLAG;
+        value[key] = null;
       } else {
-        value[c] = sums[c];
+        value[key] = sums[c];
       }
     }
     const flagged = Object.keys(flags).length;
-    if (flagged > 0 && ATTENDANCE_CELLS.every((c) => heads[c].size === 0 || flags[c])) {
+    if (flagged > 0 && SHOWN_CELLS.every((c) => heads[c].size === 0 || flags[c === 'absentScheduled' ? 'absent' : c])) {
       return env.held(`Karyawan di balik angka kehadiran ${SMALL_GROUP_FLAG}; angkanya tidak diberikan.`);
     }
+    // scheduledDays = present + late (scheduled days) + absent + leave + pending + holiday records, so one held
+    // identity count could be worked back from scheduledDays or the rate: hold both with it.
+    const identityHeld = IDENTITY_CELLS.some((c) => small(heads[c].size));
+    if (identityHeld && value.scheduledDays !== null) {
+      flags.scheduledDays = SMALL_GROUP_FLAG;
+      value.scheduledDays = null;
+    }
+    const flaggedAll = Object.keys(flags).length;
+    let rate: Record<string, unknown>;
+    if (identityHeld) {
+      rate = { status: 'ditahan', reason: 'Salah satu angka kehadiran bertumpu pada kurang dari 3 karyawan, jadi hari terjadwal dan tingkat hadir ikut ditahan supaya angka itu tidak bisa dihitung balik.' };
+    } else if (sums.scheduledDays === 0) {
+      rate = { status: 'belum_ada', reason: 'Tidak ada hari kerja terjadwal pada periode ini (karyawan tanpa jadwal sendiri tidak ikut dihitung).' };
+    } else if (small(heads.scheduledDays.size) || small(heads.attendedScheduled.size)) {
+      rate = { status: 'ditahan', reason: `Karyawan di balik tingkat hadir ${SMALL_GROUP_FLAG}.` };
+    } else {
+      rate = { status: 'ok', value: Math.round((sums.attendedScheduled / sums.scheduledDays) * 1000) / 10, unit: 'persen' };
+    }
     return env.ok(
-      {
-        ...value,
-        ...(flagged > 0 ? { flags } : {}),
-        rate: { status: 'belum_ada', reason: 'Tingkat hadir butuh hari kerja terjadwal per karyawan; itu belum dihitung di sini.' },
-      },
-      'hari kerja menurut tanggal kerja WIB dan depot tempat bekerja hari itu, per bulan atau tahun penuh: present = hadir, late = terlambat, absentRecorded = hanya catatan ABSEN eksplisit (BUKAN hari terjadwal tanpa absen dan tanpa cuti: hari tanpa catatan tidak terlihat), leave = cuti, pending = absen offline belum diputuskan HR; tiap angka yang bertumpu pada kurang dari 3 karyawan berbeda tidak diberikan (null dengan flag)',
+      { ...value, ...(flaggedAll > 0 ? { flags } : {}), rate },
+      'hari kerja menurut tanggal kerja WIB, per bulan atau tahun penuh, untuk bulan yang sudah tutup (dijawab mulai tanggal 8 bulan berikutnya): scheduledDays = hari kerja terjadwal menurut jadwal karyawan (rotasi atau shift, hari libur mingguan depot, tanpa hari libur, hanya selama bekerja; aturan yang sama dengan gaji) di depot tempat bekerja hari itu, atau bila hari itu tanpa catatan di depot penugasan karyawan (Employee.depotId, bukan depot asal; karyawan yang pindah depot: hari tanpa catatan ikut depot penugasan sekarang); hari cuti, absen offline yang belum diputuskan, dan catatan libur pada hari terjadwal tetap dihitung di scheduledDays (hari terjadwal yang tidak hadir dan bukan absen); present = hadir, late = terlambat (semua hari, termasuk hari di luar jadwal), absent = hari terjadwal tanpa absen dan tanpa cuti, absentRecorded = hanya catatan ABSEN eksplisit, leave = cuti, pending = absen offline belum diputuskan HR, unscheduledDays = hari kerja menurut aturan depot penugasan karyawan yang belum punya shift atau rotasi sendiri (tidak ikut tingkat hadir); rate = (hadir + terlambat pada hari terjadwal) / scheduledDays dalam persen, satu desimal; tiap angka yang bertumpu pada kurang dari 3 karyawan berbeda tidak diberikan (null dengan flag); bila salah satu dari present, late, absent, leave, pending ditahan, scheduledDays dan rate ikut ditahan supaya angka itu tidak bisa dihitung balik',
     );
   }
 

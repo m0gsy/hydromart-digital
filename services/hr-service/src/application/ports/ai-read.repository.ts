@@ -9,7 +9,17 @@ export const AI_READ_REPOSITORY = Symbol('AiReadRepository');
 export const MAX_AI_READ_GROUPS = 50_000;
 
 /** The attendance statuses the AI read API counts, in the order it answers them. */
-export const ATTENDANCE_CELLS = ['present', 'late', 'absentRecorded', 'leave', 'pending'] as const;
+export const ATTENDANCE_CELLS = [
+  'present',
+  'late',
+  'absentRecorded',
+  'leave',
+  'pending',
+  'scheduledDays',
+  'attendedScheduled',
+  'absentScheduled',
+  'unscheduledDays',
+] as const;
 export type AttendanceCell = (typeof ATTENDANCE_CELLS)[number];
 
 export interface AttendanceDepotRow {
@@ -21,6 +31,17 @@ export interface AttendanceDepotRow {
   leave: number;
   /** Punches taken offline and not yet decided by HR; counted as nothing. */
   pending: number;
+  /**
+   * Choice 35A. Employee-days on which the employee is scheduled to work (see domain/scheduled-days.ts:
+   * the rule payroll uses), at the depot they worked that day, else the depot the employee is assigned to (Employee.depotId, not the home depot).
+   */
+  scheduledDays: number;
+  /** Scheduled days with a PRESENT or LATE record: the rate's numerator. */
+  attendedScheduled: number;
+  /** Scheduled days with no record, or an explicit ABSENT one: no punch and no leave. */
+  absentScheduled: number;
+  /** Employed workdays by the depot's weekly-off rule on which the employee has no shift of their own: left out of the rate. */
+  unscheduledDays: number;
 }
 
 /**

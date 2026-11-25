@@ -7,17 +7,35 @@ export interface ApplicationSummary {
 }
 
 /** hr-service: one depot's attendance counts over a window of days. */
-export const ATTENDANCE_CELLS = ['present', 'late', 'absentRecorded', 'leave', 'pending'] as const;
+export const ATTENDANCE_CELLS = [
+  'present',
+  'late',
+  'absentRecorded',
+  'leave',
+  'pending',
+  'scheduledDays',
+  'attendedScheduled',
+  'absentScheduled',
+  'unscheduledDays',
+] as const;
 export type AttendanceCell = (typeof ATTENDANCE_CELLS)[number];
 
 export interface AttendanceRow {
   depotId: string;
   present: number;
   late: number;
-  /** Explicit ABSENT records only; a scheduled day with no record is not visible. */
+  /** Explicit ABSENT records only (any day), kept for continuity. */
   absentRecorded: number;
   leave: number;
   pending: number;
+  /** Choice 35A: employee-days the shift data schedules (payroll's rule), at the depot worked that day else the own depot. */
+  scheduledDays: number;
+  /** Scheduled days with a PRESENT or LATE record: the rate's numerator. */
+  attendedScheduled: number;
+  /** Scheduled days with no record or an explicit ABSENT one: no punch and no leave. */
+  absentScheduled: number;
+  /** Employed workdays by the depot's weekly-off rule where the employee has no shift of their own: counted apart, not in the rate. */
+  unscheduledDays: number;
 }
 
 /** Opaque employee ids behind each count over the whole call (never a name), unioned by the reader. */

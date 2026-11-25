@@ -97,8 +97,8 @@ describe('GET ai/read/franchise and ai/read/hr (HD-6 H5)', () => {
           const four = ['e1', 'e2', 'e3', 'e4'];
           return json({
             rolledUp: false,
-            rows: ids.map((depotId) => ({ depotId, present: 10, late: 1, absentRecorded: 0, leave: 0, pending: 0 })),
-            heads: { present: four, late: four, absentRecorded: [], leave: [], pending: [] },
+            rows: ids.map((depotId) => ({ depotId, present: 10, late: 1, absentRecorded: 0, leave: 0, pending: 0, scheduledDays: 12, attendedScheduled: 11, absentScheduled: 1, unscheduledDays: 0 })),
+            heads: { present: four, late: four, absentRecorded: [], leave: [], pending: [], scheduledDays: four, attendedScheduled: four, absentScheduled: four, unscheduledDays: [] },
           });
         }
         if (url.pathname.endsWith('/ai/payroll-gate')) {
@@ -196,12 +196,22 @@ describe('GET ai/read/franchise and ai/read/hr (HD-6 H5)', () => {
   it('answers the HR metrics from the depots readable on the day: finance reads D1 only from 16 Nov', async () => {
     const h3 = await get(aiToken('FINANCE'), 'hr', 'H-03').expect(200);
     expect(h3.body).toMatchObject({ status: 'ok', value: { slips: 8, grossIdr: 2_000 }, scope: { depotIds: [D1, D2], legalEntityIds: [PT_B] } });
-    const h2 = await get(aiToken('FINANCE'), 'hr', 'H-02').expect(200);
+    // H-02 answers November only from 8 December: only the clock is moved, the tokens are minted after it
+    jest.useFakeTimers({
+      now: new Date('2026-12-09T03:00:00.000Z'),
+      doNotFake: ['nextTick', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'queueMicrotask', 'performance', 'hrtime'],
+    });
+    let h2: request.Response;
+    try {
+      h2 = await get(aiToken('FINANCE'), 'hr', 'H-02').expect(200);
+    } finally {
+      jest.useRealTimers();
+    }
     const att = asked.filter((u) => u.pathname.endsWith('/ai/attendance'));
     expect(att.map((u) => `${u.searchParams.get('depotIds')}@${u.searchParams.get('from')}..${u.searchParams.get('to')}`).sort()).toEqual(
       [`${D1}@2026-11-16..2026-11-30`, `${D2}@2026-11-01..2026-11-30`].sort(),
     );
-    expect(h2.body.value).toMatchObject({ present: 20, late: 2 });
+    expect(h2.body.value).toMatchObject({ present: 20, late: 2, scheduledDays: 24, absent: 2, rate: { status: 'ok', value: 91.7, unit: 'persen' } });
     // the same two stretches of people count as one set of four, not eight
     expect(h2.body.value.flags).toBeUndefined();
   });
