@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { currentPosition, GeoError, geoReason } from '@/lib/geo';
+import { approximateOnly, currentPosition, GeoError, geoReason } from '@/lib/geo';
 
 /**
  * J1 — `lib/geo.ts` shipped with zero direct coverage, and the bug that closed it lived in
@@ -246,15 +246,23 @@ describe('currentPosition({ precise: true })', () => {
 
 /*
  * 2026-11-23: Galaxy and Pekayon punches were refused at 1777 m. Their phones held only
- * "Perkiraan", which Android snaps to a 2 km grid. A presence check now asks for the precise
- * upgrade once per fix; nothing else asks, and the answer is never read.
+ * "Perkiraan", which Android snaps to a 2 km grid, and a presence check began asking for the
+ * precise upgrade itself.
+ *
+ * 2026-11-25: 44 of the 56 staff who punched that week were still on the grid. The plugin's own
+ * `getCurrentPosition` already asks for the upgrade whenever `enableHighAccuracy` is set and
+ * FINE is not granted (@capacitor/geolocation 8.2.2: `getAlias` picks the `location` alias, and
+ * `handlePermissionRequest` requests it). So every tap put up TWO dialogs, and two "keep
+ * approximate" answers make Android stop asking for good. The plugin's single request is the
+ * only one now: JS asks nothing of a coarse-only phone, in any mode.
  */
 describe('the precise upgrade on a coarse-only phone', () => {
   const coarseOnly = { location: 'denied', coarseLocation: 'granted' };
 
-  /** A shell whose permission check answers `state`; returns every upgrade request it saw. */
-  function withPermissions(state: Record<string, string>, request: () => Promise<unknown>) {
+  /** A shell whose permission check answers `state`; records every JS request and fix options. */
+  function withPermissions(state: Record<string, string>) {
     const asked: unknown[] = [];
+    const fixes: unknown[] = [];
     vi.stubGlobal('window', {
       Capacitor: {
         Plugins: {
@@ -262,27 +270,34 @@ describe('the precise upgrade on a coarse-only phone', () => {
             checkPermissions: () => Promise.resolve(state),
             requestPermissions: (o?: unknown) => {
               asked.push(o);
-              return request();
+              return Promise.resolve(state);
             },
-            getCurrentPosition: () =>
-              Promise.resolve({ coords: { latitude: -6.27, longitude: 106.96, accuracy: 2000 }, timestamp: 1 }),
+            getCurrentPosition: (o?: unknown) => {
+              fixes.push(o);
+              return Promise.resolve({
+                coords: { latitude: -6.27, longitude: 106.96, accuracy: 2000 },
+                timestamp: 1,
+              });
+            },
           },
         },
       },
     });
-    return asked;
+    return { asked, fixes };
   }
 
-  it('asks for precise location exactly once, then returns the fix it gets', async () => {
-    const asked = withPermissions(coarseOnly, () => Promise.resolve(coarseOnly));
+  it('asks nothing from JS: the precise fix itself carries the one upgrade request', async () => {
+    const { asked, fixes } = withPermissions(coarseOnly);
     await expect(currentPosition({ precise: true })).resolves.toMatchObject({
       coords: { latitude: -6.27, accuracy: 2000 },
     });
-    expect(asked).toEqual([{ permissions: ['location'] }]);
+    expect(asked).toEqual([]);
+    // enableHighAccuracy is what makes the plugin ask for FINE — exactly once, natively.
+    expect(fixes).toEqual([expect.objectContaining({ enableHighAccuracy: true })]);
   });
 
   it('asks nothing when precise location is already granted', async () => {
-    const asked = withPermissions({ location: 'granted', coarseLocation: 'granted' }, () => Promise.resolve({}));
+    const { asked } = withPermissions({ location: 'granted', coarseLocation: 'granted' });
     await currentPosition({ precise: true });
     expect(asked).toEqual([]);
   });
@@ -291,17 +306,58 @@ describe('the precise upgrade on a coarse-only phone', () => {
     ['coarse', {}],
     ['pin', { pin: true }],
   ])('asks nothing in %s mode', async (_mode, options) => {
-    const asked = withPermissions(coarseOnly, () => Promise.resolve({}));
+    const { asked } = withPermissions(coarseOnly);
     await expect(currentPosition(options)).resolves.toMatchObject({ coords: { latitude: -6.27 } });
     expect(asked).toEqual([]);
   });
 
-  it('keeps the fix when the upgrade request itself fails', async () => {
+  it('keeps the native fix: a coarse-only phone is not sent to the web API', async () => {
     const { calls } = withGeolocation(position(-1));
-    const asked = withPermissions(coarseOnly, () => Promise.reject(new Error('no activity')));
+    withPermissions(coarseOnly);
     await expect(currentPosition({ precise: true })).resolves.toMatchObject({ coords: { latitude: -6.27 } });
-    expect(asked).toHaveLength(1);
-    // Still the native fix: a failed upgrade is not a reason to fall back to the web API.
     expect(calls).toHaveLength(0);
+  });
+});
+
+/*
+ * What the check-in screens show a phone on "Perkiraan" (2026-11-25). It reads the permission
+ * and never asks for one: the dialog belongs to the fix, and a second one burns Android's limit.
+ */
+describe('approximateOnly', () => {
+  function withCheck(check: () => Promise<unknown>) {
+    const requestPermissions = vi.fn(() => Promise.resolve({}));
+    vi.stubGlobal('window', {
+      Capacitor: { Plugins: { Geolocation: { checkPermissions: check, requestPermissions } } },
+    });
+    return requestPermissions;
+  }
+
+  it.each([
+    [{ location: 'prompt', coarseLocation: 'granted' }],
+    [{ location: 'denied', coarseLocation: 'granted' }],
+    [{ location: 'prompt-with-rationale', coarseLocation: 'granted' }],
+  ])('is true when the app holds coarse location and not fine: %j', async (state) => {
+    const requestPermissions = withCheck(() => Promise.resolve(state));
+    await expect(approximateOnly()).resolves.toBe(true);
+    expect(requestPermissions).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ location: 'granted', coarseLocation: 'granted' }],
+    [{ location: 'prompt', coarseLocation: 'prompt' }],
+    [{ location: 'denied', coarseLocation: 'denied' }],
+    [{}],
+  ])('is false otherwise: %j', async (state) => {
+    withCheck(() => Promise.resolve(state));
+    await expect(approximateOnly()).resolves.toBe(false);
+  });
+
+  it('is false wherever it cannot tell: a browser, location services off, an empty answer', async () => {
+    vi.stubGlobal('window', {});
+    await expect(approximateOnly()).resolves.toBe(false);
+    withCheck(() => Promise.reject(Object.assign(new Error('Location services are not enabled.'), { code: 'OS-PLUG-GLOC-0007' })));
+    await expect(approximateOnly()).resolves.toBe(false);
+    withCheck(() => Promise.resolve(undefined));
+    await expect(approximateOnly()).resolves.toBe(false);
   });
 });

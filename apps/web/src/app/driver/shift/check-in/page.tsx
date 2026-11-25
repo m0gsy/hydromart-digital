@@ -16,6 +16,7 @@ import {
 
 import { DriverShell } from '@/components/driver/driver-shell';
 import { FaceCapture } from '@/components/hr/face-capture';
+import { PreciseLocationNotice } from '@/components/hr/precise-location-notice';
 import { Button, Card, CenterState, LinkButton, LoadError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -230,6 +231,9 @@ function CheckIn() {
           last
         />
       </Card>
+
+      {/* A phone on "Perkiraan" is refused at the depot door: said before the tap, not after. */}
+      <PreciseLocationNotice className="mt-3.5" />
 
       {queued > 0 && (
         <div className="mt-3.5 flex items-center gap-2.5 rounded-2xl bg-brand-50 px-3.5 py-3">

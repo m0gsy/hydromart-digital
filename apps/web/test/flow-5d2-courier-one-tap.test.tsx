@@ -277,3 +277,42 @@ describe('the brake, and the courier the one tap cannot serve', () => {
     expect(screen.queryByText(C.enrollFirstTitle)).toBeNull();
   });
 });
+
+/*
+ * 2026-11-25: Muhammad Rouf stood in Depot Jatibening and was refused at "1391 m" — his phone held
+ * only "Perkiraan". The screen says so before he taps, and the tap itself is never held back by
+ * it: whether such a fix is good enough is the server's call.
+ */
+describe('a phone on "Perkiraan"', () => {
+  afterEach(() => {
+    Reflect.deleteProperty(window, 'Capacitor');
+  });
+
+  it('is told so before the tap, and the tap still goes through', async () => {
+    (window as unknown as { Capacitor?: unknown }).Capacitor = {
+      Plugins: {
+        Geolocation: {
+          checkPermissions: () => Promise.resolve({ location: 'denied', coarseLocation: 'granted' }),
+        },
+      },
+    };
+    const user = userEvent.setup();
+    draw();
+    expect(await screen.findByText(idDict.hrFix.preciseLocation.title)).toBeInTheDocument();
+    await user.click(await screen.findByRole('button', { name: 'capture' }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/driver'));
+    expect(jobs()).toEqual(['shiftCheckIn', 'hrPunch']);
+  });
+
+  it('says nothing on a phone with precise location', async () => {
+    const checkPermissions = vi.fn(() => Promise.resolve({ location: 'granted', coarseLocation: 'granted' }));
+    (window as unknown as { Capacitor?: unknown }).Capacitor = {
+      Plugins: { Geolocation: { checkPermissions } },
+    };
+    draw();
+    await screen.findByRole('button', { name: 'capture' });
+    await waitFor(() => expect(checkPermissions).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByText(idDict.hrFix.preciseLocation.title)).toBeNull();
+  });
+});

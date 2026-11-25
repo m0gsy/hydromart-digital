@@ -106,13 +106,14 @@ async function nativePosition(mode: GeoMode): Promise<GeolocationPosition | null
     if (!granted(asked.value.location) && !granted(asked.value.coarseLocation)) {
       throw new GeoError('denied');
     }
-  } else if (mode === 'precise' && !granted(state.value.location)) {
-    // Coarse only ("Perkiraan"): Android snaps that fix to a 2 km grid, which no presence fence
-    // can use — Galaxy and Pekayon punches landed on that grid and were refused at 1777 m.
-    // Asking for `location` again is what makes Android 12+ offer the "Tepat" upgrade. The answer
-    // is not read: the fix below carries its own accuracy, and the server decides.
-    await tryPlugin('Geolocation', 'requestPermissions', { permissions: ['location'] });
   }
+  // Coarse only ("Perkiraan") is NOT asked about here. Android snaps such a fix to a 2 km grid,
+  // and the precise fix below already asks for the "Tepat" upgrade itself: with
+  // `enableHighAccuracy` the plugin picks its `location` alias and requests it whenever FINE is
+  // not granted (@capacitor/geolocation 8.2.2). Asking here as well (2026-11-23..25) put two
+  // dialogs in front of every tap, and two "keep approximate" answers make Android stop asking
+  // for good: 44 of 56 staff were still on the grid two days later. `approximateOnly` is how a
+  // screen says so instead.
   // Coarse by default: a depot is picked by neighbourhood.
   // `precise` is for a PRESENCE check (shift check-in, attendance, proof of delivery): a
   // network fix is off by a few hundred metres and a five-minute-old one may be from the
@@ -141,6 +142,21 @@ async function nativePosition(mode: GeoMode): Promise<GeolocationPosition | null
     timestamp: (fix.ok ? fix.value.timestamp : undefined) ?? 0,
     toJSON: () => ({}),
   } as GeolocationPosition;
+}
+
+/**
+ * Whether this app holds only "Perkiraan" (approximate) location on the phone: the one state no
+ * presence check can use, and the one the person has to switch in Settings themselves.
+ *
+ * Reads the permission and never asks for one — the dialog belongs to the fix. False wherever it
+ * cannot tell: a browser, an older binary, location services off.
+ */
+export async function approximateOnly(): Promise<boolean> {
+  const state = await tryPlugin<{ location?: string; coarseLocation?: string } | undefined>(
+    'Geolocation',
+    'checkPermissions',
+  );
+  return state.ok && state.value?.coarseLocation === 'granted' && state.value.location !== 'granted';
 }
 
 export async function currentPosition({
