@@ -20,7 +20,16 @@ export {
   isTaxRounding,
   roundIdr,
 } from './domain/tax';
-export { APPROXIMATE_ACCURACY_M, haversineKm, isApproximateFix, onCoarseGrid } from './domain/geo';
+export {
+  APPROXIMATE_ACCURACY_M,
+  geofenceEnabled,
+  haversineKm,
+  haversineMeters,
+  isApproximateFix,
+  onCoarseGrid,
+  withinGeofence,
+  type Geofence,
+} from './domain/geo';
 export {
   pointInServiceArea,
   readServiceArea,
