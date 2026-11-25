@@ -1451,6 +1451,23 @@ export interface NetworkPnlDepotRow {
   netProfitIdr: number | null;
 }
 
+/** HD-16 (D22): the fixed costs head office entered for one month. */
+export interface DepotFixedCostMonth {
+  month: string;
+  totalIdr: number;
+  byDepot: { depotId: string; depotCode: string; depotName: string; totalIdr: number }[];
+  rows: {
+    id: string;
+    depotId: string;
+    depotCode: string;
+    depotName: string;
+    month: string;
+    category: string;
+    amountIdr: number;
+    note: string | null;
+  }[];
+}
+
 export interface NetworkPnl {
   /**
    * False when the reader may not see pay figures (payrollRead, owner decision 2026-11-19):

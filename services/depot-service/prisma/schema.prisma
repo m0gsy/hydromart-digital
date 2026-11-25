@@ -124,6 +124,7 @@ model Depot {
   owners                 DepotOwner[]
   /// HD-5: which legal entity this depot belongs to, by date.
   legalEntities          DepotLegalEntity[]
+  fixedCosts             DepotFixedCost[]
 
   @@index([active])
   @@index([ownershipType])
@@ -740,6 +741,28 @@ model DepotTarget {
   @@unique([depotId, month])
   @@index([depotId])
   @@map("depot_targets")
+}
+
+/// HD-16 (owner decision D22): what a depot costs per month that no order, payroll or cash-book
+/// line records: rent, electricity, depreciation, employer BPJS, ... One row per depot, month
+/// and category, written by the spreadsheet import. Whole rupiah. HQ overhead is NOT allocated to depots.
+model DepotFixedCost {
+  id        String   @id @default(uuid()) @db.Uuid
+  depotId   String   @db.Uuid
+  depot     Depot    @relation(fields: [depotId], references: [id], onDelete: Cascade)
+  /// WIB month key, e.g. "2026-11".
+  month     String
+  /// Lower-cased, trimmed, 1-40 characters: "sewa", "listrik", "bpjs pemberi kerja".
+  category  String
+  amountIdr Int
+  note      String?
+  updatedBy String   @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([depotId, month, category])
+  @@index([month])
+  @@map("depot_fixed_costs")
 }
 
 /// Kind of manual cashbook movement (design 14c). Derived movements (COD settlement in,

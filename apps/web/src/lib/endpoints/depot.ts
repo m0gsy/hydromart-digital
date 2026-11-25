@@ -89,6 +89,11 @@ export const depot = {
   // Depot-manager console features (depot-service, design 13a/13c/14a/14c/14d/15c/15d/16b).
   // All reuse the existing `depots` gateway segment (no new segment/env) — the segment strips
   // `/depots` and forwards `/api/v1/<controller>` straight to depot-service.
+  // HD-16 (D22) — fixed costs per depot, month and category; depotCostAdmin reads and writes.
+  depotFixedCosts: {
+    list: (month: string) => `/depots/api/v1/depot-fixed-costs?month=${month}`,
+    import: '/depots/api/v1/depot-fixed-costs/import',
+  },
   depotTargets: {
     // GET the target row for one month (null if unset).
     get: (q: { depotId: string; month: string }) =>

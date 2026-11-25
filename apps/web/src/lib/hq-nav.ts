@@ -138,6 +138,8 @@ export const HQ_GROUPS: HqRailGroup[] = [
       // CA-2-59: the network P&L. Same capability as the revenue roll-up it completes —
       // whoever may read what the network SOLD may read what it cost to make.
       { href: '/hq/pnl', labelKey: 'pnl', cap: 'dashboard' },
+      // HD-16 (D22): fixed costs per depot and month; its import is the page below it.
+      { href: '/hq/depot-costs', labelKey: 'depotCosts', cap: 'depotCostAdmin' },
       { href: '/hq/reports/export', labelKey: 'reportsExport', cap: 'orderReports' },
       { href: '/hq/tax', labelKey: 'tax', cap: 'taxSettings' },
       { href: '/hq/invoice-template', labelKey: 'invoiceTemplate', cap: 'taxSettings' },

@@ -42,6 +42,7 @@ export const hq = {
     franchise: 'Franchise fees',
     payments: 'Payments',
     pnl: 'Network P&L',
+    depotCosts: 'Depot fixed costs',
     pricing: 'Network pricing',
     vouchers: 'Voucher codes',
     refunds: 'Refunds',
@@ -362,6 +363,7 @@ export const hq = {
       driverRosterRead: 'View courier names (finance screens)',
       depotLifecycle: 'Open and deactivate depots',
       legalEntityAdmin: 'Manage the legal entities of depots and employees',
+      depotCostAdmin: 'Manage depot fixed costs per month',
       legalEntityAiAccess: 'Edit the AI-web access matrix per legal entity',
       orderManageRead: 'Read the order list and detail (without changing it)',
       depotDirectory: 'View a depot in full',
@@ -1110,6 +1112,25 @@ export const hq = {
     orders: 'Orders',
     sla: 'SLA',
     empty: 'No depot data in this window.',
+  },
+  // HD-16 (D22): fixed costs per depot, month and category; entered by spreadsheet import.
+  depotCosts: {
+    title: 'Depot fixed costs',
+    subtitle: 'Per depot and category, {month}',
+    monthLabel: 'Choose month',
+    importButton: 'Import costs',
+    empty: 'No fixed costs for this month yet. Upload them with Import costs.',
+    colDepot: 'Depot',
+    colCategory: 'Category',
+    colAmount: 'Amount',
+    colNote: 'Note',
+    colDepotTotal: 'Total fixed costs',
+    total: 'Total',
+    import: {
+      title: 'Import depot fixed costs',
+      desc: 'One row per depot, month and category (rent, electricity, depreciation, employer BPJS, ...). Whole rupiah; write 0 when there is truly no cost. The same row (depot, month, category) overwrites the earlier amount, so a corrected file is safe to upload again. Head-office overhead is not charged to depots.',
+      notAMonth: '"{value}" is not a month. Write YYYY-MM (2026-11), and format the month column as Text.',
+    },
   },
   // CA-2-59: network profit and loss, from recorded costs only.
   pnl: {

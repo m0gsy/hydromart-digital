@@ -250,6 +250,7 @@ export const dashC = {
       orderManageRead: 'Read orders (no changes)',
       depotLifecycle: 'Open and deactivate depots',
       legalEntityAdmin: 'Manage the legal entities of depots and employees',
+      depotCostAdmin: 'Manage depot fixed costs per month',
       legalEntityAiAccess: 'AI-web access matrix per legal entity',
       driverRosterRead: 'View courier names (finance)',
       staffDirectoryFinance: 'View franchise owners (finance)',
