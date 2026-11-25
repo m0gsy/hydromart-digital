@@ -97,6 +97,17 @@ describe('/hq/pricing queue', () => {
   });
 });
 
+describe('english dictionary', () => {
+  it('has the AI badge and reason on both screens', async () => {
+    const { hq } = await import('@/lib/dictionaries/en/hq');
+    const { hrFix } = await import('@/lib/dictionaries/en/hrFix');
+    expect(hq.pricing.queue.aiBadge).toBe('AI suggestion');
+    expect(hq.pricing.queue.aiReason).toBe('AI reason');
+    expect(hrFix.purchaseOrders.aiBadge).toBe('AI suggestion');
+    expect(hrFix.purchaseOrders.aiReason).toBe('AI reason');
+  });
+});
+
 describe('purchase order detail', () => {
   it('marks an AI draft and shows the reason', async () => {
     const draft = po({ source: 'AI', aiReason: 'Stok tinggal dua hari.' });

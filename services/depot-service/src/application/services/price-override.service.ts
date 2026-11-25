@@ -58,6 +58,9 @@ export type PriceOverrideProposalView = PriceOverrideProposalRecord & {
   proposedByName: string | null;
 };
 
+/** The column is Decimal(12,2): compare what it would store, not the raw number. */
+const cents = (n: number): number => Math.round(n * 100) / 100;
+
 @Injectable()
 export class PriceOverrideService {
   private readonly logger = new Logger(PriceOverrideService.name);
@@ -119,9 +122,9 @@ export class PriceOverrideService {
         r.proposedBy === proposedBy &&
         r.productId === input.productId &&
         r.productName === input.productName &&
-        r.currentPrice === input.currentPrice &&
+        r.currentPrice === cents(input.currentPrice) &&
         r.adjustType === input.adjustType &&
-        r.value === input.value &&
+        r.value === cents(input.value) &&
         r.note === input.note &&
         r.aiReason === ai.reason;
       if (!same) throw new AiSuggestionReusedError();

@@ -1,13 +1,17 @@
 import {
   BadRequestException,
   Body,
+  CanActivate,
   Controller,
+  ExecutionContext,
   ForbiddenException,
+  Injectable,
   Headers,
   HttpCode,
   HttpStatus,
   Post,
   Res,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -46,6 +50,19 @@ function status(res: Response, replayed: boolean): void {
   res.status(replayed ? HttpStatus.OK : HttpStatus.CREATED);
 }
 
+/**
+ * Runs after the global guards (the user is set) and BEFORE the validation pipe, so a staff or
+ * machine token is refused 403 whatever its body looks like.
+ */
+@Injectable()
+export class AiTokenOnlyGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const user = context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>().user;
+    if (user?.via !== 'ai') throw new ForbiddenException('Only the AI web token may draft here.');
+    return true;
+  }
+}
+
 /*
  * HD-17 part A: the closed list of drafts the AI web's token may make in depot-service
  * (contracts/ai-v1/drafts.openapi.json). Only the AI token is let in (a staff session has its own
@@ -56,16 +73,13 @@ function status(res: Response, replayed: boolean): void {
  */
 @ApiTags('AI drafts')
 @ApiBearerAuth()
+@UseGuards(AiTokenOnlyGuard)
 @Controller({ path: 'ai/drafts', version: '1' })
 export class AiDraftController {
   constructor(
     private readonly overrides: PriceOverrideService,
     private readonly orders: PurchaseOrderService,
   ) {}
-
-  private static aiOnly(user: AuthenticatedUser): void {
-    if (user.via !== 'ai') throw new ForbiddenException('Only the AI web token may draft here.');
-  }
 
   @ApiOkResponse({ type: PriceOverrideProposalResponseDto })
   @ExternalAccess('ai')
@@ -80,7 +94,6 @@ export class AiDraftController {
     @Body() dto: AiPriceOverrideDraftDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<PriceOverrideProposalRecord> {
-    AiDraftController.aiOnly(user);
     const id = suggestionId(header);
     const { draft, replayed } = await this.overrides.draftFromAi(
       dto.depotId,
@@ -107,12 +120,10 @@ export class AiDraftController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'AI: draft a purchase order that staff review and send (HD-17)' })
   async purchaseOrder(
-    @CurrentUser() user: AuthenticatedUser,
     @Headers('x-ai-suggestion-id') header: string | undefined,
     @Body() dto: AiPurchaseOrderDraftDto,
     @Res({ passthrough: true }) res: Response,
   ): Promise<PurchaseOrder> {
-    AiDraftController.aiOnly(user);
     const id = suggestionId(header);
     const { draft, replayed } = await this.orders.draftFromAi(
       {

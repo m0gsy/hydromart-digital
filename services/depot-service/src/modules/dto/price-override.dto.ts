@@ -33,6 +33,8 @@ export class ProposePriceOverrideDto {
   @ApiProperty({ example: 20000, description: "Depot's current price for the product (IDR)." })
   @Type(() => Number)
   @IsPositive()
+  // Decimal(12,2) column: a third decimal would be stored rounded.
+  @IsNumber({ maxDecimalPlaces: 2 })
   currentPrice!: number;
 
   @ApiProperty({ enum: PricingAdjustType })
@@ -44,7 +46,7 @@ export class ProposePriceOverrideDto {
     description: 'PERCENT = signed percent; FIXED = signed rupiah delta.',
   })
   @Type(() => Number)
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2 })
   @Max(decimalMax(12, 2))
   value!: number;
 

@@ -91,6 +91,8 @@ export class PurchaseOrderService {
     input: CreatePurchaseOrderInput,
     ai: { suggestionId: string; reason: string },
   ): Promise<{ draft: PurchaseOrder; replayed: boolean }> {
+    // ponytail: no proposer column, so a replay is matched on the whole body; the suggestion id is an
+    // unguessable uuid. Add one only if ids ever stop being secret.
     const replay = (r: PurchaseOrder) => {
       const same =
         r.depotId === input.depotId &&

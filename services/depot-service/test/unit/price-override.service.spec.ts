@@ -455,6 +455,17 @@ describe('PriceOverrideService', () => {
       expect(alerts).toHaveLength(1);
     });
 
+    it('replays a body whose float noise the column stores rounded (no spurious 409)', async () => {
+      const svc = service();
+      const body = { ...PROPOSE, value: 0.1 + 0.2 };
+      jest.spyOn(repo, 'create').mockImplementationOnce(async (data) => {
+        const row = await InMemoryProposalRepository.prototype.create.call(repo, { ...data, value: 0.3 });
+        return row;
+      });
+      await svc.draftFromAi('d1', 'mgr-1', body, ai);
+      await expect(svc.draftFromAi('d1', 'mgr-1', body, ai)).resolves.toMatchObject({ replayed: true });
+    });
+
     it('answers the same draft for the same id and body, making no second row', async () => {
       const svc = service();
       const first = await svc.draftFromAi('d1', 'mgr-1', PROPOSE, ai);

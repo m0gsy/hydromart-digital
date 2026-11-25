@@ -278,6 +278,14 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       expect(proposals.rows).toHaveLength(0);
     });
 
+    it('refuses a third decimal on a money field (400), and a staff token with a bad body is 403 first', async () => {
+      await post(PRICE, manager(), { ...priceBody(), value: -10.555 }).expect(400);
+      await post(PRICE, manager(), { ...priceBody(), currentPrice: 20000.001 }).expect(400);
+      await post(PRICE, staff(Role.MANAGER, depotId), { nonsense: true }, null).expect(403);
+      await post(PO, staff(Role.MANAGER, depotId), { nonsense: true }, null).expect(403);
+      expect(proposals.rows).toHaveLength(0);
+    });
+
     it('gives the person exactly what the staff route gives them', async () => {
       // No depotAdmin capability: a depot staff member, and head office, as on the staff route.
       await post(PRICE, aiToken('STAFF_DEPOT', depotId), priceBody()).expect(403);
