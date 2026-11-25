@@ -171,7 +171,7 @@ export class InventoryService {
     ) {
       return;
     }
-    // HD-17B: the AI web hears of it too. After the movement has committed: the edge detection
+    // HD-17B: the AI web hears of it too (recorded here, sent by the sweep). After the movement has committed: the edge detection
     // needs the written quantity, and a crash in between costs one missed event, not the stock.
     await this.events?.emit(stockLowEvent(line, availableAfter, new Date()));
     const depot = await this.depots.findById(line.depotId, false);

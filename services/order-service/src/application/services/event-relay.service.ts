@@ -57,6 +57,8 @@ function reasonOf(error: unknown): string {
 @Injectable()
 export class EventRelayService {
   private static readonly BATCH = 200;
+  /** How long a claimed row is the claimer's: past a send's 5 s timeout, short enough to recover a dead sweep. */
+  private static readonly LEASE_MS = 5 * 60_000;
   /** A round with this many failures back to back is an outage, not bad luck: stop and let it back off. */
   private static readonly MAX_CONSECUTIVE_FAILURES = 3;
   /** The try that raises the one alert (about an hour after the event). */
@@ -87,6 +89,11 @@ export class EventRelayService {
     };
     let streak = 0;
     for (const row of due) {
+      // Another sweep may hold it: skip, neither sent nor counted.
+      if (!(await this.outbox.claim(row.id, now, new Date(now.getTime() + EventRelayService.LEASE_MS)))) {
+        result.claimed -= 1;
+        continue;
+      }
       if (await this.attempt(row, now)) {
         result.delivered += 1;
         streak = 0;

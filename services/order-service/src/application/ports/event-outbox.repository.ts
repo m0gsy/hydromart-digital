@@ -26,6 +26,13 @@ export interface EventOutboxRepository {
   countStuck(cutoff: Date): Promise<number>;
   /** PENDING rows whose backoff has elapsed, oldest first. */
   findDue(now: Date, limit: number): Promise<EventOutboxRecord[]>;
+  /**
+   * Takes a due row for one sender: a conditional update that pushes nextAttemptAt to `until`
+   * only while the row is still PENDING and due. False when another sweep got there first (or
+   * it was closed), so two overlapping sweeps never send the same row twice. A sender that dies
+   * leaves the row to come due again at `until`.
+   */
+  claim(id: string, now: Date, until: Date): Promise<boolean>;
   /** Closes a still-PENDING row; closing one twice is harmless. */
   markDone(id: string): Promise<void>;
   /**

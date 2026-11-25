@@ -804,21 +804,12 @@ export class OrderPrismaRepository implements OrderRepository {
     //
     // HD-17B: so does the order.status_changed event, written with the history row it names. This
     // is the one function every transition but a counter void goes through (see voidWalkIn).
-    const facts = await this.prisma.order.findUnique({
-      where: { id },
-      select: { depotId: true, isWalkIn: true },
-    });
+    // The event is built from the row the update returns, inside the transaction: a depot
+    // reassigned a moment earlier cannot leave it naming the old one.
     const transitionId = newTransitionId();
-    const changedEvent = orderStatusChangedEvent(
-      { id, depotId: facts?.depotId ?? null, isWalkIn: facts?.isWalkIn ?? false },
-      from,
-      status,
-      transitionId,
-      new Date(),
-    );
-    const [row] = await this.prisma
-      .$transaction([
-        this.prisma.order.update({
+    const row = await this.prisma
+      .$transaction(async (tx) => {
+        const updated = await tx.order.update({
           where: { id, status: from },
           data: {
             status,
@@ -833,10 +824,14 @@ export class OrderPrismaRepository implements OrderRepository {
             history: { create: { id: transitionId, status, changedBy, note } },
           },
           include: INCLUDE,
-        }),
-        ...outbox.map((m) => this.prisma.outboxMessage.create({ data: m })),
-        this.webhookEvent(changedEvent),
-      ])
+        });
+        for (const m of outbox) await tx.outboxMessage.create({ data: m });
+        const event = orderStatusChangedEvent(updated, from, status, transitionId, new Date());
+        await tx.webhookEventOutbox.create({
+          data: { ...event, payload: event.payload as Prisma.InputJsonValue },
+        });
+        return updated;
+      })
       .catch((error: unknown) => {
         if ((error as { code?: string })?.code === 'P2025') {
           throw new StaleOrderStatusError();

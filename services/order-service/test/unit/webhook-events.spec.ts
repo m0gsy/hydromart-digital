@@ -116,6 +116,17 @@ describe('EventOutboxPrismaRepository (HD-17B)', () => {
     await expect(repo.countStuck(NOW)).resolves.toBe(2);
   });
 
+  it('claim leases a due PENDING row for one sender only', async () => {
+    const until = new Date(NOW.getTime() + 300_000);
+    model.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    await expect(repo.claim('o1', NOW, until)).resolves.toBe(true);
+    expect(model.updateMany).toHaveBeenLastCalledWith({
+      where: { id: 'o1', status: 'PENDING', nextAttemptAt: { lte: NOW } },
+      data: { nextAttemptAt: until },
+    });
+    await expect(repo.claim('o1', NOW, until)).resolves.toBe(false);
+  });
+
   it('closes and fails only a PENDING row, and prunes only DONE rows', async () => {
     await repo.markDone('o1');
     expect(model.updateMany).toHaveBeenLastCalledWith({
@@ -194,6 +205,7 @@ describe('EventRelayService (HD-17B)', () => {
   function make(rows: ReturnType<typeof mk>, publish: jest.Mock) {
     const outbox = {
       findDue: jest.fn().mockResolvedValue(rows),
+      claim: jest.fn().mockResolvedValue(true),
       markDone: jest.fn(),
       markFailed: jest.fn(),
       countStuck: jest.fn().mockResolvedValue(0),
@@ -202,6 +214,31 @@ describe('EventRelayService (HD-17B)', () => {
     };
     return { outbox, svc: new EventRelayService(outbox as never, { publish }) };
   }
+
+  it('claims a row before sending it; two overlapping sweeps do not double-send', async () => {
+    const publish = jest.fn().mockResolvedValue(undefined);
+    const rows = mk(2);
+    const taken = new Set<string>();
+    const a = make(rows, publish);
+    const claim = jest.fn(async (id: string, _now?: Date, _until?: Date) => (taken.has(id) ? false : (taken.add(id), true)));
+    a.outbox.claim = claim;
+    const b = new EventRelayService(a.outbox as never, { publish });
+    const [r1, r2] = await Promise.all([a.svc.processDue(NOW), b.processDue(NOW)]);
+    expect(publish).toHaveBeenCalledTimes(2);
+    expect(r1.delivered + r2.delivered).toBe(2);
+    expect(r1.claimed + r2.claimed).toBe(2);
+    expect(claim.mock.calls[0][2]!.getTime()).toBeGreaterThan(NOW.getTime());
+  });
+
+  it('alerts exactly when the sixth failure lands, not before or after', async () => {
+    const platform = jest.requireMock('@hydromart/platform') as { alertServerError: jest.Mock };
+    platform.alertServerError.mockClear();
+    for (const attempts of [4, 5, 6]) {
+      const { svc } = make(mk(1, { attempts }), jest.fn().mockRejectedValue(new Error('down')));
+      await svc.processDue(NOW);
+    }
+    expect(platform.alertServerError).toHaveBeenCalledTimes(1);
+  });
 
   it('sends what is due and closes it', async () => {
     const { outbox, svc } = make(mk(3), jest.fn().mockResolvedValue(undefined));

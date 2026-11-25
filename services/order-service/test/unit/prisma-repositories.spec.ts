@@ -597,8 +597,7 @@ describe('OrderPrismaRepository', () => {
     await repo.create(createData);
     expect(order.create.mock.calls.at(-1)![0].data.id).toEqual(expect.any(String));
 
-    order.findUnique.mockResolvedValue({ depotId: 'depot-1', isWalkIn: true });
-    order.update.mockResolvedValue({ ...orderRow(), status: 'CONFIRMED' });
+    order.update.mockResolvedValue({ ...orderRow(), status: 'CONFIRMED', isWalkIn: true });
     await repo.applyStatus('ord-1', OrderStatus.CREATED, OrderStatus.CONFIRMED, 'staff', null);
     const historyId = order.update.mock.calls.at(-1)![0].data.history.create.id;
     const sent = webhookEventOutbox.create.mock.calls.at(-1)![0].data;
@@ -609,6 +608,41 @@ describe('OrderPrismaRepository', () => {
       to: 'CONFIRMED',
       status: 'CONFIRMED',
     });
+  });
+
+  // Removing the outbox insert from the transaction must fail a test: the insert goes through the
+  // transaction's own client (interactive) or is one of the array operations handed to it.
+  it('writes every event through the transaction, never beside it', async () => {
+    const sentinel = { sentinel: true };
+    webhookEventOutbox.create.mockReturnValue(sentinel);
+    order.create.mockResolvedValue(orderRow());
+    await repo.create(createData);
+    const ops = $transaction.mock.calls.at(-1)![0] as unknown[];
+    expect(ops).toContain(sentinel);
+
+    const txClient = {
+      order: { update: jest.fn().mockResolvedValue({ ...orderRow(), depotId: 'depot-NEW', isWalkIn: false }) },
+      outboxMessage: { create: jest.fn() },
+      webhookEventOutbox: { create: jest.fn() },
+    };
+    const outer = webhookEventOutbox.create.mock.calls.length;
+    $transaction.mockImplementationOnce((fn: unknown) => (fn as (tx: unknown) => unknown)(txClient));
+    await repo.applyStatus('ord-1', OrderStatus.CREATED, OrderStatus.CONFIRMED, 'staff', null);
+    expect(webhookEventOutbox.create.mock.calls.length).toBe(outer);
+    // Built from the row the update returned, not from an earlier read.
+    expect(txClient.webhookEventOutbox.create.mock.calls[0][0].data.payload.depotId).toBe('depot-NEW');
+
+    const voidTx = {
+      order: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), findUnique: jest.fn().mockResolvedValue({ depotId: 'd', isWalkIn: true }) },
+      orderStatusHistory: { create: jest.fn() },
+      outboxMessage: { create: jest.fn() },
+      webhookEventOutbox: { create: jest.fn() },
+    };
+    $transaction.mockImplementationOnce((fn: unknown) => (fn as (tx: unknown) => unknown)(voidTx));
+    order.findUnique.mockResolvedValue(orderRow());
+    await repo.voidWalkIn('ord-1', 'x', 'c', new Date());
+    expect(voidTx.webhookEventOutbox.create).toHaveBeenCalledTimes(1);
+    webhookEventOutbox.create.mockReset();
   });
 
   it('a void raises order.status_changed COMPLETED to VOIDED in its own transaction', async () => {

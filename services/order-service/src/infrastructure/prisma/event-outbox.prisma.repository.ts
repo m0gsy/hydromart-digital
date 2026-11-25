@@ -59,6 +59,14 @@ export class EventOutboxPrismaRepository implements EventOutboxRepository {
     return rows.map(toRecord);
   }
 
+  async claim(id: string, now: Date, until: Date): Promise<boolean> {
+    const { count } = await this.prisma.webhookEventOutbox.updateMany({
+      where: { id, status: 'PENDING', nextAttemptAt: { lte: now } },
+      data: { nextAttemptAt: until },
+    });
+    return count === 1;
+  }
+
   async markDone(id: string): Promise<void> {
     await this.prisma.webhookEventOutbox.updateMany({
       where: { id, status: 'PENDING' },

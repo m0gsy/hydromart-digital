@@ -284,14 +284,14 @@ describe('EventRelayService (HD-7 outbox)', () => {
     await expect(svc.processDue(new Date())).resolves.toMatchObject({ pruned: 0, ok: true });
   });
 
-  it('emit records a new event and sends it once; a repeated key is not recorded or sent again', async () => {
+  it('emit only records (the sweep sends); a repeated key is not recorded again', async () => {
     const { outbox, transport, svc } = make();
     const ev = { event: 'stock.low', eventId: 'stock.low:d:i:2026-11-25', payload: { onHand: 1 }, occurredAt: OCC };
     await svc.emit(ev);
     await svc.emit(ev);
     expect(outbox.rows).toHaveLength(1);
-    expect(outbox.rows[0].status).toBe('DONE');
-    expect(transport.publish).toHaveBeenCalledTimes(1);
+    expect(outbox.rows[0].status).toBe('PENDING');
+    expect(transport.publish).not.toHaveBeenCalled();
   });
 
   it('emit never rejects when the outbox cannot be written', async () => {

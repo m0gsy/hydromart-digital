@@ -90,7 +90,7 @@
     "order.created": {
       "post": {
         "summary": "An order was placed (online checkout or counter sale)",
-        "description": "Raised once per order, in the same database transaction that writes the order (HD-17 part B), and delivered like every event (see info.description). A counter sale is born COMPLETED, so its status here is COMPLETED and no order.status_changed follows for the creation itself. It carries no personal data: ids, the depot, the channel and statuses only (no customer id, name, phone or address).",
+        "description": "Raised once per order, in the same database transaction that writes the order (HD-17 part B), and delivered like every event (see info.description). A counter sale is born COMPLETED, so its status here is COMPLETED and no order.status_changed follows for the creation itself. It carries no personal data: ids, the depot, the channel and statuses only (no customer id, name, phone or address). Events of one order can arrive out of order after retries: receivers order them by occurredAt, never by arrival.",
         "parameters": [
           {
             "name": "X-Hydromart-Event",
@@ -258,7 +258,7 @@
     "stock.low": {
       "post": {
         "summary": "A depot stock line fell below its reorder point",
-        "description": "Raised when the sellable stock (on hand minus units held by open orders) of a depot line crosses to or below its reorder point (the depot's minimum stock; 0 disables it), at most once per depot line per WIB calendar day (the date is the last part of eventId). It carries no personal data.",
+        "description": "Raised when the sellable stock (on hand minus units held by open orders) of a depot line crosses to AT OR BELOW its reorder point (the depot's minimum stock; 0 disables it): onHand <= reorderPoint. Edge-triggered: it fires on the crossing, not on every later drop. At most one event per depot line per WIB calendar day (the date is the last part of eventId): a second crossing the same day is deduped silently, by design, so the AI web hears of a line once a day however often it crosses. It carries no personal data.",
         "parameters": [
           {
             "name": "X-Hydromart-Event",

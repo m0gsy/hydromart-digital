@@ -78,13 +78,14 @@ export class EventRelayService {
   ) {}
 
   /**
-   * Records an event nobody else's transaction owns, then sends it once straight away. Never
-   * rejects: what raised it (a stock movement) is already saved and must not fail over this; a
-   * row that could not be written is simply not owed (the next crossing writes it).
+   * Records an event nobody else's transaction owns, for the sweep to send. Deliberately no
+   * inline send: the caller is a stock movement (a checkout among them) and must not wait on
+   * admin-service's 5 s timeout. Never rejects: what raised it is already saved, and a row that
+   * could not be written is simply not owed (the next crossing writes it).
    */
   async emit(event: NewOutboxEvent): Promise<void> {
     try {
-      if (await this.outbox.record(event)) await this.flush(event.eventId);
+      await this.outbox.record(event);
     } catch (error) {
       this.logger.warn(`${event.eventId} not recorded: ${reasonOf(error)}`);
     }
