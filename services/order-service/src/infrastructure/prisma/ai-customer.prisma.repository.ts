@@ -191,11 +191,29 @@ export class AiCustomerPrismaRepository implements AiCustomerRepository {
     return { refill: n(row?.refill), partial: n(row?.partial), beli: n(row?.beli), notAsked: n(row?.notAsked) };
   }
 
+  async cancelledBeforeDeparture(spans: readonly AiSpan[]): Promise<number> {
+    const [row] = await this.prisma.$queryRaw<{ n: bigint }[]>(Prisma.sql`
+      WITH ${spansCte(spans)}
+      SELECT COUNT(*)::bigint AS "n"
+      FROM sp
+      JOIN "orders" o ON o."depotId" = sp."depotId"
+        AND o."statusChangedAt" >= (sp."fromAt" AT TIME ZONE 'UTC')
+        AND o."statusChangedAt" < (sp."toAt" AT TIME ZONE 'UTC')
+      WHERE o."status" = ${DbOrderStatus.CANCELLED}::"OrderStatus" AND o."isWalkIn" = false
+        AND NOT EXISTS (
+          SELECT 1 FROM "order_status_history" h
+          WHERE h."orderId" = o."id"
+            AND h."status" IN (${DbOrderStatus.PICKED_UP}::"OrderStatus", ${DbOrderStatus.ON_DELIVERY}::"OrderStatus")
+        )
+    `);
+    return n(row?.n);
+  }
+
   async liveByStatus(depotIds: readonly string[]): Promise<{ status: string; count: number }[]> {
     if (depotIds.length === 0) return [];
     const rows = await this.prisma.order.groupBy({
       by: ['status'],
-      where: { status: { in: IN_FLIGHT }, depotId: { in: [...depotIds] } },
+      where: { status: { in: IN_FLIGHT }, depotId: { in: [...depotIds] }, isWalkIn: false },
       _count: { _all: true },
     });
     return rows.map((r) => ({ status: r.status, count: r._count._all }));

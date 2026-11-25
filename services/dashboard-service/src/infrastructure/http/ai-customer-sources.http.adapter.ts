@@ -124,14 +124,20 @@ export class AiCustomerSourcesHttpAdapter implements AiCustomerSourcesPort {
   async deliverySummary(spans: readonly SourceSpan[]): Promise<DeliverySummary | null> {
     const b = await this.call(`${this.config.deliveryServiceUrl}/api/v1/reports/internal/ai-summary`, { spans });
     const counts = ['delivered', 'onTime', 'storedVerdicts', 'couriers', 'failed', 'noShow', 'otherFailed', 'rescheduled'] as const;
-    if (!isObj(b) || !allCounts(b, counts) || !isCount(b.thresholdMinutes)) return null;
+    if (!isObj(b) || !allCounts(b, counts) || (b.thresholdMinutes !== null && !isCount(b.thresholdMinutes))) return null;
     if (b.medianMinutes !== null && !isNum(b.medianMinutes)) return null;
     // The parts must fit their wholes, or the source and this reader disagree about the shape.
     const d = b as unknown as DeliverySummary;
-    if (d.onTime > d.delivered || d.storedVerdicts > d.delivered || d.couriers > d.delivered) return null;
+    if (d.onTime > d.delivered || d.storedVerdicts > d.delivered || d.couriers > d.delivered + d.failed) return null;
+    if (d.couriers === 0 && d.delivered + d.failed > 0) return null;
     if (d.noShow + d.otherFailed !== d.failed) return null;
     if ((d.delivered === 0) !== (d.medianMinutes === null)) return null;
     return d;
+  }
+
+  async cancelledBeforeDeparture(spans: readonly SourceSpan[]): Promise<number | null> {
+    const b = await this.order('cancelled-before-departure', { spans });
+    return isObj(b) && isCount(b.cancelled) ? b.cancelled : null;
   }
 
   async gallonLedger(depotIds: readonly string[], range: { from: string; to: string }): Promise<GallonLedgerRow[] | null> {

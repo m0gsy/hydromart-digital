@@ -5,6 +5,7 @@ import {
   AiDeliveredStats,
   AiDeliveryRepository,
   AiFailedStats,
+  AiGradedSpan,
   AiSpan,
 } from '../../application/ports/ai-delivery.repository';
 import { DeliveryStatus } from '../../domain/delivery-status';
@@ -17,13 +18,14 @@ const n = (v: bigint | number | null | undefined): number => (v === null || v ==
  * `sp` = the spans as a table. The columns are naive timestamps holding UTC, so the span's
  * instants are converted and the bare column is compared, which keeps the (depotId, ...) indexes usable.
  */
-const spansCte = (spans: readonly AiSpan[]): Prisma.Sql =>
+const spansCte = (spans: readonly (AiSpan & { thresholdMinutes?: number })[]): Prisma.Sql =>
   Prisma.sql`sp AS (
     SELECT * FROM unnest(
       ${spans.map((s) => s.depotId)}::uuid[],
       ${spans.map((s) => s.from.toISOString())}::timestamptz[],
-      ${spans.map((s) => s.to.toISOString())}::timestamptz[]
-    ) AS t("depotId", "fromAt", "toAt")
+      ${spans.map((s) => s.to.toISOString())}::timestamptz[],
+      ${spans.map((s) => s.thresholdMinutes ?? 0)}::int[]
+    ) AS t("depotId", "fromAt", "toAt", "threshold")
   )`;
 const within = (column: Prisma.Sql): Prisma.Sql => Prisma.sql`d."depotId" = sp."depotId"
   AND ${column} >= (sp."fromAt" AT TIME ZONE 'UTC')
@@ -34,27 +36,35 @@ const within = (column: Prisma.Sql): Prisma.Sql => Prisma.sql`d."depotId" = sp."
 export class AiDeliveryPrismaRepository implements AiDeliveryRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async deliveredStats(spans: readonly AiSpan[], thresholdMinutes: number): Promise<AiDeliveredStats> {
+  async deliveredStats(spans: readonly AiGradedSpan[]): Promise<AiDeliveredStats> {
     // The same clock and fallback as slaStats: the stored verdict where there is one, else the
     // minutes from the clock's start (a customer reschedule restarts it) against the threshold.
     const minutes = Prisma.sql`EXTRACT(EPOCH FROM (d."deliveredAt" - COALESCE(d."slaStartedAt", d."assignedAt"))) / 60`;
     const [row] = await this.prisma.$queryRaw<
-      { delivered: bigint; onTime: bigint | null; stored: bigint; median: number | null; couriers: bigint }[]
+      { delivered: bigint; onTime: bigint | null; stored: bigint; median: number | null }[]
     >(Prisma.sql`
       WITH ${spansCte(spans)}
       SELECT COUNT(*)::bigint AS "delivered",
-             COALESCE(SUM(CASE WHEN COALESCE(d."slaOnTime", ${minutes} <= ${thresholdMinutes}) THEN 1 ELSE 0 END), 0)::bigint AS "onTime",
+             COALESCE(SUM(CASE WHEN COALESCE(d."slaOnTime", ${minutes} <= sp."threshold") THEN 1 ELSE 0 END), 0)::bigint AS "onTime",
              COUNT(d."slaOnTime")::bigint AS "stored",
-             percentile_cont(0.5) WITHIN GROUP (ORDER BY ${minutes}) AS "median",
-             COUNT(DISTINCT d."driverId")::bigint AS "couriers"
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY ${minutes}) AS "median"
       FROM sp JOIN "deliveries" d ON ${within(Prisma.sql`d."deliveredAt"`)}
+    `);
+    // Distinct couriers over deliveries AND failures: a courier who only failed in the window is a courier too.
+    const [people] = await this.prisma.$queryRaw<{ couriers: bigint }[]>(Prisma.sql`
+      WITH ${spansCte(spans)}
+      SELECT COUNT(*)::bigint AS "couriers" FROM (
+        SELECT d."driverId" FROM sp JOIN "deliveries" d ON ${within(Prisma.sql`d."deliveredAt"`)}
+        UNION
+        SELECT d."driverId" FROM sp JOIN "deliveries" d ON ${within(Prisma.sql`d."failedAt"`)}
+      ) c
     `);
     return {
       delivered: n(row?.delivered),
       onTime: n(row?.onTime),
       storedVerdicts: n(row?.stored),
       medianMinutes: row?.median == null ? null : Number(row.median),
-      couriers: n(row?.couriers),
+      couriers: n(people?.couriers),
     };
   }
 

@@ -67,6 +67,8 @@ export interface AiCustomerRepository {
   gallonsSold(spans: readonly AiSpan[]): Promise<number>;
   /** G-05: counter sales with a gallon line, by the empties the buyer brought. */
   refillSplit(spans: readonly AiSpan[]): Promise<RefillSplitStats>;
-  /** K-07: orders still moving, per status, at these depots, whatever day they were placed. */
+  /** K-04: delivery orders cancelled in the spans (by cancel time) that never left the depot (no PICKED_UP or ON_DELIVERY step). */
+  cancelledBeforeDeparture(spans: readonly AiSpan[]): Promise<number>;
+  /** K-07: delivery orders (counter sales are not in flight) still moving, per status, at these depots, whatever day they were placed. */
   liveByStatus(depotIds: readonly string[]): Promise<{ status: string; count: number }[]>;
 }

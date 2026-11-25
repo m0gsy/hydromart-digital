@@ -15,6 +15,7 @@ const D2 = '22222222-2222-4222-8222-222222222222';
 const FROM = new Date('2026-10-31T17:00:00.000Z');
 const TO = new Date('2026-11-30T17:00:00.000Z');
 const span = (depotId: string, from = FROM, to = TO) => ({ depotId, from, to });
+const g = (depotId: string, from = FROM, to = TO, thresholdMinutes = 90) => ({ depotId, from, to, thresholdMinutes });
 
 describeRace('HD-6 H3 delivery summary on real Postgres', () => {
   let drop: () => Promise<void>;
@@ -59,21 +60,21 @@ describeRace('HD-6 H3 delivery summary on real Postgres', () => {
     await row({ status: 'DELIVERED', assignedAt: at('2026-11-30T16:00:00.000Z'), deliveredAt: at('2026-11-30T16:30:00.000Z'), slaOnTime: true });
     await row({ status: 'DELIVERED', assignedAt: at('2026-11-30T16:00:00.000Z'), deliveredAt: at('2026-11-30T17:10:00.000Z'), slaOnTime: true });
     await row({ status: 'DELIVERED', depotId: D2, assignedAt: at('2026-11-05T01:00:00.000Z'), deliveredAt: at('2026-11-05T01:00:00.000Z', 10), slaOnTime: true });
-    const s = await repo.deliveredStats([span(D1)], 90);
+    const s = await repo.deliveredStats([g(D1)]);
     expect(s.delivered).toBe(4);
     expect(s.onTime).toBe(3); // stored true, stored false, graded on time, stored true
     expect(s.storedVerdicts).toBe(3);
-    expect(s.couriers).toBe(3); // courier twice, plus two others
+    expect(s.couriers).toBe(3); // courier twice, plus two others (nobody here only failed)
     expect(s.medianMinutes).toBe(40); // 50, 50, 20 (restarted clock), 30
   });
 
   it('reads nothing outside the span of a depot that changed hands mid-period', async () => {
     const mid = new Date('2026-11-15T17:00:00.000Z');
-    const first = await repo.deliveredStats([span(D1, FROM, mid)], 90);
-    const second = await repo.deliveredStats([span(D1, mid, TO)], 90);
-    const whole = await repo.deliveredStats([span(D1)], 90);
+    const first = await repo.deliveredStats([g(D1, FROM, mid)]);
+    const second = await repo.deliveredStats([g(D1, mid, TO)]);
+    const whole = await repo.deliveredStats([g(D1)]);
     expect(first.delivered + second.delivered).toBe(whole.delivered);
-    const empty = await repo.deliveredStats([span(randomUUID())], 90);
+    const empty = await repo.deliveredStats([g(randomUUID())]);
     expect(empty).toEqual({ delivered: 0, onTime: 0, storedVerdicts: 0, medianMinutes: null, couriers: 0 });
   });
 
@@ -87,5 +88,20 @@ describeRace('HD-6 H3 delivery summary on real Postgres', () => {
     await prisma.deliveryStatusHistory.create({ data: { deliveryId: resched.id, status: 'ASSIGNED', createdAt: at('2026-11-07T04:00:00.000Z') } as never });
     await prisma.deliveryStatusHistory.create({ data: { deliveryId: resched.id, status: 'RESCHEDULED', createdAt: at('2026-12-02T04:00:00.000Z') } as never });
     await expect(repo.failedStats([span(D1)])).resolves.toEqual({ failed: 2, noShow: 1, rescheduled: 1 });
+  });
+
+  it('counts a courier who only failed, once, with the ones who delivered, and grades old rows with the span threshold', async () => {
+    const depot = randomUUID();
+    const failer = randomUUID();
+    const both = randomUUID();
+    await row({ depotId: depot, status: 'FAILED', driverId: failer, failedAt: at('2026-11-06T03:00:00.000Z'), failureReason: 'x' });
+    await row({ depotId: depot, status: 'FAILED', driverId: both, failedAt: at('2026-11-06T04:00:00.000Z'), failureReason: 'x' });
+    // 70 min with no stored verdict: late at 60, on time at 90
+    await row({ depotId: depot, status: 'DELIVERED', driverId: both, assignedAt: at('2026-11-05T01:00:00.000Z'), deliveredAt: at('2026-11-05T01:00:00.000Z', 70) });
+    await row({ depotId: depot, status: 'FAILED', driverId: failer, failedAt: at('2026-11-30T17:10:00.000Z'), failureReason: 'x' }); // out
+    const strict = await repo.deliveredStats([g(depot, FROM, TO, 60)]);
+    const lax = await repo.deliveredStats([g(depot, FROM, TO, 90)]);
+    expect(strict).toMatchObject({ delivered: 1, onTime: 0, couriers: 2 });
+    expect(lax).toMatchObject({ onTime: 1, couriers: 2 });
   });
 });

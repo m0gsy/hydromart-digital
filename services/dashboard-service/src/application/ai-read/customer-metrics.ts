@@ -4,9 +4,24 @@ import { AuthenticatedUser, addLocalDays, dayStartUtc } from '@hydromart/platfor
 
 import { AiCustomerSourcesPort } from '../ports/ai-customer-sources.port';
 import { DASHBOARD_TOKENS } from '../tokens';
+import { CumulativeScopeService, heldBackNote } from './cumulative-scope.service';
 import { AnswerEnvelope } from './envelope';
-import { DOWN, GroupCtx, GroupMetricMeta, NO_SCOPE, SMALL_GROUP_REASON, TOO_MANY, fitsOneRead, openGroup, peopleCount, sourceSpans } from './group-context';
-import { SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
+import {
+  DOWN,
+  GroupCtx,
+  GroupMetricMeta,
+  NO_SCOPE,
+  SMALL_GROUP_REASON,
+  TOO_MANY,
+  fitsOneRead,
+  openGroup,
+  peopleCount,
+  roundingNote,
+  round5,
+  shown,
+  sourceSpans,
+} from './group-context';
+import { SMALL_GROUP_FLAG, SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
 import { PeriodQuery } from './period';
 import { ReadScopeService } from './scope.service';
 import { depotsOn, plusDays } from './stretches';
@@ -17,7 +32,11 @@ import { depotsOn, plusDays } from './stretches';
  *  - a group of 1 or 2 people is held back (`kurang dari 3`), and a published total that would give a
  *    held-back cell away by subtraction holds its smallest neighbour back too (masking.ts);
  *  - except C-08, a metric is answered for ONE whole calendar month only, so two answers never
- *    overlap and a month cannot be subtracted from a week to isolate the few people between them.
+ *    overlap and a month cannot be subtracted from a week to isolate the few people between them;
+ *  - a month that is still running is answered with counts rounded to a multiple of 5 (a day's
+ *    difference would otherwise be the few people who ordered that day); only a closed month is exact;
+ *  - C-06 is a running total as of a day, so two dates would subtract into the people who moved
+ *    between them: its cells and total are always rounded to a multiple of 5.
  */
 export const CUSTOMER_METRICS = {
   'C-01': { unit: 'orang', month: true, oneMonth: true },
@@ -42,6 +61,7 @@ const pct = (part: number, whole: number): number => Math.round((part / whole) *
 export class CustomerMetricsService {
   constructor(
     private readonly scopes: ReadScopeService,
+    private readonly cumulative: CumulativeScopeService,
     @Inject(DASHBOARD_TOKENS.AiCustomerSources) private readonly sources: AiCustomerSourcesPort,
   ) {}
 
@@ -106,20 +126,30 @@ export class CustomerMetricsService {
     );
     if (m.cells.every((cell) => cell.flag)) return c.held(SMALL_GROUP_REASON);
     const clean = m.cells.every((cell) => !cell.flag) && m.total !== null;
+    const cells = m.cells.map((cell) => (cell.value === null ? cell : { ...cell, value: shown(c, cell.value) }));
     return c.ok(
-      { cells: m.cells, total: m.total, ratePct: clean ? pct(w.repeat, w.active) : null },
-      'pelanggan berulang: pembeli bulan ini yang sudah pernah memesan sebelum bulan ini di depot mana pun; tingkat berulang = berulang / semua pembeli bulan ini. Kelompok kurang dari 3 orang ditahan',
+      {
+        cells,
+        total: m.total === null ? null : shown(c, m.total),
+        // the rate is worked out from the numbers as published, never from the exact ones
+        ratePct: clean ? pct(shown(c, w.repeat), shown(c, w.active)) : null,
+      },
+      'pelanggan berulang: pembeli bulan ini yang sudah pernah memesan sebelum bulan ini di depot mana pun; tingkat berulang = berulang / semua pembeli bulan ini. Kelompok kurang dari 3 orang ditahan' + roundingNote(c),
     );
   }
 
   /** C-06: customers by days since their last order, as of the end of the month (or today while it runs). */
   private async segments(c: GroupCtx): Promise<AnswerEnvelope> {
     const asOf = c.period.to < c.today ? c.period.to : c.today;
-    const depotIds = depotsOn(c.scope, asOf);
-    if (depotIds.length === 0) return c.none('Tidak ada depot yang boleh Anda baca pada hari terakhir periode ini.');
-    if (depotIds.length > 100) return c.none(TOO_MANY);
+    const split = await this.cumulative.split(c.user, depotsOn(c.scope, asOf), asOf);
+    if (split.readable.length === 0) {
+      return split.heldBack.length > 0
+        ? c.held(`Semua depot yang boleh Anda baca baru boleh dibaca belum lama ini; riwayat pesanan sebelum itu bukan hak baca Anda${heldBackNote(split.heldBack)}.`)
+        : c.none('Tidak ada depot yang boleh Anda baca pada hari terakhir periode ini.');
+    }
+    if (split.readable.length > 100) return c.none(TOO_MANY);
     const tz = c.period.timeZone;
-    const s = await this.sources.segments(depotIds, {
+    const s = await this.sources.segments(split.readable, {
       riskSince: dayStartUtc(plusDays(asOf, -SEGMENT_RISK_DAYS), tz).toISOString(),
       activeSince: dayStartUtc(plusDays(asOf, -SEGMENT_ACTIVE_DAYS), tz).toISOString(),
       until: addLocalDays(dayStartUtc(asOf, tz), 1, tz).toISOString(),
@@ -136,13 +166,24 @@ export class CustomerMetricsService {
       total,
     );
     if (m.cells.every((cell) => cell.flag || cell.value === 0) && m.cells.some((cell) => cell.flag)) return c.held(SMALL_GROUP_REASON);
+    // Always a multiple of 5: a total as of two dates subtracts into the people who moved between them.
+    const cells = m.cells.map((cell) => (cell.value === null ? cell : { ...cell, value: round5(cell.value) }));
     return c.ok(
-      { asOf, cells: m.cells, total: m.total },
-      `pelanggan menurut hari sejak pesanan terakhir (bukan BATAL/VOID) di depot yang boleh Anda baca pada ${asOf}: aktif sampai ${SEGMENT_ACTIVE_DAYS} hari, berisiko ${SEGMENT_ACTIVE_DAYS + 1} sampai ${SEGMENT_RISK_DAYS} hari, tidak aktif lebih dari ${SEGMENT_RISK_DAYS} hari; semua pesanan sampai hari itu dihitung, sepanjang waktu. Kelompok kurang dari 3 orang ditahan`,
+      {
+        asOf,
+        cells,
+        // every non-empty cell is held or none is, so a total that survives the all-held check above is never null
+        total: round5(m.total as number),
+        heldBackDepots: split.heldBack.length,
+      },
+      `pelanggan menurut hari sejak pesanan terakhir (bukan BATAL/VOID) di depot yang boleh Anda baca pada ${asOf}: aktif sampai ${SEGMENT_ACTIVE_DAYS} hari, berisiko ${SEGMENT_ACTIVE_DAYS + 1} sampai ${SEGMENT_RISK_DAYS} hari, tidak aktif lebih dari ${SEGMENT_RISK_DAYS} hari; semua pesanan sampai hari itu dihitung, sepanjang waktu, hanya di depot yang seluruh riwayatnya boleh Anda baca. Semua angka dibulatkan ke kelipatan 5 (total per tanggal bisa dikurangkan antar tanggal); jendela "aktif" ${SEGMENT_ACTIVE_DAYS} hari ini bukan bulan kalender C-04, jadi keduanya tidak boleh dibandingkan pas. Kelompok kurang dari 3 orang ditahan${heldBackNote(split.heldBack)}`,
     );
   }
 
-  /** C-08: retention by cohort. A cohort or a cell of fewer than 3 people is held back, never shown. */
+  /**
+   * C-08: retention by cohort. A cohort with ANY cell held back (fewer than 3 people, or 1 or 2 who
+   * did not come back) is held back whole: its published cells would give the held one away.
+   */
   private async cohorts(c: GroupCtx): Promise<AnswerEnvelope> {
     const spans = sourceSpans(c.scope, c.period.timeZone);
     if (!fitsOneRead(spans)) return c.none(TOO_MANY);
@@ -151,26 +192,25 @@ export class CustomerMetricsService {
     if (cells.length === 0) return c.none('Tidak ada pelanggan baru pada bulan-bulan ini.');
     const byCohort = new Map<string, Map<number, number>>();
     for (const cell of cells) byCohort.set(cell.cohort, (byCohort.get(cell.cohort) ?? new Map()).set(cell.monthIndex, cell.customers));
+    const small = (n: number): boolean => n < SMALL_GROUP_MIN;
     const cohorts = [...byCohort.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([cohort, months]) => {
         const size = months.get(0) ?? 0;
-        if (size < SMALL_GROUP_MIN) return { cohort, size: null, flag: 'kurang dari 3', months: [] };
+        const rows = [...months.entries()].filter(([i]) => i > 0).sort((a, b) => a[0] - b[0]);
+        // 1 or 2 who did not return are a group too small to name as well (near-total retention shows them).
+        const heldRow = small(size) || rows.some(([, n]) => small(n) || (size - n > 0 && small(size - n)));
+        if (heldRow) return { cohort, size: null, flag: SMALL_GROUP_FLAG, months: [] };
         return {
           cohort,
-          size,
-          months: [...months.entries()]
-            .filter(([i]) => i > 0)
-            .sort((a, b) => a[0] - b[0])
-            .map(([monthIndex, n]) =>
-              n < SMALL_GROUP_MIN ? { monthIndex, customers: null, ratePct: null, flag: 'kurang dari 3' } : { monthIndex, customers: n, ratePct: pct(n, size) },
-            ),
+          size: shown(c, size),
+          months: rows.map(([monthIndex, n]) => ({ monthIndex, customers: shown(c, n), ratePct: pct(shown(c, n), shown(c, size)) })),
         };
       });
     if (cohorts.every((x) => x.size === null)) return c.held(SMALL_GROUP_REASON);
     return c.ok(
       { cohorts },
-      'kohort = bulan pesanan pertama seumur hidup (WIB), pelanggan bernama; persen = yang memesan lagi pada bulan ke-n dibagi ukuran kohort. Hanya pesanan di depot dan hari yang boleh Anda baca yang dihitung. Kohort atau sel kurang dari 3 orang ditahan',
+      'kohort = bulan pesanan pertama seumur hidup (WIB), pelanggan bernama; persen = yang memesan lagi pada bulan ke-n dibagi ukuran kohort. Hanya pesanan di depot dan hari yang boleh Anda baca yang dihitung. Kohort yang salah satu selnya kurang dari 3 orang (atau yang tidak kembali kurang dari 3) ditahan utuh' + roundingNote(c),
     );
   }
 
@@ -183,8 +223,8 @@ export class CustomerMetricsService {
     if (r.reviews === 0) return c.none('Belum ada ulasan pada pesanan bulan ini.');
     if (r.reviewers < SMALL_GROUP_MIN) return c.held(SMALL_GROUP_REASON);
     return c.ok(
-      { averageStars: Math.round((r.ratingSum / r.reviews) * 10) / 10, reviews: r.reviews },
-      'rata-rata bintang ulasan atas pesanan yang dibuat bulan ini, dari semua ulasan sama bobotnya; ulasan dari paling sedikit 3 pelanggan berbeda',
+      { averageStars: Math.round((r.ratingSum / r.reviews) * 10) / 10, reviews: shown(c, r.reviews) },
+      'rata-rata bintang ulasan atas pesanan yang dibuat bulan ini, dari semua ulasan sama bobotnya; ulasan dari paling sedikit 3 pelanggan berbeda' + roundingNote(c),
     );
   }
 }

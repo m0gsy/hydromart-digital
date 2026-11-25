@@ -47,8 +47,8 @@ export class AiSegmentsDto {
   depotIds!: string;
 
   @ApiProperty() @IsISO8601({ strict: true }) riskSince!: string;
-  @ApiProperty() @IsISO8601({ strict: true }) @IsNotBefore('riskSince') activeSince!: string;
-  @ApiProperty() @IsISO8601({ strict: true }) @IsNotBefore('activeSince') until!: string;
+  @ApiProperty() @IsISO8601({ strict: true }) @IsNotBefore('riskSince') @IsWithinDays('riskSince', 70) activeSince!: string;
+  @ApiProperty() @IsISO8601({ strict: true }) @IsNotBefore('activeSince') @IsWithinDays('riskSince', 70) until!: string;
 }
 
 export class AiLiveOrdersQueryDto {

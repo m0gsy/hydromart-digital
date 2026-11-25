@@ -30,6 +30,7 @@ describe('AiCustomerMetricsService', () => {
     gallonsSold: jest.fn().mockResolvedValue(42),
     refillSplit: jest.fn().mockResolvedValue('split'),
     liveByStatus: jest.fn().mockResolvedValue([{ status: 'CREATED', count: 2 }]),
+    cancelledBeforeDeparture: jest.fn().mockResolvedValue(4),
   };
   const service = new AiCustomerMetricsService(repo as never, { businessTimeZone: 'Asia/Jakarta' } as never);
 
@@ -43,6 +44,7 @@ describe('AiCustomerMetricsService', () => {
     const at = { activeSince: from, riskSince: from, until: to };
     await expect(service.segments([D1], at)).resolves.toBe('segments');
     await expect(service.live([D1])).resolves.toEqual({ byStatus: [{ status: 'CREATED', count: 2 }] });
+    await expect(service.cancelledBeforeDeparture([span(D1)])).resolves.toEqual({ cancelled: 4 });
   });
 
   it('refuses more than 100 depots with 422, never a silent cut', () => {
@@ -96,13 +98,17 @@ describe('AiCustomerPrismaRepository row mapping', () => {
       .mockResolvedValueOnce([{ reviews: 7n, ratingSum: 30n, reviewers: 5n }])
       .mockResolvedValueOnce([{ active: 5n, atRisk: 2n, inactive: 1n }])
       .mockResolvedValueOnce([{ gallons: null }])
-      .mockResolvedValueOnce([{ refill: 3n, partial: 1n, beli: 2n, notAsked: 4n }]);
+      .mockResolvedValueOnce([{ refill: 3n, partial: 1n, beli: 2n, notAsked: 4n }])
+      .mockResolvedValueOnce([{ n: 6n }])
+      .mockResolvedValueOnce([]);
     const repo = make(q);
     await expect(repo.customerCohorts([span(D1)], 'Asia/Jakarta')).resolves.toEqual([{ cohort: '2026-10', monthIndex: 1, customers: 5 }]);
     await expect(repo.ratingStats([span(D1)])).resolves.toEqual({ reviews: 7, ratingSum: 30, reviewers: 5 });
     await expect(repo.customerSegments([D1], { activeSince: from, riskSince: from, until: to })).resolves.toEqual({ active: 5, atRisk: 2, inactive: 1 });
     await expect(repo.gallonsSold([span(D1)])).resolves.toBe(0);
     await expect(repo.refillSplit([span(D1)])).resolves.toEqual({ refill: 3, partial: 1, beli: 2, notAsked: 4 });
+    await expect(repo.cancelledBeforeDeparture([span(D1)])).resolves.toBe(6);
+    await expect(repo.cancelledBeforeDeparture([span(D1)])).resolves.toBe(0);
   });
 
   it('counts only in-flight orders of the asked depots, and nothing for no depot', async () => {
@@ -115,6 +121,8 @@ describe('AiCustomerPrismaRepository row mapping', () => {
     expect(where.depotId).toEqual({ in: [D1] });
     expect(where.status.in).not.toContain('DELIVERED');
     expect(where.status.in).not.toContain('CANCELLED');
+    // a counter sale is never in flight: the live read is delivery orders only
+    expect(where.isWalkIn).toBe(false);
   });
 });
 
@@ -127,6 +135,7 @@ describe('AiCustomerMetricsController and DTOs', () => {
     gallons: jest.fn().mockResolvedValue('g'),
     refill: jest.fn().mockResolvedValue('f'),
     live: jest.fn().mockResolvedValue('l'),
+    cancelledBeforeDeparture: jest.fn().mockResolvedValue('x'),
   };
   const controller = new AiCustomerMetricsController(metrics as never);
   const spans = [{ depotId: D1, from: from.toISOString(), to: to.toISOString() }];
@@ -149,6 +158,8 @@ describe('AiCustomerMetricsController and DTOs', () => {
       activeSince: new Date('2026-10-01T00:00:00.000Z'),
       until: new Date('2026-11-01T00:00:00.000Z'),
     });
+    await controller.cancelledBeforeDeparture({ spans } as never);
+    expect(metrics.cancelledBeforeDeparture).toHaveBeenCalledWith([span(D1)]);
     await controller.live({ depotIds: D1 } as never);
     expect(metrics.live).toHaveBeenCalledWith([D1]);
   });
@@ -172,6 +183,9 @@ describe('AiCustomerMetricsController and DTOs', () => {
     expect(await errors(AiSegmentsDto, seg)).toBe(0);
     expect(await errors(AiSegmentsDto, { ...seg, activeSince: '2026-08-01T00:00:00.000Z' })).toBeGreaterThan(0);
     expect(await errors(AiSegmentsDto, { ...seg, depotIds: 'x' })).toBeGreaterThan(0);
+    // thresholds more than 70 days apart are not a recency read
+    expect(await errors(AiSegmentsDto, { ...seg, until: '2027-06-01T00:00:00.000Z' })).toBeGreaterThan(0);
+    expect(await errors(AiSegmentsDto, { ...seg, activeSince: '2026-12-31T00:00:00.000Z', until: '2027-01-01T00:00:00.000Z' })).toBeGreaterThan(0);
     const many = Array.from({ length: 101 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`).join(',');
     expect(await errors(AiLiveOrdersQueryDto, { depotIds: many })).toBeGreaterThan(0);
     expect(await errors(AiLiveOrdersQueryDto, { depotIds: D1 })).toBe(0);

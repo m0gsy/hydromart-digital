@@ -40,7 +40,18 @@ describe('AiDeliverySummaryService', () => {
       otherFailed: 3,
       rescheduled: 4,
     });
-    expect(repo.deliveredStats).toHaveBeenCalledWith([span(D1)], 90);
+    expect(repo.deliveredStats).toHaveBeenCalledWith([{ ...span(D1), thresholdMinutes: 90 }]);
+  });
+
+  it('grades old rows with each depot own threshold, and says null when the depots in scope differ', async () => {
+    const mixed = new AiDeliverySummaryService(repo as never, { slaMinutes: (d: string) => (d === D1 ? 60 : 120) } as never);
+    const D2 = '22222222-2222-4222-8222-222222222222';
+    await expect(mixed.summary([span(D1), span(D2)])).resolves.toMatchObject({ thresholdMinutes: null });
+    expect(repo.deliveredStats).toHaveBeenLastCalledWith([
+      { ...span(D1), thresholdMinutes: 60 },
+      { ...span(D2), thresholdMinutes: 120 },
+    ]);
+    await expect(mixed.summary([span(D1)])).resolves.toMatchObject({ thresholdMinutes: 60 });
   });
 
   it('keeps a null median null (no delivery), never 0', async () => {
@@ -63,15 +74,17 @@ describe('AiDeliveryPrismaRepository row mapping', () => {
   it('maps counts to numbers and an empty read to zeros with a null median', async () => {
     const q = jest
       .fn()
-      .mockResolvedValueOnce([{ delivered: 4n, onTime: 3n, stored: 2n, median: 35.5, couriers: 2n }])
+      .mockResolvedValueOnce([{ delivered: 4n, onTime: 3n, stored: 2n, median: 35.5 }])
+      .mockResolvedValueOnce([{ couriers: 2n }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ failed: 3n, noShow: 1n }])
       .mockResolvedValueOnce([{ rescheduled: 2n }])
       .mockResolvedValueOnce([{ failed: 0n, noShow: 0n }])
       .mockResolvedValueOnce([]);
     const repo = new AiDeliveryPrismaRepository({ $queryRaw: q } as never);
-    await expect(repo.deliveredStats([span(D1)], 90)).resolves.toEqual({ delivered: 4, onTime: 3, storedVerdicts: 2, medianMinutes: 35.5, couriers: 2 });
-    await expect(repo.deliveredStats([span(D1)], 90)).resolves.toEqual({ delivered: 0, onTime: 0, storedVerdicts: 0, medianMinutes: null, couriers: 0 });
+    await expect(repo.deliveredStats([{ ...span(D1), thresholdMinutes: 90 }])).resolves.toEqual({ delivered: 4, onTime: 3, storedVerdicts: 2, medianMinutes: 35.5, couriers: 2 });
+    await expect(repo.deliveredStats([{ ...span(D1), thresholdMinutes: 90 }])).resolves.toEqual({ delivered: 0, onTime: 0, storedVerdicts: 0, medianMinutes: null, couriers: 0 });
     await expect(repo.failedStats([span(D1)])).resolves.toEqual({ failed: 3, noShow: 1, rescheduled: 2 });
     await expect(repo.failedStats([span(D1)])).resolves.toEqual({ failed: 0, noShow: 0, rescheduled: 0 });
   });

@@ -5,16 +5,21 @@ export interface AiSpan {
   to: Date;
 }
 
+/** A span with the threshold (minutes) its depot grades an old, unstored delivery with. */
+export interface AiGradedSpan extends AiSpan {
+  thresholdMinutes: number;
+}
+
 export interface AiDeliveredStats {
   /** Deliveries delivered in the spans, by delivery time (K-01). */
   delivered: number;
-  /** Of them, on time: the stored verdict where there is one, else graded with `thresholdMinutes`. */
+  /** Of them, on time: the stored verdict where there is one, else graded with the span's own threshold. */
   onTime: number;
   /** How many of `delivered` carry a stored verdict (the rest were graded by `thresholdMinutes`). */
   storedVerdicts: number;
   /** Median minutes from the clock's start to delivery; null when nothing was delivered (K-03). */
   medianMinutes: number | null;
-  /** Distinct couriers with a delivery in the spans. */
+  /** Distinct couriers with a delivery OR a failure in the spans (a courier who only failed is still a courier). */
   couriers: number;
 }
 
@@ -28,6 +33,6 @@ export interface AiFailedStats {
 }
 
 export interface AiDeliveryRepository {
-  deliveredStats(spans: readonly AiSpan[], thresholdMinutes: number): Promise<AiDeliveredStats>;
+  deliveredStats(spans: readonly AiGradedSpan[]): Promise<AiDeliveredStats>;
   failedStats(spans: readonly AiSpan[]): Promise<AiFailedStats>;
 }

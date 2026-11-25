@@ -91,6 +91,17 @@ export class AiCustomerMetricsController {
     return this.metrics.refill(toSpans(body.spans));
   }
 
+  @ApiOkResponse({ description: 'cancelled: delivery orders cancelled in the spans that never left the depot.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('cancelled-before-departure')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Orders cancelled before departure over spans (internal service auth)' })
+  cancelledBeforeDeparture(@Body() body: AiSpansDto) {
+    return this.metrics.cancelledBeforeDeparture(toSpans(body.spans));
+  }
+
   @ApiOkResponse({ description: 'byStatus: status and count, for orders still moving.' })
   @Public()
   @UseGuards(InternalAuthGuard)

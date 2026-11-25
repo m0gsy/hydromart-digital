@@ -162,8 +162,26 @@ describeRace('HD-6 H3 customer and gallon reads on real Postgres', () => {
     await expect(repo.refillSplit([span(D2)])).resolves.toEqual({ refill: 2, partial: 1, beli: 1, notAsked: 1 });
   });
 
-  it('counts only orders still moving at the asked depots', async () => {
+  it('counts only delivery orders still moving at the asked depots (a counter sale is not in flight)', async () => {
+    await order({ customerId: ANONYMOUS_CUSTOMER_ID, depotId: D2, at: '2026-11-14T03:00:00.000Z', walkIn: true, status: 'CREATED' });
     const live = await repo.liveByStatus([D2]);
     expect(live).toEqual([{ status: 'CREATED', count: 1 }]);
+  });
+
+  it('counts cancellations that never left the depot, by cancel time, in the spans only', async () => {
+    // an earlier test left one cancelled order whose cancel time is the moment it was inserted: count it as it is
+    const baseline = await repo.cancelledBeforeDeparture([span(D1)]);
+    const buyer = randomUUID();
+    const early = await order({ customerId: buyer, depotId: D1, at: '2026-11-03T03:00:00.000Z', status: 'CANCELLED' });
+    const left = await order({ customerId: buyer, depotId: D1, at: '2026-11-03T04:00:00.000Z', status: 'CANCELLED' });
+    const outside = await order({ customerId: buyer, depotId: D1, at: '2026-11-03T05:00:00.000Z', status: 'CANCELLED' });
+    const other = await order({ customerId: buyer, depotId: D2, at: '2026-11-03T05:00:00.000Z', status: 'CANCELLED' });
+    await prisma.orderStatusHistory.create({ data: { orderId: left.id, status: 'ON_DELIVERY' } as never });
+    const at = (id: string, iso: string) => prisma.order.update({ where: { id }, data: { statusChangedAt: new Date(iso) } });
+    await at(early.id, '2026-11-30T16:30:00.000Z'); // 23:30 WIB last day: in
+    await at(left.id, '2026-11-10T03:00:00.000Z'); // reached ON_DELIVERY: not before departure
+    await at(outside.id, '2026-11-30T17:10:00.000Z'); // 00:10 WIB next day: out
+    await at(other.id, '2026-11-10T03:00:00.000Z'); // another depot
+    await expect(repo.cancelledBeforeDeparture([span(D1)])).resolves.toBe(baseline + 1);
   });
 });

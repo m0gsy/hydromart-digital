@@ -60,7 +60,20 @@ describe('AiCustomerSourcesHttpAdapter (HD-6 H3)', () => {
     expect(await a.refillSplit(SPANS)).toBeNull();
     expect(await a.liveOrders([D1])).toBeNull();
     expect(await a.deliverySummary(SPANS)).toBeNull();
+    expect(await a.cancelledBeforeDeparture(SPANS)).toBeNull();
     expect(await a.gallonLedger([D1], RANGE)).toBeNull();
+  });
+
+  it('reads the cancellations before departure and refuses anything that is not a count', async () => {
+    const calls = answer({ cancelled: 4 });
+    await expect(adapter().cancelledBeforeDeparture(SPANS)).resolves.toBe(4);
+    expect(calls[0].url.pathname).toBe('/api/v1/reports/internal/cancelled-before-departure');
+    jest.restoreAllMocks();
+    for (const bad of [{ cancelled: -1 }, { cancelled: '4' }, {}]) {
+      answer(bad);
+      expect(await adapter().cancelledBeforeDeparture(SPANS)).toBeNull();
+      jest.restoreAllMocks();
+    }
   });
 
   it('refuses a customer window that is not whole numbers, names a depot nobody asked, or has parts bigger than the whole', async () => {
@@ -139,7 +152,8 @@ describe('AiCustomerSourcesHttpAdapter (HD-6 H3)', () => {
     for (const bad of [
       { ...summary, onTime: 11 },
       { ...summary, storedVerdicts: 11 },
-      { ...summary, couriers: 11 },
+      { ...summary, couriers: 14 },
+      { ...summary, couriers: 0 },
       { ...summary, noShow: 2 },
       { ...summary, medianMinutes: null },
       { ...summary, delivered: 0, onTime: 0, storedVerdicts: 0, couriers: 0, failed: 0, noShow: 0, otherFailed: 0, medianMinutes: 5 },
@@ -151,6 +165,10 @@ describe('AiCustomerSourcesHttpAdapter (HD-6 H3)', () => {
       expect(await adapter().deliverySummary(SPANS)).toBeNull();
       jest.restoreAllMocks();
     }
+    // depots that grade with different thresholds: null is a real answer, a string is not
+    answer({ ...summary, thresholdMinutes: null });
+    await expect(adapter().deliverySummary(SPANS)).resolves.toMatchObject({ thresholdMinutes: null });
+    jest.restoreAllMocks();
     // nothing delivered: a null median is exactly right
     answer({ ...summary, delivered: 0, onTime: 0, storedVerdicts: 0, couriers: 0, failed: 0, noShow: 0, otherFailed: 0, medianMinutes: null });
     await expect(adapter().deliverySummary(SPANS)).resolves.toMatchObject({ delivered: 0, medianMinutes: null });

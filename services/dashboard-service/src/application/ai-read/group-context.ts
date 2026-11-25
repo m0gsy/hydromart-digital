@@ -92,5 +92,18 @@ export const fitsOneRead = (spans: readonly SourceSpan[]): boolean =>
  * number is held back (never shown, never turned into 0).
  */
 export function peopleCount(c: GroupCtx, people: number, label: string): AnswerEnvelope {
-  return people > 0 && people < 3 ? c.held(SMALL_GROUP_REASON) : c.ok(people, label);
+  if (people > 0 && people < 3) return c.held(SMALL_GROUP_REASON);
+  return c.ok(shown(c, people), label + roundingNote(c));
 }
+
+/** Rounded to a multiple of 5: what a running month is answered with, so two days of it cannot be subtracted. */
+export const round5 = (n: number): number => Math.round(n / 5) * 5;
+
+/** The period reaches today: its counts of people are still moving, day by day. */
+export const isOpen = (c: GroupCtx): boolean => c.period.to >= c.today;
+
+/** A count of people as published: exact for a closed period, rounded to 5 while it is still open. */
+export const shown = (c: GroupCtx, n: number): number => (isOpen(c) ? round5(n) : n);
+
+export const roundingNote = (c: GroupCtx): string =>
+  isOpen(c) ? '; bulan berjalan, dibulatkan ke kelipatan 5 (angka pas hanya untuk bulan yang sudah ditutup)' : '';

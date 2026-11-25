@@ -4,6 +4,7 @@ import { AuthenticatedUser, addLocalDays, dayStartUtc } from '@hydromart/platfor
 
 import { AiCustomerSourcesPort, GallonLedgerRow } from '../ports/ai-customer-sources.port';
 import { DASHBOARD_TOKENS } from '../tokens';
+import { CumulativeScopeService, heldBackNote } from './cumulative-scope.service';
 import { AnswerEnvelope } from './envelope';
 import { DOWN, GroupCtx, GroupMetricMeta, NO_SCOPE, TOO_MANY, fitsOneRead, openGroup, sourceSpans } from './group-context';
 import { PeriodQuery } from './period';
@@ -36,6 +37,7 @@ const sum = (rows: readonly GallonLedgerRow[], pick: (r: GallonLedgerRow) => num
 export class GallonMetricsService {
   constructor(
     private readonly scopes: ReadScopeService,
+    private readonly cumulative: CumulativeScopeService,
     @Inject(DASHBOARD_TOKENS.AiCustomerSources) private readonly sources: AiCustomerSourcesPort,
   ) {}
 
@@ -94,17 +96,24 @@ export class GallonMetricsService {
   /** G-02 and G-03: the balance at the end of the period (today while it runs), and what moved in the period. */
   private async balance(id: 'G-02' | 'G-03', c: GroupCtx): Promise<AnswerEnvelope> {
     const asOf = c.period.to < c.today ? c.period.to : c.today;
-    const depotIds = depotsOn(c.scope, asOf);
-    if (depotIds.length === 0) return c.none('Tidak ada depot yang boleh Anda baca pada hari terakhir periode ini.');
+    // A balance adds up ALL history: only depots whose whole history up to asOf the caller may read.
+    const split = await this.cumulative.split(c.user, depotsOn(c.scope, asOf), asOf);
+    const depotIds = split.readable;
+    if (depotIds.length === 0) {
+      return split.heldBack.length > 0
+        ? c.held(`Depot yang boleh Anda baca baru boleh dibaca belum lama ini; saldo mencakup riwayat sebelum itu yang bukan hak baca Anda${heldBackNote(split.heldBack)}.`)
+        : c.none('Tidak ada depot yang boleh Anda baca pada hari terakhir periode ini.');
+    }
     const tz = c.period.timeZone;
     const end = addLocalDays(dayStartUtc(asOf, tz), 1, tz).toISOString();
     const [at, moved] = await Promise.all([this.ledger(depotIds, { from: end, to: end }), this.inPeriod(c)]);
     if (!at || !moved) return c.none(DOWN);
-    const note = `; saldo pada ${asOf} (akhir hari, WIB) di depot yang boleh Anda baca pada hari itu, sepanjang waktu; mutasi = yang dibukukan pada periode, hanya hari depot boleh Anda baca; ${GALLON_BALANCE_CAVEAT}`;
+    const note = `; saldo pada ${asOf} (akhir hari, WIB) di depot yang seluruh riwayatnya boleh Anda baca pada hari itu, sepanjang waktu; mutasi = yang dibukukan pada periode, hanya hari depot boleh Anda baca; ${GALLON_BALANCE_CAVEAT}${heldBackNote(split.heldBack)}`;
     if (id === 'G-02') {
       return c.ok(
         {
           asOf,
+          heldBackDepots: split.heldBack.length,
           gallonsAtCustomers: sum(at, (r) => r.issuedTotal - r.returnedTotal),
           issuedInPeriod: sum(moved, (r) => r.issuedInWindow),
           returnedInPeriod: sum(moved, (r) => r.returnedGoodInWindow + r.returnedDamagedInWindow),
@@ -115,6 +124,7 @@ export class GallonMetricsService {
     return c.ok(
       {
         asOf,
+        heldBackDepots: split.heldBack.length,
         depositHeldIdr: rp(sum(at, (r) => r.depositHeldTotal - r.depositRefundedTotal)),
         bookedInPeriodIdr: rp(sum(moved, (r) => r.depositHeldInWindow)),
         refundedInPeriodIdr: rp(sum(moved, (r) => r.depositRefundedInWindow)),

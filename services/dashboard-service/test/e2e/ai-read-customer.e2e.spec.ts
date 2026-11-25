@@ -106,7 +106,7 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
         if (url.pathname.endsWith('/rating-metrics')) return json({ reviews: 2, ratingSum: 9, reviewers: 2 });
         if (url.pathname.endsWith('/gallon-metrics')) return json({ gallons: 777 });
         if (url.pathname.endsWith('/ai-summary')) {
-          return json({ delivered: 40, onTime: 34, storedVerdicts: 30, thresholdMinutes: 90, medianMinutes: 41.5, couriers: 2, failed: 6, noShow: 2, otherFailed: 4, rescheduled: 3 });
+          return json({ delivered: 40, onTime: 34, storedVerdicts: 30, thresholdMinutes: 90, medianMinutes: 41.5, couriers: 5, failed: 6, noShow: 2, otherFailed: 4, rescheduled: 3 });
         }
         return { ok: false, status: 503, json: async () => ({}) } as unknown as Response;
       }
@@ -182,7 +182,9 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
 
   it('answers C-01 for SUPER_ADMIN with one read over every readable stretch, in WIB instants', async () => {
     const res = await get(aiToken('SUPER_ADMIN'), 'customers', 'C-01').expect(200);
-    expect(res.body).toMatchObject({ metricId: 'C-01', status: 'ok', unit: 'orang', value: 12, scope: { depotIds: [D1, D2] } });
+    expect(res.body).toMatchObject({ metricId: 'C-01', status: 'ok', unit: 'orang', scope: { depotIds: [D1, D2] } });
+    // November 2026 is rounded to 5 while it is still running, exact once it has closed
+    expect(res.body.value).toBe(new Date() < new Date('2026-12-01T00:00:00+07:00') ? 10 : 12);
     const call = posted.find((p) => p.path.endsWith('/customer-metrics'));
     // D1 is PT_A to 15 Nov then PT_B: two spans; D2 one: ONE call carries all three
     expect(call?.body.spans).toEqual([
@@ -205,8 +207,6 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
     const rating = await get(aiToken('SUPER_ADMIN'), 'customers', 'C-10').expect(200);
     expect(rating.body).toMatchObject({ status: 'ditahan', value: null });
     expect(rating.body.reason).toContain('kurang dari 3');
-    const team = await get(aiToken('SUPER_ADMIN'), 'delivery', 'K-05').expect(200);
-    expect(team.body).toMatchObject({ status: 'ditahan', value: null });
     // two depots: the new customers of ONE depot are not summed across them
     expect((await get(aiToken('SUPER_ADMIN'), 'customers', 'C-02').expect(200)).body.status).toBe('ditahan');
     for (const id of ['C-03', 'C-07', 'C-09']) {

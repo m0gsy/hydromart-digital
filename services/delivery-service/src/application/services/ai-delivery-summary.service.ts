@@ -12,7 +12,8 @@ export interface AiDeliverySummary {
   onTime: number;
   /** delivered with a stored verdict; the rest were graded with `thresholdMinutes`. */
   storedVerdicts: number;
-  thresholdMinutes: number;
+  /** The one threshold old rows were graded with, or null when depots in scope have different ones. */
+  thresholdMinutes: number | null;
   medianMinutes: number | null;
   couriers: number;
   failed: number;
@@ -47,9 +48,12 @@ export class AiDeliverySummaryService {
         }
       }
     }
-    // Rows completed before the verdict was stored are graded with the network threshold, as /reports/sla does.
-    const thresholdMinutes = this.config.slaMinutes();
-    const [d, f] = await Promise.all([this.repo.deliveredStats(spans, thresholdMinutes), this.repo.failedStats(spans)]);
+    // Rows completed before the verdict was stored are graded with their depot's threshold: the depot setting, else the
+    // network one (what /hq/sla-policy shows and saves, else the env default).
+    const graded = spans.map((s) => ({ ...s, thresholdMinutes: this.config.slaMinutes(s.depotId) }));
+    const distinct = new Set(graded.map((g) => g.thresholdMinutes));
+    const thresholdMinutes = distinct.size === 1 ? [...distinct][0] : null;
+    const [d, f] = await Promise.all([this.repo.deliveredStats(graded), this.repo.failedStats(spans)]);
     return {
       delivered: d.delivered,
       onTime: d.onTime,

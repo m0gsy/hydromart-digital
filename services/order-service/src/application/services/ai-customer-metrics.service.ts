@@ -74,6 +74,11 @@ export class AiCustomerMetricsService {
     return this.repo.refillSplit(spans);
   }
 
+  async cancelledBeforeDeparture(spans: readonly AiSpan[]): Promise<{ cancelled: number }> {
+    this.check(spans);
+    return { cancelled: await this.repo.cancelledBeforeDeparture(spans) };
+  }
+
   live(depotIds: readonly string[]): Promise<{ byStatus: { status: string; count: number }[] }> {
     this.checkDepots(depotIds);
     return this.repo.liveByStatus(depotIds).then((byStatus) => ({ byStatus }));

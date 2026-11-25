@@ -51,8 +51,10 @@ export interface DeliverySummary {
   delivered: number;
   onTime: number;
   storedVerdicts: number;
-  thresholdMinutes: number;
+  /** The one threshold old rows were graded with; null when the depots in scope grade with different ones. */
+  thresholdMinutes: number | null;
   medianMinutes: number | null;
+  /** Distinct couriers with a delivery or a failure in the spans. */
   couriers: number;
   failed: number;
   noShow: number;
@@ -82,6 +84,8 @@ export interface AiCustomerSourcesPort {
   refillSplit(spans: readonly SourceSpan[]): Promise<RefillTotals | null>;
   liveOrders(depotIds: readonly string[]): Promise<{ status: string; count: number }[] | null>;
   deliverySummary(spans: readonly SourceSpan[]): Promise<DeliverySummary | null>;
+  /** Delivery orders cancelled in the spans that never left the depot (K-04, dictionary choice 21). */
+  cancelledBeforeDeparture(spans: readonly SourceSpan[]): Promise<number | null>;
   /** Rows for the depots asked; a depot with no ledger row is absent (it has nothing to say). */
   gallonLedger(depotIds: readonly string[], range: { from: string; to: string }): Promise<GallonLedgerRow[] | null>;
 }
