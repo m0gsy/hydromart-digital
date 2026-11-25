@@ -12,6 +12,8 @@
 //   POST /crm/api/v1/notifications/external/franchise-application-submitted   n8n's notification
 //   POST /crm/api/v1/notifications/external/morning-summary   n8n's 07.00 WIB summary (AI-9)
 //   POST /crm/api/v1/notifications/external/ai-access-requested   n8n's "Minta akses" notification
+//   POST /crm/api/v1/notifications/external/customer-reminders   n8n's customer reminders (HD-18)
+//   POST /crm/api/v1/notifications/external/maintenance-due   n8n's 07.30 WIB maintenance sweep (HD-15)
 //   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers   the read API: made-up numbers
 //                                       derived from the date; a depot-bound person sees one depot
 //   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
@@ -141,6 +143,10 @@ const READ = {
 const READ_UNITS = new Set(['day', 'week', 'month', 'year']);
 const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 'customers', 'delivery', 'gallons'];
 const ACCESS_KEYS = new Set(['eventId', 'requesterAccountId', 'legalEntityIds', 'group']);
+const MACHINE_SCOPES = [
+  'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
+];
+export const REMINDER_KINDS = ['SUBSCRIPTION_TOMORROW', 'POINTS_EXPIRING', 'UNPAID_ORDER'];
 const ACCESS_PER_REQUESTER = 3;
 const ACCESS_PER_HOUR = 30;
 const HOUR_MS = 3_600_000;
@@ -313,7 +319,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     state.calls.tokens += 1;
     return [200, {
       tokenType: 'Bearer',
-      accessToken: jwt({ aud: 'hydromart-machine', sub: env.MOCK_MACHINE_ID, scopes: ['franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify'] }),
+      accessToken: jwt({ aud: 'hydromart-machine', sub: env.MOCK_MACHINE_ID, scopes: MACHINE_SCOPES }),
       expiresIn: TOKEN_TTL_S,
     }];
   }
@@ -346,6 +352,27 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     });
     return [200, { date: today, recipients: 0, notified: 0, nothingWaiting: 0, whatsapp: 'pending' }];
   }
+
+  // HD-18's customer reminders and HD-15's maintenance sweep: n8n only says "now", with today's
+  // Jakarta date (and, for reminders, the kind). The answers are the real routes' shapes with every
+  // count zero: staging has no customers and no depots to remind.
+  function trigger(req, body, scope, keys, answer) {
+    if (!machineAllowed(req, scope)) return refusedToken();
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    if (Object.keys(b).sort().join(',') !== keys || b.date !== todayWib() ||
+      (b.kind !== undefined && !REMINDER_KINDS.includes(b.kind))) {
+      return [400, errorBody(400, 'VALIDATION_ERROR', ['The trigger is not what the contract asks for'])];
+    }
+    keep(state.calls.notifications, {
+      workflow: String(req.headers['x-workflow'] ?? '').slice(0, 120) || null,
+      eventId: [scope, b.kind, b.date].filter(Boolean).join(':'), city: null, province: null,
+    });
+    return [200, { ...b, ...answer, whatsapp: 'pending' }];
+  }
+  const customerReminders = (req, body) =>
+    trigger(req, body, 'customerReminderNotify', 'date,kind', { candidates: 0, truncated: false, notified: 0, skipped: 0 });
+  const maintenanceDue = (req, body) =>
+    trigger(req, body, 'maintenanceDueNotify', 'date', { depots: 0, items: 0, notified: 0, remindLater: 0 });
 
   // "Minta akses": ids only (contract AiAccessRequestedNotify). A requester that is a fixture person
   // who cannot grant access counts toward the caps (3 distinct eventIds per requester, 30 overall,
@@ -646,6 +673,14 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (post && path === '/crm/api/v1/notifications/external/ai-access-requested') {
         const [status, body] = accessRequested(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (post && path === '/crm/api/v1/notifications/external/customer-reminders') {
+        const [status, body] = customerReminders(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (post && path === '/crm/api/v1/notifications/external/maintenance-due') {
+        const [status, body] = maintenanceDue(req, parseJson(raw));
         return send(res, status, body);
       }
       if (req.method === 'GET' && path.startsWith('/dashboard/api/v1/ai/read/')) {
