@@ -102,14 +102,18 @@ describeRace('stored on-time status on real Postgres', () => {
       });
     const customer = await mkResched('CUSTOMER');
     const depotRow = await mkResched('DEPOT');
+    const courierRow = await mkResched('COURIER');
 
     const a = await repo.reassignIfUnderCap(customer.id, randomUUID(), randomUUID(), null, 5);
     const b = await repo.reassignIfUnderCap(depotRow.id, randomUUID(), randomUUID(), null, 5);
 
     expect(a.slaStartedAt).toBeInstanceOf(Date);
     expect(b.slaStartedAt).toBeNull();
+    // A courier-side reschedule (courier could not make it) keeps the old clock like DEPOT does.
+    const c = await repo.reassignIfUnderCap(courierRow.id, randomUUID(), randomUUID(), null, 5);
+    expect(c.slaStartedAt).toBeNull();
     const raw = await prisma.delivery.findMany({
-      where: { id: { in: [customer.id, depotRow.id] } },
+      where: { id: { in: [customer.id, depotRow.id, courierRow.id] } },
     });
     expect(raw.every((r) => r.slaAlertedAt === null)).toBe(true);
   });

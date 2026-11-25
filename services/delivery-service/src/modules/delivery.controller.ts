@@ -12,7 +12,7 @@ import {
 import { DeliveryService } from '../application/services/delivery.service';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
 import { Page } from '../application/pagination';
-import { AssignDeliveryDto, FailDeliveryDto, ListDeliveriesQueryDto } from './dto/delivery.dto';
+import { AssignDeliveryDto, ListDeliveriesQueryDto, StaffReasonDto } from './dto/delivery.dto';
 import {
   DeliveryResponseDto,
   PagedDeliveryResponseDto,
@@ -96,7 +96,7 @@ export class DeliveryController {
   release(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: FailDeliveryDto,
+    @Body() dto: StaffReasonDto,
     @Headers('authorization') authorization: string,
   ): Promise<DeliveryRecord> {
     return this.deliveries.releaseByStaff(user, id, dto.reason, authorization);
@@ -108,7 +108,7 @@ export class DeliveryController {
   cancel(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: FailDeliveryDto,
+    @Body() dto: StaffReasonDto,
     @Headers('authorization') authorization: string,
   ): Promise<DeliveryRecord> {
     return this.deliveries.cancelByStaff(user, id, dto.reason, authorization);

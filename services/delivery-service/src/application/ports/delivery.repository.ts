@@ -66,13 +66,15 @@ export interface DeliveryRecord {
   /** HD-6 #19: stored at completion; all three null on rows completed before it shipped. */
   slaThresholdMinutes: number | null;
   slaOnTime: boolean | null;
-  /** HD-6 #20: CUSTOMER | DEPOT for the last reschedule; null = unknown/none. */
+  /** HD-6 #20: CUSTOMER | COURIER | DEPOT for the last reschedule; null = unknown/none. */
   rescheduleInitiator?: string | null;
   pickedUpAt: Date | null;
   startedAt: Date | null;
   deliveredAt: Date | null;
   failedAt: Date | null;
   failureReason: string | null;
+  /** Fixed code (see domain/failure-reason.ts); null on rows failed before it existed. */
+  failureReasonCode?: string | null;
   rescheduledFor: Date | null;
   rescheduleSlot: string | null;
   rescheduleNote: string | null;
@@ -124,6 +126,7 @@ export interface DeliveryTimestamps {
   deliveredAt?: Date;
   failedAt?: Date | null;
   failureReason?: string | null;
+  failureReasonCode?: string | null;
   rescheduledFor?: Date | null;
   rescheduleSlot?: string | null;
   rescheduleNote?: string | null;

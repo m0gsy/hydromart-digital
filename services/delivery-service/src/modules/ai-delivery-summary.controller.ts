@@ -16,7 +16,7 @@ import { AiSpansDto } from './dto/ai-delivery.dto';
 export class AiDeliverySummaryController {
   constructor(private readonly summaries: AiDeliverySummaryService) {}
 
-  @ApiOkResponse({ description: 'delivered, onTime, storedVerdicts, thresholdMinutes, medianMinutes, couriers, failed, noShow, otherFailed, rescheduled.' })
+  @ApiOkResponse({ description: 'delivered, onTime, storedVerdicts, thresholdMinutes, medianMinutes, couriers, failed, noShow, otherFailed, rescheduled, byReason (failed by fixed reason code).' })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

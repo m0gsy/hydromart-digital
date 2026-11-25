@@ -159,6 +159,7 @@ export class InMemoryDeliveryRepository implements DeliveryRepository {
       deliveredAt: null,
       failedAt: null,
       failureReason: null,
+      failureReasonCode: null,
       rescheduledFor: null,
       rescheduleSlot: null,
       rescheduleNote: null,

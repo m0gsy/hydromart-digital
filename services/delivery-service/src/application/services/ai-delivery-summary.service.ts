@@ -1,6 +1,7 @@
 import { Inject, Injectable, UnprocessableEntityException } from '@nestjs/common';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
+import { FailureReasonCode } from '../../domain/failure-reason';
 import { AiDeliveryRepository, AiSpan } from '../ports/ai-delivery.repository';
 import { DELIVERY_TOKENS } from '../tokens';
 
@@ -21,6 +22,8 @@ export interface AiDeliverySummary {
   /** Failed for a reason a courier typed. Never returned as text: it can name a person. */
   otherFailed: number;
   rescheduled: number;
+  /** Failed by fixed reason (K-04 breakdown); the codes are fixed, never courier text. */
+  byReason: Record<FailureReasonCode, number>;
 }
 
 /**
@@ -65,6 +68,7 @@ export class AiDeliverySummaryService {
       noShow: f.noShow,
       otherFailed: f.failed - f.noShow,
       rescheduled: f.rescheduled,
+      byReason: f.byReason,
     };
   }
 }

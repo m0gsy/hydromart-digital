@@ -387,7 +387,7 @@ describe('DriverDeliveryController', () => {
     void controller.reportLocation(user, id, { lat: -6.9, lng: 107.6 } as never);
     expect(deliveries.reportLocation).toHaveBeenCalledWith(user.sub, id, -6.9, 107.6);
     void controller.fail(user, id, { reason: 'not found' } as never, 'Bearer t');
-    expect(deliveries.fail).toHaveBeenCalledWith(user.sub, id, 'not found', 'Bearer t', undefined);
+    expect(deliveries.fail).toHaveBeenCalledWith(user.sub, id, 'not found', 'Bearer t', undefined, undefined, undefined);
   });
 
   /*
@@ -432,6 +432,7 @@ describe('DriverDeliveryController', () => {
     );
     expect(deliveries.reschedule).toHaveBeenCalledWith(user.sub, id, {
       authorization: 'Bearer t',
+      initiator: 'CUSTOMER',
       rescheduledFor: new Date('2026-08-01T09:00:00.000Z'),
       slot: 'Sore',
       note: 'n',

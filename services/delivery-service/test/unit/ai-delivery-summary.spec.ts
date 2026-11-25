@@ -1,3 +1,4 @@
+import { FAILURE_REASON_CODES, FailureReasonCode } from '../../src/domain/failure-reason';
 import 'reflect-metadata';
 
 import { UnprocessableEntityException } from '@nestjs/common';
@@ -20,10 +21,12 @@ const from = new Date('2026-10-31T17:00:00.000Z');
 const to = new Date('2026-11-30T17:00:00.000Z');
 const span = (depotId: string, f = from, t = to): AiSpan => ({ depotId, from: f, to: t });
 
+const ZERO = Object.fromEntries(FAILURE_REASON_CODES.map((c) => [c, 0])) as Record<FailureReasonCode, number>;
+
 describe('AiDeliverySummaryService', () => {
   const repo = {
     deliveredStats: jest.fn().mockResolvedValue({ delivered: 10, onTime: 8, storedVerdicts: 6, medianMinutes: 41.26, couriers: 3 }),
-    failedStats: jest.fn().mockResolvedValue({ failed: 5, noShow: 2, rescheduled: 4 }),
+    failedStats: jest.fn().mockResolvedValue({ failed: 5, noShow: 2, rescheduled: 4, byReason: ZERO }),
   };
   const service = new AiDeliverySummaryService(repo as never, { slaMinutes: () => 90 } as never);
 
@@ -39,6 +42,7 @@ describe('AiDeliverySummaryService', () => {
       noShow: 2,
       otherFailed: 3,
       rescheduled: 4,
+      byReason: ZERO,
     });
     expect(repo.deliveredStats).toHaveBeenCalledWith([{ ...span(D1), thresholdMinutes: 90 }]);
   });
@@ -80,13 +84,15 @@ describe('AiDeliveryPrismaRepository row mapping', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ failed: 3n, noShow: 1n }])
       .mockResolvedValueOnce([{ rescheduled: 2n }])
+      .mockResolvedValueOnce([{ code: 'NO_SHOW', c: 1n }, { code: 'OTHER', c: 2n }])
       .mockResolvedValueOnce([{ failed: 0n, noShow: 0n }])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     const repo = new AiDeliveryPrismaRepository({ $queryRaw: q } as never);
     await expect(repo.deliveredStats([{ ...span(D1), thresholdMinutes: 90 }])).resolves.toEqual({ delivered: 4, onTime: 3, storedVerdicts: 2, medianMinutes: 35.5, couriers: 2 });
     await expect(repo.deliveredStats([{ ...span(D1), thresholdMinutes: 90 }])).resolves.toEqual({ delivered: 0, onTime: 0, storedVerdicts: 0, medianMinutes: null, couriers: 0 });
-    await expect(repo.failedStats([span(D1)])).resolves.toEqual({ failed: 3, noShow: 1, rescheduled: 2 });
-    await expect(repo.failedStats([span(D1)])).resolves.toEqual({ failed: 0, noShow: 0, rescheduled: 0 });
+    await expect(repo.failedStats([span(D1)])).resolves.toEqual({ failed: 3, noShow: 1, rescheduled: 2, byReason: { ...ZERO, NO_SHOW: 1, OTHER: 2 } });
+    await expect(repo.failedStats([span(D1)])).resolves.toEqual({ failed: 0, noShow: 0, rescheduled: 0, byReason: ZERO });
   });
 });
 
