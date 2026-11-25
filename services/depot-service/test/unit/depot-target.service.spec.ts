@@ -22,6 +22,10 @@ class InMemoryDepotTargetRepository implements DepotTargetRepository {
     return r ? { ...r } : null;
   }
 
+  async findManyByMonth(depotIds: string[], month: string): Promise<DepotTarget[]> {
+    return this.rows.filter((x) => x.month === month && depotIds.includes(x.depotId)).map((r) => ({ ...r }));
+  }
+
   async upsert(data: UpsertDepotTargetData): Promise<DepotTarget> {
     const existing = this.rows.find((x) => x.depotId === data.depotId && x.month === data.month);
     if (existing) {
@@ -74,6 +78,7 @@ describe('DepotTargetService', () => {
     ordersTarget: 1200,
     slaTargetPct: 96,
     newCustomersTarget: 80,
+    gallonsTarget: 3000,
     ...over,
   });
 
@@ -104,6 +109,24 @@ describe('DepotTargetService', () => {
     expect(second.ordersTarget).toBe(1500);
     expect(second.updatedBy).toBe(OTHER);
     expect(repo.rows).toHaveLength(1);
+  });
+
+  it('keeps the gallons target with the others', async () => {
+    const created = await service.set(target(), EDITOR);
+    expect(created.gallonsTarget).toBe(3000);
+  });
+
+  /* HD-16: the AI read API reads every depot's month in one call; 0 = not set. */
+  it('forMonth answers one row per depot asked, 0 where no target is set', async () => {
+    await service.set(target(), EDITOR);
+    const other = '33333333-3333-4333-8333-333333333333';
+    expect(await service.forMonth([depotId, other], '2026-07')).toEqual([
+      { depotId, revenueTargetIdr: 45_000_000, ordersTarget: 1200, newCustomersTarget: 80, gallonsTarget: 3000 },
+      { depotId: other, revenueTargetIdr: 0, ordersTarget: 0, newCustomersTarget: 0, gallonsTarget: 0 },
+    ]);
+    expect(await service.forMonth([depotId], '2026-08')).toEqual([
+      { depotId, revenueTargetIdr: 0, ordersTarget: 0, newCustomersTarget: 0, gallonsTarget: 0 },
+    ]);
   });
 
   it('rejects an unknown depot on set', async () => {

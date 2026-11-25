@@ -15,6 +15,10 @@ export class DepotTargetPrismaRepository implements DepotTargetRepository {
     return this.prisma.depotTarget.findUnique({ where: { depotId_month: { depotId, month } } });
   }
 
+  findManyByMonth(depotIds: string[], month: string): Promise<DepotTarget[]> {
+    return this.prisma.depotTarget.findMany({ where: { month, depotId: { in: depotIds } } });
+  }
+
   upsert(data: UpsertDepotTargetData): Promise<DepotTarget> {
     const { depotId, month, ...values } = data;
     return this.prisma.depotTarget.upsert({

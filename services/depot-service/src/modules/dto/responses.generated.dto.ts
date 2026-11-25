@@ -144,6 +144,8 @@ export class DepotTargetResponseDto {
   slaTargetPct!: number;
   @ApiProperty({ type: Number })
   newCustomersTarget!: number;
+  @ApiProperty({ type: Number, description: 'Gallons sold in the month (AI read metric G-01). 0 = not set.' })
+  gallonsTarget!: number;
   @ApiProperty({ type: String })
   updatedBy!: string;
   @ApiProperty({ type: String, format: 'date-time' })

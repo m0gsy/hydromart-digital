@@ -615,6 +615,8 @@ const opsFixShared = {
     orders: 'Order terkirim',
     sla: 'SLA on-time (%)',
     newCustomers: 'Pelanggan baru',
+    gallons: 'Galon terjual',
+    gallonsHint: 'Unit galon pada pesanan terkirim atau selesai dalam sebulan, termasuk penjualan kasir dan galon gratis promo. 0 = tanpa target galon.',
     cancel: 'Batal',
     save: 'Simpan target',
     saveError: 'Gagal menyimpan target.',

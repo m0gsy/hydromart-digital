@@ -730,6 +730,9 @@ model DepotTarget {
   /// On-time SLA target as a whole percent (e.g. 96).
   slaTargetPct       Int      @default(0)
   newCustomersTarget Int      @default(0)
+  /// HD-16: gallons SOLD in the month, the unit of the AI read API metric G-01 (gallon units on
+  /// DELIVERED/COMPLETED orders by order date, counter sales and free promo gallons included). 0 = not set.
+  gallonsTarget      Int      @default(0)
   updatedBy          String   @db.Uuid
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

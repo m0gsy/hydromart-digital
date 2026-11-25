@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsOptional,
   IsISO8601, IsInt, IsUUID, Matches, Max, Min } from 'class-validator';
 import { INT4_MAX } from '@hydromart/platform';
@@ -57,4 +60,47 @@ export class UpsertDepotTargetDto {
   @Min(0)
   @Max(INT4_MAX)
   newCustomersTarget!: number;
+
+  @ApiProperty({
+    example: 3000,
+    description: 'Gallons sold in the month: gallon units on delivered or completed orders by order date, counter sales and free promo gallons included (the AI read API metric G-01). 0 = no gallon target.',
+  })
+  @IsInt()
+  @Min(0)
+  @Max(INT4_MAX)
+  gallonsTarget!: number;
+}
+
+/** HD-16: the month targets of many depots at once (service-to-service). */
+export class DepotTargetsByMonthQueryDto {
+  @ApiProperty({ description: 'Comma-separated depot ids (1 to 100).' })
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((v) => v.trim())
+          .filter((v) => v.length > 0)
+      : value,
+  )
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  depotIds!: string[];
+
+  @ApiProperty({ example: '2026-11', description: 'ISO year-month.' })
+  @Matches(MONTH_PATTERN, { message: 'month must be in YYYY-MM format' })
+  month!: string;
+}
+
+export class DepotTargetsByMonthResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  depotId!: string;
+  @ApiProperty({ description: 'Revenue goal in IDR. 0 = not set.' })
+  revenueTargetIdr!: number;
+  @ApiProperty({ description: 'Orders. 0 = not set.' })
+  ordersTarget!: number;
+  @ApiProperty({ description: 'People. 0 = not set.' })
+  newCustomersTarget!: number;
+  @ApiProperty({ description: 'Gallons sold (metric G-01). 0 = not set.' })
+  gallonsTarget!: number;
 }

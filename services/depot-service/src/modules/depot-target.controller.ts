@@ -38,6 +38,7 @@ export class DepotTargetController {
         ordersTarget: dto.ordersTarget,
         slaTargetPct: dto.slaTargetPct,
         newCustomersTarget: dto.newCustomersTarget,
+        gallonsTarget: dto.gallonsTarget,
       },
       user.sub,
       dto.seenUpdatedAt,

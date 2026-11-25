@@ -3335,6 +3335,8 @@ export interface DepotTarget {
   ordersTarget: number;
   slaTargetPct: number;
   newCustomersTarget: number;
+  /** Gallons sold in the month (AI read metric G-01); 0 = not set. */
+  gallonsTarget: number;
   updatedBy: string;
   createdAt: string;
   updatedAt: string;

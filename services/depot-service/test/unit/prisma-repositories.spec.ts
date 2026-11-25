@@ -243,7 +243,7 @@ describe('CashbookPrismaRepository', () => {
 });
 
 describe('DepotTargetPrismaRepository', () => {
-  const model = { findUnique: jest.fn(), upsert: jest.fn() };
+  const model = { findUnique: jest.fn(), findMany: jest.fn(), upsert: jest.fn() };
   const prisma = { depotTarget: model } as unknown as PrismaService;
   const repo = new DepotTargetPrismaRepository(prisma);
   const row = { depotId: 'depot-1', month: '2026-01', revenueTargetIdr: 1000000 };
@@ -256,6 +256,12 @@ describe('DepotTargetPrismaRepository', () => {
     expect(model.findUnique).toHaveBeenCalledWith({
       where: { depotId_month: { depotId: 'depot-1', month: '2026-01' } },
     });
+  });
+
+  it('finds many depots of one month in one query', async () => {
+    model.findMany.mockResolvedValue([row]);
+    expect(await repo.findManyByMonth(['depot-1', 'depot-2'], '2026-01')).toEqual([row]);
+    expect(model.findMany).toHaveBeenCalledWith({ where: { month: '2026-01', depotId: { in: ['depot-1', 'depot-2'] } } });
   });
 
   it('returns null on miss', async () => {

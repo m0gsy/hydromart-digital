@@ -755,6 +755,8 @@ export const opsFix = {
     orders: 'Orders delivered',
     sla: 'On-time SLA (%)',
     newCustomers: 'New customers',
+    gallons: 'Gallons sold',
+    gallonsHint: 'Gallon units on delivered or completed orders in the month, counter sales and free promo gallons included. 0 = no gallon target.',
     cancel: 'Cancel',
     save: 'Save target',
     saveError: 'Could not save the target.',
