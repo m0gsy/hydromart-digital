@@ -12,9 +12,19 @@ export function slaClockStart(d: { assignedAt: Date; slaStartedAt: Date | null }
 
 /**
  * Who asked for a reschedule. Only a CUSTOMER request restarts the SLA clock when the row is
- * re-opened; a depot taking the delivery off a courier (to swap them) keeps the old start.
+ * re-opened; a courier-side problem (COURIER) or a depot taking the delivery off a courier (to
+ * swap them) keeps the old start.
  */
-export type RescheduleInitiator = 'CUSTOMER' | 'DEPOT';
+export type RescheduleInitiator = 'CUSTOMER' | 'COURIER' | 'DEPOT';
+
+/** What the courier app says on a reschedule: the customer asked, or the courier could not. */
+export const RESCHEDULE_REASONS = ['CUSTOMER_REQUEST', 'COURIER_ISSUE'] as const;
+export type RescheduleReason = (typeof RESCHEDULE_REASONS)[number];
+
+/** An absent reason is an old app: "the new time agreed with the customer". */
+export function initiatorOf(reason: RescheduleReason | undefined): RescheduleInitiator {
+  return reason === 'COURIER_ISSUE' ? 'COURIER' : 'CUSTOMER';
+}
 
 export function isOnTime(start: Date, deliveredAt: Date, thresholdMinutes: number): boolean {
   return (deliveredAt.getTime() - start.getTime()) / 60_000 <= thresholdMinutes;

@@ -53,6 +53,11 @@ import { OrderPaymentPort } from '../ports/order-payment.port';
 import { OrderLookupPort } from '../ports/order-lookup.port';
 import { haversineMeters } from '../../domain/geo';
 import { clampCapturedAt } from '../../domain/offline';
+import {
+  CourierFailureReason,
+  FAILURE_REASON_LABELS,
+  legacyFailureCode,
+} from '../../domain/failure-reason';
 import { isOnTime, RescheduleInitiator, slaClockStart } from '../../domain/sla';
 import { ShiftService } from './shift.service';
 import { DELIVERY_TOKENS } from '../tokens';
@@ -625,17 +630,28 @@ export class DeliveryService {
   async fail(
     driverId: string,
     id: string,
-    reason: string,
+    reason: string | undefined,
     authorization = '',
     cashReturned = false,
+    reasonCode?: CourierFailureReason,
+    note?: string,
   ): Promise<DeliveryRecord> {
+    // The fixed pick wins; the old free text is what an old app (or a queued job) sends.
+    if (!reasonCode && !reason) throw new BadRequestException('Pilih alasan gagal.');
+    const failureReasonCode = reasonCode ?? legacyFailureCode(reason ?? null);
+    const cleanNote = note?.trim();
+    const failureReason = reasonCode
+      ? cleanNote
+        ? `${FAILURE_REASON_LABELS[reasonCode]}: ${cleanNote}`
+        : FAILURE_REASON_LABELS[reasonCode]
+      : (reason as string);
     const delivery = await this.ownedByDriver(driverId, id);
     // Already failed, by this driver: a replay, not a second failure. See `replayed`.
     if (delivery.status === DeliveryStatus.FAILED) {
       return this.finishFailureReplay(delivery, driverId, cashReturned, authorization);
     }
     this.assertTransition(delivery.status, DeliveryStatus.FAILED);
-    this.logger.warn(`Delivery ${id} failed by driver ${driverId}: ${reason}`);
+    this.logger.warn(`Delivery ${id} failed by driver ${driverId}: ${failureReason}`);
     /*
      * The status moves FIRST, and only the winner goes on to touch money and the order. The
      * cash reversal and the order cancel used to run before this write, so a Selesai that
@@ -653,9 +669,9 @@ export class DeliveryService {
         id,
         delivery.status,
         DeliveryStatus.FAILED,
-        { failedAt: new Date(), failureReason: reason },
+        { failedAt: new Date(), failureReason, failureReasonCode },
         driverId,
-        reason,
+        failureReason,
       );
     } catch (error) {
       return this.replayIfAlreadyAt(error, id, DeliveryStatus.FAILED, (won) =>
@@ -670,7 +686,7 @@ export class DeliveryService {
           id,
           DeliveryStatus.FAILED,
           delivery.status,
-          { failedAt: null, failureReason: null },
+          { failedAt: null, failureReason: null, failureReasonCode: null },
           driverId,
           'Pengembalian tunai gagal dikonfirmasi; status dikembalikan.',
         )
@@ -887,7 +903,7 @@ export class DeliveryService {
         id,
         delivery.status,
         DeliveryStatus.FAILED,
-        { failedAt: new Date(), failureReason: NO_SHOW_REASON },
+        { failedAt: new Date(), failureReason: NO_SHOW_REASON, failureReasonCode: 'NO_SHOW' },
         driverId,
         NO_SHOW_REASON,
       );
@@ -1401,7 +1417,7 @@ export class DeliveryService {
       id,
       delivery.status,
       DeliveryStatus.FAILED,
-      { failedAt: new Date(), failureReason: reason },
+      { failedAt: new Date(), failureReason: reason, failureReasonCode: 'DEPOT_CANCELLED' },
       user.sub,
       reason,
     );

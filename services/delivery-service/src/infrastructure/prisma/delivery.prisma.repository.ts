@@ -105,6 +105,7 @@ interface DeliveryRow {
   deliveredAt: Date | null;
   failedAt: Date | null;
   failureReason: string | null;
+  failureReasonCode: string | null;
   rescheduledFor: Date | null;
   rescheduleSlot: string | null;
   rescheduleNote: string | null;
@@ -171,6 +172,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
       deliveredAt: row.deliveredAt,
       failedAt: row.failedAt,
       failureReason: row.failureReason,
+      failureReasonCode: row.failureReasonCode,
       rescheduledFor: row.rescheduledFor,
       rescheduleSlot: row.rescheduleSlot,
       rescheduleNote: row.rescheduleNote,
@@ -232,7 +234,7 @@ export class DeliveryPrismaRepository implements DeliveryRepository {
     return this.underCap(driverId, max, async (tx) => {
       // Only a RESCHEDULED row may be re-opened; two dispatchers re-opening the same one is a
       // conflict, not two assignments.
-      // HD-6 #20: only a CUSTOMER reschedule restarts the SLA clock. A depot taking the
+      // HD-6 #20: only a CUSTOMER reschedule restarts the SLA clock. A COURIER-side one, or a depot taking the
       // delivery off a courier (to swap them) keeps the start it had.
       const prev = await tx.delivery.findUnique({
         where: { id },

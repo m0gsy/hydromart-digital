@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsLatitude,
   IsLongitude,
@@ -20,7 +21,12 @@ import {
 import { INT4_MAX } from '@hydromart/platform';
 
 import { DeliveryStatus } from '../../domain/delivery-status';
+import {
+  COURIER_FAILURE_REASONS,
+  CourierFailureReason,
+} from '../../domain/failure-reason';
 import { ContactMethod } from '../../domain/no-show';
+import { RESCHEDULE_REASONS, RescheduleReason } from '../../domain/sla';
 
 export class ReportLocationDto {
   @ApiProperty({ example: -6.2088, description: "Driver's current latitude." })
@@ -234,12 +240,37 @@ export class ProofOfDeliveryDto {
   capturedAt?: string;
 }
 
-export class FailDeliveryDto {
-  @ApiProperty({ example: 'Alamat tidak ditemukan.', description: 'Reason the delivery failed.' })
+/** Staff release / cancel: the reason stays a required free text (a dispatcher types it). */
+export class StaffReasonDto {
+  @ApiProperty({ example: 'Kurir tidak bisa dihubungi.', description: 'Why staff stepped in.' })
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
   reason!: string;
+}
+
+export class FailDeliveryDto {
+  /** Old app versions (and jobs already queued offline) send only this text; kept working. */
+  @ApiPropertyOptional({
+    example: 'Alamat tidak ditemukan',
+    description: 'Free-text reason. Legacy: send reasonCode instead.',
+  })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  reason?: string;
+
+  @ApiPropertyOptional({ enum: COURIER_FAILURE_REASONS, description: 'Fixed reason the delivery failed.' })
+  @IsOptional()
+  @IsIn(COURIER_FAILURE_REASONS)
+  reasonCode?: CourierFailureReason;
+
+  @ApiPropertyOptional({ example: 'Rumah kosong', description: 'Optional note next to the reason.' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  note?: string;
 
   /**
    * CA-4-03: did the courier hand the cash back to the customer at the door?
@@ -290,6 +321,15 @@ export class RescheduleDeliveryDto {
   @IsString()
   @MaxLength(255)
   note?: string;
+
+  @ApiPropertyOptional({
+    enum: RESCHEDULE_REASONS,
+    description:
+      'Siapa yang meminta: pelanggan minta / kendala kurir. Hanya CUSTOMER_REQUEST yang memulai ulang jam SLA. Kosong = pelanggan minta.',
+  })
+  @IsOptional()
+  @IsIn(RESCHEDULE_REASONS)
+  reason?: RescheduleReason;
 
   /**
    * CA-4-03: did the courier hand the cash back to the customer at the door?

@@ -9,7 +9,7 @@ import {
   AiSpan,
 } from '../../application/ports/ai-delivery.repository';
 import { DeliveryStatus } from '../../domain/delivery-status';
-import { NO_SHOW_REASON } from '../../domain/no-show';
+import { FAILURE_REASON_CODES, FailureReasonCode, LEGACY_TEXT_CODES } from '../../domain/failure-reason';
 import { PrismaService } from './prisma.service';
 
 const n = (v: bigint | number | null | undefined): number => (v === null || v === undefined ? 0 : Number(v));
@@ -69,11 +69,15 @@ export class AiDeliveryPrismaRepository implements AiDeliveryRepository {
   }
 
   async failedStats(spans: readonly AiSpan[]): Promise<AiFailedStats> {
-    const [[failed], [rescheduled]] = await Promise.all([
-      this.prisma.$queryRaw<{ failed: bigint; noShow: bigint }[]>(Prisma.sql`
+    // The stored code, else the text classified by the same rule `legacyFailureCode` applies.
+    const legacy = Prisma.join(
+      LEGACY_TEXT_CODES.map(([text, code]) => Prisma.sql`WHEN ${text}::text THEN ${code}::text`),
+      ' ',
+    );
+    const [[failed], [rescheduled], reasons] = await Promise.all([
+      this.prisma.$queryRaw<{ failed: bigint }[]>(Prisma.sql`
         WITH ${spansCte(spans)}
-        SELECT COUNT(*)::bigint AS "failed",
-               COUNT(*) FILTER (WHERE d."failureReason" = ${NO_SHOW_REASON})::bigint AS "noShow"
+        SELECT COUNT(*)::bigint AS "failed"
         FROM sp JOIN "deliveries" d ON ${within(Prisma.sql`d."failedAt"`)}
       `),
       this.prisma.$queryRaw<{ rescheduled: bigint }[]>(Prisma.sql`
@@ -86,7 +90,21 @@ export class AiDeliveryPrismaRepository implements AiDeliveryRepository {
           AND h."createdAt" >= (sp."fromAt" AT TIME ZONE 'UTC')
           AND h."createdAt" < (sp."toAt" AT TIME ZONE 'UTC')
       `),
+      this.prisma.$queryRaw<{ code: string; c: bigint }[]>(Prisma.sql`
+        WITH ${spansCte(spans)}
+        SELECT COALESCE(d."failureReasonCode", CASE d."failureReason" ${legacy} ELSE 'OTHER' END) AS "code",
+               COUNT(*)::bigint AS "c"
+        FROM sp JOIN "deliveries" d ON ${within(Prisma.sql`d."failedAt"`)}
+        GROUP BY 1
+      `),
     ]);
-    return { failed: n(failed?.failed), noShow: n(failed?.noShow), rescheduled: n(rescheduled?.rescheduled) };
+    const byReason = Object.fromEntries(FAILURE_REASON_CODES.map((c) => [c, 0])) as Record<FailureReasonCode, number>;
+    for (const r of reasons) byReason[r.code as FailureReasonCode] = n(r.c);
+    return {
+      failed: n(failed?.failed),
+      noShow: byReason.NO_SHOW, // the same classification, so the two can never disagree
+      rescheduled: n(rescheduled?.rescheduled),
+      byReason,
+    };
   }
 }

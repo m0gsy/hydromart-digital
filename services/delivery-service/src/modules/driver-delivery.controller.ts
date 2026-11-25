@@ -19,6 +19,7 @@ import {
   NoShowStatus,
 } from '../application/services/delivery.service';
 import { ContactMethod } from '../domain/no-show';
+import { initiatorOf } from '../domain/sla';
 import { DeliveryRecord } from '../application/ports/delivery.repository';
 import { Page } from '../application/pagination';
 import {
@@ -154,7 +155,7 @@ export class DriverDeliveryController {
     @Headers('authorization') authorization?: string,
   ): Promise<DeliveryRecord> {
     // Forwarded so the failure can cancel the order (and release its stock hold).
-    return this.deliveries.fail(user.sub, id, dto.reason, authorization, dto.cashReturned);
+    return this.deliveries.fail(user.sub, id, dto.reason, authorization, dto.cashReturned, dto.reasonCode, dto.note);
   }
 
   /**
@@ -215,6 +216,7 @@ export class DriverDeliveryController {
       note: dto.note,
       cashReturned: dto.cashReturned,
       authorization,
+      initiator: initiatorOf(dto.reason),
     });
   }
 }

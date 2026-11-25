@@ -154,6 +154,9 @@ model Delivery {
   deliveredAt   DateTime?
   failedAt      DateTime?
   failureReason String?
+  /// Fixed code of why it failed (see domain/failure-reason.ts). NULL on rows failed before this existed:
+  /// readers classify those from "failureReason" with legacyFailureCode's rule.
+  failureReasonCode String?
 
   // Reschedule (design 3c): the new target time/slot the courier agreed with the
   // customer + an optional note. Set when status becomes RESCHEDULED.
@@ -177,9 +180,9 @@ model Delivery {
   /// shipped = "not stored", and readers fall back to the old computation for those.
   slaThresholdMinutes Int?
   slaOnTime           Boolean?
-  /// HD-6 #20: who asked for the reschedule - CUSTOMER (the courier agreed a new time with them)
-  /// or DEPOT (staff released it, e.g. to swap the courier). Only CUSTOMER restarts the SLA
-  /// clock on re-open. NULL on rows rescheduled before this existed = clock is not restarted.
+  /// HD-6 #20: who asked for the reschedule - CUSTOMER (the courier agreed a new time with them),
+  /// COURIER (a courier-side problem) or DEPOT (staff released it, e.g. to swap the courier). Only
+  /// CUSTOMER restarts the SLA clock on re-open. NULL on rows rescheduled before this existed = clock is not restarted.
   rescheduleInitiator String?
 
   proof           ProofOfDelivery?

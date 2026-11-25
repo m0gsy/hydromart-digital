@@ -1,3 +1,5 @@
+import { FailureReasonCode } from '../../domain/failure-reason';
+
 /** A depot and the instants `[from, to)` during which the AI read API's caller may read it. */
 export interface AiSpan {
   depotId: string;
@@ -30,6 +32,8 @@ export interface AiFailedStats {
   noShow: number;
   /** Times a delivery was handed back to be rescheduled, by when it happened. Counted apart. */
   rescheduled: number;
+  /** Failed deliveries by fixed reason code, every code present (0 when none); old rows classified from their text. */
+  byReason: Record<FailureReasonCode, number>;
 }
 
 export interface AiDeliveryRepository {

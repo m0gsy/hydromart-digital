@@ -87,7 +87,34 @@ describeRace('HD-6 H3 delivery summary on real Postgres', () => {
     await prisma.deliveryStatusHistory.create({ data: { deliveryId: resched.id, status: 'RESCHEDULED', createdAt: at('2026-11-07T03:00:00.000Z') } as never });
     await prisma.deliveryStatusHistory.create({ data: { deliveryId: resched.id, status: 'ASSIGNED', createdAt: at('2026-11-07T04:00:00.000Z') } as never });
     await prisma.deliveryStatusHistory.create({ data: { deliveryId: resched.id, status: 'RESCHEDULED', createdAt: at('2026-12-02T04:00:00.000Z') } as never });
-    await expect(repo.failedStats([span(D1)])).resolves.toEqual({ failed: 2, noShow: 1, rescheduled: 1 });
+    await expect(repo.failedStats([span(D1)])).resolves.toMatchObject({ failed: 2, noShow: 1, rescheduled: 1 });
+  });
+
+  it('breaks failures down by reason code: stored codes first, old rows classified from their text', async () => {
+    const depot = randomUUID();
+    const f = (over: Record<string, unknown>) =>
+      row({ depotId: depot, status: 'FAILED', failedAt: at('2026-11-08T03:00:00.000Z'), ...over });
+    await f({ failureReasonCode: 'CUSTOMER_REFUSED', failureReason: 'Pelanggan menolak: pintu dikunci' });
+    await f({ failureReasonCode: 'DEPOT_CANCELLED', failureReason: 'x' });
+    await f({ failureReasonCode: 'NO_SHOW', failureReason: NO_SHOW_REASON });
+    await f({ failureReason: 'Barang rusak' }); // old row, chip text
+    await f({ failureReason: 'Barang rusak' });
+    await f({ failureReason: NO_SHOW_REASON }); // old no-show
+    await f({ failureReason: 'telp 0812-3456-7890 mati' }); // old free text
+    await f({ failureReason: null }); // no reason at all
+    await expect(repo.failedStats([span(depot)])).resolves.toMatchObject({
+      failed: 8,
+      noShow: 2,
+      byReason: {
+        ADDRESS_NOT_FOUND: 0,
+        CUSTOMER_REFUSED: 1,
+        GOODS_DAMAGED: 2,
+        CANNOT_CONTACT: 0,
+        OTHER: 2,
+        NO_SHOW: 2,
+        DEPOT_CANCELLED: 1,
+      },
+    });
   });
 
   it('counts a courier who only failed, once, with the ones who delivered, and grades old rows with the span threshold', async () => {
