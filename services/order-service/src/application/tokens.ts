@@ -30,4 +30,6 @@ export const ORDER_TOKENS = {
   Inventory: Symbol('Inventory'),
   MeterReadingRepository: Symbol('MeterReadingRepository'),
   SalesImportRepository: Symbol('SalesImportRepository'),
+  /** HD-6 H3: customer and gallon facts for the AI read API. */
+  AiCustomerRepository: Symbol('AiCustomerRepository'),
 } as const;

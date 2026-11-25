@@ -195,6 +195,8 @@ model Delivery {
   // Every SLA aggregate filters on deliveredAt (+ depot scope); back it (audit DB-4).
   @@index([deliveredAt])
   @@index([depotId, deliveredAt])
+  // HD-6 H3: the AI read API counts failures by failure time per depot.
+  @@index([depotId, failedAt])
   // The customer feed read: this person's deliveries, newest first.
   @@index([customerId, createdAt(sort: Desc)])
   // J8's sweep (in-flight + unalerted + oldest first) rides the `status` index above:
@@ -329,6 +331,8 @@ model DeliveryStatusHistory {
   createdAt  DateTime       @default(now())
 
   @@index([deliveryId])
+  // HD-6 H3: the AI read API counts reschedules by when they happened.
+  @@index([status, createdAt])
   @@map("delivery_status_history")
 }
 

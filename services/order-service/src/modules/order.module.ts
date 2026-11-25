@@ -59,6 +59,9 @@ import { ReportController } from './report.controller';
 import { SubscriptionController } from './subscription.controller';
 import { SettingsController } from './settings.controller';
 import { SalesImportController } from './sales-import.controller';
+import { AiCustomerMetricsController } from './ai-customer-metrics.controller';
+import { AiCustomerMetricsService } from '../application/services/ai-customer-metrics.service';
+import { AiCustomerPrismaRepository } from '../infrastructure/prisma/ai-customer.prisma.repository';
 
 const providers: Provider[] = [
   PrismaService,
@@ -77,6 +80,8 @@ const providers: Provider[] = [
   SubscriptionService,
   SettingsService,
   SalesImportService,
+  AiCustomerMetricsService,
+  { provide: ORDER_TOKENS.AiCustomerRepository, useClass: AiCustomerPrismaRepository },
   { provide: ORDER_TOKENS.SalesImportRepository, useClass: SalesImportPrismaRepository },
   { provide: ORDER_TOKENS.CartRepository, useClass: CartPrismaRepository },
   { provide: ORDER_TOKENS.OrderRepository, useClass: OrderPrismaRepository },
@@ -130,6 +135,7 @@ const providers: Provider[] = [
     SubscriptionController,
     SettingsController,
     SalesImportController,
+    AiCustomerMetricsController,
   ],
   providers,
   exports: [PrismaService, OrderConfigService],
