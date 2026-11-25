@@ -2375,8 +2375,9 @@ describe('failed deliveries and why', () => {
           row('1', 'Barang rusak: pecah di jalan', 'GOODS_DAMAGED'),
           row('2', 'Barang rusak: kardus basah', 'GOODS_DAMAGED'),
           row('3', 'Alamat tidak ketemu'),
+          row('4', 'Barang rusak'),
         ],
-        total: 3,
+        total: 4,
         page: 1,
         limit: 100,
       }),
@@ -2384,7 +2385,9 @@ describe('failed deliveries and why', () => {
     getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
     renderPage();
     const bucket = (await screen.findByText('Barang rusak')).closest('li')!;
-    expect(bucket.textContent).toContain('2');
+    // the legacy row whose text is exactly 'Barang rusak' joins the coded bucket
+    expect(screen.getAllByText('Barang rusak')).toHaveLength(1);
+    expect(bucket.textContent).toContain('3');
     expect(screen.getByText('Alamat tidak ketemu').closest('li')!.textContent).toContain('1');
     expect(document.body.textContent).not.toContain('pecah di jalan');
   });

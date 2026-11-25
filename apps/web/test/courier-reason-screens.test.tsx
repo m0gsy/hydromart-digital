@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -25,6 +26,7 @@ vi.mock('next/navigation', () => ({
 
 import FailPage from '@/app/driver/deliveries/detail/fail/page';
 import ReschedulePage from '@/app/driver/deliveries/detail/reschedule/page';
+import { ApiError } from '@/lib/api';
 import { LocaleProvider } from '@/lib/locale-context';
 import { driver as idDriver } from '@/lib/dictionaries/id/driver';
 import { driver as enDriver } from '@/lib/dictionaries/en/driver';
@@ -94,9 +96,24 @@ describe('queue replay', () => {
   });
 });
 
+describe('queue replay of a stored old-shape job', () => {
+  it('flushes a job holding only `reason` with exactly that body', async () => {
+    const q = await import('@/lib/offline-queue');
+    patch.mockRejectedValueOnce(new ApiError(0, 'offline'));
+    await q.runOrQueue({ kind: 'deliveryFail', payload: { deliveryId: 'old-1', reason: 'Pelanggan menolak', cashReturned: false } });
+    expect(q.pending()).toHaveLength(1);
+    patch.mockClear();
+    await q.flush(true);
+    expect(patch).toHaveBeenCalledTimes(1);
+    expect(patch.mock.calls[0]![0]).toContain('old-1');
+    expect(JSON.parse(JSON.stringify(patch.mock.calls[0]![1]))).toEqual({ reason: 'Pelanggan menolak', cashReturned: false });
+    expect(q.pending()).toHaveLength(0);
+  });
+});
+
 describe('i18n', () => {
   it('both languages carry the new keys', () => {
-    for (const d of [idDriver, enDriver] as unknown as Record<string, Record<string, any>>[]) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    for (const d of [idDriver, enDriver] as unknown as any[]) { // eslint-disable-line @typescript-eslint/no-explicit-any
       const f = d.deliveryFail;
       for (const k of ['addressNotFound', 'customerRefused', 'goodsDamaged', 'cannotContact', 'other', 'noShow', 'depotCancelled']) {
         expect(f.reasons[k]).toBeTruthy();

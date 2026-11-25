@@ -84,7 +84,7 @@ function Fail() {
       <Card className="space-y-4 p-4">
         <fieldset className="space-y-2">
           <legend className="mb-1 text-sm font-bold">{t('driver.deliveryFail.reasonLabel')}</legend>
-          <div role="radiogroup" className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2">
             {CODES.map((r) => (
               <label
                 key={r.code}
