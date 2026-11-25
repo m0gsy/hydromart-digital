@@ -200,6 +200,15 @@ describe('CAPABILITIES', () => {
     }
   });
 
+  // HD-15: n8n only triggers the daily maintenance-due sweep; no human role raises it.
+  it('leaves the maintenance-due sweep to the machine account', () => {
+    expect(CAPABILITIES.maintenanceDueNotify).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MANAGER', 'KEPALA_DEPOT']) {
+      expect(can('maintenanceDueNotify', role)).toBe(false);
+    }
+    expect(CUSTOM_FORBIDDEN).toContain('maintenanceDueNotify');
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);

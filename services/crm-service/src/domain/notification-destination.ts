@@ -207,6 +207,9 @@ export function destinationFor(
     // AI-7c: the screen where access is granted (HQ legal entities, the AI access matrix).
     case NotificationEvent.AI_ACCESS_REQUESTED:
       return '/hq/legal-entities';
+    // HD-15: the depot console's maintenance list (in the Ops APK).
+    case NotificationEvent.MAINTENANCE_DUE:
+      return '/dashboard/maintenance';
     case NotificationEvent.MORNING_SUMMARY:
       return /^\/[a-z0-9/-]+$/.test(vars.href ?? '') ? vars.href : INBOX;
     case NotificationEvent.LEAVE_SUBMITTED:

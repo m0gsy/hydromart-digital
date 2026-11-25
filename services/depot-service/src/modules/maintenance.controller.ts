@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { Can, CurrentUser, AuthenticatedUser, assertDepotAccess } from '@hydromart/platform';
 
 import { MaintenanceService } from '../application/services/maintenance.service';
-import { MaintenanceItem } from '../domain/maintenance';
+import { MaintenanceItemView } from '../domain/maintenance';
 import { CreateMaintenanceDto, ListMaintenanceQueryDto } from './dto/maintenance.dto';
 import { MaintenanceItemResponseDto } from './dto/responses.generated.dto';
 
@@ -19,13 +19,14 @@ export class MaintenanceController {
   @ApiOkResponse({ type: MaintenanceItemResponseDto })
   @Post()
   @ApiOperation({ summary: 'Add a maintenance item (status derived from next-due date)' })
-  create(@Body() dto: CreateMaintenanceDto): Promise<MaintenanceItem> {
+  create(@Body() dto: CreateMaintenanceDto): Promise<MaintenanceItemView> {
     return this.maintenance.create({
       depotId: dto.depotId,
       name: dto.name,
       category: dto.category,
-      intervalDays: dto.intervalDays,
-      nextDueAt: new Date(dto.nextDueAt),
+      intervalDays: dto.intervalDays ?? null,
+      intervalM3: dto.intervalM3 ?? null,
+      nextDueAt: dto.nextDueAt ? new Date(dto.nextDueAt) : undefined,
       lastServicedAt: dto.lastServicedAt ? new Date(dto.lastServicedAt) : null,
       note: dto.note ?? null,
     });
@@ -34,7 +35,7 @@ export class MaintenanceController {
   @ApiOkResponse({ type: MaintenanceItemResponseDto, isArray: true })
   @Get()
   @ApiOperation({ summary: "List a depot's maintenance items (next-due first), status recomputed" })
-  list(@Query() query: ListMaintenanceQueryDto): Promise<MaintenanceItem[]> {
+  list(@Query() query: ListMaintenanceQueryDto): Promise<MaintenanceItemView[]> {
     return this.maintenance.list(query.depotId);
   }
 
@@ -44,7 +45,7 @@ export class MaintenanceController {
   async markServiced(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<MaintenanceItem> {
+  ): Promise<MaintenanceItemView> {
     assertDepotAccess(user, (await this.maintenance.get(id)).depotId);
     return this.maintenance.markServiced(id);
   }

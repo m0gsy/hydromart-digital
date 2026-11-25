@@ -428,6 +428,14 @@ loopback only.
   predicate). A tick that finds more than 200 unpaid orders (1000 subscriptions, 500 point lots) answers
   `truncated: true` and logs a warning; the oldest are served first and the next tick takes the rest.
   WhatsApp stays `pending` in every answer until per-number consent (HD-13) exists.
+- **Scopes** (HD-15): a further capability, `maintenanceDueNotify`, for n8n's daily maintenance sweep
+  (`POST crm/api/v1/notifications/external/maintenance-due`, body `{"date":"<today WIB>"}`,
+  contracts/ai-v1/notifications.openapi.json). `aiweb-secrets.sh` adds it to n8n's `MACHINE_ACCOUNTS` entry on the
+  first deploy after the release holding it is the last good one; until then the route answers 403 to n8n. n8n
+  should call it once a day at 07:30 WIB; hydromart tells the depot's Kepala, the supervisors over it and HQ Operasional
+  of each item due by days or by water volume, once and then every 3 days while it stays due. crm needs
+  `DEPOT_SERVICE_URL` (already set); depot-service needs `ORDER_SERVICE_URL` (already set) to read the meter volume.
+  A 503 means the due items, a recipient list or a recipient could not be read: rerun the same body the SAME WIB day.
 - **Nightly** at 04:40 [`scripts/aiweb-n8n-check.sh`](scripts/aiweb-n8n-check.sh) (log
   `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is
   published, and the credentials n8n holds, must be what the image's copy of git holds. A drift

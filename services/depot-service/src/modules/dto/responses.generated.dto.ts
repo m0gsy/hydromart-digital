@@ -915,7 +915,7 @@ export class StockMovementResponseDto {
   createdAt!: string;
 }
 
-/** Mirrors `MaintenanceItem` exactly — generated for audit D-6, no field added or removed. */
+/** Mirrors `MaintenanceItemView` (HD-15): the item plus what the calendar and the meter say. */
 export class MaintenanceItemResponseDto {
   @ApiProperty({ type: String })
   id!: string;
@@ -925,14 +925,24 @@ export class MaintenanceItemResponseDto {
   name!: string;
   @ApiProperty({ type: String })
   category!: string;
-  @ApiProperty({ type: Number })
-  intervalDays!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  intervalDays!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  intervalM3!: number | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastServicedAt!: string | null;
-  @ApiProperty({ type: String, format: 'date-time' })
-  nextDueAt!: string;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  nextDueAt!: string | null;
   @ApiProperty({ enum: ['DUE', 'SOON', 'HEALTHY', 'NEW'] })
   status!: string;
+  @ApiProperty({ type: Number })
+  daysSinceService!: number;
+  @ApiProperty({ type: Number, nullable: true })
+  m3SinceService!: number | null;
+  @ApiProperty({ type: Number, nullable: true })
+  meterDaysMissing!: number | null;
+  @ApiProperty({ enum: ['DAYS', 'VOLUME'], nullable: true })
+  dueBy!: string | null;
   @ApiProperty({ type: String, nullable: true })
   note!: string | null;
   @ApiProperty({ type: String, format: 'date-time' })

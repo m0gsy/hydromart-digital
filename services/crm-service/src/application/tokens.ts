@@ -25,4 +25,6 @@ export const CRM_TOKENS = {
   LegalEntityNames: Symbol('LegalEntityNames'),
   // HD-18: who the customer reminders are for (order-service, loyalty-service).
   CustomerReminderSource: Symbol('CustomerReminderSource'),
+  // HD-15: the items due for service by days or water volume (depot-service).
+  MaintenanceDue: Symbol('MaintenanceDue'),
 } as const;

@@ -10,6 +10,8 @@ import { CampaignService } from '../application/services/campaign.service';
 import { SavedSegmentService } from '../application/services/saved-segment.service';
 import { NotificationService } from '../application/services/notification.service';
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
+import { MaintenanceDueService } from '../application/services/maintenance-due.service';
+import { MaintenanceDueHttpAdapter } from '../infrastructure/http/maintenance-due.http.adapter';
 import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { CustomerReminderService } from '../application/services/customer-reminder.service';
 import { CustomerReminderSourceHttpAdapter } from '../infrastructure/http/customer-reminder-source.http.adapter';
@@ -58,6 +60,8 @@ const providers: Provider[] = [
   NotificationService,
   MorningSummaryService,
   AiAccessRequestService,
+  MaintenanceDueService,
+  { provide: CRM_TOKENS.MaintenanceDue, useClass: MaintenanceDueHttpAdapter },
   BroadcastService,
   PushService,
   { provide: CRM_TOKENS.CampaignRepository, useClass: CampaignPrismaRepository },

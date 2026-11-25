@@ -1,6 +1,20 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsISO8601, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsISO8601,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  Max,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { IsNotBefore, IsWithinDays, decimalMax } from '@hydromart/platform';
 
 /**
@@ -94,4 +108,31 @@ export class MeterHistoryQueryDto {
   @IsNotBefore('from')
   @IsWithinDays('from')
   to?: string;
+}
+
+/** HD-15: one depot and the WIB days (inclusive) whose meter volume is asked for. */
+export class MeterVolumeRangeDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ example: '2026-11-01' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
+  from!: string;
+
+  @ApiProperty({ example: '2026-11-24' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsISO8601({ strict: true })
+  to!: string;
+}
+
+export class MeterVolumeDto {
+  @ApiProperty({ type: [MeterVolumeRangeDto], description: 'At most 200 ranges.' })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => MeterVolumeRangeDto)
+  ranges!: MeterVolumeRangeDto[];
 }

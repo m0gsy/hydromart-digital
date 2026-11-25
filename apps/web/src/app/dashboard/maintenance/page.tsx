@@ -16,9 +16,12 @@ import { useAsync } from '@/lib/use-async';
 import type { MaintenanceItem } from '@/lib/types';
 
 /** Days between now and nextDueAt — drives the SOON "N hari lagi" label. */
-function daysUntil(iso: string): number {
-  return Math.round((new Date(iso).getTime() - Date.now()) / 86_400_000);
+function daysUntil(iso: string | null): number {
+  return iso ? Math.round((new Date(iso).getTime() - Date.now()) / 86_400_000) : 0;
 }
+
+/** Cubic metres as the depot reads them: at most one decimal. */
+const m3Text = (n: number): string => (Math.round(n * 10) / 10).toLocaleString('id-ID');
 
 type TFn = (k: string, v?: Record<string, string | number>) => string;
 
@@ -32,7 +35,16 @@ function StatusBadge({ item }: { item: MaintenanceItem }) {
   const { t } = useT();
   switch (item.status) {
     case 'DUE':
-      return <Badge tone="danger">{t('dashB.maintenance.due')}</Badge>;
+      return (
+        <div className="flex flex-col items-end gap-1">
+          <Badge tone="danger">{t('dashB.maintenance.due')}</Badge>
+          {item.dueBy && (
+            <span className="text-[11.5px] text-[color:var(--text-muted)]">
+              {t(item.dueBy === 'VOLUME' ? 'dashB.maintenance.dueByVolume' : 'dashB.maintenance.dueByDays')}
+            </span>
+          )}
+        </div>
+      );
     case 'SOON':
       return <Badge tone="warning">{t('dashB.maintenance.soon', { n: Math.max(daysUntil(item.nextDueAt), 0) })}</Badge>;
     case 'NEW':
@@ -60,9 +72,22 @@ function ItemCard({ item, onChanged }: { item: MaintenanceItem; onChanged: () =>
   }
 
   const meta = [
-    intervalLabel(item.intervalDays, t),
+    item.intervalDays !== null ? intervalLabel(item.intervalDays, t) : null,
+    item.intervalM3 !== null ? t('dashB.maintenance.everyM3', { n: m3Text(item.intervalM3) }) : null,
     item.lastServicedAt ? t('dashB.maintenance.lastServiced', { time: formatDateTime(item.lastServicedAt) }) : null,
-    t('dashB.maintenance.next', { time: formatDateTime(item.nextDueAt) }),
+    item.nextDueAt ? t('dashB.maintenance.next', { time: formatDateTime(item.nextDueAt) }) : null,
+  ].filter(Boolean);
+  // Where the item stands against each limit; an unreadable meter is said so, never shown as 0 m3.
+  const progress = [
+    item.intervalDays !== null ? t('dashB.maintenance.sinceService', { days: item.daysSinceService }) : null,
+    item.intervalM3 !== null
+      ? item.m3SinceService === null
+        ? t('dashB.maintenance.m3Unknown')
+        : t('dashB.maintenance.m3Since', { m3: m3Text(item.m3SinceService) })
+      : null,
+    item.meterDaysMissing
+      ? t('dashB.maintenance.meterMissing', { n: item.meterDaysMissing })
+      : null,
   ].filter(Boolean);
 
   return (
@@ -75,6 +100,9 @@ function ItemCard({ item, onChanged }: { item: MaintenanceItem; onChanged: () =>
         <p className="text-[12.5px] text-[color:var(--text-muted)]">
           {item.category} · {meta.join(' · ')}
         </p>
+        {progress.length > 0 && (
+          <p className="text-[12.5px] tabular-nums text-[color:var(--text-muted)]">{progress.join(' · ')}</p>
+        )}
         {error && (
           <p className="mt-1 text-xs font-medium text-[color:var(--danger)]" role="alert">
             {error}
@@ -97,13 +125,15 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
   const [intervalDays, setIntervalDays] = useState('');
+  const [intervalM3, setIntervalM3] = useState('');
   const [nextDueAt, setNextDueAt] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function submit() {
     const interval = Number(intervalDays);
-    if (!name.trim() || !category.trim() || !interval || !nextDueAt) {
+    const volume = Number(intervalM3.replace(',', '.'));
+    if (!name.trim() || !category.trim() || (!interval && !volume)) {
       setError(t('dashB.maintenance.requiredError'));
       return;
     }
@@ -116,8 +146,9 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
           depotId,
           name: name.trim(),
           category: category.trim(),
-          intervalDays: interval,
-          nextDueAt: new Date(nextDueAt).toISOString(),
+          ...(interval ? { intervalDays: interval } : {}),
+          ...(volume ? { intervalM3: volume } : {}),
+          ...(interval && nextDueAt ? { nextDueAt: new Date(nextDueAt).toISOString() } : {}),
         },
         true,
       );
@@ -148,10 +179,21 @@ function CreateForm({ depotId, onDone }: { depotId: string; onDone: () => void }
             placeholder="90"
           />
         </Field>
+        <Field label={t('dashB.maintenance.volumeLabel')} htmlFor="m-m3">
+          <Input
+            id="m-m3"
+            type="number"
+            inputMode="decimal"
+            value={intervalM3}
+            onChange={(e) => setIntervalM3(e.target.value)}
+            placeholder="500"
+          />
+        </Field>
         <Field label={t('dashB.maintenance.nextLabel')} htmlFor="m-next">
           <Input id="m-next" type="date" value={nextDueAt} onChange={(e) => setNextDueAt(e.target.value)} />
         </Field>
       </div>
+      <p className="text-xs text-[color:var(--text-muted)]">{t('dashB.maintenance.limitHint')}</p>
       {error && (
         <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}

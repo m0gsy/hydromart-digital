@@ -13,9 +13,10 @@ interface MaintenanceRow {
   depotId: string;
   name: string;
   category: string;
-  intervalDays: number;
+  intervalDays: number | null;
+  intervalM3?: { toString(): string } | null;
   lastServicedAt: Date | null;
-  nextDueAt: Date;
+  nextDueAt: Date | null;
   status: string;
   note: string | null;
   createdAt: Date;
@@ -27,7 +28,11 @@ export class MaintenancePrismaRepository implements MaintenanceRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   private toRecord(row: MaintenanceRow): MaintenanceItem {
-    return { ...row, status: row.status as MaintenanceStatus };
+    return {
+      ...row,
+      intervalM3: row.intervalM3 ? Number(row.intervalM3.toString()) : null,
+      status: row.status as MaintenanceStatus,
+    };
   }
 
   async create(data: CreateMaintenanceData): Promise<MaintenanceItem> {
@@ -38,9 +43,18 @@ export class MaintenancePrismaRepository implements MaintenanceRepository {
   async listForDepot(depotId: string): Promise<MaintenanceItem[]> {
     const rows = await this.prisma.maintenanceItem.findMany({
       where: { depotId },
-      orderBy: { nextDueAt: 'asc' },
+      orderBy: { nextDueAt: { sort: 'asc', nulls: 'last' } },
     });
     return rows.map((r) => this.toRecord(r));
+  }
+
+  async listAllActive(): Promise<Array<MaintenanceItem & { depotName: string }>> {
+    const rows = await this.prisma.maintenanceItem.findMany({
+      where: { depot: { active: true } },
+      include: { depot: { select: { name: true } } },
+      orderBy: [{ depotId: 'asc' }, { createdAt: 'asc' }],
+    });
+    return rows.map(({ depot, ...row }) => ({ ...this.toRecord(row), depotName: depot.name }));
   }
 
   async findById(id: string): Promise<MaintenanceItem | null> {

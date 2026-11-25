@@ -25,6 +25,7 @@ import { AiQueuesService } from '../application/services/ai-queues.service';
 import { AI_QUEUES_REPOSITORY } from '../application/ports/ai-queues.repository';
 import { AiQueuesPrismaRepository } from '../infrastructure/prisma/ai-queues.prisma.repository';
 import { AiQueuesController } from './ai-queues.controller';
+import { MaintenanceInternalController } from './maintenance-internal.controller';
 import { PricingService } from '../application/services/pricing.service';
 import { GallonReturnService } from '../application/services/gallon-return.service';
 import { GallonIssueService } from '../application/services/gallon-issue.service';
@@ -54,6 +55,7 @@ import { DailyClosePrismaRepository } from '../infrastructure/prisma/daily-close
 import { MonthlyClosePrismaRepository } from '../infrastructure/prisma/monthly-close.prisma.repository';
 import { CourierCodHttpAdapter } from '../infrastructure/http/courier-cod.http.adapter';
 import { OrderSubscriptionHttpAdapter } from '../infrastructure/http/order-subscription.http.adapter';
+import { MeterVolumeHttpAdapter } from '../infrastructure/http/meter-volume.http.adapter';
 import { OrderLedgerHttpAdapter } from '../infrastructure/http/order-ledger.http.adapter';
 import { DisputeService } from '../application/services/dispute.service';
 import { DisputeRefundHttpAdapter } from '../infrastructure/http/dispute-refund.http.adapter';
@@ -252,6 +254,7 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.SubscriptionRepository, useClass: SubscriptionPrismaRepository },
   { provide: DEPOT_TOKENS.OrderSubscriptionPort, useClass: OrderSubscriptionHttpAdapter },
   { provide: DEPOT_TOKENS.OrderLedger, useClass: OrderLedgerHttpAdapter },
+  { provide: DEPOT_TOKENS.MeterVolume, useClass: MeterVolumeHttpAdapter },
   { provide: DEPOT_TOKENS.HuddleRepository, useClass: HuddlePrismaRepository },
   { provide: DEPOT_TOKENS.HandoverRepository, useClass: HandoverPrismaRepository },
   {
@@ -307,6 +310,7 @@ const providers: Provider[] = [
     PurchaseOrderController,
     AiStockController,
     AiQueuesController,
+    MaintenanceInternalController,
     RosterController,
     DepotTargetController,
     DepotTargetInternalController,

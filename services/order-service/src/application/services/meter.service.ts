@@ -106,6 +106,26 @@ export class MeterService {
     return localDayKey(now, this.config.businessTimeZone);
   }
 
+  /**
+   * HD-15: the water through one depot's meter over WIB days `from`..`to` inclusive, for
+   * volume-based maintenance. Only a CLOSED day counts, as closing minus opening; a day with no
+   * closing, or a closing below its opening (a typo or a replaced meter), adds nothing and is
+   * not a reading day, so the caller sees how many days the figure rests on.
+   */
+  async volume(
+    depotId: string,
+    from: string,
+    to: string,
+  ): Promise<{ m3: number; readingDays: number; spanDays: number }> {
+    const spanDays =
+      from > to ? 0 : (Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / 86_400_000 + 1;
+    if (spanDays === 0) return { m3: 0, readingDays: 0, spanDays };
+    const rows = await this.readings.listForRange(depotId, from, to);
+    const used = rows.filter((r) => r.closingM3 !== null && r.closingM3 >= r.openingM3);
+    const m3 = used.reduce((sum, r) => sum + (r.closingM3! - r.openingM3), 0);
+    return { m3: Math.round(m3 * 1000) / 1000, readingDays: used.length, spanDays };
+  }
+
   /** The WIB day key `n` days before the day key `day`. */
   dayKeyBefore(day: string, n: number): string {
     const tz = this.config.businessTimeZone;

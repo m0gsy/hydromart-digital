@@ -544,6 +544,14 @@ export class MaintenanceItemNotFoundError extends DomainError {
   }
 }
 
+export class MaintenanceIntervalRequiredError extends DomainError {
+  readonly code = 'MAINTENANCE_INTERVAL_REQUIRED';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('Isi interval hari, batas volume air (m3), atau keduanya.');
+  }
+}
+
 export class WholesaleTierNotFoundError extends DomainError {
   readonly code = 'WHOLESALE_TIER_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

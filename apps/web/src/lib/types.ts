@@ -942,6 +942,8 @@ export type NotificationEvent =
   | 'SUBSCRIPTION_TOMORROW'
   | 'POINTS_EXPIRING'
   | 'UNPAID_ORDER'
+  // HD-15: depot equipment due for service by days or water volume, one row per recipient.
+  | 'MAINTENANCE_DUE'
   | 'VOUCHER_EXPIRING'
   | 'COURIER_DELIVERY_ASSIGNED'
   | 'DELIVERY_SLA_BREACHED'
@@ -994,6 +996,7 @@ export const OPS_EVENTS = [
   'FRANCHISE_APPLICATION_SUBMITTED',
   'MORNING_SUMMARY',
   'AI_ACCESS_REQUESTED',
+  'MAINTENANCE_DUE',
   'COURIER_DELIVERY_ASSIGNED',
   'DELIVERY_SLA_BREACHED',
   'STOCK_LOW',
@@ -2900,7 +2903,7 @@ export interface SecurityPolicy {
 
 // Per-admin notification prefs (23a). Event ids are canonical; labels are i18n on the web.
 export type NotificationEventId =
-  'criticalSla' | 'newFranchiseApp' | 'morningSummary' | 'aiAccessRequest' | 'payoutPending' | 'systemIncident' | 'dailyDigest';
+  'criticalSla' | 'newFranchiseApp' | 'morningSummary' | 'aiAccessRequest' | 'maintenanceDue' | 'payoutPending' | 'systemIncident' | 'dailyDigest';
 export interface NotificationChannelPref {
   id: NotificationEventId;
   push: boolean;
@@ -3436,17 +3439,28 @@ export interface OrderDispute {
   updatedAt: string;
 }
 
-// Equipment maintenance (14a). status derived from nextDueAt at read time.
+// Equipment maintenance (14a). Due by days OR by water volume, whichever comes first (HD-15);
+// status is derived from nextDueAt and the meter at read time.
 export type MaintenanceStatus = 'DUE' | 'SOON' | 'HEALTHY' | 'NEW';
 export interface MaintenanceItem {
   id: string;
   depotId: string;
   name: string;
   category: string;
-  intervalDays: number;
+  /** Null for a volume-only item. */
+  intervalDays: number | null;
+  /** Cubic metres through the depot meter between services; null for a days-only item. */
+  intervalM3: number | null;
   lastServicedAt: string | null;
-  nextDueAt: string;
+  /** Null for a volume-only item. */
+  nextDueAt: string | null;
   status: MaintenanceStatus;
+  daysSinceService: number;
+  /** Null when there is no volume limit or the meter could not be read; never 0 for "unknown". */
+  m3SinceService: number | null;
+  /** Complete days since the service with no closed meter reading. */
+  meterDaysMissing: number | null;
+  dueBy: 'DAYS' | 'VOLUME' | null;
   note: string | null;
   createdAt: string;
   updatedAt: string;

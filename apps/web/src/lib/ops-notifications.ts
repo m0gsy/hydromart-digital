@@ -59,6 +59,8 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   MORNING_SUMMARY: 'orders',
   // AI-7c: a request waiting for a decision, the same bucket.
   AI_ACCESS_REQUESTED: 'orders',
+  // HD-15: equipment maintenance is a depot upkeep matter, filed with stock.
+  MAINTENANCE_DUE: 'stock',
   COURIER_DELIVERY_ASSIGNED: 'courier',
   DELIVERY_SLA_BREACHED: 'courier',
   STOCK_LOW: 'stock',

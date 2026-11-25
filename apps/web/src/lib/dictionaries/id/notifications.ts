@@ -40,6 +40,7 @@ export const notifications = {
     REFUND_REQUESTED: 'Refund menunggu persetujuan',
     FRANCHISE_APPLICATION_SUBMITTED: 'Lamaran waralaba baru',
     MORNING_SUMMARY: 'Persetujuan menunggu Anda',
+    MAINTENANCE_DUE: 'Perawatan alat jatuh tempo',
     AI_ACCESS_REQUESTED: 'Permintaan akses AI web',
     SUBSCRIPTION_TOMORROW: 'Langganan diantar besok',
     POINTS_EXPIRING: 'Poin segera hangus',

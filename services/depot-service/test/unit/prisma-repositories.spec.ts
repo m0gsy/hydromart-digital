@@ -2693,6 +2693,7 @@ describe('MaintenancePrismaRepository', () => {
     name: 'RO filter',
     category: 'FILTER',
     intervalDays: 30,
+    intervalM3: null,
     lastServicedAt: null,
     nextDueAt: new Date('2026-02-01'),
     status: 'DUE',
@@ -2715,8 +2716,17 @@ describe('MaintenancePrismaRepository', () => {
     await repo.listForDepot('depot-1');
     expect(model.findMany).toHaveBeenCalledWith({
       where: { depotId: 'depot-1' },
-      orderBy: { nextDueAt: 'asc' },
+      orderBy: { nextDueAt: { sort: 'asc', nulls: 'last' } },
     });
+  });
+
+  it('maps a volume limit to a number and lists every active depot item with the depot name', async () => {
+    model.findMany.mockResolvedValue([{ ...row, intervalM3: { toString: () => '500.5' }, depot: { name: 'Cikini' } }]);
+    const out = await repo.listAllActive();
+    expect(model.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { depot: { active: true } } }),
+    );
+    expect(out).toEqual([expect.objectContaining({ id: 'mt-1', intervalM3: 500.5, depotName: 'Cikini' })]);
   });
 
   it('finds by id, null on miss', async () => {
