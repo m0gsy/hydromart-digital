@@ -1,12 +1,16 @@
 import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import {
-  dueKey,
-  dueReason,
+  depotDigest,
+  depotKey,
+  hqDigest,
+  hqKey,
+  ITEMS_PER_DIGEST,
   MAINTENANCE_DUE_DEPOT_ROLE,
   MAINTENANCE_DUE_HQ_ROLES,
-  recentlyTold,
   REMINDER_EVERY_DAYS,
+  tagOf,
+  toldBy,
 } from '../../domain/maintenance-due';
 import { NotificationEvent } from '../../domain/notification-event';
 import { ApproverDirectoryPort } from '../ports/approver-directory.port';
@@ -22,20 +26,31 @@ export interface MaintenanceDueResult {
   depots: number;
   /** Items due or overdue. */
   items: number;
-  /** Notifications filed in this call (a retry files none twice). */
+  /** Notifications filed in this call (what a retry already filed is not filed or counted again). */
   notified: number;
-  /** Items left out because they were told about less than REMINDER_EVERY_DAYS ago. */
+  /** Items no one needed telling about this run: everyone was told less than REMINDER_EVERY_DAYS ago. */
   remindLater: number;
   whatsapp: 'pending';
 }
 
+/** Notifications written at the same time: a handful, not one per recipient at once. */
+const CONCURRENCY = 5;
+
+interface Job {
+  recipient: string;
+  key: string;
+  vars: { depot: string; items: string };
+}
+
 /**
  * HD-15: n8n only says "now" (07.30 WIB). Which items are due, who is told and what it says are
- * hydromart's. Per due item, once, and then a reminder every REMINDER_EVERY_DAYS days while it
- * stays due; each recipient gets their own row (bell and push, email through the same path as
- * every staff kind). Recipients: the depot's Kepala, the supervisors over the depot (its assistant
- * supervisor and everyone above), and HQ Operasional (HEAD_OFFICE, all depots). WhatsApp is
- * reported `pending` until Meta is ready and never faked.
+ * hydromart's. Told per (item, recipient): the first day an item is found due for that person,
+ * then again every REMINDER_EVERY_DAYS days while it stays due. Recipients get a DIGEST, not a
+ * row per item: the depot's Kepala and the supervisors over it one row per depot listing its due
+ * items; HQ Operasional (HEAD_OFFICE) one row per run with the due count per depot. Bell and push,
+ * email through the same path as every staff kind; WhatsApp is reported `pending`, never faked.
+ * The dedupe keys carry the memory of who was told what, so a person who was not reached (or a
+ * newly appointed Kepala) is told on the next run, not three days later.
  */
 @Injectable()
 export class MaintenanceDueService {
@@ -59,7 +74,7 @@ export class MaintenanceDueService {
       throw new ServiceUnavailableException(`The ${what} could not be read; retry`);
     };
     const items = await this.due.dueItems().catch(unreadable('due items'));
-    const told = recentlyTold(
+    const told = toldBy(
       await this.notifications
         .recentDedupeKeys(
           NotificationEvent.MAINTENANCE_DUE,
@@ -68,49 +83,68 @@ export class MaintenanceDueService {
         .catch(unreadable('earlier notices')),
       date,
     );
-    const toTell = items.filter((i) => !told.has(`${i.id}:${i.cycleStart}`));
-    const hq = toTell.length > 0 ? await this.hq().catch(unreadable('HQ recipients')) : [];
+
+    const jobs: Job[] = [];
+    const reached = new Set<string>();
+    if (items.length > 0) {
+      const hq = await this.hq().catch(unreadable('HQ recipients'));
+      for (const recipient of hq.filter((id) => !told.has(`hq|${id}`))) {
+        jobs.push({ recipient, key: hqKey(date, recipient), vars: hqDigest(items) });
+        items.forEach((i) => reached.add(i.id));
+      }
+    }
     const byDepot = new Map<string, DueMaintenance[]>();
-    for (const i of toTell) byDepot.set(i.depotId, [...(byDepot.get(i.depotId) ?? []), i]);
+    for (const i of items) byDepot.set(i.depotId, [...(byDepot.get(i.depotId) ?? []), i]);
+    for (const [depotId, depotItems] of byDepot) {
+      const recipients = await this.depotRecipients(depotId).catch(unreadable('recipients'));
+      for (const recipient of recipients) {
+        const known = told.get(`${depotId}|${recipient}`);
+        const pending = depotItems.filter((i) => !known?.has(tagOf(i)));
+        for (let at = 0; at < pending.length; at += ITEMS_PER_DIGEST) {
+          const group = pending.slice(at, at + ITEMS_PER_DIGEST);
+          jobs.push({ recipient, key: depotKey(depotId, date, recipient, group), vars: depotDigest(group) });
+          group.forEach((i) => reached.add(i.id));
+        }
+      }
+    }
 
     let notified = 0;
     let failed = 0;
-    for (const [depotId, depotItems] of byDepot) {
-      const recipients = await this.depotRecipients(depotId, hq).catch(unreadable('recipients'));
-      for (const item of depotItems) {
-        for (const id of recipients) {
+    for (let at = 0; at < jobs.length; at += CONCURRENCY) {
+      await Promise.all(
+        jobs.slice(at, at + CONCURRENCY).map(async (job) => {
           try {
             await this.notifications.notify(
               NotificationEvent.MAINTENANCE_DUE,
               '',
-              { depot: item.depotName, item: item.name, reason: dueReason(item) },
-              id,
+              job.vars,
+              job.recipient,
               null,
-              dueKey(item, date, id),
+              job.key,
             );
             notified += 1;
           } catch (e) {
             failed += 1;
-            this.logger.warn(`maintenance due ${item.id} for ${id} failed: ${(e as Error).message}`);
+            this.logger.warn(`maintenance due for ${job.recipient} failed: ${(e as Error).message}`);
           }
-        }
-      }
+        }),
+      );
     }
     if (failed > 0) {
       throw new ServiceUnavailableException(`${failed} recipient(s) could not be told; retry`);
     }
     return {
       date,
-      depots: new Set(items.map((i) => i.depotId)).size,
+      depots: byDepot.size,
       items: items.length,
       notified,
-      remindLater: items.length - toTell.length,
+      remindLater: items.filter((i) => !reached.has(i.id)).length,
       whatsapp: 'pending',
     };
   }
 
-  /** The depot's Kepala, the people over the depot, and HQ: one set, no one twice. */
-  private async depotRecipients(depotId: string, hq: readonly string[]): Promise<string[]> {
+  /** The depot's Kepala and the people over the depot: one set, no one twice. HQ has its own digest. */
+  private async depotRecipients(depotId: string): Promise<string[]> {
     const [staffIds, overseers] = await Promise.all([
       this.staff.staffIdsForDepot(depotId),
       this.overseers.overseersOfDepot(depotId),
@@ -118,7 +152,7 @@ export class MaintenanceDueService {
     const roles =
       staffIds.length > 0 ? await this.directory.rolesOf(staffIds) : new Map<string, string>();
     const kepala = staffIds.filter((id) => roles.get(id) === MAINTENANCE_DUE_DEPOT_ROLE);
-    return [...new Set([...kepala, ...overseers, ...hq])];
+    return [...new Set([...kepala, ...overseers])];
   }
 
   /** Active accounts holding an HQ Operasional role, re-checked against their current role. */

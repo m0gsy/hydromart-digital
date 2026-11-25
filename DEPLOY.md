@@ -435,7 +435,19 @@ loopback only.
   should call it once a day at 07:30 WIB; hydromart tells the depot's Kepala, the supervisors over it and HQ Operasional
   of each item due by days or by water volume, once and then every 3 days while it stays due. crm needs
   `DEPOT_SERVICE_URL` (already set); depot-service needs `ORDER_SERVICE_URL` (already set) to read the meter volume.
-  A 503 means the due items, a recipient list or a recipient could not be read: rerun the same body the SAME WIB day.
+  A 503 means the due items, the meter volume, a recipient list or a recipient could not be read: rerun the same
+  body the SAME WIB day (an unreadable meter is an error, never "nothing due").
+  Each person is told per item: the depot's Kepala and the supervisors over it get one digest per depot listing its due
+  items, HQ Operasional (every HEAD_OFFICE account) one digest per run with the due count per depot. A person not
+  reached is told on the next run; everyone else is reminded every 3 days while an item stays due.
+  **First run after the release:** every item already past its date (or over its volume) is found due at once, so each
+  Kepala, overseer and HQ account gets one digest row (bell, push, email) on that first call, then reminders every 3
+  days. Run it by hand from the n8n editor in working hours the first time, not at 07:30.
+  **Rollout order:** depot-service's migration `20261125200000_maintenance_volume_limit` makes `intervalDays` and
+  `nextDueAt` nullable. A release from before it reads both without a null check, so a volume-only item (no day
+  interval) created while old and new depot-service run side by side makes the old one answer 500 on that depot's
+  maintenance list. Do not create volume-only items until the rollout has finished, and a code rollback needs
+  `rollback.sql` of that migration too (it resets items due by volume to "healthy for 365 days").
 - **Nightly** at 04:40 [`scripts/aiweb-n8n-check.sh`](scripts/aiweb-n8n-check.sh) (log
   `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is
   published, and the credentials n8n holds, must be what the image's copy of git holds. A drift

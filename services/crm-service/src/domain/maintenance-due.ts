@@ -4,17 +4,56 @@ import { DueMaintenance } from '../application/ports/maintenance-due.port';
 export const MAINTENANCE_DUE_HQ_ROLES: readonly string[] = ['HEAD_OFFICE'];
 export const MAINTENANCE_DUE_DEPOT_ROLE = 'KEPALA_DEPOT';
 
-/** First notice when an item becomes due, then one reminder every this many days while it stays due. */
+/** First notice when an item is found due, then one reminder every this many days while it stays due. */
 export const REMINDER_EVERY_DAYS = 3;
+/** Items named in one depot digest's row (the rest is counted), and items remembered per digest key. */
+const LISTED_ITEMS = 5;
+export const ITEMS_PER_DIGEST = 30;
+const LISTED_DEPOTS = 6;
 
 const DAY_MS = 86_400_000;
-const KEY = /^maintenance-due:([0-9a-f-]{36}):(\d{4}-\d{2}-\d{2}):(\d{4}-\d{2}-\d{2}):/;
+const KEY = /^maintenance-due:([0-9a-f-]{36}|hq):(\d{4}-\d{2}-\d{2}):([^:]+):(.*)$/;
 
 const num = (n: number): string => n.toLocaleString('id-ID', { maximumFractionDigits: 1 });
 
-/** The dedupe key of one item, one cycle, one WIB day, one recipient. */
-export const dueKey = (item: DueMaintenance, date: string, recipientId: string): string =>
-  `maintenance-due:${item.id}:${item.cycleStart}:${date}:${recipientId}`;
+/** What identifies one item in one due cycle inside a key: its id's head and the day the cycle began. */
+export const tagOf = (item: DueMaintenance): string =>
+  `${item.id.slice(0, 8)}${item.cycleStart.replace(/-/g, '')}`;
+
+/**
+ * The dedupe key of one depot digest: the depot, the WIB day, the recipient and the items it
+ * lists (at most ITEMS_PER_DIGEST). The key IS the memory of who was told what, so a later run
+ * decides per (item, recipient) without a table of its own.
+ */
+export const depotKey = (
+  depotId: string,
+  date: string,
+  recipientId: string,
+  items: readonly DueMaintenance[],
+): string => `maintenance-due:${depotId}:${date}:${recipientId}:${items.map(tagOf).join('.')}`;
+
+/** HQ gets one digest per run, whatever is due: the key says only that this person had it today. */
+export const hqKey = (date: string, recipientId: string): string =>
+  `maintenance-due:hq:${date}:${recipientId}:-`;
+
+/**
+ * Who was told what in the last REMINDER_EVERY_DAYS days (today included, so a retry of this very
+ * run finds its own earlier rows): `<scope>|<recipient>` to the item tags in their digests.
+ */
+export function toldBy(keys: readonly string[], date: string): Map<string, Set<string>> {
+  const told = new Map<string, Set<string>>();
+  for (const key of keys) {
+    const m = KEY.exec(key);
+    if (!m) continue;
+    const ageDays = (Date.parse(date) - Date.parse(m[2])) / DAY_MS;
+    if (ageDays < 0 || ageDays >= REMINDER_EVERY_DAYS) continue;
+    const at = `${m[1]}|${m[3]}`;
+    const tags = told.get(at) ?? new Set<string>();
+    for (const tag of m[4].split('.')) tags.add(tag);
+    told.set(at, tags);
+  }
+  return told;
+}
 
 /** The words for one item: which limit it reached and by how much. */
 export function dueReason(item: DueMaintenance): string {
@@ -23,18 +62,25 @@ export function dueReason(item: DueMaintenance): string {
     : `sudah ${item.daysSinceService} hari dari batas ${item.intervalDays ?? item.daysSinceService} hari`;
 }
 
-/**
- * The items already told about within the reminder window: keys of earlier WIB days (a key of
- * `date` itself is this very run's retry and never blocks it) less than REMINDER_EVERY_DAYS old.
- * Returned as `<itemId>:<cycleStart>`.
- */
-export function recentlyTold(keys: readonly string[], date: string): Set<string> {
-  const told = new Set<string>();
-  for (const key of keys) {
-    const m = KEY.exec(key);
-    if (!m || m[3] >= date) continue;
-    const ageDays = (Date.parse(date) - Date.parse(m[3])) / DAY_MS;
-    if (ageDays < REMINDER_EVERY_DAYS) told.add(`${m[1]}:${m[2]}`);
-  }
-  return told;
+/** One depot's digest: its name, and its due items with the reason each is due. */
+export function depotDigest(items: readonly DueMaintenance[]): { depot: string; items: string } {
+  const listed = items.slice(0, LISTED_ITEMS).map((i) => `${i.name} (${dueReason(i)})`);
+  const rest = items.length - listed.length;
+  return {
+    depot: items[0].depotName,
+    items: rest > 0 ? `${listed.join('; ')}; dan ${rest} lainnya` : listed.join('; '),
+  };
+}
+
+/** HQ's digest: how many depots, and the due count of the busiest ones. */
+export function hqDigest(items: readonly DueMaintenance[]): { depot: string; items: string } {
+  const per = new Map<string, number>();
+  for (const i of items) per.set(i.depotName, (per.get(i.depotName) ?? 0) + 1);
+  const ranked = [...per].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const listed = ranked.slice(0, LISTED_DEPOTS).map(([name, n]) => `${name} ${n}`);
+  const rest = ranked.length - listed.length;
+  return {
+    depot: `${ranked.length} depot`,
+    items: `${items.length} item: ${listed.join(', ')}${rest > 0 ? `, dan ${rest} depot lainnya` : ''}`,
+  };
 }

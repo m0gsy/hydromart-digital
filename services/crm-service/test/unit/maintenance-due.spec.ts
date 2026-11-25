@@ -4,7 +4,7 @@ import { validate } from 'class-validator';
 
 import { DueMaintenance } from '../../src/application/ports/maintenance-due.port';
 import { MaintenanceDueService } from '../../src/application/services/maintenance-due.service';
-import { dueKey, dueReason, recentlyTold } from '../../src/domain/maintenance-due';
+import { depotDigest, depotKey, dueReason, hqDigest, hqKey, toldBy } from '../../src/domain/maintenance-due';
 import { destinationFor } from '../../src/domain/notification-destination';
 import {
   NotificationEvent,
@@ -25,8 +25,8 @@ import { NotificationExternalController } from '../../src/modules/notification-e
  */
 const ITEM_A = '11111111-aaaa-4aaa-8aaa-111111111111';
 const ITEM_B = '22222222-bbbb-4bbb-8bbb-222222222222';
-const D1 = 'd1';
-const D2 = 'd2';
+const D1 = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const D2 = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
 const DATE = '2026-11-26';
 
 const item = (over: Partial<DueMaintenance> = {}): DueMaintenance => ({
@@ -67,8 +67,14 @@ function build(over: { items?: DueMaintenance[]; keys?: string[]; notifyFails?: 
   return { service, notify, recentDedupeKeys, dueItems, staffIdsByRoles, staffIdsForDepot, overseersOfDepot };
 }
 
+const tagA = `${ITEM_A.slice(0, 8)}20261013`;
+const tagB = `${ITEM_B.slice(0, 8)}20261013`;
+const dKey = (depot: string, date: string, r: string, tags: string) => `maintenance-due:${depot}:${date}:${r}:${tags}`;
+const hKey = (date: string, r: string) => `maintenance-due:hq:${date}:${r}:-`;
+const D1ID = D1;
+
 describe('MaintenanceDueService', () => {
-  it('tells the depot Kepala (not the other staff), the people over the depot and HQ, once each, with their own key', async () => {
+  it('sends the depot digest to the Kepala (not other staff) and the people over the depot, and ONE HQ digest to each HQ account', async () => {
     const { service, notify, staffIdsByRoles } = build();
     await expect(service.run(DATE)).resolves.toEqual({ date: DATE, depots: 1, items: 1, notified: 5, remindLater: 0, whatsapp: 'pending' });
     expect(staffIdsByRoles).toHaveBeenCalledWith(['HEAD_OFFICE']);
@@ -76,31 +82,57 @@ describe('MaintenanceDueService', () => {
     expect(notify).toHaveBeenCalledWith(
       NotificationEvent.MAINTENANCE_DUE,
       '',
-      { depot: 'Cikini', item: 'Membran RO', reason: 'volume air sudah 520,3 m3 dari batas 500 m3' },
+      { depot: 'Cikini', items: 'Membran RO (volume air sudah 520,3 m3 dari batas 500 m3)' },
       'k1',
       null,
-      `maintenance-due:${ITEM_A}:2026-10-13:${DATE}:k1`,
+      `maintenance-due:${D1}:${DATE}:k1:${tagA}`,
     );
+    expect(notify).toHaveBeenCalledWith(NotificationEvent.MAINTENANCE_DUE, '', { depot: '1 depot', items: '1 item: Cikini 1' }, 'ho1', null, hKey(DATE, 'ho1'));
   });
 
-  it('counts depots and items across the network, one notice set per item', async () => {
-    const { service, notify, overseersOfDepot } = build({
-      items: [item(), item({ id: ITEM_B, name: 'Lampu UV', dueBy: 'DAYS', intervalDays: 30, intervalM3: null, m3SinceService: null, daysSinceService: 45 }), item({ id: 'c', depotId: D2, depotName: 'Bekasi' })],
+  it('sends one row per depot per recipient, not one per item, and HQ one row for the whole network', async () => {
+    const { service, notify } = build({
+      items: [item(), item({ id: ITEM_B, name: 'Lampu UV', dueBy: 'DAYS', intervalDays: 30, intervalM3: null, m3SinceService: null, daysSinceService: 45 }), item({ id: 'c0ffee00-0000-4000-8000-000000000000', depotId: D2, depotName: 'Bekasi' })],
     });
     const out = await service.run(DATE);
-    expect(out).toMatchObject({ depots: 2, items: 3, notified: 5 + 5 + 4 });
-    expect(overseersOfDepot).toHaveBeenCalledTimes(2);
-    expect(notify.mock.calls.filter((c) => (c[2] as { depot: string }).depot === 'Bekasi').map((c) => c[3]).sort()).toEqual(['ho1', 'ho2', 'k2', 'spv1']);
+    expect(out).toMatchObject({ depots: 2, items: 3, notified: 2 + 3 + 2 });
+    const rows = notify.mock.calls.map((c) => [c[3], (c[2] as { depot: string }).depot]);
+    expect(rows.filter(([r]) => r === 'ho1')).toEqual([['ho1', '2 depot']]);
+    expect(rows.filter(([r]) => r === 'k1')).toEqual([['k1', 'Cikini']]);
+    expect(notify.mock.calls.find((c) => c[3] === 'k1')![2]).toMatchObject({ items: expect.stringContaining('Lampu UV (sudah 45 hari dari batas 30 hari)') });
+    expect(notify.mock.calls.find((c) => c[3] === 'ho2')![2]).toEqual({ depot: '2 depot', items: '3 item: Cikini 2, Bekasi 1' });
   });
 
-  it('does not repeat an item told about 1 or 2 days ago, reminds on the 3rd day, and a new cycle is a new item', async () => {
-    const told = (date: string, cycle = '2026-10-13') => `maintenance-due:${ITEM_A}:${cycle}:${date}:k1`;
+  it('decides per (item, recipient): told people are skipped, a recipient who was not reached is told now, a new item is told alone', async () => {
+    const keys = [
+      dKey(D1, '2026-11-25', 'k1', tagA), // k1 has item A
+      dKey(D1, '2026-11-25', 'spv1', tagA),
+      hKey('2026-11-25', 'ho1'),
+      // asst1, ho2 and a new Kepala were never reached (or are new): they are told today
+    ];
+    const { service, notify } = build({
+      keys,
+      items: [item(), item({ id: ITEM_B, name: 'Lampu UV' })],
+    });
+    const out = await service.run(DATE);
+    expect(notify.mock.calls.map((c) => [c[3], (c[2] as { items: string }).items.includes('Membran RO'), (c[2] as { items: string }).items.includes('Lampu UV')]).sort()).toEqual([
+      ['asst1', true, true],
+      ['ho2', false, false],
+      ['k1', false, true],
+      ['spv1', false, true],
+    ]);
+    expect(out.remindLater).toBe(0);
+  });
+
+  it('reminds on the 3rd day, not on the 1st or 2nd, and a new cycle is a new item', async () => {
+    const fresh = (date: string, cycle = '20261013') =>
+      [dKey(D1, date, 'k1', `${ITEM_A.slice(0, 8)}${cycle}`), dKey(D1, date, 'asst1', `${ITEM_A.slice(0, 8)}${cycle}`), dKey(D1, date, 'spv1', `${ITEM_A.slice(0, 8)}${cycle}`), hKey(date, 'ho1'), hKey(date, 'ho2')];
     for (const [keys, expected] of [
-      [[told('2026-11-25')], 0],
-      [[told('2026-11-24')], 0],
-      [[told('2026-11-23')], 5],
-      [[told('2026-11-25', '2026-09-01')], 5],
-      [[`maintenance-due:${ITEM_A}:2026-10-13:${DATE}:k1`], 5],
+      [fresh('2026-11-25'), 0],
+      [fresh('2026-11-24'), 0],
+      [fresh('2026-11-23'), 5],
+      [fresh('2026-11-25', '20260901'), 3],
+      [fresh(DATE), 0],
     ] as const) {
       const { service, notify } = build({ keys: [...keys] });
       const out = await service.run(DATE);
@@ -109,17 +141,11 @@ describe('MaintenanceDueService', () => {
     }
   });
 
-  it('asks nobody for recipients when every item is inside its reminder window', async () => {
-    const { service, staffIdsByRoles, staffIdsForDepot } = build({ keys: [`maintenance-due:${ITEM_A}:2026-10-13:2026-11-25:k1`] });
-    await service.run(DATE);
-    expect(staffIdsByRoles).not.toHaveBeenCalled();
-    expect(staffIdsForDepot).not.toHaveBeenCalled();
-  });
-
-  it('answers zero for a network with nothing due', async () => {
-    const { service, notify } = build({ items: [] });
+  it('answers zero for a network with nothing due and asks nobody for HQ', async () => {
+    const { service, notify, staffIdsByRoles } = build({ items: [] });
     await expect(service.run(DATE)).resolves.toEqual({ date: DATE, depots: 0, items: 0, notified: 0, remindLater: 0, whatsapp: 'pending' });
     expect(notify).not.toHaveBeenCalled();
+    expect(staffIdsByRoles).not.toHaveBeenCalled();
   });
 
   it('is a 503, never "nothing due", when due items, earlier notices, HQ or a depot roster cannot be read', async () => {
@@ -142,6 +168,32 @@ describe('MaintenanceDueService', () => {
     const { service, notify } = build({ notifyFails: 'k1' });
     await expect(service.run(DATE)).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(notify).toHaveBeenCalledTimes(5);
+  });
+
+  it('writes at most 5 notifications at the same time', async () => {
+    let live = 0;
+    let peak = 0;
+    const slow = async () => {
+      live += 1;
+      peak = Math.max(peak, live);
+      await new Promise((r) => setTimeout(r, 5));
+      live -= 1;
+      return { id: 'row' };
+    };
+    const many = Array.from({ length: 12 }, (_, i) => item({ id: `${String(i).padStart(8, '0')}-aaaa-4aaa-8aaa-111111111111`, depotId: `d${i}` }));
+    const b = build({ items: many });
+    b.notify.mockImplementation(slow);
+    await b.service.run(DATE);
+    expect(peak).toBeLessThanOrEqual(5);
+    expect(peak).toBeGreaterThan(1);
+  });
+
+  it('splits a depot with more than 30 due items into several digests, each with its own key', async () => {
+    const many = Array.from({ length: 31 }, (_, i) => item({ id: `${String(i).padStart(8, '0')}-aaaa-4aaa-8aaa-111111111111`, name: `Alat ${i}` }));
+    const { service, notify } = build({ items: many });
+    await service.run(DATE);
+    expect(notify.mock.calls.filter((c) => c[3] === 'k1')).toHaveLength(2);
+    expect(notify.mock.calls.find((c) => c[3] === 'k1')![2]).toMatchObject({ items: expect.stringContaining('dan 25 lainnya') });
   });
 
   it('ignores an HQ account whose role is no longer HQ Operasional', async () => {
@@ -169,23 +221,32 @@ describe('maintenance-due words, keys and reminder window', () => {
     expect(dueReason(item({ dueBy: 'DAYS', intervalDays: 30, daysSinceService: 45 }))).toBe('sudah 45 hari dari batas 30 hari');
     expect(dueReason(item({ m3SinceService: null, intervalM3: null }))).toBe('volume air sudah 0 m3 dari batas 0 m3');
     expect(dueReason(item({ dueBy: 'DAYS', intervalDays: null, daysSinceService: 9 }))).toBe('sudah 9 hari dari batas 9 hari');
-    const vars = { depot: 'Cikini', item: 'Membran RO', reason: 'sudah 45 hari dari batas 30 hari' };
+    const vars = depotDigest([item({ dueBy: 'DAYS', intervalDays: 30, daysSinceService: 45 })]);
     expect(renderMessage(templateFor(NotificationEvent.MAINTENANCE_DUE, 'id'), vars)).toContain('Perawatan jatuh tempo di Cikini: Membran RO (sudah 45 hari');
     expect(renderMessage(templateFor(NotificationEvent.MAINTENANCE_DUE, 'en'), vars)).toContain('Maintenance is due at Cikini: Membran RO');
+  });
+
+  it('lists the busiest depots for HQ and counts the rest', () => {
+    const many = Array.from({ length: 8 }, (_, i) => item({ id: `${i}`, depotId: `d${i}`, depotName: `Depot ${i}` }));
+    expect(hqDigest(many)).toEqual({ depot: '8 depot', items: '8 item: Depot 0 1, Depot 1 1, Depot 2 1, Depot 3 1, Depot 4 1, Depot 5 1, dan 2 depot lainnya' });
   });
 
   it('is for its recipient only, on its own switch, with an email and a tap to the maintenance list', () => {
     expect(PERSONAL_OPS_EVENTS).toContain(NotificationEvent.MAINTENANCE_DUE);
     expect(STAFF_TOGGLE_FOR_EVENT[NotificationEvent.MAINTENANCE_DUE]).toBe('maintenanceDue');
-    expect(STAFF_EMAIL_TEMPLATES[NotificationEvent.MAINTENANCE_DUE]).toEqual({ subject: expect.any(String), body: expect.stringContaining('{{reason}}') });
+    expect(STAFF_EMAIL_TEMPLATES[NotificationEvent.MAINTENANCE_DUE]).toEqual({ subject: expect.any(String), body: expect.stringContaining('{{items}}') });
     expect(destinationFor(NotificationEvent.MAINTENANCE_DUE, {})).toBe('/dashboard/maintenance');
   });
 
-  it('keys one notice per item, cycle, day and recipient, and ignores keys that are not its own', () => {
-    expect(dueKey(item(), DATE, 'k1')).toBe(`maintenance-due:${ITEM_A}:2026-10-13:${DATE}:k1`);
-    expect([...recentlyTold(['other:key', `maintenance-due:${ITEM_A}:2026-10-13:2026-11-25:k1`, `maintenance-due:${ITEM_A}:2026-10-13:2026-11-26:k1`], DATE)]).toEqual([`${ITEM_A}:2026-10-13`]);
+  it('keys one digest per scope, day, recipient and item set, and ignores keys that are not its own or too old', () => {
+    expect(depotKey(D1ID, DATE, 'k1', [item()])).toBe(`maintenance-due:${D1ID}:${DATE}:k1:${tagA}`);
+    expect(hqKey(DATE, 'ho1')).toBe(hKey(DATE, 'ho1'));
+    const told = toldBy(['other:key', dKey(D1ID, '2026-11-25', 'k1', tagA), dKey(D1ID, '2026-11-20', 'k1', tagB), dKey(D1ID, '2026-11-27', 'k1', tagB), hKey(DATE, 'ho1')], DATE);
+    expect([...told.get(`${D1ID}|k1`)!]).toEqual([tagA]);
+    expect(told.has('hq|ho1')).toBe(true);
   });
 });
+
 
 describe('NotificationExternalController.maintenanceDueRun', () => {
   const run = jest.fn(async () => ({ date: DATE, depots: 1, items: 1, notified: 2, remindLater: 0, whatsapp: 'pending' as const }));

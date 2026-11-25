@@ -120,7 +120,7 @@ describe('HD-15 maintenance by days or volume', () => {
     await user.type(document.getElementById('m-m3') as HTMLInputElement, '500');
     await user.click(screen.getByText('dashB.maintenance.saveSchedule'));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(post.mock.calls[0][1]).toEqual({ depotId: 'd-1', name: 'Membran baru', category: 'RO', intervalM3: 500 });
+    expect(post.mock.calls[0]?.[1]).toEqual({ depotId: 'd-1', name: 'Membran baru', category: 'RO', intervalM3: 500 });
   });
 
   it('sends days with the date when both are given', async () => {
@@ -134,7 +134,7 @@ describe('HD-15 maintenance by days or volume', () => {
     await user.type(document.getElementById('m-m3') as HTMLInputElement, '800');
     await user.click(screen.getByText('dashB.maintenance.saveSchedule'));
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
-    expect(post.mock.calls[0][1]).toMatchObject({ intervalDays: 90, intervalM3: 800 });
-    expect(post.mock.calls[0][1]).not.toHaveProperty('nextDueAt');
+    expect(post.mock.calls[0]?.[1]).toMatchObject({ intervalDays: 90, intervalM3: 800 });
+    expect(post.mock.calls[0]?.[1]).not.toHaveProperty('nextDueAt');
   });
 });

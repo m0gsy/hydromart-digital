@@ -20,8 +20,6 @@ export class MeterVolumeController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Water through the meter per depot and WIB day range (internal service auth)' })
   async volume(@Body() body: MeterVolumeDto) {
-    return {
-      items: await Promise.all(body.ranges.map((r) => this.meter.volume(r.depotId, r.from, r.to))),
-    };
+    return { items: await this.meter.volumes(body.ranges) };
   }
 }

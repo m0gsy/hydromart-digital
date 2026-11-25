@@ -552,6 +552,14 @@ export class MaintenanceIntervalRequiredError extends DomainError {
   }
 }
 
+export class MaintenanceNextDueWithoutIntervalError extends DomainError {
+  readonly code = 'MAINTENANCE_NEXT_DUE_WITHOUT_INTERVAL';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('Tanggal servis berikutnya hanya bisa diisi bersama interval hari.');
+  }
+}
+
 export class WholesaleTierNotFoundError extends DomainError {
   readonly code = 'WHOLESALE_TIER_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

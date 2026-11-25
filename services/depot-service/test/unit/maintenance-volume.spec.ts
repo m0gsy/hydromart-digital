@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
+import { ServiceUnavailableException } from '@nestjs/common';
+
 import { MaintenanceService } from '../../src/application/services/maintenance.service';
 import { MeterVolumeHttpAdapter } from '../../src/infrastructure/http/meter-volume.http.adapter';
 import { MaintenanceController } from '../../src/modules/maintenance.controller';
 import { MaintenanceInternalController } from '../../src/modules/maintenance-internal.controller';
-import { MaintenanceIntervalRequiredError } from '../../src/domain/errors';
+import { MaintenanceIntervalRequiredError, MaintenanceNextDueWithoutIntervalError } from '../../src/domain/errors';
 import {
   deriveMaintenanceStatus,
   dueByOf,
@@ -100,7 +102,7 @@ describe('MaintenanceService (HD-15)', () => {
     const item = await service.create({ ...base, intervalM3: 500, lastServicedAt }, NOW);
     expect(meter.volumes).toHaveBeenCalledWith([
       { depotId: DEPOT, from: '2026-10-14', to: '2026-11-24' },
-    ]);
+    ], false);
     expect(item).toMatchObject({
       intervalDays: null,
       nextDueAt: null,
@@ -146,6 +148,32 @@ describe('MaintenanceService (HD-15)', () => {
     const item = await service.create({ ...base, intervalDays: 30 }, NOW);
     expect(meter.volumes).not.toHaveBeenCalled();
     expect(item).toMatchObject({ m3SinceService: null, meterDaysMissing: null, intervalM3: null });
+  });
+
+  it('asks once for items of one depot serviced the same day', async () => {
+    const { service, meter } = build(() => ({ m3: 10, readingDays: 1, spanDays: 1 }));
+    const lastServicedAt = new Date('2026-10-13T08:00:00.000Z');
+    await service.create({ ...base, name: 'a', intervalM3: 500, lastServicedAt }, NOW);
+    await service.create({ ...base, name: 'b', intervalM3: 800, lastServicedAt }, NOW);
+    const list = await service.list(DEPOT, NOW);
+    expect(list.map((i) => i.m3SinceService)).toEqual([10, 10]);
+    expect(meter.volumes).toHaveBeenLastCalledWith([{ depotId: DEPOT, from: '2026-10-14', to: '2026-11-24' }], false);
+  });
+
+  it('the due sweep reads the meter strictly, so an outage is an error and never "nothing due"', async () => {
+    const { service, meter } = build(() => ({ m3: 600, readingDays: 1, spanDays: 1 }));
+    await service.create({ ...base, intervalM3: 500, lastServicedAt: new Date('2026-10-13T08:00:00.000Z') }, NOW);
+    await service.due(NOW);
+    expect(meter.volumes).toHaveBeenLastCalledWith(expect.any(Array), true);
+    meter.volumes.mockRejectedValueOnce(new Error('meter down'));
+    await expect(service.due(NOW)).rejects.toThrow('meter down');
+  });
+
+  it('refuses a next-due date with no day interval instead of dropping it', async () => {
+    const { service } = build(() => null);
+    await expect(service.create({ ...base, intervalM3: 500, nextDueAt: NOW }, NOW)).rejects.toBeInstanceOf(
+      MaintenanceNextDueWithoutIntervalError,
+    );
   });
 
   it('requires at least one limit', async () => {
@@ -240,6 +268,24 @@ describe('MeterVolumeHttpAdapter', () => {
         headers: expect.objectContaining({ 'x-internal-key': 'k' }),
       }),
     );
+  });
+
+  it('throws 503 instead of nulls when asked strictly, and sends at most 200 ranges a call', async () => {
+    const adapter = new MeterVolumeHttpAdapter(config as never);
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500 });
+    await expect(adapter.volumes([range], true)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    await expect(new MeterVolumeHttpAdapter({ orderServiceUrl: '', internalServiceKey: 'k' } as never).volumes([range], true)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async (_u: string, init: { body: string }) => ({
+      ok: true,
+      json: async () => ({ items: JSON.parse(init.body).ranges.map(() => ({ m3: 1, readingDays: 1, spanDays: 1 })) }),
+    }));
+    const out = await adapter.volumes(Array.from({ length: 450 }, () => range));
+    expect(out).toHaveLength(450);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).ranges).toHaveLength(200);
   });
 
   it('answers all null when unconfigured, empty, refused, malformed or unreachable', async () => {

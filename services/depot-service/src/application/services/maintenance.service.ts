@@ -12,6 +12,7 @@ import {
 import {
   DepotNotFoundError,
   MaintenanceIntervalRequiredError,
+  MaintenanceNextDueWithoutIntervalError,
   MaintenanceItemNotFoundError,
 } from '../../domain/errors';
 import { DepotRepository } from '../ports/depot.repository';
@@ -61,22 +62,29 @@ export class MaintenanceService {
   private async view<T extends MaintenanceItem>(
     items: readonly T[],
     now: Date,
+    strict = false,
   ): Promise<Array<T & MaintenanceItemView>> {
     const baseline = (i: MaintenanceItem): Date => i.lastServicedAt ?? i.createdAt;
     const yesterday = localDayKey(addLocalDays(now, -1));
+    // One range per (depot, from): items of a depot serviced the same day share it.
     const ranges = new Map<string, MeterRange>();
+    const rangeOf = new Map<string, string>();
     for (const i of items) {
       if (i.intervalM3 === null) continue;
-      ranges.set(i.id, { depotId: i.depotId, from: localDayKey(addLocalDays(baseline(i), 1)), to: yesterday });
+      const r = { depotId: i.depotId, from: localDayKey(addLocalDays(baseline(i), 1)), to: yesterday };
+      const key = `${r.depotId}|${r.from}`;
+      ranges.set(key, r);
+      rangeOf.set(i.id, key);
     }
     // A range that is empty (serviced today or yesterday) is zero litres without asking anyone.
     const toAsk = [...ranges.entries()].filter(([, r]) => r.from <= r.to);
-    const answers = toAsk.length > 0 ? await this.meter.volumes(toAsk.map(([, r]) => r)) : [];
-    const volume = new Map<string, MeterVolume | null>();
-    for (const [id, r] of ranges) {
-      volume.set(id, r.from > r.to ? { m3: 0, readingDays: 0, spanDays: 0 } : null);
+    const answers = toAsk.length > 0 ? await this.meter.volumes(toAsk.map(([, r]) => r), strict) : [];
+    const byRange = new Map<string, MeterVolume | null>();
+    for (const [key, r] of ranges) {
+      byRange.set(key, r.from > r.to ? { m3: 0, readingDays: 0, spanDays: 0 } : null);
     }
-    toAsk.forEach(([id], k) => volume.set(id, answers[k] ?? null));
+    toAsk.forEach(([key], k) => byRange.set(key, answers[k] ?? null));
+    const volume = new Map([...rangeOf].map(([id, key]) => [id, byRange.get(key) ?? null]));
     return items.map((i) => {
       const v = volume.get(i.id) ?? null;
       const m3 = v ? v.m3 : null;
@@ -98,6 +106,8 @@ export class MaintenanceService {
     const intervalDays = input.intervalDays ?? null;
     const intervalM3 = input.intervalM3 ?? null;
     if (intervalDays === null && intervalM3 === null) throw new MaintenanceIntervalRequiredError();
+    // A date with no day interval has nothing to be the date of: refuse it rather than drop it.
+    if (intervalDays === null && input.nextDueAt) throw new MaintenanceNextDueWithoutIntervalError();
     const nextDueAt =
       intervalDays === null
         ? null
@@ -126,11 +136,8 @@ export class MaintenanceService {
    * Items of closed depots are left out. `due` is only the items with a `dueBy`.
    */
   async due(now = new Date()): Promise<Array<MaintenanceItemView & { depotName: string }>> {
-    const all = await this.items.listAllActive();
-    const names = new Map(all.map((i) => [i.id, i.depotName]));
-    return (await this.view(all, now))
-      .filter((i) => i.dueBy !== null)
-      .map((i) => ({ ...i, depotName: names.get(i.id) ?? '' }));
+    const views = await this.view(await this.items.listAllActive(), now, true);
+    return views.filter((i) => i.dueBy !== null);
   }
 
   /** Load one item (for by-id depot-scope assertion in the controller). */

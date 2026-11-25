@@ -7,7 +7,7 @@ export interface OpenQueueRow {
   disputes: number;
   /** Approvals still PENDING (count differences, deposit refunds, COD and gallon variances). */
   approvals: number;
-  /** Maintenance items whose next service date has passed. */
+  /** Maintenance items whose next service date has passed (by days only: items due by water volume are not counted here). */
   maintenanceOverdue: number;
 }
 

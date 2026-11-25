@@ -1078,7 +1078,7 @@
             "unit": "item",
             "wholeMonthOnly": false,
             "value": "{ depots, incidents, disputes, approvals, maintenanceOverdue, byDepot: [{ depotId, incidents, disputes, approvals, maintenanceOverdue }] }",
-            "rules": "Open items now at the depots the caller may read today (about now: answered over today whatever period was sent): incidents not yet resolved (new or in progress), order disputes open, depot approvals open (pending or held; count differences, deposit refunds, COD and gallon variances), and maintenance items whose next service date has passed. Counts of items, not people; not checked in depth. belum_ada when depot-service cannot be read (for any batch of 100 depots) or no depot is readable today."
+            "rules": "Open items now at the depots the caller may read today (about now: answered over today whatever period was sent): incidents not yet resolved (new or in progress), order disputes open, depot approvals open (pending or held; count differences, deposit refunds, COD and gallon variances), and maintenance items whose next service date has passed (by days only: an item due by water volume is not counted here). Counts of items, not people; not checked in depth. belum_ada when depot-service cannot be read (for any batch of 100 depots) or no depot is readable today."
           }
         }
       }
