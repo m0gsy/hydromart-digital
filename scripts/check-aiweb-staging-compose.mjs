@@ -118,6 +118,14 @@ for (const [svc, key] of [['staging-aiweb', 'HYDROMART_WEB_URL'], ['staging-aiwe
 }
 const site = readFileSync(siteFile, 'utf8');
 if (host && !new RegExp(`^${host.replaceAll('.', '\\.')} \\{`, 'm').test(site)) bad(`${siteFile} has no site block for ${host}`);
+// The staging app calls these on its HYDROMART_API_URL (this site) server-side, with no staging
+// password: each must go to the fake hydromart AND sit outside the basic-auth wall, or the
+// Ringkasan, the league and the depot page render without data (seen 25 Nov 2026).
+const matcher = (name) => (new RegExp(`^\\s*@${name} (?:not )?path (.+)$`, 'm').exec(site)?.[1] ?? '').split(/\s+/);
+for (const path of ['/auth/api/v1/auth/jwks', '/auth/api/v1/auth/handoff/token', '/dashboard/api/v1/ai/read/*', '/dashboard/api/v1/dashboard/pending-approvals']) {
+  if (!matcher('mock').includes(path)) bad(`${siteFile}: ${path} is not routed to the fake hydromart (@mock)`);
+  if (!matcher('gated').includes(path)) bad(`${siteFile}: ${path} is behind the staging password (@gated), but the app calls it server-side without one`);
+}
 
 if (problems.length > 0) {
   console.error(`check-aiweb-staging-compose: ${problems.length} problem(s):`);
