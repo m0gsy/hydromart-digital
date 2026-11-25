@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { monthInRange } from '../../application/services/depot-fixed-cost.service';
 import {
   ArrayMaxSize,
   IsArray,
@@ -8,15 +9,30 @@ import {
   IsString,
   IsUUID,
   Matches,
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
+@ValidatorConstraint({ name: 'monthInRange' })
+class MonthInRange implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    return typeof value === 'string' && monthInRange(value);
+  }
+
+  defaultMessage(): string {
+    return 'month must be YYYY-MM, from 2020 to next year';
+  }
+}
+
 export class DepotFixedCostsQueryDto {
   @ApiProperty({ example: '2026-11', description: 'WIB year-month.' })
   @Matches(MONTH_PATTERN, { message: 'month must be in YYYY-MM format' })
+  @Validate(MonthInRange)
   month!: string;
 
   @ApiPropertyOptional({ format: 'uuid', description: 'Only this depot.' })

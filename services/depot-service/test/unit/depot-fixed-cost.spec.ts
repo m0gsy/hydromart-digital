@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import * as platform from '@hydromart/platform';
 import { AuthenticatedUser } from '@hydromart/platform';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -95,6 +96,8 @@ describe('DepotFixedCostService', () => {
     [{ depotCode: '  ' }, 'Kode depot kosong'],
     [{ depotCode: 'XXX' }, 'tidak ditemukan'],
     [{ month: '2026-13' }, 'YYYY-MM'],
+    [{ month: '2019-12' }, 'YYYY-MM'],
+    [{ month: '2099-01' }, 'YYYY-MM'],
     [{ category: '   ' }, 'Kategori kosong'],
     [{ category: 'x'.repeat(41) }, 'maksimal 40'],
     [{ amountIdr: -1 }, 'bilangan bulat'],
@@ -128,6 +131,40 @@ describe('DepotFixedCostService', () => {
     expect((await service.list('2030-01')).totalIdr).toBe(0);
   });
 
+  it('accepts the bounds: 2020-01 and the same month next year', async () => {
+    const next = `${Number(new Date().getUTCFullYear()) + 1}-12`;
+    const out = await service.import([row({ month: '2020-01' }), row({ month: next, category: 'b' })], HQ);
+    expect(statuses(out)).toEqual(['created', 'created']);
+  });
+
+  it('turns a unique-key race into an update instead of a raw error', async () => {
+    const real = repo.upsert.bind(repo);
+    let first = true;
+    repo.upsert = async (d) => {
+      if (first) {
+        first = false;
+        await real({ ...d, amountIdr: 1 }); // the other import wins the insert
+        throw Object.assign(new Error('unique'), { code: 'P2002' });
+      }
+      return real(d);
+    };
+    const out = await service.import([row()], HQ);
+    expect(statuses(out)).toEqual(['updated']);
+    expect(repo.rows[0]!.amountIdr).toBe(3_500_000);
+    expect(out.results[0]!.id).toBe(repo.rows[0]!.id);
+    repo.upsert = async () => { throw new Error('db down'); };
+    expect(statuses(await service.import([row({ category: 'z' })], HQ))).toEqual(['failed']);
+  });
+
+  it('puts the months, depot count and verdict counts in the audit event', async () => {
+    const audit = jest.spyOn(platform, 'recordAuditEvent').mockResolvedValue(undefined as never);
+    await service.import([row(), row({ month: '2026-10' }), row({ amountIdr: -1, category: 'q' })], HQ);
+    expect(audit.mock.calls[0]![1].metadata).toEqual({
+      months: ['2026-10', '2026-11'], depots: 1, created: 2, updated: 0, skipped: 0, failed: 1,
+    });
+    audit.mockRestore();
+  });
+
   it('the controller hands the query and the rows to the service', async () => {
     const controller = new DepotFixedCostController(service);
     const out = await controller.import({ rows: [row()] }, HQ);
@@ -147,6 +184,8 @@ describe('depot fixed cost DTOs', () => {
     expect(await validate(plainToInstance(DepotFixedCostsQueryDto, { month: '2026-13' }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(DepotFixedCostsQueryDto, { month: '2026-11', depotId: 'nope' }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(DepotFixedCostsQueryDto, { month: '2026-11' }))).toHaveLength(0);
+    expect(await validate(plainToInstance(DepotFixedCostsQueryDto, { month: '2019-12' }))).not.toHaveLength(0);
+    expect(await validate(plainToInstance(DepotFixedCostsQueryDto, { month: '2099-01' }))).not.toHaveLength(0);
   });
 });
 
