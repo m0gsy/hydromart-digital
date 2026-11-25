@@ -17,6 +17,11 @@ import { useT } from '@/lib/locale-context';
 import { useQueryParam } from '@/lib/use-query-param';
 
 // value = the slot label stored on the delivery (kept stable); label is translated.
+const WHY = [
+  { key: 'customer', value: 'CUSTOMER_REQUEST' },
+  { key: 'courier', value: 'COURIER_ISSUE' },
+] as const;
+
 const SLOTS = [
   { key: 'morning', value: 'Pagi (09:00–12:00)' },
   { key: 'afternoon', value: 'Siang (12:00–15:00)' },
@@ -31,6 +36,7 @@ function Reschedule() {
   const [when, setWhen] = useState('');
   const [slot, setSlot] = useState('');
   const [note, setNote] = useState('');
+  const [why, setWhy] = useState<'CUSTOMER_REQUEST' | 'COURIER_ISSUE' | ''>('');
   /*
    * CA-4-03: a reschedule is not a delivery, so the end-of-shift deposit used to stop
    * mentioning this order entirely — including any cash the courier had already taken at
@@ -47,7 +53,7 @@ function Reschedule() {
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
-    if (!when) return;
+    if (!when || !why) return;
     setBusy(true);
     setError(null);
     try {
@@ -58,6 +64,7 @@ function Reschedule() {
         payload: {
           deliveryId: id,
           rescheduledFor: new Date(when).toISOString(),
+          reason: why,
           slot: slot || undefined,
           note: note || undefined,
           cashReturned: cashReturned ?? false,
@@ -93,6 +100,21 @@ function Reschedule() {
             onChange={(e) => setWhen(e.target.value)}
           />
         </Field>
+        <fieldset className="space-y-2">
+          <legend className="mb-1 text-sm font-bold">{t('driver.reschedule.whyLabel')}</legend>
+          <div className="flex flex-wrap gap-2">
+            {WHY.map((w) => (
+              <label
+                key={w.value}
+                className={`flex min-h-11 cursor-pointer items-center rounded-full px-3 py-1.5 text-xs font-bold focus-within:outline focus-within:outline-2 focus-within:outline-brand-600 ${w.value === why ? 'bg-brand-600 text-white' : 'bg-black/5'}`}
+              >
+                <input type="radio" name="why" value={w.value} checked={w.value === why} onChange={() => setWhy(w.value)} className="sr-only" />
+                {t(`driver.reschedule.why.${w.key}`)}
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-[color:var(--text-muted)]">{t('driver.reschedule.whyHint')}</p>
+        </fieldset>
         <Field label={t('driver.reschedule.slotLabel')}>
           <div className="flex flex-wrap gap-2">
             {SLOTS.map((s) => (
@@ -122,7 +144,7 @@ function Reschedule() {
 
       <FormError message={error} />
 
-      <Button loading={busy} disabled={!when || (mustAnswerCash && cashReturned === null)} className="flex w-full items-center justify-center gap-2" onClick={submit}>
+      <Button loading={busy} disabled={!when || !why || (mustAnswerCash && cashReturned === null)} className="flex w-full items-center justify-center gap-2" onClick={submit}>
         <CalendarCheck size={19} weight="fill" />
         {t('driver.reschedule.submit')}
       </Button>

@@ -110,9 +110,21 @@ export interface GallonReturnPayload {
   note?: string;
 }
 
+export type CourierFailureCode =
+  | 'ADDRESS_NOT_FOUND'
+  | 'CUSTOMER_REFUSED'
+  | 'GOODS_DAMAGED'
+  | 'CANNOT_CONTACT'
+  | 'OTHER';
+
 export interface DeliveryFailPayload {
   deliveryId: string;
-  reason: string;
+  /** The fixed choice. Jobs queued by older app versions carry only `reason` and replay as they were. */
+  reasonCode?: CourierFailureCode;
+  /** Optional free text beside the code; never sent empty. */
+  note?: string;
+  /** Legacy free-text reason (older app versions). */
+  reason?: string;
   /**
    * CA-4-03: the courier had already collected this order's cash and has handed it back.
    *
@@ -127,6 +139,8 @@ export interface DeliveryFailPayload {
 export interface DeliveryReschedulePayload {
   deliveryId: string;
   rescheduledFor: string;
+  /** Only CUSTOMER_REQUEST restarts the SLA clock; absent (old queued jobs) = CUSTOMER_REQUEST server-side. */
+  reason?: 'CUSTOMER_REQUEST' | 'COURIER_ISSUE';
   slot?: string;
   note?: string;
   /**

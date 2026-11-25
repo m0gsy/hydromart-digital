@@ -29,7 +29,26 @@ const daysSince = (iso: string): number =>
 const IN_HAND = ['ASSIGNED', 'PICKED_UP', 'ON_DELIVERY'] as const;
 /** One page is all the board reads; more than this is said, not hidden. */
 const WORKLOAD_PAGE = 100;
+// Exact texts the app sent before codes existed; the server maps them the same way (LEGACY_TEXT_CODES).
+const LEGACY_TEXT_CODE: Record<string, string> = {
+  'Alamat tidak ditemukan': 'ADDRESS_NOT_FOUND',
+  'Pelanggan menolak': 'CUSTOMER_REFUSED',
+  'Barang rusak': 'GOODS_DAMAGED',
+  'Pelanggan tidak bisa dihubungi': 'CANNOT_CONTACT',
+  'Pelanggan tidak di tempat (no-show).': 'NO_SHOW',
+};
 const pct = (rate: number): string => `${Math.round(rate * 100)}%`;
+
+// Same wording as the courier's fail screen.
+const FAILURE_CODE_LABEL: Record<string, string> = {
+  ADDRESS_NOT_FOUND: 'driver.deliveryFail.reasons.addressNotFound',
+  CUSTOMER_REFUSED: 'driver.deliveryFail.reasons.customerRefused',
+  GOODS_DAMAGED: 'driver.deliveryFail.reasons.goodsDamaged',
+  CANNOT_CONTACT: 'driver.deliveryFail.reasons.cannotContact',
+  OTHER: 'driver.deliveryFail.reasons.other',
+  NO_SHOW: 'driver.deliveryFail.reasons.noShow',
+  DEPOT_CANCELLED: 'driver.deliveryFail.reasons.depotCancelled',
+};
 
 /** Armada & Kurir: who is on shift, how each courier is doing, and what the month's runs earned. */
 export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
@@ -142,8 +161,12 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
   );
   const byReason = new Map<string, { label: string; n: number }>();
   for (const d of failedInRange) {
-    const label = (d.failureReason ?? '').trim().slice(0, 60);
-    const key = label.toLowerCase();
+    // A coded row groups by its code (a courier's note never becomes a label); an older row by its text.
+    // An older row whose text is exactly a known label joins that code's bucket (exact match, as on the server).
+    const code = d.failureReasonCode || LEGACY_TEXT_CODE[d.failureReason ?? ''];
+    const codeKey = code ? FAILURE_CODE_LABEL[code] : undefined;
+    const label = codeKey ? t(codeKey) : (d.failureReason ?? '').trim().slice(0, 60);
+    const key = code ? `code:${code}` : label.toLowerCase();
     const cur = byReason.get(key);
     byReason.set(key, { label: cur?.label ?? label, n: (cur?.n ?? 0) + 1 });
   }
