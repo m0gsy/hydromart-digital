@@ -171,7 +171,7 @@ describe('SopService', () => {
       getObject: jest.fn(),
       remove: jest.fn(),
     };
-    service = new SopService(repo, employees as never, storage as never);
+    service = new SopService(repo, employees as never, storage as never, { isActive: jest.fn(async () => true) } as never);
   });
   afterEach(() => {
     jest.useRealTimers();
@@ -270,6 +270,23 @@ describe('SopService', () => {
       expect(employees.list).toHaveBeenCalledTimes(3);
       employees.list.mockResolvedValue({ rows: [], total: 5 });
       expect((await service.create(head, 'SOP kosong', input())).versions[0].audienceSize).toBe(0);
+    });
+
+    it('checks depots ten at a time, never all at once', async () => {
+      let inFlight = 0;
+      let peak = 0;
+      const isActive = jest.fn(async () => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        await Promise.resolve();
+        inFlight -= 1;
+        return true;
+      });
+      const checked = new SopService(repo, employees as never, storage as never, { isActive } as never);
+      const ids = Array.from({ length: 25 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+      await checked.create(head, 'SOP', input({ allDepots: false, depotIds: ids }));
+      expect(isActive).toHaveBeenCalledTimes(25);
+      expect(peak).toBe(10);
     });
 
     it('refuses a depot id that depot-service does not know, and passes a 503 on', async () => {

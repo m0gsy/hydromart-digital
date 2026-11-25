@@ -2060,6 +2060,8 @@ export const hq = {
       pdfChosen: 'Terunggah: {name}',
       pdfUploading: 'Mengunggah…',
       pdfError: 'Gagal mengunggah PDF.',
+      pdfInvalid: 'Berkas harus PDF dan tidak lebih dari 10 MB.',
+      pdfRemove: 'Hapus file',
       effectiveFrom: 'Berlaku mulai',
       effectiveHint: 'Tidak boleh sebelum hari ini.',
       scope: 'Berlaku untuk',

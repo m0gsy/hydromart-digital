@@ -14,6 +14,8 @@ import type { DepotAdmin } from '@/lib/types';
 import { useAsync } from '@/lib/use-async';
 import { todayWib } from '@/lib/wib';
 
+const MAX_PDF_BYTES = 10 * 1024 * 1024;
+
 /**
  * HD-16 — one SOP version: a new SOP (with `sopId` unset, so it also asks for the title) or the next
  * version of an existing one. Text and/or a PDF; every depot or a chosen list. The server checks all of
@@ -57,6 +59,12 @@ export function SopVersionForm({
 
   async function pickFile(chosen: File | undefined) {
     if (!chosen) return;
+    // The server decides from the bytes; this only spares a 10 MB round trip that is bound to fail.
+    if (chosen.size > MAX_PDF_BYTES || chosen.type !== 'application/pdf') {
+      setFile(null);
+      setUploadError(t('hq.sop.form.pdfInvalid'));
+      return;
+    }
     setUploading(true);
     setUploadError(null);
     try {
@@ -151,7 +159,14 @@ export function SopVersionForm({
           />
         </Field>
         {uploading && <p className="text-xs text-muted">{t('hq.sop.form.pdfUploading')}</p>}
-        {file && !uploading && <p className="text-xs text-muted">{t('hq.sop.form.pdfChosen', { name: file.fileName })}</p>}
+        {file && !uploading && (
+          <p className="flex items-center gap-2 text-xs text-muted">
+            {t('hq.sop.form.pdfChosen', { name: file.fileName })}
+            <button type="button" onClick={() => setFile(null)} className="tap-44 font-semibold text-brand-700">
+              {t('hq.sop.form.pdfRemove')}
+            </button>
+          </p>
+        )}
         <Field label={t('hq.sop.form.effectiveFrom')} htmlFor="sop-effective" hint={t('hq.sop.form.effectiveHint')}>
           <Input id="sop-effective" type="date" min={todayWib()} value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
         </Field>

@@ -230,7 +230,8 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.employee.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        // id breaks ties (bulk imports share a createdAt) so skip/take paging never repeats or drops a row.
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
         skip: filter.skip,
         take: filter.take,
       }),

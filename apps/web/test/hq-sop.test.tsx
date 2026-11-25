@@ -258,6 +258,39 @@ describe('the SOP list', () => {
     });
   });
 
+  it('refuses an oversized or non-PDF file without uploading it, and drops a chosen file on request', async () => {
+    const user = userEvent.setup({ applyAccept: false });
+    render(<HqSopPage />);
+    await user.click(await screen.findByText('hq.sop.add'));
+    await user.type(screen.getByLabelText('hq.sop.form.title'), 'SOP pdf');
+    const submit = screen.getByText('hq.sop.form.submit').closest('button') as HTMLButtonElement;
+    // Neither text nor a file: nothing to publish.
+    expect(submit.disabled).toBe(true);
+    const input = screen.getByLabelText('hq.sop.form.pdf') as HTMLInputElement;
+
+    const big = new File(['x'], 'big.pdf', { type: 'application/pdf' });
+    Object.defineProperty(big, 'size', { value: 10 * 1024 * 1024 + 1 });
+    await user.upload(input, big);
+    expect(await screen.findByText('hq.sop.form.pdfInvalid')).toBeTruthy();
+    await user.upload(input, new File(['x'], 'a.png', { type: 'image/png' }));
+    expect(await screen.findByText('hq.sop.form.pdfInvalid')).toBeTruthy();
+    expect(upload).not.toHaveBeenCalled();
+    expect(submit.disabled).toBe(true);
+
+    upload.mockResolvedValueOnce({ fileKey: 'hr/sop/00000000-0000-4000-8000-0000000000f1.pdf', fileName: 'sop.pdf', sizeBytes: 12 });
+    await user.upload(input, new File(['%PDF-1.4'], 'sop.pdf', { type: 'application/pdf' }));
+    await screen.findByText(/hq.sop.form.pdfChosen/);
+    expect(submit.disabled).toBe(false);
+    await user.click(screen.getByText('hq.sop.form.pdfRemove'));
+    expect(screen.queryByText(/hq.sop.form.pdfChosen/)).toBeNull();
+    expect(submit.disabled).toBe(true);
+    // A text-only version can be saved once the file is gone.
+    await user.type(screen.getByLabelText('hq.sop.form.body'), 'Hanya teks');
+    await user.click(submit);
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post.mock.calls[0]![1]).toMatchObject({ body: 'Hanya teks', fileKey: undefined });
+  });
+
   it('names the failure when the depot list cannot be loaded', async () => {
     depots.mockRejectedValue(new Error('depot down'));
     const user = userEvent.setup();

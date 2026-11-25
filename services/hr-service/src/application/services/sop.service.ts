@@ -5,7 +5,6 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-  Optional,
   PayloadTooLargeException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -30,6 +29,7 @@ export const MAX_SOP_PDF_BYTES = 10 * 1024 * 1024;
 /** Roster read size, and a bound on the loop so a misbehaving `total` cannot spin it forever. */
 const ROSTER_PAGE = 1000;
 const ROSTER_MAX_PAGES = 100;
+const DEPOT_CHECK_CHUNK = 10;
 
 /** A key this service minted: `hr/sop/<uuid>.pdf`. Anything else is another bucket folder. */
 const SOP_FILE_KEY = new RegExp('^hr/sop/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[.]pdf$');
@@ -130,7 +130,7 @@ export class SopService {
     @Inject(SOP_REPOSITORY) private readonly repo: SopRepository,
     @Inject(EMPLOYEE_REPOSITORY) private readonly employees: EmployeeRepository,
     @Inject(STORAGE_PORT) private readonly storage: StoragePort,
-    @Optional() @Inject(DEPOT_DIRECTORY_PORT) private readonly directory?: DepotDirectoryPort,
+    @Inject(DEPOT_DIRECTORY_PORT) private readonly directory: DepotDirectoryPort,
   ) {}
 
   // -- writing ---------------------------------------------------------
@@ -337,20 +337,21 @@ export class SopService {
 
   /** A depot id typed wrong would cover nobody and say nothing. depot-service 404 = unknown. */
   private async assertDepotsExist(depotIds: readonly string[]): Promise<void> {
-    if (!this.directory) return;
-    const directory = this.directory;
-    const unknown = await Promise.all(
-      depotIds.map((id) =>
-        directory.isActive(id).then(
-          () => false,
-          (error: unknown) => {
-            if (error instanceof NotFoundException) return true;
-            throw error;
-          },
+    // Chunks of 10: a 200-depot list must not open 200 sockets to depot-service at once.
+    for (let i = 0; i < depotIds.length; i += DEPOT_CHECK_CHUNK) {
+      const unknown = await Promise.all(
+        depotIds.slice(i, i + DEPOT_CHECK_CHUNK).map((id) =>
+          this.directory.isActive(id).then(
+            () => false,
+            (error: unknown) => {
+              if (error instanceof NotFoundException) return true;
+              throw error;
+            },
+          ),
         ),
-      ),
-    );
-    if (unknown.some(Boolean)) throw new BadRequestException('Ada depot yang tidak dikenal');
+      );
+      if (unknown.some(Boolean)) throw new BadRequestException('Ada depot yang tidak dikenal');
+    }
   }
 
   /** Validate one version's input and freeze its audience. */

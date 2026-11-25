@@ -2295,7 +2295,7 @@ describe('EmployeePrismaRepository', () => {
     };
     expect(m(p, 'employee').findMany).toHaveBeenCalledWith({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       skip: 5,
       take: 10,
     });
@@ -2310,7 +2310,7 @@ describe('EmployeePrismaRepository', () => {
     await repo.list({ skip: 0, take: 20 });
     expect(m(p, 'employee').findMany).toHaveBeenCalledWith({
       where: {},
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       skip: 0,
       take: 20,
     });

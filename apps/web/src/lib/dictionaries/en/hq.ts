@@ -2044,6 +2044,8 @@ export const hq = {
       pdfChosen: 'Uploaded: {name}',
       pdfUploading: 'Uploading…',
       pdfError: 'Could not upload the PDF.',
+      pdfInvalid: 'The file must be a PDF of at most 10 MB.',
+      pdfRemove: 'Remove file',
       effectiveFrom: 'Effective from',
       effectiveHint: 'Not before today.',
       scope: 'Applies to',
