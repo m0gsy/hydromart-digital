@@ -113,14 +113,15 @@ export class AiAccessRequestService {
     const keys = await this.notifications
       .recentDedupeKeys(NotificationEvent.AI_ACCESS_REQUESTED, new Date(Date.now() - CAP_WINDOW_MS))
       .catch(unreadable);
-    const requests = new Map<string, string>();
+    // A request is the pair (eventId, requester): a reused eventId with another requester is new.
+    const pairs = new Set<string>();
     for (const key of keys) {
       const m = KEY.exec(key);
-      if (m) requests.set(m[1]!, m[2]!);
+      if (m) pairs.add(`${m[1]}|${m[2]}`);
     }
-    if (requests.has(eventId)) return false;
-    const mine = [...requests.values()].filter((r) => r === requesterId).length;
-    return mine >= CAP_PER_REQUESTER || requests.size >= CAP_OVERALL;
+    if (pairs.has(`${eventId}|${requesterId}`)) return false;
+    const mine = [...pairs].filter((x) => x.endsWith(`|${requesterId}`)).length;
+    return mine >= CAP_PER_REQUESTER || pairs.size >= CAP_OVERALL;
   }
 
   /** Active accounts whose role holds the capability that grants AI access. */

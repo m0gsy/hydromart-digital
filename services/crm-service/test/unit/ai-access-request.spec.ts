@@ -354,6 +354,21 @@ describe('the hourly cap', () => {
     expect(repo.records).toHaveLength(60);
   });
 
+  it('counts one eventId reused by other requesters as new requests, up to the overall cap, and still completes a true retry', async () => {
+    const { service, repo } = build();
+    for (let n = 1; n <= 30; n += 1) {
+      STAFF[requester(n)] = { fullName: 'Staf', role: 'MANAGER' };
+      await expect(service.run(event(1), requester(n))).resolves.toMatchObject({ notified: 2 });
+    }
+    STAFF[requester(31)] = { fullName: 'Staf', role: 'MANAGER' };
+    await expect(service.run(event(1), requester(31))).resolves.toMatchObject({
+      notified: 0,
+      capped: true,
+    });
+    await expect(service.run(event(1), requester(7))).resolves.toMatchObject({ notified: 2 });
+    expect(repo.records).toHaveLength(60);
+  });
+
   it('does not count a request that was refused as unknown, and says 503 when the recent requests cannot be read', async () => {
     const { service, repo } = build();
     for (const n of [1, 2, 3, 4]) await service.run(event(n), ENTITY);
