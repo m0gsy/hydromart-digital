@@ -359,7 +359,8 @@ test('the morning summary day is Jakarta’s, not UTC’s: 17:30Z on 24 Nov is 2
 });
 
 test('n8n: customer reminders and the maintenance sweep need the machine token, today in Jakarta and nothing else', async () => {
-  const mock = await boot();
+  // 17:30Z on 25 Nov is 26 Nov in Jakarta: the mock's clock, so the date never straddles midnight.
+  const mock = await boot({}, () => Date.parse('2026-11-25T17:30:00Z'));
   const send = (route, token, body) =>
     json('POST', mock.base, `/crm/api/v1/notifications/external/${route}`, body, token ? { authorization: `Bearer ${token}`, 'x-workflow': 'wf' } : {});
   const s = notifications.components.schemas;
@@ -369,7 +370,7 @@ test('n8n: customer reminders and the maintenance sweep need the machine token, 
     }
     assert.deepEqual(REMINDER_KINDS, s.CustomerReminderTrigger.properties.kind.enum);
     const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
-    const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date());
+    const date = '2026-11-26';
     for (const kind of REMINDER_KINDS) {
       const ok = await send('customer-reminders', accessToken, { kind, date });
       assert.equal(ok.status, 200);
@@ -389,7 +390,8 @@ test('n8n: customer reminders and the maintenance sweep need the machine token, 
     for (const bad of [{ kind: 'NOPE', date }, { kind: 'UNPAID_ORDER', date: '2020-01-01' }, { kind: 'UNPAID_ORDER' }, { kind: 'UNPAID_ORDER', date, extra: 1 }, { date }, { kind: null, date }]) {
       assert.equal((await send('customer-reminders', accessToken, bad)).status, 400, JSON.stringify(bad));
     }
-    for (const bad of [{ date: '2020-01-01' }, {}, { date, kind: 'UNPAID_ORDER' }]) {
+    assert.equal((await send('customer-reminders', accessToken, { kind: 'UNPAID_ORDER', date: '2026-11-25' })).status, 400, 'the UTC day is not today');
+    for (const bad of [{ date: '2020-01-01' }, { date: '2026-11-25' }, {}, { date, kind: 'UNPAID_ORDER' }]) {
       assert.equal((await send('maintenance-due', accessToken, bad)).status, 400, JSON.stringify(bad));
     }
     assert.equal((await json('POST', mock.base, '/crm/api/v1/notifications/external/maintenance-due', [date], { authorization: `Bearer ${accessToken}` })).status, 400);
