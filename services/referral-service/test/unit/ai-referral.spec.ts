@@ -12,32 +12,34 @@ const FROM = new Date('2026-10-31T17:00:00.000Z');
 const TO = new Date('2026-11-30T17:00:00.000Z');
 
 describe('AiReferralPrismaRepository (O-06)', () => {
-  const make = (qualified: { c: number; r: number | null; e: number | null }, invited = 9) => {
+  const make = (groups: { c: number; r: number | null; e: number | null }[], invited = 9) => {
     const prisma = {
       referral: {
         count: jest.fn().mockResolvedValue(invited),
-        aggregate: jest.fn().mockResolvedValue({ _count: { _all: qualified.c }, _sum: { referrerPoints: qualified.r, refereePoints: qualified.e } }),
+        groupBy: jest.fn().mockResolvedValue(groups.map((g, i) => ({ referrerCustomerId: `r${i}`, _count: { _all: g.c }, _sum: { referrerPoints: g.r, refereePoints: g.e } }))),
       },
     };
     return { prisma, repo: new AiReferralPrismaRepository(prisma as unknown as PrismaService) };
   };
 
   it('counts referrals made and qualified inside the window, with both sides points', async () => {
-    const { prisma, repo } = make({ c: 4, r: 200, e: 100 });
-    await expect(repo.totals(FROM, TO)).resolves.toEqual({ invited: 9, qualified: 4, referrerPoints: 200, refereePoints: 100 });
+    const { prisma, repo } = make([{ c: 3, r: 150, e: 75 }, { c: 1, r: 50, e: 25 }]);
+    await expect(repo.totals(FROM, TO)).resolves.toEqual({ invited: 9, qualified: 4, qualifiedReferrers: 2, referrerPoints: 200, refereePoints: 100 });
     expect(prisma.referral.count.mock.calls[0][0].where).toEqual({ createdAt: { gte: FROM, lt: TO } });
-    expect(prisma.referral.aggregate.mock.calls[0][0].where).toEqual({ status: 'QUALIFIED', qualifiedAt: { gte: FROM, lt: TO } });
+    expect(prisma.referral.groupBy.mock.calls[0][0].where).toEqual({ status: 'QUALIFIED', qualifiedAt: { gte: FROM, lt: TO } });
   });
 
   it('answers 0 points when nothing qualified (a null sum is not a missing answer)', async () => {
-    const { repo } = make({ c: 0, r: null, e: null }, 0);
-    await expect(repo.totals(FROM, TO)).resolves.toEqual({ invited: 0, qualified: 0, referrerPoints: 0, refereePoints: 0 });
+    const { repo } = make([], 0);
+    await expect(repo.totals(FROM, TO)).resolves.toEqual({ invited: 0, qualified: 0, qualifiedReferrers: 0, referrerPoints: 0, refereePoints: 0 });
+    const { repo: nulls } = make([{ c: 1, r: null, e: null }], 0);
+    await expect(nulls.totals(FROM, TO)).resolves.toMatchObject({ qualified: 1, referrerPoints: 0, refereePoints: 0 });
   });
 });
 
 describe('AiReferralService, controller and DTO', () => {
   it('hands the window to the repository as instants', async () => {
-    const repo: AiReferralRepository = { totals: jest.fn().mockResolvedValue({ invited: 1, qualified: 0, referrerPoints: 0, refereePoints: 0 }) };
+    const repo: AiReferralRepository = { totals: jest.fn().mockResolvedValue({ invited: 1, qualified: 0, qualifiedReferrers: 0, referrerPoints: 0, refereePoints: 0 }) };
     const c = new AiReferralController(new AiReferralService(repo));
     await expect(c.totals({ from: FROM.toISOString(), to: TO.toISOString() })).resolves.toMatchObject({ invited: 1 });
     expect(repo.totals).toHaveBeenCalledWith(FROM, TO);

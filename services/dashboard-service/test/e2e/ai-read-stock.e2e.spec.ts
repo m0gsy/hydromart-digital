@@ -98,7 +98,7 @@ describe('GET ai/read/stock and ai/read/loyalty (HD-6 H4)', () => {
         if (init?.body) bodies.push(JSON.parse(String(init.body)));
         if (url.pathname.endsWith('/redemptions')) return json({ redemptions: 9, points: 4500, redeemers: 6, unplaced: 0 });
         if (url.pathname.endsWith('/points-outstanding')) return json({ accounts: 1234, points: 987_650 });
-        if (url.pathname.startsWith('/api/v1/referrals/')) return json({ invited: 30, qualified: 12, referrerPoints: 600, refereePoints: 300 });
+        if (url.pathname.startsWith('/api/v1/referrals/')) return json({ invited: 30, qualified: 12, qualifiedReferrers: 8, referrerPoints: 600, refereePoints: 300 });
         return json({ campaigns: 3, sent: 900, failed: 40, skipped: 60, other: 0 });
       }
       if (url.pathname === '/api/v1/reports/internal/discount-metrics') {

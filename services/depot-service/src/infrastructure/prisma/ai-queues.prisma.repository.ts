@@ -17,8 +17,8 @@ export class AiQueuesPrismaRepository implements AiQueuesRepository {
     const [incidents, disputes, approvals, maintenance] = await Promise.all([
       this.prisma.incident.groupBy({ by: ['depotId'], where: { depotId, status: { not: IncidentStatus.RESOLVED } }, _count: { _all: true } }),
       this.prisma.orderDispute.groupBy({ by: ['depotId'], where: { depotId, status: DisputeStatus.OPEN }, _count: { _all: true } }),
-      this.prisma.approval.groupBy({ by: ['depotId'], where: { depotId, status: ApprovalStatus.PENDING }, _count: { _all: true } }),
-      this.prisma.maintenanceItem.groupBy({ by: ['depotId'], where: { depotId, nextDueAt: { lte: now } }, _count: { _all: true } }),
+      this.prisma.approval.groupBy({ by: ['depotId'], where: { depotId, status: { in: [ApprovalStatus.PENDING, ApprovalStatus.HELD] } }, _count: { _all: true } }),
+      this.prisma.maintenanceItem.groupBy({ by: ['depotId'], where: { depotId, nextDueAt: { lt: now } }, _count: { _all: true } }),
     ]);
     return {
       incidents: toMap(incidents),

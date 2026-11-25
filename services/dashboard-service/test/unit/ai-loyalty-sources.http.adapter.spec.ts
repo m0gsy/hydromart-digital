@@ -50,8 +50,8 @@ describe('AiLoyaltySourcesHttpAdapter (HD-6 H4 part 2)', () => {
     expect(p[0].url.searchParams.get('before')).toBe('2026-10-31T17:00:00.000Z');
     expect(p[0].init?.method).toBe('GET');
 
-    const r = answer({ invited: 3, qualified: 2, referrerPoints: 100, refereePoints: 50 });
-    await expect(adapter().referrals(WINDOW)).resolves.toEqual({ invited: 3, qualified: 2, referrerPoints: 100, refereePoints: 50 });
+    const r = answer({ invited: 3, qualified: 2, qualifiedReferrers: 2, referrerPoints: 100, refereePoints: 50 });
+    await expect(adapter().referrals(WINDOW)).resolves.toEqual({ invited: 3, qualified: 2, qualifiedReferrers: 2, referrerPoints: 100, refereePoints: 50 });
     expect(r[0].url.pathname).toBe('/api/v1/referrals/internal/ai/totals');
     expect(r[0].url.searchParams.get('from')).toBe(WINDOW.from);
 
@@ -113,6 +113,13 @@ describe('AiLoyaltySourcesHttpAdapter (HD-6 H4 part 2)', () => {
     expect(calls).toHaveLength(0);
   });
 
+  it('is null for referrals with more referrers than referrals, or referrals with no referrer', async () => {
+    answer({ invited: 3, qualified: 2, qualifiedReferrers: 3, referrerPoints: 1, refereePoints: 1 });
+    await expect(adapter().referrals(WINDOW)).resolves.toBeNull();
+    answer({ invited: 3, qualified: 2, qualifiedReferrers: 0, referrerPoints: 1, refereePoints: 1 });
+    await expect(adapter().referrals(WINDOW)).resolves.toBeNull();
+  });
+
   it.each([
     ['points outstanding with a string', 'pointsOutstanding'],
     ['referrals with a missing figure', 'referrals'],
@@ -122,7 +129,7 @@ describe('AiLoyaltySourcesHttpAdapter (HD-6 H4 part 2)', () => {
   ])('is null for %s', async (_name, method) => {
     const bodies: Record<string, unknown> = {
       pointsOutstanding: { accounts: '3', points: 1 },
-      referrals: { invited: 3, qualified: 1, referrerPoints: 1 },
+      referrals: { invited: 3, qualified: 1, referrerPoints: 1, refereePoints: 1 },
       campaigns: { campaigns: 1, sent: -1, failed: 0, skipped: 0, other: 0 },
       discounts: { orders: 3, discountedOrders: 4, discountIdr: 10 },
       newSubscriptions: { subscriptions: 1, subscribers: 2 },

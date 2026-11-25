@@ -18,6 +18,7 @@ export class AiCampaignPrismaRepository implements AiCampaignRepository {
       this.prisma.campaignRecipient.groupBy({ by: ['status'], where: { campaign }, _count: { _all: true } }),
     ]);
     const n = (status: string): number => byStatus.find((r) => r.status === status)?._count._all ?? 0;
+    // other = PENDING and SENDING recipients (not yet sent) of a finished campaign, kept as their own cell.
     const known = n('SENT') + n('FAILED') + n('SKIPPED');
     return {
       campaigns,

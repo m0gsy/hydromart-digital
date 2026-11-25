@@ -9,9 +9,11 @@ export class AiReferralPrismaRepository implements AiReferralRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async totals(from: Date, to: Date): Promise<ReferralTotals> {
-    const [invited, qualified] = await Promise.all([
+    // refereeCustomerId is unique, so referral rows ARE distinct referees (invited, qualified); the referrers are the groups.
+    const [invited, perReferrer] = await Promise.all([
       this.prisma.referral.count({ where: { createdAt: { gte: from, lt: to } } }),
-      this.prisma.referral.aggregate({
+      this.prisma.referral.groupBy({
+        by: ['referrerCustomerId'],
         where: { status: 'QUALIFIED', qualifiedAt: { gte: from, lt: to } },
         _count: { _all: true },
         _sum: { referrerPoints: true, refereePoints: true },
@@ -19,9 +21,10 @@ export class AiReferralPrismaRepository implements AiReferralRepository {
     ]);
     return {
       invited,
-      qualified: qualified._count._all,
-      referrerPoints: qualified._sum.referrerPoints ?? 0,
-      refereePoints: qualified._sum.refereePoints ?? 0,
+      qualified: perReferrer.reduce((n, r) => n + r._count._all, 0),
+      qualifiedReferrers: perReferrer.length,
+      referrerPoints: perReferrer.reduce((n, r) => n + (r._sum.referrerPoints ?? 0), 0),
+      refereePoints: perReferrer.reduce((n, r) => n + (r._sum.refereePoints ?? 0), 0),
     };
   }
 }

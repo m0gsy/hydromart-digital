@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 
 import { AuthenticatedUser, addLocalDays, dayStartUtc, depotScopeIds } from '@hydromart/platform';
 
-import { AiLoyaltySourcesPort, LoyaltySpan, OpenQueueRow } from '../ports/ai-loyalty-sources.port';
+import { AiLoyaltySourcesPort, LoyaltySpan, MAX_DEPOTS, MAX_SPANS, OpenQueueRow } from '../ports/ai-loyalty-sources.port';
 import { AiReadSourcesPort } from '../ports/ai-read-sources.port';
 import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerEnvelope } from './envelope';
@@ -70,10 +70,6 @@ export const SMALL_GROUP_REASON = 'kurang dari 3: kelompok sekecil ini tidak dij
 const NETWORK_ONLY =
   'Angka ini ada untuk seluruh jaringan saja (pelanggan, rujukan, langganan dan kampanye tidak melekat pada satu depot, dan depot yang dipilih pelanggan berpindah); hanya peran yang membaca semua depot dan semua badan hukum yang menjawabnya.';
 
-/** Most spans and depots one many-depot read may carry. Past it the answer is belum_ada, never a cut. */
-const MAX_SPANS = 200;
-const MAX_DEPOTS = 100;
-
 /** Rounded to a multiple of 5: a total as of a date is never exact. */
 export const round5 = (n: number): number => Math.round(n / 5) * 5;
 const r1 = (n: number): number => Math.round(n * 10) / 10;
@@ -127,7 +123,7 @@ export class LoyaltyMetricsService {
     if (meta.network) return this.network(id, user, env);
     if (id === 'A-01') return this.queues(env);
     if (scope.spans.length === 0) return env.none(NO_SCOPE);
-    return id === 'O-02' ? this.redemptions(env) : this.discounts(env);
+    return id === 'O-02' ? this.redemptions(env, user) : this.discounts(env);
   }
 
   /**
@@ -165,14 +161,23 @@ export class LoyaltyMetricsService {
     }
   }
 
+  /** Whether the role reads every depot and every legal entity (the test `network()` applies). A source that cannot say is "no". */
+  private async readsWholeNetwork(user: AuthenticatedUser): Promise<boolean> {
+    if (!hasNetworkScope(user)) return false;
+    const grants = await this.grants.aiGrants(user.role);
+    return !!grants?.all;
+  }
+
   /** O-02: points of rewards handed over, by pick-up depot and hand-over day over the days each depot was readable. */
-  private async redemptions(env: ReadEnv): Promise<AnswerEnvelope> {
+  private async redemptions(env: ReadEnv, user: AuthenticatedUser): Promise<AnswerEnvelope> {
     const spans = spansOf(env.scope, env.period.timeZone);
     if (!fitsOneRead(spans)) return env.none(TOO_MANY);
     const t = await this.sources.redemptions(spans);
     if (!t) return env.none(DOWN);
-    // A handed-over reward with no depot recorded is in no depot's number: a total would undercount.
-    if (t.unplaced > 0) return env.none('Ada penukaran yang sudah diserahkan tanpa depot pengambilan tercatat pada periode ini, jadi angkanya tidak lengkap.');
+    // A handed-over reward with no depot recorded is in no depot's number: a network total would undercount.
+    // Only a caller who reads the whole network is told: a depot-scoped caller's own rows all have a depot, and
+    // the source counts such rows network-wide (over the hull of all spans, so it can only over-flag, never undercount).
+    if (t.unplaced > 0 && (await this.readsWholeNetwork(user))) return env.none('Ada penukaran yang sudah diserahkan tanpa depot pengambilan tercatat pada periode ini, jadi angkanya tidak lengkap.');
     if (t.redeemers > 0 && t.redeemers < SMALL_GROUP_MIN) return env.held(SMALL_GROUP_REASON);
     return env.ok(
       { points: t.points, redemptions: t.redemptions, redeemers: t.redeemers },
@@ -195,19 +200,29 @@ export class LoyaltyMetricsService {
   private async referrals(env: ReadEnv): Promise<AnswerEnvelope> {
     const t = await this.sources.referrals({ from: env.period.fromAt, to: env.period.toAt });
     if (!t) return env.none(DOWN);
+    // A referee is referred once, so referral rows are distinct referees: invited and qualified are people already.
     const invited = cell(t.invited);
     const qualified = cell(t.qualified);
     if (invited.flag && qualified.flag) return env.held(SMALL_GROUP_REASON);
     const both = !invited.flag && !qualified.flag && t.invited > 0;
+    // Each side's points rest on that side's people; the total would give the held side away, so it is held too.
+    const referrerHeld = cell(t.qualifiedReferrers).flag !== undefined;
+    const refereeHeld = qualified.flag !== undefined;
+    const held = referrerHeld || refereeHeld;
     return env.ok(
       {
         invited,
         qualified,
-        // The points of 1 or 2 qualified people are theirs: shown only when 3 or more earned them (or none did).
-        points: qualified.flag ? { value: null, flag: SMALL_GROUP_FLAG } : { referrer: t.referrerPoints, referee: t.refereePoints, total: t.referrerPoints + t.refereePoints },
+        // The points of 1 or 2 people are theirs: a side is shown only when 3 or more earned them (or none did).
+        points: {
+          referrer: referrerHeld ? null : t.referrerPoints,
+          referee: refereeHeld ? null : t.refereePoints,
+          total: held ? null : t.referrerPoints + t.refereePoints,
+          ...(held ? { flag: SMALL_GROUP_FLAG } : {}),
+        },
         conversionPct: both ? r1((t.qualified / t.invited) * 100) : null,
       },
-      'rujukan jaringan pada bulan ini: invited = kode dipakai (tanggal rujukan dibuat); qualified = rujukan yang masih berstatus memenuhi syarat dan memenuhi syarat pada bulan ini (yang pesanannya dibatalkan dibuka lagi dan tidak dihitung); points = poin kedua sisi (pengajak dan yang diajak) dari rujukan itu, sebelum pengurangan poin yang sudah terpakai; conversionPct = qualified / invited pada bulan yang sama (bukan satu kohort, bisa lewat 100). Kelompok kurang dari 3 orang ditahan',
+      'rujukan jaringan pada bulan ini: invited = kode dipakai (tanggal rujukan dibuat); qualified = rujukan yang masih berstatus memenuhi syarat dan memenuhi syarat pada bulan ini (yang pesanannya dibatalkan dibuka lagi dan tidak dihitung); invited dan qualified menghitung orang yang diajak (satu orang hanya diajak sekali); points = poin kedua sisi (pengajak dan yang diajak) dari rujukan itu, sebelum pengurangan poin yang sudah terpakai, sisi pengajak ditahan bila pengajaknya kurang dari 3 orang, sisi yang diajak bila kurang dari 3 orang, dan total ditahan bila salah satunya ditahan; conversionPct = qualified / invited pada bulan yang sama (bukan satu kohort, bisa lewat 100). Kelompok kurang dari 3 orang ditahan',
     );
   }
 
@@ -264,7 +279,7 @@ export class LoyaltyMetricsService {
         recipients: m.total,
         cells: m.cells.map((c) => ({ outcome: c.key, value: c.value, ...(c.flag ? { flag: c.flag } : {}) })),
       },
-      'kampanye yang selesai dikirim pada bulan ini (menurut saat selesai), seluruh jaringan: penerima menurut hasil, terkirim = masuk kotak pesan aplikasi, dilewati = menolak pemasaran; angka final karena hanya kampanye yang sudah selesai; tidak ada angka "dibaca"; seorang penerima di dua kampanye terhitung dua kali. Kelompok kurang dari 3 orang ditahan beserta tetangga terkecilnya',
+      'kampanye yang selesai dikirim pada bulan ini (menurut saat selesai), seluruh jaringan: penerima menurut hasil, terkirim = masuk kotak pesan aplikasi, dilewati = menolak pemasaran, lainnya = penerima dengan status lain, termasuk yang belum terkirim; hanya kampanye yang sudah selesai dihitung; tidak ada angka "dibaca"; seorang penerima di dua kampanye terhitung dua kali. Kelompok kurang dari 3 orang ditahan beserta tetangga terkecilnya',
     );
   }
 

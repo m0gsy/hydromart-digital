@@ -44,7 +44,7 @@ function build(scope: ReadScope = OCT_WHOLE, over: Partial<Record<keyof AiLoyalt
   const sources = {
     redemptions: jest.fn(async () => ({ redemptions: 9, points: 4500, redeemers: 6, unplaced: 0 })),
     pointsOutstanding: jest.fn(async () => ({ accounts: 1234, points: 987_650 })),
-    referrals: jest.fn(async () => ({ invited: 30, qualified: 12, referrerPoints: 600, refereePoints: 300 })),
+    referrals: jest.fn(async () => ({ invited: 30, qualified: 12, qualifiedReferrers: 8, referrerPoints: 600, refereePoints: 300 })),
     discounts: jest.fn(async () => ({ orders: 400, discountedOrders: 90, discountIdr: 1_234_567.4 })),
     newSubscriptions: jest.fn(async () => ({ subscriptions: 25, subscribers: 20 })),
     campaigns: jest.fn(async () => ({ campaigns: 3, sent: 900, failed: 40, skipped: 60, other: 0 })),
@@ -164,6 +164,9 @@ describe('O-02, points redeemed', () => {
     const res = await unplaced.service.answer('O-02', network, OCTOBER, NOW);
     expect(res).toMatchObject({ status: 'belum_ada', value: null });
     expect(res.reason).toContain('tanpa depot');
+    // A depot-scoped caller is never told about rows outside their depots: the same source answer is ok.
+    const scoped = build(OCT_WHOLE, { redemptions: jest.fn(async () => ({ redemptions: 9, points: 4500, redeemers: 6, unplaced: 2 })) }, { all: false, legalEntityIds: [PT_A] });
+    expect(await scoped.service.answer('O-02', manager, OCTOBER, NOW)).toMatchObject({ status: 'ok', value: { points: 4500, redeemers: 6 } });
     const many = scopeOf(Array.from({ length: 101 }, (_, i) => span(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, '2026-10-01', '2026-10-31')));
     const big = build(many);
     expect((await big.service.answer('O-02', network, OCTOBER, NOW)).reason).toContain('persempit');
@@ -213,6 +216,10 @@ describe('O-04, points outstanding', () => {
 
   it('rounds to 5, holds 1 or 2 accounts back, answers a real 0, and is belum_ada when the source is down', async () => {
     expect([0, 2, 3, 7, 8, 12, 13].map(round5)).toEqual([0, 0, 5, 5, 10, 10, 15]);
+    for (const [accounts, published] of [[3, 5], [4, 5], [6, 5], [7, 5]] as const) {
+      const b = build(OCT_WHOLE, { pointsOutstanding: jest.fn(async () => ({ accounts, points: 1 })) });
+      expect(((await b.service.answer('O-04', network, OCTOBER, NOW)).value as { accounts: number }).accounts).toBe(published);
+    }
     for (const accounts of [1, 2]) {
       const b = build(OCT_WHOLE, { pointsOutstanding: jest.fn(async () => ({ accounts, points: 90 })) });
       expect(await b.service.answer('O-04', network, OCTOBER, NOW)).toMatchObject({ status: 'ditahan', value: null });
@@ -246,24 +253,28 @@ describe('O-06, referrals', () => {
   });
 
   it('holds back a cell of 1 or 2 people with the flag, and the points and rate that would give them away', async () => {
-    const one = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 30, qualified: 2, referrerPoints: 100, refereePoints: 50 })) });
+    const one = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 30, qualified: 2, qualifiedReferrers: 2, referrerPoints: 100, refereePoints: 50 })) });
     const res = await one.service.answer('O-06', network, OCTOBER, NOW);
-    expect(res.value).toMatchObject({ invited: { value: 30 }, qualified: { value: null, flag: 'kurang dari 3' }, points: { value: null, flag: 'kurang dari 3' }, conversionPct: null });
+    expect(res.value).toMatchObject({ invited: { value: 30 }, qualified: { value: null, flag: 'kurang dari 3' }, points: { referrer: null, referee: null, total: null, flag: 'kurang dari 3' }, conversionPct: null });
     expect(JSON.stringify(res)).not.toContain('"referrer":100');
-    const few = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 1, qualified: 9, referrerPoints: 450, refereePoints: 450 })) });
+    const few = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 1, qualified: 9, qualifiedReferrers: 5, referrerPoints: 450, refereePoints: 450 })) });
     const res2 = await few.service.answer('O-06', network, OCTOBER, NOW);
     expect(res2.value).toMatchObject({ invited: { value: null, flag: 'kurang dari 3' }, qualified: { value: 9 }, conversionPct: null });
-    const both = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 2, qualified: 1, referrerPoints: 50, refereePoints: 25 })) });
+    // Many referees but one referrer: the referrer's points are one person's, and the total would give them away.
+    const lone = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 30, qualified: 9, qualifiedReferrers: 2, referrerPoints: 450, refereePoints: 450 })) });
+    const res3 = await lone.service.answer('O-06', network, OCTOBER, NOW);
+    expect(res3.value).toMatchObject({ qualified: { value: 9 }, points: { referrer: null, referee: 450, total: null, flag: 'kurang dari 3' } });
+    const both = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 2, qualified: 1, qualifiedReferrers: 1, referrerPoints: 50, refereePoints: 25 })) });
     expect(await both.service.answer('O-06', network, OCTOBER, NOW)).toMatchObject({ status: 'ditahan', value: null });
   });
 
   it('answers real zeros, a rate over 100 for a different cohort, and belum_ada when the source is down', async () => {
-    const zero = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 0, qualified: 0, referrerPoints: 0, refereePoints: 0 })) });
+    const zero = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 0, qualified: 0, qualifiedReferrers: 0, referrerPoints: 0, refereePoints: 0 })) });
     expect(await zero.service.answer('O-06', network, OCTOBER, NOW)).toMatchObject({
       status: 'ok',
       value: { invited: { value: 0 }, qualified: { value: 0 }, points: { total: 0 }, conversionPct: null },
     });
-    const over = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 4, qualified: 10, referrerPoints: 500, refereePoints: 500 })) });
+    const over = build(OCT_WHOLE, { referrals: jest.fn(async () => ({ invited: 4, qualified: 10, qualifiedReferrers: 6, referrerPoints: 500, refereePoints: 500 })) });
     expect((await over.service.answer('O-06', network, OCTOBER, NOW)).value).toMatchObject({ conversionPct: 250 });
     const down = build(OCT_WHOLE, { referrals: jest.fn(async () => null) });
     expect(await down.service.answer('O-06', network, OCTOBER, NOW)).toMatchObject({ status: 'belum_ada', value: null });

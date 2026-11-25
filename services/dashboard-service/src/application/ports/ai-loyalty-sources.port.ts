@@ -9,6 +9,10 @@
  * subscriptions, campaigns) carry no depot at all: the metric only asks them for a role that reads the
  * whole network.
  */
+/** Most spans and depots one many-depot read may carry; every internal route refuses more (422). */
+export const MAX_SPANS = 200;
+export const MAX_DEPOTS = 100;
+
 export interface LoyaltySpan {
   depotId: string;
   /** ISO 8601 instants, `[from, to)`. */
@@ -38,6 +42,8 @@ export interface PointsOutstandingTotals {
 export interface ReferralTotals {
   invited: number;
   qualified: number;
+  /** Distinct referrers behind the qualified referrals; invited and qualified already count distinct referees. */
+  qualifiedReferrers: number;
   referrerPoints: number;
   refereePoints: number;
 }

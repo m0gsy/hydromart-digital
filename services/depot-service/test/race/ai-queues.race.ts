@@ -45,14 +45,23 @@ describeRace('AI open queues against a real database', () => {
       prisma.maintenanceItem.create({
         data: { depotId, name: 'RO', category: 'Filter', intervalDays: 30, nextDueAt },
       });
-    await item(a.id, new Date('2026-11-25T03:00:00Z')); // due exactly now: overdue
+    await item(a.id, new Date('2026-11-25T03:00:00Z')); // due exactly now: not overdue (strictly before now only)
     await item(a.id, new Date('2026-11-26T03:00:00Z'));
+    await item(a.id, new Date('2026-11-25T02:59:59Z')); // a second earlier: overdue
+    const approval = (depotId: string, status: string) =>
+      prisma.approval.create({
+        data: { depotId, type: 'OPNAME_VARIANCE' as never, status: status as never, title: 't', submittedBy: randomUUID(), amountIdr: 1000, autoPassThreshold: 0 },
+      });
+    await approval(a.id, 'PENDING');
+    await approval(a.id, 'HELD');
+    await approval(a.id, 'APPROVED');
     const out = await repo.openCounts([a.id, b.id], now);
     expect(out.incidents.get(a.id)).toBe(2);
     expect(out.incidents.get(b.id)).toBeUndefined();
     expect(out.disputes.get(a.id)).toBe(1);
     expect(out.disputes.get(b.id)).toBe(1);
-    expect(out.maintenanceOverdue.get(a.id)).toBe(1);
-    expect(out.approvals.size).toBe(0);
+    expect(out.maintenanceOverdue.get(a.id)).toBe(1); // only the one due before now
+    expect(out.approvals.get(a.id)).toBe(2); // PENDING and HELD are open, APPROVED is not
+    expect(out.approvals.get(b.id)).toBeUndefined();
   });
 });

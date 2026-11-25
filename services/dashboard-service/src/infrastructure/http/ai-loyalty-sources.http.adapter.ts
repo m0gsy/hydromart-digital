@@ -6,6 +6,8 @@ import {
   DiscountTotals,
   InstantWindow,
   LoyaltySpan,
+  MAX_DEPOTS,
+  MAX_SPANS,
   NewSubscriptionTotals,
   OpenQueueRow,
   PointsOutstandingTotals,
@@ -18,10 +20,6 @@ import { DashboardConfigService } from '../../config/dashboard-config.service';
 const isCount = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
 const isMoney = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 const asRecord = (v: unknown): Record<string, unknown> | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
-
-/** The most spans and depots one many-depot read carries; every internal route refuses more (422). */
-const MAX_SPANS = 200;
-const MAX_DEPOTS = 100;
 
 /**
  * HD-6 H4 part 2: reads loyalty-, referral-, order-, crm- and depot-service with the internal key. A
@@ -80,8 +78,10 @@ export class AiLoyaltySourcesHttpAdapter implements AiLoyaltySourcesPort {
 
   async referrals(window: InstantWindow): Promise<ReferralTotals | null> {
     const b = await this.call(this.config.referralServiceUrl, 'referrals/internal/ai/totals', { query: { ...window } });
-    if (!b || !isCount(b.invited) || !isCount(b.qualified) || !isCount(b.referrerPoints) || !isCount(b.refereePoints)) return null;
-    return { invited: b.invited, qualified: b.qualified, referrerPoints: b.referrerPoints, refereePoints: b.refereePoints };
+    if (!b || !isCount(b.invited) || !isCount(b.qualified) || !isCount(b.qualifiedReferrers) || !isCount(b.referrerPoints) || !isCount(b.refereePoints)) return null;
+    // Referrers are people behind the qualified referrals, so there cannot be more of them than referrals, nor any without one.
+    if (b.qualifiedReferrers > b.qualified || (b.qualified > 0 && b.qualifiedReferrers === 0)) return null;
+    return { invited: b.invited, qualified: b.qualified, qualifiedReferrers: b.qualifiedReferrers, referrerPoints: b.referrerPoints, refereePoints: b.refereePoints };
   }
 
   async discounts(spans: readonly LoyaltySpan[]): Promise<DiscountTotals | null> {

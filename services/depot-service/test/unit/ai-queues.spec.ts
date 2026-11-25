@@ -52,8 +52,8 @@ describe('AiQueuesPrismaRepository', () => {
     expect(out.maintenanceOverdue.get(D1)).toBe(4);
     expect(prisma.incident.groupBy.mock.calls[0][0].where).toEqual({ depotId: { in: [D1, D2] }, status: { not: 'RESOLVED' } });
     expect(prisma.orderDispute.groupBy.mock.calls[0][0].where.status).toBe('OPEN');
-    expect(prisma.approval.groupBy.mock.calls[0][0].where.status).toBe('PENDING');
-    expect(prisma.maintenanceItem.groupBy.mock.calls[0][0].where.nextDueAt).toEqual({ lte: NOW });
+    expect(prisma.approval.groupBy.mock.calls[0][0].where.status).toEqual({ in: ['PENDING', 'HELD'] });
+    expect(prisma.maintenanceItem.groupBy.mock.calls[0][0].where.nextDueAt).toEqual({ lt: NOW });
   });
 });
 

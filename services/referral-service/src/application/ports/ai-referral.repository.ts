@@ -3,6 +3,8 @@ export interface ReferralTotals {
   invited: number;
   /** Referrals that stand QUALIFIED now and qualified inside the window; a voided one was reopened and is not here. */
   qualified: number;
+  /** Distinct referrers behind the qualified referrals (a referee is unique per referral, so `invited` and `qualified` already count referees). */
+  qualifiedReferrers: number;
   /** Points of those qualified referrals, the referrer's side and the referee's side. */
   referrerPoints: number;
   refereePoints: number;
