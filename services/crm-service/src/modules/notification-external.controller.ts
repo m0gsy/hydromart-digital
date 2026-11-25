@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuditMutationsInterceptor, Can, ExternalAccess } from '@hydromart/platform';
 
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
+import { CustomerReminderService } from '../application/services/customer-reminder.service';
 import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { NotificationService } from '../application/services/notification.service';
 import { oneLine } from '../domain/ai-access-request';
@@ -20,6 +21,8 @@ import { NotificationEvent } from '../domain/notification-event';
 import {
   AiAccessRequestedDto,
   AiAccessRequestedResultDto,
+  CustomerReminderDto,
+  CustomerReminderResultDto,
   FRANCHISE_EVENT_PREFIX,
   FranchiseApplicationSubmittedDto,
   MORNING_SUMMARY_PREFIX,
@@ -47,6 +50,7 @@ export class NotificationExternalController {
     private readonly notifications: NotificationService,
     private readonly morningSummary: MorningSummaryService,
     private readonly aiAccessRequests: AiAccessRequestService,
+    private readonly customerReminders: CustomerReminderService,
   ) {}
 
   /*
@@ -114,6 +118,26 @@ export class NotificationExternalController {
       throw new BadRequestException('date must be today in Asia/Jakarta');
     }
     return this.morningSummary.run(eventId, dto.date);
+  }
+
+  /*
+   * HD-18: n8n says "now" for one kind of customer reminder (SUBSCRIPTION_TOMORROW,
+   * POINTS_EXPIRING, UNPAID_ORDER); hydromart decides who is due and files one in-app notice
+   * (bell and push, respecting the customer's own switches) per customer per thing, deduped by
+   * key. `date` must be today in Asia/Jakarta, like the morning summary. WhatsApp: `pending`.
+   */
+  @ExternalAccess('machine')
+  @Can('customerReminderNotify')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('customer-reminders')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'n8n: trigger one kind of customer reminder (HD-18)' })
+  @ApiOkResponse({ type: CustomerReminderResultDto })
+  async customerRemindersRun(@Body() dto: CustomerReminderDto): Promise<CustomerReminderResultDto> {
+    if (dto.date !== wibDate(new Date())) {
+      throw new BadRequestException('date must be today in Asia/Jakarta');
+    }
+    return this.customerReminders.run(dto.kind, dto.date);
   }
 
   /*

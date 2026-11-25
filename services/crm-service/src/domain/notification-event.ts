@@ -69,6 +69,13 @@ export enum NotificationEvent {
   // person who can grant it (legalEntityAiAccess), raised by POST notifications/external/
   // ai-access-requested. Tokens: {{who}} (name and role), {{what}} (entities or data group).
   AI_ACCESS_REQUESTED = 'AI_ACCESS_REQUESTED',
+  // HD-18, customer reminders n8n triggers (POST notifications/external/customer-reminders).
+  // Tokens: {{product}}, {{quantity}}, {{date}} (the delivery day, "26 Nov").
+  SUBSCRIPTION_TOMORROW = 'SUBSCRIPTION_TOMORROW',
+  // Tokens: {{points}}, {{expires}} (the day the lot lapses, "30 Nov").
+  POINTS_EXPIRING = 'POINTS_EXPIRING',
+  // Tokens: {{orderNumber}}, {{orderId}} (the tap opens the order), {{amount}}.
+  UNPAID_ORDER = 'UNPAID_ORDER',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -231,6 +238,12 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.MORNING_SUMMARY]: 'Persetujuan yang menunggu Anda: {{summary}}.{{oldest}}',
   [NotificationEvent.AI_ACCESS_REQUESTED]:
     '{{who}} meminta akses AI web untuk {{what}}. Buka Badan hukum, bagian akses AI, untuk memberikannya.',
+  [NotificationEvent.SUBSCRIPTION_TOMORROW]:
+    'Pengingat: langganan {{product}} ({{quantity}}) dijadwalkan diantar besok, {{date}}. Pastikan ada yang menerima ya 💧',
+  [NotificationEvent.POINTS_EXPIRING]:
+    '{{points}} poinmu akan hangus pada {{expires}}. Tukarkan dengan voucher di halaman Rewards sebelum hangus ⭐',
+  [NotificationEvent.UNPAID_ORDER]:
+    'Pesanan {{orderNumber}} ({{amount}}) masih menunggu pembayaran. Selesaikan sekarang, pesanan yang belum dibayar dibatalkan otomatis.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
   [NotificationEvent.PAYMENT_REMINDER]:
@@ -497,6 +510,12 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]:
     'New franchise application from a prospective partner in {{city}}, {{province}}. Open Franchise applications to review it.',
   [NotificationEvent.MORNING_SUMMARY]: 'Approvals waiting for you: {{summary}}.{{oldest}}',
+  [NotificationEvent.SUBSCRIPTION_TOMORROW]:
+    'Reminder: your {{product}} subscription ({{quantity}}) is scheduled for delivery tomorrow, {{date}}. Please make sure someone can receive it 💧',
+  [NotificationEvent.POINTS_EXPIRING]:
+    '{{points}} of your points expire on {{expires}}. Redeem them for a voucher on the Rewards page before they lapse ⭐',
+  [NotificationEvent.UNPAID_ORDER]:
+    'Order {{orderNumber}} ({{amount}}) is still waiting for payment. Pay now: orders left unpaid are cancelled automatically.',
   [NotificationEvent.AI_ACCESS_REQUESTED]:
     '{{who}} asks for AI web access to {{what}}. Open Legal entities, the AI access section, to grant it.',
   [NotificationEvent.PAYMENT_FAILED]:

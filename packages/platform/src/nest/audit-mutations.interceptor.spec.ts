@@ -85,6 +85,10 @@ describe('redactBody (CA-2-67)', () => {
     });
   });
 
+  it('HD-18: keeps a subscriber number (msisdn) out of the trail', () => {
+    expect(redactBody({ msisdn: '+628123456789', note: 'x' })).toEqual({ msisdn: '[redacted]', note: 'x' });
+  });
+
   it('replaces secret-looking values and flattens the rest', () => {
     expect(
       redactBody({

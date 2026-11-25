@@ -32,6 +32,7 @@ import {
   DepotSummaryQueryDto,
   EarnPointsDto,
   EarnResultDto,
+  ExpiringLotsQueryDto,
   ListTransactionsQueryDto,
   LoyaltyAccountDto,
   LoyaltyRulesDto,
@@ -280,6 +281,20 @@ export class LoyaltyController {
     // the point-expiry switch (that is a policy about points, this one about shelf stock).
     const redemptionsExpired = await this.rewards.expireStale();
     return { ...(await this.loyalty.runExpiry()), redemptionsExpired, ok: true };
+  }
+
+  /**
+   * HD-18: the lots about to lapse, for crm's customer reminder (which n8n triggers). Ids stay
+   * inside hydromart; crm files one notification per lot.
+   */
+  @ApiOkResponse({ description: 'lots: lotId, customerId, points (capped at the balance), expiresAt.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Get('internal/expiring-lots')
+  @ApiOperation({ summary: 'Point lots expiring soon (internal service auth, HD-18)' })
+  async expiringLots(@Query() query: ExpiringLotsQueryDto) {
+    return { lots: await this.loyalty.expiringLots(new Date(), query.withinDays) };
   }
 
   @ApiOkResponse({ type: MemberCountResponseDto })

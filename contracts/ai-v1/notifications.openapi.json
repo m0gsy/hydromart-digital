@@ -3,7 +3,7 @@
   "info": {
     "title": "hydromart-digital notifications raised by machine accounts",
     "version": "1.0.0",
-    "description": "AI-5, AI-9, AI-7c. Routes n8n calls, with a machine token, to raise a notification in hydromart-digital's own staff notifications: a row in the staff feed (the bell on the console) and a push to the phones of the accounts it is for. hydromart-digital writes the text itself (Indonesian, the product default); the caller sends facts, never copy.\n\nAuthentication: a machine token from POST /auth/api/v1/auth/machine/token (auth.openapi.json): ES256, aud hydromart-machine, 15 minutes. Each route names the capability its token's scopes must include. An AI-web token (aud hydromart-ai) is refused on these routes, whoever the person is, and so is any hydromart-digital session token whose role does not hold that capability.\n\nAudit trail: every call is recorded in hydromart-digital's audit trail BEFORE it runs, as the machine account, with the request body, and refused with 503 when it cannot be recorded; nothing is notified then. Send X-Workflow to name the n8n workflow in that record.\n\nRate limit: counted per machine account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: unknown request fields are refused (400), so send only the fields listed. A field may be added to a response within version 1; removing or renaming one is a new contract version."
+    "description": "AI-5, AI-9, AI-7c, HD-18. Routes n8n calls, with a machine token, to raise a notification in hydromart-digital's own staff notifications: a row in the staff feed (the bell on the console) and a push to the phones of the accounts it is for. hydromart-digital writes the text itself (Indonesian, the product default); the caller sends facts, never copy.\n\nAuthentication: a machine token from POST /auth/api/v1/auth/machine/token (auth.openapi.json): ES256, aud hydromart-machine, 15 minutes. Each route names the capability its token's scopes must include. An AI-web token (aud hydromart-ai) is refused on these routes, whoever the person is, and so is any hydromart-digital session token whose role does not hold that capability.\n\nAudit trail: every call is recorded in hydromart-digital's audit trail BEFORE it runs, as the machine account, with the request body, and refused with 503 when it cannot be recorded; nothing is notified then. Send X-Workflow to name the n8n workflow in that record.\n\nRate limit: counted per machine account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: unknown request fields are refused (400), so send only the fields listed. A field may be added to a response within version 1; removing or renaming one is a new contract version."
   },
   "servers": [
     {
@@ -352,6 +352,121 @@
           }
         }
       }
+    },
+    "/crm/api/v1/notifications/external/customer-reminders": {
+      "post": {
+        "summary": "Trigger one kind of customer reminder: subscription tomorrow, points about to expire, unpaid order.",
+        "description": "Called by n8n on its schedule (HD-18), with the kind and the date of the day. The token's scopes must include customerReminderNotify. n8n only TRIGGERS: it sends a kind and a date and receives counts, never a customer, an order or a number of points. hydromart-digital asks the service that owns the data who is due, writes the text (Indonesian, or the customer's own language) and files one notification per customer per thing.\n\nKinds. SUBSCRIPTION_TOMORROW: every ACTIVE subscription whose next delivery falls tomorrow in Asia/Jakarta; one reminder per subscription per delivery day. POINTS_EXPIRING: every loyalty EARN lot that expires within the next 7 days and has not expired yet (what the customer stands to lose is capped at their balance); one reminder per lot, ever; none while the point-expiry sweep is switched off, because nothing then expires. UNPAID_ORDER: transfer and QRIS orders still waiting for their payment once they are two thirds of the way to the auto-cancel (40 of the default 60 minutes; the window follows the cancel setting and never reaches an order the sweep could already cancel); one reminder per order. Counter sales and subscription deliveries are never reminded.\n\nChannels: the customer's in-app inbox (the bell) and a push to their devices, through the same path as every customer notification, so a customer who switched push off gets the inbox row only. WhatsApp is not sent: it waits for per-number consent (HD-13), and the response says whatsapp 'pending', never 'sent'.\n\ndate is TODAY in Asia/Jakarta (WIB, UTC+7), as YYYY-MM-DD; any other day is refused with 400, so a replay of an old trigger cannot remind about today's state under yesterday's name. Idempotent: a customer who already has a given reminder is not sent it again, so a retry, a second tick or an overlapping run answers 200 with the repeats counted as skipped, and sends nothing twice.\n\nRecommended schedule (WIB): SUBSCRIPTION_TOMORROW once a day at 17.00; POINTS_EXPIRING once a day at 10.00; UNPAID_ORDER every 10 minutes. 200 means everyone due has the reminder; on 503 retry the same body later.",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "The n8n workflow making the call, recorded in the audit trail as workflow (trimmed, at most 120 characters). Not checked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "hd18-customer-reminders"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerReminderTrigger"
+              },
+              "example": {
+                "kind": "UNPAID_ORDER",
+                "date": "2026-11-25"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Everyone due has the reminder: filed by this call (notified) or already filed (skipped).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerReminderResult"
+                },
+                "example": {
+                  "kind": "UNPAID_ORDER",
+                  "date": "2026-11-25",
+                  "candidates": 3,
+                  "notified": 2,
+                  "skipped": 1,
+                  "whatsapp": "pending"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: a field missing, malformed or unknown; a kind that is not one of the three; a date that is not today in Asia/Jakarta. Not worth retrying with the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI and machine access was switched off (the published key set is empty): POST /auth/api/v1/auth/machine/token then answers 503. Get a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include customerReminderNotify. Not worth retrying until the machine account's scopes change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this machine account. Wait the seconds in Retry-After, then retry with the same body.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call (nothing was sent), or the services that know who is due could not be read, or some reminder could not be filed (those filed keep theirs). Retry the same body later with Retry-After if present.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -575,6 +690,72 @@
               true
             ],
             "description": "Present and true only when the hourly cap on requests was reached: nothing was sent, and retrying is pointless."
+          }
+        }
+      },
+      "CustomerReminderTrigger": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "date"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "SUBSCRIPTION_TOMORROW",
+              "POINTS_EXPIRING",
+              "UNPAID_ORDER"
+            ]
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "Today in Asia/Jakarta, YYYY-MM-DD."
+          }
+        }
+      },
+      "CustomerReminderResult": {
+        "type": "object",
+        "required": [
+          "kind",
+          "date",
+          "candidates",
+          "notified",
+          "skipped",
+          "whatsapp"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "SUBSCRIPTION_TOMORROW",
+              "POINTS_EXPIRING",
+              "UNPAID_ORDER"
+            ]
+          },
+          "date": {
+            "type": "string"
+          },
+          "candidates": {
+            "type": "integer",
+            "description": "Who is due a reminder of this kind right now."
+          },
+          "notified": {
+            "type": "integer",
+            "description": "Of those, how many this call filed (inbox and push)."
+          },
+          "skipped": {
+            "type": "integer",
+            "description": "Of those, how many already had it (a retry or a later tick files none twice)."
+          },
+          "whatsapp": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ],
+            "description": "WhatsApp waits for per-number consent (HD-13); it is never reported as sent."
           }
         }
       }

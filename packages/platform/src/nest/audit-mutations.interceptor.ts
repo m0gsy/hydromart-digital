@@ -30,7 +30,8 @@ export interface AuditMutationSink {
 export const AUDIT_MUTATION_SINK = 'AUDIT_MUTATION_SINK';
 
 /** Body/param names whose VALUE must never reach the trail, matched case-insensitively. */
-const SECRET_WORDS = /secret|token|password|apikey|api_key|signature/i;
+// HD-18: `msisdn` is a subscriber number n8n sends to find a customer's orders; never written to the trail.
+const SECRET_WORDS = /secret|token|password|apikey|api_key|signature|msisdn/i;
 /** `pin` and `otp` only as a WORD: `pin`, `new_pin`, `OTP`, not the middle of `shippingFee`. */
 const SECRET_SHORT = /(^|[^a-z])(otp|pin)([^a-z]|$)/i;
 /** camelCase: `userPin`, `otpCode`; case-sensitive so `shippingFee` / `Pinned` do not match. */

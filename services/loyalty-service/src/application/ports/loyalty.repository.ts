@@ -103,6 +103,8 @@ export interface LoyaltyRepository {
     limit: number,
   ): Promise<{ items: PointsTransactionRecord[]; total: number }>;
 
+  /** HD-18: EARN lots not yet swept whose expiry falls in `(from, to]`, soonest first. */
+  findExpiringLots(from: Date, to: Date, limit: number): Promise<PointsTransactionRecord[]>;
   /** EARN lots that are past their expiry and not yet swept (BR-014). */
   findExpirableLots(now: Date, limit: number): Promise<PointsTransactionRecord[]>;
   /**

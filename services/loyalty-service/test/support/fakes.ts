@@ -181,6 +181,17 @@ export class InMemoryLoyaltyRepository implements LoyaltyRepository {
     return { items: all.slice(start, start + limit).map((t) => ({ ...t })), total: all.length };
   }
 
+  async findExpiringLots(from: Date, to: Date, limit: number): Promise<PointsTransactionRecord[]> {
+    return this.txns
+      .filter(
+        (t) =>
+          t.type === PointsTxnType.EARN && !t.expired && t.expiresAt !== null && t.expiresAt > from && t.expiresAt <= to,
+      )
+      .sort((a, b) => a.expiresAt!.getTime() - b.expiresAt!.getTime())
+      .slice(0, limit)
+      .map((t) => ({ ...t }));
+  }
+
   async findExpirableLots(now: Date, limit: number): Promise<PointsTransactionRecord[]> {
     return this.txns
       .filter(

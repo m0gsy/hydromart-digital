@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
 import {
+  AUDIT_MUTATION_SINK,
   JwtAuthGuard,
   RolesGuard,
   DepotScopeGuard,
@@ -69,6 +70,15 @@ import { SalesImportController } from './sales-import.controller';
 import { AiCustomerMetricsController } from './ai-customer-metrics.controller';
 import { AiCustomerMetricsService } from '../application/services/ai-customer-metrics.service';
 import { AiCustomerPrismaRepository } from '../infrastructure/prisma/ai-customer.prisma.repository';
+import { CustomerOutreachService } from '../application/services/customer-outreach.service';
+import { CUSTOMER_OUTREACH_REPOSITORY } from '../application/ports/customer-outreach.repository';
+import { CustomerOutreachPrismaRepository } from '../infrastructure/prisma/customer-outreach.prisma.repository';
+import {
+  AccountByPhoneHttpAdapter,
+  PaymentsOfOrdersHttpAdapter,
+} from '../infrastructure/http/outreach-lookups.http.adapter';
+import { OrderAuditSink } from '../infrastructure/http/order-audit.sink';
+import { CustomerRemindersInternalController, MachineOrdersController } from './customer-outreach.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -91,6 +101,12 @@ const providers: Provider[] = [
   SettingsService,
   SalesImportService,
   AiCustomerMetricsService,
+  // HD-18: the n8n machine routes (order status per number, who to remind) and their audit trail.
+  CustomerOutreachService,
+  { provide: CUSTOMER_OUTREACH_REPOSITORY, useClass: CustomerOutreachPrismaRepository },
+  { provide: ORDER_TOKENS.AccountByPhone, useClass: AccountByPhoneHttpAdapter },
+  { provide: ORDER_TOKENS.PaymentsOfOrders, useClass: PaymentsOfOrdersHttpAdapter },
+  { provide: AUDIT_MUTATION_SINK, useClass: OrderAuditSink },
   { provide: ORDER_TOKENS.AiCustomerRepository, useClass: AiCustomerPrismaRepository },
   { provide: ORDER_TOKENS.SalesImportRepository, useClass: SalesImportPrismaRepository },
   { provide: ORDER_TOKENS.CartRepository, useClass: CartPrismaRepository },
@@ -149,6 +165,8 @@ const providers: Provider[] = [
     SettingsController,
     SalesImportController,
     AiCustomerMetricsController,
+    MachineOrdersController,
+    CustomerRemindersInternalController,
   ],
   providers,
   exports: [PrismaService, OrderConfigService],

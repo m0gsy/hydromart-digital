@@ -387,6 +387,27 @@ export class LoyaltyService {
   }
 
   /**
+   * HD-18: lots that will expire within `withinDays` of `now`, for the "your points are about to
+   * lapse" reminder. What the customer stands to lose is capped at their balance, as the sweep caps
+   * it, and a lot with nothing left to take is not reported. With the sweep switched off nothing
+   * lapses, so nothing is reported (a reminder for points that will not expire would be a lie).
+   */
+  async expiringLots(
+    now: Date,
+    withinDays: number,
+  ): Promise<{ lotId: string; customerId: string; points: number; expiresAt: Date }[]> {
+    if (!this.config.pointExpirySweepEnabled) return [];
+    const to = new Date(now.getTime() + withinDays * 86_400_000);
+    const out: { lotId: string; customerId: string; points: number; expiresAt: Date }[] = [];
+    for (const lot of await this.repo.findExpiringLots(now, to, LoyaltyService.EXPIRY_BATCH)) {
+      const account = await this.repo.findAccount(lot.customerId);
+      const points = Math.min(lot.points, account?.pointsBalance ?? 0);
+      if (points > 0) out.push({ lotId: lot.id, customerId: lot.customerId, points, expiresAt: lot.expiresAt! });
+    }
+    return out;
+  }
+
+  /**
    * Sweep expired point lots (BR-014). Each due EARN lot becomes a matching negative
    * EXPIRE entry and is marked swept, decrementing the account balance. Idempotent —
    * a swept lot is never picked up again. Meant to be run on a schedule.

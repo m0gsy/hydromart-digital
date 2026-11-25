@@ -479,6 +479,18 @@ describe('LoyaltyPrismaRepository', () => {
     });
   });
 
+  it('finds EARN lots expiring inside a window (HD-18)', async () => {
+    pointsTransaction.findMany.mockResolvedValue([txnRow()]);
+    const from = new Date('2026-08-01');
+    const to = new Date('2026-08-08');
+    expect(await repo.findExpiringLots(from, to, 50)).toHaveLength(1);
+    expect(pointsTransaction.findMany).toHaveBeenCalledWith({
+      where: { type: PointsTxnType.EARN, expired: false, expiresAt: { gt: from, lte: to } },
+      orderBy: { expiresAt: 'asc' },
+      take: 50,
+    });
+  });
+
   it('records expiry: mark lot expired + negative EXPIRE entry + balance debit', async () => {
     pointsTransaction.create.mockReturnValue('expire-entry' as never);
     pointsTransaction.updateMany.mockResolvedValueOnce({ count: 1 });

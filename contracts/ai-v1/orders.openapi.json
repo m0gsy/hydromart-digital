@@ -1,0 +1,313 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hydromart-digital order status for machine accounts",
+    "version": "1.0.0",
+    "description": "HD-18. The route n8n calls, with a machine token, to answer \"where is my order\" for one WhatsApp number (customer chats, AI web, n8n, this route, the answer goes back to the same number).\n\nAuthentication: a machine token from POST /auth/api/v1/auth/machine/token (auth.openapi.json), scope orderStatusByPhone. An AI-web token is refused, whoever the person is.\n\nPrivacy: the number travels in the BODY of a POST so it is in no access log, and it is never written to the audit trail (the trail records the call as the machine account, with the number redacted). The answer never holds a delivery address, the customer's name, a phone number or the courier's identity.\n\nAudit trail: every call is recorded BEFORE it runs, as the machine account, and refused with 503 when it cannot be recorded. Send X-Workflow to name the n8n workflow.\n\nRate limit: counted per machine account, at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: unknown request fields are refused (400). A field may be added to a response within version 1; removing or renaming one is a new contract version."
+  },
+  "servers": [
+    {
+      "url": "https://api.hydromart-digital.com"
+    }
+  ],
+  "paths": {
+    "/order/api/v1/machine/orders/by-phone": {
+      "post": {
+        "summary": "The orders of one WhatsApp number: the running ones and the last 3 finished or cancelled.",
+        "description": "Called by n8n with the number the customer chatted from. The token's scopes must include orderStatusByPhone.\n\nThe number is read like every phone number in hydromart-digital: 0812..., 62812... and +62812... are the same account. It answers the orders that account placed itself: every order still moving (CREATED to ON_DELIVERY, newest first, at most 20) followed by the last 3 DELIVERED, COMPLETED, CANCELLED or VOIDED ones. A number that no account holds, an invalid number and an account with no orders all answer 200 with an empty list, so the route is no way to learn who has an account.\n\nEach order carries its short number, when it was made (WIB), the items (product name and quantity), the total (IDR), the payment status and method, the order status, the depot's name and the delivery window or slot. paymentStatus and paymentMethod (and depot) are null when the service that knows them could not be read at that moment; the order is still answered.\n\n503 means auth-service could not be asked who holds the number: retry later, and do not tell the customer they have no orders.",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "The n8n workflow making the call, recorded in the audit trail as workflow (trimmed, at most 120 characters). Not checked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "hd18-whatsapp-order-status"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrdersByPhoneRequest"
+              },
+              "example": {
+                "msisdn": "081234567890"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The number's orders, possibly none.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrdersByPhoneResult"
+                },
+                "example": {
+                  "orders": [
+                    {
+                      "orderNumber": "HM-20261125-000123",
+                      "createdAt": "2026-11-25 09:41",
+                      "items": [
+                        {
+                          "name": "Galon 19L",
+                          "quantity": 2
+                        }
+                      ],
+                      "total": 38000,
+                      "paymentStatus": "PENDING",
+                      "paymentMethod": "QRIS",
+                      "status": "PREPARING",
+                      "depot": "Depot Pekayon",
+                      "deliveryWindow": "09:00-12:00",
+                      "scheduledFor": "2026-11-26 09:00"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: msisdn missing, empty, longer than 32 characters, or an unknown field. Not worth retrying with the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. Get a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include orderStatusByPhone. Not worth retrying until the machine account's scopes change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this machine account. Wait the seconds in Retry-After, then retry with the same body.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call, or auth-service could not say who holds the number. Nothing was answered; retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "machineToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Authorization: Bearer <accessToken> from POST /auth/api/v1/auth/machine/token. ES256, aud hydromart-machine; its scopes claim is the machine account's closed capability list."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "statusCode",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "description": "VALIDATION_ERROR, UNAUTHORIZED, FORBIDDEN, RATE_LIMITED or SERVICE_UNAVAILABLE."
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "For people reading logs. Route on statusCode and code."
+          }
+        }
+      },
+      "OrdersByPhoneRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "msisdn"
+        ],
+        "properties": {
+          "msisdn": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "The WhatsApp number, any common spelling of an Indonesian mobile number."
+          }
+        }
+      },
+      "OrdersByPhoneResult": {
+        "type": "object",
+        "required": [
+          "orders"
+        ],
+        "properties": {
+          "orders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MachineOrder"
+            },
+            "description": "Running orders newest first, then the last 3 finished or cancelled. Empty for an unknown number."
+          }
+        }
+      },
+      "MachineOrder": {
+        "type": "object",
+        "required": [
+          "orderNumber",
+          "createdAt",
+          "items",
+          "total",
+          "paymentStatus",
+          "paymentMethod",
+          "status",
+          "depot",
+          "deliveryWindow",
+          "scheduledFor"
+        ],
+        "properties": {
+          "orderNumber": {
+            "type": "string",
+            "example": "HM-20261125-000123"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-11-25 09:41",
+            "description": "When the order was made, WIB (YYYY-MM-DD HH:mm)."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "quantity"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "quantity": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "total": {
+            "type": "number",
+            "description": "IDR."
+          },
+          "paymentStatus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "PENDING, PAID, FAILED, REFUNDED or CANCELLED; null when unknown."
+          },
+          "paymentMethod": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "CASH, TRANSFER, QRIS, EWALLET or VA; null when unknown."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CREATED",
+              "CONFIRMED",
+              "PREPARING",
+              "DRIVER_ASSIGNED",
+              "PICKED_UP",
+              "ON_DELIVERY",
+              "DELIVERED",
+              "COMPLETED",
+              "CANCELLED",
+              "VOIDED"
+            ]
+          },
+          "depot": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The fulfilling depot's name."
+          },
+          "deliveryWindow": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The window the customer picked, as typed."
+          },
+          "scheduledFor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The booked slot start, WIB (YYYY-MM-DD HH:mm)."
+          }
+        }
+      }
+    }
+  }
+}

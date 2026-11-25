@@ -23,6 +23,8 @@ import {
   StaffByRolesDto,
   PreRegisterCustomerDto,
   PreRegisterResultDto,
+  CustomerByPhoneDto,
+  CustomerByPhoneResultDto,
   ProvisionManagedStaffDto,
   ProvisionStaffDto,
   PurgeBeforeDto,
@@ -190,6 +192,15 @@ export class InternalAccountController {
   @ApiOperation({ summary: 'Pre-register an imported customer as PENDING (internal service auth)' })
   preRegisterCustomer(@Body() dto: PreRegisterCustomerDto): Promise<PreRegisterResultDto> {
     return this.account.preRegisterCustomer(dto.phone, dto.fullName);
+  }
+
+  /** HD-18: read-only counterpart of `customers/pre-register`; never creates an account. */
+  @ApiOkResponse({ type: CustomerByPhoneResultDto })
+  @Post('customers/by-phone')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'The customer id behind a phone number, or null (internal service auth)' })
+  async customerByPhone(@Body() dto: CustomerByPhoneDto): Promise<CustomerByPhoneResultDto> {
+    return { customerId: await this.account.customerIdByPhone(dto.phone) };
   }
 
   /**

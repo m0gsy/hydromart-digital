@@ -393,6 +393,27 @@ describe('LoyaltyService', () => {
     expect(repo.txns.some((t) => t.type === PointsTxnType.EXPIRE && t.points === -60)).toBe(true);
   });
 
+  // HD-18: the reminder reads the lots that are about to lapse, with the sweep's own cap.
+  it('lists the lots expiring inside the window, capped at the balance, only when the sweep is on', async () => {
+    const lot = (id: string, customerId: string, points: number, days: number) =>
+      repo.txns.push({
+        id, customerId, type: PointsTxnType.EARN, points, orderId: null, reason: null,
+        expiresAt: new Date(Date.parse('2026-12-01T00:00:00Z') + days * 86_400_000), expired: false,
+        createdAt: new Date('2026-06-01T00:00:00Z'),
+      } as never);
+    await service.getAccount('cust-1');
+    await service.adjust('cust-1', 40, 'seed', { id: 'admin', capped: false });
+    await sweeperFor(repo).getAccount('cust-2'); // balance 0: nothing to lose
+    lot('in', 'cust-1', 100, 3);
+    lot('later', 'cust-1', 10, 9);
+    lot('past', 'cust-1', 10, -1);
+    lot('empty', 'cust-2', 10, 2);
+    const now = new Date('2026-12-01T00:00:00Z');
+    const lots = await sweeperFor(repo).expiringLots(now, 7);
+    expect(lots).toEqual([{ lotId: 'in', customerId: 'cust-1', points: 40, expiresAt: new Date('2026-12-04T00:00:00Z') }]);
+    expect(await service.expiringLots(now, 7)).toEqual([]); // sweep switched off: nothing will lapse
+  });
+
   it('does not re-expire an already swept lot', async () => {
     const expired = new LoyaltyService(
       repo,

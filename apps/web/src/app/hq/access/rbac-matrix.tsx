@@ -104,6 +104,8 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'franchiseApplicationNotify',
       'morningSummaryNotify',
       'aiAccessRequestNotify',
+      'orderStatusByPhone',
+      'customerReminderNotify',
       'depotDirectory',
       'orderManageRead',
       'staffDirectoryFinance',
