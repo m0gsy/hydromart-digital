@@ -307,6 +307,13 @@ describe('MoneyMetricsService: scope and the WIB window', () => {
     await expect(ask('L-07', 'SUPER_ADMIN', { from: '2026-11-05', to: '2026-11-20' })).rejects.toBeInstanceOf(BadRequestException);
     await expect(ask('L-07', 'SUPER_ADMIN', { from: '2026-10-01', to: '2026-11-30' })).rejects.toBeInstanceOf(BadRequestException);
     expect(await ask('L-07', 'SUPER_ADMIN', { from: '2026-11-01', to: '2026-11-30' })).toMatchObject({ status: 'ok' });
+    // a named day or week, even inside one month, is not a month: it used to answer the WHOLE month's figure
+    for (const id of ['L-01', 'L-03', 'L-06', 'L-07', 'L-08', 'L-09', 'U-07']) {
+      for (const q of [{ period: 'week', date: '2026-11-10' }, { period: 'day', date: '2026-11-10' }, { period: 'year', date: '2026-11-10' }]) {
+        await expect(ask(id, 'SUPER_ADMIN', q)).rejects.toBeInstanceOf(BadRequestException);
+      }
+      expect(await ask(id, 'SUPER_ADMIN', { period: 'month', date: '2026-11-10' })).toBeDefined();
+    }
     // a free range is fine for a metric that is not monthly
     expect(await ask('P-01', 'SUPER_ADMIN', { from: '2026-11-05', to: '2026-11-20' })).toMatchObject({ status: 'ok' });
   });
