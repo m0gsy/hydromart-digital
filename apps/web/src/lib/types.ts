@@ -1796,6 +1796,8 @@ export interface Delivery {
   deliveredAt?: string | null;
   failedAt?: string | null;
   failureReason?: string | null;
+  /** A fixed code beside the text; absent on rows failed before codes existed. */
+  failureReasonCode?: string | null;
   rescheduledFor?: string | null;
   rescheduleSlot?: string | null;
   rescheduleNote?: string | null;

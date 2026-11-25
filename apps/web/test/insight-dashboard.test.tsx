@@ -2348,6 +2348,47 @@ describe('failed deliveries and why', () => {
     expect(document.body.textContent).not.toContain('rahasia');
   });
 
+  it('buckets coded failures by code, whatever the courier wrote, and leaves legacy text rows as they were', async () => {
+    asRole('MANAGER');
+    openTab('couriers');
+    const row = (id: string, reason: string, code?: string) => ({
+      id,
+      orderId: 'o' + id,
+      orderNumber: 'HM-F' + id,
+      driverId: 'drv-aaaaaa',
+      depotId: 'd1',
+      status: 'FAILED',
+      destinationAddress: 'x',
+      destinationLat: null,
+      destinationLng: null,
+      lastLat: null,
+      lastLng: null,
+      lastLocationAt: null,
+      assignedAt: '2026-10-12T03:00:00.000Z',
+      failedAt: '2026-10-12T03:00:00.000Z',
+      failureReason: reason,
+      ...(code ? { failureReasonCode: code } : {}),
+    });
+    serve({
+      '/deliveries/api/v1/deliveries?status=FAILED': () => ({
+        items: [
+          row('1', 'Barang rusak: pecah di jalan', 'GOODS_DAMAGED'),
+          row('2', 'Barang rusak: kardus basah', 'GOODS_DAMAGED'),
+          row('3', 'Alamat tidak ketemu'),
+        ],
+        total: 3,
+        page: 1,
+        limit: 100,
+      }),
+    });
+    getCached.mockResolvedValue([{ id: 'd1', name: 'Depot Satu' }]);
+    renderPage();
+    const bucket = (await screen.findByText('Barang rusak')).closest('li')!;
+    expect(bucket.textContent).toContain('2');
+    expect(screen.getByText('Alamat tidak ketemu').closest('li')!.textContent).toContain('1');
+    expect(document.body.textContent).not.toContain('pecah di jalan');
+  });
+
   it('says only the newest page was read when the list is longer than what it fetched', async () => {
     asRole('MANAGER');
     openTab('couriers');

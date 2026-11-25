@@ -32,6 +32,17 @@ const WORKLOAD_PAGE = 100;
 const pct = (rate: number): string => `${Math.round(rate * 100)}%`;
 
 /** Armada & Kurir: who is on shift, how each courier is doing, and what the month's runs earned. */
+// Same wording as the courier's fail screen.
+const FAILURE_CODE_LABEL: Record<string, string> = {
+  ADDRESS_NOT_FOUND: 'driver.deliveryFail.reasons.addressNotFound',
+  CUSTOMER_REFUSED: 'driver.deliveryFail.reasons.customerRefused',
+  GOODS_DAMAGED: 'driver.deliveryFail.reasons.goodsDamaged',
+  CANNOT_CONTACT: 'driver.deliveryFail.reasons.cannotContact',
+  OTHER: 'driver.deliveryFail.reasons.other',
+  NO_SHOW: 'driver.deliveryFail.reasons.noShow',
+  DEPOT_CANCELLED: 'driver.deliveryFail.reasons.depotCancelled',
+};
+
 export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
   const { t } = useT();
   const { role, range, depotId } = ctx;
@@ -142,8 +153,10 @@ export function CouriersTab({ ctx }: { ctx: InsightCtx }) {
   );
   const byReason = new Map<string, { label: string; n: number }>();
   for (const d of failedInRange) {
-    const label = (d.failureReason ?? '').trim().slice(0, 60);
-    const key = label.toLowerCase();
+    // A coded row groups by its code (a courier's note never becomes a label); an older row by its text.
+    const codeKey = d.failureReasonCode ? FAILURE_CODE_LABEL[d.failureReasonCode] : undefined;
+    const label = codeKey ? t(codeKey) : (d.failureReason ?? '').trim().slice(0, 60);
+    const key = d.failureReasonCode ? `code:${d.failureReasonCode}` : label.toLowerCase();
     const cur = byReason.get(key);
     byReason.set(key, { label: cur?.label ?? label, n: (cur?.n ?? 0) + 1 });
   }

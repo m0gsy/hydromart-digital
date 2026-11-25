@@ -10,26 +10,29 @@ import { Button, Card, Field, FormError, Input } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useBack } from '@/lib/use-back';
 import { endpoints } from '@/lib/endpoints';
-import { runOrQueue } from '@/lib/offline-queue';
+import { runOrQueue, type CourierFailureCode } from '@/lib/offline-queue';
 import { useAsync } from '@/lib/use-async';
 import type { Delivery } from '@/lib/types';
 import { useT } from '@/lib/locale-context';
 import { useQueryParam } from '@/lib/use-query-param';
 
-// value = the reason stored on the delivery record (kept stable); label is translated.
-const REASONS = [
-  { key: 'addressNotFound', value: 'Alamat tidak ditemukan' },
-  { key: 'customerRefused', value: 'Pelanggan menolak' },
-  { key: 'goodsDamaged', value: 'Barang rusak' },
-  { key: 'cannotContact', value: 'Pelanggan tidak bisa dihubungi' },
+const CODES = [
+  { key: 'addressNotFound', code: 'ADDRESS_NOT_FOUND' },
+  { key: 'customerRefused', code: 'CUSTOMER_REFUSED' },
+  { key: 'goodsDamaged', code: 'GOODS_DAMAGED' },
+  { key: 'cannotContact', code: 'CANNOT_CONTACT' },
+  { key: 'other', code: 'OTHER' },
 ] as const;
+
+const NOTE_MAX = 255;
 
 function Fail() {
   const router = useRouter();
   const back = useBack();
   const { t } = useT();
   const id = useQueryParam('id');
-  const [reason, setReason] = useState('');
+  const [code, setCode] = useState<CourierFailureCode | ''>('');
+  const [note, setNote] = useState('');
   /*
    * CA-4-03: whether this courier is holding the order's cash is the SERVER's answer, not
    * a guess from `codAmount` — that column says cash should be collected here, never that
@@ -45,8 +48,8 @@ function Fail() {
   const [error, setError] = useState<string | null>(null);
 
   const submit = async () => {
-    const value = reason.trim();
-    if (!value) return;
+    if (!code) return;
+    const text = note.trim();
     setBusy(true);
     setError(null);
     try {
@@ -54,7 +57,12 @@ function Fail() {
       // already left. Queued rather than lost when the signal drops.
       await runOrQueue({
         kind: 'deliveryFail',
-        payload: { deliveryId: id, reason: value, cashReturned: cashReturned ?? false },
+        payload: {
+          deliveryId: id,
+          reasonCode: code,
+          ...(text ? { note: text } : {}),
+          cashReturned: cashReturned ?? false,
+        },
       });
       router.replace('/driver');
     } catch (e) {
@@ -74,22 +82,29 @@ function Fail() {
       </header>
 
       <Card className="space-y-4 p-4">
-        <Field label={t('driver.deliveryFail.reasonLabel')}>
-          <div className="flex flex-col gap-2">
-            {REASONS.map((r) => (
-              <button
-                key={r.key}
-                type="button"
-                onClick={() => setReason(r.value)}
-                className={`min-h-11 rounded-xl px-3.5 py-2.5 text-left text-sm font-bold ${r.value === reason ? 'bg-brand-600 text-white' : 'bg-black/5'}`}
+        <fieldset className="space-y-2">
+          <legend className="mb-1 text-sm font-bold">{t('driver.deliveryFail.reasonLabel')}</legend>
+          <div role="radiogroup" className="flex flex-col gap-2">
+            {CODES.map((r) => (
+              <label
+                key={r.code}
+                className={`flex min-h-11 cursor-pointer items-center rounded-xl px-3.5 py-2.5 text-left text-sm font-bold focus-within:outline focus-within:outline-2 focus-within:outline-brand-600 ${r.code === code ? 'bg-brand-600 text-white' : 'bg-black/5'}`}
               >
+                <input
+                  type="radio"
+                  name="reasonCode"
+                  value={r.code}
+                  checked={r.code === code}
+                  onChange={() => setCode(r.code)}
+                  className="sr-only"
+                />
                 {t(`driver.deliveryFail.reasons.${r.key}`)}
-              </button>
+              </label>
             ))}
           </div>
-        </Field>
-        <Field label={t('driver.deliveryFail.otherLabel')} htmlFor="reason">
-          <Input id="reason" placeholder={t('driver.deliveryFail.otherPlaceholder')} value={reason} onChange={(e) => setReason(e.target.value)} />
+        </fieldset>
+        <Field label={t('driver.deliveryFail.noteLabel')} htmlFor="note">
+          <Input id="note" maxLength={NOTE_MAX} placeholder={t('driver.deliveryFail.notePlaceholder')} value={note} onChange={(e) => setNote(e.target.value)} />
         </Field>
       </Card>
 
@@ -103,7 +118,7 @@ function Fail() {
 
       <FormError message={error} />
 
-      <Button loading={busy} disabled={!reason.trim() || (mustAnswerCash && cashReturned === null)} className="flex w-full items-center justify-center gap-2 bg-red-600 hover:bg-red-700" onClick={submit}>
+      <Button loading={busy} disabled={!code || (mustAnswerCash && cashReturned === null)} className="flex w-full items-center justify-center gap-2 bg-red-600 hover:bg-red-700" onClick={submit}>
         <XCircle size={19} weight="fill" />
         {t('driver.deliveryFail.submit')}
       </Button>
