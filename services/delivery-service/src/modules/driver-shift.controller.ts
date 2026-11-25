@@ -39,6 +39,7 @@ export class DriverShiftController {
       dto.lat,
       dto.lng,
       dto.capturedAt ? new Date(dto.capturedAt) : null,
+      dto.accuracyM ?? null,
     );
   }
 

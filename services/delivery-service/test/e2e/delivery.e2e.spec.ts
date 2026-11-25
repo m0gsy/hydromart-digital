@@ -396,6 +396,50 @@ describe('Delivery HTTP flows (e2e)', () => {
         .expect(422);
     });
 
+    /*
+     * 2026-11-25: the app sends the phone's own accuracy with a shift check-in, as it already
+     * does with the HR punch. The global pipe refuses any field a DTO does not declare, so
+     * until CheckInDto declared it the field alone made every check-in a 400 — which the
+     * offline queue treats as final. This is the half that must be live before the app sends it.
+     */
+    describe("the phone's accuracy", () => {
+      const FAR = { lat: -6.2088, lng: 106.8456 };
+      const post = (body: Record<string, unknown>) =>
+        request(server())
+          .post('/api/v1/driver/shifts/check-in')
+          .set(auth(tokenFor(randomUUID())))
+          .send({ depotId: DEPOT_ID, ...body });
+
+      it.each([[0], [12]])('is accepted with a check-in at the depot: accuracyM %p (201)', async (accuracyM) => {
+        const res = await post({ ...AT_DEPOT, accuracyM }).expect(201);
+        expect(res.body).toMatchObject({ status: 'ONLINE' });
+      });
+
+      it('may be null or absent, as older apps and queued check-ins send it (201)', async () => {
+        await post({ ...AT_DEPOT, accuracyM: null }).expect(201);
+        await post({ ...AT_DEPOT }).expect(201);
+      });
+
+      it('turns a loose fix away from the depot into the "Perkiraan" refusal (422)', async () => {
+        const res = await post({ ...FAR, accuracyM: 2000 }).expect(422);
+        expect(res.body).toMatchObject({ code: 'SHIFT_NOT_AT_DEPOT' });
+        expect(res.body.message).toMatch(/masih "Perkiraan"/);
+      });
+
+      it('keeps the distance refusal for a tight fix away from the depot (422)', async () => {
+        const res = await post({ ...FAR, accuracyM: 8 }).expect(422);
+        expect(res.body.message).toMatch(/Kamu [0-9]+ m dari depot/);
+      });
+
+      it.each([[-1], ['12'], [2_147_483_648], [true]])('refuses accuracyM %p (400)', async (accuracyM) => {
+        await post({ ...AT_DEPOT, accuracyM }).expect(400);
+      });
+
+      it('still refuses a field the DTO does not declare (400)', async () => {
+        await post({ ...AT_DEPOT, accuracy: 12 }).expect(400);
+      });
+    });
+
     it('forbids staff from the courier shift endpoints (403)', async () => {
       await request(server())
         .post('/api/v1/driver/shifts/check-in')

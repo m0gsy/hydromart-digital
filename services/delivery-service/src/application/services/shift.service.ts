@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { onCoarseGrid } from '@hydromart/platform';
+import { isApproximateFix } from '@hydromart/platform';
 
 import { DeliveryConfigService } from '../../config/delivery-config.service';
 import {
@@ -75,6 +75,8 @@ export class ShiftService {
     lat: number,
     lng: number,
     capturedAt?: Date | null,
+    /** The phone's own accuracy for that fix, in metres; absent from older apps. */
+    accuracyM?: number | null,
   ): Promise<ShiftView> {
     const open = await this.shifts.findOpenByDriver(driverId);
     if (open) {
@@ -104,15 +106,18 @@ export class ShiftService {
     const distance = haversineMeters(lat, lng, depot.lat, depot.lng);
     const radius = this.config.shiftCheckInRadiusMeters(depotId);
     if (distance > radius) {
-      // 2026-11-25: 44 of 56 staff phones held only "Perkiraan" (approximate), which Android
-      // snaps to a 2 km grid — a courier standing in the depot read "1391 m". The grid gives
-      // such a fix away with certainty, so the refusal names it. Nothing is decided on it: a
-      // grid point inside the radius still opens the shift, exactly as before.
-      const approximate = onCoarseGrid(lat, lng);
+      // 2026-11-25: 44 of 56 staff phones held only "Perkiraan" (approximate) — a courier
+      // standing in the depot read "1391 m". Android snaps such a fix to a 2 km grid, which gives
+      // it away with certainty; Android 16 also has a second pattern off that grid (1256 m, the
+      // same metre twice), and only the phone's own accuracy (≥ 1000 m) gives that one away.
+      // The same test as the HR punch. Nothing is decided on it: a loose fix inside the radius
+      // still opens the shift, exactly as before.
+      const approximate = isApproximateFix(lat, lng, accuracyM);
       // What ops count afterwards (a refused check-in is stored nowhere); never the coordinates.
       this.logger.warn(
         `Shift check-in refused outside the depot: driver ${driverId}, depot ${depotId}, ` +
-          `${Math.round(distance)} m, radius ${radius} m, approximate ${approximate}`,
+          `${Math.round(distance)} m, radius ${radius} m, accuracy ${accuracyM ?? '?'} m, ` +
+          `approximate ${approximate}`,
       );
       throw new NotAtDepotError(distance, radius, approximate);
     }

@@ -142,6 +142,75 @@ describe('ShiftService', () => {
     });
 
     /*
+     * 2026-11-25, live within the hour the grid fix shipped: Rouf's Android 16 phone, still on
+     * "Perkiraan", was refused eleven times in ten minutes — nine on the grid, and twice at
+     * 1256 m OFF it, the same metre both times. A second approximate pattern the grid cannot
+     * see. The phone itself rates any approximate fix at 2000 m or worse, so the app now sends
+     * that accuracy and the refusal reads it, at the line the HR punch already uses (1000 m).
+     */
+    describe("the phone's own accuracy", () => {
+      const refusalOf = (accuracyM?: number | null) =>
+        service.checkIn(driver, DEPOT_ID, FAR_AWAY.lat, FAR_AWAY.lng, null, accuracyM).then(
+          () => null,
+          (e: unknown) => e as Error,
+        );
+
+      it('names "Perkiraan" for an off-grid fix the phone rates at 2000 m', async () => {
+        const err = await refusalOf(2000);
+        expect(err).toBeInstanceOf(NotAtDepotError);
+        expect(err?.message).toMatch(/masih "Perkiraan"/);
+        expect(err?.message).toMatch(/Gunakan lokasi akurat/);
+        expect(err?.message).not.toMatch(/[0-9]+ m dari depot/);
+        expect(await repo.findOpenByDriver(driver)).toBeNull();
+      });
+
+      it('draws the line at 1000 m, the same line the HR punch draws', async () => {
+        expect((await refusalOf(1000))?.message).toMatch(/masih "Perkiraan"/);
+        expect((await refusalOf(999))?.message).toMatch(/Kamu [0-9]+ m dari depot/);
+      });
+
+      it('keeps the distance message when the phone gave no usable accuracy', async () => {
+        for (const accuracyM of [undefined, null, Number.NaN]) {
+          const err = await refusalOf(accuracyM);
+          expect(err?.message).toMatch(/Kamu [0-9]+ m dari depot/);
+          expect(err?.message).not.toMatch(/masih "Perkiraan"/);
+        }
+      });
+
+      // A loose fix can be a phone with "Tepat" granted but GPS off; the advice covers both. (The
+      // distance message already says GPS, so this asserts the "Perkiraan" message itself does.)
+      it('also says to turn GPS on', async () => {
+        const message = (await refusalOf(2000))?.message;
+        expect(message).toMatch(/masih "Perkiraan"/);
+        expect(message).toMatch(/nyalakan GPS/);
+      });
+
+      it('still opens the shift for a loose fix inside the radius: the decision is unchanged', async () => {
+        await expect(
+          service.checkIn(driver, DEPOT_ID, AT_DEPOT.lat, AT_DEPOT.lng, null, 2000),
+        ).resolves.toMatchObject({ status: ShiftStatus.ONLINE });
+      });
+
+      it('logs the accuracy beside the verdict, still without the coordinates', async () => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+        try {
+          await refusalOf(2000);
+          await refusalOf();
+          const lines = warn.mock.calls.map((call) => String(call[0]));
+          expect(lines).toHaveLength(2);
+          expect(lines[0]).toContain('accuracy 2000 m, approximate true');
+          expect(lines[1]).toContain('accuracy ? m, approximate false');
+          for (const line of lines) {
+            expect(line).not.toContain('6.20');
+            expect(line).not.toContain('106.8');
+          }
+        } finally {
+          warn.mockRestore();
+        }
+      });
+    });
+
+    /*
      * The check-in rides the offline capture queue, and the queue retries a job it never
      * got an answer for — including the answer lost after the shift was opened. That retry
      * used to get a 409, which `isRetryable` in offline-queue.ts correctly does not retry,

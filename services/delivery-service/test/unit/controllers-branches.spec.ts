@@ -480,13 +480,15 @@ describe('DriverShiftController', () => {
     expect(shifts.current).toHaveBeenCalledWith(user.sub);
     void controller.history(user);
     expect(shifts.history).toHaveBeenCalledWith(user.sub);
+    // No accuracy from the phone (older apps, older queued check-ins): null, never undefined.
     void controller.checkIn(user, { depotId, lat: -6.9, lng: 107.6 } as never);
-    expect(shifts.checkIn).toHaveBeenCalledWith(user.sub, depotId, -6.9, 107.6, null);
+    expect(shifts.checkIn).toHaveBeenCalledWith(user.sub, depotId, -6.9, 107.6, null, null);
     void controller.checkIn(user, {
       depotId,
       lat: -6.9,
       lng: 107.6,
       capturedAt: '2026-07-29T01:10:00.000Z',
+      accuracyM: 2000,
     } as never);
     expect(shifts.checkIn).toHaveBeenLastCalledWith(
       user.sub,
@@ -494,6 +496,7 @@ describe('DriverShiftController', () => {
       -6.9,
       107.6,
       new Date('2026-07-29T01:10:00.000Z'),
+      2000,
     );
     void controller.checkOut(user, id, { lat: -6.9, lng: 107.6 } as never);
     expect(shifts.checkOut).toHaveBeenCalledWith(user.sub, id, -6.9, 107.6);
