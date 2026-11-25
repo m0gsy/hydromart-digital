@@ -13,6 +13,8 @@ export interface PeriodQuery {
   /** Or an explicit range of days, both ends included. */
   from?: string;
   to?: string;
+  /** AI-7a: `depot` answers per depot, for the few metrics that are plain depot sums. */
+  split?: string;
 }
 
 /** The period as answered: always echoed back, so an answer never leaves the reader guessing. */

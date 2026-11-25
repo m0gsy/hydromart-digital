@@ -87,6 +87,7 @@ const GRANTS: Record<string, { all: boolean; legalEntityIds: string[] }> = {
 describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
   let app: INestApplication;
   /** D1 moves PT_A -> PT_B on 16 Nov; D2 stays PT_B all month. */
+  let gallonsDown = false;
   const posted: { path: string; body: { spans?: { depotId: string; from: string; to: string }[] } }[] = [];
 
   beforeAll(async () => {
@@ -109,7 +110,13 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
           return json({ active: 40, newCustomers: 12, repeat: 25, newAtDepot: [{ depotId: D2, customers: 5 }] });
         }
         if (url.pathname.endsWith('/rating-metrics')) return json({ reviews: 2, ratingSum: 9, reviewers: 2 });
-        if (url.pathname.endsWith('/gallon-metrics')) return json({ gallons: 777 });
+        if (url.pathname.endsWith('/gallon-metrics')) {
+          if (gallonsDown) return { ok: false, status: 503, json: async () => ({}) } as unknown as Response;
+          // 777 gallons per span asked about, grouped by depot like the real route
+          const by = new Map<string, number>();
+          for (const sp of body.spans ?? []) by.set(sp.depotId, (by.get(sp.depotId) ?? 0) + 777);
+          return json({ gallons: 777 * (body.spans?.length ?? 0), byDepot: [...by].map(([depotId, gallons]) => ({ depotId, gallons })) });
+        }
         if (url.pathname.endsWith('/ai-summary')) {
           return json({ delivered: 40, onTime: 34, storedVerdicts: 30, thresholdMinutes: 90, medianMinutes: 41.5, couriers: 5, failed: 6, noShow: 2, otherFailed: 4, rescheduled: 3 });
         }
@@ -226,9 +233,40 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
     expect(k2.body).toMatchObject({ status: 'ok', value: { ratePct: 85, onTime: 34, delivered: 40 } });
     expect(k2.body.label).toContain('30 dari 40');
     const g1 = await get(aiToken('SUPER_ADMIN'), 'gallons', 'G-01', 'period=day&date=2026-11-10').expect(200);
-    expect(g1.body).toMatchObject({ status: 'ok', value: 777 });
+    // the stub answers 777 gallons per span it is asked about (three spans here)
+    expect(g1.body).toMatchObject({ status: 'ok', value: 2331 });
     const g2 = await get(aiToken('SUPER_ADMIN'), 'gallons', 'G-02').expect(200);
     expect(g2.body.value).toMatchObject({ gallonsAtCustomers: 12 });
+  });
+
+  it('splits G-01 per depot (AI-7a) with ONE source read: total equals the unsplit answer', async () => {
+    const plain = await get(aiToken('SUPER_ADMIN'), 'gallons', 'G-01').expect(200);
+    posted.length = 0;
+    const split = await get(aiToken('SUPER_ADMIN'), 'gallons', 'G-01', 'period=month&date=2026-11-10&split=depot').expect(200);
+    // D1 has two stretches (PT_A, PT_B), D2 one
+    expect(split.body.value).toEqual({ total: plain.body.value, byDepot: [{ depotId: D1, value: 1554 }, { depotId: D2, value: 777 }] });
+    expect(posted.filter((p) => p.path.endsWith('/gallon-metrics'))).toHaveLength(1);
+  });
+
+  it('answers belum_ada, never a partial list, when the gallon source is down in split mode', async () => {
+    gallonsDown = true;
+    try {
+      const res = await get(aiToken('SUPER_ADMIN'), 'gallons', 'G-01', 'period=month&date=2026-11-10&split=depot').expect(200);
+      expect(res.body).toMatchObject({ status: 'belum_ada', value: null });
+    } finally {
+      gallonsDown = false;
+    }
+  });
+
+  it('refuses split for people and network metrics, balances, and other groups (400)', async () => {
+    const split = 'period=month&date=2026-11-10&split=depot';
+    await get(aiToken('SUPER_ADMIN'), 'customers', 'C-01', split).expect(400);
+    await get(aiToken('SUPER_ADMIN'), 'delivery', 'K-01', split).expect(400);
+    await get(aiToken('SUPER_ADMIN'), 'gallons', 'G-02', split).expect(400);
+    await get(aiToken('SUPER_ADMIN'), 'gallons', 'G-01', 'period=month&date=2026-11-10&split=x').expect(400);
+    // an unknown metric is 404 before the split rule is looked at
+    await get(aiToken('SUPER_ADMIN'), 'gallons', 'G-99', 'period=month&date=2026-11-10&split=depot').expect(404);
+    await get(aiToken('SUPER_ADMIN'), 'customers', 'K-01', 'period=month&date=2026-11-10&split=depot').expect(404);
   });
 
   it('refuses a metric outside the group (404), a missing or ambiguous period and a month metric asked as a week (400)', async () => {
@@ -261,7 +299,7 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
     for (const group of ['customers', 'delivery', 'gallons'] as const) {
       const op = OPS[group];
       const { ids, registry } = GROUPS[group];
-      expect(op.parameters.map((p: { name: string }) => p.name).sort()).toEqual(['date', 'from', 'metric', 'period', 'to']);
+      expect(op.parameters.map((p: { name: string }) => p.name).sort()).toEqual(['date', 'from', 'metric', 'period', ...(group === 'gallons' ? ['split'] : []), 'to']);
       expect(op.parameters.find((p: { name: string }) => p.name === 'metric').schema.enum).toEqual([...ids]);
       expect(Object.keys(op['x-metrics'])).toEqual([...ids]);
       for (const id of ids) {

@@ -82,6 +82,8 @@ describe('GET ai/read/scope (HD-6 H1)', () => {
   let app: INestApplication;
   let staffSession: string;
   let depotServiceDown = false;
+  let namesDown = false;
+  let phoneLabel = false;
   /** The depot-service URLs the adapter asked, in order. */
   const asked: URL[] = [];
 
@@ -100,7 +102,8 @@ describe('GET ai/read/scope (HD-6 H1)', () => {
       asked.push(url);
       const json = (body: unknown) => ({ ok: true, json: async () => body }) as unknown as Response;
       if (url.pathname === '/api/v1/depots/manage') {
-        return json({ items: [D1, D2, D3].map((id) => ({ id, code: id, name: id, active: true, ownershipType: 'HKP' })), totalPages: 1 });
+        if (namesDown) return { ok: false, status: 503, json: async () => ({}) } as unknown as Response;
+        return json({ items: [D1, D2, D3].map((id, i) => ({ id, code: `DPT-0${i + 1}`, name: phoneLabel && i === 1 ? '0812 3456 7890' : `Depot Bekasi ${i + 1}`, active: true, ownershipType: 'HKP' })), totalPages: 1 });
       }
       if (url.pathname === '/api/v1/legal-entities/internal/depot-entities') {
         const from = url.searchParams.get('from') as string;
@@ -140,6 +143,8 @@ describe('GET ai/read/scope (HD-6 H1)', () => {
   afterEach(() => {
     asked.length = 0;
     depotServiceDown = false;
+    namesDown = false;
+    phoneLabel = false;
   });
 
   afterAll(async () => {
@@ -174,6 +179,36 @@ describe('GET ai/read/scope (HD-6 H1)', () => {
     expect(typeof res.body.asOf).toBe('string');
     const spans = asked.find((u) => u.pathname.endsWith('depot-entities')) as URL;
     expect([spans.searchParams.get('from'), spans.searchParams.get('to')]).toEqual(['2026-11-01', '2026-11-30']);
+  });
+
+  it('names the depots in scope with code and label, and refuses split here (AI-7a)', async () => {
+    const res = await get(aiToken('SUPER_ADMIN')).expect(200);
+    expect(res.body.depots).toEqual([
+      { depotId: D1, code: 'DPT-01', label: 'Depot Bekasi 1' },
+      { depotId: D2, code: 'DPT-02', label: 'Depot Bekasi 2' },
+      { depotId: D3, code: 'DPT-03', label: 'Depot Bekasi 3' },
+    ]);
+    // the depot list was read once for the scope and reused for the names
+    expect(asked.filter((u) => u.pathname === '/api/v1/depots/manage')).toHaveLength(1);
+    // a narrowed role lists only its depots
+    expect((await get(aiToken('FINANCE')).expect(200)).body.depots).toEqual([{ depotId: D1, code: 'DPT-01', label: 'Depot Bekasi 1' }]);
+    await get(aiToken('SUPER_ADMIN'), 'period=month&date=2026-11-10&split=depot').expect(400);
+  });
+
+  it('a depot name that reads as personal data loses its name, not the whole scope answer', async () => {
+    phoneLabel = true;
+    const res = await get(aiToken('SUPER_ADMIN')).expect(200);
+    expect(res.body.depots).toEqual([
+      { depotId: D1, code: 'DPT-01', label: 'Depot Bekasi 1' },
+      { depotId: D2, code: null, label: null },
+      { depotId: D3, code: 'DPT-03', label: 'Depot Bekasi 3' },
+    ]);
+  });
+
+  it('lists a depot with null code and label when depot-service cannot name it, never a guess', async () => {
+    namesDown = true;
+    const res = await get(aiToken('MANAGER', D1)).expect(200);
+    expect(res.body.depots).toEqual([{ depotId: D1, code: null, label: null }, { depotId: D2, code: null, label: null }]);
   });
 
   it('narrows a network role to the entities its role is granted', async () => {
@@ -268,6 +303,7 @@ describe('GET ai/read/scope (HD-6 H1)', () => {
       for (const field of Object.keys(row)) expect(Object.keys(schema.properties)).toContain(field);
     };
     has(schemas.AnswerEnvelope, res.body);
+    for (const depot of res.body.depots) has(schemas.ScopeDepot, depot);
     has(schemas.Period, res.body.period);
     has(schemas.Scope, res.body.scope);
     // the example in the contract is itself a valid answer

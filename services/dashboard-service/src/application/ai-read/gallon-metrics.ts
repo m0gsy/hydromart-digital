@@ -9,6 +9,7 @@ import { AnswerEnvelope } from './envelope';
 import { DOWN, GroupCtx, GroupMetricMeta, NO_SCOPE, TOO_MANY, fitsOneRead, openGroup, sourceSpans } from './group-context';
 import { PeriodQuery } from './period';
 import { ReadScopeService } from './scope.service';
+import { splitByDepot } from './split';
 import { DEPOTS_PER_READ, depotsOn, stretchesOf } from './stretches';
 
 /** Gallons count things, not people: no masking. The metrics are the dictionary's section 3.2. */
@@ -52,10 +53,14 @@ export class GallonMetricsService {
     const spans = sourceSpans(c.scope, c.period.timeZone);
     if (!fitsOneRead(spans)) return c.none(TOO_MANY);
     if (id === 'G-01') {
-      const n = await this.sources.gallonsSold(spans);
-      return n === null
-        ? c.none(DOWN)
-        : c.ok(n, 'galon terjual: unit galon pada pesanan TERKIRIM atau SELESAI menurut tanggal pesanan dibuat (WIB), termasuk kasir dan galon gratis promo');
+      const label = 'galon terjual: unit galon pada pesanan TERKIRIM atau SELESAI menurut tanggal pesanan dibuat (WIB), termasuk kasir dan galon gratis promo';
+      // One read answers the total and the per-depot figures (a depot that sold none is absent: it is listed as 0).
+      const read = await this.sources.gallonsSold(spans);
+      if (!read) return c.none(DOWN);
+      if (!c.split) return c.ok(read.gallons, label);
+      // An order-service that predates byDepot: never a partial list, never a read per depot.
+      if (!read.byDepot) return c.none(DOWN);
+      return c.ok(splitByDepot(c.scope.echo.depotIds, read.byDepot, (r) => r.gallons), label);
     }
     const r = await this.sources.refillSplit(spans);
     return r === null

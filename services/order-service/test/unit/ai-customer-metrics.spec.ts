@@ -27,7 +27,7 @@ describe('AiCustomerMetricsService', () => {
     customerCohorts: jest.fn().mockResolvedValue(['cell']),
     ratingStats: jest.fn().mockResolvedValue('ratings'),
     customerSegments: jest.fn().mockResolvedValue('segments'),
-    gallonsSold: jest.fn().mockResolvedValue(42),
+    gallonsSold: jest.fn().mockResolvedValue([{ depotId: D1, gallons: 40 }, { depotId: D2, gallons: 2 }]),
     refillSplit: jest.fn().mockResolvedValue('split'),
     liveByStatus: jest.fn().mockResolvedValue([{ status: 'CREATED', count: 2 }]),
     cancelledBeforeDeparture: jest.fn().mockResolvedValue(4),
@@ -39,7 +39,7 @@ describe('AiCustomerMetricsService', () => {
     await expect(service.cohorts([span(D1)])).resolves.toEqual(['cell']);
     expect(repo.customerCohorts).toHaveBeenCalledWith([span(D1)], 'Asia/Jakarta');
     await expect(service.ratings([span(D1)])).resolves.toBe('ratings');
-    await expect(service.gallons([span(D1)])).resolves.toEqual({ gallons: 42 });
+    await expect(service.gallons([span(D1)])).resolves.toEqual({ gallons: 42, byDepot: [{ depotId: D1, gallons: 40 }, { depotId: D2, gallons: 2 }] });
     await expect(service.refill([span(D1)])).resolves.toBe('split');
     const at = { activeSince: from, riskSince: from, until: to };
     await expect(service.segments([D1], at)).resolves.toBe('segments');
@@ -87,7 +87,7 @@ describe('AiCustomerPrismaRepository row mapping', () => {
     await expect(repo.customerWindow([span(D1)], from)).resolves.toEqual({ active: 0, newCustomers: 0, repeat: 0, newAtDepot: [] });
     await expect(repo.ratingStats([span(D1)])).resolves.toEqual({ reviews: 0, ratingSum: 0, reviewers: 0 });
     await expect(repo.customerSegments([D1], { activeSince: from, riskSince: from, until: to })).resolves.toEqual({ active: 0, atRisk: 0, inactive: 0 });
-    await expect(repo.gallonsSold([span(D1)])).resolves.toBe(0);
+    await expect(repo.gallonsSold([span(D1)])).resolves.toEqual([]);
     await expect(repo.refillSplit([span(D1)])).resolves.toEqual({ refill: 0, partial: 0, beli: 0, notAsked: 0 });
   });
 
@@ -97,7 +97,7 @@ describe('AiCustomerPrismaRepository row mapping', () => {
       .mockResolvedValueOnce([{ cohort: '2026-10', monthIndex: 1, customers: 5n }])
       .mockResolvedValueOnce([{ reviews: 7n, ratingSum: 30n, reviewers: 5n }])
       .mockResolvedValueOnce([{ active: 5n, atRisk: 2n, inactive: 1n }])
-      .mockResolvedValueOnce([{ gallons: null }])
+      .mockResolvedValueOnce([{ depotId: D1, gallons: null }, { depotId: D2, gallons: 7n }])
       .mockResolvedValueOnce([{ refill: 3n, partial: 1n, beli: 2n, notAsked: 4n }])
       .mockResolvedValueOnce([{ n: 6n }])
       .mockResolvedValueOnce([]);
@@ -105,7 +105,7 @@ describe('AiCustomerPrismaRepository row mapping', () => {
     await expect(repo.customerCohorts([span(D1)], 'Asia/Jakarta')).resolves.toEqual([{ cohort: '2026-10', monthIndex: 1, customers: 5 }]);
     await expect(repo.ratingStats([span(D1)])).resolves.toEqual({ reviews: 7, ratingSum: 30, reviewers: 5 });
     await expect(repo.customerSegments([D1], { activeSince: from, riskSince: from, until: to })).resolves.toEqual({ active: 5, atRisk: 2, inactive: 1 });
-    await expect(repo.gallonsSold([span(D1)])).resolves.toBe(0);
+    await expect(repo.gallonsSold([span(D1)])).resolves.toEqual([{ depotId: D1, gallons: 0 }, { depotId: D2, gallons: 7 }]);
     await expect(repo.refillSplit([span(D1)])).resolves.toEqual({ refill: 3, partial: 1, beli: 2, notAsked: 4 });
     await expect(repo.cancelledBeforeDeparture([span(D1)])).resolves.toBe(6);
     await expect(repo.cancelledBeforeDeparture([span(D1)])).resolves.toBe(0);

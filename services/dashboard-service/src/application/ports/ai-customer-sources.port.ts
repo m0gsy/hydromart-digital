@@ -80,7 +80,8 @@ export interface AiCustomerSourcesPort {
   cohorts(spans: readonly SourceSpan[]): Promise<CohortCell[] | null>;
   ratings(spans: readonly SourceSpan[]): Promise<RatingTotals | null>;
   segments(depotIds: readonly string[], at: { riskSince: string; activeSince: string; until: string }): Promise<SegmentTotals | null>;
-  gallonsSold(spans: readonly SourceSpan[]): Promise<number | null>;
+  /** `byDepot` is null when order-service predates the per-depot answer: a split then has nothing to stand on. */
+  gallonsSold(spans: readonly SourceSpan[]): Promise<{ gallons: number; byDepot: { depotId: string; gallons: number }[] | null } | null>;
   refillSplit(spans: readonly SourceSpan[]): Promise<RefillTotals | null>;
   liveOrders(depotIds: readonly string[]): Promise<{ status: string; count: number }[] | null>;
   deliverySummary(spans: readonly SourceSpan[]): Promise<DeliverySummary | null>;

@@ -205,6 +205,23 @@ describe('GET ai/read/money?metric= (HD-6 H2)', () => {
     await get(aiToken('SUPER_ADMIN'), 'L-07', 'from=2026-11-05&to=2026-11-20').expect(400);
   });
 
+  it('splits the plain depot sums per depot (AI-7a): total equals the unsplit answer, a mid-period depot counts its readable days', async () => {
+    const plain = await get(aiToken('SUPER_ADMIN'), 'P-01').expect(200);
+    const split = await get(aiToken('SUPER_ADMIN'), 'P-01', `${MONTH}&split=depot`).expect(200);
+    expect(split.body.status).toBe('ok');
+    // D1 has two stretches of 200k each, D2 one
+    expect(split.body.value).toEqual({ total: plain.body.value, byDepot: [{ depotId: D1, value: 400_000 }, { depotId: D2, value: 200_000 }] });
+    // FINANCE reads D1 only from 16 Nov: one stretch
+    const fin = await get(aiToken('FINANCE'), 'P-01', `${MONTH}&split=depot`).expect(200);
+    expect(fin.body.value).toEqual({ total: 400_000, byDepot: [{ depotId: D1, value: 200_000 }, { depotId: D2, value: 200_000 }] });
+    expect((await get(aiToken('SUPER_ADMIN'), 'P-07', `${MONTH}&split=depot`).expect(200)).body.value.total).toBe(3);
+  });
+
+  it('refuses split on a ratio, an object, a people-free but non-sum metric and an unknown value', async () => {
+    for (const metric of ['P-05', 'P-08', 'U-01', 'L-07']) await get(aiToken('SUPER_ADMIN'), metric, `${MONTH}&split=depot`).expect(400);
+    await get(aiToken('SUPER_ADMIN'), 'P-01', `${MONTH}&split=city`).expect(400);
+  });
+
   it('keeps the door: no token, a machine token and a franchise owner are refused', async () => {
     await get(null, 'P-01').expect(401);
     const machine = es256({ iss: 'hydromart-auth', aud: 'hydromart-machine', sub: PERSON, scopes: ['aiRead'], exp: exp() });
@@ -217,7 +234,7 @@ describe('GET ai/read/money?metric= (HD-6 H2)', () => {
    * ids, their units, which ones are monthly and the status rules it quotes must be what is served.
    */
   it('matches the contract the AI web codes against', async () => {
-    expect(OP.parameters.map((p: { name: string }) => p.name).sort()).toEqual(['date', 'from', 'metric', 'period', 'to']);
+    expect(OP.parameters.map((p: { name: string }) => p.name).sort()).toEqual(['date', 'from', 'metric', 'period', 'split', 'to']);
     expect(OP.parameters.find((p: { name: string }) => p.name === 'metric').schema.enum).toEqual([...MONEY_METRIC_IDS]);
     expect(Object.keys(OP['x-metrics'])).toEqual([...MONEY_METRIC_IDS]);
     for (const id of MONEY_METRIC_IDS) {

@@ -123,7 +123,13 @@ describe('AiCustomerSourcesHttpAdapter (HD-6 H3)', () => {
     expect(JSON.parse(String(calls[0].init?.body))).toEqual({ depotIds: `${D1},${D2}`, riskSince: 'a', activeSince: 'b', until: 'c' });
     jest.restoreAllMocks();
     answer({ gallons: 12 });
-    await expect(adapter().gallonsSold(SPANS)).resolves.toBe(12);
+    await expect(adapter().gallonsSold(SPANS)).resolves.toEqual({ gallons: 12, byDepot: null });
+    jest.restoreAllMocks();
+    answer({ gallons: 12, byDepot: [{ depotId: D1, gallons: 12 }] });
+    await expect(adapter().gallonsSold(SPANS)).resolves.toEqual({ gallons: 12, byDepot: [{ depotId: D1, gallons: 12 }] });
+    jest.restoreAllMocks();
+    answer({ gallons: 12, byDepot: [{ depotId: D1, gallons: -3 }] });
+    await expect(adapter().gallonsSold(SPANS)).resolves.toEqual({ gallons: 12, byDepot: null });
     jest.restoreAllMocks();
     answer({ gallons: -1 });
     await expect(adapter().gallonsSold(SPANS)).resolves.toBeNull();

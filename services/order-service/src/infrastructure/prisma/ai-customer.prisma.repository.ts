@@ -158,17 +158,19 @@ export class AiCustomerPrismaRepository implements AiCustomerRepository {
     return { active: n(row?.active), atRisk: n(row?.atRisk), inactive: n(row?.inactive) };
   }
 
-  async gallonsSold(spans: readonly AiSpan[]): Promise<number> {
-    const [row] = await this.prisma.$queryRaw<{ gallons: bigint | null }[]>(Prisma.sql`
+  async gallonsSold(spans: readonly AiSpan[]): Promise<{ depotId: string; gallons: number }[]> {
+    const rows = await this.prisma.$queryRaw<{ depotId: string; gallons: bigint | null }[]>(Prisma.sql`
       WITH ${spansCte(spans)}
-      SELECT COALESCE(SUM(i."quantity"), 0)::bigint AS "gallons"
+      SELECT o."depotId" AS "depotId", COALESCE(SUM(i."quantity"), 0)::bigint AS "gallons"
       FROM sp
       JOIN "orders" o ON ${IN_SPAN}
       JOIN "order_items" i ON i."orderId" = o."id"
       WHERE o."status" IN (${Prisma.join([DbOrderStatus.DELIVERED, DbOrderStatus.COMPLETED].map((s) => Prisma.sql`${s}::"OrderStatus"`))})
         AND i."isGallon" = true
+      GROUP BY o."depotId"
+      ORDER BY o."depotId"
     `);
-    return n(row?.gallons);
+    return rows.map((r) => ({ depotId: r.depotId, gallons: n(r.gallons) }));
   }
 
   async refillSplit(spans: readonly AiSpan[]): Promise<RefillSplitStats> {

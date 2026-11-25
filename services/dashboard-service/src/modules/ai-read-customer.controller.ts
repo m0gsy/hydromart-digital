@@ -3,10 +3,11 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 
 import { AuthenticatedUser, Can, CurrentUser, ExternalAccess } from '@hydromart/platform';
 
-import { CustomerMetricsService } from '../application/ai-read/customer-metrics';
-import { DeliveryMetricsService } from '../application/ai-read/delivery-metrics';
+import { CUSTOMER_METRICS, CustomerMetricsService } from '../application/ai-read/customer-metrics';
+import { DELIVERY_METRICS, DeliveryMetricsService } from '../application/ai-read/delivery-metrics';
 import { AnswerEnvelope } from '../application/ai-read/envelope';
-import { GallonMetricsService } from '../application/ai-read/gallon-metrics';
+import { GALLON_METRICS, GallonMetricsService } from '../application/ai-read/gallon-metrics';
+import { assertSplittable } from '../application/ai-read/split';
 import { AnswerEnvelopeDto } from './dto/ai-read.dto';
 import { CustomerQueryDto, DeliveryQueryDto, GallonQueryDto } from './dto/ai-read-customer.dto';
 
@@ -33,6 +34,7 @@ export class AiReadCustomerController {
   @ApiOperation({ summary: 'One customer metric (new, active, repeat, segments, cohorts, rating) for a whole month' })
   customerMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: CustomerQueryDto): Promise<AnswerEnvelope> {
     const { metric, ...period } = query;
+    assertSplittable(metric, period, CUSTOMER_METRICS);
     return this.customers.answer(metric, user, period);
   }
 
@@ -43,6 +45,7 @@ export class AiReadCustomerController {
   @ApiOperation({ summary: 'One delivery or courier metric (delivered, on time, median time, failed, team, live orders)' })
   deliveryMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: DeliveryQueryDto): Promise<AnswerEnvelope> {
     const { metric, ...period } = query;
+    assertSplittable(metric, period, DELIVERY_METRICS);
     return this.delivery.answer(metric, user, period);
   }
 
@@ -53,6 +56,7 @@ export class AiReadCustomerController {
   @ApiOperation({ summary: 'One gallon metric (sold, at customers, deposit, returned, refill split)' })
   gallonMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: GallonQueryDto): Promise<AnswerEnvelope> {
     const { metric, ...period } = query;
+    assertSplittable(metric, period, GALLON_METRICS);
     return this.gallons.answer(metric, user, period);
   }
 }

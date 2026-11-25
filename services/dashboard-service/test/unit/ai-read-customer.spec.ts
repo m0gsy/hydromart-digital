@@ -647,7 +647,7 @@ const ledger = (depotId: string, o: Partial<GallonLedgerRow> = {}): GallonLedger
 describe('gallon metrics (G-)', () => {
   const make = (scope: ReadScope = BOTH, over: Record<string, unknown> = {}, held: Record<string, string | null> = {}) => {
     const sources = {
-      gallonsSold: jest.fn(async () => 321),
+      gallonsSold: jest.fn(async () => ({ gallons: 321, byDepot: null })),
       refillSplit: jest.fn(async () => ({ refill: 10, partial: 2, beli: 3, notAsked: 1 })),
       gallonLedger: jest.fn(async (ids: string[], r: { from: string; to: string }) =>
         ids.map((d) =>

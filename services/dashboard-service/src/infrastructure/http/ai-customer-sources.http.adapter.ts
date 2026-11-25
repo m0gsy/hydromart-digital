@@ -100,9 +100,13 @@ export class AiCustomerSourcesHttpAdapter implements AiCustomerSourcesPort {
       : null;
   }
 
-  async gallonsSold(spans: readonly SourceSpan[]): Promise<number | null> {
+  async gallonsSold(spans: readonly SourceSpan[]) {
     const b = await this.order('gallon-metrics', { spans });
-    return isObj(b) && isCount(b.gallons) ? b.gallons : null;
+    if (!isObj(b) || !isCount(b.gallons)) return null;
+    const rows = Array.isArray(b.byDepot) ? (b.byDepot as unknown[]) : null;
+    // An older order-service answers the total only; a malformed list is no list at all.
+    const ok = rows?.every((r) => isObj(r) && typeof r.depotId === 'string' && isCount(r.gallons));
+    return { gallons: b.gallons, byDepot: rows && ok ? rows.map((r) => ({ depotId: (r as { depotId: string }).depotId, gallons: (r as { gallons: number }).gallons })) : null };
   }
 
   async refillSplit(spans: readonly SourceSpan[]): Promise<RefillTotals | null> {

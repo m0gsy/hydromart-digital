@@ -3,7 +3,7 @@ import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
 import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
 import { AiReadSourcesPort } from '../ports/ai-read-sources.port';
-import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
+import { DashboardSourcesPort, NetworkDepot } from '../ports/dashboard-sources.port';
 import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerScope } from './envelope';
 import { ResolvedPeriod } from './period';
@@ -26,6 +26,8 @@ export interface ReadScope {
   spans: GrantedSpan[];
   /** For the envelope's `scope` echo and nothing else. */
   echo: AnswerScope;
+  /** Every depot of the network, when resolving had to list it anyway (a network-wide role): lets a caller name depots without a second read. */
+  network?: NetworkDepot[];
 }
 
 /** The granted day ranges of one depot. */
@@ -59,7 +61,7 @@ export class ReadScopeService {
   ) {}
 
   async resolve(user: AuthenticatedUser, period: ResolvedPeriod): Promise<ReadScope> {
-    const own = await this.ownDepots(user);
+    const { ids: own, network } = await this.ownDepots(user);
     if (own.length === 0) return { spans: [], echo: { depotIds: [], legalEntityIds: [] } };
     const [spans, grants] = await Promise.all([
       this.sources.entityTimeline(own, period.from, period.to),
@@ -84,20 +86,21 @@ export class ReadScopeService {
         depotIds: [...new Set(kept.map((s) => s.depotId))].sort(),
         legalEntityIds: [...new Set(kept.flatMap((s) => (s.legalEntityId ? [s.legalEntityId] : [])))].sort(),
       },
+      ...(network ? { network } : {}),
     };
   }
 
   /** Step 1. A scoped account with no depot at all reads nothing (it is not an error to ask). */
-  private async ownDepots(user: AuthenticatedUser): Promise<string[]> {
+  private async ownDepots(user: AuthenticatedUser): Promise<{ ids: string[]; network?: NetworkDepot[] }> {
     let scope: readonly string[] | undefined;
     try {
       scope = depotScopeIds(user);
     } catch {
-      return [];
+      return { ids: [] };
     }
-    if (scope) return [...new Set(scope)];
+    if (scope) return { ids: [...new Set(scope)] };
     const all = await this.depots.allDepots('');
     if (!all) throw new ServiceUnavailableException(UNAVAILABLE);
-    return all.map((d) => d.id);
+    return { ids: all.map((d) => d.id), network: all };
   }
 }
