@@ -10,7 +10,6 @@ import {
 } from '../../application/ports/ai-delivery.repository';
 import { DeliveryStatus } from '../../domain/delivery-status';
 import { FAILURE_REASON_CODES, FailureReasonCode, LEGACY_TEXT_CODES } from '../../domain/failure-reason';
-import { NO_SHOW_REASON } from '../../domain/no-show';
 import { PrismaService } from './prisma.service';
 
 const n = (v: bigint | number | null | undefined): number => (v === null || v === undefined ? 0 : Number(v));
@@ -76,10 +75,9 @@ export class AiDeliveryPrismaRepository implements AiDeliveryRepository {
       ' ',
     );
     const [[failed], [rescheduled], reasons] = await Promise.all([
-      this.prisma.$queryRaw<{ failed: bigint; noShow: bigint }[]>(Prisma.sql`
+      this.prisma.$queryRaw<{ failed: bigint }[]>(Prisma.sql`
         WITH ${spansCte(spans)}
-        SELECT COUNT(*)::bigint AS "failed",
-               COUNT(*) FILTER (WHERE d."failureReason" = ${NO_SHOW_REASON})::bigint AS "noShow"
+        SELECT COUNT(*)::bigint AS "failed"
         FROM sp JOIN "deliveries" d ON ${within(Prisma.sql`d."failedAt"`)}
       `),
       this.prisma.$queryRaw<{ rescheduled: bigint }[]>(Prisma.sql`
@@ -104,7 +102,7 @@ export class AiDeliveryPrismaRepository implements AiDeliveryRepository {
     for (const r of reasons) byReason[r.code as FailureReasonCode] = n(r.c);
     return {
       failed: n(failed?.failed),
-      noShow: n(failed?.noShow),
+      noShow: byReason.NO_SHOW, // the same classification, so the two can never disagree
       rescheduled: n(rescheduled?.rescheduled),
       byReason,
     };

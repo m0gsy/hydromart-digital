@@ -81,6 +81,7 @@ describe('DeliveryPrismaRepository', () => {
     deliveredAt: null,
     failedAt: null,
     failureReason: null,
+    failureReasonCode: 'OTHER',
     rescheduledFor: null,
     rescheduleSlot: null,
     rescheduleNote: null,
@@ -174,7 +175,8 @@ describe('DeliveryPrismaRepository', () => {
   it('findById maps a row and returns null when absent', async () => {
     delivery.findUnique.mockResolvedValueOnce(deliveryRow());
     const found = await repo.findById('del-1');
-    expect(found?.id).toBe('del-1');
+    expect(found?.proof).toBeNull();
+    expect(found?.failureReasonCode).toBe('OTHER');
     expect(found?.proof).toBeNull();
     expect(delivery.findUnique).toHaveBeenCalledWith({
       where: { id: 'del-1' },

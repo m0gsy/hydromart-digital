@@ -82,10 +82,10 @@ describe('AiDeliveryPrismaRepository row mapping', () => {
       .mockResolvedValueOnce([{ couriers: 2n }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ failed: 3n, noShow: 1n }])
+      .mockResolvedValueOnce([{ failed: 3n }])
       .mockResolvedValueOnce([{ rescheduled: 2n }])
       .mockResolvedValueOnce([{ code: 'NO_SHOW', c: 1n }, { code: 'OTHER', c: 2n }])
-      .mockResolvedValueOnce([{ failed: 0n, noShow: 0n }])
+      .mockResolvedValueOnce([{ failed: 0n }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     const repo = new AiDeliveryPrismaRepository({ $queryRaw: q } as never);

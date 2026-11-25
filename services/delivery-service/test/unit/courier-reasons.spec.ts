@@ -85,6 +85,19 @@ describe('courier failure and reschedule reasons', () => {
       expect(out.failureReason).toBe('Lainnya: Rumah kosong');
     });
 
+    it('a blank note is treated as absent and a note is trimmed', async () => {
+      const d = await assign();
+      expect((await service.fail(driver, d.id, undefined, AUTH, false, 'OTHER', '   ')).failureReason).toBe('Lainnya');
+      const e = await assign();
+      expect((await service.fail(driver, e.id, undefined, AUTH, false, 'OTHER', ' ramai ')).failureReason).toBe('Lainnya: ramai');
+    });
+
+    it('the response carries failureReasonCode', async () => {
+      const d = await assign();
+      const out = await service.fail(driver, d.id, undefined, AUTH, false, 'GOODS_DAMAGED');
+      expect(out).toMatchObject({ failureReason: 'Barang rusak', failureReasonCode: 'GOODS_DAMAGED' });
+    });
+
     it('the old text alone keeps working and is classified', async () => {
       const d = await assign();
       const out = await service.fail(driver, d.id, 'Barang rusak', AUTH);

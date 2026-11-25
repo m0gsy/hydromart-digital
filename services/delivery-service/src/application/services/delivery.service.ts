@@ -639,9 +639,10 @@ export class DeliveryService {
     // The fixed pick wins; the old free text is what an old app (or a queued job) sends.
     if (!reasonCode && !reason) throw new BadRequestException('Pilih alasan gagal.');
     const failureReasonCode = reasonCode ?? legacyFailureCode(reason ?? null);
+    const cleanNote = note?.trim();
     const failureReason = reasonCode
-      ? note
-        ? `${FAILURE_REASON_LABELS[reasonCode]}: ${note}`
+      ? cleanNote
+        ? `${FAILURE_REASON_LABELS[reasonCode]}: ${cleanNote}`
         : FAILURE_REASON_LABELS[reasonCode]
       : (reason as string);
     const delivery = await this.ownedByDriver(driverId, id);

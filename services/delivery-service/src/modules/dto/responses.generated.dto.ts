@@ -221,6 +221,8 @@ export class DeliveryResponseDto {
   failedAt!: string | null;
   @ApiProperty({ type: String, nullable: true })
   failureReason!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  failureReasonCode!: string | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   rescheduledFor!: string | null;
   @ApiProperty({ type: String, nullable: true })
