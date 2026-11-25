@@ -98,8 +98,15 @@ export function peopleCount(c: GroupCtx, people: number, label: string): AnswerE
 /** Rounded to a multiple of 5: a total that is shown as of several dates, or cohort cells, are never exact. */
 export const round5 = (n: number): number => Math.round(n / 5) * 5;
 
-/** The period reaches today: its counts are still moving, day by day. */
-export const isOpen = (c: GroupCtx): boolean => c.period.to >= c.today;
+/** Owner decision 25 Nov 2026: a closed month is answered only from the 8th of the next month (late cancellations settle first). */
+export const settledFrom = (to: string): string => {
+  const y = Number(to.slice(0, 4));
+  const m = Number(to.slice(5, 7));
+  return m === 12 ? `${y + 1}-01-08` : `${y}-${String(m + 1).padStart(2, '0')}-08`;
+};
+
+/** The period is still running, or closed less than 8 days ago: its counts are still moving. */
+export const isOpen = (c: { period: { to: string }; today: string }): boolean => c.today < settledFrom(c.period.to);
 
 export const OPEN_MONTH_REASON =
-  'bulan berjalan belum ditutup: angka orang atau kurir yang berubah dari hari ke hari bisa dikurangkan menjadi satu orang, jadi hanya bulan yang sudah ditutup yang dijawab.';
+  'angka orang atau kurir hanya dijawab untuk bulan yang sudah ditutup, mulai tanggal 8 bulan berikutnya, supaya pembatalan dan catatan yang terlambat sudah masuk; angka yang berubah dari hari ke hari bisa dikurangkan menjadi satu orang.';

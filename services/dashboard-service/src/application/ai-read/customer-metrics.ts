@@ -80,8 +80,8 @@ export class CustomerMetricsService {
     }
     if (c.scope.spans.length === 0) return c.none(NO_SCOPE);
     if (isOpen(c)) {
-      // C-06 is as of a date: the month's last day has not come, so there is no closed as-of to give.
-      return metricId === 'C-06' ? c.none('C-06 hanya dijawab per hari terakhir bulan yang sudah ditutup; bulan ini belum selesai.') : c.held(OPEN_MONTH_REASON);
+      // C-06 is as of a date: the month is not settled yet (from the 8th of the next month), so there is no as-of to give.
+      return metricId === 'C-06' ? c.none('C-06 dijawab per hari terakhir bulan yang sudah ditutup, mulai tanggal 8 bulan berikutnya; bulan ini belum boleh dijawab.') : c.held(OPEN_MONTH_REASON);
     }
     switch (metricId as CustomerMetricId) {
       case 'C-01':

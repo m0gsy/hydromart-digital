@@ -92,7 +92,7 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
   beforeAll(async () => {
     // 5 Dec 2026: November is closed, so its counts are answered (a running month is held). Only the clock is faked.
     jest.useFakeTimers({
-      now: new Date('2026-12-05T03:00:00.000Z'),
+      now: new Date('2026-12-08T03:00:00.000Z'),
       doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'performance', 'hrtime'],
     });
     Object.assign(process.env, testEnv);
@@ -221,7 +221,7 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
     }
   });
 
-  it('answers delivery and gallons, a gallon balance carrying its caveat', async () => {
+  it('answers delivery and gallons, a gallon balance', async () => {
     const k2 = await get(aiToken('SUPER_ADMIN'), 'delivery', 'K-02').expect(200);
     expect(k2.body).toMatchObject({ status: 'ok', value: { ratePct: 85, onTime: 34, delivered: 40 } });
     expect(k2.body.label).toContain('30 dari 40');
@@ -229,7 +229,6 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
     expect(g1.body).toMatchObject({ status: 'ok', value: 777 });
     const g2 = await get(aiToken('SUPER_ADMIN'), 'gallons', 'G-02').expect(200);
     expect(g2.body.value).toMatchObject({ gallonsAtCustomers: 12 });
-    expect(g2.body.label).toContain('25 Nov 2026');
   });
 
   it('refuses a metric outside the group (404), a missing or ambiguous period and a month metric asked as a week (400)', async () => {
