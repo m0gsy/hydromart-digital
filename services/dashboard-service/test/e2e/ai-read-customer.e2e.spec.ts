@@ -90,6 +90,11 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
   const posted: { path: string; body: { spans?: { depotId: string; from: string; to: string }[] } }[] = [];
 
   beforeAll(async () => {
+    // 5 Dec 2026: November is closed, so its counts are answered (a running month is held). Only the clock is faked.
+    jest.useFakeTimers({
+      now: new Date('2026-12-05T03:00:00.000Z'),
+      doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'performance', 'hrtime'],
+    });
     Object.assign(process.env, testEnv);
     resetExternalKeyStores();
     configureDepotScope(async () => [D1, D2]);
@@ -170,6 +175,7 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
 
   afterAll(async () => {
     await app.close();
+    jest.useRealTimers();
     jest.restoreAllMocks();
     resetExternalKeyStores();
     resetDepotScope();
@@ -183,8 +189,7 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
   it('answers C-01 for SUPER_ADMIN with one read over every readable stretch, in WIB instants', async () => {
     const res = await get(aiToken('SUPER_ADMIN'), 'customers', 'C-01').expect(200);
     expect(res.body).toMatchObject({ metricId: 'C-01', status: 'ok', unit: 'orang', scope: { depotIds: [D1, D2] } });
-    // November 2026 is rounded to 5 while it is still running, exact once it has closed
-    expect(res.body.value).toBe(new Date() < new Date('2026-12-01T00:00:00+07:00') ? 10 : 12);
+    expect(res.body.value).toBe(12);
     const call = posted.find((p) => p.path.endsWith('/customer-metrics'));
     // D1 is PT_A to 15 Nov then PT_B: two spans; D2 one: ONE call carries all three
     expect(call?.body.spans).toEqual([
@@ -235,7 +240,8 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
     await get(aiToken('SUPER_ADMIN'), 'customers', 'C-01', 'period=week&date=2026-11-10').expect(400);
     await get(aiToken('SUPER_ADMIN'), 'customers', 'C-01', 'from=2026-11-05&to=2026-11-20').expect(400);
     await get(aiToken('SUPER_ADMIN'), 'delivery', 'K-05', 'period=day&date=2026-11-10').expect(400);
-    await get(aiToken('SUPER_ADMIN'), 'delivery', 'K-01', 'period=day&date=2026-11-10').expect(200);
+    await get(aiToken('SUPER_ADMIN'), 'delivery', 'K-01', 'period=day&date=2026-11-10').expect(400);
+    await get(aiToken('SUPER_ADMIN'), 'delivery', 'K-01', 'from=2026-11-01&to=2026-11-29').expect(400);
   });
 
   it('keeps the door: no token, a machine token and a franchise owner are refused', async () => {

@@ -6,7 +6,7 @@ import { AiCustomerSourcesPort, DeliverySummary } from '../ports/ai-customer-sou
 import { DASHBOARD_TOKENS } from '../tokens';
 import { CumulativeScopeService, heldBackNote } from './cumulative-scope.service';
 import { AnswerEnvelope } from './envelope';
-import { DOWN, GroupCtx, GroupMetricMeta, NO_SCOPE, TOO_MANY, fitsOneRead, openGroup, sourceSpans } from './group-context';
+import { DOWN, GroupCtx, GroupMetricMeta, NO_SCOPE, OPEN_MONTH_REASON, TOO_MANY, fitsOneRead, isOpen, openGroup, sourceSpans } from './group-context';
 import { SMALL_GROUP_FLAG, SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
 import { PeriodQuery } from './period';
 import { ReadScopeService } from './scope.service';
@@ -16,13 +16,15 @@ import { depotsOn } from './stretches';
  * HD-6 H3, delivery and courier metrics (dictionary section 3.6). A courier is one person, and in a
  * depot with one or two couriers the on-time share, the median minutes and the failures ARE that
  * courier's record. So EVERY slice answers only when 3 or more distinct couriers (delivering or
- * failing) are behind it; K-05 is also one whole month, and K-06 (a rating per courier) is never answered.
+ * failing) are behind it. Nested periods (d1..d7 and d1..d6) would subtract into one courier's day, so K-01 to K-05
+ * answer ONLY one whole calendar month, and only a CLOSED one (a running month watched day by day steps by one
+ * courier's day). K-06 (a rating per courier) is never answered; K-07 is the live state.
  */
 export const DELIVERY_METRICS = {
-  'K-01': { unit: 'pengiriman' },
-  'K-02': { unit: 'persen' },
-  'K-03': { unit: 'menit' },
-  'K-04': { unit: 'pengiriman' },
+  'K-01': { unit: 'pengiriman', month: true, oneMonth: true },
+  'K-02': { unit: 'persen', month: true, oneMonth: true },
+  'K-03': { unit: 'menit', month: true, oneMonth: true },
+  'K-04': { unit: 'pengiriman', month: true, oneMonth: true },
   'K-05': { unit: 'kurir, pengiriman', month: true, oneMonth: true },
   'K-06': { unit: 'bintang' },
   'K-07': { unit: 'pesanan' },
@@ -60,6 +62,7 @@ export class DeliveryMetricsService {
     }
     if (c.scope.spans.length === 0) return c.none(NO_SCOPE);
     if (metricId === 'K-07') return this.live(c);
+    if (isOpen(c)) return c.held(OPEN_MONTH_REASON);
     const spans = sourceSpans(c.scope, c.period.timeZone);
     if (!fitsOneRead(spans)) return c.none(TOO_MANY);
     const s = await this.sources.deliverySummary(spans);
@@ -186,7 +189,7 @@ export class DeliveryMetricsService {
         held,
         heldBackDepots: split.heldBack.length,
       },
-      `pesanan antar yang sedang berjalan sekarang (${c.today}, WIB), berapa pun umurnya, di depot yang seluruh riwayatnya boleh Anda baca; notConfirmed = baru dibuat, belum dikonfirmasi depot; withoutCourier = dikonfirmasi atau disiapkan, belum dapat kurir; withCourier = kurir sudah ditugaskan sampai dalam pengiriman. Penjualan kasir tidak ikut. Periode yang Anda sebut tidak dipakai: ini keadaan hari ini. Hitungan kurang dari 3 ditahan${heldBackNote(split.heldBack)}`,
+      `pesanan antar yang sedang berjalan sekarang (${c.today}, WIB), berapa pun umurnya, di depot yang seluruh riwayatnya boleh Anda baca; notConfirmed = baru dibuat, belum dikonfirmasi depot; withoutCourier = dikonfirmasi atau disiapkan, belum dapat kurir; withCourier = kurir sudah ditugaskan sampai dalam pengiriman. Penjualan kasir tidak ikut. Periode yang Anda sebut tidak dipakai: ini keadaan hari ini. Angka langsung: selisih antar waktu menunjukkan perubahan pesanan, bukan orang. Hitungan kurang dari 3 ditahan${heldBackNote(split.heldBack)}`,
     );
   }
 }

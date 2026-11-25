@@ -76,7 +76,7 @@ describe('customer metrics (C-)', () => {
     };
     return { sources, service: new CustomerMetricsService(scopes(scope), cumulative(held), sources as never) };
   };
-  // the default answers a CLOSED month (exact counts); askOpen answers while November is still running
+  // the default answers a CLOSED month; askOpen answers while November is still running (held, never rounded)
   const ask = (s: CustomerMetricsService, id: string, q: Record<string, string> = NOVEMBER) => s.answer(id, user, q, CLOSED);
   const askOpen = (s: CustomerMetricsService, id: string, q: Record<string, string> = NOVEMBER) => s.answer(id, user, q, NOW);
 
@@ -158,7 +158,7 @@ describe('customer metrics (C-)', () => {
     expect(await ask(none.service, 'C-05')).toMatchObject({ status: 'belum_ada' });
   });
 
-  it('C-06 is as of the last day of the month (today while it runs), in multiples of 5, and masks small segments', async () => {
+  it('C-06 is as of the last day of a CLOSED month, in multiples of 5, and masks small segments', async () => {
     const { service, sources } = make();
     const a = await ask(service, 'C-06');
     expect(a.status).toBe('ok');
@@ -176,14 +176,12 @@ describe('customer metrics (C-)', () => {
     expect(a.label).toContain('kelipatan 5');
     // the overlap with C-04's calendar month is said, not hidden
     expect(a.label).toContain('C-04');
+    // mid-month there is no closed as-of date: refused with the reason, nothing is read
     const open = make();
-    await askOpen(open.service, 'C-06');
-    // running month: as of today (25 Nov WIB), the limit is 26 Nov 00:00 WIB
-    expect(open.sources.segments).toHaveBeenCalledWith([D1, D2], {
-      activeSince: '2026-10-25T17:00:00.000Z',
-      riskSince: '2026-09-25T17:00:00.000Z',
-      until: '2026-11-25T17:00:00.000Z',
-    });
+    const refused = await askOpen(open.service, 'C-06');
+    expect(refused).toMatchObject({ status: 'belum_ada', value: null });
+    expect(refused.reason).toContain('hari terakhir bulan yang sudah ditutup');
+    expect(open.sources.segments).not.toHaveBeenCalled();
     const past = make(OCT);
     await ask(past.service, 'C-06', OCTOBER);
     expect(past.sources.segments).toHaveBeenCalledWith([D1, D2], expect.objectContaining({ until: '2026-10-31T17:00:00.000Z' }));
@@ -213,11 +211,11 @@ describe('customer metrics (C-)', () => {
   });
 
   it('C-06 reads the depots readable on the last day only', async () => {
-    const late = make(scopeOf([span(D1, '2026-11-01', '2026-11-30'), span(D2, '2026-11-26', '2026-11-30')]));
-    await askOpen(late.service, 'C-06');
+    const late = make(scopeOf([span(D1, '2026-11-01', '2026-11-30'), span(D2, '2026-11-01', '2026-11-25')]));
+    await ask(late.service, 'C-06');
     expect(late.sources.segments).toHaveBeenCalledWith([D1], expect.anything());
-    const gone = make(scopeOf([span(D2, '2026-11-26', '2026-11-30')]));
-    expect(await askOpen(gone.service, 'C-06')).toMatchObject({ status: 'belum_ada' });
+    const gone = make(scopeOf([span(D2, '2026-11-01', '2026-11-25')]));
+    expect(await ask(gone.service, 'C-06')).toMatchObject({ status: 'belum_ada' });
   });
 
   it('C-06 and the cumulative metrics hold back a depot whose older history the role may not read, and say since when', async () => {
@@ -233,24 +231,25 @@ describe('customer metrics (C-)', () => {
     expect(all.sources.segments).not.toHaveBeenCalled();
   });
 
-  it('a running month is answered in multiples of 5, a closed one exactly; cells under 3 stay held either way', async () => {
+  it('a running month is never answered: held for every metric that counts people, and nothing is read', async () => {
+    const { service, sources } = make();
+    for (const id of ['C-01', 'C-02', 'C-04', 'C-05', 'C-10']) {
+      const a = await askOpen(service, id);
+      expect(a).toMatchObject({ status: 'ditahan', value: null });
+      expect(a.reason).toContain('bulan berjalan belum ditutup');
+    }
+    expect(await askOpen(service, 'C-08', { from: '2026-11-01', to: '2026-11-30' })).toMatchObject({ status: 'ditahan', value: null });
+    expect(sources.customerWindow).not.toHaveBeenCalled();
+    expect(sources.ratings).not.toHaveBeenCalled();
+    expect(sources.cohorts).not.toHaveBeenCalled();
+    // the same month once it has closed is exact, and a count under 3 is still held
     const w = { active: 43, newCustomers: 12, repeat: 27, newAtDepot: [] };
-    const { service } = make(BOTH, { customerWindow: jest.fn(async () => w) });
-    expect(await ask(service, 'C-01')).toMatchObject({ status: 'ok', value: 12 });
-    const open = await askOpen(service, 'C-01');
-    expect(open).toMatchObject({ status: 'ok', value: 10 });
-    expect(open.label).toContain('dibulatkan ke kelipatan 5');
-    expect(await askOpen(service, 'C-04')).toMatchObject({ value: 45 });
-    // the rate is worked out from the published numbers (25 of 45), never from 27 of 43
-    const c5 = await askOpen(service, 'C-05');
-    expect(c5.value).toMatchObject({ total: 45, ratePct: 55.6 });
-    expect((c5.value as { cells: { value: number }[] }).cells.map((x) => x.value)).toEqual([25, 15]);
-    // under 3 is held on the exact count, before any rounding makes it look like a 0 or a 5
+    const closed = make(BOTH, { customerWindow: jest.fn(async () => w) });
+    expect(await ask(closed.service, 'C-01')).toMatchObject({ status: 'ok', value: 12 });
+    expect(await ask(closed.service, 'C-04')).toMatchObject({ value: 43 });
+    expect((await ask(closed.service, 'C-05')).value).toMatchObject({ total: 43, ratePct: 62.8 });
     const two = make(BOTH, { customerWindow: jest.fn(async () => ({ ...w, newCustomers: 2 })) });
-    expect(await askOpen(two.service, 'C-01')).toMatchObject({ status: 'ditahan', value: null });
-    const rating = make(BOTH, { ratings: jest.fn(async () => ({ reviews: 13, ratingSum: 52, reviewers: 8 })) });
-    expect(await askOpen(rating.service, 'C-10')).toMatchObject({ value: { averageStars: 4, reviews: 15 } });
-    expect(await ask(rating.service, 'C-10')).toMatchObject({ value: { averageStars: 4, reviews: 13 } });
+    expect(await ask(two.service, 'C-01')).toMatchObject({ status: 'ditahan', value: null });
   });
 
   it('differencing: a total as of two dates, or a running month on two days, never isolates 1 or 2 people', async () => {
@@ -263,13 +262,10 @@ describe('customer metrics (C-)', () => {
     }
     expect(totals.every((t) => t % 5 === 0)).toBe(true);
     expect(Math.abs(totals[1] - totals[0])).not.toBe(2);
-    // a running month on day X (41 new customers) and day X+1 (42): the same published number, not a difference of 1
+    // a running month watched on day X (41 new customers) and day X+1 (42): neither day is answered at all
     const day1 = make(BOTH, { customerWindow: jest.fn(async () => window({ newCustomers: 41, active: 60 })) });
-    const day2 = make(BOTH, { customerWindow: jest.fn(async () => window({ newCustomers: 42, active: 60 })) });
-    const a = await askOpen(day1.service, 'C-01');
-    const b = await askOpen(day2.service, 'C-01');
-    expect(a.value).toBe(40);
-    expect(b.value).toBe(40);
+    expect(await askOpen(day1.service, 'C-01')).toMatchObject({ status: 'ditahan', value: null });
+    expect(day1.sources.customerWindow).not.toHaveBeenCalled();
   });
 
   it('C-08 holds a cohort back WHOLE when any cell of it is under 3, or when 1 or 2 did not come back', async () => {
@@ -288,7 +284,8 @@ describe('customer metrics (C-)', () => {
     const a = await ask(service, 'C-08', { from: '2026-08-01', to: '2026-11-30' });
     expect(a.status).toBe('ok');
     const rows = (a.value as { cohorts: { cohort: string; size: number | null; flag?: string; months: { monthIndex: number; customers: number; ratePct: number }[] }[] }).cohorts;
-    expect(rows[0]).toEqual({ cohort: '2026-08', size: 20, months: [{ monthIndex: 1, customers: 8, ratePct: 40 }, { monthIndex: 2, customers: 12, ratePct: 60 }] });
+    // sizes and cells are ALWAYS multiples of 5, closed month or not: 8 -> 10, 12 -> 10, rates from the rounded numbers
+    expect(rows[0]).toEqual({ cohort: '2026-08', size: 20, months: [{ monthIndex: 1, customers: 10, ratePct: 50 }, { monthIndex: 2, customers: 10, ratePct: 50 }] });
     // a cell of 2 people, 19 of 20 returning (1 who did not), and a cohort of 2: all held whole, with the same flag as everywhere
     for (const held of rows.slice(1)) expect(held).toEqual({ cohort: held.cohort, size: null, flag: 'kurang dari 3', months: [] });
     const allSmall = make(BOTH, { cohorts: jest.fn(async () => [{ cohort: '2026-10', monthIndex: 0, customers: 1 }]) });
@@ -298,10 +295,22 @@ describe('customer metrics (C-)', () => {
     // a cohort row without a month-0 cell is not a cohort of anyone
     const odd = make(BOTH, { cohorts: jest.fn(async () => [{ cohort: '2026-10', monthIndex: 1, customers: 5 }]) });
     expect(await ask(odd.service, 'C-08', { from: '2026-10-01', to: '2026-10-31' })).toMatchObject({ status: 'ditahan' });
-    // a range that reaches today is rounded to 5
-    const run = make(BOTH, { cohorts: jest.fn(async () => [{ cohort: '2026-11', monthIndex: 0, customers: 22 }, { cohort: '2026-11', monthIndex: 1, customers: 12 }]) });
-    const r = await askOpen(run.service, 'C-08', { from: '2026-11-01', to: '2026-11-30' });
-    expect((r.value as { cohorts: { size: number; months: { customers: number; ratePct: number }[] }[] }).cohorts[0]).toMatchObject({ size: 20, months: [{ customers: 10, ratePct: 50 }] });
+    // a held row beside a published one: the exact repeat/active of C-05 minus an exact diagonal must not give the held row away
+    const mix = make(BOTH, {
+      cohorts: jest.fn(async () => [
+        { cohort: '2026-09', monthIndex: 0, customers: 22 },
+        { cohort: '2026-09', monthIndex: 1, customers: 13 },
+        { cohort: '2026-10', monthIndex: 0, customers: 21 },
+        { cohort: '2026-10', monthIndex: 1, customers: 2 },
+      ]),
+    });
+    const m = (await ask(mix.service, 'C-08', { from: '2026-09-01', to: '2026-10-31' })).value as { cohorts: { cohort: string; size: number | null; months: { customers: number | null; ratePct: number | null }[] }[] };
+    expect(m.cohorts[0]).toEqual({ cohort: '2026-09', size: 20, months: [{ monthIndex: 1, customers: 15, ratePct: 75 }] });
+    expect(m.cohorts[1]).toMatchObject({ cohort: '2026-10', size: null, flag: 'kurang dari 3' });
+    for (const n of [m.cohorts[0].size as number, ...m.cohorts[0].months.map((x) => x.customers as number)]) expect(n % 5).toBe(0);
+    // a range that reaches today is refused whole
+    const run = make(BOTH, { cohorts: jest.fn(async () => [{ cohort: '2026-11', monthIndex: 0, customers: 22 }]) });
+    expect(await askOpen(run.service, 'C-08', { from: '2026-11-01', to: '2026-11-30' })).toMatchObject({ status: 'ditahan', value: null });
   });
 
   it('C-10 is the mean stars of all reviews, held back unless 3 different customers wrote them', async () => {
@@ -353,7 +362,7 @@ describe('customer metrics (C-)', () => {
     await expect(ask(service, 'toString')).rejects.toBeInstanceOf(NotFoundException);
     await expect(ask(service, 'C-01', { period: 'year', date: '2026-11-10' })).rejects.toBeInstanceOf(BadRequestException);
     // C-08 may run over several whole months, or a year
-    await expect(ask(service, 'C-08', { period: 'year', date: '2026-11-10' })).resolves.toMatchObject({ status: 'ok' });
+    await expect(ask(service, 'C-08', { period: 'year', date: '2025-11-10' })).resolves.toMatchObject({ status: 'ok' });
     await expect(ask(service, 'C-08', { period: 'week', date: '2026-11-10' })).rejects.toBeInstanceOf(BadRequestException);
     await expect(ask(service, 'C-08', { from: '2026-09-01', to: '2026-11-30' })).resolves.toMatchObject({ status: 'ok' });
     await expect(ask(service, 'C-08', { from: '2026-09-05', to: '2026-11-30' })).rejects.toBeInstanceOf(BadRequestException);
@@ -400,7 +409,9 @@ describe('delivery metrics (K-)', () => {
     };
     return { sources, scope: scopes(scope), service: new DeliveryMetricsService(scopes(scope), cumulative(held), sources as never) };
   };
-  const ask = (s: DeliveryMetricsService, id: string, q: Record<string, string> = NOVEMBER) => s.answer(id, user, q, NOW);
+  // K-07 is as of today (25 Nov); K-01 to K-05 are answered for a CLOSED month only
+  const ask = (s: DeliveryMetricsService, id: string, q: Record<string, string> = NOVEMBER) => s.answer(id, user, q, id === 'K-07' ? NOW : CLOSED);
+  const askOpen = (s: DeliveryMetricsService, id: string, q: Record<string, string> = NOVEMBER) => s.answer(id, user, q, NOW);
 
   it('lists the dictionary and answers K-01 to K-04 from one summary over the granted spans', async () => {
     expect(DELIVERY_METRIC_IDS).toEqual(['K-01', 'K-02', 'K-03', 'K-04', 'K-05', 'K-06', 'K-07']);
@@ -464,10 +475,22 @@ describe('delivery metrics (K-)', () => {
     expect(await ask(empty.service, 'K-01')).toMatchObject({ status: 'ok', value: 0 });
   });
 
-  it('K-01 to K-04 answer any period, but only behind 3 or more couriers: 1 or 2 couriers ARE the number', async () => {
-    const { service } = make();
-    await expect(ask(service, 'K-01', { period: 'day', date: '2026-11-10' })).resolves.toMatchObject({ status: 'ok' });
-    await expect(ask(service, 'K-02', { from: '2026-11-03', to: '2026-11-09' })).resolves.toMatchObject({ status: 'ok' });
+  it('K-01 to K-05 answer ONE closed month, and only behind 3 or more couriers: 1 or 2 couriers ARE the number', async () => {
+    const { service, sources } = make();
+    // nested periods (d1..d7 and d1..d6) would subtract into one courier's day: only a whole month is a period here
+    for (const id of ['K-01', 'K-02', 'K-03', 'K-04', 'K-05']) {
+      for (const q of [{ period: 'day', date: '2026-11-10' }, { period: 'week', date: '2026-11-10' }, { from: '2026-11-03', to: '2026-11-09' }, { from: '2026-10-01', to: '2026-11-30' }, { period: 'year', date: '2025-11-10' }] as Record<string, string>[]) {
+        await expect(ask(service, id, q)).rejects.toBeInstanceOf(BadRequestException);
+      }
+    }
+    expect(sources.deliverySummary).not.toHaveBeenCalled();
+    // the running month is not closed: held, nothing read (a day-by-day watch would step by one courier's day)
+    for (const id of ['K-01', 'K-02', 'K-03', 'K-04', 'K-05']) {
+      const a = await askOpen(service, id);
+      expect(a).toMatchObject({ status: 'ditahan', value: null });
+      expect(a.reason).toContain('bulan berjalan belum ditutup');
+    }
+    expect(sources.deliverySummary).not.toHaveBeenCalled();
     for (const couriers of [1, 2]) {
       const small = make(BOTH, { deliverySummary: jest.fn(async () => delivered({ couriers })) });
       for (const id of ['K-01', 'K-02', 'K-03', 'K-04', 'K-05']) {

@@ -15,10 +15,10 @@ import {
   TOO_MANY,
   fitsOneRead,
   openGroup,
+  OPEN_MONTH_REASON,
+  isOpen,
   peopleCount,
-  roundingNote,
   round5,
-  shown,
   sourceSpans,
 } from './group-context';
 import { SMALL_GROUP_FLAG, SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
@@ -33,10 +33,11 @@ import { depotsOn, plusDays } from './stretches';
  *    held-back cell away by subtraction holds its smallest neighbour back too (masking.ts);
  *  - except C-08, a metric is answered for ONE whole calendar month only, so two answers never
  *    overlap and a month cannot be subtracted from a week to isolate the few people between them;
- *  - a month that is still running is answered with counts rounded to a multiple of 5 (a day's
- *    difference would otherwise be the few people who ordered that day); only a closed month is exact;
- *  - C-06 is a running total as of a day, so two dates would subtract into the people who moved
- *    between them: its cells and total are always rounded to a multiple of 5.
+ *  - only a CLOSED month is answered ("bulan berjalan belum ditutup" otherwise): a running month's count,
+ *    watched day by day, steps by the one person who ordered that day;
+ *  - C-06 is a total as of a date, so it is answered only as of the last day of a closed month, with every
+ *    cell and the total rounded to a multiple of 5; C-08's sizes and cells are ALWAYS rounded to 5 too,
+ *    because the exact repeat/active of C-05 minus an exact cohort diagonal would give a held row away.
  */
 export const CUSTOMER_METRICS = {
   'C-01': { unit: 'orang', month: true, oneMonth: true },
@@ -78,6 +79,10 @@ export class CustomerMetricsService {
         break;
     }
     if (c.scope.spans.length === 0) return c.none(NO_SCOPE);
+    if (isOpen(c)) {
+      // C-06 is as of a date: the month's last day has not come, so there is no closed as-of to give.
+      return metricId === 'C-06' ? c.none('C-06 hanya dijawab per hari terakhir bulan yang sudah ditutup; bulan ini belum selesai.') : c.held(OPEN_MONTH_REASON);
+    }
     switch (metricId as CustomerMetricId) {
       case 'C-01':
       case 'C-02':
@@ -126,15 +131,13 @@ export class CustomerMetricsService {
     );
     if (m.cells.every((cell) => cell.flag)) return c.held(SMALL_GROUP_REASON);
     const clean = m.cells.every((cell) => !cell.flag) && m.total !== null;
-    const cells = m.cells.map((cell) => (cell.value === null ? cell : { ...cell, value: shown(c, cell.value) }));
     return c.ok(
       {
-        cells,
-        total: m.total === null ? null : shown(c, m.total),
-        // the rate is worked out from the numbers as published, never from the exact ones
-        ratePct: clean ? pct(shown(c, w.repeat), shown(c, w.active)) : null,
+        cells: m.cells,
+        total: m.total,
+        ratePct: clean ? pct(w.repeat, w.active) : null,
       },
-      'pelanggan berulang: pembeli bulan ini yang sudah pernah memesan sebelum bulan ini di depot mana pun; tingkat berulang = berulang / semua pembeli bulan ini. Kelompok kurang dari 3 orang ditahan' + roundingNote(c),
+      'pelanggan berulang: pembeli bulan ini yang sudah pernah memesan sebelum bulan ini di depot mana pun; tingkat berulang = berulang / semua pembeli bulan ini. Kelompok kurang dari 3 orang ditahan',
     );
   }
 
@@ -203,14 +206,14 @@ export class CustomerMetricsService {
         if (heldRow) return { cohort, size: null, flag: SMALL_GROUP_FLAG, months: [] };
         return {
           cohort,
-          size: shown(c, size),
-          months: rows.map(([monthIndex, n]) => ({ monthIndex, customers: shown(c, n), ratePct: pct(shown(c, n), shown(c, size)) })),
+          size: round5(size),
+          months: rows.map(([monthIndex, n]) => ({ monthIndex, customers: round5(n), ratePct: pct(round5(n), round5(size)) })),
         };
       });
     if (cohorts.every((x) => x.size === null)) return c.held(SMALL_GROUP_REASON);
     return c.ok(
       { cohorts },
-      'kohort = bulan pesanan pertama seumur hidup (WIB), pelanggan bernama; persen = yang memesan lagi pada bulan ke-n dibagi ukuran kohort. Hanya pesanan di depot dan hari yang boleh Anda baca yang dihitung. Kohort yang salah satu selnya kurang dari 3 orang (atau yang tidak kembali kurang dari 3) ditahan utuh' + roundingNote(c),
+      'kohort = bulan pesanan pertama seumur hidup (WIB), pelanggan bernama; persen = yang memesan lagi pada bulan ke-n dibagi ukuran kohort. Hanya pesanan di depot dan hari yang boleh Anda baca yang dihitung. Ukuran kohort dan semua selnya SELALU dibulatkan ke kelipatan 5, persen dari angka yang dibulatkan (angka pas dari C-05 dikurangi diagonal kohort pas akan membuka satu baris yang ditahan). Kohort yang salah satu selnya kurang dari 3 orang (atau yang tidak kembali kurang dari 3) ditahan utuh',
     );
   }
 
@@ -223,8 +226,8 @@ export class CustomerMetricsService {
     if (r.reviews === 0) return c.none('Belum ada ulasan pada pesanan bulan ini.');
     if (r.reviewers < SMALL_GROUP_MIN) return c.held(SMALL_GROUP_REASON);
     return c.ok(
-      { averageStars: Math.round((r.ratingSum / r.reviews) * 10) / 10, reviews: shown(c, r.reviews) },
-      'rata-rata bintang ulasan atas pesanan yang dibuat bulan ini, dari semua ulasan sama bobotnya; ulasan dari paling sedikit 3 pelanggan berbeda' + roundingNote(c),
+      { averageStars: Math.round((r.ratingSum / r.reviews) * 10) / 10, reviews: r.reviews },
+      'rata-rata bintang ulasan atas pesanan yang dibuat bulan ini, dari semua ulasan sama bobotnya; ulasan dari paling sedikit 3 pelanggan berbeda',
     );
   }
 }

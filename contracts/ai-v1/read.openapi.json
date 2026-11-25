@@ -1515,7 +1515,7 @@
     "/dashboard/api/v1/ai/read/customers": {
       "get": {
         "summary": "One customer metric (C-: new, active, repeat, segments, cohorts, rating) for ONE whole calendar month.",
-        "description": "The customer group of the metric dictionary (section 3.5). The metric is the `metric` query parameter; the answer is the AnswerEnvelope. Every metric counts people, so every one is defined for ONE whole calendar month (C-08 for a run of whole months): a day, a week, or a range that is not whole months is a 400. Two answers therefore never overlap, and no two of them can be subtracted to isolate the few people between a month and a week.\n\nPeople: this group counts customers or couriers. No name, phone or address is ever read; a group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). Only named customers count: the anonymous counter buyer is nobody. A person with two phone numbers is two customers (no merging).\n\nScope: a fact counts only for the days its depot was readable by the caller (a depot that changed legal entity mid-month counts for its stretch). Distinct counts are one read over all the depot stretches, so a person who bought at two depots is one. When the scope holds more than 100 depots the metric is belum_ada (\"persempit cakupan\"), never a partial sum.\n\nSources of truth: order-service (customers, cohorts, reviews, segments). A source that cannot answer, or answers something this API does not understand, makes the metric belum_ada (never 0).\n\nRunning month: a month that has not ended is answered with counts rounded to a multiple of 5, because two days of it would otherwise subtract into the few people who ordered on one day. A closed month is exact. C-06 (a running total as of a date) is always rounded to a multiple of 5, closed month or not, and its window \"aktif\" (30 days back from the as-of day) is not the calendar month of C-04. C-06 counts all history, so a depot whose older history the role may not read (it joined a readable legal entity recently) is held back and counted in heldBackDepots.",
+        "description": "The customer group of the metric dictionary (section 3.5). The metric is the `metric` query parameter; the answer is the AnswerEnvelope. Every metric counts people, so every one is defined for ONE whole calendar month (C-08 for a run of whole months): a day, a week, or a range that is not whole months is a 400. Two answers therefore never overlap, and no two of them can be subtracted to isolate the few people between a month and a week.\n\nPeople: this group counts customers or couriers. No name, phone or address is ever read; a group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). Only named customers count: the anonymous counter buyer is nobody. A person with two phone numbers is two customers (no merging).\n\nScope: a fact counts only for the days its depot was readable by the caller (a depot that changed legal entity mid-month counts for its stretch). Distinct counts are one read over all the depot stretches, so a person who bought at two depots is one. When the scope holds more than 100 depots the metric is belum_ada (\"persempit cakupan\"), never a partial sum.\n\nSources of truth: order-service (customers, cohorts, reviews, segments). A source that cannot answer, or answers something this API does not understand, makes the metric belum_ada (never 0).\n\nRunning month: a month that has not ended is NOT answered (ditahan, reason \"bulan berjalan belum ditutup\"), because its count watched day by day steps by the one person who ordered that day. Only a closed month is answered, and exactly, except where said below. C-06 (a total as of a date) is answered only as of the last day of a closed month (belum_ada otherwise), always rounded to a multiple of 5, and its window \"aktif\" (30 days back from the as-of day) is not the calendar month of C-04. C-08 sizes and cells are always rounded to a multiple of 5, because the exact repeat and active counts of C-05 minus an exact cohort diagonal would give a held cohort away. C-06 counts all history, so a depot whose older history the role may not read (it joined a readable legal entity recently) is held back and counted in heldBackDepots.",
         "security": [
           {
             "aiToken": []
@@ -1709,14 +1709,14 @@
             "wholeMonthOnly": true,
             "exactlyOneMonth": true,
             "value": "number",
-            "rules": "New customers: named customers whose first order anywhere in the network (not BATAL, not VOID, any other status) was created in the month, recorded at the depot of that first order, so the depots of a network add up to the network. 0 is a real answer; 1 or 2 is ditahan. belum_ada when order-service cannot be read. While the month is still running its counts are rounded to a multiple of 5 (the label says so); only a closed month is exact. A group of 1 or 2 people is held back before any rounding."
+            "rules": "New customers: named customers whose first order anywhere in the network (not BATAL, not VOID, any other status) was created in the month, recorded at the depot of that first order, so the depots of a network add up to the network. 0 is a real answer; 1 or 2 is ditahan. belum_ada when order-service cannot be read. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back."
           },
           "C-02": {
             "unit": "orang",
             "wholeMonthOnly": true,
             "exactlyOneMonth": true,
             "value": "number",
-            "rules": "New customers of ONE depot: customers whose first order at that depot was created in the month, even if they bought elsewhere before. Not summed across depots: ditahan unless exactly one depot is in scope. 1 or 2 is ditahan. While the month is still running its counts are rounded to a multiple of 5 (the label says so); only a closed month is exact. A group of 1 or 2 people is held back before any rounding."
+            "rules": "New customers of ONE depot: customers whose first order at that depot was created in the month, even if they bought elsewhere before. Not summed across depots: ditahan unless exactly one depot is in scope. 1 or 2 is ditahan. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back."
           },
           "C-03": {
             "unit": "akun",
@@ -1730,21 +1730,21 @@
             "wholeMonthOnly": true,
             "exactlyOneMonth": true,
             "value": "number",
-            "rules": "Active customers: distinct named customers with at least one order (not BATAL, not VOID) created in the month, counted once however many depots they bought at. 1 or 2 is ditahan. While the month is still running its counts are rounded to a multiple of 5 (the label says so); only a closed month is exact. A group of 1 or 2 people is held back before any rounding."
+            "rules": "Active customers: distinct named customers with at least one order (not BATAL, not VOID) created in the month, counted once however many depots they bought at. 1 or 2 is ditahan. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back."
           },
           "C-05": {
             "unit": "orang, persen",
             "wholeMonthOnly": true,
             "exactlyOneMonth": true,
             "value": "{ cells: MaskedCell[], total: number | null, ratePct: number | null }",
-            "rules": "Repeat customers: cells \"berulang\" (buyers of the month who ordered before the month, at any depot) and \"pertama kali pada bulan ini\"; total = all buyers; ratePct = berulang / total with one decimal, null whenever a cell is held back (it would give the small cell away). When a cell has 1 or 2 people the other cell is held back with it and the whole answer is ditahan. belum_ada with no buyers. While the month is still running its counts are rounded to a multiple of 5 (the label says so); only a closed month is exact. A group of 1 or 2 people is held back before any rounding. ratePct is worked out from the numbers as published."
+            "rules": "Repeat customers: cells \"berulang\" (buyers of the month who ordered before the month, at any depot) and \"pertama kali pada bulan ini\"; total = all buyers; ratePct = berulang / total with one decimal, null whenever a cell is held back (it would give the small cell away). When a cell has 1 or 2 people the other cell is held back with it and the whole answer is ditahan. belum_ada with no buyers. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back."
           },
           "C-06": {
             "unit": "orang",
             "wholeMonthOnly": true,
             "exactlyOneMonth": true,
             "value": "{ asOf, cells: MaskedCell[], total: number | null, heldBackDepots: number }",
-            "rules": "Customers by days since their last order (not BATAL, not VOID, all time up to asOf): \"aktif\" up to 30 days, \"berisiko\" 31 to 60, \"tidak aktif\" more than 60. asOf = the last day of the month, or today while the month runs; the depots counted are those readable on asOf. Cells of 1 or 2 people are held back with their smallest neighbour; all cells held = ditahan. belum_ada with no named customer at all. Every cell and the total are rounded to a multiple of 5 always (a total as of two dates subtracts into the people who moved between them). Only depots whose whole history up to asOf the role may read are counted; heldBackDepots says how many were not, and the label names the day they became readable."
+            "rules": "Customers by days since their last order (not BATAL, not VOID, all time up to asOf): \"aktif\" up to 30 days, \"berisiko\" 31 to 60, \"tidak aktif\" more than 60. asOf = the last day of a CLOSED month (a running month is belum_ada: no closed as-of date exists yet); the depots counted are those readable on asOf. Cells of 1 or 2 people are held back with their smallest neighbour; all cells held = ditahan. belum_ada with no named customer at all. Every cell and the total are rounded to a multiple of 5 always (a total as of two dates subtracts into the people who moved between them). Only depots whose whole history up to asOf the role may read are counted; heldBackDepots says how many were not, and the label names the day they became readable."
           },
           "C-07": {
             "unit": "skor",
@@ -1757,7 +1757,7 @@
             "unit": "orang, persen",
             "wholeMonthOnly": true,
             "value": "{ cohorts: [{ cohort: \"YYYY-MM\", size: number | null, flag?: \"kurang dari 3\", months: [{ monthIndex, customers: number | null, ratePct: number | null, flag? }] }] }",
-            "rules": "Retention by cohort: cohort = the WIB month of a customer's first order ever (named customers, not BATAL/VOID) in a readable depot and day; months[n] = customers of the cohort who ordered again n months later (in a readable depot and day), ratePct = customers / size with one decimal. A cohort or a cell of fewer than 3 people has value null and flag \"kurang dari 3\". Defined for a run of whole calendar months or a year; belum_ada when no new customer fell in them. A cohort is held back WHOLE (size null, flag \"kurang dari 3\") when any of its cells is under 3 people, or when 1 or 2 of its people did not come back (near-total retention shows them). While the month is still running its counts are rounded to a multiple of 5 (the label says so); only a closed month is exact. A group of 1 or 2 people is held back before any rounding."
+            "rules": "Retention by cohort: cohort = the WIB month of a customer's first order ever (named customers, not BATAL/VOID) in a readable depot and day; months[n] = customers of the cohort who ordered again n months later (in a readable depot and day), ratePct = customers / size with one decimal. A cohort or a cell of fewer than 3 people has value null and flag \"kurang dari 3\". Defined for a run of whole calendar months or a year; belum_ada when no new customer fell in them. A cohort is held back WHOLE (size null, flag \"kurang dari 3\") when any of its cells is under 3 people, or when 1 or 2 of its people did not come back (near-total retention shows them). Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back. Sizes and cells are ALWAYS multiples of 5 (percentages worked out from the rounded numbers); the held-back test is made on the exact counts first."
           },
           "C-09": {
             "unit": "Rp",
@@ -1771,7 +1771,7 @@
             "wholeMonthOnly": true,
             "exactlyOneMonth": true,
             "value": "{ averageStars, reviews }",
-            "rules": "Rating: the mean stars of all reviews of orders created in the month (every review weighs the same), one decimal. Reviews from fewer than 3 different customers = ditahan. belum_ada with no review. While the month is still running its counts are rounded to a multiple of 5 (the label says so); only a closed month is exact. A group of 1 or 2 people is held back before any rounding."
+            "rules": "Rating: the mean stars of all reviews of orders created in the month (every review weighs the same), one decimal. Reviews from fewer than 3 different customers = ditahan. belum_ada with no review. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is held back."
           }
         }
       }
@@ -1779,7 +1779,7 @@
     "/dashboard/api/v1/ai/read/delivery": {
       "get": {
         "summary": "One delivery or courier metric (K-: delivered, on time, median time, failed, courier group, live orders).",
-        "description": "The delivery group of the metric dictionary (section 3.6). K-01 to K-04 count deliveries and answer any period (day, week, month, year, range). K-05 counts couriers, so it is ONE whole calendar month and a group of fewer than 3 couriers is ditahan. K-06 (a rating per courier) is never answered. K-07 is the state right now and ignores the period.\n\nPeople: this group counts customers or couriers. No name, phone or address is ever read; a group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). Courier identity is never sent: only how many couriers there were. A failure reason is free text a courier typed and can name a person, so only the no-show reason is counted apart; the rest is \"otherReason\" without text.\n\nOn time (K-02): the verdict stored when the delivery completed (depot threshold, else the network threshold; the clock starts at the courier's assignment and restarts when a CUSTOMER reschedules, not when the depot swaps the courier). Deliveries completed before the verdict was stored are graded again with the network threshold; the label says how many of each.\n\nScope and sources as for the other groups: delivery-service and order-service; belum_ada (never 0) when a source cannot answer or more than 100 depots are in scope.\n\nCourier floor: in a depot or slice with 1 or 2 couriers the on-time share, the median minutes, the failures and the delivered count ARE that courier's record. So K-01 to K-05 answer ditahan (\"kurang dari 3\") unless 3 or more distinct couriers, counting those who delivered OR failed, are behind the slice. K-07 answers the state of TODAY: the period asked is not used, the scope is worked out for today, and the period echoed in the envelope is today.",
+        "description": "The delivery group of the metric dictionary (section 3.6). K-01 to K-05 are answered for ONE whole calendar month only, and only a CLOSED one (the running month is ditahan, \"bulan berjalan belum ditutup\"): two nested periods (d1..d7 and d1..d6) would subtract into one courier's day, and a running month watched day by day steps by one courier. A day, a week, a range or a year is a 400. K-06 (a rating per courier) is never answered. K-07 is the state right now and ignores the period.\n\nPeople: this group counts customers or couriers. No name, phone or address is ever read; a group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). Courier identity is never sent: only how many couriers there were. A failure reason is free text a courier typed and can name a person, so only the no-show reason is counted apart; the rest is \"otherReason\" without text.\n\nOn time (K-02): the verdict stored when the delivery completed (depot threshold, else the network threshold; the clock starts at the courier's assignment and restarts when a CUSTOMER reschedules, not when the depot swaps the courier). Deliveries completed before the verdict was stored are graded again with the network threshold; the label says how many of each.\n\nScope and sources as for the other groups: delivery-service and order-service; belum_ada (never 0) when a source cannot answer or more than 100 depots are in scope.\n\nCourier floor: in a depot or slice with 1 or 2 couriers the on-time share, the median minutes, the failures and the delivered count ARE that courier's record. So K-01 to K-05 answer ditahan (\"kurang dari 3\") unless 3 or more distinct couriers, counting those who delivered OR failed, are behind the slice. K-07 answers the state of TODAY: the period asked is not used, the scope is worked out for today, and the period echoed in the envelope is today. K-07 is a live figure: the difference between two readings is a change of orders, not of people.",
         "security": [
           {
             "aiToken": []
@@ -1967,27 +1967,31 @@
         "x-metrics": {
           "K-01": {
             "unit": "pengiriman",
-            "wholeMonthOnly": false,
+            "wholeMonthOnly": true,
             "value": "number",
-            "rules": "Deliveries delivered in the period by delivery time (WIB), at the delivering depot; one per order. 0 is a real answer. ditahan when fewer than 3 distinct couriers (delivering or failing) are behind the slice."
+            "rules": "Deliveries delivered in the period by delivery time (WIB), at the delivering depot; one per order. 0 is a real answer. ditahan when fewer than 3 distinct couriers (delivering or failing) are behind the slice.",
+            "exactlyOneMonth": true
           },
           "K-02": {
             "unit": "persen",
-            "wholeMonthOnly": false,
+            "wholeMonthOnly": true,
             "value": "{ ratePct, onTime, delivered }",
-            "rules": "Share on time, one decimal; the label says how many verdicts were stored and how many were graded again, and with which threshold. belum_ada when nothing was delivered (never 0%). ditahan when fewer than 3 distinct couriers (delivering or failing) are behind the slice. Old rows without a stored verdict are graded with their depot's threshold (depot setting, else the network threshold of /hq/sla-policy); the label gives the threshold, or says it differs by depot."
+            "rules": "Share on time, one decimal; the label says how many verdicts were stored and how many were graded again, and with which threshold. belum_ada when nothing was delivered (never 0%). ditahan when fewer than 3 distinct couriers (delivering or failing) are behind the slice. Old rows without a stored verdict are graded with their depot's threshold (depot setting, else the network threshold of /hq/sla-policy); the label gives the threshold, or says it differs by depot.",
+            "exactlyOneMonth": true
           },
           "K-03": {
             "unit": "menit",
-            "wholeMonthOnly": false,
+            "wholeMonthOnly": true,
             "value": "number",
-            "rules": "Median minutes from the courier's assignment (restarted on a customer reschedule) to delivery, one decimal. belum_ada when nothing was delivered. ditahan when fewer than 3 distinct couriers (delivering or failing) are behind the slice."
+            "rules": "Median minutes from the courier's assignment (restarted on a customer reschedule) to delivery, one decimal. belum_ada when nothing was delivered. ditahan when fewer than 3 distinct couriers (delivering or failing) are behind the slice.",
+            "exactlyOneMonth": true
           },
           "K-04": {
             "unit": "pengiriman",
-            "wholeMonthOnly": false,
+            "wholeMonthOnly": true,
             "value": "{ failed, noShow, otherReason, rescheduled, cancelledBeforeDeparture, held } (a count of 1 or 2 is null with its key in held)",
-            "rules": "Deliveries that ended GAGAL by failure date (failed), of which noShow = customer not at home and otherReason = every other reason, without text. rescheduled = times a delivery was handed back to be rescheduled, by when it happened; cancelledBeforeDeparture = delivery orders cancelled (by cancel time) that never reached PICKED_UP or ON_DELIVERY. The last two are counted apart and are not part of failed. A count of 1 or 2 is held back (null, flagged in held), with the smallest neighbour beside a published total. ditahan when fewer than 3 distinct couriers are behind the slice. belum_ada when either source cannot be read."
+            "rules": "Deliveries that ended GAGAL by failure date (failed), of which noShow = customer not at home and otherReason = every other reason, without text. rescheduled = times a delivery was handed back to be rescheduled, by when it happened; cancelledBeforeDeparture = delivery orders cancelled (by cancel time) that never reached PICKED_UP or ON_DELIVERY. The last two are counted apart and are not part of failed. A count of 1 or 2 is held back (null, flagged in held), with the smallest neighbour beside a published total. ditahan when fewer than 3 distinct couriers are behind the slice. belum_ada when either source cannot be read.",
+            "exactlyOneMonth": true
           },
           "K-05": {
             "unit": "kurir, pengiriman",
@@ -2006,7 +2010,7 @@
             "unit": "pesanan",
             "wholeMonthOnly": false,
             "value": "{ total, notConfirmed, withoutCourier, withCourier, held, heldBackDepots }",
-            "rules": "Delivery orders in flight right now at the depots readable today, in groups: notConfirmed = CREATED; withoutCourier = CONFIRMED and PREPARING; withCourier = DRIVER_ASSIGNED, PICKED_UP and ON_DELIVERY. Counter sales are never in flight. Any age counts, so only depots whose whole history the role may read are included (heldBackDepots says how many were not). A group of 1 or 2 orders is null, flagged in held, with its smallest neighbour. The period asked is not used: it echoes today."
+            "rules": "Delivery orders in flight right now at the depots readable today, in groups: notConfirmed = CREATED; withoutCourier = CONFIRMED and PREPARING; withCourier = DRIVER_ASSIGNED, PICKED_UP and ON_DELIVERY. Counter sales are never in flight. Any age counts, so only depots whose whole history the role may read are included (heldBackDepots says how many were not). A group of 1 or 2 orders is null, flagged in held, with its smallest neighbour. The period asked is not used: it echoes today. Live figures: two readings at different times differ because orders changed, not because of any person."
           }
         }
       }
