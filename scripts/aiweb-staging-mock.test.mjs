@@ -645,6 +645,52 @@ test('the read API: "% dari biasanya" shows variety on any day, above 100 and be
   }
 });
 
+test('the read API: targets hold the contract, match P-01 and G-01 sums, and one depot has no target', async () => {
+  const mock = await boot();
+  try {
+    const hq = await tokenOf(mock, user('HR'));
+    const body = async (path) => (await get(mock, `${READ_PATH}/${path}`, hq)).json();
+    for (const [metric, base, group] of [['T-01', 'P-01', 'money'], ['T-02', 'G-01', 'gallons']]) {
+      const q = `period=month&date=2026-10-15`;
+      const split = await body(`targets?metric=${metric}&${q}&split=depot`);
+      assertEnvelope(split, 'targets', metric);
+      for (const f of ['target', 'actual', 'pct', 'byDepot']) assert.ok(split.value[f] !== undefined, `value has ${f}`);
+      const baseSplit = await body(`${group}?metric=${base}&${q}&split=depot`);
+      assert.equal(split.value.actual, baseSplit.value.total, 'actual is the base metric');
+      assert.deepEqual(split.value.byDepot.map((r) => r.depotId), FAKE_DEPOTS);
+      for (const r of split.value.byDepot) {
+        for (const f of read.components.schemas.DepotSplit.properties.byDepot.items.required.filter((x) => x !== 'value')) assert.ok(r[f] !== undefined);
+        assert.equal(r.actual, baseSplit.value.byDepot.find((b) => b.depotId === r.depotId).value);
+      }
+      const rows = split.value.byDepot;
+      assert.equal(rows.at(-1).target, null, 'the last depot has no target');
+      assert.equal(rows.at(-1).pct, null);
+      assert.ok(rows.slice(0, -1).every((r) => r.target > 0 && r.pct === Math.round((r.actual / r.target) * 1000) / 10));
+      assert.equal(split.value.target, null, 'no network target while a depot has none');
+      assert.equal(split.value.pct, null);
+      const plain = await body(`targets?metric=${metric}&${q}`);
+      assert.equal(plain.status, 'belum_ada');
+      assert.equal(plain.value, null);
+      assert.ok(plain.reason);
+    }
+    // a depot-bound person reads only a depot that has a target: the plain answer is the whole cell
+    const kepala = await tokenOf(mock, user('KEPALA_DEPOT'));
+    const mine = await (await get(mock, `${READ_PATH}/targets?metric=T-01&period=month&date=2026-10-15`, kepala)).json();
+    assert.equal(mine.status, 'ok');
+    assert.deepEqual(Object.keys(mine.value), ['target', 'actual', 'pct']);
+    assert.equal(mine.value.target, fixtures.depots[0].target['T-01']);
+    // not a whole month: 400, like C-01
+    for (const q of ['period=day&date=2026-10-15', 'period=week&date=2026-10-15', 'period=year&date=2026-10-15']) {
+      assert.equal((await get(mock, `${READ_PATH}/targets?metric=T-01&${q}`, hq)).status, 400);
+    }
+    assert.equal((await get(mock, `${READ_PATH}/targets?metric=T-04&period=month`, hq)).status, 404);
+    assert.equal((await get(mock, `${READ_PATH}/targets?metric=T-01&period=month&split=zone`, hq)).status, 400);
+    assert.equal((await get(mock, `${READ_PATH}/targets?metric=T-01&period=month`)).status, 401);
+  } finally {
+    await mock.close();
+  }
+});
+
 test('the read API: refusals use the contract shape (401, 403, 404, 400)', async () => {
   const mock = await boot();
   try {

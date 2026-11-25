@@ -1,5 +1,6 @@
 {
   "_note": "Synthetic people for the staging AI web. Made up: no real name, phone or email.",
+  "_targets": "Monthly targets (T-01 revenue, T-02 gallons, T-03 orders); STG-04 has none on purpose, so the league shows both its target and its usual-day branch.",
   "_depots": "Fake depots for the read API. Every day value = base * weekday factor * (1 + trend * wave of the week), so a depot with a positive trend sits above its usual on some days and below on others; made up, no real depot.",
   "totpRoles": [
     "DIREKTUR",
@@ -18,6 +19,11 @@
         "P-07": 60,
         "G-01": 220,
         "C-01": 2
+      },
+      "target": {
+        "T-01": 80000000,
+        "T-02": 7000,
+        "T-03": 2000
       }
     },
     {
@@ -30,6 +36,11 @@
         "P-07": 80,
         "G-01": 300,
         "C-01": 3
+      },
+      "target": {
+        "T-01": 90000000,
+        "T-02": 10000,
+        "T-03": 2600
       }
     },
     {
@@ -42,6 +53,11 @@
         "P-07": 45,
         "G-01": 160,
         "C-01": 1
+      },
+      "target": {
+        "T-01": 60000000,
+        "T-02": 5000,
+        "T-03": 1500
       }
     },
     {
