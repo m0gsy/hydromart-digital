@@ -48,6 +48,9 @@ model LoyaltyAccount {
 
   transactions PointsTransaction[]
 
+  /// HD-6 H4 part 2: accounts that existed before a date (O-04).
+  @@index([createdAt])
+
   @@map("loyalty_accounts")
 }
 
@@ -81,6 +84,8 @@ model PointsTransaction {
   @@unique([customerId, idempotencyKey])
   @@index([customerId, createdAt])
   @@index([type, expired, expiresAt])
+  /// HD-6 H4 part 2: the ledger as it stood before a date (O-04).
+  @@index([createdAt])
   @@map("points_transactions")
 }
 
@@ -129,6 +134,8 @@ model RewardRedemption {
   @@unique([customerId, idempotencyKey])
   @@index([customerId, createdAt])
   @@index([depotId, status, createdAt])
+  /// HD-6 H4 part 2: redemptions handed over per depot and day (O-02).
+  @@index([depotId, status, usedAt])
   @@map("reward_redemptions")
 }
 

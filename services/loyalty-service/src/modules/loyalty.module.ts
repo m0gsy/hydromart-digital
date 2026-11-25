@@ -15,6 +15,10 @@ import { LoyaltyPrismaRepository } from '../infrastructure/prisma/loyalty.prisma
 import { RewardPrismaRepository } from '../infrastructure/prisma/reward.prisma.repository';
 import { SettingsPrismaRepository } from '../infrastructure/prisma/settings.prisma.repository';
 import { CustomerDirectoryHttpAdapter } from '../infrastructure/http/customer-directory.http.adapter';
+import { AiLoyaltyService } from '../application/services/ai-loyalty.service';
+import { AI_LOYALTY_REPOSITORY } from '../application/ports/ai-loyalty.repository';
+import { AiLoyaltyPrismaRepository } from '../infrastructure/prisma/ai-loyalty.prisma.repository';
+import { AiLoyaltyController } from './ai-loyalty.controller';
 import { LoyaltyController } from './loyalty.controller';
 import { RewardController } from './reward.controller';
 import { SettingsController } from './settings.controller';
@@ -33,6 +37,8 @@ const providers: Provider[] = [
   SettingsService,
   { provide: LOYALTY_TOKENS.LoyaltyRepository, useClass: LoyaltyPrismaRepository },
   { provide: LOYALTY_TOKENS.RewardRepository, useClass: RewardPrismaRepository },
+  AiLoyaltyService,
+  { provide: AI_LOYALTY_REPOSITORY, useClass: AiLoyaltyPrismaRepository },
   { provide: LOYALTY_TOKENS.CustomerDirectory, useClass: CustomerDirectoryHttpAdapter },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
@@ -41,7 +47,7 @@ const providers: Provider[] = [
 
 @Module({
   imports: [JwtModule.register({})],
-  controllers: [LoyaltyController, RewardController, SettingsController],
+  controllers: [AiLoyaltyController, LoyaltyController, RewardController, SettingsController],
   providers,
   exports: [PrismaService, LoyaltyConfigService],
 })
