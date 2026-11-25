@@ -51,6 +51,7 @@ export const DYNAMIC_PARENTS = [
   '/hq/depots',
   '/hq/orders',
   '/products',
+  '/hq/sop',
   '/orders',
 ];
 

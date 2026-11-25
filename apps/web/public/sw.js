@@ -137,6 +137,7 @@ const DYNAMIC_PARENTS = [
   '/hq/depots',
   '/hq/orders',
   '/products',
+  '/hq/sop',
   '/orders',
 ];
 const NOT_AN_ID = ['detail', 'new', 'import', 'settings'];
