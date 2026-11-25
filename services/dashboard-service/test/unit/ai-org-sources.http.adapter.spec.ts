@@ -30,10 +30,12 @@ function answer(body: unknown, ok = true) {
 
 afterEach(() => jest.restoreAllMocks());
 
+const NONE = { late: [], absentRecorded: [], leave: [], pending: [], scheduledDays: [], attendedScheduled: [], absentScheduled: [], unscheduledDays: [] };
+
 describe('AiOrgSourcesHttpAdapter (HD-6 H5)', () => {
   it('never logs a response body: the employee ids in an attendance answer stay out of every log line', async () => {
     const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    const body = { rows: [], heads: { present: ['EMPLOYEE-ID-1'], late: [], absentRecorded: [], leave: [], pending: [] }, rolledUp: false };
+    const body = { rows: [], heads: { present: ['EMPLOYEE-ID-1'], ...NONE }, rolledUp: false };
     answer(body, false); // refused
     await adapter().attendance([D1], '2026-11-01', '2026-11-30');
     answer(body); // a malformed (short) answer
@@ -118,8 +120,8 @@ describe('AiOrgSourcesHttpAdapter (HD-6 H5)', () => {
   });
 
   it('reads hr-service attendance, payroll and kasbon, one row per depot, and nothing from an unwired service', async () => {
-    const att = { depotId: D1, present: 1, late: 0, absentRecorded: 0, leave: 0, pending: 0 };
-    const heads = { present: ['e1'], late: [], absentRecorded: [], leave: [], pending: [] };
+    const att = { depotId: D1, present: 1, late: 0, absentRecorded: 0, leave: 0, pending: 0, scheduledDays: 1, attendedScheduled: 1, absentScheduled: 0, unscheduledDays: 0 };
+    const heads = { present: ['e1'], ...NONE };
     const calls = answer({ rows: [att], heads, rolledUp: false });
     await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toEqual({ rows: [att], heads, rolledUp: false });
     expect(calls[0].url.pathname).toBe('/api/v1/hr-reports/internal/ai/attendance');
@@ -130,6 +132,8 @@ describe('AiOrgSourcesHttpAdapter (HD-6 H5)', () => {
       { rows: [att], heads: { ...heads, late: 'x' }, rolledUp: false }, // heads not lists
       { rows: [att], heads: { ...heads, late: [1] }, rolledUp: false }, // ids not strings
       { rows: [{ ...att, present: undefined }], heads, rolledUp: false },
+      { rows: [{ ...att, scheduledDays: undefined }], heads, rolledUp: false }, // an hr-service without the scheduled days
+      { rows: [att], heads: { present: ['e1'] }, rolledUp: false },
     ]) {
       answer(body);
       await expect(adapter().attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
