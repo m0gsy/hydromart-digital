@@ -41,9 +41,11 @@ export function PreciseLocationNotice({ className = '' }: { className?: string }
 
   if (!approximate) return null;
   return (
-    <div role="status" className={`flex items-start gap-2.5 rounded-2xl bg-amber-50 px-3.5 py-3 ${className}`}>
-      <MapPinArea size={18} weight="fill" aria-hidden className="mt-0.5 shrink-0 text-amber-600" />
-      <p className="text-xs leading-snug text-amber-800">
+    // The ink sits on the card's own line: amber-800 on the always-light amber-50 ground, in both
+    // themes (scripts/check-theme-tokens.mjs). The icon and the text inherit it.
+    <div role="status" className={`flex items-start gap-2.5 rounded-2xl bg-amber-50 px-3.5 py-3 text-amber-800 ${className}`}>
+      <MapPinArea size={18} weight="fill" aria-hidden className="mt-0.5 shrink-0" />
+      <p className="text-xs leading-snug">
         <span className="font-bold">{t('hrFix.preciseLocation.title')}</span>{' '}
         {t('hrFix.preciseLocation.body')}
       </p>
