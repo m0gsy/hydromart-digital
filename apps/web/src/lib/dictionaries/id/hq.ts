@@ -1158,6 +1158,7 @@ export const hq = {
       empty: 'Tidak ada depot untuk bulan ini.',
       unavailable: 'Badan hukum tiap depot belum bisa dibaca (layanan depot sedang tidak tersedia), jadi laporan ini tidak ditampilkan. Coba lagi nanti.',
       excludedTitle: 'Tidak dimasukkan: pindah badan hukum di tengah bulan',
+      excludedTotals: 'Tidak dimasukkan: omzet {revenue}, laba bersih {net}.',
       excludedHint: 'Depot ini berpindah badan hukum selama bulan ini, jadi bulannya milik dua perusahaan dan tidak dihitung ke badan hukum mana pun. Lihat laba rugi jaringan untuk angkanya.',
     },
     fixedUnavailable: 'Biaya tetap belum bisa dibaca (layanan depot sedang tidak tersedia), jadi laba bersih tidak dihitung. Coba lagi nanti.',

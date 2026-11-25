@@ -107,6 +107,7 @@ function Body({ data }: { data: LegalEntityPnl }) {
         <Card key={e.legalEntityId ?? 'none'} className="overflow-x-auto p-0">
           <div className="border-b border-app px-3 py-2">
             <h2 className="font-semibold">{e.name}</h2>
+            {e.nameUnread && <p className="text-xs text-muted">{e.legalEntityId}</p>}
             <p className="text-xs text-muted">{e.depots.map((d) => d.name).join(', ')}</p>
           </div>
           <table className="w-full min-w-[640px] text-sm">
@@ -131,6 +132,14 @@ function Body({ data }: { data: LegalEntityPnl }) {
         <Card className="p-4 text-sm">
           <h2 className="font-semibold">{t('hq.pnl.entities.excludedTitle')}</h2>
           <p className="text-xs text-muted">{t('hq.pnl.entities.excludedHint')}</p>
+          {data.excludedTotals && (
+            <p className="mt-2 text-sm tabular-nums">
+              {t('hq.pnl.entities.excludedTotals', {
+                revenue: money(data.excludedTotals.revenueIdr),
+                net: payHidden ? '—' : money(data.excludedTotals.netProfitIdr),
+              })}
+            </p>
+          )}
           <ul className="mt-2 list-disc pl-5">
             {data.excluded.map((d) => (
               <li key={d.depotId}>

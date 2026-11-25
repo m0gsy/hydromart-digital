@@ -1153,6 +1153,7 @@ export const hq = {
       empty: 'No depots for this month.',
       unavailable: 'The legal entity of each depot could not be read (depot service unavailable), so this report is not shown. Try again later.',
       excludedTitle: 'Left out: changed legal entity mid-month',
+      excludedTotals: 'Not included: revenue {revenue}, net profit {net}.',
       excludedHint: 'These depots changed legal entity during the month, so their month belongs to two companies and is counted in neither. See the network P&L for their figures.',
     },
     fixedUnavailable: 'Fixed costs could not be read (depot service unavailable), so net profit is not calculated. Try again later.',

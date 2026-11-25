@@ -23,6 +23,7 @@ const report = (over: Record<string, unknown> = {}) => ({
     { legalEntityId: 'e2', name: 'PT Mitra', depots: [{ depotId: 'd2', code: 'B', name: 'Depot B' }], totals: totals({ fixedCostIdr: null, fixedCostStatus: 'not_entered' }) },
   ],
   excluded: [{ depotId: 'd3', code: 'M', name: 'Depot Pindah', reason: 'x' }],
+  excludedTotals: totals({ fixedCostIdr: null, fixedCostStatus: 'not_entered' }),
   ...over,
 });
 
@@ -38,6 +39,7 @@ describe('the legal-entity P&L screen', () => {
     expect(screen.getByText('hq.pnl.fixedNote')).toBeTruthy();
     expect(screen.getByText('hq.pnl.entities.excludedTitle')).toBeTruthy();
     expect(screen.getByText('Depot Pindah')).toBeTruthy();
+    expect(screen.getByText('hq.pnl.entities.excludedTotals')).toBeTruthy();
     expect(screen.getByText('penafian')).toBeTruthy();
     expect(String(get.mock.calls[0]![0])).toContain('legal-entity-pnl?month=');
   });
@@ -59,6 +61,13 @@ describe('the legal-entity P&L screen', () => {
     render(<HqLegalEntityPnlPage />);
     expect(await screen.findByText('hq.pnl.entities.empty')).toBeTruthy();
     expect(screen.queryByText('hq.pnl.entities.excludedTitle')).toBeNull();
+  });
+
+  it('shows the id small under a placeholder when the entity name could not be read', async () => {
+    get.mockResolvedValue(report({ entities: [{ legalEntityId: 'e9', nameUnread: true, name: 'Badan hukum (nama tidak terbaca)', depots: [], totals: totals() }], excluded: [], excludedTotals: null }));
+    render(<HqLegalEntityPnlPage />);
+    expect(await screen.findByText('Badan hukum (nama tidak terbaca)')).toBeTruthy();
+    expect(screen.getByText('e9')).toBeTruthy();
   });
 
   it('shows the fixed-cost unavailable note on an entity', async () => {

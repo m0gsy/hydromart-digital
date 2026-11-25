@@ -10,6 +10,8 @@ export interface LegalEntityPnlEntity {
   /** null = the depots no legal entity was recorded for. */
   legalEntityId: string | null;
   name: string;
+  /** True when the entity's name could not be read: `name` is then a placeholder and the id identifies it. */
+  nameUnread: boolean;
   depots: { depotId: string; code: string; name: string }[];
   totals: NetworkPnl['totals'];
 }
@@ -24,10 +26,13 @@ export interface LegalEntityPnl {
   entities: LegalEntityPnlEntity[];
   /** Depots left out of EVERY entity this month, with why. */
   excluded: { depotId: string; code: string; name: string; reason: typeof MOVED_MID_MONTH }[];
+  /** The totals of the excluded depots (same null/hidden rules), so the cards + this reconcile with the network total; null when none. */
+  excludedTotals: NetworkPnl['totals'] | null;
   sources: NetworkPnl['sources'] & { legalEntities: 'ok' | 'unavailable' };
 }
 
 const NONE = 'Belum ada badan hukum';
+const UNREAD = 'Badan hukum (nama tidak terbaca)';
 
 /**
  * HD-16 PR-B (owner decisions D22, D25): the monthly P&L of each legal entity. It does not compute a
@@ -68,7 +73,7 @@ export class LegalEntityPnlService {
     };
     const spans = pnl.depots.length === 0 ? [] : await this.sources.entityTimeline(pnl.depots.map((d) => d.depotId), from, to);
     if (spans === null) {
-      return { ...base, entities: [], excluded: [], sources: { ...pnl.sources, legalEntities: 'unavailable' } };
+      return { ...base, entities: [], excluded: [], excludedTotals: null, sources: { ...pnl.sources, legalEntities: 'unavailable' } };
     }
 
     const byDepot = new Map<string, DepotEntitySpan[]>();
@@ -76,9 +81,12 @@ export class LegalEntityPnlService {
 
     const groups = new Map<string | null, NetworkPnlDepotRow[]>();
     const excluded: LegalEntityPnl['excluded'] = [];
+    const excludedRows: NetworkPnlDepotRow[] = [];
     for (const row of pnl.depots) {
       const own = byDepot.get(row.depotId) ?? [];
-      if (own.length > 1) {
+      // Distinct ENTITIES, not spans: re-asserting the same entity mid-month is no move, while none -> entity is.
+      if (new Set(own.map((s) => s.legalEntityId)).size > 1) {
+        excludedRows.push(row);
         excluded.push({ depotId: row.depotId, code: row.code, name: row.name, reason: MOVED_MID_MONTH });
         continue;
       }
@@ -95,11 +103,18 @@ export class LegalEntityPnlService {
       .map(([legalEntityId, rows]) => ({
         legalEntityId,
         // A name that could not be read is shown as the id, never dropped: the numbers still belong to someone.
-        name: legalEntityId === null ? NONE : (names.get(legalEntityId) ?? legalEntityId),
+        name: legalEntityId === null ? NONE : (names.get(legalEntityId) ?? UNREAD),
+        nameUnread: legalEntityId !== null && !names.get(legalEntityId),
         depots: rows.map((r) => ({ depotId: r.depotId, code: r.code, name: r.name })),
         totals: DashboardService.pnlTotals(rows),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-    return { ...base, entities, excluded, sources: { ...pnl.sources, legalEntities: 'ok' } };
+    return {
+      ...base,
+      entities,
+      excluded,
+      excludedTotals: excludedRows.length > 0 ? DashboardService.pnlTotals(excludedRows) : null,
+      sources: { ...pnl.sources, legalEntities: 'ok' },
+    };
   }
 }

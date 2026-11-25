@@ -1506,10 +1506,12 @@ export interface LegalEntityPnl {
   entities: {
     legalEntityId: string | null;
     name: string;
+    nameUnread?: boolean;
     depots: { depotId: string; code: string; name: string }[];
     totals: NetworkPnl['totals'];
   }[];
   excluded: { depotId: string; code: string; name: string; reason: string }[];
+  excludedTotals?: NetworkPnl['totals'] | null;
   sources: { legalEntities: 'ok' | 'unavailable' };
 }
 
