@@ -475,6 +475,9 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
   function targetRoute(depots, metric, unit, date, split, bad) {
     if (unit !== 'month') return bad(`${metric} is a whole month`);
     const [from, last] = bounds('month', date);
+    // The running month's actual stops at today, as the real route's does ("sampai hari ini"); the mock's own
+    // P-01 month answer is the whole month, which is fine for staging. A future month sums nothing: actual 0,
+    // pct 0, like the real route (its scope runs to the period's end and the base metric has no orders).
     const to = Math.min(last, dayNo(todayWib()));
     const base = TARGET_BASE[metric];
     const cell = (actual, target) => ({ target, actual, pct: target === null ? null : Math.round((actual / target) * 1000) / 10 });
@@ -487,8 +490,11 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     const every = rows.every((r) => r.target !== null);
     const target = every ? rows.reduce((a, r) => a + r.target, 0) : null;
     const out = { metricId: metric, unit: READ.targets[metric] };
+    const none = (reason) => [200, envelope(depots, unit, date, { ...out, value: null, status: 'belum_ada', reason })];
+    // As the real route: no depot with a target is belum_ada even when split by depot.
+    if (rows.every((r) => r.target === null)) return none('Belum ada target bulan ini untuk depot yang boleh Anda baca; tidak dibandingkan dengan 0.');
     if (!split && !every) {
-      return [200, envelope(depots, unit, date, { ...out, value: null, status: 'belum_ada', reason: 'Belum ada target bulan ini untuk setiap depot yang boleh Anda baca; angka jaringan tidak dibandingkan dengan target yang tidak lengkap.' })];
+      return none('Belum ada target bulan ini untuk setiap depot yang boleh Anda baca; angka jaringan tidak dibandingkan dengan target yang tidak lengkap.');
     }
     const value = split ? { ...cell(actual, target), byDepot: rows } : cell(actual, target);
     return [200, envelope(depots, unit, date, { ...out, value })];
