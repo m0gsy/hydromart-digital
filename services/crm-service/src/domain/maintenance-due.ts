@@ -32,9 +32,19 @@ export const depotKey = (
   items: readonly DueMaintenance[],
 ): string => `maintenance-due:${depotId}:${date}:${recipientId}:${items.map(tagOf).join('.')}`;
 
-/** HQ gets one digest per run, whatever is due: the key says only that this person had it today. */
-export const hqKey = (date: string, recipientId: string): string =>
-  `maintenance-due:hq:${date}:${recipientId}:-`;
+/** HQ's digest names no more than this many items in its key (the lowest ids), see `hqTracked`. */
+export const HQ_TRACKED = 100;
+
+/**
+ * The items whose being new decides whether HQ is told again before the 3-day reminder. Capped so
+ * the key stays inside a unique index entry: an item past the cap is covered by the reminder only.
+ */
+export const hqTracked = (items: readonly DueMaintenance[]): DueMaintenance[] =>
+  [...items].sort((a, b) => tagOf(a).localeCompare(tagOf(b))).slice(0, HQ_TRACKED);
+
+/** One HQ digest per run per HQ account; its key records the items it was tracking, as a depot's does. */
+export const hqKey = (date: string, recipientId: string, items: readonly DueMaintenance[]): string =>
+  `maintenance-due:hq:${date}:${recipientId}:${hqTracked(items).map(tagOf).join('.') || '-'}`;
 
 /**
  * Who was told what in the last REMINDER_EVERY_DAYS days (today included, so a retry of this very
@@ -63,11 +73,13 @@ export function dueReason(item: DueMaintenance): string {
 }
 
 /** One depot's digest: its name, and its due items with the reason each is due. */
-export function depotDigest(items: readonly DueMaintenance[]): { depot: string; items: string } {
+export function depotDigest(items: readonly DueMaintenance[]): { depot: string; items: string; depotId: string } {
   const listed = items.slice(0, LISTED_ITEMS).map((i) => `${i.name} (${dueReason(i)})`);
   const rest = items.length - listed.length;
   return {
     depot: items[0].depotName,
+    // The digest names up to LISTED_ITEMS; the tap opens the depot's maintenance list for the rest.
+    depotId: items[0].depotId,
     items: rest > 0 ? `${listed.join('; ')}; dan ${rest} lainnya` : listed.join('; '),
   };
 }

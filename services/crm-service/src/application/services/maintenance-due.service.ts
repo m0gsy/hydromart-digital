@@ -5,6 +5,7 @@ import {
   depotKey,
   hqDigest,
   hqKey,
+  hqTracked,
   ITEMS_PER_DIGEST,
   MAINTENANCE_DUE_DEPOT_ROLE,
   MAINTENANCE_DUE_HQ_ROLES,
@@ -39,7 +40,7 @@ const CONCURRENCY = 5;
 interface Job {
   recipient: string;
   key: string;
-  vars: { depot: string; items: string };
+  vars: { depot: string; items: string; depotId?: string };
 }
 
 /**
@@ -86,18 +87,25 @@ export class MaintenanceDueService {
 
     const jobs: Job[] = [];
     const reached = new Set<string>();
+    let hq: string[] = [];
     if (items.length > 0) {
-      const hq = await this.hq().catch(unreadable('HQ recipients'));
-      for (const recipient of hq.filter((id) => !told.has(`hq|${id}`))) {
-        jobs.push({ recipient, key: hqKey(date, recipient), vars: hqDigest(items) });
-        items.forEach((i) => reached.add(i.id));
+      hq = await this.hq().catch(unreadable('HQ recipients'));
+      // HQ is told when an item it has not heard of (in the window) is due: one row per run.
+      const tracked = hqTracked(items);
+      for (const recipient of hq) {
+        const known = told.get(`hq|${recipient}`);
+        const fresh = tracked.filter((i) => !known?.has(tagOf(i)));
+        if (fresh.length === 0) continue;
+        jobs.push({ recipient, key: hqKey(date, recipient, items), vars: hqDigest(items) });
+        fresh.forEach((i) => reached.add(i.id));
       }
     }
     const byDepot = new Map<string, DueMaintenance[]>();
     for (const i of items) byDepot.set(i.depotId, [...(byDepot.get(i.depotId) ?? []), i]);
     for (const [depotId, depotItems] of byDepot) {
       const recipients = await this.depotRecipients(depotId).catch(unreadable('recipients'));
-      for (const recipient of recipients) {
+      // An HQ account that also oversees the depot has its HQ digest already: no second row.
+      for (const recipient of recipients.filter((id) => !hq.includes(id))) {
         const known = told.get(`${depotId}|${recipient}`);
         const pending = depotItems.filter((i) => !known?.has(tagOf(i)));
         for (let at = 0; at < pending.length; at += ITEMS_PER_DIGEST) {

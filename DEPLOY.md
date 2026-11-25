@@ -438,7 +438,7 @@ loopback only.
   A 503 means the due items, the meter volume, a recipient list or a recipient could not be read: rerun the same
   body the SAME WIB day (an unreadable meter is an error, never "nothing due").
   Each person is told per item: the depot's Kepala and the supervisors over it get one digest per depot listing its due
-  items, HQ Operasional (every HEAD_OFFICE account) one digest per run with the due count per depot. A person not
+  items, HQ Operasional (every HEAD_OFFICE account, who gets no depot digest on top) one digest per run, sent when an item it has not heard of is due, with the due count per depot. A depot digest names up to 5 items and "dan N lainnya"; the tap opens that depot's maintenance screen for the rest. A person not
   reached is told on the next run; everyone else is reminded every 3 days while an item stays due.
   **First run after the release:** every item already past its date (or over its volume) is found due at once, so each
   Kepala, overseer and HQ account gets one digest row (bell, push, email) on that first call, then reminders every 3
