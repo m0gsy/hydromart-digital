@@ -67,6 +67,9 @@ class InMemoryApplicationRepository implements FranchiseApplicationRepository {
     row.updatedAt = new Date(row.updatedAt.getTime() + 1);
     return row;
   }
+  async summary() {
+    return { total: this.rows.length, byStage: {} as never };
+  }
   async purgeRejectedBefore(cutoff: Date) {
     const doomed = this.rows.filter(
       (r) => r.stage === FranchiseAppStage.REJECTED && r.updatedAt.getTime() < cutoff.getTime(),
@@ -359,5 +362,14 @@ describe('FranchiseApplicationService.purgeRejectedOlderThan', () => {
 
     expect(await service.purgeRejectedOlderThan(new Date(0))).toEqual({ deleted: 0 });
     expect(repo.rows).toHaveLength(1);
+  });
+});
+
+describe('FranchiseApplicationService.summary (HD-6 H5)', () => {
+  it('hands the window to the repository and returns counts only', async () => {
+    const repo = new InMemoryApplicationRepository();
+    const service = new FranchiseApplicationService(repo, depotsWithCodes(), relay());
+    await service.create(APP());
+    expect((await service.summary(new Date(0), new Date())).total).toBe(1);
   });
 });

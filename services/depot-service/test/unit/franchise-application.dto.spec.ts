@@ -3,6 +3,7 @@ import { validate } from 'class-validator';
 
 import { FranchiseAppStage } from '../../src/domain/franchise-application';
 import {
+  ApplicationSummaryQueryDto,
   PatchApplicationDto,
   SubmitFranchiseApplicationDto,
 } from '../../src/modules/dto/franchise-application.dto';
@@ -66,5 +67,18 @@ describe('SubmitFranchiseApplicationDto place names', () => {
     ['a combining mark after the dot', `evil.${String.fromCodePoint(0x301)}com`],
   ])('refuses %s in a web address', async (_name, place) => {
     expect((await refusedFields({ city: place, province: place })).sort()).toEqual(['city', 'province']);
+  });
+});
+
+describe('ApplicationSummaryQueryDto (HD-6 H5)', () => {
+  const check = (body: object) => validate(plainToInstance(ApplicationSummaryQueryDto, body));
+  it('takes an ordered window of at most a leap year, and refuses the rest', async () => {
+    expect(await check({ from: '2026-11-01T00:00:00Z', to: '2026-12-01T00:00:00Z' })).toHaveLength(0);
+    expect(await check({ from: '2026-12-01T00:00:00Z', to: '2026-11-01T00:00:00Z' })).not.toHaveLength(0);
+    expect(await check({ from: '2020-01-01T00:00:00Z', to: '2026-11-01T00:00:00Z' })).not.toHaveLength(0);
+    expect(await check({ from: 'x' })).not.toHaveLength(0);
+    // a real calendar date: 2026-02-31 is a 400, not a 500 from the database
+    expect(await check({ from: '2026-02-31T00:00:00Z', to: '2026-03-31T00:00:00Z' })).not.toHaveLength(0);
+    expect(await check({ from: '2026-02-01T00:00:00Z', to: '2026-02-30T00:00:00Z' })).not.toHaveLength(0);
   });
 });

@@ -43,6 +43,16 @@ export interface LedgerRepository {
   balanceFor(franchiseOwnerId: string): Promise<number>;
   /** Every owner with a positive balance (the HQ payout-release queue), highest first. */
   ownersWithBalance(): Promise<OwnerBalance[]>;
+  /**
+   * HD-6 H5: the commission head office kept from each depot's sales in `[from, to)` by when the
+   * order completed, net of what voids gave back, as a positive amount (stored as debits). Every
+   * requested depot has a row, 0 included.
+   */
+  commissionByDepot(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+  ): Promise<{ depotId: string; commissionIdr: number }[]>;
   /** Sum of entries of one type over an inclusive date range. */
   sumByType(franchiseOwnerId: string, type: LedgerEntryType, since: Date): Promise<number>;
   /**

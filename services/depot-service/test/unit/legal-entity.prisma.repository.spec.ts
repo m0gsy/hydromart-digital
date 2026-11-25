@@ -77,6 +77,12 @@ describe('LegalEntityPrismaRepository', () => {
     expect(await repo.existingIds(['e1', 'e2'])).toEqual(['e1']);
   });
 
+  it('names the kind of each entity it finds', async () => {
+    const { prisma, repo } = setup();
+    prisma.legalEntity.findMany.mockResolvedValue([{ id: 'e1', kind: 'OPERATOR' }]);
+    expect(await repo.kindsOf(['e1', 'e2'])).toEqual([{ id: 'e1', kind: 'OPERATOR' }]);
+  });
+
   it('turns the lower(name) unique index into 409 on create and rename, and rethrows the rest', async () => {
     const { prisma, repo } = setup();
     prisma.legalEntity.create.mockResolvedValueOnce(ROW).mockRejectedValueOnce(uniqueViolation);

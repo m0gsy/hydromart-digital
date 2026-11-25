@@ -241,6 +241,11 @@ export class PayoutService {
     return (await this.schemes.currentForDepot(depotId))?.pct ?? 0;
   }
 
+  /** HD-6 H5: HQ's commission from each depot's partner sales over a window (internal, no owner named). */
+  commissionByDepot(depotIds: readonly string[], from: Date, to: Date) {
+    return this.ledger.commissionByDepot(depotIds, from, to);
+  }
+
   async summary(ownerId: string): Promise<PayoutSummary> {
     const monthStart = startOfMonth(new Date(), this.config.businessTimeZone);
     const [availableBalance, monthRevenue, monthCommission, recent, recentWithdrawals] =

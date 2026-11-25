@@ -4,10 +4,12 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuthenticatedUser, Can, CurrentUser, ExternalAccess } from '@hydromart/platform';
 
 import { AnswerEnvelope, belumAda, ok } from '../application/ai-read/envelope';
+import { FranchiseMetricsService } from '../application/ai-read/franchise-metrics';
+import { HrMetricsService } from '../application/ai-read/hr-metrics';
 import { MoneyMetricsService } from '../application/ai-read/money-metrics';
 import { parsePeriod } from '../application/ai-read/period';
 import { ReadScopeService } from '../application/ai-read/scope.service';
-import { AnswerEnvelopeDto, MoneyQueryDto, PeriodQueryDto } from './dto/ai-read.dto';
+import { AnswerEnvelopeDto, FranchiseQueryDto, HrQueryDto, MoneyQueryDto, PeriodQueryDto } from './dto/ai-read.dto';
 
 /**
  * HD-6: the AI web's read API (contracts/ai-v1/read.openapi.json). Every route answers the same
@@ -23,6 +25,8 @@ export class AiReadController {
   constructor(
     private readonly scopes: ReadScopeService,
     private readonly money: MoneyMetricsService,
+    private readonly franchise: FranchiseMetricsService,
+    private readonly hr: HrMetricsService,
   ) {}
 
   @ApiOkResponse({ type: AnswerEnvelopeDto })
@@ -61,5 +65,30 @@ export class AiReadController {
   ): Promise<AnswerEnvelope> {
     const { metric, ...period } = query;
     return this.money.answer(metric, user, period);
+  }
+
+  /** HD-6 H5: franchise applications, depots by type, partner commission and legal entities (W-). Same envelope. */
+  @ApiOkResponse({ type: AnswerEnvelopeDto })
+  @ExternalAccess('ai')
+  @Can('aiRead')
+  @Get('franchise')
+  @ApiOperation({ summary: 'One franchise or legal-entity metric (calon mitra, depot types, commission) for a period' })
+  franchiseMetric(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: FranchiseQueryDto,
+  ): Promise<AnswerEnvelope> {
+    const { metric, ...period } = query;
+    return this.franchise.answer(metric, user, period);
+  }
+
+  /** HD-6 H5: headcount, attendance, payroll, kasbon and bonus (H-). Same envelope. */
+  @ApiOkResponse({ type: AnswerEnvelopeDto })
+  @ExternalAccess('ai')
+  @Can('aiRead')
+  @Get('hr')
+  @ApiOperation({ summary: 'One HR metric (headcount, attendance, payroll, kasbon) for a period' })
+  hrMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: HrQueryDto): Promise<AnswerEnvelope> {
+    const { metric, ...period } = query;
+    return this.hr.answer(metric, user, period);
   }
 }

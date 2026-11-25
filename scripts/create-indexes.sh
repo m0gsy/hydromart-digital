@@ -177,6 +177,8 @@ promo|promo_applications_orderId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "pr
 promo|promo_applications_orderId_promoRuleId_productId_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "promo_applications_orderId_promoRuleId_productId_key" ON "promo_applications"("orderId", "promoRuleId", "productId")
 promo|promo_applications_order_rule_shipping_key|CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS "promo_applications_order_rule_shipping_key" ON "promo_applications"("orderId", "promoRuleId") WHERE "productId" IS NULL
 delivery|cash_settlements_orderIds_gin_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "cash_settlements_orderIds_gin_idx" ON "cash_settlements" USING GIN ("orderIds")
+depot|franchise_application_stage_events_stage_applicationId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "franchise_application_stage_events_stage_applicationId_idx" ON "franchise_application_stage_events"("stage", "applicationId")
+payout|ledger_entries_depotId_occurredAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "ledger_entries_depotId_occurredAt_idx" ON "ledger_entries"("depotId", "occurredAt")
 '
 
 # One rule, one place. It lived in two places for exactly one deploy, and in that deploy the

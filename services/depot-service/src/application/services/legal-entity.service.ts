@@ -207,6 +207,11 @@ export class LegalEntityService {
     return this.entities.entityTimeline([...new Set(depotIds.map(lowerId))], from, to);
   }
 
+  /** HD-6 H5: the kind of each entity named, for the AI read API's HKP / waralaba split. */
+  kinds(ids: string[]): Promise<{ id: string; kind: LegalEntityKind }[]> {
+    return this.entities.kindsOf([...new Set(ids.map(lowerId))]);
+  }
+
   /**
    * HD-6: the entities a role may read in the AI web. No row = not granted, so a new entity is
    * readable by SUPER_ADMIN alone until somebody grants it; SUPER_ADMIN reads everything, entity or none.

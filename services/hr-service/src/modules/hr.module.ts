@@ -80,6 +80,9 @@ import { AUDIT_REPOSITORY } from '../application/ports/audit.repository';
 import { AuditService } from '../application/services/audit.service';
 import { AuditPrismaRepository } from '../infrastructure/prisma/audit.prisma.repository';
 import { AuditInterceptor } from '../infrastructure/http/audit.interceptor';
+import { AI_READ_REPOSITORY } from '../application/ports/ai-read.repository';
+import { AiReadPrismaRepository } from '../infrastructure/prisma/ai-read.prisma.repository';
+import { AiReadInternalController } from './ai-read-internal.controller';
 import { ANALYTICS_REPOSITORY } from '../application/ports/analytics.repository';
 import { AnalyticsService } from '../application/services/analytics.service';
 import { AnalyticsPrismaRepository } from '../infrastructure/prisma/analytics.prisma.repository';
@@ -238,6 +241,7 @@ const providers: Provider[] = [
   { provide: AUDIT_REPOSITORY, useClass: AuditPrismaRepository },
   AuditService,
   { provide: ANALYTICS_REPOSITORY, useClass: AnalyticsPrismaRepository },
+  { provide: AI_READ_REPOSITORY, useClass: AiReadPrismaRepository },
   AnalyticsService,
   { provide: HOLIDAY_REPOSITORY, useClass: HolidayPrismaRepository },
   { provide: SHIFT_REPOSITORY, useClass: ShiftPrismaRepository },
@@ -286,6 +290,7 @@ const providers: Provider[] = [
     PerformanceController,
     AuditController,
     ReportsController,
+    AiReadInternalController,
     HolidayController,
     ShiftController,
     ShiftRotationController,

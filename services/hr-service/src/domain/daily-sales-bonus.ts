@@ -2,6 +2,9 @@
 // rupiah reward, evaluated per ATTENDED DAY against the depot's gallons sold that day.
 // Pure, no I/O. Empty ladder = feature off, which is what every existing depot has.
 
+/** The label the payslip's daily gallon-target bonus line starts with; the AI read API picks the line by it. */
+export const DAILY_GALLON_BONUS_LABEL = 'Bonus target harian';
+
 export interface GallonBonusTier {
   /** Gallons the depot must sell that day to reach this step. */
   gallons: number;

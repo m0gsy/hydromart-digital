@@ -1050,6 +1050,467 @@
           }
         }
       }
+    },
+    "/dashboard/api/v1/ai/read/franchise": {
+      "get": {
+        "summary": "One franchise or legal-entity metric (calon mitra W-01/W-02, depots by type W-03, partner entitlement W-04, HQ commission W-05, legal entity W-06) for a period.",
+        "description": "HD-6 H5, section 3.9 of the metric dictionary. Same envelope and period rules as money. The applicants are always called \"calon mitra\", and nobody is named: counts only, and a group of fewer than 3 is not given as a number. Scope: W-03, W-05 and W-06 count only the depots the caller may read, on the days they were readable; W-01 and W-02 belong to no depot and need a role that holds the franchise queue and is granted every legal entity. A source that cannot answer, or answers short, makes the metric belum_ada (never 0).",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "metric",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "W-01",
+                "W-02",
+                "W-03",
+                "W-04",
+                "W-05",
+                "W-06"
+              ]
+            },
+            "description": "A metric of this group. Any other id is 404; leaving it out is 400."
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            },
+            "description": "A whole calendar period in WIB. Not together with from/to."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Any day inside the period; default today in WIB. Only with period."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "First day of an explicit range, with to."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Last day of an explicit range (included), with from."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The envelope for the metric.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerEnvelope"
+                },
+                "example": {
+                  "metricId": "W-05",
+                  "period": {
+                    "unit": "month",
+                    "from": "2026-11-01",
+                    "to": "2026-11-30",
+                    "timeZone": "Asia/Jakarta",
+                    "fromAt": "2026-10-31T17:00:00.000Z",
+                    "toAt": "2026-11-30T17:00:00.000Z"
+                  },
+                  "scope": {
+                    "depotIds": [
+                      "11111111-1111-4111-8111-111111111111"
+                    ],
+                    "legalEntityIds": [
+                      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+                    ]
+                  },
+                  "value": 1250000,
+                  "status": "ok",
+                  "unit": "Rp",
+                  "asOf": "2026-11-25T03:00:00.000Z",
+                  "label": "komisi HQ dari penjualan depot mitra: subtotal barang x persen komisi depot saat pesanan selesai, dikurangi yang dikembalikan void kasir; refund belum dibalik"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: a period that is ambiguous (both period and from/to, or neither), not a real day, backwards, longer than 366 days, or not whole where the metric needs it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. Hand off again for a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, or a person whose role does not hold aiRead (a franchise owner, by default). Not worth retrying until their role changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: a metric id that is not in the money group of the dictionary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_SERVER_ERROR: the answer was held back because it would have carried personal data (a bug in the metric, not in the request). The message is always \"Jawaban ini tidak bisa dikirim.\"; retrying will not help.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the scope could not be worked out (the depot list or the legal-entity matrix could not be read). Nothing is answered rather than an answer without the narrowing. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-metrics": {
+          "W-01": {
+            "unit": "pengajuan",
+            "wholeMonthOnly": false,
+            "value": "number",
+            "rules": "Calon mitra who applied through /waralaba in the period, by submit date. Answered ONLY for a whole calendar month or a whole calendar year (a week, a day or a free range is belum_ada: two overlapping answers would isolate one person by subtraction). Only a role that holds the franchise-application queue AND is granted every legal entity reads it (an application belongs to no depot or entity); otherwise ditahan. A count of 1 or 2 is ditahan with \"kurang dari 3\". Rejected applications are deleted after their retention window; the stage history that keeps them counted only began when this shipped, so an older period may be short by the rejections deleted before that."
+          },
+          "W-02": {
+            "unit": "pengajuan",
+            "wholeMonthOnly": false,
+            "value": "{ total, totalFlag?, byStage: [{ stage, value, flag? }], conversion: { status, reason } }",
+            "rules": "The calon mitra who applied in the whole calendar month or year (any other period is belum_ada, as W-01), by the stage each is in NOW (PENDING, DOC_VERIFICATION, SURVEY, APPROVED, REJECTED). Same door and masking as W-01: a stage of 1 or 2 has value null and flag \"kurang dari 3\", and the smallest other non-empty stages are held back with it (flag \"ditahan\") until the held-back calon mitra number at least 6; if the stages run out first, total is null with totalFlag \"ditahan\". conversion is always belum_ada: conversion and time per stage cannot be worked out until the stage history has built up."
+          },
+          "W-03": {
+            "unit": "depot",
+            "wholeMonthOnly": false,
+            "value": "{ depots, byOwnershipType: { HKP, WARALABA, LAINNYA }, byEntityKind: { HKP, WARALABA, INDUK, TANPA_BADAN_HUKUM } }",
+            "rules": "Active depots the caller may read TODAY (WIB), by depot type: byOwnershipType is the type on the depot record (HKP, WARALABA; any other value is counted under LAINNYA), byEntityKind is the kind of the legal entity that holds the depot today (OPERATOR = HKP, FRANCHISEE = WARALABA, FRANCHISOR = INDUK, none recorded = TANPA_BADAN_HUKUM). belum_ada when the period does not contain today: neither status nor type is kept as history."
+          },
+          "W-04": {
+            "unit": "Rp",
+            "wholeMonthOnly": false,
+            "value": "null",
+            "rules": "Always ditahan, with no figure: the partner entitlement waits for the money-holder decision and the legal opinion (owner choice 31A)."
+          },
+          "W-05": {
+            "unit": "Rp",
+            "wholeMonthOnly": false,
+            "value": "number",
+            "rules": "HQ's commission from partner depots: goods subtotal x the depot's commission percentage when the order completed, by completion date, by POSTING date in the ledger: a void is its own reversing row, so it falls in the month it was voided in, not the month of the sale; refunds are not yet reversed. Only roles that may read partner payouts (hqPayoutRead); otherwise ditahan."
+          },
+          "W-06": {
+            "unit": "depot",
+            "wholeMonthOnly": false,
+            "value": "[{ depotId, legalEntityId, kind, changedInPeriod }]",
+            "rules": "The legal entity of each depot the caller may read on the LAST day of the period (the entity point with the latest start date not after that day), with its kind (FRANCHISOR, OPERATOR, FRANCHISEE; null with a null entity = none recorded). changedInPeriod: the depot moved entity inside the period. Entity names are never given; ids only."
+          }
+        }
+      }
+    },
+    "/dashboard/api/v1/ai/read/hr": {
+      "get": {
+        "summary": "One HR metric (active employees H-01, attendance H-02, payroll H-03, kasbon H-04, daily gallon bonus H-05, overtime H-06, turnover H-07) for a period.",
+        "description": "HD-6 H5, section 3.10 of the metric dictionary. Same envelope and period rules as money. Employees are counted, never named; a depot whose figure rests on 1 or 2 people is not given (value null with flag \"kurang dari 3\", or left out and counted in heldBackDepots, as each metric says). Pay figures (H-03, H-04, H-05) need payrollRead, only count APPROVED or PAID payslips, and are belum_ada for a month that is not fully paid; they belong to the employee's home depot as it is now (a payslip stores no depot of its own), counted for the depots the caller may read on the last day of the payroll month. A source that cannot answer, or answers short, makes the metric belum_ada (never 0).",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "metric",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "H-01",
+                "H-02",
+                "H-03",
+                "H-04",
+                "H-05",
+                "H-06",
+                "H-07"
+              ]
+            },
+            "description": "A metric of this group. Any other id is 404; leaving it out is 400."
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            },
+            "description": "A whole calendar period in WIB. Not together with from/to."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Any day inside the period; default today in WIB. Only with period."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "First day of an explicit range, with to."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Last day of an explicit range (included), with from."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The envelope for the metric.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerEnvelope"
+                },
+                "example": {
+                  "metricId": "H-05",
+                  "period": {
+                    "unit": "month",
+                    "from": "2026-11-01",
+                    "to": "2026-11-30",
+                    "timeZone": "Asia/Jakarta",
+                    "fromAt": "2026-10-31T17:00:00.000Z",
+                    "toAt": "2026-11-30T17:00:00.000Z"
+                  },
+                  "scope": {
+                    "depotIds": [
+                      "11111111-1111-4111-8111-111111111111"
+                    ],
+                    "legalEntityIds": [
+                      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+                    ]
+                  },
+                  "value": 450000,
+                  "status": "ok",
+                  "unit": "Rp",
+                  "asOf": "2026-11-25T03:00:00.000Z",
+                  "label": "bonus target galon harian pada slip DISETUJUI/DIBAYAR bulan ini"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: a period that is ambiguous (both period and from/to, or neither), not a real day, backwards, longer than 366 days, or not whole where the metric needs it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. Hand off again for a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, or a person whose role does not hold aiRead (a franchise owner, by default). Not worth retrying until their role changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: a metric id that is not in the money group of the dictionary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_SERVER_ERROR: the answer was held back because it would have carried personal data (a bug in the metric, not in the request). The message is always \"Jawaban ini tidak bisa dikirim.\"; retrying will not help.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the scope could not be worked out (the depot list or the legal-entity matrix could not be read). Nothing is answered rather than an answer without the narrowing. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-metrics": {
+          "H-01": {
+            "unit": "orang",
+            "wholeMonthOnly": false,
+            "value": "{ total, totalFlag?, byDepot: [{ depotId, value, flag? }] }",
+            "rules": "Employees with status AKTIF by assignment depot, TODAY (WIB) only: belum_ada when the period does not contain today (status history is not kept). Staff with no depot are not counted. A depot of 1 or 2 has value null and flag \"kurang dari 3\", and the smallest other non-empty depots are held back with it (flag \"ditahan\") until the held-back employees number at least 6; if the depots run out first, total is null with totalFlag \"ditahan\"."
+          },
+          "H-02": {
+            "unit": "hari",
+            "wholeMonthOnly": false,
+            "value": "{ present, late, absentRecorded, leave, pending, flags?: { cell: \"kurang dari 3\" }, rate: { status, reason } }",
+            "rules": "Attendance days by WIB work date at the depot the person worked that day, counted only over the days each depot was readable: present, late (LATE), absentRecorded (explicit ABSENT records ONLY: this is NOT a scheduled day with no punch and no leave, choice 35A, since a scheduled day with no record is invisible here), leave, pending (offline punches HR has not decided). Each count is held back on its own: when it rests on fewer than 3 employees its value is null and flags names it kurang dari 3; all of them held is ditahan. rate is always belum_ada (the scheduled-days denominator is not built). belum_ada when old days were folded into monthly counts after a leaver's retention window."
+          },
+          "H-03": {
+            "unit": "Rp",
+            "wholeMonthOnly": true,
+            "value": "{ slips, grossIdr, bonusIdr, deductionIdr, netIdr }",
+            "rules": "APPROVED or PAID payslips of the month (choice 10A), by the employee's HOME depot as it is now (homeDepotId, else the live depot), for the depots the caller may read on the last day of the month; employees with no depot are not counted: gross = base pay + allowances, bonus apart, net = gross + bonus - deduction. belum_ada while any readable depot has a DRAFT slip or an employee without an approved/paid slip. Needs payrollRead (ditahan otherwise); fewer than 3 slips is ditahan with \"kurang dari 3\"."
+          },
+          "H-04": {
+            "unit": "Rp",
+            "wholeMonthOnly": true,
+            "value": "{ remainingIdr, people, heldBackDepots }",
+            "rules": "Kasbon still owed at the end of the month on active loans: principal less the deductions of APPROVED/PAID payslips (a deactivated loan counts as settled), by the employee's home depot as it is now; employees with no depot are not counted. Same gate as H-03 (payrollRead, finished month). A depot with 1 or 2 borrowers is left out and counted in heldBackDepots; all of them held is ditahan."
+          },
+          "H-05": {
+            "unit": "Rp",
+            "wholeMonthOnly": true,
+            "value": "number",
+            "rules": "The daily gallon-target bonus lines (\"Bonus target harian\") on APPROVED/PAID payslips of the month, by the employee's home depot as it is now (as H-03); employees with no depot are not counted. Same gate as H-03; fewer than 3 recipients is ditahan."
+          },
+          "H-06": {
+            "unit": "jam",
+            "wholeMonthOnly": false,
+            "value": "null",
+            "rules": "Always belum_ada: overtime hours and cost are only text on a payslip line today."
+          },
+          "H-07": {
+            "unit": "persen",
+            "wholeMonthOnly": false,
+            "value": "null",
+            "rules": "Always belum_ada: employee turnover is not recorded per period."
+          }
+        }
+      }
     }
   },
   "components": {

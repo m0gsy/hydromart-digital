@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Prisma } from '../../prisma/generated/client';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { encodeCursor } from '@hydromart/platform';
@@ -825,12 +826,16 @@ describe('FranchiseApplicationPrismaRepository', () => {
     update: jest.fn(),
     updateMany: jest.fn(),
     deleteMany: jest.fn(),
+    groupBy: jest.fn(),
   };
+  // HD-6 H5: the stage history, written in the same transaction as the stage it records.
+  const events = { create: jest.fn(), groupBy: jest.fn(), updateMany: jest.fn() };
   // HD-7: create() writes the application and its outbox row in one interactive transaction.
-  const outbox = { create: jest.fn() };
-  const tx = { franchiseApplication: model, webhookEventOutbox: outbox };
+  const outbox = { create: jest.fn(), findMany: jest.fn().mockResolvedValue([]), deleteMany: jest.fn() };
+  const tx = { franchiseApplication: model, webhookEventOutbox: outbox, franchiseApplicationStageEvent: events };
   const prisma = {
     franchiseApplication: model,
+    franchiseApplicationStageEvent: events,
     $transaction: jest.fn(async (fn: (t: typeof tx) => unknown) => fn(tx)),
   } as unknown as PrismaService;
   const repo = new FranchiseApplicationPrismaRepository(prisma);
@@ -879,6 +884,68 @@ describe('FranchiseApplicationPrismaRepository', () => {
         payload: { applicationId: 'fa-1', city: 'Bandung', province: 'Jabar' },
         occurredAt: row.submittedAt,
       },
+    });
+  });
+
+  it('starts the stage history with the stage it was submitted in, at the submit time', async () => {
+    model.create.mockResolvedValue(row);
+    await repo.create({ checklist: {} } as never);
+    expect(events.create).toHaveBeenCalledWith({
+      data: { applicationId: 'fa-1', stage: 'LEAD', at: row.submittedAt },
+    });
+  });
+
+  it('records a stage change in the history only when the write landed', async () => {
+    model.updateMany.mockResolvedValue({ count: 1 });
+    model.findUnique.mockResolvedValue(row);
+    await repo.updateIfOpen('fa-1', { stage: 'SURVEY' } as never);
+    expect(events.create).toHaveBeenCalledWith({ data: { applicationId: 'fa-1', stage: 'SURVEY' } });
+    events.create.mockClear();
+    await repo.updateIfOpen('fa-1', { checklist: {} } as never);
+    model.updateMany.mockResolvedValue({ count: 0 });
+    await repo.updateIfOpen('fa-1', { stage: 'REJECTED' } as never);
+    expect(events.create).not.toHaveBeenCalled();
+  });
+
+  describe('summary (HD-6 H5)', () => {
+    const from = new Date('2026-11-01T00:00:00Z');
+    const to = new Date('2026-12-01T00:00:00Z');
+
+    it('counts live applications by stage, and a deleted one in the history as REJECTED', async () => {
+      model.groupBy.mockResolvedValue([
+        { stage: 'PENDING', _count: { _all: 2 } },
+        { stage: 'APPROVED', _count: { _all: 1 } },
+      ]);
+      events.groupBy.mockResolvedValue([{ applicationId: 'a' }, { applicationId: 'b' }, { applicationId: 'c' }, { applicationId: 'd' }]);
+      model.count.mockResolvedValue(3); // d was deleted after it was rejected
+      const out = await repo.summary(from, to);
+      expect(out).toEqual({
+        total: 4,
+        byStage: { PENDING: 2, DOC_VERIFICATION: 0, SURVEY: 0, APPROVED: 1, REJECTED: 1 },
+      });
+      expect(model.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { submittedAt: { gte: from, lt: to } } }),
+      );
+      // the three reads share one snapshot
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'RepeatableRead' });
+      expect(events.groupBy).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { stage: 'PENDING' }, having: { at: { _min: { gte: from, lt: to } } } }),
+      );
+    });
+
+    it('refuses a window holding more applications than it will count, rather than cutting it', async () => {
+      model.groupBy.mockResolvedValue([]);
+      events.groupBy.mockResolvedValue(Array.from({ length: 20001 }, (_, i) => ({ applicationId: String(i) })));
+      await expect(repo.summary(from, to)).rejects.toThrow(/persempit/);
+    });
+
+    it('asks which of a long history are still stored in batches', async () => {
+      model.groupBy.mockResolvedValue([]);
+      events.groupBy.mockResolvedValue(Array.from({ length: 5001 }, (_, i) => ({ applicationId: String(i) })));
+      model.count.mockResolvedValue(0);
+      const out = await repo.summary(from, to);
+      expect(model.count).toHaveBeenCalledTimes(2);
+      expect(out.byStage.REJECTED).toBe(5001);
     });
   });
 
@@ -966,19 +1033,73 @@ describe('FranchiseApplicationPrismaRepository', () => {
     model.findUnique.mockResolvedValue(null);
     expect(await repo.updateIfOpen('fa-1', { stage: 'REJECTED' } as never)).toBeNull();
   });
-  it('purges only REJECTED applications older than the cutoff (D6)', async () => {
-    model.deleteMany.mockResolvedValue({ count: 3 });
+  it('purges only REJECTED applications older than the cutoff (D6), re-keying their history and pruning their delivered event', async () => {
+    model.findMany.mockResolvedValue([{ id: 'fa-1' }, { id: 'fa-2' }]);
+    model.deleteMany.mockResolvedValue({ count: 2 });
     const cutoff = new Date('2024-09-02T00:00:00Z');
 
-    expect(await repo.purgeRejectedBefore(cutoff)).toBe(3);
-    expect(model.deleteMany).toHaveBeenCalledWith({
+    expect(await repo.purgeRejectedBefore(cutoff)).toBe(2);
+    expect(model.findMany).toHaveBeenCalledWith({
       where: { stage: 'REJECTED', updatedAt: { lt: cutoff } },
+      select: { id: true, updatedAt: true },
+    });
+    // each application's history moves to its own fresh random id: counts survive, the link does not
+    expect(events.updateMany).toHaveBeenCalledTimes(2);
+    const keys = events.updateMany.mock.calls.map((c) => c[0].data.applicationId as string);
+    expect(events.updateMany.mock.calls.map((c) => c[0].where)).toEqual([{ applicationId: 'fa-1' }, { applicationId: 'fa-2' }]);
+    expect(new Set(keys).size).toBe(2);
+    expect(keys.every((k) => /^[0-9a-f-]{36}$/.test(k) && k !== 'fa-1' && k !== 'fa-2')).toBe(true);
+    // the "application submitted" rows (payload: application id, city) go in the same transaction
+    expect(outbox.deleteMany).toHaveBeenCalledWith({
+      where: { eventId: { in: ['franchise.application_submitted:fa-1', 'franchise.application_submitted:fa-2'] } },
+    });
+    // deleted by the ids that were re-keyed, so a rejection landing meanwhile is not deleted unkeyed
+    expect(model.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['fa-1', 'fa-2'] } } });
+  });
+
+  describe('an undelivered event (grace period, then forced)', () => {
+    const cutoff = new Date('2024-09-02T00:00:00Z');
+    const day = 86_400_000;
+    const inGrace = { id: 'fa-1', updatedAt: new Date(cutoff.getTime() - 10 * day) }; // 10 days past retention
+    const pastCeiling = { id: 'fa-2', updatedAt: new Date(cutoff.getTime() - 31 * day) }; // 31 days past retention
+    const key = (id: string) => `franchise.application_submitted:${id}`;
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    beforeEach(() => warn.mockClear());
+    afterAll(() => warn.mockRestore());
+
+    it('within the grace period a PENDING event still blocks the purge, and nothing is logged', async () => {
+      model.findMany.mockResolvedValue([inGrace]);
+      outbox.findMany.mockResolvedValueOnce([{ eventId: key('fa-1') }]);
+      model.deleteMany.mockResolvedValue({ count: 0 });
+      expect(await repo.purgeRejectedBefore(cutoff)).toBe(0);
+      expect(events.updateMany).not.toHaveBeenCalled();
+      expect(model.deleteMany).toHaveBeenCalledWith({ where: { id: { in: [] } } });
+      expect(warn).not.toHaveBeenCalled();
+    });
+
+    it('past the ceiling (cutoff + 30 days) the application is purged with its PENDING row, and the forced count is logged', async () => {
+      model.findMany.mockResolvedValue([inGrace, pastCeiling, { id: 'fa-3', updatedAt: new Date(cutoff.getTime() - 40 * day) }]);
+      // fa-1 (in grace) and fa-2 (past the ceiling) are undelivered; fa-3 was delivered
+      outbox.findMany.mockResolvedValueOnce([{ eventId: key('fa-1') }, { eventId: key('fa-2') }]);
+      model.deleteMany.mockResolvedValue({ count: 2 });
+      expect(await repo.purgeRejectedBefore(cutoff)).toBe(2);
+      expect(events.updateMany.mock.calls.map((c) => c[0].where)).toEqual([{ applicationId: 'fa-2' }, { applicationId: 'fa-3' }]);
+      expect(outbox.deleteMany).toHaveBeenCalledWith({ where: { eventId: { in: [key('fa-2'), key('fa-3')] } } });
+      expect(model.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['fa-2', 'fa-3'] } } });
+      // a count only: no application id appears in the line
+      expect(warn).toHaveBeenCalledTimes(1);
+      const line = String(warn.mock.calls[0][0]);
+      expect(line).toContain('1 rejected franchise application');
+      expect(line).toContain('never be delivered');
+      expect(line).not.toMatch(/fa-\d/);
     });
   });
 
   it('reports zero rather than throwing when nothing is old enough', async () => {
+    model.findMany.mockResolvedValue([]);
     model.deleteMany.mockResolvedValue({ count: 0 });
     expect(await repo.purgeRejectedBefore(new Date())).toBe(0);
+    expect(events.updateMany).not.toHaveBeenCalled();
   });
 });
 

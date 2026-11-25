@@ -80,6 +80,14 @@ class FakeLedger implements LedgerRepository {
     }
   }
   refs = new Map<string, LedgerEntryRecord>();
+  async commissionByDepot(depotIds: readonly string[], from: Date, to: Date) {
+    return depotIds.map((depotId) => ({
+      depotId,
+      commissionIdr: 0 - this.entries
+        .filter((e) => e.type === 'COMMISSION' && e.depotId === depotId && e.occurredAt >= from && e.occurredAt < to)
+        .reduce((sum, e) => sum + e.amount, 0),
+    }));
+  }
   async findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null> {
     return this.refs.get(sourceRef) ?? null;
   }
@@ -1145,5 +1153,19 @@ describe('PayoutService withdrawal references', () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe('PayoutService.commissionByDepot (HD-6 H5)', () => {
+  it("is HQ's net commission per depot in the window, a void netting the sale out", async () => {
+    const ledger = new FakeLedger();
+    const svc = new PayoutService(ledger, new FakeWithdrawals(), new FakeSchemes(), payoutTestConfig(), verifiedAccounts());
+    const at = new Date('2026-11-10T03:00:00Z');
+    await ledger.create({ franchiseOwnerId: 'o', depotId: 'd1', type: 'COMMISSION', amount: -1000, description: 'c', occurredAt: at });
+    await ledger.create({ franchiseOwnerId: 'o', depotId: 'd1', type: 'COMMISSION', amount: 400, description: 'void', occurredAt: at });
+    expect(await svc.commissionByDepot(['d1', 'd2'], new Date('2026-11-01T00:00:00Z'), new Date('2026-12-01T00:00:00Z'))).toEqual([
+      { depotId: 'd1', commissionIdr: 600 },
+      { depotId: 'd2', commissionIdr: 0 },
+    ]);
   });
 });

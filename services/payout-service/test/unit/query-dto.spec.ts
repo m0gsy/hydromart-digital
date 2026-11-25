@@ -7,7 +7,7 @@ import {
   DeliveryCompletedEventDto,
 } from '../../src/modules/dto/courier-payout.dto';
 import { ExpenseQueryDto } from '../../src/modules/dto/expense-claim.dto';
-import { LedgerQueryDto } from '../../src/modules/dto/payout.dto';
+import { CommissionByDepotQueryDto, LedgerQueryDto } from '../../src/modules/dto/payout.dto';
 
 interface PageDto {
   page: number;
@@ -71,5 +71,21 @@ describe('CashVarianceEventDto', () => {
   it('rejects a non-positive amount', () => {
     const errs = validateSync(plainToInstance(CashVarianceEventDto, { ...valid, amount: 0 }));
     expect(errs.map((e) => e.property)).toContain('amount');
+  });
+});
+
+describe('CommissionByDepotQueryDto (HD-6 H5)', () => {
+  const D = '11111111-1111-4111-8111-111111111111';
+  const ok = (body: object) => validateSync(plainToInstance(CommissionByDepotQueryDto, body));
+  it('takes comma-separated depot ids and an ordered window of at most a leap year', () => {
+    const dto = plainToInstance(CommissionByDepotQueryDto, { depotIds: ` ${D}, ${D}`, from: '2026-11-01T00:00:00Z', to: '2026-12-01T00:00:00Z' });
+    expect(dto.depotIds).toEqual([D, D]);
+    expect(validateSync(dto)).toEqual([]);
+    expect(ok({ depotIds: '', from: '2026-11-01T00:00:00Z', to: '2026-12-01T00:00:00Z' })).not.toEqual([]);
+    expect(ok({ depotIds: 'x', from: '2026-11-01T00:00:00Z', to: '2026-12-01T00:00:00Z' })).not.toEqual([]);
+    expect(ok({ depotIds: D, from: '2026-12-01T00:00:00Z', to: '2026-11-01T00:00:00Z' })).not.toEqual([]);
+    expect(ok({ depotIds: D, from: '2020-01-01T00:00:00Z', to: '2026-11-01T00:00:00Z' })).not.toEqual([]);
+    // a real calendar date: 2026-02-31 is a 400, not a 500 from the database
+    expect(ok({ depotIds: D, from: '2026-02-31T00:00:00Z', to: '2026-03-31T00:00:00Z' })).not.toEqual([]);
   });
 });

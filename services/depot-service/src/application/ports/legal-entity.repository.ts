@@ -57,6 +57,8 @@ export interface LegalEntityRepository {
   findById(id: string): Promise<LegalEntity | null>;
   /** The ones of these ids that exist. */
   existingIds(ids: string[]): Promise<string[]>;
+  /** HD-6 H5: the kind of each of these entities (an unknown id is simply absent). */
+  kindsOf(ids: string[]): Promise<{ id: string; kind: LegalEntityKind }[]>;
   /** Throws DuplicateLegalEntityNameError when another entity has the name (ignoring case). */
   create(data: CreateLegalEntityData): Promise<LegalEntity>;
   /**

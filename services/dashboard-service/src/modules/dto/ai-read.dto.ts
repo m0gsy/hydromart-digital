@@ -40,6 +40,20 @@ export class MoneyQueryDto extends PeriodQueryDto {
   metric!: string;
 }
 
+/** The franchise route (H5): a period, and which metric of the franchise group. An id outside it is a 404. */
+export class FranchiseQueryDto extends PeriodQueryDto {
+  @ApiProperty({ example: 'W-01', description: 'A metric of the franchise group (see the contract).' })
+  @IsString()
+  metric!: string;
+}
+
+/** The HR route (H5): a period, and which metric of the HR group. An id outside it is a 404. */
+export class HrQueryDto extends PeriodQueryDto {
+  @ApiProperty({ example: 'H-01', description: 'A metric of the HR group (see the contract).' })
+  @IsString()
+  metric!: string;
+}
+
 class PeriodDto {
   @ApiProperty({ enum: [...PERIOD_UNITS, 'range'] })
   unit!: string;

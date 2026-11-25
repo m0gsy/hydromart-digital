@@ -43,6 +43,8 @@ import {
   AssignedDepotResponseDto,
   DepotEntitiesQueryDto,
   DepotEntitiesResponseDto,
+  EntityKindsQueryDto,
+  EntityKindsResponseDto,
   CreateLegalEntityDto,
   DepotLegalEntityHistoryResponseDto,
   LegalEntityDirectoryResponseDto,
@@ -196,6 +198,16 @@ export class LegalEntityController {
     if (!from || !to) throw new BadRequestException('from and to must be calendar days (YYYY-MM-DD)');
     if (from > to) throw new BadRequestException('from is after to');
     return { spans: await this.entities.entityTimeline(query.depotIds, from, to) };
+  }
+
+  /** Service-to-service (HD-6 H5): the kind of each of these entities, for the HKP / waralaba split by date. */
+  @ApiOkResponse({ type: EntityKindsResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/kinds')
+  @ApiOperation({ summary: 'Internal: the kind of each legal entity named (1 to 100 ids)' })
+  async internalKinds(@Query() query: EntityKindsQueryDto): Promise<EntityKindsResponseDto> {
+    return { entities: await this.entities.kinds(query.ids) };
   }
 
   /** Service-to-service (HD-6): what a role may read in the AI web. SUPER_ADMIN reads every entity. */

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -20,7 +20,7 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { decimalMax } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays, decimalMax } from '@hydromart/platform';
 
 export class RequestWithdrawalDto {
   @ApiProperty({ example: 8420000, description: 'IDR amount to withdraw (positive).' })
@@ -282,4 +282,38 @@ export class BankAccountResponseDto {
   @ApiProperty({ type: String, nullable: true }) rejectedReason!: string | null;
   @ApiProperty() createdAt!: Date;
   @ApiProperty() updatedAt!: Date;
+}
+
+/** HD-6 H5: HQ's commission per depot over `[from, to)`: 1 to 100 depots, at most a leap year. */
+export class CommissionByDepotQueryDto {
+  @ApiProperty({ description: 'Comma-separated depot ids (1 to 100).' })
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? value
+          .split(',')
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0)
+      : value,
+  )
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @IsUUID('all', { each: true })
+  depotIds!: string[];
+
+  @ApiProperty({ format: 'date-time' })
+  @IsISO8601({ strict: true })
+  from!: string;
+
+  @ApiProperty({ format: 'date-time', description: 'Exclusive end of the window.' })
+  @IsISO8601({ strict: true })
+  @IsNotBefore('from')
+  @IsWithinDays('from')
+  to!: string;
+}
+
+export class CommissionByDepotResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  depotId!: string;
+  @ApiProperty({ example: 120000 })
+  commissionIdr!: number;
 }

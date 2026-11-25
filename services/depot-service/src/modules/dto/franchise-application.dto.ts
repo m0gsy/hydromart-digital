@@ -18,7 +18,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { decimalMax } from '@hydromart/platform';
+import { IsNotBefore, IsWithinDays, decimalMax } from '@hydromart/platform';
 
 import { FranchiseApplicationRecord } from '../../application/ports/franchise-application.repository';
 import {
@@ -241,4 +241,24 @@ export class PurgeRejectedApplicationsDto {
 export class PurgeRejectedResponseDto {
   @ApiProperty({ example: 3 })
   deleted!: number;
+}
+
+/** HD-6 H5: the window `[from, to)` an application summary is asked for, at most a leap year. */
+export class ApplicationSummaryQueryDto {
+  @ApiProperty({ type: String, format: 'date-time' })
+  @IsISO8601({ strict: true }) // a real calendar date: 2026-02-31 is a 400, not a 500
+  from!: string;
+
+  @ApiProperty({ type: String, format: 'date-time' })
+  @IsISO8601({ strict: true })
+  @IsNotBefore('from')
+  @IsWithinDays('from')
+  to!: string;
+}
+
+export class ApplicationSummaryResponseDto {
+  @ApiProperty({ example: 4 })
+  total!: number;
+  @ApiProperty({ example: { PENDING: 1, DOC_VERIFICATION: 1, SURVEY: 1, APPROVED: 1, REJECTED: 0 } })
+  byStage!: Record<string, number>;
 }

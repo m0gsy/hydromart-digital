@@ -53,7 +53,7 @@ import {
   pph21Monthly,
 } from '../../domain/statutory';
 import { payrollSlipPdf, type SlipData } from '../../domain/payroll-pdf';
-import { bonusForDay, parseTiers } from '../../domain/daily-sales-bonus';
+import { DAILY_GALLON_BONUS_LABEL, bonusForDay, parseTiers } from '../../domain/daily-sales-bonus';
 import { parseFines, tierOf } from '../../domain/late-fine';
 import {
   ATTENDANCE_REPOSITORY,
@@ -423,7 +423,7 @@ export class PayrollService {
         }
       }
       if (total > 0) {
-        items.push({ kind: 'BONUS', label: `Bonus target harian (${days} hari)`, amount: total });
+        items.push({ kind: 'BONUS', label: `${DAILY_GALLON_BONUS_LABEL} (${days} hari)`, amount: total });
       }
     }
 
