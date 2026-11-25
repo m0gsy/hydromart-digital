@@ -17,7 +17,7 @@
 # never pinned here first). Staging has no backup: its data is made up and `staging-reset` (the
 # Deploy workflow's mode) starts it again from nothing.
 #
-# Pinned now: hydromart-ai 0e51d9c (AI-8 LLM adapter, n8n three-channel lint, AI-9 morning summary), the same as production.
+# Pinned now: hydromart-ai bd6de7e (the read screens: Ringkasan, Liga depot, Depot, Minta akses, and the access-request workflow), AHEAD of production (CI run 45564187896).
 #
 # Isolation, held by scripts/check-aiweb-staging-compose.mjs in CI and proved on the box after every
 # deploy by the probe in scripts/aiweb-staging-deploy.sh:
@@ -70,7 +70,7 @@ services:
 
   # One shot, before every app start: `prisma migrate deploy` as ai_owner.
   migrate:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:324f758d4fe9d3bae4b9f5d818ec01690062f7be0e6a2cc3013978526e0fa518
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:b8f5e50a2efdee5898f9857c644dca04595a43223f9abe74ce386ff03d4d3185
     profiles: ["migrate"]
     logging: *logging
     mem_limit: 384m
@@ -87,7 +87,7 @@ services:
   # The service is not called `aiweb`: Caddy reaches it by this name over `edge-staging`. Its
   # alias `aiweb` exists on `private` only, where n8n's workflows and the mock name it.
   staging-aiweb:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:eef7d1a457cba1c9414ad1569e474151bd44a5092bd82d8832579fba3166e073
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:322b4165f10ede6afebc28e0b68d1075035c710f18bfb1c1c218a26a2bfeb962
     restart: unless-stopped
     logging: *logging
     mem_limit: 384m
@@ -124,7 +124,7 @@ services:
   # The fake hydromart (infra/aiweb-staging/mock/server.mjs), on the app image: node is there and
   # nothing else is needed. The file is mounted read-only from this checkout.
   hydromart-mock:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:eef7d1a457cba1c9414ad1569e474151bd44a5092bd82d8832579fba3166e073
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:322b4165f10ede6afebc28e0b68d1075035c710f18bfb1c1c218a26a2bfeb962
     restart: unless-stopped
     logging: *logging
     mem_limit: 64m
@@ -158,7 +158,7 @@ services:
   # n8n-rewrite.mjs (below) points the copy staging imports at the mock, and the image's
   # N8N_SSRF_ALLOWED_HOSTNAMES is widened by exactly the mock's name.
   n8n:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:15e351342c21f24ee030c5a52c4c61075c6df8774dbde3e253bad6b9cc929e27
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:aacafecb3b37e723ca0d4dc7f9ccbe13a9593e386166c1a3c8318445e573dee9
     restart: unless-stopped
     logging: *logging
     mem_limit: 700m
@@ -199,7 +199,7 @@ services:
   # One shot, in every deploy while n8n is stopped: n8n-rewrite.mjs makes the copy of the image's
   # n8n/ with hydromart's address replaced by the mock's, then setup.mjs imports THAT.
   n8n-setup:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:15e351342c21f24ee030c5a52c4c61075c6df8774dbde3e253bad6b9cc929e27
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:aacafecb3b37e723ca0d4dc7f9ccbe13a9593e386166c1a3c8318445e573dee9
     profiles: ["n8n-setup"]
     logging: *logging
     mem_limit: 700m
