@@ -69,7 +69,7 @@ export class AiCustomerMetricsController {
     });
   }
 
-  @ApiOkResponse({ description: 'gallons: gallon units on DELIVERED or COMPLETED orders created in the spans.' })
+  @ApiOkResponse({ description: 'gallons: gallon units on DELIVERED or COMPLETED orders created in the spans; byDepot: the same per depot (a depot that sold none is absent).' })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')

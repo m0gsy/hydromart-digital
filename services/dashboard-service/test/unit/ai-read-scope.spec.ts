@@ -72,10 +72,10 @@ describe('ReadScopeService (HD-6): depot scope first, then the legal-entity gran
   });
 
   it('gives a role with no grants nothing, not everything', async () => {
-    expect(await service.resolve(user('HEAD_OFFICE'), NOVEMBER)).toEqual({
-      spans: [],
-      echo: { depotIds: [], legalEntityIds: [] },
-    });
+    const scope = await service.resolve(user('HEAD_OFFICE'), NOVEMBER);
+    expect(scope).toMatchObject({ spans: [], echo: { depotIds: [], legalEntityIds: [] } });
+    // the network list the scope had to read rides along, so the scope route does not read it twice
+    expect(scope.network?.map((d) => d.id)).toHaveLength(3);
   });
 
   it("never widens the caller's own depots: a grant to another depot's entity adds nothing", async () => {

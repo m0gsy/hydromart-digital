@@ -3,13 +3,14 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { can } from '@hydromart/access';
 import { AuthenticatedUser, localDayKey } from '@hydromart/platform';
 
-import { AiMoneySourcesPort, DepotMoneyRow, InstantRange, MoneyKind, UnplacedMoney } from '../ports/ai-money-sources.port';
+import { AiMoneySourcesPort, DepotMoneyRow, DepotSalesRow, InstantRange, MoneyKind, UnplacedMoney } from '../ports/ai-money-sources.port';
 import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
 import { DashboardService } from '../services/dashboard.service';
 import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerEnvelope, ditahan, belumAda, ok } from './envelope';
 import { PeriodQuery, ResolvedPeriod, parsePeriod } from './period';
 import { ReadScope, ReadScopeService, grantedRanges } from './scope.service';
+import { splitByDepot, wantsSplit } from './split';
 import { DEPOTS_PER_READ, Stretch, stretchesOf } from './stretches';
 
 /**
@@ -60,6 +61,8 @@ interface Ctx {
   stretches: Stretch[];
   /** Today in WIB, `YYYY-MM-DD`. */
   today: string;
+  /** AI-7a: answer per depot (only the plain depot sums honour it). */
+  split: boolean;
   ok: <V>(value: V, label?: string) => AnswerEnvelope<V>;
   none: (reason: string) => AnswerEnvelope<never>;
   held: (reason: string) => AnswerEnvelope<never>;
@@ -138,7 +141,7 @@ export class MoneyMetricsService {
         held: (reason: string) => ditahan(base, reason),
       };
     };
-    const ctx: Ctx = { user, period, scope, stretches: stretchesOf(scope, period), today: localDayKey(now, period.timeZone), ...make(scope) };
+    const ctx: Ctx = { user, period, scope, stretches: stretchesOf(scope, period), today: localDayKey(now, period.timeZone), split: wantsSplit(query), ...make(scope) };
     if (scope.spans.length === 0) return ctx.none('Tidak ada depot yang boleh Anda baca pada periode ini.');
     try {
       return await this.compute(id, ctx, make);
@@ -231,16 +234,19 @@ export class MoneyMetricsService {
     const revenue = rp(sum(rows, (r) => r.revenueIdr));
     const orders = sum(rows, (r) => r.orders);
     const cancelled = sum(rows, (r) => r.cancelledOrders);
+    // AI-7a: the plain sums answer `{ total, byDepot }` when asked; the total is the unsplit answer.
+    const val = (total: number, pick: (r: DepotSalesRow) => number, round?: (n: number) => number) =>
+      c.split ? splitByDepot(c.scope.echo.depotIds, rows, pick, round) : total;
     switch (id) {
       case 'P-01':
-        return c.ok(revenue, 'omzet: nilai yang ditagihkan dari semua pesanan kecuali batal dan void, menurut tanggal pesanan dibuat, sebelum refund, tanpa riwayat impor');
+        return c.ok(val(revenue, (r) => r.revenueIdr, rp), 'omzet: nilai yang ditagihkan dari semua pesanan kecuali batal dan void, menurut tanggal pesanan dibuat, sebelum refund, tanpa riwayat impor');
       case 'P-03': {
         const refund = await this.refundTotals(c);
         if (!refund) return c.none(DOWN);
         return c.ok(revenue - refund.counted, 'omzet bersih: omzet dikurangi refund menurut tanggal refund' + MoneyMetricsService.unplacedNote(refund.unplaced));
       }
       case 'P-04':
-        return c.ok(orders);
+        return c.ok(val(orders, (r) => r.orders));
       case 'P-05':
         return orders === 0 ? c.none(NO_ORDERS) : c.ok(rp(revenue / orders));
       case 'P-06':
@@ -248,7 +254,7 @@ export class MoneyMetricsService {
           ? c.none(NO_ORDERS)
           : c.ok({ cancelled, ratePct: pct(cancelled, orders + cancelled) }, 'batal = pesanan BATAL yang dibuat pada periode; void kasir tidak masuk');
       case 'P-07':
-        return c.ok(sum(rows, (r) => r.deliveredOrders), 'pesanan TERKIRIM atau SELESAI yang dibuat pada periode');
+        return c.ok(val(sum(rows, (r) => r.deliveredOrders), (r) => r.deliveredOrders), 'pesanan TERKIRIM atau SELESAI yang dibuat pada periode');
       case 'P-08':
         return orders === 0
           ? c.none(NO_ORDERS)
@@ -257,7 +263,7 @@ export class MoneyMetricsService {
               counter: { orders: sum(rows, (r) => r.counterOrders), revenueIdr: rp(sum(rows, (r) => r.counterRevenueIdr)) },
             });
       default:
-        return c.ok(rp(sum(rows, (r) => r.shippingIdr)), 'ongkir tertagih pada pesanan bukan batal/void; sudah termasuk di omzet');
+        return c.ok(val(rp(sum(rows, (r) => r.shippingIdr)), (r) => r.shippingIdr, rp), 'ongkir tertagih pada pesanan bukan batal/void; sudah termasuk di omzet');
     }
   }
 

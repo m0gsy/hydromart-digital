@@ -4,8 +4,9 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuthenticatedUser, Can, CurrentUser, ExternalAccess } from '@hydromart/platform';
 
 import { AnswerEnvelope } from '../application/ai-read/envelope';
-import { LoyaltyMetricsService } from '../application/ai-read/loyalty-metrics';
-import { StockMetricsService } from '../application/ai-read/stock-metrics';
+import { LOYALTY_METRICS, LoyaltyMetricsService } from '../application/ai-read/loyalty-metrics';
+import { assertSplittable } from '../application/ai-read/split';
+import { STOCK_METRICS, StockMetricsService } from '../application/ai-read/stock-metrics';
 import { AnswerEnvelopeDto } from './dto/ai-read.dto';
 import { LoyaltyQueryDto, StockQueryDto } from './dto/ai-read-stock.dto';
 
@@ -30,6 +31,7 @@ export class AiReadStockController {
   @ApiOperation({ summary: 'One stock metric (stock, count differences, wastage, water meter, purchasing, forecast)' })
   stockMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: StockQueryDto): Promise<AnswerEnvelope> {
     const { metric, ...period } = query;
+    assertSplittable(metric, period, STOCK_METRICS);
     return this.stock.answer(metric, user, period);
   }
 
@@ -40,6 +42,7 @@ export class AiReadStockController {
   @ApiOperation({ summary: 'One loyalty, referral, promo, subscription, campaign or open-queue metric' })
   loyaltyMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: LoyaltyQueryDto): Promise<AnswerEnvelope> {
     const { metric, ...period } = query;
+    assertSplittable(metric, period, LOYALTY_METRICS);
     return this.loyalty.answer(metric, user, period);
   }
 }

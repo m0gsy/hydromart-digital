@@ -3,7 +3,7 @@
   "info": {
     "title": "hydromart-digital read API for the AI web",
     "version": "1.0.0",
-    "description": "HD-6, foundation (H1), the money metrics (H2), the customer, delivery and gallon groups (H3), the stock and loyalty groups (H4) and the franchise, legal-entity and HR groups (H5). The numbers behind the AI web's answers. Every route under /dashboard/api/v1/ai/read answers ONE envelope (AnswerEnvelope), so a metric group added later changes only metricId, value and unit. GET scope answers what the caller may read for a period; GET money?metric= (H2) answers the money metrics (sales, cash and COD, profit and loss); GET customers?metric=, GET delivery?metric= and GET gallons?metric= (H3) answer the customer, delivery/courier and gallon metrics; GET stock?metric= and GET loyalty?metric= (H4) answer the stock group and the loyalty, promo, subscription and queue group; GET franchise?metric= and GET hr?metric= (H5) answer the franchise and legal-entity group and the HR group.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. A machine token (aud hydromart-machine) is refused with 403 whatever its scopes. The door is the aiRead capability: every staff role by default, franchise owners not.\n\nScope, applied in this order: (1) the person's own depots, exactly as hydromart-digital's own screens resolve them (a network-wide role: every depot); (2) narrowed to the depots whose legal entity, on a day of the period, is one the person's ROLE is granted in the role x legal entity matrix (HD-5). No grant = only SUPER_ADMIN reads it. A grant never widens step 1. The answer echoes the depots and legal entities it covered in scope. When hydromart-digital cannot work the scope out (a depot service that does not answer), nothing is answered: 503, never an answer without the narrowing.\n\nPeriod: the WIB (Asia/Jakarta, UTC+7) calendar. Send period=day|week|month|year (with date, any day inside it; default today in WIB) OR from and to (YYYY-MM-DD, both days included, at most 366 days). Both or neither is a 400. Weeks run Monday to Sunday. The resolved period is always echoed back, with the same span as UTC instants (fromAt inclusive, toAt exclusive). A metric defined only over whole months or years refuses a range that is not a run of them (400).\n\nvalue and status: ok = a real value, and 0 is a real value. belum_ada = there is nothing to say yet (not built, no data, not defined): value is null and reason says why; never read it as 0. ditahan = held back on purpose (masking, or a decision still open): value is null and reason says why. Quote the number from value, and the period and scope from the envelope.\n\nMasking (owner decision 24 Nov 2026): no phone number, name or address ever leaves this API. Customers and couriers appear only as counts or opaque ids. A group of fewer than 3 people is not given as a number: its cell has value null and flag \"kurang dari 3\", and when a total is published beside it, the smallest other non-empty cell is held back with it (flag \"ditahan\") so the small cell cannot be computed back from the total; if there is no such cell the total itself is null with totalFlag \"ditahan\". A group of 0 people is shown as 0. Held-back cells are widened until at least 6 people are held back, so a held-back cell cannot be pinned down from the total; if the cells run out first the total is held back too. Two answers over overlapping windows are never published, because their difference would be a smaller group than either shows.\n\nNo personal data: every string, and every object key, is checked before an answer leaves. A field named phone, name, nama, address, alamat, email, hp and the like is refused, and so is any text that contains an email address or a phone number. A display name travels only under the field label. A label names a thing (a depot code, a product, a queue), never a person, and is checked like every other string. Amounts and counts are JSON numbers, never digit strings: a string of 10 to 13 digits that starts with 08, 62 or 8 reads as a phone number and is refused. A refused answer is a 500 with the fixed message \"Jawaban ini tidak bisa dikirim.\" and never echoes what tripped the check.\n\nRead-only: nothing is written and nothing is recorded in the audit trail. Rate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a field you do not know; removing or renaming one is a new contract version."
+    "description": "HD-6, foundation (H1), the money metrics (H2), the customer, delivery and gallon groups (H3), the stock and loyalty groups (H4) and the franchise, legal-entity and HR groups (H5). The numbers behind the AI web's answers. Every route under /dashboard/api/v1/ai/read answers ONE envelope (AnswerEnvelope), so a metric group added later changes only metricId, value and unit. GET scope answers what the caller may read for a period; GET money?metric= (H2) answers the money metrics (sales, cash and COD, profit and loss); GET customers?metric=, GET delivery?metric= and GET gallons?metric= (H3) answer the customer, delivery/courier and gallon metrics; GET stock?metric= and GET loyalty?metric= (H4) answer the stock group and the loyalty, promo, subscription and queue group; GET franchise?metric= and GET hr?metric= (H5) answer the franchise and legal-entity group and the HR group.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. A machine token (aud hydromart-machine) is refused with 403 whatever its scopes. The door is the aiRead capability: every staff role by default, franchise owners not.\n\nScope, applied in this order: (1) the person's own depots, exactly as hydromart-digital's own screens resolve them (a network-wide role: every depot); (2) narrowed to the depots whose legal entity, on a day of the period, is one the person's ROLE is granted in the role x legal entity matrix (HD-5). No grant = only SUPER_ADMIN reads it. A grant never widens step 1. The answer echoes the depots and legal entities it covered in scope. When hydromart-digital cannot work the scope out (a depot service that does not answer), nothing is answered: 503, never an answer without the narrowing.\n\nPeriod: the WIB (Asia/Jakarta, UTC+7) calendar. Send period=day|week|month|year (with date, any day inside it; default today in WIB) OR from and to (YYYY-MM-DD, both days included, at most 366 days). Both or neither is a 400. Weeks run Monday to Sunday. The resolved period is always echoed back, with the same span as UTC instants (fromAt inclusive, toAt exclusive). A metric defined only over whole months or years refuses a range that is not a run of them (400).\n\nvalue and status: ok = a real value, and 0 is a real value. belum_ada = there is nothing to say yet (not built, no data, not defined): value is null and reason says why; never read it as 0. ditahan = held back on purpose (masking, or a decision still open): value is null and reason says why. Quote the number from value, and the period and scope from the envelope.\n\nMasking (owner decision 24 Nov 2026): no phone number, name or address ever leaves this API. Customers and couriers appear only as counts or opaque ids. A group of fewer than 3 people is not given as a number: its cell has value null and flag \"kurang dari 3\", and when a total is published beside it, the smallest other non-empty cell is held back with it (flag \"ditahan\") so the small cell cannot be computed back from the total; if there is no such cell the total itself is null with totalFlag \"ditahan\". A group of 0 people is shown as 0. Held-back cells are widened until at least 6 people are held back, so a held-back cell cannot be pinned down from the total; if the cells run out first the total is held back too. Two answers over overlapping windows are never published, because their difference would be a smaller group than either shows.\n\nNo personal data: every string, and every object key, is checked before an answer leaves. A field named phone, name, nama, address, alamat, email, hp and the like is refused, and so is any text that contains an email address or a phone number. A display name travels only under the field label. A label names a thing (a depot code, a product, a queue), never a person, and is checked like every other string. Amounts and counts are JSON numbers, never digit strings: a string of 10 to 13 digits that starts with 08, 62 or 8 reads as a phone number and is refused. A refused answer is a 500 with the fixed message \"Jawaban ini tidak bisa dikirim.\" and never echoes what tripped the check.\n\nSplit by depot (AI-7a): split=depot, on the few metrics marked splittable in x-metrics (P-01, P-04, P-07, P-10 and G-01: scalar sums over depots), answers value { total, byDepot: [{ depotId, value }] } with total equal to the answer without split and every depot readable in the period listed once. Every other metric refuses it with 400, and so does any value but depot.\n\nRead-only: nothing is written and nothing is recorded in the audit trail. Rate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a field you do not know; removing or renaming one is a new contract version."
   },
   "servers": [
     {
@@ -14,7 +14,7 @@
     "/dashboard/api/v1/ai/read/scope": {
       "get": {
         "summary": "How many depots the caller may read for a period, and which legal entities they belong to.",
-        "description": "metricId meta.scope, unit depot. value is the number of depots in scope. When the caller may read no depot at all in the period the answer is status belum_ada with value null (never 0) and a reason. scope lists the depots and the legal entities they belonged to on a day of the period.",
+        "description": "metricId meta.scope, unit depot. value is the number of depots in scope. When the caller may read no depot at all in the period the answer is status belum_ada with value null (never 0) and a reason. scope lists the depots and the legal entities they belonged to on a day of the period. depots (beside the envelope fields) names each depot in scope: { depotId, code, label }, label being the depot's display name. code and label are null only when depot-service could not name the depot. Absent when status is belum_ada. split is refused on this route with 400. A depot whose code or label would read as personal data (for example a phone number) is listed with both null.",
         "security": [
           {
             "aiToken": []
@@ -96,7 +96,14 @@
                   "value": 1,
                   "status": "ok",
                   "unit": "depot",
-                  "asOf": "2026-11-25T03:00:00.000Z"
+                  "asOf": "2026-11-25T03:00:00.000Z",
+                  "depots": [
+                    {
+                      "depotId": "11111111-1111-4111-8111-111111111111",
+                      "code": "DPT-01",
+                      "label": "Depot Bekasi 1"
+                    }
+                  ]
                 }
               }
             }
@@ -175,7 +182,7 @@
     "/dashboard/api/v1/ai/read/money": {
       "get": {
         "summary": "One money metric (sales P-, cash and COD U-, profit and loss L-) for a period.",
-        "description": "The money group of the metric dictionary (sections 3.1, 3.3, 3.4). The metric is the `metric` query parameter; the answer is the AnswerEnvelope, with metricId, unit and the value shape fixed per metric in x-metrics. Amounts are whole rupiah as JSON numbers; percentages have one decimal. The period is WIB. Where a metric says \"month only\", an explicit from/to must be exactly one whole calendar month (400 otherwise).\n\nScope: every fact counts only for the days its depot was readable by the caller (a depot that changed legal entity in the period is read per stretch of days). The money metrics that are monthly profit-and-loss figures (L-01, L-03, L-06, L-07, L-08, L-09) are not cut in the middle of a month: a depot that was readable for only part of the month is left out of them, and scope lists the depots that WERE counted. When no depot is readable the answer is belum_ada.\n\nlabel (optional, on the envelope): what the number is, where its name alone would mislead (for example L-03 says it is base pay and allowances only). Quote it beside the number.\n\nPeople: none of these metrics counts people, so none is group-masked; the personal-data guard still runs on every answer.\n\nSources of truth: the numbers come from order-service, payment-service, delivery-service, depot-service and the same monthly profit-and-loss as /dashboard/network-pnl; a source that cannot answer makes the metric belum_ada (never 0). Money by payment (P-02, P-03, U-01, U-02, U-04, U-05): a delivery payment has no depot of its own, so it is placed by order-service. If order-service cannot place every delivery payment of the window, the metric is belum_ada, never a counter-only number. The 20000-order-row cap of one window is NETWORK-WIDE for delivery payments (counter payments are filtered by the depots asked); the upgrade path is an order-depot column on payments. A single answer that would need more than 300 one-depot reads is belum_ada (\"persempit cakupan\").",
+        "description": "The money group of the metric dictionary (sections 3.1, 3.3, 3.4). The metric is the `metric` query parameter; the answer is the AnswerEnvelope, with metricId, unit and the value shape fixed per metric in x-metrics. Amounts are whole rupiah as JSON numbers; percentages have one decimal. The period is WIB. Where a metric says \"month only\", an explicit from/to must be exactly one whole calendar month (400 otherwise).\n\nScope: every fact counts only for the days its depot was readable by the caller (a depot that changed legal entity in the period is read per stretch of days). The money metrics that are monthly profit-and-loss figures (L-01, L-03, L-06, L-07, L-08, L-09) are not cut in the middle of a month: a depot that was readable for only part of the month is left out of them, and scope lists the depots that WERE counted. When no depot is readable the answer is belum_ada.\n\nlabel (optional, on the envelope): what the number is, where its name alone would mislead (for example L-03 says it is base pay and allowances only). Quote it beside the number.\n\nPeople: none of these metrics counts people, so none is group-masked; the personal-data guard still runs on every answer.\n\nSources of truth: the numbers come from order-service, payment-service, delivery-service, depot-service and the same monthly profit-and-loss as /dashboard/network-pnl; a source that cannot answer makes the metric belum_ada (never 0). Money by payment (P-02, P-03, U-01, U-02, U-04, U-05): a delivery payment has no depot of its own, so it is placed by order-service. If order-service cannot place every delivery payment of the window, the metric is belum_ada, never a counter-only number. The 20000-order-row cap of one window is NETWORK-WIDE for delivery payments (counter payments are filtered by the depots asked); the upgrade path is an order-depot column on payments. A single answer that would need more than 300 one-depot reads is belum_ada (\"persempit cakupan\"). Only the metrics marked splittable in x-metrics accept split=depot (400 for the others).",
         "security": [
           {
             "aiToken": []
@@ -266,6 +273,18 @@
               "format": "date"
             },
             "description": "Last day of an explicit range (included), with from."
+          },
+          {
+            "name": "split",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "depot"
+              ]
+            },
+            "description": "Optional. depot = answer per depot: value becomes { total, byDepot: [{ depotId, value }] } instead of one number. Accepted only by P-01, P-04, P-07, P-10, G-01 (scalar sums over depots, no people); any other metric, and any other value, is 400."
           }
         ],
         "responses": {
@@ -387,7 +406,8 @@
             "unit": "Rp",
             "wholeMonthOnly": false,
             "value": "number",
-            "rules": "Omzet: what was billed (after every discount, with shipping and VAT) on all orders except BATAL and VOID, by the day the order was created, before refunds, live orders only (no imported history, no gallon deposit). 0 is a real answer. belum_ada only when the order source cannot be read."
+            "rules": "Omzet: what was billed (after every discount, with shipping and VAT) on all orders except BATAL and VOID, by the day the order was created, before refunds, live orders only (no imported history, no gallon deposit). 0 is a real answer. belum_ada only when the order source cannot be read. With split=depot: value is { total, byDepot }; total is the unsplit answer (byDepot values are rounded on their own and may differ from the sum by at most 1 per depot), byDepot lists every depot the caller may read in the period exactly once (0 is a real value; a depot readable for only part of the period counts only those days). status and reason are the same as without split: when the source cannot be read the answer is belum_ada, never a partial list.",
+            "splittable": true
           },
           "P-02": {
             "unit": "Rp",
@@ -405,7 +425,8 @@
             "unit": "pesanan",
             "wholeMonthOnly": false,
             "value": "number",
-            "rules": "Orders except BATAL and VOID, by creation day, every channel."
+            "rules": "Orders except BATAL and VOID, by creation day, every channel. With split=depot: value is { total, byDepot }; total is the unsplit answer (byDepot values are rounded on their own and may differ from the sum by at most 1 per depot), byDepot lists every depot the caller may read in the period exactly once (0 is a real value; a depot readable for only part of the period counts only those days). status and reason are the same as without split: when the source cannot be read the answer is belum_ada, never a partial list.",
+            "splittable": true
           },
           "P-05": {
             "unit": "Rp",
@@ -423,7 +444,8 @@
             "unit": "pesanan",
             "wholeMonthOnly": false,
             "value": "number",
-            "rules": "Orders DELIVERED or COMPLETED (TERKIRIM or SELESAI) created in the period."
+            "rules": "Orders DELIVERED or COMPLETED (TERKIRIM or SELESAI) created in the period. With split=depot: value is { total, byDepot }; total is the unsplit answer (byDepot values are rounded on their own and may differ from the sum by at most 1 per depot), byDepot lists every depot the caller may read in the period exactly once (0 is a real value; a depot readable for only part of the period counts only those days). status and reason are the same as without split: when the source cannot be read the answer is belum_ada, never a partial list.",
+            "splittable": true
           },
           "P-08": {
             "unit": "pesanan, Rp",
@@ -441,7 +463,8 @@
             "unit": "Rp",
             "wholeMonthOnly": false,
             "value": "number",
-            "rules": "Shipping billed on orders that are not BATAL or VOID; already inside P-01."
+            "rules": "Shipping billed on orders that are not BATAL or VOID; already inside P-01. With split=depot: value is { total, byDepot }; total is the unsplit answer (byDepot values are rounded on their own and may differ from the sum by at most 1 per depot), byDepot lists every depot the caller may read in the period exactly once (0 is a real value; a depot readable for only part of the period counts only those days). status and reason are the same as without split: when the source cannot be read the answer is belum_ada, never a partial list.",
+            "splittable": true
           },
           "P-11": {
             "unit": "Rp",
@@ -563,7 +586,7 @@
     "/dashboard/api/v1/ai/read/stock": {
       "get": {
         "summary": "One stock metric (stock now, count differences, wastage, water meter, purchasing, forecast) for a period.",
-        "description": "The stock group of the metric dictionary (section 3.7). The metric is the `metric` query parameter; the answer is the AnswerEnvelope, with metricId, unit and the value shape fixed per metric in x-metrics. Amounts are whole rupiah as JSON numbers; litres and gallons have at most two decimals; percentages one. The period is WIB.\n\nS-01, S-05 and S-06 are about NOW: the period of the answer is today (WIB) whatever period is sent (a nonsense one is still 400; none at all is fine), and they count the depots the caller may read today. S-02, S-03 and S-04 count only the days each depot was readable by the caller (a depot that changed legal entity in the period is read per stretch of days).\n\nPeople: none of these metrics counts people, so none is group-masked; the personal-data guard still runs on every answer. No answer carries a name, phone or address.\n\nSources of truth: depot-service (stock, purchase orders, counts, wastage), order-service (water meter) and forecast-service (forecast). A source that fails, times out, answers non-2xx or answers a depot nobody asked about makes the metric belum_ada (never 0, never a partial sum). A single answer that would need more than 300 one-depot reads is belum_ada (\"persempit cakupan\").",
+        "description": "The stock group of the metric dictionary (section 3.7). The metric is the `metric` query parameter; the answer is the AnswerEnvelope, with metricId, unit and the value shape fixed per metric in x-metrics. Amounts are whole rupiah as JSON numbers; litres and gallons have at most two decimals; percentages one. The period is WIB.\n\nS-01, S-05 and S-06 are about NOW: the period of the answer is today (WIB) whatever period is sent (a nonsense one is still 400; none at all is fine), and they count the depots the caller may read today. S-02, S-03 and S-04 count only the days each depot was readable by the caller (a depot that changed legal entity in the period is read per stretch of days).\n\nPeople: none of these metrics counts people, so none is group-masked; the personal-data guard still runs on every answer. No answer carries a name, phone or address.\n\nSources of truth: depot-service (stock, purchase orders, counts, wastage), order-service (water meter) and forecast-service (forecast). A source that fails, times out, answers non-2xx or answers a depot nobody asked about makes the metric belum_ada (never 0, never a partial sum). A single answer that would need more than 300 one-depot reads is belum_ada (\"persempit cakupan\"). split=depot is refused here with 400: these metrics are people, network-only, ratio, object or point-in-time figures, and a per-depot answer beside a network answer would let a reader subtract small groups.",
         "security": [
           {
             "aiToken": []
@@ -799,7 +822,7 @@
     "/dashboard/api/v1/ai/read/loyalty": {
       "get": {
         "summary": "One loyalty, referral, promo-cost, subscription, campaign or open-queue metric (O-, A-). The people metrics are for ONE whole, closed calendar month, answered from the 8th of the next month.",
-        "description": "The loyalty group of the metric dictionary (section 3.8) and the open queues (3.11). The metric is the `metric` query parameter; the answer is the AnswerEnvelope.\n\nPeople: O-02, O-04, O-06, O-08 and O-09 count people (redeemers, loyalty members, referees, subscribers, campaign recipients). No name, phone or address is ever read. Each is defined for ONE whole calendar month: a day, a week, a year, a range over two months or a range that is not a whole month is a 400, so two answers never overlap and cannot be subtracted to isolate the few people between them. Only a CLOSED month is answered, and only from the 8th of the next month (from 8 January for December), so late cancellations have settled; before that it is ditahan. A group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). A total as of a date (O-04's accounts) is rounded to a multiple of 5.\n\nNetwork: loyalty accounts, referrals, subscriptions and campaigns have no depot of their own (the depot a customer chose moves, so a past month cannot be split by depot without misplacing people). O-04, O-06, O-08 and O-09 are answered for the whole network only, and only for a role that reads every depot and every legal entity; any other role gets ditahan. O-02 (by pick-up depot and hand-over day), O-07 (by order date) and A-01 (open items now) follow the caller's depots and legal entities: a fact counts only for the days its depot was readable by the caller.\n\nMoney: O-07 may take any period. A-01 is about now and is answered over today whatever period was sent.\n\nSources of truth: loyalty-service (O-02, O-04), referral-service (O-06), order-service (O-07 discounts, O-08 subscriptions), crm-service (O-09), depot-service (A-01). A source that cannot answer, or answers something this API does not understand, makes the metric belum_ada (never 0). O-01, O-03 and O-05 are belum_ada by decision, each with its reason.",
+        "description": "The loyalty group of the metric dictionary (section 3.8) and the open queues (3.11). The metric is the `metric` query parameter; the answer is the AnswerEnvelope.\n\nPeople: O-02, O-04, O-06, O-08 and O-09 count people (redeemers, loyalty members, referees, subscribers, campaign recipients). No name, phone or address is ever read. Each is defined for ONE whole calendar month: a day, a week, a year, a range over two months or a range that is not a whole month is a 400, so two answers never overlap and cannot be subtracted to isolate the few people between them. Only a CLOSED month is answered, and only from the 8th of the next month (from 8 January for December), so late cancellations have settled; before that it is ditahan. A group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). A total as of a date (O-04's accounts) is rounded to a multiple of 5.\n\nNetwork: loyalty accounts, referrals, subscriptions and campaigns have no depot of their own (the depot a customer chose moves, so a past month cannot be split by depot without misplacing people). O-04, O-06, O-08 and O-09 are answered for the whole network only, and only for a role that reads every depot and every legal entity; any other role gets ditahan. O-02 (by pick-up depot and hand-over day), O-07 (by order date) and A-01 (open items now) follow the caller's depots and legal entities: a fact counts only for the days its depot was readable by the caller.\n\nMoney: O-07 may take any period. A-01 is about now and is answered over today whatever period was sent.\n\nSources of truth: loyalty-service (O-02, O-04), referral-service (O-06), order-service (O-07 discounts, O-08 subscriptions), crm-service (O-09), depot-service (A-01). A source that cannot answer, or answers something this API does not understand, makes the metric belum_ada (never 0). O-01, O-03 and O-05 are belum_ada by decision, each with its reason. split=depot is refused here with 400: these metrics are people, network-only, ratio, object or point-in-time figures, and a per-depot answer beside a network answer would let a reader subtract small groups.",
         "security": [
           {
             "aiToken": []
@@ -1063,7 +1086,7 @@
     "/dashboard/api/v1/ai/read/franchise": {
       "get": {
         "summary": "One franchise or legal-entity metric (calon mitra W-01/W-02, depots by type W-03, partner entitlement W-04, HQ commission W-05, legal entity W-06) for a period.",
-        "description": "HD-6 H5, section 3.9 of the metric dictionary. Same envelope and period rules as money. The applicants are always called \"calon mitra\", and nobody is named: counts only, and a group of fewer than 3 is not given as a number. Scope: W-03, W-05 and W-06 count only the depots the caller may read, on the days they were readable; W-01 and W-02 belong to no depot and need a role that holds the franchise queue and is granted every legal entity. A source that cannot answer, or answers short, makes the metric belum_ada (never 0).",
+        "description": "HD-6 H5, section 3.9 of the metric dictionary. Same envelope and period rules as money. The applicants are always called \"calon mitra\", and nobody is named: counts only, and a group of fewer than 3 is not given as a number. Scope: W-03, W-05 and W-06 count only the depots the caller may read, on the days they were readable; W-01 and W-02 belong to no depot and need a role that holds the franchise queue and is granted every legal entity. A source that cannot answer, or answers short, makes the metric belum_ada (never 0). split=depot is refused here with 400: these metrics are people, network-only, ratio, object or point-in-time figures, and a per-depot answer beside a network answer would let a reader subtract small groups.",
         "security": [
           {
             "aiToken": []
@@ -1290,7 +1313,7 @@
     "/dashboard/api/v1/ai/read/hr": {
       "get": {
         "summary": "One HR metric (active employees H-01, attendance H-02, payroll H-03, kasbon H-04, daily gallon bonus H-05, overtime H-06, turnover H-07) for a period.",
-        "description": "HD-6 H5, section 3.10 of the metric dictionary. Same envelope and period rules as money. Employees are counted, never named; a depot whose figure rests on 1 or 2 people is not given (value null with flag \"kurang dari 3\", or left out and counted in heldBackDepots, as each metric says). Pay figures (H-03, H-04, H-05) need payrollRead, only count APPROVED or PAID payslips, and are belum_ada for a month that is not fully paid; they belong to the employee's home depot as it is now (a payslip stores no depot of its own), counted for the depots the caller may read on the last day of the payroll month. A source that cannot answer, or answers short, makes the metric belum_ada (never 0).",
+        "description": "HD-6 H5, section 3.10 of the metric dictionary. Same envelope and period rules as money. Employees are counted, never named; a depot whose figure rests on 1 or 2 people is not given (value null with flag \"kurang dari 3\", or left out and counted in heldBackDepots, as each metric says). Pay figures (H-03, H-04, H-05) need payrollRead, only count APPROVED or PAID payslips, and are belum_ada for a month that is not fully paid; they belong to the employee's home depot as it is now (a payslip stores no depot of its own), counted for the depots the caller may read on the last day of the payroll month. A source that cannot answer, or answers short, makes the metric belum_ada (never 0). split=depot is refused here with 400: these metrics are people, network-only, ratio, object or point-in-time figures, and a per-depot answer beside a network answer would let a reader subtract small groups.",
         "security": [
           {
             "aiToken": []
@@ -1524,7 +1547,7 @@
     "/dashboard/api/v1/ai/read/customers": {
       "get": {
         "summary": "One customer metric (C-: new, active, repeat, segments, cohorts, rating) for ONE whole calendar month.",
-        "description": "The customer group of the metric dictionary (section 3.5). The metric is the `metric` query parameter; the answer is the AnswerEnvelope. Every metric counts people, so every one is defined for ONE whole calendar month (C-08 for a run of whole months): a day, a week, or a range that is not whole months is a 400. Two answers therefore never overlap, and no two of them can be subtracted to isolate the few people between a month and a week.\n\nPeople: this group counts customers or couriers. No name, phone or address is ever read; a group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). Only named customers count: the anonymous counter buyer is nobody. A person with two phone numbers is two customers (no merging).\n\nScope: a fact counts only for the days its depot was readable by the caller (a depot that changed legal entity mid-month counts for its stretch). Distinct counts are one read over all the depot stretches, so a person who bought at two depots is one. When the scope holds more than 100 depots the metric is belum_ada (\"persempit cakupan\"), never a partial sum.\n\nSources of truth: order-service (customers, cohorts, reviews, segments). A source that cannot answer, or answers something this API does not understand, makes the metric belum_ada (never 0).\n\nRunning or just-closed month: a month is NOT answered (ditahan) until the 8th of the next month (8 January for December), so late cancellations settle first, and because its count watched day by day steps by the one person who ordered that day. Only a closed month is answered from the 8th of the next month, and exactly, except where said below. C-06 (a total as of a date) is answered only as of the last day of a closed month, from the 8th of the next month (belum_ada otherwise), always rounded to a multiple of 5, and its window \"aktif\" (30 days back from the as-of day) is not the calendar month of C-04. C-08 sizes and cells are always rounded to a multiple of 5, because the exact repeat and active counts of C-05 minus an exact cohort diagonal would give a held cohort away. C-06 counts all history, so a depot whose older history the role may not read (it joined a readable legal entity recently) is held back and counted in heldBackDepots.",
+        "description": "The customer group of the metric dictionary (section 3.5). The metric is the `metric` query parameter; the answer is the AnswerEnvelope. Every metric counts people, so every one is defined for ONE whole calendar month (C-08 for a run of whole months): a day, a week, or a range that is not whole months is a 400. Two answers therefore never overlap, and no two of them can be subtracted to isolate the few people between a month and a week.\n\nPeople: this group counts customers or couriers. No name, phone or address is ever read; a group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). Only named customers count: the anonymous counter buyer is nobody. A person with two phone numbers is two customers (no merging).\n\nScope: a fact counts only for the days its depot was readable by the caller (a depot that changed legal entity mid-month counts for its stretch). Distinct counts are one read over all the depot stretches, so a person who bought at two depots is one. When the scope holds more than 100 depots the metric is belum_ada (\"persempit cakupan\"), never a partial sum.\n\nSources of truth: order-service (customers, cohorts, reviews, segments). A source that cannot answer, or answers something this API does not understand, makes the metric belum_ada (never 0).\n\nRunning or just-closed month: a month is NOT answered (ditahan) until the 8th of the next month (8 January for December), so late cancellations settle first, and because its count watched day by day steps by the one person who ordered that day. Only a closed month is answered from the 8th of the next month, and exactly, except where said below. C-06 (a total as of a date) is answered only as of the last day of a closed month, from the 8th of the next month (belum_ada otherwise), always rounded to a multiple of 5, and its window \"aktif\" (30 days back from the as-of day) is not the calendar month of C-04. C-08 sizes and cells are always rounded to a multiple of 5, because the exact repeat and active counts of C-05 minus an exact cohort diagonal would give a held cohort away. C-06 counts all history, so a depot whose older history the role may not read (it joined a readable legal entity recently) is held back and counted in heldBackDepots. split=depot is refused here with 400: these metrics are people, network-only, ratio, object or point-in-time figures, and a per-depot answer beside a network answer would let a reader subtract small groups.",
         "security": [
           {
             "aiToken": []
@@ -1788,7 +1811,7 @@
     "/dashboard/api/v1/ai/read/delivery": {
       "get": {
         "summary": "One delivery or courier metric (K-: delivered, on time, median time, failed, courier group, live orders).",
-        "description": "The delivery group of the metric dictionary (section 3.6). K-01 to K-05 are answered for ONE whole calendar month only, and only a CLOSED one, answered from the 8th of the next month (from 8 January for December), so late cancellations have settled (before that it is ditahan): two nested periods (d1..d7 and d1..d6) would subtract into one courier's day, and a running month watched day by day steps by one courier. A day, a week, a range or a year is a 400. K-06 (a rating per courier) is never answered. K-07 is the state right now and ignores the period.\n\nPeople: this group counts customers or couriers. No name, phone or address is ever read; a group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). Courier identity is never sent: only how many couriers there were. A failure reason is free text a courier typed and can name a person, so only the no-show reason is counted apart; the rest is \"otherReason\" without text.\n\nOn time (K-02): the verdict stored when the delivery completed (depot threshold, else the network threshold; the clock starts at the courier's assignment and restarts when a CUSTOMER reschedules, not when the depot swaps the courier). Deliveries completed before the verdict was stored are graded again with the network threshold; the label says how many of each.\n\nScope and sources as for the other groups: delivery-service and order-service; belum_ada (never 0) when a source cannot answer or more than 100 depots are in scope.\n\nCourier floor: in a depot or slice with 1 or 2 couriers the on-time share, the median minutes, the failures and the delivered count ARE that courier's record. So K-01 to K-05 answer ditahan (\"kurang dari 3\") unless 3 or more distinct couriers, counting those who delivered OR failed, are behind the slice. K-07 answers the state of TODAY: the period asked is not used, the scope is worked out for today, and the period echoed in the envelope is today. K-07 is a live figure: the difference between two readings is a change of orders, not of people.",
+        "description": "The delivery group of the metric dictionary (section 3.6). K-01 to K-05 are answered for ONE whole calendar month only, and only a CLOSED one, answered from the 8th of the next month (from 8 January for December), so late cancellations have settled (before that it is ditahan): two nested periods (d1..d7 and d1..d6) would subtract into one courier's day, and a running month watched day by day steps by one courier. A day, a week, a range or a year is a 400. K-06 (a rating per courier) is never answered. K-07 is the state right now and ignores the period.\n\nPeople: this group counts customers or couriers. No name, phone or address is ever read; a group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). Courier identity is never sent: only how many couriers there were. A failure reason is free text a courier typed and can name a person, so only the no-show reason is counted apart; the rest is \"otherReason\" without text.\n\nOn time (K-02): the verdict stored when the delivery completed (depot threshold, else the network threshold; the clock starts at the courier's assignment and restarts when a CUSTOMER reschedules, not when the depot swaps the courier). Deliveries completed before the verdict was stored are graded again with the network threshold; the label says how many of each.\n\nScope and sources as for the other groups: delivery-service and order-service; belum_ada (never 0) when a source cannot answer or more than 100 depots are in scope.\n\nCourier floor: in a depot or slice with 1 or 2 couriers the on-time share, the median minutes, the failures and the delivered count ARE that courier's record. So K-01 to K-05 answer ditahan (\"kurang dari 3\") unless 3 or more distinct couriers, counting those who delivered OR failed, are behind the slice. K-07 answers the state of TODAY: the period asked is not used, the scope is worked out for today, and the period echoed in the envelope is today. K-07 is a live figure: the difference between two readings is a change of orders, not of people. split=depot is refused here with 400: these metrics are people, network-only, ratio, object or point-in-time figures, and a per-depot answer beside a network answer would let a reader subtract small groups.",
         "security": [
           {
             "aiToken": []
@@ -2027,7 +2050,7 @@
     "/dashboard/api/v1/ai/read/gallons": {
       "get": {
         "summary": "One gallon metric (G-: sold, at customers, deposit, returned, refill split).",
-        "description": "The gallon group of the metric dictionary (section 3.2). Gallons count things, not people, so every period is allowed and nothing is masked.\n\nG-02 and G-03 are balances: the ledger up to the end of the last day of the period (today while the period runs), at the depots readable on that day, plus what moved in the period (only the days each depot was readable).\n\nSources: order-service (G-01, G-05) and depot-service (G-02 to G-04). belum_ada (never 0) when a source cannot answer.",
+        "description": "The gallon group of the metric dictionary (section 3.2). Gallons count things, not people, so every period is allowed and nothing is masked.\n\nG-02 and G-03 are balances: the ledger up to the end of the last day of the period (today while the period runs), at the depots readable on that day, plus what moved in the period (only the days each depot was readable).\n\nSources: order-service (G-01, G-05) and depot-service (G-02 to G-04). belum_ada (never 0) when a source cannot answer. Only the metrics marked splittable in x-metrics accept split=depot (400 for the others).",
         "security": [
           {
             "aiToken": []
@@ -2094,6 +2117,18 @@
               "format": "date"
             },
             "description": "Last day of an explicit range (included), with from."
+          },
+          {
+            "name": "split",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "depot"
+              ]
+            },
+            "description": "Optional. depot = answer per depot: value becomes { total, byDepot: [{ depotId, value }] } instead of one number. Accepted only by P-01, P-04, P-07, P-10, G-01 (scalar sums over depots, no people); any other metric, and any other value, is 400."
           }
         ],
         "responses": {
@@ -2215,7 +2250,8 @@
             "unit": "galon",
             "wholeMonthOnly": false,
             "value": "number",
-            "rules": "Gallon units on orders DELIVERED or COMPLETED, by the day the order was created (WIB), counter sales and free promo gallons included."
+            "rules": "Gallon units on orders DELIVERED or COMPLETED, by the day the order was created (WIB), counter sales and free promo gallons included. With split=depot: value is { total, byDepot }; total is the unsplit answer (byDepot values are rounded on their own and may differ from the sum by at most 1 per depot), byDepot lists every depot the caller may read in the period exactly once (0 is a real value; a depot readable for only part of the period counts only those days). status and reason are the same as without split: when the source cannot be read the answer is belum_ada, never a partial list.",
+            "splittable": true
           },
           "G-02": {
             "unit": "galon",
@@ -2278,7 +2314,7 @@
             "$ref": "#/components/schemas/Scope"
           },
           "value": {
-            "description": "The number or structure answered. Null with belum_ada and ditahan, never 0.",
+            "description": "The number or structure answered. Null with belum_ada and ditahan, never 0. With split=depot on a splittable metric: a DepotSplit.",
             "type": [
               "number",
               "object",
@@ -2311,6 +2347,13 @@
           "label": {
             "type": "string",
             "description": "Optional. What the number is, where its name alone would mislead (for example \"gaji pokok dan tunjangan\" on L-03). Quote it beside the number. A label names a thing, never a person."
+          },
+          "depots": {
+            "type": "array",
+            "description": "Only on the scope answer: the depots in scope, for naming a depot the AI web ranks. A depot name is business data, not personal data; it travels under label.",
+            "items": {
+              "$ref": "#/components/schemas/ScopeDepot"
+            }
           }
         }
       },
@@ -2445,6 +2488,68 @@
               }
             ],
             "description": "For people reading logs. Route on statusCode and code."
+          }
+        }
+      },
+      "ScopeDepot": {
+        "type": "object",
+        "required": [
+          "depotId",
+          "code",
+          "label"
+        ],
+        "properties": {
+          "depotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The depot code."
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The depot's display name."
+          }
+        }
+      },
+      "DepotSplit": {
+        "type": "object",
+        "description": "The value of a splittable metric asked with split=depot.",
+        "required": [
+          "total",
+          "byDepot"
+        ],
+        "properties": {
+          "total": {
+            "type": "number",
+            "description": "Exactly the answer without split (the rounded sum of all depots)."
+          },
+          "byDepot": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "depotId",
+                "value"
+              ],
+              "properties": {
+                "depotId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "value": {
+                  "type": "number"
+                }
+              }
+            },
+            "description": "Each value is rounded on its own, so the values can differ from total by at most 1 per depot (only metrics in rupiah round); total itself is always the unsplit answer."
           }
         }
       }

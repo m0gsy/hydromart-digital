@@ -151,7 +151,15 @@ describeRace('HD-6 H3 customer and gallon reads on real Postgres', () => {
     await order({ customerId: buyer, depotId: D2, at: '2026-11-12T04:00:00.000Z', gallons: 2, status: 'CANCELLED' });
     await order({ customerId: buyer, depotId: D2, at: '2026-11-12T05:00:00.000Z', gallons: 4, status: 'CREATED' });
     await order({ customerId: buyer, depotId: D2, at: '2026-11-30T17:10:00.000Z', gallons: 9 }); // next month
-    await expect(repo.gallonsSold([span(D2)])).resolves.toBe(3);
+    await expect(repo.gallonsSold([span(D2)])).resolves.toEqual([{ depotId: D2, gallons: 3 }]);
+    // One row per depot that sold, from one grouped query; a depot with no sale in its span is absent
+    // (dashboard-service lists it as 0).
+    const other = randomUUID();
+    const idle = randomUUID();
+    await order({ customerId: buyer, depotId: other, at: '2026-11-12T06:00:00.000Z', gallons: 5 });
+    const grouped = await repo.gallonsSold([span(D2), span(other), span(idle)]);
+    expect(grouped).toHaveLength(2);
+    expect(grouped).toEqual(expect.arrayContaining([{ depotId: D2, gallons: 3 }, { depotId: other, gallons: 5 }]));
     const counter = (gallons: number, empties: number | null) =>
       order({ customerId: ANONYMOUS_CUSTOMER_ID, depotId: D2, at: '2026-11-13T03:00:00.000Z', walkIn: true, gallons, empties });
     await counter(2, 2); // refill

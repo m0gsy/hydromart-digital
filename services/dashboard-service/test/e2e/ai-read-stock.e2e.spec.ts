@@ -253,6 +253,12 @@ describe('GET ai/read/stock and ai/read/loyalty (HD-6 H4)', () => {
     await get(aiToken('FRANCHISE_OWNER'), 'loyalty', 'O-04').expect(403);
   });
 
+  it('refuses split=depot on every metric of these groups (AI-7a): people, network and non-sum figures are never split', async () => {
+    const query = 'period=month&date=2026-11-10&split=depot';
+    await get(aiToken('SUPER_ADMIN'), 'stock', 'S-02', query).expect(400);
+    await get(aiToken('SUPER_ADMIN'), 'loyalty', 'A-01', query).expect(400);
+  });
+
   /*
    * The AI web codes against contracts/ai-v1/read.openapi.json, in another repository: the metric
    * ids, their units and the status rules it quotes must be what is served.

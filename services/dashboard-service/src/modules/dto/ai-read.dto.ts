@@ -31,6 +31,11 @@ export class PeriodQueryDto {
   @IsOptional()
   @Matches(DAY)
   to?: string;
+
+  @ApiPropertyOptional({ enum: ['depot'], description: 'Per-depot answer; only for metrics that are plain depot sums (see the contract), 400 otherwise.' })
+  @IsOptional()
+  @IsString()
+  split?: string;
 }
 
 /** The money route: a period, and which metric of the money group. An id outside it is a 404, not a 400. */

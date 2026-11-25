@@ -5,6 +5,7 @@ import { AuthenticatedUser, addLocalDays, dayStartUtc, localDayKey } from '@hydr
 import { SourceSpan } from '../ports/ai-customer-sources.port';
 import { AnswerEnvelope, belumAda, ditahan, ok } from './envelope';
 import { PeriodQuery, ResolvedPeriod, parsePeriod } from './period';
+import { wantsSplit } from './split';
 import { ReadScope, ReadScopeService } from './scope.service';
 
 /** What one metric of a group says about itself. */
@@ -26,6 +27,8 @@ export interface GroupCtx {
   now: Date;
   /** Today in WIB, `YYYY-MM-DD`. */
   today: string;
+  /** AI-7a: `split=depot` was asked (the metric itself decides whether it honours it). */
+  split: boolean;
   ok: <V>(value: V, label?: string) => AnswerEnvelope<V>;
   none: (reason: string) => AnswerEnvelope<never>;
   held: (reason: string) => AnswerEnvelope<never>;
@@ -68,6 +71,7 @@ export async function openGroup(
     scope,
     now,
     today: localDayKey(now, period.timeZone),
+    split: wantsSplit(query),
     ok: <V>(value: V, label?: string) => ok({ ...base, label }, value),
     none: (reason: string) => belumAda(base, reason),
     held: (reason: string) => ditahan(base, reason),

@@ -236,6 +236,12 @@ describe('GET ai/read/franchise and ai/read/hr (HD-6 H5)', () => {
     await get(aiToken('FRANCHISE_OWNER'), 'hr', 'H-01').expect(403);
   });
 
+  it('refuses split=depot on every metric of these groups (AI-7a): people, network and non-sum figures are never split', async () => {
+    const query = 'period=month&date=2026-11-10&split=depot';
+    await get(aiToken('SUPER_ADMIN'), 'hr', 'H-01', query).expect(400);
+    await get(aiToken('SUPER_ADMIN'), 'franchise', 'W-01', query).expect(400);
+  });
+
   /* The AI web codes against contracts/ai-v1/read.openapi.json, in another repository. */
   it.each([
     ['franchise', FRANCHISE_OP, FRANCHISE_METRIC_IDS, FRANCHISE_METRICS],

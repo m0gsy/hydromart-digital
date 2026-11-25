@@ -64,9 +64,10 @@ export class AiCustomerMetricsService {
     return this.repo.customerSegments(depotIds, at);
   }
 
-  gallons(spans: readonly AiSpan[]): Promise<{ gallons: number }> {
+  /** One grouped read: the total and the per-depot figures (depots that sold none are absent; the caller lists them as 0). */
+  gallons(spans: readonly AiSpan[]): Promise<{ gallons: number; byDepot: { depotId: string; gallons: number }[] }> {
     this.check(spans);
-    return this.repo.gallonsSold(spans).then((gallons) => ({ gallons }));
+    return this.repo.gallonsSold(spans).then((byDepot) => ({ gallons: byDepot.reduce((s, r) => s + r.gallons, 0), byDepot }));
   }
 
   refill(spans: readonly AiSpan[]): Promise<RefillSplitStats> {

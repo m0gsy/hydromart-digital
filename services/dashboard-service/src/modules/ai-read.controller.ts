@@ -1,15 +1,26 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthenticatedUser, Can, CurrentUser, ExternalAccess } from '@hydromart/platform';
 
 import { AnswerEnvelope, belumAda, ok } from '../application/ai-read/envelope';
-import { FranchiseMetricsService } from '../application/ai-read/franchise-metrics';
-import { HrMetricsService } from '../application/ai-read/hr-metrics';
-import { MoneyMetricsService } from '../application/ai-read/money-metrics';
+import { assertNoPersonalData } from '../application/ai-read/masking';
+import { FRANCHISE_METRICS, FranchiseMetricsService } from '../application/ai-read/franchise-metrics';
+import { HR_METRICS, HrMetricsService } from '../application/ai-read/hr-metrics';
+import { MONEY_METRICS, MoneyMetricsService } from '../application/ai-read/money-metrics';
 import { parsePeriod } from '../application/ai-read/period';
 import { ReadScopeService } from '../application/ai-read/scope.service';
+import { assertSplittable } from '../application/ai-read/split';
+import { DashboardSourcesPort } from '../application/ports/dashboard-sources.port';
+import { DASHBOARD_TOKENS } from '../application/tokens';
 import { AnswerEnvelopeDto, FranchiseQueryDto, HrQueryDto, MoneyQueryDto, PeriodQueryDto } from './dto/ai-read.dto';
+
+/** One depot of the scope. A null code or label = depot-service could not name it; never guessed. */
+export interface ScopeDepot {
+  depotId: string;
+  code: string | null;
+  label: string | null;
+}
 
 /**
  * HD-6: the AI web's read API (contracts/ai-v1/read.openapi.json). Every route answers the same
@@ -27,6 +38,7 @@ export class AiReadController {
     private readonly money: MoneyMetricsService,
     private readonly franchise: FranchiseMetricsService,
     private readonly hr: HrMetricsService,
+    @Inject(DASHBOARD_TOKENS.Sources) private readonly depots: DashboardSourcesPort,
   ) {}
 
   @ApiOkResponse({ type: AnswerEnvelopeDto })
@@ -37,7 +49,8 @@ export class AiReadController {
   async scope(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: PeriodQueryDto,
-  ): Promise<AnswerEnvelope<number>> {
+  ): Promise<AnswerEnvelope<number> & { depots?: ScopeDepot[] }> {
+    assertSplittable('meta.scope', query, { 'meta.scope': true });
     const asOf = new Date();
     const period = parsePeriod(query, asOf);
     const scope = await this.scopes.resolve(user, period);
@@ -46,7 +59,21 @@ export class AiReadController {
     if (scope.echo.depotIds.length === 0) {
       return belumAda(base, 'Tidak ada depot yang boleh Anda baca pada periode ini.');
     }
-    return ok(base, scope.echo.depotIds.length);
+    const answer = ok(base, scope.echo.depotIds.length);
+    // AI-7a: the depots' codes and display names (business data, not personal), so the AI web can name a depot it ranks.
+    // A network-wide role already had the list read for its scope: no second call.
+    const names = new Map((scope.network ?? (await this.depots.allDepots('')) ?? []).map((d) => [d.id, d]));
+    const depots = scope.echo.depotIds.map((depotId): ScopeDepot => {
+      const entry = { depotId, code: names.get(depotId)?.code ?? null, label: names.get(depotId)?.name ?? null };
+      try {
+        assertNoPersonalData(entry);
+        return entry;
+      } catch {
+        // assertNoPersonalData throws only PersonalDataError: one depot whose name reads as personal data loses its name, not the whole answer.
+        return { depotId, code: null, label: null };
+      }
+    });
+    return { ...answer, depots };
   }
 
   /**
@@ -64,6 +91,7 @@ export class AiReadController {
     @Query() query: MoneyQueryDto,
   ): Promise<AnswerEnvelope> {
     const { metric, ...period } = query;
+    assertSplittable(metric, period, MONEY_METRICS);
     return this.money.answer(metric, user, period);
   }
 
@@ -78,6 +106,7 @@ export class AiReadController {
     @Query() query: FranchiseQueryDto,
   ): Promise<AnswerEnvelope> {
     const { metric, ...period } = query;
+    assertSplittable(metric, period, FRANCHISE_METRICS);
     return this.franchise.answer(metric, user, period);
   }
 
@@ -89,6 +118,7 @@ export class AiReadController {
   @ApiOperation({ summary: 'One HR metric (headcount, attendance, payroll, kasbon) for a period' })
   hrMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: HrQueryDto): Promise<AnswerEnvelope> {
     const { metric, ...period } = query;
+    assertSplittable(metric, period, HR_METRICS);
     return this.hr.answer(metric, user, period);
   }
 }

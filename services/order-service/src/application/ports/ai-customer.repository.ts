@@ -63,8 +63,8 @@ export interface AiCustomerRepository {
   customerCohorts(spans: readonly AiSpan[], timeZone: string): Promise<CohortCell[]>;
   ratingStats(spans: readonly AiSpan[]): Promise<RatingStats>;
   customerSegments(depotIds: readonly string[], at: SegmentThresholds): Promise<CustomerSegmentStats>;
-  /** G-01: gallon units on DELIVERED or COMPLETED orders created in the spans. */
-  gallonsSold(spans: readonly AiSpan[]): Promise<number>;
+  /** G-01: gallon units on DELIVERED or COMPLETED orders created in the spans, per depot that sold any. */
+  gallonsSold(spans: readonly AiSpan[]): Promise<{ depotId: string; gallons: number }[]>;
   /** G-05: counter sales with a gallon line, by the empties the buyer brought. */
   refillSplit(spans: readonly AiSpan[]): Promise<RefillSplitStats>;
   /** K-04: delivery orders cancelled in the spans (by cancel time) that never left the depot (no PICKED_UP or ON_DELIVERY step). */
