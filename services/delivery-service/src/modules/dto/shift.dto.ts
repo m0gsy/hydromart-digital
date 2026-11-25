@@ -1,10 +1,20 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDateString, IsEnum, IsLatitude, IsLongitude, IsOptional, IsUUID } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsLatitude,
+  IsLongitude,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
 
 import { ShiftStatus } from '../../domain/shift';
 
-import { IsNotBefore, IsWithinDays } from '@hydromart/platform';
+import { INT4_MAX, IsNotBefore, IsWithinDays } from '@hydromart/platform';
 
 export class CheckInDto {
   @ApiProperty({ format: 'uuid', description: 'Depot the courier is checking in at.' })
@@ -20,6 +30,21 @@ export class CheckInDto {
   @Type(() => Number)
   @IsLongitude()
   lng!: number;
+
+  /**
+   * The phone's own accuracy for that fix, in metres, exactly as the HR punch sends it. Optional:
+   * older apps and check-ins queued before it was sent carry none. It decides nothing — a loose
+   * fix outside the radius is refused as "Perkiraan" rather than as a distance (2026-11-25).
+   */
+  @ApiPropertyOptional({
+    example: 12,
+    description: "The phone's accuracy for this fix, in metres. Names an approximate fix; decides nothing.",
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(INT4_MAX)
+  accuracyM?: number;
 
   @ApiPropertyOptional({
     example: '2026-07-29T01:10:00.000Z',

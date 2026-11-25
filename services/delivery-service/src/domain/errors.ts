@@ -208,11 +208,12 @@ export class NotAtDepotError extends DomainError {
       approximate
         ? // 2026-11-25: Muhammad Rouf stood inside Depot Jatibening and read "1391 m" — his phone
           // held only "Perkiraan", whose fix sits on Android's 2 km grid, so the distance meant
-          // nothing and "kalau sudah di sana" left him guessing. On the grid it is certain: say so,
-          // and name the switch, in the words of the HR punch's own refusal.
+          // nothing and "kalau sudah di sana" left him guessing. On the grid, or when the phone
+          // itself rates the fix ≥ 1000 m, say so and name the switch, in the words of the HR
+          // punch's own refusal — GPS included, since a loose fix can also be "Tepat" with GPS off.
           'Lokasi HP kamu masih "Perkiraan" (bisa meleset beberapa kilometer), jadi tidak bisa ' +
             'membuktikan kamu di depot. Buka Setelan HP → Aplikasi → Hydromart Ops → Izin → Lokasi, ' +
-            'nyalakan "Gunakan lokasi akurat", lalu coba lagi.'
+            'nyalakan "Gunakan lokasi akurat", nyalakan GPS, lalu coba lagi.'
         : // Indonesian like the HR punch's own fence message; this reaches a courier verbatim.
           // 2026-11-21: a courier at the depot read 1409 m with GPS on — Android's "Perkiraan"
           // (approximate) location permission. "Turn on GPS" sent them to fix what was already on.
