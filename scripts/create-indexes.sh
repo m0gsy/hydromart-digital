@@ -181,6 +181,13 @@ promo|promo_applications_order_rule_shipping_key|CREATE UNIQUE INDEX CONCURRENTL
 delivery|cash_settlements_orderIds_gin_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "cash_settlements_orderIds_gin_idx" ON "cash_settlements" USING GIN ("orderIds")
 depot|franchise_application_stage_events_stage_applicationId_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "franchise_application_stage_events_stage_applicationId_idx" ON "franchise_application_stage_events"("stage", "applicationId")
 payout|ledger_entries_depotId_occurredAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "ledger_entries_depotId_occurredAt_idx" ON "ledger_entries"("depotId", "occurredAt")
+loyalty|reward_redemptions_depotId_status_usedAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "reward_redemptions_depotId_status_usedAt_idx" ON "reward_redemptions"("depotId", "status", "usedAt")
+loyalty|points_transactions_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "points_transactions_createdAt_idx" ON "points_transactions"("createdAt")
+loyalty|loyalty_accounts_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "loyalty_accounts_createdAt_idx" ON "loyalty_accounts"("createdAt")
+referral|referrals_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "referrals_createdAt_idx" ON "referrals"("createdAt")
+referral|referrals_status_qualifiedAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "referrals_status_qualifiedAt_idx" ON "referrals"("status", "qualifiedAt")
+order|subscriptions_createdAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "subscriptions_createdAt_idx" ON "subscriptions"("createdAt")
+crm|campaigns_status_sentAt_idx|CREATE INDEX CONCURRENTLY IF NOT EXISTS "campaigns_status_sentAt_idx" ON "campaigns"("status", "sentAt")
 '
 
 # One rule, one place. It lived in two places for exactly one deploy, and in that deploy the

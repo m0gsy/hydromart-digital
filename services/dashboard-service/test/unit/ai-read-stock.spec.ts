@@ -2,7 +2,6 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import { LOYALTY_METRIC_IDS, LOYALTY_METRICS, LoyaltyMetricsService } from '../../src/application/ai-read/loyalty-metrics';
 import { ReadScope, ReadScopeService } from '../../src/application/ai-read/scope.service';
 import { STOCK_METRIC_IDS, STOCK_METRICS, StockMetricsService } from '../../src/application/ai-read/stock-metrics';
 import { depotsOn, plusDays, stretchesOf } from '../../src/application/ai-read/stretches';
@@ -323,24 +322,6 @@ describe('S-06 forecast', () => {
     const down = build(WHOLE, { salesForecast: jest.fn().mockResolvedValueOnce({ predictedDaily: [1, 1, 1, 1, 1, 1, 1], predictedTotal: 7 }).mockResolvedValueOnce(null) });
     expect(await down.service.answer('S-06', user, NOVEMBER, NOW)).toMatchObject({ status: 'belum_ada', value: null });
     expect(await build(scopeOf([span(D1, '2026-11-01', '2026-11-10')])).service.answer('S-06', user, NOVEMBER, NOW)).toMatchObject({ status: 'belum_ada' });
-  });
-});
-
-describe('LoyaltyMetricsService', () => {
-  const svc = (scope: ReadScope = WHOLE) => new LoyaltyMetricsService({ resolve: jest.fn(async () => scope) } as unknown as ReadScopeService);
-
-  it('knows O-01..O-09 and A-01, and every one answers belum_ada with its own reason and no number', async () => {
-    expect(LOYALTY_METRIC_IDS).toEqual(['O-01', 'O-02', 'O-03', 'O-04', 'O-05', 'O-06', 'O-07', 'O-08', 'O-09', 'A-01']);
-    for (const id of LOYALTY_METRIC_IDS) {
-      const res = await svc().answer(id, user, NOVEMBER, NOW);
-      expect(res).toMatchObject({ metricId: id, status: 'belum_ada', value: null, unit: LOYALTY_METRICS[id].unit, scope: { depotIds: [D1, D2] } });
-      expect(res.reason).toBe(LOYALTY_METRICS[id].reason);
-    }
-  });
-
-  it('404s an unknown id, and still refuses a bad period', async () => {
-    await expect(svc().answer('O-99', user, NOVEMBER, NOW)).rejects.toBeInstanceOf(NotFoundException);
-    await expect(svc().answer('O-04', user, {}, NOW)).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 

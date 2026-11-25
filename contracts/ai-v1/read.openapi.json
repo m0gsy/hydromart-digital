@@ -798,8 +798,8 @@
     },
     "/dashboard/api/v1/ai/read/loyalty": {
       "get": {
-        "summary": "One loyalty, referral, promo, subscription, campaign or open-queue metric for a period.",
-        "description": "The loyalty group of the metric dictionary (section 3.8) and the open queues (3.11). EVERY metric of this group currently answers belum_ada with a reason: the network and per-period sources that the owner decisions 28-30 ask for are not built yet, and the old per-depot or all-time figures count a person twice or ignore the period, so they are not served. The route exists so the AI web can say why instead of guessing. The period and the scope are still resolved (a bad period is 400, an unreadable scope 503).\n\nPeople: when these metrics are built they count people, so the masking rule applies (a cell of fewer than 3 people answers \"kurang dari 3\", with the complement held back).",
+        "summary": "One loyalty, referral, promo-cost, subscription, campaign or open-queue metric (O-, A-). The people metrics are for ONE whole, closed calendar month.",
+        "description": "The loyalty group of the metric dictionary (section 3.8) and the open queues (3.11). The metric is the `metric` query parameter; the answer is the AnswerEnvelope.\n\nPeople: O-02, O-04, O-06, O-08 and O-09 count people (redeemers, loyalty members, referees, subscribers, campaign recipients). No name, phone or address is ever read. Each is defined for ONE whole calendar month: a day, a week, a year, a range over two months or a range that is not a whole month is a 400, so two answers never overlap and cannot be subtracted to isolate the few people between them. Only a CLOSED month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\"). A group of 1 or 2 people is not given as a number (ditahan, reason \"kurang dari 3\", or a cell with value null and flag \"kurang dari 3\"), and a total published beside held cells also holds the smallest neighbour back (flag \"ditahan\"). A total as of a date (O-04's accounts) is rounded to a multiple of 5.\n\nNetwork: loyalty accounts, referrals, subscriptions and campaigns have no depot of their own (the depot a customer chose moves, so a past month cannot be split by depot without misplacing people). O-04, O-06, O-08 and O-09 are answered for the whole network only, and only for a role that reads every depot and every legal entity; any other role gets ditahan. O-02 (by pick-up depot and hand-over day), O-07 (by order date) and A-01 (open items now) follow the caller's depots and legal entities: a fact counts only for the days its depot was readable by the caller.\n\nMoney: O-07 may take any period. A-01 is about now and is answered over today whatever period was sent.\n\nSources of truth: loyalty-service (O-02, O-04), referral-service (O-06), order-service (O-07 discounts, O-08 subscriptions), crm-service (O-09), depot-service (A-01). A source that cannot answer, or answers something this API does not understand, makes the metric belum_ada (never 0). O-01, O-03 and O-05 are belum_ada by decision, each with its reason.",
         "security": [
           {
             "aiToken": []
@@ -885,11 +885,11 @@
                   "metricId": "O-04",
                   "period": {
                     "unit": "month",
-                    "from": "2026-11-01",
-                    "to": "2026-11-30",
+                    "from": "2026-10-01",
+                    "to": "2026-10-31",
                     "timeZone": "Asia/Jakarta",
-                    "fromAt": "2026-10-31T17:00:00.000Z",
-                    "toAt": "2026-11-30T17:00:00.000Z"
+                    "fromAt": "2026-09-30T17:00:00.000Z",
+                    "toAt": "2026-10-31T17:00:00.000Z"
                   },
                   "scope": {
                     "depotIds": [
@@ -899,11 +899,15 @@
                       "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
                     ]
                   },
-                  "value": null,
-                  "status": "belum_ada",
-                  "unit": "poin",
+                  "value": {
+                    "asOf": "2026-10-31",
+                    "points": 987650,
+                    "accounts": 1235
+                  },
+                  "status": "ok",
+                  "unit": "poin, orang",
                   "asOf": "2026-11-25T03:00:00.000Z",
-                  "reason": "Poin beredar jaringan (saldo semua pelanggan, masing-masing sekali) belum ada; yang dihitung sekarang per depot dan menghitung pelanggan di dua depot dua kali (keputusan 28-A belum dibangun)."
+                  "label": "poin beredar jaringan per akhir hari 2026-10-31: seluruh buku poin sampai hari itu, tiap pelanggan sekali, dalam poin saja"
                 }
               }
             }
@@ -992,61 +996,66 @@
             "unit": "poin",
             "wholeMonthOnly": false,
             "value": "null",
-            "rules": "Always belum_ada: points given per period are not computed anywhere (decision pending)."
+            "rules": "Always belum_ada by decision: points given per period are not computed anywhere; loyalty-service keeps a balance and a history per account only."
           },
           "O-02": {
-            "unit": "poin",
-            "wholeMonthOnly": false,
-            "value": "null",
-            "rules": "Always belum_ada for now: points redeemed by pickup depot and handover date (decision 28-A) is not built; the existing figure counts cancelled redemptions and uses the customer's home depot."
+            "unit": "poin, orang",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ points: number, redemptions: number, redeemers: number }",
+            "rules": "Points of rewards actually HANDED OVER (collected), by the pick-up depot and the hand-over date (WIB), over the days each depot was readable by the caller; cancelled and expired redemptions are not counted. redeemers = distinct customers (one person at two depots is one). 0 is a real answer; 1 or 2 redeemers is ditahan. belum_ada when loyalty-service cannot be read, when a handed-over reward in the month has no pick-up depot recorded (the number would be short), or when the scope holds more than 100 depots or 200 stretches. Only a closed month is answered; the running month is ditahan (\"bulan berjalan belum ditutup\")."
           },
           "O-03": {
             "unit": "poin",
             "wholeMonthOnly": false,
             "value": "null",
-            "rules": "Always belum_ada: expired points cannot be answered, the expiry job is off by default."
+            "rules": "Always belum_ada by decision: expired points cannot be answered, the expiry job is off by default so nothing is recorded."
           },
           "O-04": {
-            "unit": "poin",
-            "wholeMonthOnly": false,
-            "value": "null",
-            "rules": "Always belum_ada for now: network points outstanding with each customer counted once (decision 28-A) is not built; the per-depot figure counts a customer in two depots twice."
+            "unit": "poin, orang",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ asOf: \"YYYY-MM-DD\", points: number, accounts: number }",
+            "rules": "Points outstanding of the whole network as of the end of the last day of a CLOSED month: the whole points ledger up to then, each customer once, in points only (no rupiah value per point is set). Points that should already have expired still count (the expiry job is off). accounts = loyalty accounts that existed that day, ALWAYS rounded to a multiple of 5; 1 or 2 accounts is ditahan. Network only: ditahan for a role that does not read every depot and every legal entity. belum_ada when loyalty-service cannot be read. The running month is ditahan (\"bulan berjalan belum ditutup\")."
           },
           "O-05": {
             "unit": "orang",
             "wholeMonthOnly": false,
             "value": "null",
-            "rules": "Always belum_ada for now: members per tier by the depot tier ladder (decision 28-A) is not built. When built it counts people, so a tier cell of fewer than 3 answers \"kurang dari 3\" (masking)."
+            "rules": "Always belum_ada for now: members per tier by the depot tier ladder (decision 28-A) needs the tier as of a past month-end, and only today's tier is kept; a headcount of today is not answered either, because day-to-day differences isolate one person. When built it counts people (masking applies)."
           },
           "O-06": {
             "unit": "orang, poin, persen",
-            "wholeMonthOnly": false,
-            "value": "null",
-            "rules": "Always belum_ada for now: referral per period, both sides net of cancellations (decision 29-A) is not built; the existing figure is all-time and the referrer's side only. When built it counts people (masking applies)."
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ invited: Cell, qualified: Cell, points: { referrer, referee, total } | { value: null, flag }, conversionPct: number | null }",
+            "rules": "Referral of the whole network in ONE closed month: invited = referees whose code was used in the month; qualified = referrals that qualified in the month and still stand (a referral whose qualifying order was voided is reopened and is not counted); points = referrer side plus referee side of those qualified referrals, before any reduction for points already spent; conversionPct = qualified / invited of the same month (not one cohort, so it can pass 100). Cell = { value, flag? }: 1 or 2 people is value null with flag \"kurang dari 3\"; the points and the rate are then held back too; both cells small is ditahan. Network only (ditahan otherwise). belum_ada when referral-service cannot be read. The running month is ditahan (\"bulan berjalan belum ditutup\")."
           },
           "O-07": {
             "unit": "Rp, pesanan",
             "wholeMonthOnly": false,
-            "value": "null",
-            "rules": "Always belum_ada for now: promo cost over every discount kind (promo, voucher, member, subscription, reseller) by order date (decision 29-A) is not built; the existing report has promo and voucher only."
+            "value": "{ orders: number, discountedOrders: number, discountIdr: number, byKind: { status: \"belum_ada\", reason } }",
+            "rules": "Discount given on orders that count as sales (not BATAL, not VOID), by the order date (WIB), over the days each depot was readable by the caller: the order-level discount of every kind together (promo, voucher, member, subscription, reseller). The kinds cannot be told apart yet because an order stores one discount figure, so byKind is belum_ada. Rupiah rounded to a full rupiah. 0 is a real answer. belum_ada when order-service cannot be read or the scope holds more than 100 depots or 200 stretches."
           },
           "O-08": {
             "unit": "langganan, orang",
-            "wholeMonthOnly": false,
-            "value": "null",
-            "rules": "Always belum_ada for now: subscriptions per period and per depot (decision 30-A) is not built; the subscription engine answers a network summary of now only. When built it counts people (masking applies)."
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ new: { subscriptions, subscribers }, active: { status: \"belum_ada\", reason }, stopped: { status: \"belum_ada\", reason }, estimatedMonthlyDeliveries: { status: \"belum_ada\", reason } }",
+            "rules": "Subscriptions of the whole network made (created) in ONE closed month, whatever their status is now, from the one subscription engine in order-service (depot-made ones included once); subscribers = distinct customers. 1 or 2 subscribers is ditahan. Active, stopped and the estimate of deliveries are belum_ada: a pause and a stop date are not kept as history, and a headcount of today is not answered. Network only (the delivering depot moves with the address pin). belum_ada when order-service cannot be read. The running month is ditahan (\"bulan berjalan belum ditutup\")."
           },
           "O-09": {
             "unit": "orang",
-            "wholeMonthOnly": false,
-            "value": "null",
-            "rules": "Always belum_ada for now: campaign recipients per depot is not built; crm-service answers per campaign for the network. When built it counts people (masking applies)."
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ campaigns: number, recipients: number | null, cells: [{ outcome: \"terkirim\" | \"gagal\" | \"dilewati\" | \"lainnya\", value: number | null, flag? }] }",
+            "rules": "Campaigns that FINISHED sending in ONE closed month (by the instant they finished, so the figures are final), network-wide: recipients by outcome: terkirim = reached the in-app inbox, gagal, dilewati = opted out of marketing, lainnya = any other state. A recipient of two campaigns counts twice. There is no \"read\" figure. A cell of 1 or 2 people has value null and flag \"kurang dari 3\", and its smallest neighbours are held back (flag \"ditahan\") until the total cannot give it away; when nothing can be published it is ditahan. Network only (campaigns have no depot). belum_ada when crm-service cannot be read. The running month is ditahan (\"bulan berjalan belum ditutup\")."
           },
           "A-01": {
             "unit": "item",
             "wholeMonthOnly": false,
-            "value": "null",
-            "rules": "Always belum_ada for now: open incidents, disputes, approvals and late maintenance per depot are not gathered in one place; only the approval queue has a count."
+            "value": "{ depots, incidents, disputes, approvals, maintenanceOverdue, byDepot: [{ depotId, incidents, disputes, approvals, maintenanceOverdue }] }",
+            "rules": "Open items now at the depots the caller may read today (about now: answered over today whatever period was sent): incidents not yet resolved (new or in progress), order disputes open, depot approvals waiting for a decision (count differences, deposit refunds, COD and gallon variances), and maintenance items whose next service date has passed. Counts of items, not people; not checked in depth. belum_ada when depot-service cannot be read (for any batch of 100 depots) or no depot is readable today."
           }
         }
       }

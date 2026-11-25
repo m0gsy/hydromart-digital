@@ -26,6 +26,7 @@ import { AiReadStockController } from './ai-read-stock.controller';
 import { StockMetricsService } from '../application/ai-read/stock-metrics';
 import { LoyaltyMetricsService } from '../application/ai-read/loyalty-metrics';
 import { AiStockSourcesHttpAdapter } from '../infrastructure/http/ai-stock-sources.http.adapter';
+import { AiLoyaltySourcesHttpAdapter } from '../infrastructure/http/ai-loyalty-sources.http.adapter';
 import { FranchiseMetricsService } from '../application/ai-read/franchise-metrics';
 import { HrMetricsService } from '../application/ai-read/hr-metrics';
 import { AiOrgSourcesHttpAdapter } from '../infrastructure/http/ai-org-sources.http.adapter';
@@ -48,6 +49,7 @@ const providers: Provider[] = [
   MoneyMetricsService,
   { provide: DASHBOARD_TOKENS.AiStockSources, useClass: AiStockSourcesHttpAdapter },
   StockMetricsService,
+  { provide: DASHBOARD_TOKENS.AiLoyaltySources, useClass: AiLoyaltySourcesHttpAdapter },
   LoyaltyMetricsService,
   FranchiseMetricsService,
   HrMetricsService,

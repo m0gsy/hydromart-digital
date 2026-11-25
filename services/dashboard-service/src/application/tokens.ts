@@ -9,6 +9,8 @@ export const DASHBOARD_TOKENS = {
   AiMoneySources: Symbol('AiMoneySources'),
   /** HD-6 H4: the stock, meter and forecast facts the AI read API reads. */
   AiStockSources: Symbol('AiStockSources'),
+  /** HD-6 H4 part 2: the loyalty, referral, promo-cost, subscription, campaign and open-queue facts the AI read API reads. */
+  AiLoyaltySources: Symbol('AiLoyaltySources'),
   /** HD-6 H5: the franchise, legal-entity, HR and commission facts the AI read API reads. */
   AiOrgSources: Symbol('AiOrgSources'),
   /** HD-6 H3: the customer, delivery and gallon facts the AI read API reads. */

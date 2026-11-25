@@ -495,6 +495,10 @@ services:
       CUSTOMER_SERVICE_URL: http://customer:3002
       # HD-6 H4: the AI read API's sales forecast (S-06); without it the metric says belum_ada.
       FORECAST_SERVICE_URL: http://forecast:3014
+      # HD-6 H4 part 2: the AI read API's loyalty, referral and campaign metrics; without them those metrics say belum_ada.
+      LOYALTY_SERVICE_URL: http://loyalty:3009
+      REFERRAL_SERVICE_URL: http://referral:3011
+      CRM_SERVICE_URL: http://crm:3012
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3008/api/v1/health"]
       interval: 30s
