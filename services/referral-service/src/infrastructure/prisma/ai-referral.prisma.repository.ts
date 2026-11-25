@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnprocessableEntityException } from '@nestjs/common';
 
 import { AiReferralRepository, ReferralTotals } from '../../application/ports/ai-referral.repository';
 import { PrismaService } from './prisma.service';
+
+/** Most distinct referrers one answer will group. Past it the answer is refused (422), never a partial count. */
+export const AI_REFERRER_CAP = 50_000;
 
 /** HD-6 H4 part 2: plain Prisma reads, on the (createdAt) and (status, qualifiedAt) indexes. */
 @Injectable()
@@ -17,8 +20,13 @@ export class AiReferralPrismaRepository implements AiReferralRepository {
         where: { status: 'QUALIFIED', qualifiedAt: { gte: from, lt: to } },
         _count: { _all: true },
         _sum: { referrerPoints: true, refereePoints: true },
+        orderBy: { referrerCustomerId: 'asc' },
+        take: AI_REFERRER_CAP + 1,
       }),
     ]);
+    if (perReferrer.length > AI_REFERRER_CAP) {
+      throw new UnprocessableEntityException(`Lebih dari ${AI_REFERRER_CAP} pengajak; persempit periode.`);
+    }
     return {
       invited,
       qualified: perReferrer.reduce((n, r) => n + r._count._all, 0),

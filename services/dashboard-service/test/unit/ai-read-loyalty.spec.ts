@@ -165,6 +165,9 @@ describe('O-02, points redeemed', () => {
     expect(res).toMatchObject({ status: 'belum_ada', value: null });
     expect(res.reason).toContain('tanpa depot');
     // A depot-scoped caller is never told about rows outside their depots: the same source answer is ok.
+    // Grants down for a caller who may read the network: nothing is published (the short total must not pass as ok).
+    const grantsDown = build(OCT_WHOLE, { redemptions: jest.fn(async () => ({ redemptions: 9, points: 4500, redeemers: 6, unplaced: 2 })) }, null);
+    expect(await grantsDown.service.answer('O-02', network, OCTOBER, NOW)).toMatchObject({ status: 'belum_ada', value: null });
     const scoped = build(OCT_WHOLE, { redemptions: jest.fn(async () => ({ redemptions: 9, points: 4500, redeemers: 6, unplaced: 2 })) }, { all: false, legalEntityIds: [PT_A] });
     expect(await scoped.service.answer('O-02', manager, OCTOBER, NOW)).toMatchObject({ status: 'ok', value: { points: 4500, redeemers: 6 } });
     const many = scopeOf(Array.from({ length: 101 }, (_, i) => span(`00000000-0000-4000-8000-${String(i).padStart(12, '0')}`, '2026-10-01', '2026-10-31')));

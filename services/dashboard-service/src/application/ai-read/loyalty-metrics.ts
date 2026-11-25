@@ -161,11 +161,11 @@ export class LoyaltyMetricsService {
     }
   }
 
-  /** Whether the role reads every depot and every legal entity (the test `network()` applies). A source that cannot say is "no". */
-  private async readsWholeNetwork(user: AuthenticatedUser): Promise<boolean> {
+  /** Whether the role reads every depot and every legal entity (the test `network()` applies). null when the grants cannot be read (never guess "scoped"). */
+  private async readsWholeNetwork(user: AuthenticatedUser): Promise<boolean | null> {
     if (!hasNetworkScope(user)) return false;
     const grants = await this.grants.aiGrants(user.role);
-    return !!grants?.all;
+    return grants ? grants.all : null;
   }
 
   /** O-02: points of rewards handed over, by pick-up depot and hand-over day over the days each depot was readable. */
@@ -177,7 +177,11 @@ export class LoyaltyMetricsService {
     // A handed-over reward with no depot recorded is in no depot's number: a network total would undercount.
     // Only a caller who reads the whole network is told: a depot-scoped caller's own rows all have a depot, and
     // the source counts such rows network-wide (over the hull of all spans, so it can only over-flag, never undercount).
-    if (t.unplaced > 0 && (await this.readsWholeNetwork(user))) return env.none('Ada penukaran yang sudah diserahkan tanpa depot pengambilan tercatat pada periode ini, jadi angkanya tidak lengkap.');
+    if (t.unplaced > 0) {
+      const whole = await this.readsWholeNetwork(user);
+      if (whole === null) return env.none(DOWN);
+      if (whole) return env.none('Ada penukaran yang sudah diserahkan tanpa depot pengambilan tercatat pada periode ini, jadi angkanya tidak lengkap.');
+    }
     if (t.redeemers > 0 && t.redeemers < SMALL_GROUP_MIN) return env.held(SMALL_GROUP_REASON);
     return env.ok(
       { points: t.points, redemptions: t.redemptions, redeemers: t.redeemers },

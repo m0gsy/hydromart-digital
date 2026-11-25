@@ -1,9 +1,10 @@
+import { UnprocessableEntityException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import { AiReferralRepository } from '../../src/application/ports/ai-referral.repository';
 import { AiReferralService } from '../../src/application/services/ai-referral.service';
-import { AiReferralPrismaRepository } from '../../src/infrastructure/prisma/ai-referral.prisma.repository';
+import { AiReferralPrismaRepository, AI_REFERRER_CAP } from '../../src/infrastructure/prisma/ai-referral.prisma.repository';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { AiReferralController } from '../../src/modules/ai-referral.controller';
 import { AiReferralWindowDto } from '../../src/modules/dto/ai-referral.dto';
@@ -27,6 +28,12 @@ describe('AiReferralPrismaRepository (O-06)', () => {
     await expect(repo.totals(FROM, TO)).resolves.toEqual({ invited: 9, qualified: 4, qualifiedReferrers: 2, referrerPoints: 200, refereePoints: 100 });
     expect(prisma.referral.count.mock.calls[0][0].where).toEqual({ createdAt: { gte: FROM, lt: TO } });
     expect(prisma.referral.groupBy.mock.calls[0][0].where).toEqual({ status: 'QUALIFIED', qualifiedAt: { gte: FROM, lt: TO } });
+  });
+
+  it('refuses with 422 past the referrer cap and asks for one row more than the cap', async () => {
+    const { prisma, repo } = make(Array.from({ length: AI_REFERRER_CAP + 1 }, () => ({ c: 1, r: 1, e: 1 })));
+    await expect(repo.totals(FROM, TO)).rejects.toBeInstanceOf(UnprocessableEntityException);
+    expect(prisma.referral.groupBy.mock.calls[0][0]).toMatchObject({ take: AI_REFERRER_CAP + 1, orderBy: { referrerCustomerId: 'asc' } });
   });
 
   it('answers 0 points when nothing qualified (a null sum is not a missing answer)', async () => {
