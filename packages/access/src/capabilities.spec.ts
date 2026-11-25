@@ -142,6 +142,15 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('legalEntityAdmin');
   });
 
+  // HD-16: head office authors SOPs; HR may read the list and chase the unread.
+  it('lets head office write SOPs and HR read them', () => {
+    expect(CAPABILITIES.sopManage).toEqual(['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);
+    expect(can('sopManage', 'HR')).toBe(false);
+    expect(CAPABILITIES.sopRead).toEqual(['HR', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);
+    expect(can('sopRead', 'KEPALA_DEPOT')).toBe(false);
+    expect(CUSTOM_FORBIDDEN).not.toContain('sopManage');
+  });
+
   // AI-5: n8n raises "new franchise application" with its machine token's scopes; the people
   // told are the ones who review applications, and nobody else gets to raise it.
   it('leaves raising the franchise-application notification to the machine account', () => {

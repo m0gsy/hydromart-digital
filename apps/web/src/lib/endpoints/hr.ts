@@ -399,6 +399,19 @@ export const hr = {
     createAnnouncement: '/announcements/api/v1/announcements',
     announcementsMe: '/announcements/api/v1/announcements/me',
     readAnnouncement: (id: string) => `/announcements/api/v1/announcements/me/${id}/read`,
+    // HD-16 — SOP documents and versions (hr-service). Read sopRead, write sopManage.
+    sops: '/sops/api/v1/sops',
+    sop: (id: string) => `/sops/api/v1/sops/${id}`,
+    sopUpload: '/sops/api/v1/sops/uploads',
+    sopVersions: (id: string) => `/sops/api/v1/sops/${id}/versions`,
+    sopUnread: (versionId: string, q: { depotId?: string; page?: number; pageSize?: number } = {}) => {
+      const p = new URLSearchParams();
+      if (q.depotId) p.set('depotId', q.depotId);
+      if (q.page) p.set('page', String(q.page));
+      if (q.pageSize) p.set('pageSize', String(q.pageSize));
+      const qs = p.toString();
+      return `/sops/api/v1/sops/versions/${versionId}/unread${qs ? `?${qs}` : ''}`;
+    },
     performanceDashboard: (periodMonth: string, depotId?: string) => {
       const p = new URLSearchParams({ periodMonth });
       if (depotId) p.set('depotId', depotId);

@@ -66,6 +66,8 @@ const SEGMENT_ENV: Record<string, string> = {
   'employee-documents': 'HR_SERVICE_URL',
   'employee-assets': 'HR_SERVICE_URL',
   announcements: 'HR_SERVICE_URL',
+  // HD-16: SOP documents and versions (hr-service). Own public segment, same upstream.
+  sops: 'HR_SERVICE_URL',
   'shift-rotations': 'HR_SERVICE_URL',
 };
 

@@ -123,6 +123,10 @@ import { ANNOUNCEMENT_REPOSITORY } from '../application/ports/announcement.repos
 import { AnnouncementService } from '../application/services/announcement.service';
 import { AnnouncementPrismaRepository } from '../infrastructure/prisma/announcement.prisma.repository';
 import { AnnouncementController, SelfAnnouncementController } from './announcement.controller';
+import { SopService } from '../application/services/sop.service';
+import { SOP_REPOSITORY } from '../application/ports/sop.repository';
+import { SopPrismaRepository } from '../infrastructure/prisma/sop.prisma.repository';
+import { SopController } from './sop.controller';
 import { SettingsController } from './settings.controller';
 import { EmployeesController } from './employees.controller';
 import { FaceController, SelfFaceController } from './face.controller';
@@ -256,6 +260,8 @@ const providers: Provider[] = [
   AssetService,
   { provide: ANNOUNCEMENT_REPOSITORY, useClass: AnnouncementPrismaRepository },
   AnnouncementService,
+  { provide: SOP_REPOSITORY, useClass: SopPrismaRepository },
+  SopService,
   ShiftReminderService,
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
@@ -302,6 +308,7 @@ const providers: Provider[] = [
     AssetController,
     SelfAnnouncementController,
     AnnouncementController,
+    SopController,
   ],
   providers,
   exports: [PrismaService, HrConfigService, SettingsCache],

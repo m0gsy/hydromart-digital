@@ -311,6 +311,7 @@ model Employee {
   leaveBalances    LeaveBalance[]
   documents        EmployeeDocument[]
   announcementReads AnnouncementRead[]
+  sopAcks           SopAck[]
   shiftAssignments  ShiftAssignment[]
   depotMoves        EmployeeDepotMove[]
   /// HD-5: which legal entity employs this person, by date.
@@ -735,6 +736,78 @@ model AnnouncementRead {
   @@unique([announcementId, employeeId])
   @@index([employeeId])
   @@map("announcement_reads")
+}
+
+/// HD-16 — a standard operating procedure. The row is only the name; what staff read lives in
+/// its versions, which never change after they are written (a correction is a new version).
+model Sop {
+  id        String       @id @default(uuid()) @db.Uuid
+  title     String
+  createdBy String?      @db.Uuid
+  createdAt DateTime     @default(now())
+
+  versions  SopVersion[]
+
+  @@map("sops")
+}
+
+/// One published wording of a SOP. IMMUTABLE after create, so "what did staff acknowledge in March"
+/// stays answerable. Text and/or a PDF (migration CHECK: at least one). In force for a depot from
+/// `effectiveFrom` (a WIB day) until a higher versionNo that covers that depot also takes effect.
+model SopVersion {
+  id            String            @id @default(uuid()) @db.Uuid
+  sopId         String            @db.Uuid
+  versionNo     Int
+  title         String
+  body          String?
+  /// Private-bucket key of the PDF (StoragePort key under hr/sop/), never a URL.
+  fileKey       String?
+  fileName      String?
+  sizeBytes     Int?
+  /// A WIB calendar day, stored as @db.Date.
+  effectiveFrom DateTime          @db.Date
+  /// True = every depot; false = exactly the depots named in `depots`.
+  allDepots     Boolean           @default(false)
+  /// Recipients frozen at publish, like Announcement.audienceSize: the acknowledged-share
+  /// denominator must not drift when someone is hired or resigns later.
+  audienceSize  Int               @default(0)
+  publishedBy   String?           @db.Uuid
+  createdAt     DateTime          @default(now())
+
+  sop           Sop               @relation(fields: [sopId], references: [id], onDelete: Cascade)
+  depots        SopVersionDepot[]
+  acks          SopAck[]
+
+  @@unique([sopId, versionNo])
+  @@index([sopId, effectiveFrom])
+  @@map("sop_versions")
+}
+
+/// A depot a version applies to (depot-service owns depots: a bare id, no foreign key).
+model SopVersionDepot {
+  versionId String     @db.Uuid
+  depotId   String     @db.Uuid
+
+  version   SopVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@id([versionId, depotId])
+  @@index([depotId])
+  @@map("sop_version_depots")
+}
+
+/// "Sudah dibaca" — unique per (version, employee): acknowledging twice is not two acks.
+model SopAck {
+  id         String     @id @default(uuid()) @db.Uuid
+  versionId  String     @db.Uuid
+  employeeId String     @db.Uuid
+  ackedAt    DateTime   @default(now())
+
+  version    SopVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, employeeId])
+  @@index([employeeId])
+  @@map("sop_acks")
 }
 
 /// Non-working day. depotId null = network-wide (national) holiday.

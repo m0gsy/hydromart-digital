@@ -474,6 +474,17 @@ export const CAPABILITIES = {
   // hr-service (HRIS Lite). Manage employees, face enrollment, attendance edits, and the
   // SalaryConfiguration tunables. HR desk + head office; SUPER_ADMIN always.
   hrAdmin: ['HR', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  /*
+   * hr-service (HD-16, SOP). Write: create a SOP, publish a new version, upload its PDF. Head
+   * office and directors; the HR desk reads but does not author (owner decision 2026-11-26).
+   * Not in CUSTOM_FORBIDDEN: an ordinary capability with no depot fence, same family as hrAdmin.
+   */
+  sopManage: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  /*
+   * hr-service (HD-16) - read the SOP list, a SOP's version history and who has not yet read a
+   * version. HR is added to the writers because the unread list is what HR chases.
+   */
+  sopRead: ['HR', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   // hr-service - plan or cancel a dated cross-depot assignment (lend an employee to another
   // depot, or schedule a permanent move). HR and head office ONLY, and deliberately not
   // depot-scoped: a depot manager holding this could pull another depot's staff. A manager

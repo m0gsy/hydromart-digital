@@ -174,7 +174,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'earningRules',
     ],
   },
-  { key: 'hr', caps: ['hrView', 'hrViewOwn', 'hrAdmin', 'employeeAssign', 'employeeAssignRequest', 'hrPayroll', 'payrollRead', 'leaveApprove'] },
+  { key: 'hr', caps: ['hrView', 'hrViewOwn', 'hrAdmin', 'employeeAssign', 'employeeAssignRequest', 'hrPayroll', 'payrollRead', 'leaveApprove', 'sopManage', 'sopRead'] },
 ];
 
 /**
