@@ -136,6 +136,7 @@ const DYNAMIC_PARENTS = [
   '/hq/access',
   '/hq/depots',
   '/hq/orders',
+  '/hr/me/sop',
   '/products',
   '/hq/sop',
   '/orders',

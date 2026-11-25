@@ -95,6 +95,24 @@ export class SopPrismaRepository implements SopRepository {
     return new Map(rows.map((r) => [r.versionId, r._count._all]));
   }
 
+  ack(versionId: string, employeeId: string): Promise<{ ackedAt: Date }> {
+    return this.prisma.sopAck.upsert({
+      where: { versionId_employeeId: { versionId, employeeId } },
+      create: { versionId, employeeId },
+      update: {},
+      select: { ackedAt: true },
+    });
+  }
+
+  async ackedAt(employeeId: string, versionIds: readonly string[]): Promise<Map<string, Date>> {
+    if (versionIds.length === 0) return new Map();
+    const rows = await this.prisma.sopAck.findMany({
+      where: { employeeId, versionId: { in: [...versionIds] } },
+      select: { versionId: true, ackedAt: true },
+    });
+    return new Map(rows.map((r) => [r.versionId, r.ackedAt]));
+  }
+
   async listAckedEmployeeIds(versionId: string): Promise<string[]> {
     const rows = await this.prisma.sopAck.findMany({ where: { versionId }, select: { employeeId: true } });
     return rows.map((r) => r.employeeId);

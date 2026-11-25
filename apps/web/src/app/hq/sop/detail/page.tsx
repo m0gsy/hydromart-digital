@@ -7,13 +7,13 @@ import { ArrowLeft } from '@phosphor-icons/react';
 import { SopVersionForm } from '@/components/hq/sop-version-form';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { fetchAllDepots } from '@/lib/all-depots';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { formatDate } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
-import { audienceLabel, type SopDetail, type SopUnreadPage, type SopVersionDetail } from '@/lib/sop';
+import { audienceLabel, fetchPdf, type SopDetail, type SopUnreadPage, type SopVersionDetail } from '@/lib/sop';
 import { useAsync } from '@/lib/use-async';
 import { useQueryParam } from '@/lib/use-query-param';
 
@@ -79,6 +79,15 @@ export default function HqSopDetailPage() {
 function VersionCard({ version: v, depotName }: { version: SopVersionDetail; depotName: Map<string, string> }) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  async function openPdf() {
+    setPdfError(null);
+    try {
+      await fetchPdf(v.id, v.fileName);
+    } catch (err) {
+      setPdfError(err instanceof ApiError ? err.message : t('hq.sop.pdfFailed'));
+    }
+  }
   return (
     <li>
       <Card className="flex flex-col gap-2 p-4">
@@ -94,8 +103,18 @@ function VersionCard({ version: v, depotName }: { version: SopVersionDetail; dep
           {v.unread > 0 ? ` · ${t('hq.sop.unread', { n: v.unread })}` : ` · ${t('hq.sop.allRead')}`}
         </p>
         {v.hasFile && (
-          <p className="text-xs text-muted">
-            {t('hq.sop.file')}: {v.fileName}
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            <span>
+              {t('hq.sop.file')}: {v.fileName}
+            </span>
+            <Button variant="secondary" onClick={openPdf}>
+              {t('hq.sop.openPdf')}
+            </Button>
+          </div>
+        )}
+        {pdfError && (
+          <p className="text-sm text-[color:var(--danger)]" role="alert">
+            {pdfError}
           </p>
         )}
         {v.body && <p className="line-clamp-4 whitespace-pre-line text-sm">{v.body}</p>}

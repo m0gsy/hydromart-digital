@@ -2060,6 +2060,8 @@ export const hq = {
     unread: '{n} belum membaca',
     allRead: 'Semua sudah membaca',
     file: 'Berkas PDF',
+    openPdf: 'Buka PDF',
+    pdfFailed: 'Gagal membuka PDF.',
     detail: 'Rincian',
     showUnread: 'Siapa yang belum membaca',
     hideUnread: 'Tutup daftar',

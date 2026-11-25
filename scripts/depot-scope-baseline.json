@@ -1,5 +1,5 @@
 {
-  "count": 62,
+  "count": 65,
   "routes": [
     "services/admin-service/src/modules/customer-support.controller.ts Post :id/messages @Can(-)",
     "services/auth-service/src/modules/auth/account.controller.ts Post sessions/:id/revoke @Can(-)",
@@ -38,6 +38,9 @@
     "services/hr-service/src/modules/leave.controller.ts Patch :id/cancel @Can(-)",
     "services/hr-service/src/modules/loan-request.controller.ts Patch :id/cancel @Can(-)",
     "services/hr-service/src/modules/payroll.controller.ts Get me/:id @Can(-)",
+    "services/hr-service/src/modules/sop.controller.ts Get versions/:versionId @Can(-)",
+    "services/hr-service/src/modules/sop.controller.ts Get versions/:versionId/file @Can(-)",
+    "services/hr-service/src/modules/sop.controller.ts Post versions/:versionId/ack @Can(-)",
     "services/loyalty-service/src/modules/reward.controller.ts Post redemptions/:id/cancel @Can(-)",
     "services/order-service/src/modules/cart.controller.ts Delete items/:productId @Can(-)",
     "services/order-service/src/modules/cart.controller.ts Put items/:productId @Can(-)",

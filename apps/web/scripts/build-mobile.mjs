@@ -126,6 +126,9 @@ const SURFACES = {
       'dashboard/expense-claims',
       'hr/me/leave',
       'hr/me/announcements',
+      // HD-16: SOPs to read, and "sudah dibaca".
+      'hr/me/sop',
+      'hr/me/sop/detail',
       'hr/me/payroll/detail',
     ],
     withholds: ['hq', 'hr/payroll', 'hr/employees'],

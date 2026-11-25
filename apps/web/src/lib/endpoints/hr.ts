@@ -401,6 +401,11 @@ export const hr = {
     readAnnouncement: (id: string) => `/announcements/api/v1/announcements/me/${id}/read`,
     // HD-16 — SOP documents and versions (hr-service). Read sopRead, write sopManage.
     sops: '/sops/api/v1/sops',
+    // PR-2 — the employee's own side: what binds me, one version, its PDF, and "sudah dibaca".
+    sopsMe: '/sops/api/v1/sops/me',
+    sopVersion: (versionId: string) => `/sops/api/v1/sops/versions/${versionId}`,
+    sopFile: (versionId: string) => `/sops/api/v1/sops/versions/${versionId}/file`,
+    sopAck: (versionId: string) => `/sops/api/v1/sops/versions/${versionId}/ack`,
     sop: (id: string) => `/sops/api/v1/sops/${id}`,
     sopUpload: '/sops/api/v1/sops/uploads',
     sopVersions: (id: string) => `/sops/api/v1/sops/${id}/versions`,

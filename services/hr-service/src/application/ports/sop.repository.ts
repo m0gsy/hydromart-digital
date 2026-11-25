@@ -39,4 +39,8 @@ export interface SopRepository {
   /** versionId -> how many employees acknowledged it. */
   countAcks(versionIds: readonly string[]): Promise<Map<string, number>>;
   listAckedEmployeeIds(versionId: string): Promise<string[]>;
+  /** Idempotent: a second ack keeps the first time. */
+  ack(versionId: string, employeeId: string): Promise<{ ackedAt: Date }>;
+  /** versionId -> when this employee acknowledged it, for the ones they did. */
+  ackedAt(employeeId: string, versionIds: readonly string[]): Promise<Map<string, Date>>;
 }

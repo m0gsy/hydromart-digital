@@ -2044,6 +2044,8 @@ export const hq = {
     unread: '{n} have not read it',
     allRead: 'Everyone has read it',
     file: 'PDF file',
+    openPdf: 'Open PDF',
+    pdfFailed: 'Could not open the PDF.',
     detail: 'Details',
     showUnread: 'Who has not read it',
     hideUnread: 'Close the list',

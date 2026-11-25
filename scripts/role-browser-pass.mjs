@@ -187,7 +187,7 @@ const DRIVER = R(`
 /driver/performance /driver/profile /driver/route /driver/settings /driver/settlement
 /driver/settlement/history /driver/shift/check-in /driver/shift/status
 /hr/me /hr/me/announcements /hr/me/attendance /hr/me/check-in /hr/me/enroll
-/hr/me/leave /hr/me/payroll /hr/me/payroll/detail
+/hr/me/leave /hr/me/payroll /hr/me/payroll/detail /hr/me/sop /hr/me/sop/detail
 `);
 
 // The 27 pages of the customer binary. `/resellers` ships only in the ops binary but is
@@ -235,6 +235,7 @@ const ID_SOURCE = {
   '/orders/detail': '/orders',
   '/driver/deliveries/detail': '/driver',
   '/hr/me/payroll/detail': '/hr/me/payroll',
+  '/hr/me/sop/detail': '/hr/me/sop',
   '/m/manager/approvals/detail': '/m/manager/approvals',
   '/dashboard/approvals/detail': '/dashboard/approvals',
   '/dashboard/customers/detail': '/dashboard/customers',
