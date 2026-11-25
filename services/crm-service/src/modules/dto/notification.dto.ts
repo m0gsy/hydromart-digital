@@ -1,6 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayUnique,
+  IsArray,
   IsEnum,
+  IsIn,
   IsISO8601,
   IsNotEmpty,
   IsObject,
@@ -231,4 +236,74 @@ export class MorningSummaryResultDto {
 export class NotificationIdDto {
   @ApiProperty({ format: 'uuid', description: 'The notification row; a repeated eventId answers the same one.' })
   id!: string;
+}
+
+/** AI-7c: the data groups of the AI web an access request can name (contracts/ai-v1). */
+export const AI_ACCESS_GROUPS = [
+  'scope',
+  'money',
+  'stock',
+  'loyalty',
+  'franchise',
+  'hr',
+  'customers',
+  'delivery',
+  'gallons',
+] as const;
+export type AiAccessGroup = (typeof AI_ACCESS_GROUPS)[number];
+
+const lowerEach = ({ value }: { value: unknown }): unknown =>
+  Array.isArray(value) ? value.map((v) => (typeof v === 'string' ? v.toLowerCase() : v)) : value;
+
+/**
+ * AI-7c — what n8n forwards when someone presses "Minta akses" in the AI web: ids only. The
+ * requester's name and role and the entities' names are looked up here, never carried by n8n.
+ */
+export class AiAccessRequestedDto {
+  @ApiProperty({ example: 'ai-access-request:00000000-0000-4000-8000-000000000001' })
+  @IsString()
+  @Matches(/^ai-access-request:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, {
+    message: 'eventId must be ai-access-request:<uuid>',
+  })
+  eventId!: string;
+
+  // v4 only: auth-service's by-ids lookup refuses any other version, which would loop as a 503.
+  @ApiProperty({ format: 'uuid', description: 'The account that asked (a v4 uuid).' })
+  @IsUUID('4')
+  requesterAccountId!: string;
+
+  // Lower-cased first, so the same entity in two spellings is a repeat (and never a double lookup).
+  @ApiPropertyOptional({ type: [String], format: 'uuid', maxItems: 20 })
+  @IsOptional()
+  @Transform(lowerEach)
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  legalEntityIds?: string[];
+
+  @ApiPropertyOptional({ enum: AI_ACCESS_GROUPS })
+  @IsOptional()
+  @IsIn(AI_ACCESS_GROUPS)
+  group?: AiAccessGroup;
+}
+
+export class AiAccessRequestedResultDto {
+  @ApiProperty({ description: 'People who can grant AI access (holders of legalEntityAiAccess).' })
+  recipients!: number;
+
+  @ApiProperty({ description: 'Of those, how many now have the request (a retry files none twice).' })
+  notified!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'True when the hourly cap on requests was reached: nothing was sent, and it is not worth retrying.',
+  })
+  capped?: true;
+
+  @ApiProperty({
+    enum: ['pending'],
+    description: 'WhatsApp is not sent until the Meta channel is ready; never reported as sent.',
+  })
+  whatsapp!: 'pending';
 }

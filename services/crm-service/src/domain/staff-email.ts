@@ -21,6 +21,10 @@ export const STAFF_EMAIL_TEMPLATES: Partial<Record<NotificationEvent, StaffEmail
     subject: 'Persetujuan yang menunggu Anda pagi ini',
     body: 'Persetujuan yang menunggu Anda: {{summary}}.{{oldest}} Buka tautan di bawah untuk memutuskannya.',
   },
+  [NotificationEvent.AI_ACCESS_REQUESTED]: {
+    subject: 'Permintaan akses AI web: {{what}}',
+    body: '{{who}} meminta akses AI web untuk {{what}}. Buka tautan di bawah untuk memberikannya.',
+  },
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: {
     subject: 'Lamaran waralaba baru: calon mitra di {{city}}, {{province}}',
     body: 'Lamaran waralaba baru dari calon mitra di {{city}}, {{province}}. Buka tautan di bawah untuk meninjaunya.',

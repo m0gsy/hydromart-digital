@@ -166,10 +166,11 @@ fi
 
 # ------------------------------------------------------------- n8n's machine account (AI-5)
 # What n8n's token carries: the base capability (hydromart-digital's crm route for a new
-# franchise application, PR #1042), required, and the optional ones (the morning summary, AI-9),
+# franchise application, PR #1042), required, and the optional ones (the morning summary, AI-9; the
+# AI access request, AI-7c),
 # each added only once a rollback would still boot.
 SCOPE=franchiseApplicationNotify
-OPTIONAL_SCOPES=(morningSummaryNotify)
+OPTIONAL_SCOPES=(morningSummaryNotify aiAccessRequestNotify)
 if absent AIWEB_N8N_MACHINE_ID; then
   id="$("$node_bin" -e 'process.stdout.write(require("node:crypto").randomUUID())' 2>&1 || true)"
   add AIWEB_N8N_MACHINE_ID "$id"

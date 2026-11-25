@@ -3,7 +3,7 @@
   "info": {
     "title": "hydromart-digital notifications raised by machine accounts",
     "version": "1.0.0",
-    "description": "AI-5, AI-9. Routes n8n calls, with a machine token, to raise a notification in hydromart-digital's own staff notifications: a row in the staff feed (the bell on the console) and a push to the phones of the accounts it is for. hydromart-digital writes the text itself (Indonesian, the product default); the caller sends facts, never copy.\n\nAuthentication: a machine token from POST /auth/api/v1/auth/machine/token (auth.openapi.json): ES256, aud hydromart-machine, 15 minutes. Each route names the capability its token's scopes must include. An AI-web token (aud hydromart-ai) is refused on these routes, whoever the person is, and so is any hydromart-digital session token whose role does not hold that capability.\n\nAudit trail: every call is recorded in hydromart-digital's audit trail BEFORE it runs, as the machine account, with the request body, and refused with 503 when it cannot be recorded; nothing is notified then. Send X-Workflow to name the n8n workflow in that record.\n\nRate limit: counted per machine account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: unknown request fields are refused (400), so send only the fields listed. A field may be added to a response within version 1; removing or renaming one is a new contract version."
+    "description": "AI-5, AI-9, AI-7c. Routes n8n calls, with a machine token, to raise a notification in hydromart-digital's own staff notifications: a row in the staff feed (the bell on the console) and a push to the phones of the accounts it is for. hydromart-digital writes the text itself (Indonesian, the product default); the caller sends facts, never copy.\n\nAuthentication: a machine token from POST /auth/api/v1/auth/machine/token (auth.openapi.json): ES256, aud hydromart-machine, 15 minutes. Each route names the capability its token's scopes must include. An AI-web token (aud hydromart-ai) is refused on these routes, whoever the person is, and so is any hydromart-digital session token whose role does not hold that capability.\n\nAudit trail: every call is recorded in hydromart-digital's audit trail BEFORE it runs, as the machine account, with the request body, and refused with 503 when it cannot be recorded; nothing is notified then. Send X-Workflow to name the n8n workflow in that record.\n\nRate limit: counted per machine account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: unknown request fields are refused (400), so send only the fields listed. A field may be added to a response within version 1; removing or renaming one is a new contract version."
   },
   "servers": [
     {
@@ -236,6 +236,122 @@
           }
         }
       }
+    },
+    "/crm/api/v1/notifications/external/ai-access-requested": {
+      "post": {
+        "summary": "Tell the people who can grant AI web access that someone asked for it.",
+        "description": "Called by n8n when someone presses 'Minta akses' in the AI web, after the AI web has recorded the request. The token's scopes must include aiAccessRequestNotify. n8n carries ids only: the event id, the account that asked, and what it asked for (legal entity ids and/or a data group). hydromart-digital looks up who the requester is (their name and role) and the legal entities' names, writes the text itself (Indonesian) and sends it; no name or sentence passes through n8n.\n\nWho is told: every active account whose role holds the legalEntityAiAccess capability (SUPER_ADMIN by default; the same people who save the AI access matrix on /hq/legal-entities). Each gets one notification, e.g. 'Budi Santoso (HEAD OFFICE) meminta akses AI web untuk Indowater. Buka Badan hukum, bagian akses AI, untuk memberikannya.' When no legal entity is named the data group is said instead ('data keuangan'); a requester with no name on file is 'Seorang staf'. Tapping it opens /hq/legal-entities, where the AI access matrix is.\n\nChannels (owner rule 24 Nov 2026, every staff notification n8n raises): the bell in the staff notifications, a push, and an email (plain text; hydromart sends it, n8n holds no email credential). Each recipient can switch the push and the email off on their profile (/hq/profile, 'Permintaan akses AI web'); both are on by default. WhatsApp is not sent yet: it waits for the Meta channel, and the response says whatsapp 'pending', never 'sent'.\n\nA requester who does not exist, or who can already grant AI access, answers 200 with recipients 0 and notified 0: nothing is sent and nothing says who exists. Rate cap, inside hydromart-digital: at most 3 distinct eventIds per requesterAccountId and 30 overall in any rolling hour. Past it the answer is still 200, with capped true and notified 0 (nothing is sent, a warning is logged): it is not worth retrying. A retry of an eventId already filed is never counted as new. Requests for an unknown or already-capable requester are not counted.\n\nIdempotent per recipient on eventId: a retry or a replay answers 200 and sends nobody twice. A retry after a 503 completes the recipients that were not reached.",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "The n8n workflow making the call, recorded in the audit trail as workflow (trimmed, at most 120 characters). Not checked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ai7-access-request"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiAccessRequestedNotify"
+              },
+              "example": {
+                "eventId": "ai-access-request:00000000-0000-4000-8000-000000000001",
+                "requesterAccountId": "11111111-1111-4111-8111-111111111111",
+                "legalEntityIds": [
+                  "22222222-2222-4222-8222-222222222222"
+                ],
+                "group": "money"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Every person who can grant AI access has the request, or there was nobody to tell, or the hourly cap was reached (capped true; see notified).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiAccessRequestedResult"
+                },
+                "example": {
+                  "recipients": 2,
+                  "notified": 2,
+                  "whatsapp": "pending"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: a field missing, malformed or unknown (a name or a sentence is not accepted), more than 20 legal entities, a repeated one, or a group that is not listed. Not worth retrying with the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI and machine access was switched off (the published key set is empty): POST /auth/api/v1/auth/machine/token then answers 503. Get a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include aiAccessRequestNotify. Not worth retrying until the machine account's scopes change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this machine account. Wait the seconds in Retry-After, then retry with the same body.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call (nothing was sent), or the requester, the legal entities or the recipients could not be read, or a recipient could not be told (the others keep theirs). Retry later with the same body; the eventId keeps a retry from sending twice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -381,6 +497,84 @@
               "pending"
             ],
             "description": "WhatsApp waits for the Meta channel; it is never reported as sent."
+          }
+        }
+      },
+      "AiAccessRequestedNotify": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "requesterAccountId"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "pattern": "^ai-access-request:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+            "description": "ai-access-request:<uuid of the request in the AI web>, the dedupe key.",
+            "example": "ai-access-request:00000000-0000-4000-8000-000000000001"
+          },
+          "requesterAccountId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The hydromart account that asked (a v4 uuid). Its name and role are looked up by hydromart-digital; an account that is not active reads as unknown."
+          },
+          "legalEntityIds": {
+            "type": "array",
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The legal entities asked for; a repeat in another letter case counts as a repeat (400). Their names are looked up by hydromart-digital."
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "scope",
+              "money",
+              "stock",
+              "loyalty",
+              "franchise",
+              "hr",
+              "customers",
+              "delivery",
+              "gallons"
+            ],
+            "description": "The data group asked for; said in the text when no legal entity is named."
+          }
+        }
+      },
+      "AiAccessRequestedResult": {
+        "type": "object",
+        "required": [
+          "recipients",
+          "notified",
+          "whatsapp"
+        ],
+        "properties": {
+          "recipients": {
+            "type": "integer",
+            "description": "People who can grant AI access (0 for an unknown or already-capable requester)."
+          },
+          "notified": {
+            "type": "integer",
+            "description": "Of those, how many now have the request."
+          },
+          "whatsapp": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ],
+            "description": "WhatsApp waits for the Meta channel; it is never reported as sent."
+          },
+          "capped": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Present and true only when the hourly cap on requests was reached: nothing was sent, and retrying is pointless."
           }
         }
       }

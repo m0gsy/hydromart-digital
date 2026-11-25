@@ -307,6 +307,7 @@ describe('the staff switch for each depot alert', () => {
       'dailySummary',
       'newFranchiseApp',
       'morningSummary',
+      'aiAccessRequest',
     ];
     for (const toggle of Object.values(STAFF_TOGGLE_FOR_EVENT)) expect(offered).toContain(toggle);
   });

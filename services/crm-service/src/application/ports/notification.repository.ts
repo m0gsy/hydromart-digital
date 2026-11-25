@@ -65,6 +65,9 @@ export interface NotificationRepository {
     data: RecordNotificationData & { dedupeKey?: string | null },
   ): Promise<{ record: NotificationRecord; created: boolean }>;
 
+  /** The dedupe keys of this event's rows created at or after `since` (AI-7c counts requests from them). */
+  dedupeKeysSince(event: string, since: Date): Promise<string[]>;
+
   /**
    * K5.4: the delivery this row promised did not happen. Called after the fire-and-forget
    * push chain settles, so the row exists first and the customer's inbox never waits on a

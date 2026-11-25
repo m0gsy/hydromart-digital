@@ -574,6 +574,13 @@ export const CAPABILITIES = {
    * are hydromart's own and never pass through it.
    */
   morningSummaryNotify: ['SUPER_ADMIN'],
+  /*
+   * crm-service (AI-7c) — raise "someone asks for AI web access"
+   * (POST notifications/external/ai-access-requested). Held by the n8n machine account through
+   * its token's `scopes`; same reasoning as the two above, so also in CUSTOM_FORBIDDEN. Who is
+   * TOLD is whoever holds `legalEntityAiAccess`; n8n passes ids only, the text is hydromart's.
+   */
+  aiAccessRequestNotify: ['SUPER_ADMIN'],
   // promo-service — RETIRED: the voucher-request flow was removed, nothing enforces this any more.
   // Kept only so a stored matrix row naming it still validates.
   voucherRequestDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
@@ -1058,6 +1065,8 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'franchiseApplicationNotify',
   // AI-9: the n8n machine account's, same reasoning.
   'morningSummaryNotify',
+  // AI-7c: the n8n machine account's, same reasoning.
+  'aiAccessRequestNotify',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

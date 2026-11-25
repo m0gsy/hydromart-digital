@@ -16,10 +16,11 @@ describe('AdminNotificationPrefService', () => {
 
   it('returns the canonical event list with defaults when unset', async () => {
     const prefs = await service.get('acc-1');
-    expect(prefs.channels.map((c) => c.id).slice(0, 6)).toEqual([
+    expect(prefs.channels.map((c) => c.id).slice(0, 7)).toEqual([
       'criticalSla',
       'newFranchiseApp',
       'morningSummary',
+      'aiAccessRequest',
       'payoutPending',
       'systemIncident',
       'dailyDigest',
@@ -57,7 +58,7 @@ describe('AdminNotificationPrefService', () => {
     await service.save('acc-1', [{ id: 'bogus', push: true, email: true, wa: true }]);
     const prefs = await service.get('acc-1');
     expect(prefs.channels.some((c) => c.id === 'bogus')).toBe(false);
-    expect(prefs.channels).toHaveLength(11);
+    expect(prefs.channels).toHaveLength(12);
   });
 
   it('serves the depot event list in DEPOT scope, with its own defaults', async () => {
@@ -85,7 +86,7 @@ describe('AdminNotificationPrefService', () => {
 
   it('serves both lists in ALL scope', async () => {
     const prefs = await service.get('acc-1', 'ALL');
-    expect(prefs.channels).toHaveLength(11);
+    expect(prefs.channels).toHaveLength(12);
   });
 
   /*
@@ -164,7 +165,7 @@ describe('AdminNotificationPrefService', () => {
     it('answers the HQ "new franchise application" switch, which defaults to push on', async () => {
       await service.save('acc-1', [{ id: 'newFranchiseApp', ...off }]);
       expect(await service.pushDisabledFor(['acc-1', 'acc-2'], 'newFranchiseApp')).toEqual(['acc-1']);
-      expect(PUSH_TOGGLE_IDS).toEqual([...DEPOT_EVENT_IDS, 'newFranchiseApp', 'morningSummary']);
+      expect(PUSH_TOGGLE_IDS).toEqual([...DEPOT_EVENT_IDS, 'newFranchiseApp', 'morningSummary', 'aiAccessRequest']);
     });
 
     it('asks for no accounts without touching the store', async () => {

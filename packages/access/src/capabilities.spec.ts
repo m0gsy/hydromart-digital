@@ -180,6 +180,15 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('morningSummaryNotify');
   });
 
+  // AI-7c: n8n only raises "someone asks for AI web access"; no human role does.
+  it('leaves raising an AI access request to the machine account', () => {
+    expect(CAPABILITIES.aiAccessRequestNotify).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING', 'MANAGER']) {
+      expect(can('aiAccessRequestNotify', role)).toBe(false);
+    }
+    expect(CUSTOM_FORBIDDEN).toContain('aiAccessRequestNotify');
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);

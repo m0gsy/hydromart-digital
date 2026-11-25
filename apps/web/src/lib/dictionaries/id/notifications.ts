@@ -40,6 +40,7 @@ export const notifications = {
     REFUND_REQUESTED: 'Refund menunggu persetujuan',
     FRANCHISE_APPLICATION_SUBMITTED: 'Lamaran waralaba baru',
     MORNING_SUMMARY: 'Persetujuan menunggu Anda',
+    AI_ACCESS_REQUESTED: 'Permintaan akses AI web',
     PAYMENT_FAILED: 'Pembayaran belum berhasil',
     PAYMENT_REMINDER: 'Selesaikan pembayaran',
     REFUND_PROCESSED: 'Refund diproses',

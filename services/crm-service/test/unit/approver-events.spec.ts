@@ -42,6 +42,7 @@ function build(directory?: Partial<ApproverDirectoryPort>) {
   const approvers: ApproverDirectoryPort = {
     staffIdsByRoles: byRoles,
     rolesOf: async (ids) => new Map(ids.filter((i) => ROLES[i]).map((i) => [i, ROLES[i]!])),
+    profileOf: async () => null,
     ...directory,
   };
   const repo = new InMemoryNotificationRepository();
@@ -144,6 +145,7 @@ describe('a decision event goes to the accounts that may decide it', () => {
       {
         staffIdsByRoles: async () => ['ho-1'],
         rolesOf: async (ids) => new Map(ids.map((i) => [i, ROLES[i] ?? 'STAFF_DEPOT'])),
+        profileOf: async () => null,
       },
     );
     await service.notify(NotificationEvent.PRICE_OVERRIDE_PROPOSED, '+62800', { depot: 'A', count: '1', product: 'G' });

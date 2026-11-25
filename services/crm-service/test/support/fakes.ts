@@ -275,6 +275,10 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     return { record, created: true };
   }
 
+  async dedupeKeysSince(event: string, since: Date): Promise<string[]> {
+    return [...this.keys].filter(([, r]) => r.event === event && r.createdAt >= since).map(([k]) => k);
+  }
+
   async record(data: RecordNotificationData): Promise<NotificationRecord> {
     const rec: NotificationRecord = { id: randomUUID(), ...data, createdAt: nextDate() };
     this.records.push(rec);

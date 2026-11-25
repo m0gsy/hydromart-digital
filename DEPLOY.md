@@ -354,8 +354,8 @@ dca logs -f n8n                         # n8n's own log (a failed run is kept ~7
 hydromart's events go to the AI web first (`POST /api/ingress/hd`, signed, recorded in its
 `hd_events` before it answers); the AI web hands each one to n8n on the private network, and n8n
 acts on hydromart only through `https://api.hydromart-digital.com`, with a machine account whose
-token carries two capabilities (`franchiseApplicationNotify`, and `morningSummaryNotify` for the AI-9
-morning summary). n8n is hydromart-ai's image (n8n
+token carries up to three capabilities (`franchiseApplicationNotify`, `morningSummaryNotify` for the AI-9
+morning summary, `aiAccessRequestNotify` for AI-7c). n8n is hydromart-ai's image (n8n
 2.48.8 with its configuration locked in, the workflows from git and their setup): the compose file
 gives it only its database, its encryption key and the editor's address. It sits on `private` and
 its own `egress` network (its way to the public API, which nothing else joins), keeps nothing
@@ -397,6 +397,13 @@ loopback only.
   A 503 from the route means some recipient was not reached (their queues could not be read at all):
   rerun the same body the SAME WIB day; after midnight WIB the date is no longer today (400) and the
   unfinished recipients get nothing for that day.
+- **Scopes** (AI-7c): a third capability, `aiAccessRequestNotify`, for n8n's "someone asks for AI web
+  access" call (`POST crm/api/v1/notifications/external/ai-access-requested`, ids only; hydromart looks
+  up the names and tells the holders of `legalEntityAiAccess`). `aiweb-secrets.sh` adds it to n8n's
+  `MACHINE_ACCOUNTS` entry on the first deploy after the release holding it is the last good one;
+  until then the route answers 403 to n8n. crm needs `DEPOT_SERVICE_URL` (already set) for entity names;
+  a 503 means the requester, the entities or a recipient could not be read: n8n retries the same body.
+  The route caps itself: 3 distinct requests per requester and 30 overall per rolling hour; past it the answer is 200 with `capped: true` and nothing is sent (a warning is logged).
 - **Nightly** at 04:40 [`scripts/aiweb-n8n-check.sh`](scripts/aiweb-n8n-check.sh) (log
   `/var/log/hydromart-aiweb-n8n.log`) runs hydromart-ai's `drift.mjs` inside n8n: what is
   published, and the credentials n8n holds, must be what the image's copy of git holds. A drift

@@ -75,6 +75,7 @@ describe('POST notifications/external/morning-summary (AI-9)', () => {
   const approvers: ApproverDirectoryPort = {
     staffIdsByRoles: async (roles) => Object.keys(ROLES).filter((id) => roles.includes(ROLES[id]!)),
     rolesOf: async (ids) => new Map(ids.map((id) => [id, ROLES[id]!])),
+    profileOf: async () => null,
   };
   const post = (token: string | null, body: object = BODY) => {
     const req = request(app.getHttpServer()).post(ROUTE).set('X-Workflow', 'ai9-summary');
