@@ -247,13 +247,17 @@ printf '%s\n' "$*" >> "$FAKE_CURL"
 prev=''
 for a in "$@"; do [ "$prev" = --data ] && printf '%s\n' "$a" >> "$FAKE_ALERTS"; prev="$a"; done
 pw=''
-case " $* " in *" -K - "*) pw="$(sed -n 's/^user = "staging:\(.*\)"$/\1/p')"; echo "curl-config-user-seen" >> "$FAKE_CURL" ;; esac
+cfg=''
+case " $* " in *" -K - "*) cfg="$(cat)"; pw="$(printf '%s\n' "$cfg" | sed -n 's/^user = "staging:\(.*\)"$/\1/p')"; echo "curl-config-user-seen" >> "$FAKE_CURL" ;; esac
 hfile=''; ofile=''; url=''; prev=''
 for a in "$@"; do
   [ "$prev" = -D ] && hfile="$a"
   [ "$prev" = -o ] && ofile="$a"
-  prev="$a"; url="$a"
+  prev="$a"
 done
+# The screen walk puts url and data on the config stdin (never in argv).
+url="$(printf '%s\n' "$cfg" | sed -n 's/^url = "\(.*\)"$/\1/p')"
+form="$(printf '%s\n' "$cfg" | sed -n 's/^data = "\(.*\)"$/\1/p')"
 if [ -n "$hfile" ]; then
   # The screen walk (screens_probe): the AI web's /masuk, the fake hydromart's pick, the callback, the screens.
   origin="$(printf '%s' "$url" | sed 's|^\(https*://[^/]*\).*|\1|')"
@@ -264,7 +268,7 @@ if [ -n "$hfile" ]; then
   case "$path" in
     /masuk) [ -n "${FAKE_NO_MASUK:-}" ] && { printf 500; exit 0; }
       loc "$origin/ai/masuk?challenge=c&state=s&return=r" ;;
-    /ai/masuk) case " $* " in *" user=00000000-0000-4000-8000-000000000010&challenge=c&state=s&return=r "*) loc "$origin/masuk/callback?code=x&state=s" ;; *) printf 400 ;; esac ;;
+    /ai/masuk) case "$form" in user=00000000-0000-4000-8000-000000000010\&challenge=c\&state=s\&return=r) loc "$origin/masuk/callback?code=x&state=s" ;; *) printf 400 ;; esac ;;
     /masuk/callback*) loc "$origin/" ;;
     /) heading='Apa yang perlu Anda putuskan hari ini?' ;;
     /liga) heading='Liga depot kemarin' ;;
@@ -275,6 +279,9 @@ if [ -n "$hfile" ]; then
   if [ -n "$heading" ]; then
     [ "$path" = "${FAKE_SCREEN_BAD:-}" ] && { printf 500; exit 0; }
     [ "$path" = "${FAKE_SCREEN_NOHEAD:-}" ] || printf '<h1>%s</h1>' "$heading" > "$ofile"
+    # The data a page shows only when its reads parsed, and the failure marker a failed read leaves.
+    case "$path" in / | /liga) [ "$path" = "${FAKE_SCREEN_NODATA:-}" ] || printf '<p>Depot Contoh Satu</p>' >> "$ofile" ;; esac
+    [ "$path" != "${FAKE_SCREEN_TROUBLE:-}" ] || printf '<p>Mode gangguan: sebagian data tidak bisa dibaca</p>' >> "$ofile"
     printf 200
   fi
   exit 0
@@ -342,6 +349,8 @@ if [ "$RC" = 0 ] && said 'staging OK'; then ok "a clean box deploys, logs in and
 scr=''
 for p in '/' '/liga' '/depot/00000000-0000-4000-9000-000000000001' '/minta-akses?untuk=money'; do said "screens: $p answers 200 with its heading" || scr+=" $p"; done
 [ -z "$scr" ] && ok "the screen probe signs in through /masuk and the fake hydromart's pick, and finds all four screens" || bad "screens missing:$scr"
+! grep -E 'code=|state=|user=|staging:' "$W/curl" | grep -v 'curl-config-user-seen' | grep -q . && grep -qF -- '-D ' "$W/curl" &&
+  ok "no probe curl call has a code, state, form data or the login in its arguments (they travel on the config stdin)" || bad "argv leak: $(grep -E 'code=|state=|user=' "$W/curl" | head -2 | tr '\n' ' ')"
 hash1="$(sed -n "s/^STAGING_AI_BASIC_AUTH_HASH=//p" "$T/.env" | tr -d "'")"
 [[ "$hash1" =~ ^\$2a\$10\$[0-9a-f]{40}$ ]] && [ "$(cat "$AUTHF")" = "staging $hash1" ] &&
   ok "ONLY the hash is kept: in .env (single-quoted) and in the Caddy login file" || bad "hash: '$hash1' file: '$(cat "$AUTHF" 2>&1)'"
@@ -469,6 +478,8 @@ probe_case "the sign-in not starting (/masuk answers 500)" 'screens: /masuk answ
 probe_case "a screen answering 500" 'screens: GET /liga answered 500' FAKE_SCREEN_BAD=/liga
 probe_case "a screen without its heading" "screens: GET /depot/00000000-0000-4000-9000-000000000001 answered 200 without its heading" FAKE_SCREEN_NOHEAD=/depot/00000000-0000-4000-9000-000000000001
 probe_case "the Minta akses screen without its heading" "GET /minta-akses?untuk=money answered 200 without its heading" 'FAKE_SCREEN_NOHEAD=/minta-akses?untuk=money'
+probe_case "a page with its heading but no data (every read failed)" "screens: GET / answered 200 with its heading but without its data" FAKE_SCREEN_NODATA=/
+probe_case "the league with the outage banner" "screens: GET /liga answered 200 but shows a failure state" FAKE_SCREEN_TROUBLE=/liga
 FRESH=1 deploy STAGING_AI_PASSWORD="$PW"
 grep -qF 'edge-staging' "$W/asked.app1" 2>/dev/null || true
 for t in 172.30.0.2:80 172.30.0.2:443 172.20.0.3:3000 172.20.0.2:5432 172.18.0.4:5432 172.19.0.2:443 1.1.1.1:443 172.30.0.1:22 172.31.0.1:22 172.32.0.1:22 db:5432; do

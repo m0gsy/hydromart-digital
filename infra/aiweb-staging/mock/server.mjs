@@ -410,7 +410,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     const who = reader(req);
     if (who.fail) return who.fail;
     const bad = (m) => [400, errorBody(400, 'BAD_REQUEST', m)];
-    const unit = q.get('period') ?? '';
+    const unit = q.get('period') ?? 'day';
     const date = q.get('date') ?? todayWib();
     if (!READ_UNITS.has(unit) || !validDay(date)) return bad('period must be day, week, month or year, and date a real day');
     const { depots } = who;

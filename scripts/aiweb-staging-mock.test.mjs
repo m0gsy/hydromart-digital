@@ -613,7 +613,11 @@ test('the read API: refusals use the contract shape (401, 403, 404, 400)', async
     await refusal(await get(mock, `${money}&metric=ZZ-99`, hq), 404, 'NOT_FOUND');
     await refusal(await get(mock, money, hq), 400, 'BAD_REQUEST');
     await refusal(await get(mock, `${READ_PATH}/money?metric=P-01&period=day&date=2026-02-31`, hq), 400, 'BAD_REQUEST');
-    await refusal(await get(mock, `${READ_PATH}/money?metric=P-01&date=2026-11-24`, hq), 400, 'BAD_REQUEST');
+    await refusal(await get(mock, `${READ_PATH}/money?metric=P-01&period=decade&date=2026-11-24`, hq), 400, 'BAD_REQUEST');
+    await refusal(await get(mock, `${READ_PATH}/customers?metric=C-01&date=2026-11-24`, hq), 400, 'BAD_REQUEST');
+    const dflt = await (await get(mock, `${READ_PATH}/money?metric=P-01&date=2026-11-24`, hq)).json();
+    assert.equal(dflt.period.unit, 'day', 'period defaults to day');
+    assert.equal(dflt.period.from, '2026-11-24');
     await refusal(await get(mock, `${money}&metric=P-01&split=legal`, hq), 400, 'BAD_REQUEST');
     for (const group of ['money', 'gallons', 'customers', 'scope']) {
       for (const s of ['200', '400', '401', '403']) assert.ok(read.paths[`${READ_PATH}/${group}`].get.responses[s], `${group} documents ${s}`);
