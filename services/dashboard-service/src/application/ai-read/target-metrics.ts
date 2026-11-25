@@ -39,7 +39,7 @@ interface TargetSpec {
 const SPEC: Record<TargetMetricId, TargetSpec> = {
   'T-01': { actual: 'P-01', group: 'money', field: 'revenueTargetIdr', what: 'omzet (P-01)' },
   'T-02': { actual: 'G-01', group: 'gallons', field: 'gallonsTarget', what: 'galon terjual (G-01)' },
-  'T-03': { actual: 'P-04', group: 'money', field: 'ordersTarget', what: 'jumlah pesanan (P-04, bukan BATAL/VOID, menurut tanggal pesanan dibuat)' },
+  'T-03': { actual: 'P-04', group: 'money', field: 'ordersTarget', what: 'jumlah pesanan tidak batal (P-04: bukan BATAL/VOID, bukan hanya yang terkirim, menurut tanggal pesanan dibuat; angka yang sama dengan bar pesanan di halaman target depot)' },
   'T-04': { actual: 'C-01', group: 'customers', field: 'newCustomersTarget', what: 'pelanggan baru (C-01)' },
 };
 

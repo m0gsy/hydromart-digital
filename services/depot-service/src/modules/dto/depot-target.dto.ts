@@ -61,14 +61,15 @@ export class UpsertDepotTargetDto {
   @Max(INT4_MAX)
   newCustomersTarget!: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 3000,
-    description: 'Gallons sold in the month: gallon units on delivered or completed orders by order date, counter sales and free promo gallons included (the AI read API metric G-01). 0 = no gallon target.',
+    description: 'Gallons sold in the month: gallon units on delivered or completed orders by order date, counter sales and free promo gallons included (the AI read API metric G-01). 0 = no gallon target. Left out = the stored value is kept.',
   })
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(INT4_MAX)
-  gallonsTarget!: number;
+  gallonsTarget?: number;
 }
 
 /** HD-16: the month targets of many depots at once (service-to-service). */

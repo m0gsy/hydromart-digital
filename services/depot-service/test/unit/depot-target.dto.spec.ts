@@ -14,7 +14,7 @@ describe('depot target DTOs (HD-16)', () => {
   it('the PUT takes a gallons target as a non-negative whole number, up to int4', () => {
     expect(props(UpsertDepotTargetDto, { ...base, gallonsTarget: 3000 })).toEqual([]);
     expect(props(UpsertDepotTargetDto, { ...base, gallonsTarget: 0 })).toEqual([]);
-    expect(props(UpsertDepotTargetDto, base)).toContain('gallonsTarget');
+    expect(props(UpsertDepotTargetDto, base)).toEqual([]); // an older client: left out is allowed
     expect(props(UpsertDepotTargetDto, { ...base, gallonsTarget: -1 })).toContain('gallonsTarget');
     expect(props(UpsertDepotTargetDto, { ...base, gallonsTarget: 1.5 })).toContain('gallonsTarget');
     expect(props(UpsertDepotTargetDto, { ...base, gallonsTarget: 2_147_483_648 })).toContain('gallonsTarget');

@@ -31,13 +31,14 @@ class InMemoryDepotTargetRepository implements DepotTargetRepository {
     if (existing) {
       // A monotonic stamp: two writes in the same millisecond must not look like one
       // version, which is the only thing this fake exists to tell apart.
-      Object.assign(existing, data, {
+      // like Prisma's update: a field left undefined is not written
+      Object.assign(existing, Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined)), {
         updatedAt: new Date(existing.updatedAt.getTime() + 1000),
       });
       return { ...existing };
     }
     const now = new Date();
-    const row: DepotTarget = { id: randomUUID(), ...data, createdAt: now, updatedAt: now };
+    const row: DepotTarget = { id: randomUUID(), ...data, gallonsTarget: data.gallonsTarget ?? 0, createdAt: now, updatedAt: now };
     this.rows.push(row);
     return { ...row };
   }
@@ -109,6 +110,15 @@ describe('DepotTargetService', () => {
     expect(second.ordersTarget).toBe(1500);
     expect(second.updatedBy).toBe(OTHER);
     expect(repo.rows).toHaveLength(1);
+  });
+
+  it('a write that leaves the gallons target out (an older client) keeps the stored one', async () => {
+    const first = await service.set(target(), EDITOR);
+    const older = target({ revenueTargetIdr: 1 }) as Partial<ReturnType<typeof target>>;
+    delete older.gallonsTarget;
+    const second = await service.set(older as ReturnType<typeof target>, OTHER, first.updatedAt.toISOString());
+    expect(second.revenueTargetIdr).toBe(1);
+    expect(second.gallonsTarget).toBe(3000);
   });
 
   it('keeps the gallons target with the others', async () => {

@@ -9,7 +9,8 @@ export interface UpsertDepotTargetData {
   slaTargetPct: number;
   newCustomersTarget: number;
   /** HD-16: gallons sold in the month (AI read metric G-01). 0 = no gallon target set. */
-  gallonsTarget: number;
+  /** Left out = keep what is stored (an older client that does not know the field); a new row starts at 0. */
+  gallonsTarget?: number;
   updatedBy: string;
 }
 

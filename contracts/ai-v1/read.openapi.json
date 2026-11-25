@@ -2503,7 +2503,7 @@
             "wholeMonthOnly": true,
             "exactlyOneMonth": true,
             "value": "{ target, actual, pct }; with split=depot also byDepot [{ depotId, target, actual, pct }]",
-            "rules": "Target of the month (pesanan) against its actual (P-04). Orders target against P-04: orders other than BATAL/VOID by the day the order was created (not only delivered ones). target and pct are null where no target is set (never 0 or 0%).",
+            "rules": "Orders target of the month against P-04: orders that are not BATAL/VOID, by the day the order was created (WIB). This is NOT only delivered orders, although the depot target screen labels the goal \"Order terkirim\"; it is the very figure that screen shows as its actual (the depot monthly report counts every order except cancelled and voided). target and pct are null where no target is set (never 0 or 0%).",
             "splittable": true
           },
           "T-04": {
