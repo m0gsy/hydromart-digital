@@ -105,10 +105,11 @@ describe('one tap: the shift and the attendance from one face photo', () => {
     draw();
     await user.click(await screen.findByRole('button', { name: 'capture' }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/driver'));
-    // The point alone for the shift: delivery-service's DTO refuses a field it does not declare.
+    // The shift says how sure the phone was too: delivery-service names a "Perkiraan" fix by it,
+    // including Android 16's pattern off the 2 km grid (2026-11-25).
     expect(runOrQueue).toHaveBeenNthCalledWith(1, {
       kind: 'shiftCheckIn',
-      payload: { depotId: 'depot-1', ...AT },
+      payload: { depotId: 'depot-1', ...AT, accuracyM: 5 },
     });
     // The HR punch also says how sure the phone was, so hr-service can tell a "Perkiraan" fix.
     expect(runOrQueue).toHaveBeenNthCalledWith(2, {
@@ -137,6 +138,28 @@ describe('one tap: the shift and the attendance from one face photo', () => {
       image: 'data:image/jpeg;base64,AAA',
       ...AT,
     });
+    const shift = runOrQueue.mock.calls.find(([job]) => job.kind === 'shiftCheckIn')?.[0];
+    expect(JSON.parse(JSON.stringify(shift.payload))).toEqual({ depotId: 'depot-1', ...AT });
+  });
+
+  // Every DTO that takes the accuracy refuses a negative one (Min 0), and a refused check-in is
+  // final in the offline queue. No phone should report one, but the check-in must not hang on it.
+  it('a negative accuracy is left off both, rather than turning them into a 400', async () => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (ok: PositionCallback) =>
+          ok({ coords: { latitude: AT.lat, longitude: AT.lng, accuracy: -1 } } as GeolocationPosition),
+      },
+    });
+    const user = userEvent.setup();
+    draw();
+    await user.click(await screen.findByRole('button', { name: 'capture' }));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/driver'));
+    expect(jobs()).toEqual(['shiftCheckIn', 'hrPunch']);
+    for (const [job] of runOrQueue.mock.calls) {
+      expect(JSON.parse(JSON.stringify(job.payload))).not.toHaveProperty('accuracyM');
+    }
   });
 
   it('half done: the shift opened, the face was refused — says so, and a retry punches alone', async () => {
@@ -253,6 +276,8 @@ describe('the brake, and the courier the one tap cannot serve', () => {
     await user.click(await screen.findByRole('button', { name: C.submit }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/driver'));
     expect(jobs()).toEqual(['shiftCheckIn']);
+    // The plain shift check-in carries the phone's accuracy as the one tap does.
+    expect(runOrQueue.mock.calls[0]?.[0].payload).toEqual({ depotId: 'depot-1', ...AT, accuracyM: 5 });
     expect(screen.queryByRole('button', { name: 'capture' })).toBeNull();
     expect(get.mock.calls.map(([u]) => u)).not.toContain(endpoints.hr.faceDataMe);
   });

@@ -77,6 +77,21 @@ describe('the punch says how sure the phone was', () => {
     });
   });
 
+  // hr-service's DTO refuses a negative accuracy (Min 0) and a refusal is final in the offline
+  // queue: a punch must never be lost to a number no phone should report anyway.
+  it('leaves a negative accuracy off the wire rather than having the punch refused', async () => {
+    currentPosition.mockResolvedValue(fix(-1));
+    render(<CheckInPage />);
+    fireEvent.click(screen.getByText('capture'));
+    await waitFor(() => expect(runOrQueue).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(JSON.stringify(runOrQueue.mock.calls[0]?.[0].payload))).toEqual({
+      mode: 'in',
+      image: 'data:frame',
+      lat: -6.27027,
+      lng: 106.96421,
+    });
+  });
+
   it('leaves the accuracy off the wire when the phone gave none', async () => {
     currentPosition.mockResolvedValue(fix(Number.NaN));
     render(<CheckInPage />);
