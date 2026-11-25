@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 
 import { DraftSource } from '../../domain/draft-source';
@@ -58,6 +60,21 @@ export interface CampaignSweepResult {
    * a tick with no campaign sending at all.
    */
   ok: boolean;
+}
+
+/** Keys sorted at every level, so the same request always hashes the same. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_k, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([x], [y]) => (x < y ? -1 : 1)))
+      : v,
+  );
+}
+
+/** Prisma P2002 on the aiSuggestionId unique index. */
+function isSuggestionIdCollision(e: unknown): boolean {
+  const err = e as { code?: string; meta?: { target?: unknown } };
+  return err?.code === 'P2002' && String(err.meta?.target ?? '').includes('aiSuggestionId');
 }
 
 /** Digits only, local 0-prefix read as Indonesian +62, so +62812…, 62812… and 0812… compare equal. */
@@ -194,7 +211,7 @@ export class CampaignService {
     messageTemplate: string,
     segment: SegmentFilter = {},
     scheduledFor?: Date | null,
-    ai: Pick<CreateCampaignData, 'source' | 'aiSuggestionId' | 'aiReason'> = {},
+    ai: Pick<CreateCampaignData, 'source' | 'aiSuggestionId' | 'aiReason' | 'aiRequestHash'> = {},
   ): Promise<CampaignRecord> {
     this.assertNotPast(scheduledFor);
     const { city, ...activityConditions } = { ...segment, depotId };
@@ -213,9 +230,9 @@ export class CampaignService {
    * HD-17: the AI web's draft. The depot blast a manager would make (same audience rules, same
    * validation), left DRAFT and marked AI with the suggestion id and the AI's reason. Nothing is
    * sent: a person with the campaign permission presses Kirim, exactly as for their own draft.
-   * Idempotent per suggestion id: the same id and body answers the row it made (replayed), another
-   * body is a 409. ponytail: the audience (segment) is not stored, so a replay compares the name,
-   * message, schedule, reason and author; the unique index still stops a second row either way.
+   * Idempotent per suggestion id: the same id and the same request (depot, segment, text, schedule,
+   * reason, author, compared by a stored hash) answers the row it made (replayed), anything else is
+   * a 409. The unique index still stops a second row when two calls race.
    */
   async draftFromAi(
     createdBy: string,
@@ -223,14 +240,21 @@ export class CampaignService {
     input: { name: string; messageTemplate: string; segment?: SegmentFilter; scheduledFor?: Date | null },
     ai: { suggestionId: string; reason: string },
   ): Promise<{ draft: CampaignRecord; replayed: boolean }> {
+    const aiRequestHash = createHash('sha256')
+      .update(
+        canonicalJson({
+          depotId,
+          segment: input.segment ?? {},
+          name: input.name,
+          messageTemplate: input.messageTemplate,
+          scheduledFor: input.scheduledFor?.toISOString() ?? null,
+          reason: ai.reason,
+          createdBy,
+        }),
+      )
+      .digest('hex');
     const replay = (r: CampaignRecord) => {
-      const same =
-        r.createdBy === createdBy &&
-        r.name === input.name &&
-        r.messageTemplate === input.messageTemplate &&
-        (r.scheduledFor?.getTime() ?? null) === (input.scheduledFor?.getTime() ?? null) &&
-        r.aiReason === ai.reason;
-      if (!same) throw new AiSuggestionReusedError();
+      if (r.aiRequestHash !== aiRequestHash) throw new AiSuggestionReusedError();
       return { draft: r, replayed: true };
     };
     const existing = await this.repo.findByAiSuggestionId(ai.suggestionId);
@@ -243,11 +267,13 @@ export class CampaignService {
         input.messageTemplate,
         input.segment,
         input.scheduledFor,
-        { source: DraftSource.AI, aiSuggestionId: ai.suggestionId, aiReason: ai.reason },
+        { source: DraftSource.AI, aiSuggestionId: ai.suggestionId, aiReason: ai.reason, aiRequestHash },
       );
       return { draft, replayed: false };
     } catch (e) {
-      // Two calls with one id at once: the unique index let one in; the other answers it.
+      // Only a lost race on the suggestion id's unique index is answered with the winner; a 422, a
+      // database outage or anything else is the caller's to see.
+      if (!isSuggestionIdCollision(e)) throw e;
       const raced = await this.repo.findByAiSuggestionId(ai.suggestionId);
       if (!raced) throw e;
       return replay(raced);

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
 
 import { CampaignRecord } from '../../application/ports/campaign.repository';
 import { CampaignListItemDto, CreateDepotCampaignDto } from './campaign.dto';
@@ -22,6 +22,8 @@ export class AiCampaignDraftDto extends CreateDepotCampaignDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(AI_REASON_MAX)
+  // 8+ digits in a row (spaces/dashes allowed between them) is a phone number: refused.
+  @Matches(/^(?![\s\S]*\d(?:[ -]*\d){7})/, { message: 'reason must not contain a phone number or other personal data' })
   reason!: string;
 }
 

@@ -45,8 +45,11 @@ function suggestionId(raw: string | undefined): string {
 @Injectable()
 export class AiTokenOnlyGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const user = context.switchToHttp().getRequest<{ user?: AuthenticatedUser }>().user;
-    if (user?.via !== 'ai') throw new ForbiddenException('Only the AI web token may draft here.');
+    const req = context.switchToHttp().getRequest<{ user?: AuthenticatedUser; headers: Record<string, unknown> }>();
+    if (req.user?.via !== 'ai') throw new ForbiddenException('Only the AI web token may draft here.');
+    // The audit trail reads this header before the handler runs: one spelling there too.
+    const sid = req.headers['x-ai-suggestion-id'];
+    if (typeof sid === 'string') req.headers['x-ai-suggestion-id'] = sid.toLowerCase();
     return true;
   }
 }

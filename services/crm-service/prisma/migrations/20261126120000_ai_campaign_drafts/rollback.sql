@@ -4,6 +4,7 @@
 -- Roll the code back first (the release before this one never reads these columns), then run this.
 DROP INDEX IF EXISTS "campaigns_aiSuggestionId_key";
 ALTER TABLE "campaigns"
+  DROP COLUMN IF EXISTS "aiRequestHash",
   DROP COLUMN IF EXISTS "aiReason",
   DROP COLUMN IF EXISTS "aiSuggestionId",
   DROP COLUMN IF EXISTS "source";

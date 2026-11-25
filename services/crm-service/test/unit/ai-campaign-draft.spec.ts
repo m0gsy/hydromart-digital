@@ -59,11 +59,15 @@ describe('CampaignService.draftFromAi', () => {
     expect(again.draft.id).toBe(first.draft.id);
     for (const other of [
       { ...input(), name: 'Lain' },
+      { ...input(), segment: { city: 'Bekasi' } },
       { ...input(), messageTemplate: 'Lain' },
       { ...input(), scheduledFor: new Date(Date.now() + 3_600_000) },
     ]) {
       await expect(service.draftFromAi('p-1', DEPOT, other, ai)).rejects.toBeInstanceOf(AiSuggestionReusedError);
     }
+    await expect(service.draftFromAi('p-1', '00000000-0000-4000-8000-000000000002', input(), ai)).rejects.toBeInstanceOf(
+      AiSuggestionReusedError,
+    );
     await expect(service.draftFromAi('p-2', DEPOT, input(), ai)).rejects.toBeInstanceOf(AiSuggestionReusedError);
     await expect(
       service.draftFromAi('p-1', DEPOT, input(), { ...ai, reason: 'Lain.' }),
@@ -78,19 +82,51 @@ describe('CampaignService.draftFromAi', () => {
     expect(again.replayed).toBe(true);
   });
 
-  it('answers the winner when two calls with one id race', async () => {
-    const real = repo.findByAiSuggestionId.bind(repo);
-    let calls = 0;
-    // First look: nothing yet. The other call wins the insert, so the create fails and the second look finds it.
-    jest.spyOn(repo, 'findByAiSuggestionId').mockImplementation(async (id) => (calls++ === 0 ? null : real(id)));
-    await service.createForDepot('p-1', DEPOT, 'Promo', 'Hai {{name}}', {}, null, {
-      source: DraftSource.AI,
-      aiSuggestionId: SUGGESTION,
-      aiReason: ai.reason,
+  it('the same request hashes the same whatever the key order or an omitted empty segment', async () => {
+    directory.recipients = [{ customerId: 'c-1', name: 'Andi', phone: '+6281', city: 'Bekasi' }];
+    await service.draftFromAi('p-1', DEPOT, { ...input(), segment: { lapsedDays: 3, city: 'Bekasi' } }, ai);
+    const again = await service.draftFromAi('p-1', DEPOT, { ...input(), segment: { city: 'Bekasi', lapsedDays: 3 } }, ai);
+    expect(again.replayed).toBe(true);
+    const bare = { suggestionId: '5c1e2f3a-0000-4000-8000-0000000000a2', reason: 'x' };
+    await service.draftFromAi('p-1', DEPOT, { name: 'n', messageTemplate: 'm' }, bare);
+    expect((await service.draftFromAi('p-1', DEPOT, { name: 'n', messageTemplate: 'm', segment: {} }, bare)).replayed).toBe(true);
+  });
+
+  describe('a failed create', () => {
+    const collision = { code: 'P2002', meta: { target: ['aiSuggestionId'] } };
+    const winner = async () => {
+      await service.draftFromAi('p-1', DEPOT, input(), ai);
+      const real = repo.findByAiSuggestionId.bind(repo);
+      let calls = 0;
+      // First look: nothing yet (the other call has not committed). Later looks find the winner.
+      jest.spyOn(repo, 'findByAiSuggestionId').mockImplementation(async (id) => (calls++ === 0 ? null : real(id)));
+    };
+
+    it('answers the winner when the suggestion id lost a unique race (same request), 409 for another', async () => {
+      await winner();
+      jest.spyOn(repo, 'create').mockRejectedValueOnce(collision);
+      expect((await service.draftFromAi('p-1', DEPOT, input(), ai)).replayed).toBe(true);
+      jest.restoreAllMocks();
+      await winner();
+      jest.spyOn(repo, 'create').mockRejectedValueOnce(collision);
+      await expect(service.draftFromAi('p-1', DEPOT, { ...input(), name: 'Lain' }, ai)).rejects.toBeInstanceOf(
+        AiSuggestionReusedError,
+      );
     });
-    jest.spyOn(repo, 'create').mockRejectedValueOnce(new Error('unique'));
-    const raced = await service.draftFromAi('p-1', DEPOT, input(), ai);
-    expect(raced.replayed).toBe(true);
+
+    it('rethrows anything that is not that collision, even when the id already has a row', async () => {
+      for (const err of [new Error('db down'), { code: 'P2002', meta: { target: ['name'] } }, { code: 'P2002' }, null]) {
+        jest.restoreAllMocks();
+        await winner();
+        jest.spyOn(repo, 'create').mockRejectedValueOnce(err);
+        await expect(service.draftFromAi('p-1', DEPOT, input(), ai)).rejects.toBe(err);
+      }
+    });
+
+    it('rethrows the collision when nobody owns the id after all', async () => {
+      jest.spyOn(repo, 'create').mockRejectedValueOnce(collision);
+      await expect(service.draftFromAi('p-1', DEPOT, input(), ai)).rejects.toBe(collision);
+    });
   });
 
   it('rethrows when the create failed and nobody owns the id (no audience)', async () => {
@@ -102,7 +138,7 @@ describe('CampaignService.draftFromAi', () => {
 
 describe('AiDraftController', () => {
   const ctx = (user: unknown) =>
-    ({ switchToHttp: () => ({ getRequest: () => ({ user }) }) }) as unknown as ExecutionContext;
+    ({ switchToHttp: () => ({ getRequest: () => ({ user, headers: {} }) }) }) as unknown as ExecutionContext;
 
   it('admits only the AI token', () => {
     const guard = new AiTokenOnlyGuard();
@@ -110,6 +146,15 @@ describe('AiDraftController', () => {
     for (const user of [undefined, {}, { via: 'machine' }]) {
       expect(() => guard.canActivate(ctx(user))).toThrow(ForbiddenException);
     }
+  });
+
+  it('lower-cases the suggestion id header before the audit trail reads it', () => {
+    const headers: Record<string, unknown> = { 'x-ai-suggestion-id': SUGGESTION.toUpperCase() };
+    const req = { user: { via: 'ai' }, headers };
+    new AiTokenOnlyGuard().canActivate({ switchToHttp: () => ({ getRequest: () => req }) } as unknown as ExecutionContext);
+    expect(headers['x-ai-suggestion-id']).toBe(SUGGESTION);
+    delete headers['x-ai-suggestion-id'];
+    expect(new AiTokenOnlyGuard().canActivate({ switchToHttp: () => ({ getRequest: () => req }) } as unknown as ExecutionContext)).toBe(true);
   });
 
   it('needs a UUID suggestion id and lower-cases it', async () => {

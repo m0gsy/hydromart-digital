@@ -166,7 +166,7 @@ describe('AI campaign draft (HD-17, e2e)', () => {
   });
 
   it('makes a DRAFT AI campaign, sends nothing, records the suggestion id first, and answers no recipient', async () => {
-    const res = await post(manager(), body()).expect(201);
+    const res = await post(manager(), body(), SUGGESTION.toUpperCase()).expect(201);
     expect(res.body).toMatchObject({
       status: 'DRAFT',
       source: 'AI',
@@ -177,6 +177,7 @@ describe('AI campaign draft (HD-17, e2e)', () => {
       sentCount: 0,
     });
     expect(res.body.recipients).toBeUndefined();
+    expect(repo.campaigns[0]!.aiRequestHash).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(res.body)).not.toMatch(/\+628|Andi|Budi/);
     expect(repo.campaigns).toHaveLength(1);
     expect(repo.campaigns[0]!.status).toBe('DRAFT');
@@ -221,6 +222,7 @@ describe('AI campaign draft (HD-17, e2e)', () => {
     const first = await post(manager(), body()).expect(201);
     const again = await post(manager(), body(), SUGGESTION.toUpperCase()).expect(200);
     expect(again.body.id).toBe(first.body.id);
+    await post(manager(), { ...body(), segment: { lapsedDays: 60 } }).expect(409);
     const clash = await post(manager(), { ...body(), name: 'Lain' }).expect(409);
     expect(clash.body.code).toBe('AI_SUGGESTION_REUSED');
     expect(repo.campaigns).toHaveLength(1);
@@ -232,6 +234,9 @@ describe('AI campaign draft (HD-17, e2e)', () => {
     await post(manager(), { ...body(), reason: undefined }).expect(400);
     await post(manager(), { ...body(), reason: '   ' }).expect(400);
     await post(manager(), { ...body(), reason: 'x'.repeat(501) }).expect(400);
+    for (const phone of ['Hubungi 081234567890', 'telp 0812-3456-7890', 'wa 62 812 3456 78']) {
+      await post(manager(), { ...body(), reason: phone }).expect(400);
+    }
     await post(manager(), { ...body(), name: 'x'.repeat(121) }).expect(400);
     await post(manager(), { ...body(), messageTemplate: 'x'.repeat(2001) }).expect(400);
     await post(manager(), { ...body(), segment: { tier: 'GOLD' } }).expect(400);

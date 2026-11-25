@@ -34,6 +34,7 @@ export interface CampaignRecord {
   source: DraftSource;
   aiSuggestionId: string | null;
   aiReason: string | null;
+  aiRequestHash: string | null;
   recipients: CampaignRecipientRecord[];
 }
 
@@ -55,6 +56,7 @@ export interface CreateCampaignData {
   source?: DraftSource;
   aiSuggestionId?: string;
   aiReason?: string;
+  aiRequestHash?: string;
 }
 
 export interface CampaignRepository {

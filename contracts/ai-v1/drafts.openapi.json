@@ -878,7 +878,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 500,
-            "description": "Why the AI proposes this, in one or two sentences; shown to the person who sends it. Trimmed."
+            "description": "Why the AI proposes this, in one or two sentences; shown to the person who sends it. Trimmed. It must not contain customer personal data: a run of 8 or more digits (spaces and dashes allowed between them), such as a phone number, is a 400."
           }
         }
       },

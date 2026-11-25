@@ -88,6 +88,8 @@ model Campaign {
   aiSuggestionId  String?             @unique @db.Uuid
   /// Why the AI proposes this campaign, shown beside the draft.
   aiReason        String?
+  /// sha256 of the whole AI request (depot, segment, text, schedule, reason, author): a replay must match it.
+  aiRequestHash   String?
 
   recipients CampaignRecipient[]
 

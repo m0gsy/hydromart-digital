@@ -50,6 +50,7 @@ interface CampaignRow {
   source: string;
   aiSuggestionId: string | null;
   aiReason: string | null;
+  aiRequestHash: string | null;
 }
 
 @Injectable()
@@ -74,6 +75,7 @@ export class CampaignPrismaRepository implements CampaignRepository {
       source: row.source as DraftSource,
       aiSuggestionId: row.aiSuggestionId,
       aiReason: row.aiReason,
+      aiRequestHash: row.aiRequestHash,
       recipients: recipients.map((r) => this.toRecipient(r)),
     };
   }
@@ -90,6 +92,7 @@ export class CampaignPrismaRepository implements CampaignRepository {
           source: data.source,
           aiSuggestionId: data.aiSuggestionId ?? null,
           aiReason: data.aiReason ?? null,
+          aiRequestHash: data.aiRequestHash ?? null,
           recipients: {
             create: data.recipients.map((r) => ({
               customerId: r.customerId ?? null,

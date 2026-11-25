@@ -80,6 +80,7 @@ export class InMemoryCampaignRepository implements CampaignRepository {
       source: data.source ?? DraftSource.STAFF,
       aiSuggestionId: data.aiSuggestionId ?? null,
       aiReason: data.aiReason ?? null,
+      aiRequestHash: data.aiRequestHash ?? null,
       recipients,
     };
     this.campaigns.push(campaign);

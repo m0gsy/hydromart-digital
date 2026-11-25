@@ -88,6 +88,7 @@ describe('CampaignPrismaRepository', () => {
         scheduledFor: null,
         aiSuggestionId: null,
         aiReason: null,
+        aiRequestHash: null,
         recipients: {
           create: [
             { customerId: 'cust-1', phone: '+6281234567890', name: 'Budi' },

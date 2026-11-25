@@ -277,6 +277,7 @@ describe('CampaignController', () => {
     source: DraftSource.STAFF,
     aiSuggestionId: null,
     aiReason: null,
+    aiRequestHash: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     sentAt: null,

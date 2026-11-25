@@ -10,6 +10,7 @@ END $$;
 ALTER TABLE "campaigns"
   ADD COLUMN IF NOT EXISTS "source" "DraftSource" NOT NULL DEFAULT 'STAFF',
   ADD COLUMN IF NOT EXISTS "aiSuggestionId" UUID,
-  ADD COLUMN IF NOT EXISTS "aiReason" TEXT;
+  ADD COLUMN IF NOT EXISTS "aiReason" TEXT,
+  ADD COLUMN IF NOT EXISTS "aiRequestHash" TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS "campaigns_aiSuggestionId_key"
   ON "campaigns"("aiSuggestionId");
