@@ -612,7 +612,7 @@ const opsFixShared = {
     headerSub: '{month} · hari ke-{day} dari {days}',
     editTitle: 'Ubah target {month}',
     revenue: 'Pendapatan (Rp)',
-    orders: 'Order terkirim',
+    orders: 'Pesanan (tidak batal)',
     sla: 'SLA on-time (%)',
     newCustomers: 'Pelanggan baru',
     gallons: 'Galon terjual',
@@ -624,7 +624,7 @@ const opsFixShared = {
     emptyBody: 'Depot ini belum punya target untuk {month}.',
     setNow: 'Set target bulan ini',
     goalRevenue: 'Pendapatan',
-    goalOrders: 'Order terkirim',
+    goalOrders: 'Pesanan (tidak batal)',
     insight: 'Insight',
     insightBody:
       'Bar kuning menandai KPI di bawah pace bulan ini (hari ke-{day} dari {days}). Fokuskan sumber daya ke sana untuk mengejar target.',

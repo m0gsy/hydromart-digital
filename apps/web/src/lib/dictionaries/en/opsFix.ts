@@ -752,7 +752,7 @@ export const opsFix = {
     headerSub: '{month} · day {day} of {days}',
     editTitle: 'Edit the {month} target',
     revenue: 'Revenue (Rp)',
-    orders: 'Orders delivered',
+    orders: 'Orders (not cancelled)',
     sla: 'On-time SLA (%)',
     newCustomers: 'New customers',
     gallons: 'Gallons sold',
@@ -764,7 +764,7 @@ export const opsFix = {
     emptyBody: 'This depot has no target for {month} yet.',
     setNow: 'Set the target for this month',
     goalRevenue: 'Revenue',
-    goalOrders: 'Orders delivered',
+    goalOrders: 'Orders (not cancelled)',
     insight: 'Insight',
     insightBody:
       'A yellow bar marks a KPI behind this month’s pace (day {day} of {days}). Point resources there to catch up.',
