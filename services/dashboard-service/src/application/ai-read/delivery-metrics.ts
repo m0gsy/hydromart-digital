@@ -2,12 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import { AiCustomerSourcesPort, DeliverySummary } from '../ports/ai-customer-sources.port';
+import { AiCustomerSourcesPort, DeliverySummary, FAILURE_REASON_CODES } from '../ports/ai-customer-sources.port';
 import { DASHBOARD_TOKENS } from '../tokens';
 import { CumulativeScopeService, heldBackNote } from './cumulative-scope.service';
 import { AnswerEnvelope } from './envelope';
 import { DOWN, GroupCtx, GroupMetricMeta, NO_SCOPE, OPEN_MONTH_REASON, TOO_MANY, fitsOneRead, isOpen, openGroup, sourceSpans } from './group-context';
-import { SMALL_GROUP_FLAG, SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
+import { COMPLEMENT_FLAG, SMALL_GROUP_FLAG, SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
 import { PeriodQuery } from './period';
 import { ReadScopeService } from './scope.service';
 import { depotsOn } from './stretches';
@@ -102,11 +102,16 @@ export class DeliveryMetricsService {
   private async failed(c: GroupCtx, s: DeliverySummary, spans: ReturnType<typeof sourceSpans>): Promise<AnswerEnvelope> {
     const cancelled = await this.sources.cancelledBeforeDeparture(spans);
     if (cancelled === null) return c.none(DOWN);
+    // With the breakdown, ONE masking call covers every reason cell and the failed total together.
+    // Without it (an older delivery-service) the two legacy cells are masked as before.
+    const reasons = s.byReason;
     const m = suppressSmallGroups(
-      [
-        { key: 'noShow', people: s.noShow },
-        { key: 'otherReason', people: s.otherFailed },
-      ],
+      reasons
+        ? FAILURE_REASON_CODES.map((k) => ({ key: k, people: reasons[k] }))
+        : [
+            { key: 'noShow', people: s.noShow },
+            { key: 'otherReason', people: s.otherFailed },
+          ],
       s.failed,
     );
     const cell = (key: string): number | null => m.cells.find((x) => x.key === key)?.value ?? null;
@@ -114,9 +119,17 @@ export class DeliveryMetricsService {
     const resched = maskedCount(s.rescheduled);
     const cancel = maskedCount(cancelled);
     const held: Record<string, string> = {};
-    for (const key of ['noShow', 'otherReason']) {
-      const f = flag(key);
-      if (f) held[key] = f;
+    for (const x of m.cells) if (x.flag) held[x.key] = x.flag;
+    let noShow = cell('noShow');
+    let otherReason = cell('otherReason');
+    if (reasons) {
+      // noShow IS the NO_SHOW cell. otherReason (failed minus NO_SHOW) is a sum of cells already masked, so it
+      // is shown only when the total and NO_SHOW are both shown; otherwise failed - noShow (or failed - otherReason)
+      // would hand back a held figure, so it is held with the complement flag.
+      noShow = cell('NO_SHOW');
+      if (flag('NO_SHOW')) held.noShow = flag('NO_SHOW') as string;
+      otherReason = m.total !== null && noShow !== null ? s.failed - noShow : null;
+      if (otherReason === null) held.otherReason = COMPLEMENT_FLAG;
     }
     if (m.totalFlag) held.failed = m.totalFlag;
     if (resched.flag) held.rescheduled = resched.flag;
@@ -124,13 +137,18 @@ export class DeliveryMetricsService {
     return c.ok(
       {
         failed: m.total,
-        noShow: cell('noShow'),
-        otherReason: cell('otherReason'),
+        noShow,
+        otherReason,
+        byReason: reasons ? Object.fromEntries(FAILURE_REASON_CODES.map((k) => [k, cell(k)])) : null,
         rescheduled: resched.value,
         cancelledBeforeDeparture: cancel.value,
         held,
       },
-      'gagal = pengiriman yang berakhir GAGAL menurut tanggal gagal; noShow = pelanggan tidak di tempat; otherReason = alasan lain yang diketik kurir, tidak diperinci karena teks bebas bisa memuat nama atau nomor orang; rescheduled = kali dijadwalkan ulang menurut tanggal kejadian; cancelledBeforeDeparture = pesanan antar yang dibatalkan sebelum kurir berangkat (belum sampai diambil atau dalam perjalanan), menurut tanggal batal. Ketiganya dihitung terpisah, bukan bagian dari gagal. Hitungan kurang dari 3 ditahan (held)',
+      'gagal = pengiriman yang berakhir GAGAL menurut tanggal gagal; noShow = pelanggan tidak di tempat; otherReason = semua alasan selain noShow (gagal dikurangi noShow), ditahan bila noShow atau gagal ditahan; ' +
+        (reasons
+          ? 'byReason = gagal menurut alasan tetap pilihan kurir: ADDRESS_NOT_FOUND Alamat tidak ditemukan, CUSTOMER_REFUSED Pelanggan menolak, GOODS_DAMAGED Barang rusak, CANNOT_CONTACT Pelanggan tidak bisa dihubungi, OTHER Lainnya, NO_SHOW Pelanggan tidak di tempat, DEPOT_CANCELLED Dibatalkan depot; "Lainnya" (OTHER) juga memuat alasan lama berupa teks bebas yang tidak punya kode; semua sel alasan dan gagal ditahan bersama (sel 1 atau 2 ditahan, pelengkapnya ikut ditahan); teks bebas tidak pernah dikirim; '
+          : 'byReason = null: rincian alasan belum tersedia dari layanan pengiriman; ') +
+        'alasan lain yang diketik kurir tidak diperinci karena teks bebas bisa memuat nama atau nomor orang; rescheduled = kali dijadwalkan ulang menurut tanggal kejadian; cancelledBeforeDeparture = pesanan antar yang dibatalkan sebelum kurir berangkat (belum sampai diambil atau dalam perjalanan), menurut tanggal batal. Ketiganya dihitung terpisah, bukan bagian dari gagal. Hitungan kurang dari 3 ditahan (held)',
     );
   }
 

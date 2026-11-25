@@ -5,6 +5,8 @@ import {
   CohortCell,
   CustomerWindow,
   DeliverySummary,
+  FAILURE_REASON_CODES,
+  FailureReasonCode,
   GallonLedgerRow,
   RatingTotals,
   RefillTotals,
@@ -136,7 +138,15 @@ export class AiCustomerSourcesHttpAdapter implements AiCustomerSourcesPort {
     if (d.couriers === 0 && d.delivered + d.failed > 0) return null;
     if (d.noShow + d.otherFailed !== d.failed) return null;
     if ((d.delivered === 0) !== (d.medianMinutes === null)) return null;
-    return d;
+    return { ...d, byReason: AiCustomerSourcesHttpAdapter.reasons(b.byReason, d) };
+  }
+
+  /** The breakdown or null: missing, malformed, or not adding up to failed / noShow (unknown extra codes are ignored). */
+  private static reasons(v: unknown, d: DeliverySummary): DeliverySummary['byReason'] {
+    if (!isObj(v) || !allCounts(v, FAILURE_REASON_CODES)) return null;
+    const r = Object.fromEntries(FAILURE_REASON_CODES.map((k) => [k, v[k] as number])) as Record<FailureReasonCode, number>;
+    const sum = FAILURE_REASON_CODES.reduce((n, k) => n + r[k], 0);
+    return sum === d.failed && r.NO_SHOW === d.noShow ? r : null;
   }
 
   async cancelledBeforeDeparture(spans: readonly SourceSpan[]): Promise<number | null> {

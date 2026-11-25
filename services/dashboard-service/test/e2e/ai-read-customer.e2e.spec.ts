@@ -118,7 +118,7 @@ describe('GET ai/read/{customers,delivery,gallons}?metric= (HD-6 H3)', () => {
           return json({ gallons: 777 * (body.spans?.length ?? 0), byDepot: [...by].map(([depotId, gallons]) => ({ depotId, gallons })) });
         }
         if (url.pathname.endsWith('/ai-summary')) {
-          return json({ delivered: 40, onTime: 34, storedVerdicts: 30, thresholdMinutes: 90, medianMinutes: 41.5, couriers: 5, failed: 6, noShow: 2, otherFailed: 4, rescheduled: 3 });
+          return json({ delivered: 40, onTime: 34, storedVerdicts: 30, thresholdMinutes: 90, medianMinutes: 41.5, couriers: 5, failed: 6, noShow: 2, otherFailed: 4, byReason: { ADDRESS_NOT_FOUND: 1, CUSTOMER_REFUSED: 1, GOODS_DAMAGED: 0, CANNOT_CONTACT: 0, OTHER: 2, NO_SHOW: 2, DEPOT_CANCELLED: 0 }, rescheduled: 3 });
         }
         return { ok: false, status: 503, json: async () => ({}) } as unknown as Response;
       }

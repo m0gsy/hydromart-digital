@@ -152,7 +152,8 @@ describe('AiCustomerSourcesHttpAdapter (HD-6 H3)', () => {
 
   it('reads the delivery summary and refuses one whose parts do not fit their wholes', async () => {
     const calls = answer(summary);
-    await expect(adapter().deliverySummary(SPANS)).resolves.toEqual(summary);
+    // an older delivery-service has no byReason: the summary still answers, without the breakdown
+    await expect(adapter().deliverySummary(SPANS)).resolves.toEqual({ ...summary, byReason: null });
     expect(calls[0].url.href).toBe('http://delivery.test/api/v1/reports/internal/ai-summary');
     jest.restoreAllMocks();
     for (const bad of [
@@ -178,6 +179,28 @@ describe('AiCustomerSourcesHttpAdapter (HD-6 H3)', () => {
     // nothing delivered: a null median is exactly right
     answer({ ...summary, delivered: 0, onTime: 0, storedVerdicts: 0, couriers: 0, failed: 0, noShow: 0, otherFailed: 0, medianMinutes: null });
     await expect(adapter().deliverySummary(SPANS)).resolves.toMatchObject({ delivered: 0, medianMinutes: null });
+  });
+
+  it('reads byReason when every code is a count that adds up, ignores unknown codes, and gives null otherwise', async () => {
+    const full = { ADDRESS_NOT_FOUND: 1, CUSTOMER_REFUSED: 0, GOODS_DAMAGED: 0, CANNOT_CONTACT: 0, OTHER: 1, NO_SHOW: 1, DEPOT_CANCELLED: 0 };
+    answer({ ...summary, byReason: { ...full, SOMETHING_NEW: 9 } });
+    await expect(adapter().deliverySummary(SPANS)).resolves.toMatchObject({ byReason: full });
+    jest.restoreAllMocks();
+    for (const bad of [
+      { ...full, OTHER: -1 },
+      { ...full, OTHER: 1.5 },
+      { ...full, OTHER: '1' },
+      { ...full, OTHER: 2 },
+      { ...full, NO_SHOW: 0, OTHER: 2 },
+      { ADDRESS_NOT_FOUND: 3 },
+      'x',
+      [1],
+      null,
+    ]) {
+      answer({ ...summary, byReason: bad });
+      await expect(adapter().deliverySummary(SPANS)).resolves.toMatchObject({ failed: 3, byReason: null });
+      jest.restoreAllMocks();
+    }
   });
 
   const row = (depotId: string, o: Record<string, unknown> = {}) => ({

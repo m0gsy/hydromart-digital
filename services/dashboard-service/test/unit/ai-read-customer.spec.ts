@@ -399,9 +399,11 @@ const delivered = (o: Partial<DeliverySummary> = {}): DeliverySummary => ({
   failed: 6,
   noShow: 2,
   otherFailed: 4,
+  byReason: null,
   rescheduled: 3,
   ...o,
 });
+const NO_REASONS = { ADDRESS_NOT_FOUND: 0, CUSTOMER_REFUSED: 0, GOODS_DAMAGED: 0, CANNOT_CONTACT: 0, OTHER: 0, NO_SHOW: 0, DEPOT_CANCELLED: 0 };
 
 describe('delivery metrics (K-)', () => {
   const LIVE = [
@@ -444,7 +446,8 @@ describe('delivery metrics (K-)', () => {
     expect(k2.label).toContain('/hq/sla-policy');
     const many = make(BOTH, { deliverySummary: jest.fn(async () => delivered({ failed: 12, noShow: 5, otherFailed: 7 })) });
     const k4 = await ask(many.service, 'K-04');
-    expect(k4.value).toEqual({ failed: 12, noShow: 5, otherReason: 7, rescheduled: 3, cancelledBeforeDeparture: 4, held: {} });
+    expect(k4.value).toEqual({ failed: 12, noShow: 5, otherReason: 7, byReason: null, rescheduled: 3, cancelledBeforeDeparture: 4, held: {} });
+    expect(k4.label).toContain('rincian alasan belum tersedia');
     expect(k4.label).toContain('teks bebas');
     expect(k4.label).toContain('sebelum kurir berangkat');
     expect(many.sources.cancelledBeforeDeparture).toHaveBeenCalledWith([
@@ -476,6 +479,31 @@ describe('delivery metrics (K-)', () => {
     expect(await ask(down.service, 'K-04')).toMatchObject({ status: 'belum_ada', value: null });
     const mixed = make(BOTH, { deliverySummary: jest.fn(async () => delivered({ thresholdMinutes: null })) });
     expect((await ask(mixed.service, 'K-02')).label).toContain('berbeda antar depot');
+  });
+
+  it('K-04 breaks failures down by the fixed reason, masked with the total, and noShow / otherReason never undo the mask', async () => {
+    const k4 = async (byReason: Record<string, number>, failed: number) => {
+      const r = make(BOTH, { deliverySummary: jest.fn(async () => delivered({ failed, noShow: byReason.NO_SHOW, otherFailed: failed - byReason.NO_SHOW, byReason: byReason as never })) });
+      const a = await ask(r.service, 'K-04');
+      return { a, v: a.value as { failed: number | null; noShow: number | null; otherReason: number | null; byReason: Record<string, number | null>; held: Record<string, string> } };
+    };
+    const clear = await k4({ ...NO_REASONS, ADDRESS_NOT_FOUND: 4, CUSTOMER_REFUSED: 3, OTHER: 5, NO_SHOW: 6 }, 18);
+    expect(clear.v).toMatchObject({ failed: 18, noShow: 6, otherReason: 12, held: {}, byReason: { ADDRESS_NOT_FOUND: 4, CUSTOMER_REFUSED: 3, GOODS_DAMAGED: 0, OTHER: 5, NO_SHOW: 6, DEPOT_CANCELLED: 0 } });
+    for (const t of ['Alamat tidak ditemukan', 'Pelanggan menolak', 'Barang rusak', 'Pelanggan tidak bisa dihubungi', 'Lainnya', 'Pelanggan tidak di tempat', 'Dibatalkan depot', 'teks bebas']) expect(clear.a.label).toContain(t);
+    // a cell of 2 (and the smallest neighbour) held, in byReason AND in the legacy cells that overlap it
+    const small = await k4({ ...NO_REASONS, ADDRESS_NOT_FOUND: 2, CUSTOMER_REFUSED: 3, OTHER: 5, NO_SHOW: 6 }, 16);
+    // (2 held, then the next smallest cells until the held people reach 6: 3 and 5)
+    expect(small.v.byReason).toMatchObject({ ADDRESS_NOT_FOUND: null, CUSTOMER_REFUSED: null, OTHER: null, NO_SHOW: 6 });
+    expect(small.v.held).toMatchObject({ ADDRESS_NOT_FOUND: 'kurang dari 3', CUSTOMER_REFUSED: 'ditahan', OTHER: 'ditahan' });
+    expect(small.v).toMatchObject({ failed: 16, noShow: 6, otherReason: 10 });
+    // NO_SHOW itself held: noShow null, and otherReason (failed - noShow) held with it
+    const ns = await k4({ ...NO_REASONS, OTHER: 8, NO_SHOW: 2 }, 10);
+    expect(ns.v).toMatchObject({ noShow: null, otherReason: null, failed: 10 });
+    expect(ns.v.held).toMatchObject({ NO_SHOW: 'kurang dari 3', noShow: 'kurang dari 3', otherReason: 'ditahan' });
+    // the total is held when the held cells cannot be covered: nothing derivable, otherReason held too
+    const tiny = await k4({ ...NO_REASONS, OTHER: 1, NO_SHOW: 1 }, 2);
+    expect(tiny.v).toMatchObject({ failed: null, noShow: null, otherReason: null });
+    expect(tiny.v.held.failed).toBe('ditahan');
   });
 
   it('K-02 with every verdict stored does not claim a recomputation; with none delivered it is belum_ada, not 0%', async () => {
