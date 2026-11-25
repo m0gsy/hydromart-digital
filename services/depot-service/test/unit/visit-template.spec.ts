@@ -56,9 +56,11 @@ class InMemoryTemplates implements VisitTemplateRepository {
     this.rows.push(row);
     return row;
   }
-  async replace(id: string, data: VisitTemplateWrite & { active: boolean }) {
+  async replace(id: string, data: VisitTemplateWrite & { active: boolean }, seen: string) {
     const i = this.rows.findIndex((r) => r.id === id);
     if (i < 0) return null;
+    // what the real repository does inside its transaction: the stamp must still match
+    if (this.rows[i].updatedAt.toISOString() !== seen) throw new StaleWriteError();
     this.rows[i] = this.build(id, data, data.active, this.rows[i].createdBy);
     return this.rows[i];
   }
@@ -130,6 +132,19 @@ describe('VisitTemplateService', () => {
     await svc.replace(t.id, body, seen(t)); // the first editor lands...
     await expect(svc.replace(t.id, body, seen(t))).rejects.toBeInstanceOf(StaleWriteError); // ...the second is stale
     await expect(svc.replace(t.id, body)).rejects.toBeInstanceOf(StaleWriteError);
+  });
+
+  it('closes the race: two editors with the same stamp both pass the early check, only one lands', async () => {
+    const t = await svc.create({ name: 'Rutin', items: [{ text: 'a' }] }, U1);
+    const body = { name: 'Rutin', active: true, items: [{ text: 'b' }] };
+    const real = repo.findById.bind(repo);
+    // both editors read the row before either writes
+    jest.spyOn(repo, 'findById').mockImplementation(async (id) => ({ ...(await real(id))! }));
+    const [a, b] = [svc.replace(t.id, body, seen(t)), svc.replace(t.id, body, seen(t))];
+    const results = await Promise.allSettled([a, b]);
+    expect(results.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+    const lost = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+    expect(lost.reason).toBeInstanceOf(StaleWriteError);
   });
 
   it('answers 404 when the template vanishes between the read and the write', async () => {
@@ -205,12 +220,18 @@ describe('VisitTemplateController', () => {
   const capOf = (name: keyof VisitTemplateController) =>
     Reflect.getMetadata(CAPABILITY_KEY, VisitTemplateController.prototype[name]);
 
-  it('puts each route behind the right capability', () => {
-    expect(capOf('listActive')).toBe('visitConduct');
-    expect(capOf('get')).toBe('visitConduct');
-    expect(capOf('listAll')).toBe('visitTemplateManage');
-    expect(capOf('create')).toBe('visitTemplateManage');
-    expect(capOf('replace')).toBe('visitTemplateManage');
+  it('puts each route behind its own capability, so a swap fails', () => {
+    const route = (name: keyof VisitTemplateController) => [
+      Reflect.getMetadata('method', VisitTemplateController.prototype[name]),
+      Reflect.getMetadata('path', VisitTemplateController.prototype[name]),
+      capOf(name),
+    ];
+    // [RequestMethod (GET 0, POST 1, PUT 2), path, capability]
+    expect(route('listActive')).toEqual([0, '/', 'visitConduct']);
+    expect(route('get')).toEqual([0, ':id', 'visitConduct']);
+    expect(route('listAll')).toEqual([0, 'manage', 'visitTemplateManage']);
+    expect(route('create')).toEqual([1, '/', 'visitTemplateManage']);
+    expect(route('replace')).toEqual([2, ':id', 'visitTemplateManage']);
   });
 
   it('declares the static "manage" list before the :id read', () => {
@@ -256,6 +277,15 @@ describe('visit template DTOs', () => {
     expect(props(CreateVisitTemplateDto, { name: 'Rutin', items: item(61) })).toContain('items');
     expect(props(CreateVisitTemplateDto, { name: 'ab', items: item(1) })).toContain('name');
     expect(props(CreateVisitTemplateDto, { name: 'a'.repeat(121), items: item(1) })).toContain('name');
+  });
+
+  it('does not count spaces: a name or item of three spaces is empty', () => {
+    expect(props(CreateVisitTemplateDto, { name: '   ', items: item(1) })).toContain('name');
+    expect(props(CreateVisitTemplateDto, { name: ' ab ', items: item(1) })).toContain('name');
+    expect(props(CreateVisitTemplateDto, { name: 'Rutin', items: [{ text: '     ' }] })).toContain('items');
+    expect(props(CreateVisitTemplateDto, { name: 42, items: item(1) })).toContain('name'); // non-strings pass through untouched
+    const dto = plainToInstance(CreateVisitTemplateDto, { name: '  Rutin  ', items: [{ text: ' butir ' }] });
+    expect([dto.name, dto.items[0].text]).toEqual(['Rutin', 'butir']);
   });
 
   it('bounds an item text to 3-300 characters and a SOP to a uuid', () => {
@@ -306,6 +336,7 @@ describe('SopLookupHttpAdapter', () => {
       `http://hr:3018/api/v1/sops/internal/in-force?depotId=${DEPOT}&ids=${SOP1}%2C${SOP2}`,
     );
     expect(init.headers['x-internal-key']).toBe('internal-key-01');
+    expect(init.signal).toEqual(expect.any(AbortSignal));
   });
 
   it('answers an empty list without a call when there is nothing to ask about', async () => {
@@ -339,8 +370,11 @@ describe('VisitTemplatePrismaRepository', () => {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    updateMany: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
   };
-  const visitTemplateItem = { deleteMany: jest.fn() };
+  const visitTemplateItem = { deleteMany: jest.fn(), createMany: jest.fn() };
+  const SEEN = '2026-11-27T00:00:00.000Z';
   const prisma = {
     visitTemplate,
     visitTemplateItem,
@@ -388,25 +422,44 @@ describe('VisitTemplatePrismaRepository', () => {
     });
   });
 
-  it('replaces the item set inside one transaction', async () => {
+  it('replaces the item set inside one transaction, guarded by the stamp it was shown', async () => {
     visitTemplate.findUnique.mockResolvedValue({ id: U1 });
-    visitTemplate.update.mockResolvedValue({ id: U1 });
+    visitTemplate.updateMany.mockResolvedValue({ count: 1 });
+    visitTemplate.findUniqueOrThrow.mockResolvedValue({ id: U1 });
 
-    await repo.replace(U1, { name: 'n', active: false, items: [{ text: 'a' }] });
+    await expect(
+      repo.replace(U1, { name: 'n', active: false, items: [{ text: 'a' }, { text: 'b', sopId: SOP1 }] }, SEEN),
+    ).resolves.toEqual({ id: U1 });
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(visitTemplateItem.deleteMany).toHaveBeenCalledWith({ where: { templateId: U1 } });
-    expect(visitTemplate.update).toHaveBeenCalledWith({
-      where: { id: U1 },
-      data: { name: 'n', active: false, items: { create: [{ position: 0, text: 'a', sopId: null }] } },
-      include,
+    expect(visitTemplate.updateMany).toHaveBeenCalledWith({
+      where: { id: U1, updatedAt: new Date(SEEN) },
+      data: { name: 'n', active: false },
     });
+    expect(visitTemplateItem.deleteMany).toHaveBeenCalledWith({ where: { templateId: U1 } });
+    expect(visitTemplateItem.createMany).toHaveBeenCalledWith({
+      data: [
+        { position: 0, text: 'a', sopId: null, templateId: U1 },
+        { position: 1, text: 'b', sopId: SOP1, templateId: U1 },
+      ],
+    });
+    expect(visitTemplate.findUniqueOrThrow).toHaveBeenCalledWith({ where: { id: U1 }, include });
+  });
+
+  it('writes nothing when another editor moved the row first (the stamp no longer matches)', async () => {
+    visitTemplate.findUnique.mockResolvedValue({ id: U1 });
+    visitTemplate.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      repo.replace(U1, { name: 'n', active: true, items: [{ text: 'a' }] }, SEEN),
+    ).rejects.toBeInstanceOf(StaleWriteError);
+    expect(visitTemplateItem.deleteMany).not.toHaveBeenCalled();
+    expect(visitTemplateItem.createMany).not.toHaveBeenCalled();
   });
 
   it('touches nothing when the template is gone', async () => {
     visitTemplate.findUnique.mockResolvedValue(null);
-    await expect(repo.replace(U1, { name: 'n', active: true, items: [{ text: 'a' }] })).resolves.toBeNull();
+    await expect(repo.replace(U1, { name: 'n', active: true, items: [{ text: 'a' }] }, SEEN)).resolves.toBeNull();
     expect(visitTemplateItem.deleteMany).not.toHaveBeenCalled();
-    expect(visitTemplate.update).not.toHaveBeenCalled();
+    expect(visitTemplate.updateMany).not.toHaveBeenCalled();
   });
 });

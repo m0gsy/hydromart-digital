@@ -13,6 +13,12 @@ export interface VisitTemplateRepository {
   /**
    * Replace name, active flag and the WHOLE item set in one transaction, or null when the
    * template does not exist. Item ids are new on every replace: a visit copies text, never ids.
+   * The write only lands when the stored `updatedAt` still equals `seenUpdatedAt`, checked INSIDE
+   * the transaction; otherwise it throws StaleWriteError.
    */
-  replace(id: string, data: VisitTemplateWrite & { active: boolean }): Promise<VisitTemplate | null>;
+  replace(
+    id: string,
+    data: VisitTemplateWrite & { active: boolean },
+    seenUpdatedAt: string,
+  ): Promise<VisitTemplate | null>;
 }

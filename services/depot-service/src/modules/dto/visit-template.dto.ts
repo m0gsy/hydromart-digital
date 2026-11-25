@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -14,8 +14,12 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+/** Trim first, so three spaces are not a name. */
+const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
+
 export class VisitTemplateItemDto {
   @ApiProperty({ example: 'Lantai dan area isi ulang bersih' })
+  @Transform(trim)
   @IsString()
   @MinLength(3)
   @MaxLength(300)
@@ -29,6 +33,7 @@ export class VisitTemplateItemDto {
 
 export class CreateVisitTemplateDto {
   @ApiProperty({ example: 'Kunjungan rutin bulanan' })
+  @Transform(trim)
   @IsString()
   @MinLength(3)
   @MaxLength(120)

@@ -52,7 +52,9 @@ export class VisitTemplateService {
     const existing = await this.templates.findById(id);
     if (!existing) throw new VisitTemplateNotFoundError();
     assertFresh(existing.updatedAt, seenUpdatedAt);
-    const saved = await this.templates.replace(id, input);
+    // The check above answers 404 / missing token; the repository repeats the match atomically
+    // inside its transaction, which is what actually closes the race between two editors.
+    const saved = await this.templates.replace(id, input, seenUpdatedAt as string);
     if (!saved) throw new VisitTemplateNotFoundError();
     return saved;
   }
