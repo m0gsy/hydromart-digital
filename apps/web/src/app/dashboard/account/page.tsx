@@ -8,6 +8,7 @@ import {
   CaretRight,
   DeviceMobile,
   Gear,
+  Wrench,
   Lock,
   ShieldCheck,
   ShoppingBag,
@@ -36,7 +37,7 @@ import { usePushPrefs } from '@/lib/notif-prefs';
 import { useEffectiveCapabilities } from '@/lib/use-effective-capabilities';
 
 /** `label` set: one of the operator's own alerts, named as /dashboard/operator-settings named it. */
-type Alert = { id: string; icon: Icon; def: boolean; label?: string };
+type Alert = { id: string; icon: Icon; def: boolean; label?: string; email?: boolean };
 
 const ALERTS: Alert[] = [
   { id: 'approval', icon: Bell, def: true },
@@ -49,6 +50,10 @@ const OPERATOR_ALERTS: Alert[] = [
   { id: 'newOrder', icon: ShoppingBag, def: true, label: 'dashB.operatorSettings.notifNewOrder' },
   { id: 'courierFail', icon: Truck, def: true, label: 'dashB.operatorSettings.notifCourierFail' },
 ];
+
+// HD-15: the maintenance reminder n8n raises reaches everyone above the till in a depot, by push
+// and by email, so those roles carry both switches here (the depot staff are never sent it).
+const MAINTENANCE_ALERT: Alert = { id: 'maintenanceDue', icon: Wrench, def: true, email: true };
 
 function initials(name: string | null | undefined): string {
   if (!name) return '·';
@@ -78,7 +83,8 @@ function AccountBody() {
   const role = customer?.role ?? '';
   const depot = selected ?? depots[0] ?? null;
   const assigned = canUseManagerConsole(role) || isDepotOperator(role);
-  const alerts = canUseOperatorConsole(role) ? [...ALERTS, ...OPERATOR_ALERTS] : ALERTS;
+  const base = canUseOperatorConsole(role) ? [...ALERTS, ...OPERATOR_ALERTS] : ALERTS;
+  const alerts = role === 'STAFF_DEPOT' ? base : [...base, MAINTENANCE_ALERT];
   // The capability list was the manager's profile; it stays theirs.
   const myCaps = canUseManagerConsole(role)
     ? (Object.keys(caps) as (keyof typeof caps)[]).filter((cap) =>
@@ -166,11 +172,30 @@ function AccountBody() {
                     </p>
                   )}
                 </div>
-                <Toggle
-                  on={prefs.isOn(a.id) ?? a.def}
-                  onChange={(v) => void prefs.setOn(a.id, v, label)}
-                  label={label}
-                />
+                {a.email && (
+                  <div className="flex flex-col items-center gap-1">
+                    <Toggle
+                      on={prefs.isOn(a.id, 'email') ?? a.def}
+                      onChange={(v) => void prefs.setOn(a.id, v, label, 'email')}
+                      label={`${label} (${t('dashA.account.channelEmail')})`}
+                    />
+                    <span className="text-[10px] text-[color:var(--text-muted)]">
+                      {t('dashA.account.channelEmail')}
+                    </span>
+                  </div>
+                )}
+                <div className="flex flex-col items-center gap-1">
+                  <Toggle
+                    on={prefs.isOn(a.id) ?? a.def}
+                    onChange={(v) => void prefs.setOn(a.id, v, label)}
+                    label={a.email ? `${label} (${t('dashA.account.channelPush')})` : label}
+                  />
+                  {a.email && (
+                    <span className="text-[10px] text-[color:var(--text-muted)]">
+                      {t('dashA.account.channelPush')}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}

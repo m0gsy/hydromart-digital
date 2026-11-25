@@ -262,6 +262,11 @@ export class EmployeeService {
     return { anonymised };
   }
 
+  /** The HR email of each account that has one (admin-service's staff email reads it first). */
+  emailsByAccounts(accountIds: string[]): Promise<{ accountId: string; email: string }[]> {
+    return this.repo.emailsByAuthSubjectIds(accountIds);
+  }
+
   /** Biometric purge on its own short window. */
   async purgeBiometrics(cutoff: Date): Promise<{ deleted: number }> {
     const photos = await this.repo.photoValuesFor({ departedBefore: cutoff, facesOnly: true });

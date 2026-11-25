@@ -63,6 +63,13 @@ class FakeRepo implements EmployeeRepository {
   async findById(id: string): Promise<Employee | null> {
     return this.rows.find((r) => r.id === id) ?? null;
   }
+  async emailsByAuthSubjectIds(ids: string[]): Promise<{ accountId: string; email: string }[]> {
+    return this.rows.flatMap((r) =>
+      r.authSubjectId && r.email && ids.includes(r.authSubjectId)
+        ? [{ accountId: r.authSubjectId, email: r.email }]
+        : [],
+    );
+  }
   async findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {
     return this.rows.find((r) => r.authSubjectId === authSubjectId) ?? null;
   }
@@ -136,6 +143,17 @@ const baseInput = {
   salaryType: 'DAILY' as const,
   dailyRate: 50000,
 };
+
+describe('EmployeeService.emailsByAccounts', () => {
+  it('delegates to the repository', async () => {
+    const repo = new FakeRepo();
+    repo.rows.push({ id: 'e1', authSubjectId: 'a1', email: 'b@example.com' } as Employee);
+    const svc = new EmployeeService(repo, fakeIdentity());
+    await expect(svc.emailsByAccounts(['a1', 'a2'])).resolves.toEqual([
+      { accountId: 'a1', email: 'b@example.com' },
+    ]);
+  });
+});
 
 describe('EmployeeService self / history', () => {
   it('getSelf resolves the linked employee', async () => {

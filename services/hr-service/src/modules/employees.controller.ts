@@ -20,6 +20,7 @@ import { mayReadRates, withoutPayChange, withoutRate } from '../domain/pay-visib
 import {
   AnonymiseEmployeeDto,
   CreateEmployeeDto,
+  EmailsByAccountsDto,
   ImportEmployeesDto,
   ListEmployeesDto,
   ProvisionEmployeeDto,
@@ -153,6 +154,17 @@ export class EmployeesController {
   @ApiOperation({ summary: 'Mirror a console depot transfer onto the employee record' })
   setDepot(@Body() dto: SetEmployeeDepotDto): Promise<{ updated: boolean }> {
     return this.employees.setDepotInternal(dto.authSubjectId, dto.depotId ?? null);
+  }
+
+  /** HR emails by login id, for admin-service's staff email. Only accounts with an email answer. */
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('internal/emails-by-accounts')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'HR email of each staff account that has one (internal)' })
+  emailsByAccounts(@Body() dto: EmailsByAccountsDto): Promise<{ accountId: string; email: string }[]> {
+    return this.employees.emailsByAccounts(dto.accountIds);
   }
 
   /**

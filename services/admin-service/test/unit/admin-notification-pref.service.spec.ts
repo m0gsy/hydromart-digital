@@ -16,12 +16,11 @@ describe('AdminNotificationPrefService', () => {
 
   it('returns the canonical event list with defaults when unset', async () => {
     const prefs = await service.get('acc-1');
-    expect(prefs.channels.map((c) => c.id).slice(0, 8)).toEqual([
+    expect(prefs.channels.map((c) => c.id).slice(0, 7)).toEqual([
       'criticalSla',
       'newFranchiseApp',
       'morningSummary',
       'aiAccessRequest',
-      'maintenanceDue',
       'payoutPending',
       'systemIncident',
       'dailyDigest',
@@ -70,6 +69,7 @@ describe('AdminNotificationPrefService', () => {
       'courierFail',
       'approval',
       'dailySummary',
+      'maintenanceDue',
     ]);
     // An operator is on the floor, not in an inbox.
     expect(prefs.channels.find((c) => c.id === 'newOrder')).toMatchObject({
@@ -166,7 +166,21 @@ describe('AdminNotificationPrefService', () => {
     it('answers the HQ "new franchise application" switch, which defaults to push on', async () => {
       await service.save('acc-1', [{ id: 'newFranchiseApp', ...off }]);
       expect(await service.pushDisabledFor(['acc-1', 'acc-2'], 'newFranchiseApp')).toEqual(['acc-1']);
-      expect(PUSH_TOGGLE_IDS).toEqual([...DEPOT_EVENT_IDS, 'newFranchiseApp', 'morningSummary', 'aiAccessRequest', 'maintenanceDue']);
+      expect(PUSH_TOGGLE_IDS).toEqual([...DEPOT_EVENT_IDS, 'newFranchiseApp', 'morningSummary', 'aiAccessRequest']);
+    });
+
+    // HD-15: the depot heads get the maintenance reminder, so their own screen must save its switch.
+    it('lets a depot account save the maintenance-due switch, push and email, on by default', async () => {
+      expect((await service.get('acc-1', 'DEPOT')).channels.find((c) => c.id === 'maintenanceDue')).toEqual({
+        id: 'maintenanceDue',
+        push: true,
+        email: true,
+        wa: false,
+      });
+      const saved = await service.save('acc-1', [{ id: 'maintenanceDue', push: false, email: false, wa: false }], 'DEPOT');
+      expect(saved.channels.find((c) => c.id === 'maintenanceDue')).toMatchObject({ push: false, email: false });
+      expect(await service.pushDisabledFor(['acc-1'], 'maintenanceDue')).toEqual(['acc-1']);
+      expect(await service.emailOnFor(['acc-1'], 'maintenanceDue')).toEqual([]);
     });
 
     it('asks for no accounts without touching the store', async () => {

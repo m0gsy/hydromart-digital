@@ -282,6 +282,18 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     return 'phone';
   }
 
+  async emailsByAuthSubjectIds(
+    authSubjectIds: string[],
+  ): Promise<{ accountId: string; email: string }[]> {
+    const rows = await this.prisma.employee.findMany({
+      where: { authSubjectId: { in: authSubjectIds }, email: { not: null } },
+      select: { authSubjectId: true, email: true },
+    });
+    return rows.flatMap((r) =>
+      r.authSubjectId && r.email?.trim() ? [{ accountId: r.authSubjectId, email: r.email.trim() }] : [],
+    );
+  }
+
   findByAuthSubjectId(authSubjectId: string): Promise<Employee | null> {
     return this.prisma.employee.findUnique({ where: { authSubjectId } });
   }
