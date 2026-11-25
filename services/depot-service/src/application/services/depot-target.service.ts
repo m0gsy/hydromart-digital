@@ -9,6 +9,14 @@ import { DEPOT_TOKENS } from '../tokens';
 
 export type SetDepotTargetInput = Omit<UpsertDepotTargetData, 'updatedBy'>;
 
+export interface DepotTargetRow {
+  depotId: string;
+  revenueTargetIdr: number;
+  ordersTarget: number;
+  newCustomersTarget: number;
+  gallonsTarget: number;
+}
+
 /**
  * Per-depot monthly performance targets (manager dashboard). One row per depot+month;
  * setting the same month again overwrites it.
@@ -28,6 +36,21 @@ export class DepotTargetService {
 
   get(depotId: string, month: string): Promise<DepotTarget | null> {
     return this.targets.findByDepotMonth(depotId, month);
+  }
+
+  /**
+   * HD-16 (AI read API): one row per depot asked, 0 where no target is set (0 is "not set", never a goal),
+   * so the reader can tell a missing target from an achieved one without a call per depot.
+   */
+  async forMonth(depotIds: string[], month: string): Promise<DepotTargetRow[]> {
+    const rows = new Map((await this.targets.findManyByMonth(depotIds, month)).map((r) => [r.depotId, r]));
+    return depotIds.map((depotId) => ({
+      depotId,
+      revenueTargetIdr: rows.get(depotId)?.revenueTargetIdr ?? 0,
+      ordersTarget: rows.get(depotId)?.ordersTarget ?? 0,
+      newCustomersTarget: rows.get(depotId)?.newCustomersTarget ?? 0,
+      gallonsTarget: rows.get(depotId)?.gallonsTarget ?? 0,
+    }));
   }
 
   /**

@@ -96,6 +96,7 @@ function TargetForm({
   const [orders, setOrders] = useState(String(current?.ordersTarget ?? ''));
   const [sla, setSla] = useState(String(current?.slaTargetPct ?? ''));
   const [newCustomers, setNewCustomers] = useState(String(current?.newCustomersTarget ?? ''));
+  const [gallons, setGallons] = useState(String(current?.gallonsTarget ?? ''));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -107,6 +108,7 @@ function TargetForm({
       ordersTarget: Number(orders),
       slaTargetPct: Number(sla),
       newCustomersTarget: Number(newCustomers),
+      gallonsTarget: Number(gallons),
     };
     if (Object.values(body).some((v) => typeof v === 'number' && !Number.isFinite(v))) {
       setError(t('hrFix.depotTargets.mustBeNumbers'));
@@ -167,6 +169,15 @@ function TargetForm({
           inputMode="numeric"
           value={newCustomers}
           onChange={(e) => setNewCustomers(e.target.value)}
+        />
+      </Field>
+      <Field label={t('opsFix.targets.gallons')} htmlFor="t-gallons" hint={t('opsFix.targets.gallonsHint')}>
+        <Input
+          id="t-gallons"
+          type="number"
+          inputMode="numeric"
+          value={gallons}
+          onChange={(e) => setGallons(e.target.value)}
         />
       </Field>
       {error && (
@@ -301,6 +312,8 @@ function TargetsBody() {
     },
     // ponytail: no new-customer count in depot-monthly report; wire when a report exposes it.
     { label: t('opsFix.targets.newCustomers'), actual: null, target: tgt.newCustomersTarget },
+    // ponytail: no gallons-sold figure in depot-monthly report either; the AI read API (T-02) answers it.
+    { label: t('opsFix.targets.gallons'), actual: null, target: tgt.gallonsTarget },
   ];
 
   return (

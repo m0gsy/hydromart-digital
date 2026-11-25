@@ -136,6 +136,7 @@ import { LegalEntityController } from './legal-entity.controller';
 import { PurchaseOrderController } from './purchase-order.controller';
 import { RosterController } from './roster.controller';
 import { DepotTargetController } from './depot-target.controller';
+import { DepotTargetInternalController } from './depot-target-internal.controller';
 import { CashbookController } from './cashbook.controller';
 import { CashierShiftController } from './cashier-shift.controller';
 import { DailyCloseController } from './daily-close.controller';
@@ -308,6 +309,7 @@ const providers: Provider[] = [
     AiQueuesController,
     RosterController,
     DepotTargetController,
+    DepotTargetInternalController,
     CashbookController,
     CashierShiftController,
     DailyCloseController,

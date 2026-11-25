@@ -19,6 +19,7 @@ import { CashbookController } from '../../src/modules/cashbook.controller';
 import { CashierShiftController } from '../../src/modules/cashier-shift.controller';
 import { DisputeController } from '../../src/modules/dispute.controller';
 import { DepotTargetController } from '../../src/modules/depot-target.controller';
+import { DepotTargetInternalController } from '../../src/modules/depot-target-internal.controller';
 import { DepotController } from '../../src/modules/depot.controller';
 import { DriverGallonReturnController } from '../../src/modules/driver-gallon-return.controller';
 import { FranchiseApplicationController } from '../../src/modules/franchise-application.controller';
@@ -1902,14 +1903,24 @@ describe('DepotTargetController', () => {
         ordersTarget: 2,
         slaTargetPct: 3,
         newCustomersTarget: 4,
+        gallonsTarget: 5,
       } as never,
       user,
     );
     expect(svc.set).toHaveBeenCalledWith(
-      expect.objectContaining({ depotId: DEPOT, month: '2026-07' }),
+      expect.objectContaining({ depotId: DEPOT, month: '2026-07', gallonsTarget: 5 }),
       'user-1',
       undefined,
     );
+  });
+});
+
+describe('DepotTargetInternalController', () => {
+  it('reads the month targets of the depots named in one call', async () => {
+    const svc = { forMonth: jest.fn().mockResolvedValue([{ depotId: DEPOT }]) };
+    const c = new DepotTargetInternalController(svc as never);
+    expect(await c.byMonth({ depotIds: [DEPOT], month: '2026-11' } as never)).toEqual([{ depotId: DEPOT }]);
+    expect(svc.forMonth).toHaveBeenCalledWith([DEPOT], '2026-11');
   });
 });
 

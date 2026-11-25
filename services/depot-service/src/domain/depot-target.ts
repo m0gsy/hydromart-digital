@@ -10,6 +10,8 @@ export interface DepotTarget {
   /** On-time SLA target as a whole percent (e.g. 96). */
   slaTargetPct: number;
   newCustomersTarget: number;
+  /** HD-16: gallons sold in the month (AI read metric G-01). 0 = no gallon target set. */
+  gallonsTarget: number;
   updatedBy: string;
   createdAt: Date;
   updatedAt: Date;

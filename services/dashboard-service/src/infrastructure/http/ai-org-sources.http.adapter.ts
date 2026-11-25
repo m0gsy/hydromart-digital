@@ -7,6 +7,7 @@ import {
   ApplicationSummary,
   AttendanceHeads,
   AttendanceRow,
+  DepotTargetRow,
   KasbonRow,
   PayrollGateRow,
   PayrollRow,
@@ -142,5 +143,12 @@ export class AiOrgSourcesHttpAdapter implements AiOrgSourcesPort {
       `${base}/api/v1/hr-reports/internal/ai/kasbon?${this.q({ depotIds: depotIds.join(','), month })}`,
     );
     return perDepot<KasbonRow>(body, depotIds, ['people', 'remainingIdr']);
+  }
+
+  async depotTargets(depotIds: readonly string[], month: string): Promise<DepotTargetRow[] | null> {
+    const body = await this.get(
+      `${this.config.depotServiceUrl}/api/v1/depot-targets/internal/by-month?${this.q({ depotIds: depotIds.join(','), month })}`,
+    );
+    return perDepot<DepotTargetRow>(body, depotIds, ['revenueTargetIdr', 'ordersTarget', 'newCustomersTarget', 'gallonsTarget']);
   }
 }

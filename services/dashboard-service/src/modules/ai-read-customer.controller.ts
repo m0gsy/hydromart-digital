@@ -8,8 +8,9 @@ import { DELIVERY_METRICS, DeliveryMetricsService } from '../application/ai-read
 import { AnswerEnvelope } from '../application/ai-read/envelope';
 import { GALLON_METRICS, GallonMetricsService } from '../application/ai-read/gallon-metrics';
 import { assertSplittable } from '../application/ai-read/split';
+import { TARGET_METRICS, TargetMetricsService } from '../application/ai-read/target-metrics';
 import { AnswerEnvelopeDto } from './dto/ai-read.dto';
-import { CustomerQueryDto, DeliveryQueryDto, GallonQueryDto } from './dto/ai-read-customer.dto';
+import { CustomerQueryDto, DeliveryQueryDto, GallonQueryDto, TargetQueryDto } from './dto/ai-read-customer.dto';
 
 /**
  * HD-6 H3: customers (C-), delivery and couriers (K-) and gallons (G-). One route per group, the
@@ -25,6 +26,7 @@ export class AiReadCustomerController {
     private readonly customers: CustomerMetricsService,
     private readonly delivery: DeliveryMetricsService,
     private readonly gallons: GallonMetricsService,
+    private readonly targets: TargetMetricsService,
   ) {}
 
   @ApiOkResponse({ type: AnswerEnvelopeDto })
@@ -58,5 +60,17 @@ export class AiReadCustomerController {
     const { metric, ...period } = query;
     assertSplittable(metric, period, GALLON_METRICS);
     return this.gallons.answer(metric, user, period);
+  }
+
+  /** HD-16: the monthly goals a depot manager sets, beside the actual of the metric that measures each. */
+  @ApiOkResponse({ type: AnswerEnvelopeDto })
+  @ExternalAccess('ai')
+  @Can('aiRead')
+  @Get('targets')
+  @ApiOperation({ summary: 'Target versus actual for one whole month (revenue, gallons, orders, new customers)' })
+  targetMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: TargetQueryDto): Promise<AnswerEnvelope> {
+    const { metric, ...period } = query;
+    assertSplittable(metric, period, TARGET_METRICS);
+    return this.targets.answer(metric, user, period);
   }
 }

@@ -30,7 +30,7 @@ const REG = Object.fromEntries(['C-01', 'P-01', 'P-05', 'P-08', 'H-01', 'K-01', 
 
 describe('split helpers', () => {
   it('lists exactly the scalar depot sums', () => {
-    expect([...SPLITTABLE_METRICS].sort()).toEqual(['G-01', 'P-01', 'P-04', 'P-07', 'P-10']);
+    expect([...SPLITTABLE_METRICS].sort()).toEqual(['G-01', 'P-01', 'P-04', 'P-07', 'P-10', 'T-01', 'T-02', 'T-03']);
   });
 
   it('wantsSplit: absent = no, depot = yes, anything else = 400', () => {

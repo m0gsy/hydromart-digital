@@ -67,6 +67,15 @@ export interface KasbonRow {
   remainingIdr: number;
 }
 
+/** depot-service: one depot's month targets (HD-16). 0 = not set, never a goal of zero. */
+export interface DepotTargetRow {
+  depotId: string;
+  revenueTargetIdr: number;
+  ordersTarget: number;
+  newCustomersTarget: number;
+  gallonsTarget: number;
+}
+
 /**
  * HD-6 H5: the franchise, legal-entity and HR facts the AI read API reads. Every method answers
  * `null` when its service cannot (down, refused, or an answer that is short of what was asked): the
@@ -83,4 +92,6 @@ export interface AiOrgSourcesPort {
   payrollGate(depotIds: readonly string[], month: string): Promise<PayrollGateRow[] | null>;
   payroll(depotIds: readonly string[], month: string): Promise<PayrollRow[] | null>;
   kasbon(depotIds: readonly string[], month: string): Promise<KasbonRow[] | null>;
+  /** HD-16: the month targets (YYYY-MM) of the depots named, one row each, in ONE read. */
+  depotTargets(depotIds: readonly string[], month: string): Promise<DepotTargetRow[] | null>;
 }

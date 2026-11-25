@@ -3,7 +3,7 @@
   "info": {
     "title": "hydromart-digital read API for the AI web",
     "version": "1.0.0",
-    "description": "HD-6, foundation (H1), the money metrics (H2), the customer, delivery and gallon groups (H3), the stock and loyalty groups (H4) and the franchise, legal-entity and HR groups (H5). The numbers behind the AI web's answers. Every route under /dashboard/api/v1/ai/read answers ONE envelope (AnswerEnvelope), so a metric group added later changes only metricId, value and unit. GET scope answers what the caller may read for a period; GET money?metric= (H2) answers the money metrics (sales, cash and COD, profit and loss); GET customers?metric=, GET delivery?metric= and GET gallons?metric= (H3) answer the customer, delivery/courier and gallon metrics; GET stock?metric= and GET loyalty?metric= (H4) answer the stock group and the loyalty, promo, subscription and queue group; GET franchise?metric= and GET hr?metric= (H5) answer the franchise and legal-entity group and the HR group.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. A machine token (aud hydromart-machine) is refused with 403 whatever its scopes. The door is the aiRead capability: every staff role by default, franchise owners not.\n\nScope, applied in this order: (1) the person's own depots, exactly as hydromart-digital's own screens resolve them (a network-wide role: every depot); (2) narrowed to the depots whose legal entity, on a day of the period, is one the person's ROLE is granted in the role x legal entity matrix (HD-5). No grant = only SUPER_ADMIN reads it. A grant never widens step 1. The answer echoes the depots and legal entities it covered in scope. When hydromart-digital cannot work the scope out (a depot service that does not answer), nothing is answered: 503, never an answer without the narrowing.\n\nPeriod: the WIB (Asia/Jakarta, UTC+7) calendar. Send period=day|week|month|year (with date, any day inside it; default today in WIB) OR from and to (YYYY-MM-DD, both days included, at most 366 days). Both or neither is a 400. Weeks run Monday to Sunday. The resolved period is always echoed back, with the same span as UTC instants (fromAt inclusive, toAt exclusive). A metric defined only over whole months or years refuses a range that is not a run of them (400).\n\nvalue and status: ok = a real value, and 0 is a real value. belum_ada = there is nothing to say yet (not built, no data, not defined): value is null and reason says why; never read it as 0. ditahan = held back on purpose (masking, or a decision still open): value is null and reason says why. Quote the number from value, and the period and scope from the envelope.\n\nMasking (owner decision 24 Nov 2026): no phone number, name or address ever leaves this API. Customers and couriers appear only as counts or opaque ids. A group of fewer than 3 people is not given as a number: its cell has value null and flag \"kurang dari 3\", and when a total is published beside it, the smallest other non-empty cell is held back with it (flag \"ditahan\") so the small cell cannot be computed back from the total; if there is no such cell the total itself is null with totalFlag \"ditahan\". A group of 0 people is shown as 0. Held-back cells are widened until at least 6 people are held back, so a held-back cell cannot be pinned down from the total; if the cells run out first the total is held back too. Two answers over overlapping windows are never published, because their difference would be a smaller group than either shows.\n\nNo personal data: every string, and every object key, is checked before an answer leaves. A field named phone, name, nama, address, alamat, email, hp and the like is refused, and so is any text that contains an email address or a phone number. A display name travels only under the field label. A label names a thing (a depot code, a product, a queue), never a person, and is checked like every other string. Amounts and counts are JSON numbers, never digit strings: a string of 10 to 13 digits that starts with 08, 62 or 8 reads as a phone number and is refused. A refused answer is a 500 with the fixed message \"Jawaban ini tidak bisa dikirim.\" and never echoes what tripped the check.\n\nSplit by depot (AI-7a): split=depot, on the few metrics marked splittable in x-metrics (P-01, P-04, P-07, P-10 and G-01: scalar sums over depots), answers value { total, byDepot: [{ depotId, value }] } with total equal to the answer without split and every depot readable in the period listed once. Every other metric refuses it with 400, and so does any value but depot.\n\nRead-only: nothing is written and nothing is recorded in the audit trail. Rate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a field you do not know; removing or renaming one is a new contract version."
+    "description": "HD-6, foundation (H1), the money metrics (H2), the customer, delivery and gallon groups (H3), the stock and loyalty groups (H4) and the franchise, legal-entity and HR groups (H5). The numbers behind the AI web's answers. Every route under /dashboard/api/v1/ai/read answers ONE envelope (AnswerEnvelope), so a metric group added later changes only metricId, value and unit. GET scope answers what the caller may read for a period; GET money?metric= (H2) answers the money metrics (sales, cash and COD, profit and loss); GET customers?metric=, GET delivery?metric= and GET gallons?metric= (H3) answer the customer, delivery/courier and gallon metrics; GET stock?metric= and GET loyalty?metric= (H4) answer the stock group and the loyalty, promo, subscription and queue group; GET franchise?metric= and GET hr?metric= (H5) answer the franchise and legal-entity group and the HR group.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. A machine token (aud hydromart-machine) is refused with 403 whatever its scopes. The door is the aiRead capability: every staff role by default, franchise owners not.\n\nScope, applied in this order: (1) the person's own depots, exactly as hydromart-digital's own screens resolve them (a network-wide role: every depot); (2) narrowed to the depots whose legal entity, on a day of the period, is one the person's ROLE is granted in the role x legal entity matrix (HD-5). No grant = only SUPER_ADMIN reads it. A grant never widens step 1. The answer echoes the depots and legal entities it covered in scope. When hydromart-digital cannot work the scope out (a depot service that does not answer), nothing is answered: 503, never an answer without the narrowing.\n\nPeriod: the WIB (Asia/Jakarta, UTC+7) calendar. Send period=day|week|month|year (with date, any day inside it; default today in WIB) OR from and to (YYYY-MM-DD, both days included, at most 366 days). Both or neither is a 400. Weeks run Monday to Sunday. The resolved period is always echoed back, with the same span as UTC instants (fromAt inclusive, toAt exclusive). A metric defined only over whole months or years refuses a range that is not a run of them (400).\n\nvalue and status: ok = a real value, and 0 is a real value. belum_ada = there is nothing to say yet (not built, no data, not defined): value is null and reason says why; never read it as 0. ditahan = held back on purpose (masking, or a decision still open): value is null and reason says why. Quote the number from value, and the period and scope from the envelope.\n\nMasking (owner decision 24 Nov 2026): no phone number, name or address ever leaves this API. Customers and couriers appear only as counts or opaque ids. A group of fewer than 3 people is not given as a number: its cell has value null and flag \"kurang dari 3\", and when a total is published beside it, the smallest other non-empty cell is held back with it (flag \"ditahan\") so the small cell cannot be computed back from the total; if there is no such cell the total itself is null with totalFlag \"ditahan\". A group of 0 people is shown as 0. Held-back cells are widened until at least 6 people are held back, so a held-back cell cannot be pinned down from the total; if the cells run out first the total is held back too. Two answers over overlapping windows are never published, because their difference would be a smaller group than either shows.\n\nNo personal data: every string, and every object key, is checked before an answer leaves. A field named phone, name, nama, address, alamat, email, hp and the like is refused, and so is any text that contains an email address or a phone number. A display name travels only under the field label. A label names a thing (a depot code, a product, a queue), never a person, and is checked like every other string. Amounts and counts are JSON numbers, never digit strings: a string of 10 to 13 digits that starts with 08, 62 or 8 reads as a phone number and is refused. A refused answer is a 500 with the fixed message \"Jawaban ini tidak bisa dikirim.\" and never echoes what tripped the check.\n\nSplit by depot (AI-7a): split=depot, on the few metrics marked splittable in x-metrics (P-01, P-04, P-07, P-10 and G-01: scalar sums over depots), answers value { total, byDepot: [{ depotId, value }] } with total equal to the answer without split and every depot readable in the period listed once. Every other metric refuses it with 400, and so does any value but depot.\n\nRead-only: nothing is written and nothing is recorded in the audit trail. Rate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a field you do not know; removing or renaming one is a new contract version. HD-16: GET targets?metric= answers the monthly depot goals (revenue, gallons, orders, new customers) against their actuals, { target, actual, pct }."
   },
   "servers": [
     {
@@ -2276,6 +2276,243 @@
             "wholeMonthOnly": false,
             "value": "{ refill, partial, beli, notAsked }",
             "rules": "Counter sales that sold a gallon (not BATAL/VOID), by the empties the buyer brought: refill (as many as bought or more), partial, beli (none), notAsked. Counts transactions, not gallons."
+          }
+        }
+      }
+    },
+    "/dashboard/api/v1/ai/read/targets": {
+      "get": {
+        "summary": "One target-versus-actual metric (T-: revenue, gallons, orders, new customers) for one whole month.",
+        "description": "HD-16: the monthly goals a depot manager sets (one row per depot and month, depot-service), beside the actual of the metric that measures each. value is { target, actual, pct }: actual is exactly what the base metric answers (T-01 = P-01, T-02 = G-01, T-03 = P-04, T-04 = C-01) with the same period, scope and masking; target is the sum of the depots' targets; pct = actual / target x 100, one decimal (can pass 100).\n\nOnly a whole calendar month is answered (400 otherwise). A depot with no target for the month (no row, or 0) has target null: it is never answered as 0 or 0%. Without split, the network answer needs every depot in the caller's scope to have a target and to be readable for the whole month; otherwise it is belum_ada with the reason. With split=depot (T-01 to T-03), value is { target, actual, pct, byDepot: [{ depotId, target, actual, pct }] }: byDepot lists every depot readable that month, target and pct are null for a depot without a target (or readable for only part of the month); the top-level target and pct are null unless every depot has one. A month that has not ended yet answers the actual so far against the full-month target (a pace, not a projection).\n\nAll rules of the base metric carry over unchanged: T-04 is a count of people, so it is answered only for a closed month from the 8th of the next month and a count of 1 or 2 is ditahan (never turned into a pct), and it cannot be split (400). A refusal of the base metric (belum_ada, ditahan) is this metric's answer too, with its reason. Sources: the base metric's source plus depot-service (one read for all depots).",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "metric",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "T-01",
+                "T-02",
+                "T-03",
+                "T-04"
+              ]
+            },
+            "description": "A metric of the targets group. Any other id is 404; leaving it out is 400."
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month",
+                "year"
+              ]
+            },
+            "description": "A whole calendar period in WIB. Not together with from/to."
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Any day inside the period; default today in WIB. Only with period."
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "First day of an explicit range, with to."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Last day of an explicit range (included), with from."
+          },
+          {
+            "name": "split",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "depot"
+              ]
+            },
+            "description": "Optional. depot = answer per depot: value becomes { target, actual, pct, byDepot: [{ depotId, target, actual, pct }] }. Accepted only by T-01, T-02, T-03; T-04 (a count of people) and any other value is 400."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The envelope for the metric.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerEnvelope"
+                },
+                "example": {
+                  "metricId": "T-02",
+                  "period": {
+                    "unit": "month",
+                    "from": "2026-11-01",
+                    "to": "2026-11-30",
+                    "timeZone": "Asia/Jakarta",
+                    "fromAt": "2026-10-31T17:00:00.000Z",
+                    "toAt": "2026-11-30T17:00:00.000Z"
+                  },
+                  "scope": {
+                    "depotIds": [
+                      "11111111-1111-4111-8111-111111111111"
+                    ],
+                    "legalEntityIds": [
+                      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+                    ]
+                  },
+                  "value": {
+                    "target": 6000,
+                    "actual": 5400,
+                    "pct": 90
+                  },
+                  "status": "ok",
+                  "unit": "galon",
+                  "asOf": "2026-11-25T03:00:00.000Z",
+                  "label": "target galon terjual (G-01) satu bulan penuh, dijumlahkan dari target depot; pct = aktual dibagi target dikali 100 (satu desimal)"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: a period that is ambiguous (both period and from/to, or neither), not a real day, backwards, longer than 366 days, or not whole where the metric needs it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. Hand off again for a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, or a person whose role does not hold aiRead (a franchise owner, by default). Not worth retrying until their role changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: a metric id that is not in the targets group of the dictionary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_SERVER_ERROR: the answer was held back because it would have carried personal data (a bug in the metric, not in the request). The message is always \"Jawaban ini tidak bisa dikirim.\"; retrying will not help.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the scope could not be worked out (the depot list or the legal-entity matrix could not be read). Nothing is answered rather than an answer without the narrowing. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-metrics": {
+          "T-01": {
+            "unit": "Rp",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ target, actual, pct }; with split=depot also byDepot [{ depotId, target, actual, pct }]",
+            "rules": "Target of the month (omzet) against its actual (P-01). Revenue target in Rp against P-01 (revenue of orders other than BATAL/VOID by order date, before refunds). target and pct are null where no target is set (never 0 or 0%).",
+            "splittable": true
+          },
+          "T-02": {
+            "unit": "galon",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ target, actual, pct }; with split=depot also byDepot [{ depotId, target, actual, pct }]",
+            "rules": "Target of the month (galon terjual) against its actual (G-01). Gallons-sold target against G-01: gallon units on orders DELIVERED or COMPLETED by order date (WIB), counter sales and free promo gallons included. The depot target screen states the same unit. target and pct are null where no target is set (never 0 or 0%).",
+            "splittable": true
+          },
+          "T-03": {
+            "unit": "pesanan",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ target, actual, pct }; with split=depot also byDepot [{ depotId, target, actual, pct }]",
+            "rules": "Orders target of the month against P-04: orders that are not BATAL/VOID, by the day the order was created (WIB). This is NOT only delivered orders, matching the depot target screen, whose goal reads \"Pesanan (tidak batal)\"; it is the very figure that screen shows as its actual (the depot monthly report counts every order except cancelled and voided). target and pct are null where no target is set (never 0 or 0%).",
+            "splittable": true
+          },
+          "T-04": {
+            "unit": "orang",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "{ target, actual, pct }; with split=depot also byDepot [{ depotId, target, actual, pct }]",
+            "rules": "Target of the month (pelanggan baru) against its actual (C-01). New-customers target against C-01 (people whose first order in the network falls in the month, counted at the depot of that order). Closed month only, from the 8th of the next month; 1 or 2 new customers is ditahan. Cannot be split (400). target and pct are null where no target is set (never 0 or 0%).",
+            "splittable": false
           }
         }
       }
