@@ -97,9 +97,17 @@ export class StaffEmailService {
     const staff = accounts.filter((a) => a.status === 'ACTIVE' && !NOT_STAFF.has(a.role));
     const hr = staff.length > 0 ? await this.hrEmailsOf(staff.map((a) => a.id)) : new Map<string, string>();
     // The address HR keeps for the person first, else the login's own.
-    const withAddress = staff.flatMap((a) => {
+    const addressed = staff.flatMap((a) => {
       const email = hr.get(a.id) ?? a.email;
       return email ? [{ id: a.id, email, role: a.role }] : [];
+    });
+    // Two accounts sharing one address get one message (and one slot of the hourly cap).
+    const seen = new Set<string>();
+    const withAddress = addressed.filter((r) => {
+      const key = r.email.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
     });
     const room = this.room(req.toggle, withAddress.length);
     const to = withAddress.slice(0, room);
@@ -132,7 +140,8 @@ export class StaffEmailService {
       `staff email ${req.toggle} ${req.path}: ${req.accountIds.length} accounts, ` +
         `${req.accountIds.length - wanted.length} switched off, ` +
         `${wanted.length - staff.length} not active staff, ` +
-        `${staff.length - withAddress.length} without an address, ` +
+        `${staff.length - addressed.length} without an address, ` +
+        `${addressed.length - withAddress.length} sharing an address, ` +
         `${withAddress.length - to.length} over the hourly cap, ${to.length - failed} sent, ${failed} failed`,
     );
     return { sent: to.length - failed, failed, skipped: req.accountIds.length - to.length };

@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+
 import { StaffHrEmailHttpAdapter } from '../../src/infrastructure/http/staff-hr-email.http.adapter';
 
 // The REAL adapter against a mocked global.fetch: hr-service's internal emails-by-accounts route.
@@ -36,10 +38,23 @@ describe('StaffHrEmailHttpAdapter', () => {
     await expect(new StaffHrEmailHttpAdapter(cfg()).emailsByAccounts(['x'])).resolves.toEqual([]);
   });
 
-  it('throws when unconfigured or when hr-service refuses', async () => {
+  it('throws when unconfigured', async () => {
     await expect(new StaffHrEmailHttpAdapter(cfg({ url: '' })).emailsByAccounts(['x'])).rejects.toThrow('missing');
     await expect(new StaffHrEmailHttpAdapter(cfg({ key: '' })).emailsByAccounts(['x'])).rejects.toThrow('missing');
-    fetchMock.mockResolvedValueOnce({ ok: false, status: 503 } as Response);
-    await expect(new StaffHrEmailHttpAdapter(cfg()).emailsByAccounts(['x'])).rejects.toThrow('503');
+  });
+
+  it('keeps the batches that answered when another batch fails, and logs without addresses', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const ids = Array.from({ length: 401 }, (_, i) => `id-${i}`);
+    fetchMock
+      .mockResolvedValueOnce(ok([{ accountId: 'id-0', email: 'a@hydromart.id' }]))
+      .mockResolvedValueOnce({ ok: false, status: 503 } as Response)
+      .mockRejectedValueOnce(new Error('boom for x@hydromart.id'));
+    await expect(new StaffHrEmailHttpAdapter(cfg()).emailsByAccounts(ids)).resolves.toEqual([
+      { accountId: 'id-0', email: 'a@hydromart.id' },
+    ]);
+    expect(warn).toHaveBeenCalledWith('hr-service email lookup failed for 200 accounts: hr-service responded 503');
+    expect(warn).toHaveBeenCalledWith('hr-service email lookup failed for 1 accounts: boom for <address>');
+    warn.mockRestore();
   });
 });

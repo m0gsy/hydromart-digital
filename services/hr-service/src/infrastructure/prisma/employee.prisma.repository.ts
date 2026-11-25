@@ -286,7 +286,7 @@ export class EmployeePrismaRepository implements EmployeeRepository {
     authSubjectIds: string[],
   ): Promise<{ accountId: string; email: string }[]> {
     const rows = await this.prisma.employee.findMany({
-      where: { authSubjectId: { in: authSubjectIds }, email: { not: null } },
+      where: { authSubjectId: { in: authSubjectIds }, status: 'ACTIVE', email: { not: null } },
       select: { authSubjectId: true, email: true },
     });
     return rows.flatMap((r) =>

@@ -82,7 +82,7 @@ describe('StaffEmailService', () => {
       text: staffEmailText(TEXT, PATH, ORIGIN),
     });
     expect(log).toHaveBeenCalledWith(
-      `staff email newFranchiseApp ${PATH}: 2 accounts, 0 switched off, 0 not active staff, 0 without an address, 0 over the hourly cap, 2 sent, 0 failed`,
+      `staff email newFranchiseApp ${PATH}: 2 accounts, 0 switched off, 0 not active staff, 0 without an address, 0 sharing an address, 0 over the hourly cap, 2 sent, 0 failed`,
     );
   });
 
@@ -111,7 +111,7 @@ describe('StaffEmailService', () => {
       skipped: 4,
     });
     expect(sent.map((m) => m.to)).toEqual(['di-1@hydromart.id']);
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('3 not active staff, 1 without an address'));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('3 not active staff, 1 without an address, 0 sharing an address'));
   });
 
   it('writes to any active staff role, not a customer or a franchise owner, each footer pointing at its own switch', async () => {
@@ -146,6 +146,15 @@ describe('StaffEmailService', () => {
     expect(sent.map((m) => m.to)).toEqual(['hr@hydromart.id']);
     await service.send(request(['cu-1']));
     expect(hr.emailsByAccounts).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes one message to an address two accounts share, whatever its case', async () => {
+    const { service, sent } = build({
+      accounts: [account('ho-1', { email: 'Shared@hydromart.id' }), account('di-1', { email: 'shared@HYDROMART.id' })],
+    });
+    await expect(service.send(request(['ho-1', 'di-1']))).resolves.toEqual({ sent: 1, failed: 0, skipped: 1 });
+    expect(sent).toHaveLength(1);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('1 sharing an address'));
   });
 
   it('falls back to the login emails, with a warning that names no address, when HR cannot answer', async () => {

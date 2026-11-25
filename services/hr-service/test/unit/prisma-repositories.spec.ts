@@ -2328,7 +2328,7 @@ describe('EmployeePrismaRepository', () => {
       { accountId: 'a1', email: 'budi@example.com' },
     ]);
     expect(m(p, 'employee').findMany).toHaveBeenCalledWith({
-      where: { authSubjectId: { in: ['a1', 'a2'] }, email: { not: null } },
+      where: { authSubjectId: { in: ['a1', 'a2'] }, status: 'ACTIVE', email: { not: null } },
       select: { authSubjectId: true, email: true },
     });
   });
