@@ -10,6 +10,9 @@ import { CampaignService } from '../application/services/campaign.service';
 import { SavedSegmentService } from '../application/services/saved-segment.service';
 import { NotificationService } from '../application/services/notification.service';
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
+import { ComplianceDueService } from '../application/services/compliance-due.service';
+import { HeldDepotsHttpAdapter } from '../infrastructure/http/held-depots.http.adapter';
+import { ComplianceDueHttpAdapter } from '../infrastructure/http/compliance-due.http.adapter';
 import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
 import { SalesWeeklyService } from '../application/services/sales-weekly.service';
 import { LegalEntityAudienceHttpAdapter } from '../infrastructure/http/legal-entity-audience.http.adapter';
@@ -68,12 +71,15 @@ const providers: Provider[] = [
   MorningSummaryService,
   AiAccessRequestService,
   MaintenanceDueService,
+  ComplianceDueService,
   SalesWeeklyService,
   AiAgentNoticeService,
   { provide: CRM_TOKENS.LegalEntityAudience, useClass: LegalEntityAudienceHttpAdapter },
   DepotAudienceService,
   VisitNoticeService,
   { provide: CRM_TOKENS.MaintenanceDue, useClass: MaintenanceDueHttpAdapter },
+  { provide: CRM_TOKENS.ComplianceDue, useClass: ComplianceDueHttpAdapter },
+  { provide: CRM_TOKENS.HeldDepots, useClass: HeldDepotsHttpAdapter },
   BroadcastService,
   PushService,
   { provide: CRM_TOKENS.CampaignRepository, useClass: CampaignPrismaRepository },

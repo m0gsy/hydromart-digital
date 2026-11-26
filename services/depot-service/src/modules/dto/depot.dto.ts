@@ -26,6 +26,7 @@ import {
 import { decimalMax } from '@hydromart/platform';
 
 import { OwnershipType } from '../../domain/inventory';
+import { noHold } from '../../domain/quality-hold';
 import { DepotRecord } from '../../application/ports/depot.repository';
 
 export class BrowseDepotsQueryDto {
@@ -337,6 +338,8 @@ export class PublicDepotView {
    */
   @ApiProperty() acceptsTransfer!: boolean;
   @ApiProperty() acceptsQris!: boolean;
+  /** HD-14: a held depot takes no orders. Only the fact and the day it began: never why. */
+  @ApiProperty({ example: { active: false, since: null } }) qualityHold!: { active: boolean; since: string | null };
   /**
    * The drawn service area, ONLY when the caller asks for it (`?includeArea=true`): it can be
    * tens of KB per depot and the storefront never needs the shape, only `withinService`.
@@ -373,6 +376,7 @@ export class PublicDepotView {
       // Trimmed: a field of spaces is not an account anyone can transfer to.
       acceptsTransfer: (d.paymentBankAccountNumber ?? '').trim().length > 0,
       acceptsQris: (d.paymentQrisImageUrl ?? '').trim().length > 0,
+      qualityHold: d.qualityHold ?? noHold,
     };
   }
 }

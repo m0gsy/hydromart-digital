@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { FeatureFlagReader } from '@hydromart/platform';
 
 import {
+  DepotOnHoldError,
   DepotUnavailableError,
   ProductUnavailableError,
   SubscriptionsDisabledError,
@@ -12,6 +13,7 @@ import {
   SubscriptionNotFoundError,
 } from '../../domain/errors';
 import { nextDeliveryOnOrAfter } from '../../domain/subscription';
+import { addressToDeliver, routedDepot } from '../../domain/subscription-address';
 import { DepotChange, RerouteCounts, rerouteCounts, withDepotChange, selectNearestDepot } from '../../domain/geo';
 import { OrderConfigService } from '../../config/order-config.service';
 import { DeliveryAddressSnapshot } from '../ports/order.repository';
@@ -21,6 +23,7 @@ import { CustomerDirectoryPort } from '../ports/customer-directory.port';
 import { ProductCatalogPort } from '../ports/product-catalog.port';
 import {
   CreateSubscriptionData,
+  DUE_SWEEP_BATCH,
   SubscriptionFrequency,
   SubscriptionNetworkSummary,
   SubscriptionRecord,
@@ -282,25 +285,12 @@ export class SubscriptionService {
     fresh: DeliveryAddressSnapshot | null,
     depots: DepotLocation[] | null,
   ): Promise<DeliveryAddressSnapshot> {
-    if (!sub.addressId || !depots?.length || !fresh) return snapshot;
-    if (fresh.latitude == null || fresh.longitude == null || sameSnapshot(fresh, snapshot)) {
-      return snapshot;
-    }
-    const after = selectNearestDepot(fresh.latitude, fresh.longitude, depots)?.id ?? null;
-    if (after === null) return snapshot;
-    // Never to another depot, nor out of an area no depot serves any more (that is the
-    // reroute preview's to say). Only a plan with no pin of its own — written before pins
-    // were required — has no depot to leave, and may take the pinned edit.
-    if (snapshot.latitude != null && snapshot.longitude != null) {
-      const before = selectNearestDepot(snapshot.latitude, snapshot.longitude, depots)?.id;
-      if (before !== after) return snapshot;
-    }
+    const chosen = addressToDeliver(!!sub.addressId, snapshot, fresh, depots);
+    if (chosen === snapshot || !sub.addressId) return snapshot;
     try {
       // Only if the plan is still the one read: a move the customer made during this run
       // must not be written over, and an automatic follow is not a reason to reset failures.
-      return (await this.subs.followAddress(sub.id, sub.addressId, sub.updatedAt, fresh))
-        ? fresh
-        : snapshot;
+      return (await this.subs.followAddress(sub.id, sub.addressId, sub.updatedAt, chosen)) ? chosen : snapshot;
     } catch (err) {
       this.logger.warn(`Subscription ${sub.id} kept its address: ${messageOf(err)}`);
       return snapshot;
@@ -429,34 +419,50 @@ export class SubscriptionService {
   }
 
   async processDue(now: Date): Promise<SubscriptionSweepResult> {
-    const due = await this.subs.findDue(now);
-    let placed = 0;
-    let failed = 0;
-    // P3-5: one depot read for the whole run, and only when some plan follows an address.
+    // HD-14: the plans of a depot on a quality hold are left out HERE, while reading, and not skipped one
+    // by one afterwards: held plans keep their old nextDeliveryAt, so reading only the oldest batch
+    // would let a pile of them starve every healthy depot's plans for as long as the hold lasts. The
+    // depot is the one the plan would be delivered to (the same rule as the sweep and the reminder).
     // The directory answers null on an outage rather than throwing; null keeps every snapshot.
-    const followers = due.filter((s) => s.addressId);
-    const depots = followers.length ? await this.orders.activeDepots() : null;
-    // The saved addresses, read side by side rather than one timeout after another; the
-    // adapter answers null for anything it could not read.
-    const saved = new Map(
-      await Promise.all(
+    const depots = await this.orders.activeDepots();
+    const heldIds = new Set((depots ?? []).filter((d) => d.onHold).map((d) => d.id));
+    const due: SubscriptionRecord[] = [];
+    const saved = new Map<string, DeliveryAddressSnapshot | null>();
+    let heldPlans = 0;
+    for (let page = 0, offset = 0; due.length < DUE_SWEEP_BATCH && page < MAX_DUE_PAGES; page += 1) {
+      const batch = await this.subs.findDue(now, DUE_SWEEP_BATCH, offset);
+      if (batch.length === 0) break;
+      // The saved addresses, read side by side rather than one timeout after another; the
+      // adapter answers null for anything it could not read.
+      const followers = batch.filter((s) => s.addressId);
+      for (const [id, address] of await Promise.all(
         (depots?.length ? followers : []).map(
           async (s) => [s.id, await this.customers.addressById(s.customerId, s.addressId!)] as const,
         ),
-      ),
-    );
+      )) {
+        saved.set(id, address);
+      }
+      for (const plan of batch) {
+        if (heldIds.size > 0) {
+          const where = routedDepot(
+            addressToDeliver(!!plan.addressId, snapshotOf(plan), saved.get(plan.id) ?? null, depots),
+            depots,
+          );
+          if (where && heldIds.has(where.id)) {
+            heldPlans += 1;
+            continue;
+          }
+        }
+        if (due.length < DUE_SWEEP_BATCH) due.push(plan);
+      }
+      if (batch.length < DUE_SWEEP_BATCH) break;
+      offset += batch.length;
+    }
+    if (heldPlans > 0) this.logger.log(`${heldPlans} due subscription(s) wait: their depot is on a quality hold`);
+    let placed = 0;
+    let failed = 0;
     for (const sub of due) {
-      const snapshot: DeliveryAddressSnapshot = {
-        recipientName: sub.recipientName,
-        phone: sub.phone,
-        addressLine: sub.addressLine,
-        city: sub.city,
-        province: sub.province,
-        postalCode: sub.postalCode,
-        latitude: sub.latitude,
-        longitude: sub.longitude,
-        notes: sub.notes,
-      };
+      const snapshot = snapshotOf(sub);
       const address = await this.followSavedAddress(sub, snapshot, saved.get(sub.id) ?? null, depots);
       try {
         await this.orders.placeScheduled(
@@ -484,6 +490,13 @@ export class SubscriptionService {
           placed += 1;
         }
       } catch (err) {
+        // HD-14: a depot on a quality hold is a pause, not a failure: no failure count, no auto-pause,
+        // no text to the customer, and nextDeliveryAt stays put, so the next sweep tries again and,
+        // once the hold ends, `nextDeliveryOnOrAfter` collapses the backlog to one delivery.
+        if (err instanceof DepotOnHoldError) {
+          // Only reachable when the hold began between the directory read and the placement.
+          continue;
+        }
         failed += 1;
         await this.recordCycleFailure(sub, err, now);
       }
@@ -548,19 +561,19 @@ export class SubscriptionService {
   }
 }
 
-const SNAPSHOT_KEYS = [
-  'recipientName',
-  'phone',
-  'addressLine',
-  'city',
-  'province',
-  'postalCode',
-  'latitude',
-  'longitude',
-  'notes',
-] as const;
+/** Plans per sweep read, and how many pages of held plans one sweep will read past (ponytail: 2000 held plans, then the next sweep). */
+const MAX_DUE_PAGES = 20;
 
-/** Every field the courier and the routing read; equal snapshots need no write. */
-function sameSnapshot(a: DeliveryAddressSnapshot, b: DeliveryAddressSnapshot): boolean {
-  return SNAPSHOT_KEYS.every((k) => (a[k] ?? null) === (b[k] ?? null));
+function snapshotOf(sub: SubscriptionRecord): DeliveryAddressSnapshot {
+  return {
+    recipientName: sub.recipientName,
+    phone: sub.phone,
+    addressLine: sub.addressLine,
+    city: sub.city,
+    province: sub.province,
+    postalCode: sub.postalCode,
+    latitude: sub.latitude,
+    longitude: sub.longitude,
+    notes: sub.notes,
+  };
 }

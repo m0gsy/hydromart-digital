@@ -90,6 +90,8 @@ model Campaign {
   aiReason        String?
   /// sha256 of the whole AI request (depot, segment, text, schedule, reason, author): a replay must match it.
   aiRequestHash   String?
+  /// HD-14: the depot a depot campaign was made for (NULL = network-wide or older). A quality hold on it stops the send.
+  depotId         String?             @db.Uuid
 
   recipients CampaignRecipient[]
 

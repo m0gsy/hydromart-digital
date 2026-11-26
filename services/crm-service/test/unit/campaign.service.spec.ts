@@ -19,6 +19,7 @@ import {
   FakeCustomerDirectory,
   FakeBroadcastDelivery,
   InMemoryCampaignRepository,
+  FakeHeldDepots,
 } from '../support/fakes';
 
 describe('CampaignService', () => {
@@ -33,7 +34,7 @@ describe('CampaignService', () => {
     delivery = new FakeBroadcastDelivery();
     directory = new FakeCustomerDirectory();
     activity = new FakeActivitySegment();
-    service = new CampaignService(repo, delivery, directory, activity);
+    service = new CampaignService(repo, delivery, directory, activity, new FakeHeldDepots());
   });
 
   // Every recipient carries a customerId: delivery is an inbox write, so an account is
@@ -407,7 +408,7 @@ describe('CampaignService', () => {
       expect(repo.campaigns[0]!.status).toBe(CampaignStatus.SENDING);
 
       const recovered = new FakeBroadcastDelivery();
-      service = new CampaignService(repo, recovered, directory, activity);
+      service = new CampaignService(repo, recovered, directory, activity, new FakeHeldDepots());
       expect(await service.processSending()).toMatchObject({ sent: 2, completed: 1 });
       expect(repo.campaigns[0]!.status).toBe(CampaignStatus.SENT);
     });

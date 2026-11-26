@@ -112,6 +112,8 @@ function WalkIn({ depotId }: { depotId: string }) {
   // K3.4: the depot record behind `depotId`, for the outlet line on the struk.
   const { depots } = useDepot();
   const depot = depots.find((d) => d.id === depotId) ?? null;
+  // HD-14 (owner decision #28): a depot on a quality hold sells nothing over the counter either.
+  const depotOnHold = depot?.qualityHold?.active === true;
   // The depot's own line for the struk — the public projection above leaves it out.
   const depotContact = useDepotContact(depotId);
   const { toast } = useToast();
@@ -544,6 +546,7 @@ function WalkIn({ depotId }: { depotId: string }) {
   // address and nobody delivered anything. Finish the address or untick Antar.
   const payDisabled =
     busy ||
+    depotOnHold ||
     lines.length === 0 ||
     shiftOpen !== true ||
     total === null ||
@@ -1777,6 +1780,11 @@ function WalkIn({ depotId }: { depotId: string }) {
           end of it. The bottom padding follows the safe-area inset (custom property first,
           env() as the fallback) so it is never under a system bar.
         */}
+            {depotOnHold && (
+              <p className="rounded-lg bg-[color:var(--danger)] px-3 py-2 text-sm font-bold text-white" role="alert" data-testid="counter-hold-banner">
+                {t('opsFix.walkIn.depotOnHold')}
+              </p>
+            )}
             <div className="surface sticky bottom-0 z-10 -mx-4 -mb-4 space-y-2 rounded-b-2xl border-t border-app p-4 pb-[max(1rem,var(--safe-area-inset-bottom,env(safe-area-inset-bottom)))]">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-bold">{t('hrFix.walkIn.total')}</span>

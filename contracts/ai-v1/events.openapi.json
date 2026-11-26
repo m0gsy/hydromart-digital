@@ -423,6 +423,87 @@
           }
         }
       }
+    },
+    "depot.quality_hold_changed": {
+      "post": {
+        "summary": "A depot's quality hold started or ended",
+        "description": "Raised in the same database transaction that starts a quality hold (status ACTIVE) or ends it (status ENDED). A held depot takes no online orders, counter sales, campaigns or promotions until it ends. One event per (hold, status): the eventId is keyed by the hold and the status, so any retry, replay or producer re-send is the same event. It carries ids, the status and the time only: the reason and the staff note never leave hydromart, and the AI web only reads the state (it can neither start nor end a hold).",
+        "parameters": [
+          {
+            "name": "X-Hydromart-Event",
+            "in": "header",
+            "required": true,
+            "description": "The event name. NOT signed: a copy of the body field event, for logs only. Route on the verified body.",
+            "schema": {
+              "type": "string",
+              "const": "depot.quality_hold_changed"
+            },
+            "example": "depot.quality_hold_changed"
+          },
+          {
+            "name": "X-Hydromart-Delivery",
+            "in": "header",
+            "required": true,
+            "description": "The delivery id. NOT signed: a copy of the body field id, for logs only. Read the verified body.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7d0c8a52-5f5e-4c51-9a4e-2b9e0f6f3a11"
+          },
+          {
+            "name": "X-Hydromart-Timestamp",
+            "in": "header",
+            "required": true,
+            "description": "Unix time in seconds at which THIS attempt was sent. Part of the signed string.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{10}$"
+            },
+            "example": "1795400100"
+          },
+          {
+            "name": "X-Hydromart-Signature",
+            "in": "header",
+            "required": true,
+            "description": "sha256= followed by the lowercase hex HMAC-SHA256 of \"<X-Hydromart-Timestamp>.<raw body>\", keyed with the endpoint secret.",
+            "schema": {
+              "type": "string",
+              "pattern": "^sha256=[0-9a-f]{64}$"
+            },
+            "example": "sha256=1a7c1beb56aec596c1c7a070be9d842f372fb7343f5b71c3cfaedf8f6c084380"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepotQualityHoldChanged"
+              },
+              "example": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "event": "depot.quality_hold_changed",
+                "occurredAt": "2026-11-27T03:10:00.000Z",
+                "eventId": "depot.quality_hold_changed:00000000-0000-4000-8000-0000000000a1:ACTIVE",
+                "data": {
+                  "depotId": "00000000-0000-4000-8000-000000000003",
+                  "status": "ACTIVE",
+                  "changedAt": "2026-11-27T03:10:00.000Z"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Taken (or already taken: a repeated eventId). The delivery is marked DELIVERED."
+          },
+          "default": {
+            "description": "Anything else is retried (see info.description), and DEAD after the 6th failed attempt."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -842,6 +923,67 @@
             "description": "The /waralaba application it came from, when there was one."
           },
           "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DepotQualityHoldChanged": {
+        "type": "object",
+        "required": [
+          "id",
+          "event",
+          "occurredAt",
+          "eventId",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The delivery id: one per receiver endpoint, the same on its retries and replays. Not the dedupe key."
+          },
+          "event": {
+            "type": "string",
+            "const": "depot.quality_hold_changed"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it happened (UTC)."
+          },
+          "eventId": {
+            "type": "string",
+            "pattern": "^depot\\.quality_hold_changed:[0-9a-f-]{36}:(ACTIVE|ENDED)$",
+            "description": "depot.quality_hold_changed:<holdId>:<status>. The same on every retry, replay and producer re-send: the dedupe key."
+          },
+          "data": {
+            "$ref": "#/components/schemas/DepotQualityHoldChangedData"
+          }
+        }
+      },
+      "DepotQualityHoldChangedData": {
+        "type": "object",
+        "required": [
+          "depotId",
+          "status",
+          "changedAt"
+        ],
+        "properties": {
+          "depotId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The depot whose hold changed."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "ENDED"
+            ],
+            "description": "ACTIVE: the depot stopped selling. ENDED: it may sell again."
+          },
+          "changedAt": {
             "type": "string",
             "format": "date-time"
           }

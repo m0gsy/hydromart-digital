@@ -84,6 +84,7 @@ export const order = {
     servedBy: 'Diantar dari {name}',
     savedNoPin: 'Alamat tersimpan ini belum punya pin. Pasang di sini — pinnya ikut disimpan ke alamat ini.',
     keepPatokan: 'Simpan juga sebagai patokan alamat ini (untuk pesanan berikutnya)',
+    depotOnHold: 'Depot ini sedang tidak melayani sementara.',
     outOfServiceArea:
       'Titik alamat ini di luar radius antar semua depot kami. Pilih alamat lain, atau ubah titik petanya ke lokasi yang kami layani.',
     placeOrder: 'Buat pesanan —',

@@ -240,6 +240,14 @@ export const depot = {
     serviced: (id: string) => `/depots/api/v1/maintenance-items/${id}/serviced`,
   },
 
+  // HD-14: quality hold, lab tests and permits of one depot.
+  quality: {
+    hold: (depotId: string) => `/depots/api/v1/depots/${depotId}/quality-hold`,
+    endHold: (depotId: string) => `/depots/api/v1/depots/${depotId}/quality-hold/end`,
+    labTests: (depotId: string) => `/depots/api/v1/depots/${depotId}/lab-tests`,
+    permits: (depotId: string) => `/depots/api/v1/depots/${depotId}/permits`,
+  },
+
   // Depot procurement — suppliers + purchase orders (depot-service, design 7a/9d/11b).
   // Own gateway segment (proxied to depot-service). depotId scopes lists; status filters POs.
   procurement: {

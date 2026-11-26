@@ -81,6 +81,11 @@ export enum NotificationEvent {
   // Operasional), raised by POST notifications/external/maintenance-due. Tokens: {{depot}},
   // {{items}} (the due items with the reason each; for HQ the count per depot).
   MAINTENANCE_DUE = 'MAINTENANCE_DUE',
+  // HD-14: a depot permit is within 30 days of expiry (or expired) / a required lab test is overdue.
+  // Same audience and shape as MAINTENANCE_DUE, raised by POST notifications/external/compliance-due.
+  // Tokens: {{depot}}, {{items}}, {{depotId}} (the tap).
+  PERMIT_DUE = 'PERMIT_DUE',
+  LAB_TEST_DUE = 'LAB_TEST_DUE',
   // AI-26: the weekly Sales report of one legal entity is ready in the AI web. One row per person who
   // may read that entity's calon mitra CRM, raised by POST notifications/external/sales-weekly-ready.
   // Tokens: {{week}} ("23 Nov - 29 Nov"), {{entity}}, {{link}} (the AI web page, the AI web page).
@@ -272,6 +277,10 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.AI_AGENT_STOPPED]: '{{who}} dihentikan. Buka Tim AI untuk detail. {{link}}',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Perawatan jatuh tempo di {{depot}}: {{items}}. Buka menu Perawatan untuk menjadwalkan servis.',
+  [NotificationEvent.PERMIT_DUE]:
+    'Izin depot {{depot}} perlu diperbarui: {{items}}. Buka menu Uji lab dan izin untuk mencatat izin yang baru.',
+  [NotificationEvent.LAB_TEST_DUE]:
+    'Uji lab depot {{depot}} jatuh tempo: {{items}}. Lakukan ujinya dan catat hasilnya di menu Uji lab dan izin.',
   [NotificationEvent.VISIT_FINDING]:
     'Kunjungan supervisor ke {{depot}} menemukan: {{items}}. Buka kunjungan untuk melihat dan menindaklanjutinya.',
   [NotificationEvent.FOLLOW_UP_OVERDUE]:
@@ -395,6 +404,8 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_ACCESS_REQUESTED,
   // HD-15: addressed to one account (also in PERSONAL_OPS_EVENTS); the depot is in the text.
   NotificationEvent.MAINTENANCE_DUE,
+  NotificationEvent.PERMIT_DUE,
+  NotificationEvent.LAB_TEST_DUE,
   // AI-26: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
   NotificationEvent.SALES_WEEKLY_REPORT,
   // AI-31: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
@@ -491,6 +502,9 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.AI_ACCESS_REQUESTED]: 'aiAccessRequest',
   // HD-15: its own switch on /hq/profile, push and email, both defaulting on.
   [NotificationEvent.MAINTENANCE_DUE]: 'maintenanceDue',
+  // HD-14: the same switch: depot upkeep reminders.
+  [NotificationEvent.PERMIT_DUE]: 'maintenanceDue',
+  [NotificationEvent.LAB_TEST_DUE]: 'maintenanceDue',
   // AI-26: its own switch on /hq/profile, push and email, both defaulting on.
   [NotificationEvent.SALES_WEEKLY_REPORT]: 'salesWeekly',
   // AI-31: one switch for the three agent notices on /hq/profile, push and email, default on.
@@ -544,6 +558,8 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_ACCESS_REQUESTED,
   // HD-15: one recipient's own row (the same text goes to each of them, but each has their own).
   NotificationEvent.MAINTENANCE_DUE,
+  NotificationEvent.PERMIT_DUE,
+  NotificationEvent.LAB_TEST_DUE,
   // AI-26: each recipient's own row.
   NotificationEvent.SALES_WEEKLY_REPORT,
   // AI-31: each recipient's own row.
@@ -594,6 +610,10 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
   [NotificationEvent.AI_AGENT_STOPPED]: '{{who}} was stopped. Open Tim AI for details. {{link}}',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Maintenance is due at {{depot}}: {{items}}. Open Maintenance to schedule the service.',
+  [NotificationEvent.PERMIT_DUE]:
+    'Permits at {{depot}} need renewing: {{items}}. Open Lab tests and permits to record the new permit.',
+  [NotificationEvent.LAB_TEST_DUE]:
+    'Lab tests at {{depot}} are due: {{items}}. Take the test and record the result under Lab tests and permits.',
   [NotificationEvent.VISIT_FINDING]:
     'A supervisor visit to {{depot}} found: {{items}}. Open the visit to review and follow up.',
   [NotificationEvent.FOLLOW_UP_OVERDUE]:

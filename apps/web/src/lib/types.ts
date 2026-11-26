@@ -337,6 +337,8 @@ export interface NearbyDepot {
   /** Weekly hours incl. the optional midday break; absent = never configured (= open). */
   operatingHours?: Record<string, DepotHours>;
   holidays?: DepotHoliday[];
+  /** HD-14: the depot is on a quality hold (no reason ever reaches here). Absent = not held. */
+  qualityHold?: { active: boolean; since: string | null };
 }
 
 export interface Page<T> {
@@ -944,6 +946,9 @@ export type NotificationEvent =
   | 'UNPAID_ORDER'
   // HD-15: depot equipment due for service by days or water volume, one row per recipient.
   | 'MAINTENANCE_DUE'
+  // HD-14: a depot permit near expiry / a lab test overdue.
+  | 'PERMIT_DUE'
+  | 'LAB_TEST_DUE'
   | 'SALES_WEEKLY_REPORT'
   | 'AI_AGENT_FLAG'
   | 'AI_AGENT_CAP'
@@ -1003,6 +1008,8 @@ export const OPS_EVENTS = [
   'MORNING_SUMMARY',
   'AI_ACCESS_REQUESTED',
   'MAINTENANCE_DUE',
+  'PERMIT_DUE',
+  'LAB_TEST_DUE',
   'SALES_WEEKLY_REPORT',
   'AI_AGENT_FLAG',
   'AI_AGENT_CAP',
@@ -1594,6 +1601,8 @@ export interface Depot {
   /** Per-galon delivery fee. Checkout previews the ongkir from the depot the customer picks. */
   deliveryFee: number;
   minOrderAmount: number | null;
+  /** HD-14: on a quality hold (the fact and the day, never why). Absent = not held. */
+  qualityHold?: { active: boolean; since: string | null };
   /** Weekly hours incl. the optional midday break; absent = never configured (= open). */
   operatingHours?: Record<string, DepotHours>;
   holidays?: DepotHoliday[];
@@ -3704,4 +3713,37 @@ export interface RatingByDepotReport {
   from: string | null;
   to: string | null;
   items: { depotId: string; rating: number; reviewCount: number }[];
+}
+
+/** HD-14: a depot's quality hold (the note is staff text, shown to staff only). */
+export interface QualityHold {
+  id: string;
+  depotId: string;
+  status: 'ACTIVE' | 'ENDED';
+  reasonCode: 'LAB_FAIL' | 'PERMIT' | 'COMPLAINT' | 'OTHER';
+  note: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  endRetestId: string | null;
+}
+
+export interface DepotLabTest {
+  id: string;
+  depotId: string;
+  kind: 'FISIK_MIKRO' | 'KIMIA' | 'ECOLI' | 'LENGKAP';
+  takenOn: string;
+  resultOn: string;
+  result: 'PASS' | 'FAIL';
+  labName: string;
+  reportNo: string;
+  recordedByRole: string;
+  createdAt: string;
+}
+
+export interface DepotPermit {
+  id: string;
+  depotId: string;
+  kind: string;
+  number: string;
+  validUntil: string;
 }

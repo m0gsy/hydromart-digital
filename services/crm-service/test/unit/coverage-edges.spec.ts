@@ -95,6 +95,7 @@ describe('CampaignService.list defaults', () => {
     { send: jest.fn() } as never,
     { resolve: jest.fn() } as never,
     { customersIn: jest.fn() } as never,
+    { heldDepotIds: jest.fn() } as never,
   );
 
   beforeEach(() => repo.list.mockClear());

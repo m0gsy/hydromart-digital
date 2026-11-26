@@ -15,7 +15,7 @@ import {
   evaluateShipping,
   ruleIsLive,
 } from '../../domain/promo-rule';
-import { PromoRuleNotFoundError, PromoRuleValidationError } from '../../domain/errors';
+import { PromoDepotOnHoldError, PromoRuleNotFoundError, PromoRuleValidationError } from '../../domain/errors';
 import {
   CreatePromoRuleData,
   PromoRuleOrderSample,
@@ -24,6 +24,7 @@ import {
   PromoRuleUsage,
   UpdatePromoRuleData,
 } from '../ports/promo-rule.repository';
+import { HeldDepotsPort } from '../ports/held-depots.port';
 import { OrderValuePort } from '../ports/order-value.port';
 import { VoucherRepository } from '../ports/voucher.repository';
 import { PromoConfigService } from '../../config/promo-config.service';
@@ -123,7 +124,19 @@ export class PromoRuleService {
     @Optional()
     @Inject(PROMO_TOKENS.VoucherRepository)
     private readonly vouchers?: VoucherRepository,
+    // HD-14: optional only so a caller that never activates a rule (and its tests) need not stand up
+    // depot-service; the module always provides it.
+    @Optional() @Inject(PROMO_TOKENS.HeldDepots) private readonly holds?: HeldDepotsPort,
   ) {}
+
+  /**
+   * HD-14: switching a promotion on for a depot on a quality hold is refused. Fails CLOSED: with the
+   * holds unreadable the activation is refused too (the same call, a moment later, goes through).
+   */
+  private async assertDepotNotHeld(depotId: string | null | undefined): Promise<void> {
+    if (!depotId || !this.holds) return;
+    if ((await this.holds.heldDepotIds()).has(depotId)) throw new PromoDepotOnHoldError();
+  }
 
   findAll(depotIds?: readonly string[]): Promise<PromoRuleRecord[]> {
     return this.repo.findAll(depotIds);
@@ -137,6 +150,8 @@ export class PromoRuleService {
 
   async create(input: CreatePromoRuleData): Promise<PromoRuleRecord> {
     this.validate(input);
+    // A new rule is live at once, so creating one is an activation.
+    await this.assertDepotNotHeld(input.depotId);
     return this.repo.create(input);
   }
 
@@ -161,6 +176,13 @@ export class PromoRuleService {
       Object.entries(patch).filter(([, v]) => v !== undefined),
     );
     this.validate({ ...current, ...definedPatch });
+    // Only a REAL change to "live at a held depot" is refused: switching a rule on that was off, or moving
+    // it to another depot. The web form sends depotId on every save, so an unchanged depotId (and an
+    // already-active rule) must stay editable during a hold; so does switching off.
+    const merged = { ...current, ...definedPatch } as PromoRuleRecord;
+    const switchedOn = patch.active === true && !current.active;
+    const moved = patch.depotId !== undefined && patch.depotId !== current.depotId;
+    if (merged.active && (switchedOn || moved)) await this.assertDepotNotHeld(merged.depotId);
     return this.repo.update(id, patch, current.updatedAt);
   }
 

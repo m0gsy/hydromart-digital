@@ -380,6 +380,10 @@ export class MaintenanceDueResultDto {
   whatsapp!: 'pending';
 }
 
+/** HD-14: n8n's trigger for the permit and lab-test sweep: the same body as the maintenance one. */
+export class ComplianceDueDto extends MaintenanceDueDto {}
+
+export class ComplianceDueResultDto extends MaintenanceDueResultDto {}
 /** AI-26: the dedupe base of the weekly Sales report notice is `sales-weekly:<Monday, WIB>`. */
 export const SALES_WEEKLY_PREFIX = 'sales-weekly:';
 

@@ -38,6 +38,8 @@ export const notifications = {
     FRANCHISE_APPLICATION_SUBMITTED: 'New franchise application',
     MORNING_SUMMARY: 'Approvals waiting for you',
     MAINTENANCE_DUE: 'Equipment maintenance due',
+    PERMIT_DUE: 'Depot permit due',
+    LAB_TEST_DUE: 'Lab test due',
     SALES_WEEKLY_REPORT: 'Weekly Sales report ready',
     AI_AGENT_FLAG: 'AI agent flagged something',
     AI_AGENT_CAP: 'AI agent reached its cap',

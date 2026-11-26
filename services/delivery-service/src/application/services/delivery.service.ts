@@ -11,6 +11,7 @@ import {
   InvalidDeliveryTransitionError,
   NoShowNotEligibleError,
   NotAssignedDriverError,
+  DepotOnHoldError,
   OrderAlreadyClaimedError,
   StaleDeliveryStatusError,
   OrderCoordinationError,
@@ -1467,6 +1468,9 @@ export class DeliveryService {
        * who lost a race by half a second was told to retry something that will never
        * succeed. A dropped signal still raises the 422; only a refusal lands on the 409.
        */
+      if ((error as { onHold?: boolean }).onHold) {
+        throw new DepotOnHoldError();
+      }
       if ((error as { refused?: boolean }).refused) {
         throw new OrderAlreadyClaimedError();
       }
