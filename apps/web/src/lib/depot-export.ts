@@ -1,6 +1,13 @@
+import { api } from './api';
 import type { CsvCell } from './csv';
 import { DEPOT_IMPORT_COLUMNS } from './depot-import-columns';
 import type { ImportColumn } from '@/components/csv-import';
+import { endpoints } from './endpoints';
+
+/** Every depot as import rows (depotAdmin: the rows carry bank accounts), capped by the server. */
+export function fetchDepotExport() {
+  return api.get<{ rows: Record<string, unknown>[]; total: number }>(endpoints.depots.exportRows, true);
+}
 
 /** The inverse of `areaCell`: `lat,lng|lat,lng#…`. */
 const areaText = (rings: { lat: number; lng: number }[][]): string =>

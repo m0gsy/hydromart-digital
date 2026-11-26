@@ -9,7 +9,7 @@ import {
 } from '@hydromart/platform';
 
 import { DepotImportService } from '../application/services/depot-import.service';
-import { ImportDepotsDto } from './dto/depot.dto';
+import { DepotExportResponseDto, ImportDepotsDto } from './dto/depot.dto';
 import { ImportResponseDto } from './dto/responses.generated.dto';
 
 @ApiTags('Depots')
@@ -37,6 +37,7 @@ export class DepotImportController {
   // carry bank accounts, which the read-only directory roles do not get.
   @ApiBearerAuth()
   @Can('depotAdmin')
+  @ApiOkResponse({ type: DepotExportResponseDto })
   @Get('export')
   @ApiOperation({ summary: 'Every depot as import rows, to download and re-import' })
   export(

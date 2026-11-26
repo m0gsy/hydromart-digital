@@ -17,11 +17,9 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { useToast } from '@/components/toast';
-import { api } from '@/lib/api';
 import { fetchAllDepots } from '@/lib/all-depots';
 import { DEPOT_IMPORT_COLUMNS } from '@/lib/depot-import-columns';
-import { depotExportCells } from '@/lib/depot-export';
-import { endpoints } from '@/lib/endpoints';
+import { depotExportCells, fetchDepotExport } from '@/lib/depot-export';
 import { todayWib } from '@/lib/wib';
 import { downloadXlsx } from '@/lib/xlsx';
 import type { DepotForm as DepotFormValues } from '@/lib/depots';
@@ -96,10 +94,7 @@ export default function HqDepotsPage() {
   async function exportDepots() {
     setExporting(true);
     try {
-      const { rows, total } = await api.get<{ rows: Record<string, unknown>[]; total: number }>(
-        endpoints.depots.exportRows,
-        true,
-      );
+      const { rows, total } = await fetchDepotExport();
       await downloadXlsx(
         `depot-${todayWib()}.xlsx`,
         DEPOT_IMPORT_COLUMNS.map((c) => c.key),
