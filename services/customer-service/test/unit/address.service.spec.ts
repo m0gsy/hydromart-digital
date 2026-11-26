@@ -244,6 +244,22 @@ describe('AddressService region codes (HD-20a)', () => {
     expect(codes(await svc.update('c', a.id, { latitude: null, longitude: null }))).toEqual([null, null, null]);
   });
 
+  it('recomputes the codes when a pin saved without quality is now told its source', async () => {
+    const old = await svc.create('c', { ...input('A'), ...at }); // unknown source: kecamatan only
+    expect(codes(old)).toEqual(['320101', null, 'PIN']);
+    expect(codes(await svc.update('c', old.id, { ...at, pinSource: 'MANUAL' }))).toEqual([
+      '320101',
+      '3201010001',
+      'PIN',
+    ]);
+    // Known now: the same pin re-sent with another source keeps what it had.
+    expect(codes(await svc.update('c', old.id, { ...at, pinSource: 'GPS', pinAccuracyM: 3000 }))).toEqual([
+      '320101',
+      '3201010001',
+      'PIN',
+    ]);
+  });
+
   it('writes no codes when no lookup is wired', async () => {
     const bare = new AddressService(new InMemoryAddressRepository(), buildTestConfig());
     expect(codes(await bare.create('c', { ...input('A'), ...at, pinSource: 'MANUAL' }))).toEqual([null, null, null]);
