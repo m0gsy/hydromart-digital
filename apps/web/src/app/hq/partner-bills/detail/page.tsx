@@ -47,6 +47,8 @@ export default function HqPartnerBillDetailPage() {
       ? t('hq.partnerBills.detail.bankMissing')
       : error?.code === 'PARTNER_BILL_NO_RECIPIENTS'
         ? t('hq.partnerBills.detail.noRecipients')
+        : error?.code === 'PARTNER_BILL_SENDING'
+          ? t('hq.partnerBills.detail.sending')
         : error?.code === 'PARTNER_BILL_SOURCE_UNAVAILABLE'
           ? t('hq.partnerBills.detail.sourceDown')
           : error
@@ -132,10 +134,10 @@ export default function HqPartnerBillDetailPage() {
             </p>
           )}
 
-          {canDecide && b.status !== 'VOID' && (
+          {canDecide && (b.status === 'DRAFT' || b.status === 'SENDING' || b.status === 'SENT') && (
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap gap-3">
-                {b.status === 'DRAFT' && (
+                {(b.status === 'DRAFT' || b.status === 'SENDING') && (
                   <Button
                     disabled={busy}
                     onClick={() => {
@@ -147,7 +149,7 @@ export default function HqPartnerBillDetailPage() {
                     {busy ? t('hq.partnerBills.detail.approving') : t('hq.partnerBills.detail.approve')}
                   </Button>
                 )}
-                {!voiding && (
+                {!voiding && b.status !== 'SENDING' && (
                   <Button variant="secondary" disabled={busy} onClick={() => setVoiding(true)}>
                     {t('hq.partnerBills.detail.void')}
                   </Button>

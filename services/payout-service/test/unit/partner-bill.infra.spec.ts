@@ -129,7 +129,7 @@ describe('PartnerBillPrismaRepository', () => {
     expect(prisma.partnerBill.findMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: { month: '2026-10' }, take: 50 }));
     await repo.listForOwner('o1', 10);
     expect(prisma.partnerBill.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({ where: { status: 'SENT', recipientIds: { has: 'o1' } } }),
+      expect.objectContaining({ where: { status: { in: ['SENT', 'VOID'] }, recipientIds: { has: 'o1' } } }),
     );
   });
 
@@ -139,13 +139,18 @@ describe('PartnerBillPrismaRepository', () => {
     prisma.partnerBill.findUnique.mockResolvedValue(BILL_ROW);
     const bank = { bankName: 'BCA', bankAccountNumber: '1', bankAccountHolder: 'PT' };
     expect(await repo.markSent('b1', { approvedBy: 'f', recipientIds: ['o1'], bank })).toMatchObject({ id: 'b1' });
-    expect(prisma.partnerBill.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: { id: 'b1', status: 'DRAFT' } }));
+    expect(prisma.partnerBill.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({ where: { id: 'b1', status: 'SENDING' } }));
+    expect(await repo.beginSend('b1')).toMatchObject({ id: 'b1' });
+    expect(prisma.partnerBill.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { id: 'b1', status: { in: ['DRAFT', 'SENDING'] } }, data: { status: 'SENDING' } }),
+    );
     expect(await repo.markVoid('b1', 'salah')).toMatchObject({ id: 'b1' });
     expect(prisma.partnerBill.updateMany).toHaveBeenLastCalledWith(
       expect.objectContaining({ where: { id: 'b1', status: { in: ['DRAFT', 'SENT'] } } }),
     );
     prisma.partnerBill.updateMany.mockResolvedValue({ count: 0 });
     expect(await repo.markSent('b1', { approvedBy: 'f', recipientIds: [], bank })).toBeNull();
+    expect(await repo.beginSend('b1')).toBeNull();
     expect(await repo.markVoid('b1', 'x')).toBeNull();
   });
 });
@@ -235,13 +240,25 @@ describe('PartnerBillSourcesHttpAdapter', () => {
     expect(await adapter.officialAccount()).toBeNull();
   });
 
-  it('labels a depot by name, falling back to its id when it cannot be read', async () => {
+  it('reads a depot name and code, and fails the run (503) when it cannot', async () => {
     const adapter = new PartnerBillSourcesHttpAdapter(config);
-    fetchMock.mockResolvedValueOnce(reply(200, { name: 'Depot Satu' })).mockResolvedValueOnce(reply(200, {}));
-    expect(await adapter.depotName('d1')).toBe('Depot Satu');
-    expect(await adapter.depotName('d2')).toBe('d2');
+    fetchMock.mockResolvedValueOnce(reply(200, { name: 'Depot Satu', code: 'D-1' }));
+    expect(await adapter.depot('d1')).toEqual({ name: 'Depot Satu', code: 'D-1' });
+    fetchMock.mockResolvedValueOnce(reply(200, { name: 'Depot Satu' }));
+    await expect(adapter.depot('d2')).rejects.toMatchObject({ status: 503 });
+    fetchMock.mockResolvedValueOnce(reply(404));
+    await expect(adapter.depot('d3')).rejects.toMatchObject({ status: 503 });
     fetchMock.mockRejectedValueOnce(new Error('down'));
-    expect(await adapter.depotName('d3')).toBe('d3');
+    await expect(adapter.depot('d4')).rejects.toMatchObject({ status: 503 });
+  });
+
+  it('reads the owners a depot had on a day from its ownership records', async () => {
+    const adapter = new PartnerBillSourcesHttpAdapter(config);
+    fetchMock.mockResolvedValueOnce(reply(200, { owners: [{ ownerId: 'o1' }, { ownerId: 'o2' }, { nope: 1 }] }));
+    expect(await adapter.ownersAsOf('d1', '2026-10-31T16:59:59.999Z')).toEqual(['o1', 'o2']);
+    expect(fetchMock.mock.calls[0][0]).toContain('/depots/internal/d1/owner?asOf=2026-10-31T16%3A59%3A59.999Z');
+    fetchMock.mockResolvedValueOnce(reply(200, {}));
+    await expect(adapter.ownersAsOf('d1', 'x')).rejects.toMatchObject({ status: 503 });
   });
 });
 
@@ -274,6 +291,13 @@ describe('PartnerBillNotifierHttpAdapter', () => {
     await expect(
       new PartnerBillNotifierHttpAdapter({ crmServiceUrl: '', internalServiceKey: 'k' } as never).send(notice),
     ).rejects.toMatchObject({ status: 503 });
+  });
+
+  it('posts the void notice to its own route', async () => {
+    const adapter = new PartnerBillNotifierHttpAdapter({ crmServiceUrl: 'http://crm', internalServiceKey: 'k' } as never);
+    fetchMock.mockResolvedValueOnce({ ok: true });
+    await adapter.sendVoid({ billId: 'b1', monthLabel: 'Oktober 2026', legalEntityName: 'PT A', reason: 'salah', recipientIds: ['o1'] });
+    expect(fetchMock.mock.calls[0][0]).toBe('http://crm/api/v1/notifications/internal/partner-bill-void');
   });
 });
 

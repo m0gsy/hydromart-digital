@@ -71,6 +71,7 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   FOLLOW_UP_OVERDUE: 'stock',
   // HD-23: a bill to pay is a money matter, filed with the approvals.
   PARTNER_BILL: 'orders',
+  PARTNER_BILL_VOID: 'orders',
   COURIER_DELIVERY_ASSIGNED: 'courier',
   DELIVERY_SLA_BREACHED: 'courier',
   STOCK_LOW: 'stock',

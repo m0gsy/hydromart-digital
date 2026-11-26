@@ -103,6 +103,16 @@ describe('/hq/partner-bills', () => {
     expect(await screen.findByText('hq.partnerBills.detail.failed')).toBeTruthy();
   });
 
+  it('warns about depots without an owner and entities that could not be read', async () => {
+    get.mockResolvedValue([]);
+    post.mockResolvedValueOnce({ month: '2026-10', made: 1, existing: 0, skippedZero: 0, unassigned: 0, commissionRows: 9, unreadable: 1, noOwner: 2, noOwnerDepots: ['D-1', 'D-2'] });
+    const { default: Page } = await import('@/app/hq/partner-bills/page');
+    render(<Page />);
+    fireEvent.click(await screen.findByRole('button', { name: 'hq.partnerBills.generate' }));
+    expect(await screen.findByText(/hq\.partnerBills\.resultNoOwner.*D-1, D-2/)).toBeTruthy();
+    expect(screen.getByText(/hq\.partnerBills\.resultUnreadable/)).toBeTruthy();
+  });
+
   it('shows no make-drafts button to a role that may only read', async () => {
     role.value = 'DIREKTUR';
     get.mockResolvedValue([]);
@@ -202,6 +212,17 @@ describe('/hq/partner-bills/detail', () => {
     render(<Page />);
     await screen.findByText('Royalti Depot Satu');
     expect(screen.queryByRole('button', { name: 'hq.partnerBills.detail.approve' })).toBeNull();
+  });
+
+  it('lets a bill stuck while sending be approved again, but not voided, and says so', async () => {
+    get.mockResolvedValue({ ...draft, status: 'SENDING' });
+    post.mockRejectedValueOnce(new FakeApiError(409, 'x', 'PARTNER_BILL_SENDING'));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { default: Page } = await import('@/app/hq/partner-bills/detail/page');
+    render(<Page />);
+    expect(screen.queryByRole('button', { name: 'hq.partnerBills.detail.void' })).toBeNull();
+    fireEvent.click(await screen.findByRole('button', { name: 'hq.partnerBills.detail.approve' }));
+    expect(await screen.findByText('hq.partnerBills.detail.sending')).toBeTruthy();
   });
 
   it('shows a load error', async () => {

@@ -82,6 +82,17 @@ describe('HqReleaseService with franchise payouts closed (HD-23)', () => {
     await expect(svc.request('o', undefined, 'u')).rejects.toMatchObject({ code: 'PAYOUT_BY_PARTNER_BILL' });
     await expect(svc.approve('r', 'u')).rejects.toMatchObject({ status: 409 });
   });
+
+  it('still lets HQ reject a request filed before the switch, so it can be closed', async () => {
+    const pending = { id: 'r', status: 'PENDING', requestedBy: 'maker' };
+    const requests = {
+      findById: jest.fn().mockResolvedValue(pending),
+      decide: jest.fn().mockResolvedValue({ ...pending, status: 'REJECTED', reason: 'Tagihan royalti' }),
+    };
+    const svc = new HqReleaseService(requests as never, {} as never, {} as never, {} as never);
+    await expect(svc.reject('r', 'checker', ' Tagihan royalti ')).resolves.toMatchObject({ status: 'REJECTED' });
+    expect(requests.decide).toHaveBeenCalledWith('r', { status: 'REJECTED', decidedBy: 'checker', reason: 'Tagihan royalti' });
+  });
 });
 
 beforeEach(() => {

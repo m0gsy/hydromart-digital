@@ -35,6 +35,15 @@ export class PartnerBillNotDraftError extends DomainError {
   }
 }
 
+/** The bill is being sent: it cannot be voided until it is sent (then void it) or the send is retried. */
+export class PartnerBillSendingError extends DomainError {
+  readonly code = 'PARTNER_BILL_SENDING';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This bill is being sent. Approve again to finish sending it, then void it if it is wrong.');
+  }
+}
+
 export class PartnerBillVoidedError extends DomainError {
   readonly code = 'PARTNER_BILL_VOID';
   readonly status = HTTP_STATUS.CONFLICT;

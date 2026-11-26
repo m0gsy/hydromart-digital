@@ -1,7 +1,7 @@
 -- HD-23: the monthly royalty bill per franchisee legal entity.
 -- New tables, so their indexes are plain and ride in this migration (create-indexes.sh only
 -- carries indexes on tables that already hold rows).
-CREATE TYPE "PartnerBillStatus" AS ENUM ('DRAFT', 'SENT', 'VOID');
+CREATE TYPE "PartnerBillStatus" AS ENUM ('DRAFT', 'SENDING', 'SENT', 'VOID');
 
 CREATE TABLE "partner_bills" (
   "id" UUID NOT NULL,

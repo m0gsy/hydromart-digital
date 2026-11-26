@@ -31,10 +31,10 @@ export class PartnerBillListQueryDto {
   @IsUUID()
   legalEntityId?: string;
 
-  @ApiPropertyOptional({ enum: ['DRAFT', 'SENT', 'VOID'] })
+  @ApiPropertyOptional({ enum: ['DRAFT', 'SENDING', 'SENT', 'VOID'] })
   @IsOptional()
-  @IsIn(['DRAFT', 'SENT', 'VOID'])
-  status?: 'DRAFT' | 'SENT' | 'VOID';
+  @IsIn(['DRAFT', 'SENDING', 'SENT', 'VOID'])
+  status?: 'DRAFT' | 'SENDING' | 'SENT' | 'VOID';
 }
 
 export class PartnerBillBasisResponseDto {
@@ -48,6 +48,8 @@ export class PartnerBillBasisResponseDto {
   reversalRows!: number;
   @ApiProperty()
   reversalIdr!: number;
+  @ApiProperty({ type: [String], description: 'The owner accounts the bill goes to for this depot.' })
+  ownerIds!: string[];
 }
 
 export class PartnerBillLineResponseDto {
@@ -81,7 +83,7 @@ export class PartnerBillResponseDto {
   legalEntityName!: string;
   @ApiProperty({ example: '2026-11' })
   month!: string;
-  @ApiProperty({ enum: ['DRAFT', 'SENT', 'VOID'] })
+  @ApiProperty({ enum: ['DRAFT', 'SENDING', 'SENT', 'VOID'] })
   status!: string;
   @ApiProperty()
   totalIdr!: number;
@@ -116,4 +118,10 @@ export class GenerateBillsResponseDto {
   unassigned!: number;
   @ApiProperty({ description: 'COMMISSION ledger rows in the month; 0 means no commission scheme produced any.' })
   commissionRows!: number;
+  @ApiProperty({ description: 'Legal entities depot-service could not describe: their depots were not billed.' })
+  unreadable!: number;
+  @ApiProperty({ description: 'Billed depots with no franchise owner recorded.' })
+  noOwner!: number;
+  @ApiProperty({ type: [String], description: 'Their depot codes.' })
+  noOwnerDepots!: string[];
 }

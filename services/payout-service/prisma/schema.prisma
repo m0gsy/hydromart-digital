@@ -332,6 +332,8 @@ model ServiceSetting {
 /// HD-23: a partner bill's life. Always a DRAFT first; Finance's one click (approve) sends it.
 enum PartnerBillStatus {
   DRAFT
+  /// Approved and being sent: the notice may not have gone out yet. Approve can be retried; void is refused.
+  SENDING
   SENT
   VOID
 }

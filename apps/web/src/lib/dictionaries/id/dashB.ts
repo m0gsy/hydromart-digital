@@ -305,6 +305,7 @@ export const dashB = {
     billsTitle: 'Tagihan royalti',
     billsError: 'Gagal memuat tagihan.',
     billsEmpty: 'Belum ada tagihan royalti yang dikirim.',
+    billVoid: 'Dibatalkan: {reason}. Tagihan pengganti akan dikirim bila ada.',
     billBank: 'Transfer ke {bank} {number} a.n. {holder}',
     registeredAccount: 'a.n. akun terdaftar',
     amountLabel: 'Jumlah pencairan (IDR)',

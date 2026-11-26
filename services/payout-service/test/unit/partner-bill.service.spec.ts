@@ -37,6 +37,10 @@ function build(opts: {
   live?: Record<string, PartnerBillRecord>;
   bank?: typeof BANK | null;
   racing?: boolean;
+  /** Owners depot-service records for every depot (the ledger rows' owners come from `basis`). */
+  depotOwners?: string[];
+  /** Entities depot-service cannot describe. */
+  hideEntities?: string[];
 } = {}) {
   const created: NewPartnerBill[] = [];
   const ledger = {
@@ -55,6 +59,7 @@ function build(opts: {
     findById: jest.fn(async (id: string) => stored.get(id) ?? null),
     list: jest.fn().mockResolvedValue([]),
     listForOwner: jest.fn().mockResolvedValue([]),
+    beginSend: jest.fn(async (id: string) => ({ ...stored.get(id)!, status: 'SENDING' }) as PartnerBillRecord),
     markSent: jest.fn(async (id: string) => ({ ...stored.get(id)!, status: 'SENT' }) as PartnerBillRecord),
     markVoid: jest.fn(async (id: string) => ({ ...stored.get(id)!, status: 'VOID' }) as PartnerBillRecord),
   };
@@ -67,12 +72,13 @@ function build(opts: {
         { id: PT_A, name: 'PT Mitra A', kind: 'FRANCHISEE' },
         { id: PT_B, name: 'PT Mitra B', kind: 'FRANCHISEE' },
         { id: HKP, name: 'PT Operator', kind: 'OPERATOR' },
-      ].filter((e) => ids.includes(e.id)),
+      ].filter((e) => ids.includes(e.id) && !opts.hideEntities?.includes(e.id)),
     ),
     officialAccount: jest.fn().mockResolvedValue(opts.bank === undefined ? BANK : opts.bank),
-    depotName: jest.fn(async (id: string) => (id === D1 ? 'Depot Satu' : 'Depot Dua')),
+    depot: jest.fn(async (id: string) => ({ name: id === D1 ? 'Depot Satu' : 'Depot Dua', code: id === D1 ? 'D-1' : 'D-2' })),
+    ownersAsOf: jest.fn().mockResolvedValue(opts.depotOwners ?? []),
   };
-  const notifier = { send: jest.fn().mockResolvedValue(undefined) };
+  const notifier = { send: jest.fn().mockResolvedValue(undefined), sendVoid: jest.fn().mockResolvedValue(undefined) };
   const svc = new PartnerBillService(ledger as never, bills as never, sources as never, notifier as never);
   return { svc, ledger, bills, sources, notifier, created, stored };
 }
@@ -98,6 +104,9 @@ describe('PartnerBillService.generate', () => {
       skippedZero: 0,
       unassigned: 0,
       commissionRows: 0,
+      unreadable: 0,
+      noOwner: 0,
+      noOwnerDepots: [],
     });
     expect(created).toHaveLength(0);
   });
@@ -157,6 +166,30 @@ describe('PartnerBillService.generate', () => {
     expect(hkp.created).toHaveLength(0);
   });
 
+  it('reports, at generate time, a billed depot no owner is recorded for, and fixes each line\'s owners', async () => {
+    const t = build({ basis: () => [basis(D1, 5000, { ownerIds: [] })] });
+    expect(await t.svc.generate('2026-10')).toMatchObject({ made: 1, noOwner: 1, noOwnerDepots: ['D-1'] });
+    expect(t.created[0].lines[0].basis.ownerIds).toEqual([]);
+    // Ownership records count as well as ledger rows, and the question is asked as of the stretch end.
+    const owned = build({ basis: () => [basis(D1, 5000, { ownerIds: [OWNER_1] })], depotOwners: [OWNER_2] });
+    expect(await owned.svc.generate('2026-10')).toMatchObject({ made: 1, noOwner: 0, noOwnerDepots: [] });
+    expect(owned.created[0].lines[0].basis.ownerIds).toEqual([OWNER_1, OWNER_2]);
+    expect(owned.sources.ownersAsOf).toHaveBeenCalledWith(D1, '2026-10-31T16:59:59.999Z');
+  });
+
+  it('counts an entity depot-service cannot describe instead of skipping it silently', async () => {
+    const t = build({ hideEntities: [PT_A] });
+    expect(await t.svc.generate('2026-10')).toMatchObject({ made: 0, unreadable: 1 });
+    expect(t.created).toHaveLength(0);
+  });
+
+  it('stops the run, writing nothing, when a depot or its owners cannot be read', async () => {
+    const t = build();
+    t.sources.depot.mockRejectedValueOnce(new Error('503'));
+    await expect(t.svc.generate('2026-10')).rejects.toThrow('503');
+    expect(t.created).toHaveLength(0);
+  });
+
   it('leaves out a depot span that has no commission rows', async () => {
     const { svc, created } = build({
       depots: [D1, D2],
@@ -189,14 +222,25 @@ describe('PartnerBillService approve, void and reads', () => {
       status: 'DRAFT',
       totalIdr: 150000,
       recipientIds: [],
-      lines: [{ id: 'l1', depotId: D1, label: 'x', amountIdr: 150000, basis: { from: '2026-10-01', to: '2026-10-31' } }],
+      lines: [
+        {
+          id: 'l1',
+          depotId: D1,
+          label: 'x',
+          amountIdr: 150000,
+          basis: { from: '2026-10-01', to: '2026-10-31', ownerIds: [OWNER_2, OWNER_1] },
+        },
+      ],
       ...extra,
     }) as PartnerBillRecord;
 
   it('sends the bill to the owners behind its commission rows, then marks it sent', async () => {
-    const t = build({ basis: () => [basis(D1, 1, { ownerIds: [OWNER_2, OWNER_1] })] });
+    const t = build();
     t.stored.set('b1', draft());
     const sent = await t.svc.approve('b1', 'finance-1');
+    // DRAFT -> SENDING before anything is said, SENDING -> SENT after.
+    expect(t.bills.beginSend.mock.invocationCallOrder[0]).toBeLessThan(t.notifier.send.mock.invocationCallOrder[0]);
+    expect(t.notifier.send.mock.invocationCallOrder[0]).toBeLessThan(t.bills.markSent.mock.invocationCallOrder[0]);
     expect(sent.status).toBe('SENT');
     expect(t.notifier.send).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -220,8 +264,8 @@ describe('PartnerBillService approve, void and reads', () => {
     await expect(noBank.svc.approve('b1', 'f')).rejects.toMatchObject({ code: 'BANK_ACCOUNT_MISSING', status: 409 });
     expect(noBank.notifier.send).not.toHaveBeenCalled();
 
-    const nobody = build({ basis: () => [] });
-    nobody.stored.set('b1', draft());
+    const nobody = build();
+    nobody.stored.set('b1', draft({ lines: [{ id: 'l', depotId: D1, label: 'x', amountIdr: 1, basis: { from: 'a', to: 'b', rows: 1, reversalRows: 0, reversalIdr: 0, ownerIds: [] } }] }));
     await expect(nobody.svc.approve('b1', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_NO_RECIPIENTS' });
     nobody.stored.set('b2', draft({ id: 'b2', lines: undefined }));
     await expect(nobody.svc.approve('b2', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_NO_RECIPIENTS' });
@@ -236,18 +280,61 @@ describe('PartnerBillService approve, void and reads', () => {
     await expect(voided.svc.approve('missing', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_NOT_FOUND' });
   });
 
-  it('loses a decision race cleanly, after the (idempotent) notice', async () => {
+  it('loses a decision race cleanly: a bill that is no longer sendable is never announced', async () => {
     const t = build();
     t.stored.set('b1', draft());
+    t.bills.beginSend.mockResolvedValueOnce(null as never);
+    await expect(t.svc.approve('b1', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_NOT_DRAFT' });
+    expect(t.notifier.send).not.toHaveBeenCalled();
     t.bills.markSent.mockResolvedValueOnce(null as never);
     await expect(t.svc.approve('b1', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_NOT_DRAFT' });
   });
 
-  it('voids a draft or a sent bill with its reason, and only once', async () => {
+  it('leaves a bill SENDING when the notice fails, and approve finishes it later', async () => {
     const t = build();
-    t.stored.set('b1', draft({ status: 'SENT' }));
+    t.stored.set('b1', draft());
+    t.notifier.send.mockRejectedValueOnce(new Error('crm down'));
+    await expect(t.svc.approve('b1', 'f')).rejects.toThrow('crm down');
+    expect(t.bills.markSent).not.toHaveBeenCalled();
+    t.stored.set('b1', draft({ status: 'SENDING' }));
+    expect((await t.svc.approve('b1', 'f')).status).toBe('SENT');
+  });
+
+  it('voids a sent bill after telling the owners it went to, once each', async () => {
+    const t = build();
+    t.stored.set('b1', draft({ status: 'SENT', recipientIds: [OWNER_1, OWNER_2] }));
     expect((await t.svc.void('b1', ' salah badan hukum ', 'f')).status).toBe('VOID');
+    expect(t.notifier.sendVoid).toHaveBeenCalledWith({
+      billId: 'b1',
+      monthLabel: 'Oktober 2026',
+      legalEntityName: 'PT Mitra A',
+      reason: 'salah badan hukum',
+      recipientIds: [OWNER_1, OWNER_2],
+    });
     expect(t.bills.markVoid).toHaveBeenCalledWith('b1', 'salah badan hukum');
+  });
+
+  it('voids a draft quietly, refuses a bill being sent, and only voids once', async () => {
+    const t = build();
+    t.stored.set('d1', draft({ id: 'd1' }));
+    await t.svc.void('d1', 'salah', 'f');
+    expect(t.notifier.sendVoid).not.toHaveBeenCalled();
+    t.stored.set('s1', draft({ id: 's1', status: 'SENDING' }));
+    await expect(t.svc.void('s1', 'salah', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_SENDING' });
+    expect(t.bills.markVoid).toHaveBeenCalledTimes(1);
+    // A send began between the read and the write.
+    t.stored.set('r1', draft({ id: 'r1' }));
+    t.bills.markVoid.mockResolvedValueOnce(null as never);
+    t.bills.findById.mockResolvedValueOnce(draft({ id: 'r1' })).mockResolvedValueOnce(draft({ id: 'r1', status: 'SENDING' }));
+    await expect(t.svc.void('r1', 'salah', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_SENDING' });
+    // A failed notice leaves a sent bill sent: void again later.
+    t.stored.set('n1', draft({ id: 'n1', status: 'SENT' }));
+    t.notifier.sendVoid.mockRejectedValueOnce(new Error('crm down'));
+    await expect(t.svc.void('n1', 'salah', 'f')).rejects.toThrow('crm down');
+  });
+
+  it('voids a bill only once', async () => {
+    const t = build();
     t.stored.set('b2', draft({ id: 'b2', status: 'VOID' }));
     await expect(t.svc.void('b2', 'again', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_VOID' });
     t.stored.set('b3', draft({ id: 'b3' }));

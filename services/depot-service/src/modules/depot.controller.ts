@@ -241,11 +241,12 @@ export class DepotController {
   })
   async internalActive(
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ active: boolean; name: string; lat: number; lng: number }> {
+  ): Promise<{ active: boolean; name: string; code: string; lat: number; lng: number }> {
     const depot = await this.depots.get(id, false);
     // The name rides along so a payslip can print where the pay was split to; the location so
     // the attendance fence is centred on the depot's own coordinates when HR set no point.
-    return { active: depot.active, name: depot.name, lat: depot.lat, lng: depot.lng };
+    // HD-23: the code names the depot in a bill's report beside its name.
+    return { active: depot.active, name: depot.name, code: depot.code, lat: depot.lat, lng: depot.lng };
   }
 
   /**

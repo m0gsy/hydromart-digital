@@ -133,7 +133,8 @@ export class PartnerBillPrismaRepository implements PartnerBillRepository {
 
   async listForOwner(ownerId: string, limit: number): Promise<PartnerBillRecord[]> {
     const rows = await this.prisma.partnerBill.findMany({
-      where: { status: 'SENT', recipientIds: { has: ownerId } },
+      // Only a bill that was sent has recipients, so a voided draft never shows; a sent one voided later does.
+      where: { status: { in: ['SENT', 'VOID'] }, recipientIds: { has: ownerId } },
       orderBy: [{ month: 'desc' }, { id: 'asc' }],
       take: limit,
       include: { lines: { orderBy: { label: 'asc' } } },
@@ -141,14 +142,24 @@ export class PartnerBillPrismaRepository implements PartnerBillRepository {
     return rows.map((r) => this.toRecord(r as unknown as BillRow));
   }
 
+  async beginSend(id: string): Promise<PartnerBillRecord | null> {
+    // DRAFT -> SENDING, or SENDING -> SENDING when a send failed half way: both are one approve.
+    const { count } = await this.prisma.partnerBill.updateMany({
+      where: { id, status: { in: ['DRAFT', 'SENDING'] } },
+      data: { status: 'SENDING' },
+    });
+    return count === 0 ? null : this.findById(id);
+  }
+
   async markSent(
     id: string,
     data: { approvedBy: string; recipientIds: string[]; bank: PartnerBillBank },
   ): Promise<PartnerBillRecord | null> {
     const now = new Date();
-    // The DRAFT guard is in the WHERE clause: two approvers cannot both send it.
+    // The SENDING guard is in the WHERE clause: a void cannot slip in between, and two approvers
+    // cannot both finish it.
     const { count } = await this.prisma.partnerBill.updateMany({
-      where: { id, status: 'DRAFT' },
+      where: { id, status: 'SENDING' },
       data: {
         status: 'SENT',
         approvedBy: data.approvedBy,

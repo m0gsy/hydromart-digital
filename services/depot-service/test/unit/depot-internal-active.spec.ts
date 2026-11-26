@@ -26,6 +26,7 @@ describe('GET depots/internal/:id/active', () => {
     await expect(c.internalActive(DEPOT)).resolves.toEqual({
       active: true,
       name: 'Galaxy',
+      code: 'GLX',
       lat: -6.2615,
       lng: 106.9371,
     });

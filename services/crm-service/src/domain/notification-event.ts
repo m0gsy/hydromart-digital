@@ -101,6 +101,8 @@ export enum NotificationEvent {
   // POST notifications/internal/partner-bill from payout-service when Finance approves it. Tokens:
   // {{month}}, {{entity}}, {{total}}, {{bank}}, {{number}}, {{holder}}.
   PARTNER_BILL = 'PARTNER_BILL',
+  // HD-23: a sent bill was withdrawn; the owners it went to are told why. Tokens: {{month}}, {{reason}}.
+  PARTNER_BILL_VOID = 'PARTNER_BILL_VOID',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -282,6 +284,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Tindak lanjut kunjungan di {{depot}} terlambat: {{items}}. Buka menu Kunjungan untuk menyelesaikannya.',
   [NotificationEvent.PARTNER_BILL]:
     'Tagihan royalti {{month}} untuk {{entity}}: {{total}}. Transfer ke {{bank}} {{number}} a.n. {{holder}}. Rincian di aplikasi.',
+  [NotificationEvent.PARTNER_BILL_VOID]:
+    'Tagihan royalti {{month}} dibatalkan: {{reason}}. Tagihan pengganti akan dikirim bila ada.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
   [NotificationEvent.PAYMENT_REMINDER]:
@@ -412,6 +416,7 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.FOLLOW_UP_OVERDUE,
   // HD-23: addressed to one franchise owner's account (also in PERSONAL_OPS_EVENTS), no depot.
   NotificationEvent.PARTNER_BILL,
+  NotificationEvent.PARTNER_BILL_VOID,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -511,6 +516,7 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   // HD-23: a money notice an owner must not miss, so it rides the approval switch (default on)
   // rather than a new one; there is no way to read a bill that was switched off, so it stays on.
   [NotificationEvent.PARTNER_BILL]: 'approval',
+  [NotificationEvent.PARTNER_BILL_VOID]: 'approval',
   [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
 };
 
@@ -566,6 +572,7 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.FOLLOW_UP_OVERDUE,
   // HD-23: one owner's own row.
   NotificationEvent.PARTNER_BILL,
+  NotificationEvent.PARTNER_BILL_VOID,
 ];
 
 // English. Same tokens, same order, same meaning — including the operational ones, which go
@@ -613,6 +620,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Visit follow-ups at {{depot}} are overdue: {{items}}. Open Visits to close them.',
   [NotificationEvent.PARTNER_BILL]:
     'Royalty bill {{month}} for {{entity}}: {{total}}. Transfer to {{bank}} {{number}} in the name of {{holder}}. Details in the app.',
+  [NotificationEvent.PARTNER_BILL_VOID]:
+    'Royalty bill {{month}} was withdrawn: {{reason}}. A replacement bill will be sent if there is one.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Hi {{name}}, the payment for order {{orderNumber}} did not go through ({{reason}}). Please pay again from the app.',
   [NotificationEvent.PAYMENT_REMINDER]:

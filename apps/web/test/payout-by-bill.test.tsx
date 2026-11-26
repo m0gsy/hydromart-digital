@@ -32,6 +32,7 @@ const summary = {
 };
 const bill = {
   id: 'b1',
+  status: 'SENT',
   month: '2026-10',
   legalEntityName: 'PT Mitra Air',
   totalIdr: 150_000,
@@ -55,6 +56,16 @@ describe('franchise payout page', () => {
     expect(screen.getByText(/dashB\.payout\.billBank/)).toBeTruthy();
     expect(screen.queryByText('dashB.payout.withdraw')).toBeNull();
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it('shows a withdrawn bill with its reason and without payment details', async () => {
+    get.mockImplementation(async (path: string) =>
+      path.endsWith('/partner-bills/mine') ? [{ ...bill, status: 'VOID', voidReason: 'Salah badan hukum' }] : summary,
+    );
+    const { default: PayoutPage } = await import('@/app/dashboard/payout/page');
+    render(<PayoutPage />);
+    expect(await screen.findByText(/dashB\.payout\.billVoid/)).toBeTruthy();
+    expect(screen.queryByText(/dashB\.payout\.billBank/)).toBeNull();
   });
 
   it('says so plainly when no bill has been sent yet', async () => {

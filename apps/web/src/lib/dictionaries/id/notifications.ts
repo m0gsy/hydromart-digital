@@ -48,6 +48,7 @@ export const notifications = {
     VISIT_FINDING: 'Temuan kunjungan supervisor',
     FOLLOW_UP_OVERDUE: 'Tindak lanjut kunjungan terlambat',
     PARTNER_BILL: 'Tagihan royalti bulanan',
+    PARTNER_BILL_VOID: 'Tagihan royalti dibatalkan',
     AI_ACCESS_REQUESTED: 'Permintaan akses AI web',
     SUBSCRIPTION_TOMORROW: 'Langganan diantar besok',
     POINTS_EXPIRING: 'Poin segera hangus',

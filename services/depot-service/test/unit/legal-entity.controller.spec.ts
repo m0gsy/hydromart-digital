@@ -192,6 +192,24 @@ describe('LegalEntityController official account (HD-23)', () => {
     expect((await controller.internalFranchisor()).bankAccount).toBeNull();
   });
 
+  it('audits an account edit with the values before and after', async () => {
+    const controller = build();
+    const sent = (global.fetch as jest.Mock).mock.calls;
+    const pt = await controller.create({ name: 'PT Indowater', kind: 'FRANCHISOR' }, user);
+    const seen = async () => (await controller.directory()).entities.find((e) => e.id === pt.id)!.updatedAt.toISOString();
+    await controller.update(pt.id, { bankName: 'BCA', bankAccountNumber: '1234567890', seenUpdatedAt: await seen() }, user);
+    await controller.update(pt.id, { bankAccountNumber: '9876543210', seenUpdatedAt: await seen() }, user);
+    const updates = sent
+      .map((c) => JSON.parse((c[1] as { body: string }).body))
+      .filter((e: { action: string }) => e.action === 'legal_entity.update');
+    expect(updates).toHaveLength(2);
+    expect(updates[0].metadata.changed).toMatchObject({
+      bankName: { from: null, to: 'BCA' },
+      bankAccountNumber: { from: null, to: '1234567890' },
+    });
+    expect(updates[1].metadata.changed).toEqual({ bankAccountNumber: { from: '1234567890', to: '9876543210' } });
+  });
+
   it('refuses an account on any entity that is not the franchisor', async () => {
     const controller = build();
     const kelola = await controller.create({ name: 'PT Kelola', kind: 'OPERATOR' }, user);

@@ -8,6 +8,7 @@ import {
   PartnerBillNoRecipientsError,
   PartnerBillNotDraftError,
   PartnerBillNotFoundError,
+  PartnerBillSendingError,
   PartnerBillVoidedError,
 } from '../../domain/errors.partner-bill';
 import {
@@ -39,6 +40,12 @@ export interface GenerateResult {
   unassigned: number;
   /** COMMISSION ledger rows the month holds in all. 0 = nothing was ever commissioned (no scheme set). */
   commissionRows: number;
+  /** Legal entities named by a depot's history that depot-service could not describe: their depots are not billed. */
+  unreadable: number;
+  /** Billed depots no franchise owner is recorded for (ledger or ownership): a bill could not reach them. */
+  noOwner: number;
+  /** The codes of those depots. */
+  noOwnerDepots: string[];
 }
 
 const LIST_LIMIT = 200;
@@ -67,7 +74,17 @@ export class PartnerBillService {
     if (!isMonthKey(month)) throw new PartnerBillMonthInvalidError(month);
     if (month >= localMonthKey(new Date())) throw new PartnerBillMonthOpenError(month);
     const { from, to, firstDay, lastDay } = monthWindow(month);
-    const result: GenerateResult = { month, made: 0, existing: 0, skippedZero: 0, unassigned: 0, commissionRows: 0 };
+    const result: GenerateResult = {
+      month,
+      made: 0,
+      existing: 0,
+      skippedZero: 0,
+      unassigned: 0,
+      commissionRows: 0,
+      unreadable: 0,
+      noOwner: 0,
+      noOwnerDepots: [],
+    };
 
     const depotIds = await this.ledger.depotsWithCommission(from, to);
     if (depotIds.length === 0) return result;
@@ -94,7 +111,9 @@ export class PartnerBillService {
       for (const r of rows) basisOf.set(`${r.depotId}|${w.from}|${w.to}`, r);
     }
 
-    const names = new Map<string, string>();
+    const depotInfo = new Map<string, { name: string; code: string }>();
+    const unreadable = new Set<string>();
+    const noOwner = new Set<string>();
     const perEntity = new Map<string, { depotId: string; label: string; amountIdr: number; basis: PartnerBillBasis }[]>();
     const unassigned = new Set<string>();
     for (const s of stretches) {
@@ -105,15 +124,29 @@ export class PartnerBillService {
         unassigned.add(s.depotId);
         continue;
       }
+      const entity = entities.get(s.legalEntityId);
+      if (!entity) {
+        // Never skipped silently: an entity depot-service cannot describe is counted and reported.
+        unreadable.add(s.legalEntityId);
+        continue;
+      }
       // Only a franchisee pays royalty: the franchisor's and the operator's own depots are not billed.
-      if (entities.get(s.legalEntityId)?.kind !== 'FRANCHISEE') continue;
-      if (!names.has(s.depotId)) names.set(s.depotId, await this.sources.depotName(s.depotId));
+      if (entity.kind !== 'FRANCHISEE') continue;
+      let info = depotInfo.get(s.depotId);
+      if (!info) {
+        info = await this.sources.depot(s.depotId);
+        depotInfo.set(s.depotId, info);
+      }
+      // The owners that held the depot at the end of these days, with the ones whose rows made the line.
+      const endOfStretch = new Date(dayStartUtc(dayAfter(s.to)).getTime() - 1).toISOString();
+      const ownerIds = [...new Set([...r.ownerIds, ...(await this.sources.ownersAsOf(s.depotId, endOfStretch))])].sort();
+      if (ownerIds.length === 0) noOwner.add(info.code);
       const adjustment =
         r.reversalRows > 0 ? `, termasuk koreksi pembatalan Rp${Math.round(r.reversalIdr).toLocaleString('id-ID')}` : '';
       const lines = perEntity.get(s.legalEntityId) ?? [];
       lines.push({
         depotId: s.depotId,
-        label: `Royalti ${names.get(s.depotId)}${splitNote(s, firstDay, lastDay)}${adjustment}`,
+        label: `Royalti ${info.name}${splitNote(s, firstDay, lastDay)}${adjustment}`,
         amountIdr: Math.round(r.commissionIdr),
         basis: {
           from: s.from,
@@ -121,11 +154,15 @@ export class PartnerBillService {
           rows: r.rows,
           reversalRows: r.reversalRows,
           reversalIdr: Math.round(r.reversalIdr),
+          ownerIds,
         },
       });
       perEntity.set(s.legalEntityId, lines);
     }
     result.unassigned = unassigned.size;
+    result.unreadable = unreadable.size;
+    result.noOwner = noOwner.size;
+    result.noOwnerDepots = [...noOwner].sort();
 
     for (const [legalEntityId, lines] of perEntity) {
       const totalIdr = lines.reduce((n, l) => n + l.amountIdr, 0);
@@ -169,27 +206,24 @@ export class PartnerBillService {
     return this.bills.listForOwner(ownerId, LIST_LIMIT);
   }
 
-  /** Approve = send. Refused without the official account; the notice is filed before the bill is marked sent. */
+  /**
+   * Approve = send. Refused without the official account. DRAFT -> SENDING first (a conditional
+   * update, so a void cannot land between the notice and the mark), then the notice, then
+   * SENDING -> SENT. A send that failed stays SENDING and approve finishes it: crm files one
+   * notice per (bill, owner), so a retry tells nobody twice.
+   */
   async approve(id: string, approverId: string): Promise<PartnerBillRecord> {
     const bill = await this.get(id);
     if (bill.status === 'VOID') throw new PartnerBillVoidedError();
-    if (bill.status !== 'DRAFT') throw new PartnerBillNotDraftError();
+    if (bill.status === 'SENT') throw new PartnerBillNotDraftError();
     const bank = await this.sources.officialAccount();
     if (!bank) throw new BankAccountMissingError();
 
-    // The accounts whose COMMISSION rows made each line: the owners of those depots then.
-    const owners = new Set<string>();
-    for (const line of bill.lines ?? []) {
-      const rows = await this.ledger.commissionBasis(
-        [line.depotId],
-        dayStartUtc(line.basis.from),
-        dayStartUtc(dayAfter(line.basis.to)),
-      );
-      for (const r of rows) r.ownerIds.forEach((o) => owners.add(o));
-    }
-    if (owners.size === 0) throw new PartnerBillNoRecipientsError();
-    const recipientIds = [...owners].sort();
+    // The owners fixed when the draft was made: who held each depot then, and whose rows made the line.
+    const recipientIds = [...new Set((bill.lines ?? []).flatMap((l) => l.basis.ownerIds ?? []))].sort();
+    if (recipientIds.length === 0) throw new PartnerBillNoRecipientsError();
 
+    if (!(await this.bills.beginSend(id))) throw new PartnerBillNotDraftError();
     await this.notifier.send({
       billId: bill.id,
       month: bill.month,
@@ -205,12 +239,30 @@ export class PartnerBillService {
     return sent;
   }
 
-  /** A draft, or a sent bill with its reason. A voided month may be generated again. */
+  /**
+   * A draft, or a sent bill with its reason (its owners are told, once each). Refused while it is
+   * being sent. A voided month may be generated again.
+   */
   async void(id: string, reason: string, actorId: string): Promise<PartnerBillRecord> {
     const bill = await this.get(id);
     if (bill.status === 'VOID') throw new PartnerBillVoidedError();
-    const voided = await this.bills.markVoid(id, reason.trim());
-    if (!voided) throw new PartnerBillVoidedError();
+    if (bill.status === 'SENDING') throw new PartnerBillSendingError();
+    const why = reason.trim();
+    if (bill.status === 'SENT') {
+      await this.notifier.sendVoid({
+        billId: bill.id,
+        monthLabel: monthLabel(bill.month),
+        legalEntityName: bill.legalEntityName,
+        reason: why,
+        recipientIds: bill.recipientIds,
+      });
+    }
+    const voided = await this.bills.markVoid(id, why);
+    if (!voided) {
+      // It moved between the read and the write: say which way.
+      const now = await this.bills.findById(id);
+      throw now?.status === 'SENDING' ? new PartnerBillSendingError() : new PartnerBillVoidedError();
+    }
     this.logger.log(`partner.bill.void id=${id} by=${actorId} was=${bill.status}`);
     return voided;
   }

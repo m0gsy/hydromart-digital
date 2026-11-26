@@ -566,3 +566,35 @@ export class PartnerBillNoticeResultDto {
   @ApiProperty({ description: 'Notices filed by this call (a retry files none twice).' })
   notified!: number;
 }
+
+/** HD-23: payout-service tells crm a sent bill was withdrawn. */
+export class PartnerBillVoidNoticeDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  billId!: string;
+
+  @ApiProperty({ example: 'Oktober 2026' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  monthLabel!: string;
+
+  @ApiProperty({ example: 'PT Mitra Air' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  legalEntityName!: string;
+
+  @ApiProperty({ example: 'Salah badan hukum' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(300)
+  reason!: string;
+
+  @ApiProperty({ type: [String], format: 'uuid' })
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  recipientIds!: string[];
+}

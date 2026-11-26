@@ -8,8 +8,10 @@ export interface PartnerBillSources {
   entities(ids: readonly string[]): Promise<{ id: string; name: string; kind: string }[]>;
   /** The franchisor's official account; null when none is entered. */
   officialAccount(): Promise<PartnerBillBank | null>;
-  /** A depot's name for a line label; the id when it cannot be read. */
-  depotName(depotId: string): Promise<string>;
+  /** A depot's name and code for a line label and the report; throws when it cannot be read. */
+  depot(depotId: string): Promise<{ name: string; code: string }>;
+  /** The franchise-owner accounts of a depot on a day (ISO instant), from depot-service's ownership records. */
+  ownersAsOf(depotId: string, asOfIso: string): Promise<string[]>;
 }
 
 export interface PartnerBillNotice {
@@ -22,7 +24,17 @@ export interface PartnerBillNotice {
   recipientIds: string[];
 }
 
+export interface PartnerBillVoidNotice {
+  billId: string;
+  monthLabel: string;
+  legalEntityName: string;
+  reason: string;
+  recipientIds: string[];
+}
+
 /** crm-service files the in-app notice and email per owner; idempotent per (bill, owner). */
 export interface PartnerBillNotifier {
   send(notice: PartnerBillNotice): Promise<void>;
+  /** A sent bill was withdrawn: the owners it went to are told, once each. */
+  sendVoid(notice: PartnerBillVoidNotice): Promise<void>;
 }

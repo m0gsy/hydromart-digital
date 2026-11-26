@@ -98,6 +98,16 @@ export default function HqPartnerBillsPage() {
                 skippedZero: result.skippedZero,
                 unassigned: result.unassigned,
               })}
+          {result.noOwner > 0 && (
+            <span className="mt-2 block font-medium text-danger">
+              {t('hq.partnerBills.resultNoOwner', { n: result.noOwner, codes: result.noOwnerDepots.join(', ') })}
+            </span>
+          )}
+          {result.unreadable > 0 && (
+            <span className="mt-2 block font-medium text-danger">
+              {t('hq.partnerBills.resultUnreadable', { n: result.unreadable })}
+            </span>
+          )}
         </Card>
       )}
 

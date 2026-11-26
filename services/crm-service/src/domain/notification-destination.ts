@@ -219,6 +219,7 @@ export function destinationFor(
       return forDepot('/dashboard/visits', /^[0-9a-f-]{36}$/i.test(vars.depotId ?? '') ? vars.depotId : null);
     // HD-23: the owner's payout page, where the bills sent to them are listed.
     case NotificationEvent.PARTNER_BILL:
+    case NotificationEvent.PARTNER_BILL_VOID:
       return '/dashboard/payout';
     case NotificationEvent.MORNING_SUMMARY:
       return /^\/[a-z0-9/-]+$/.test(vars.href ?? '') ? vars.href : INBOX;

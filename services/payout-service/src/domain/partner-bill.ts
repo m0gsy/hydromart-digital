@@ -1,7 +1,7 @@
 // HD-23: the monthly royalty bill, pure parts. Money maths and dates live here; I/O does not.
 import { addLocalMonths, dayStartUtc, localDayKey } from '@hydromart/platform';
 
-export type PartnerBillStatus = 'DRAFT' | 'SENT' | 'VOID';
+export type PartnerBillStatus = 'DRAFT' | 'SENDING' | 'SENT' | 'VOID';
 
 export interface PartnerBillBasis {
   /** First and last WIB day this line covers (a depot that changed entity mid-month has two lines). */
@@ -12,6 +12,8 @@ export interface PartnerBillBasis {
   reversalRows: number;
   /** What the reversals gave back (positive), already netted into the amount. */
   reversalIdr: number;
+  /** The franchise-owner accounts of this depot that month: who the bill is sent to. */
+  ownerIds: string[];
 }
 
 export interface PartnerBillLineRecord {

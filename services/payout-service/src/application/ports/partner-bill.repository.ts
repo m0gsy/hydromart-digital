@@ -18,13 +18,15 @@ export interface PartnerBillRepository {
     filter: { month?: string; legalEntityId?: string; status?: PartnerBillStatus },
     limit: number,
   ): Promise<PartnerBillRecord[]>;
-  /** SENT bills that name this owner, newest month first. */
+  /** SENT bills that name this owner, and the sent ones later voided (so the owner sees why), newest month first. */
   listForOwner(ownerId: string, limit: number): Promise<PartnerBillRecord[]>;
-  /** DRAFT -> SENT, only if still a draft; null when somebody decided first. */
+  /** DRAFT or SENDING -> SENDING (the retry of a failed send); null when it is anything else. */
+  beginSend(id: string): Promise<PartnerBillRecord | null>;
+  /** SENDING -> SENT, only if still SENDING; null when somebody got there first. */
   markSent(
     id: string,
     data: { approvedBy: string; recipientIds: string[]; bank: PartnerBillBank },
   ): Promise<PartnerBillRecord | null>;
-  /** DRAFT or SENT -> VOID with its reason; null when it was already void or gone. */
+  /** DRAFT or SENT -> VOID with its reason; null when it is VOID, SENDING or gone. */
   markVoid(id: string, reason: string): Promise<PartnerBillRecord | null>;
 }

@@ -359,5 +359,5 @@ echo "All indexes present."
 # migration, not here: they index tables that migration creates, so they are empty and the build is instant.
 
 # partner_bills_month_status_idx, partner_bill_lines_billId_idx and partner_bills_one_live_per_entity_month (payout-service,
-# 2026-11-29, HD-23) are built by their own migration, not here: they index tables that migration creates, so
+# 2026-11-26, HD-23) are built by their own migration, not here: they index tables that migration creates, so
 # they are empty and the build is instant.

@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   PartnerBillNotice,
   PartnerBillNotifier,
+  PartnerBillVoidNotice,
 } from '../../application/ports/partner-bill-sources.port';
 import { PayoutConfigService } from '../../config/payout-config.service';
 import { PartnerBillSourceUnavailableError } from '../../domain/errors.partner-bill';
@@ -21,19 +22,27 @@ export class PartnerBillNotifierHttpAdapter implements PartnerBillNotifier {
   constructor(private readonly config: PayoutConfigService) {}
 
   async send(notice: PartnerBillNotice): Promise<void> {
+    await this.post('partner-bill', notice.billId, notice);
+  }
+
+  async sendVoid(notice: PartnerBillVoidNotice): Promise<void> {
+    await this.post('partner-bill-void', notice.billId, notice);
+  }
+
+  private async post(path: string, billId: string, body: unknown): Promise<void> {
     const base = this.config.crmServiceUrl;
     const key = this.config.internalServiceKey;
     if (!base || !key) throw new PartnerBillSourceUnavailableError('crm-service');
     try {
-      const res = await fetch(`${base}/api/v1/notifications/internal/partner-bill`, {
+      const res = await fetch(`${base}/api/v1/notifications/internal/${path}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-internal-key': key },
-        body: JSON.stringify(notice),
+        body: JSON.stringify(body),
         signal: AbortSignal.timeout(PartnerBillNotifierHttpAdapter.TIMEOUT_MS),
       });
       if (!res.ok) throw new Error(`answered ${res.status}`);
     } catch (error) {
-      this.logger.warn(`partner bill ${notice.billId} notice: ${(error as Error).message}`);
+      this.logger.warn(`partner bill ${billId} ${path}: ${(error as Error).message}`);
       throw new PartnerBillSourceUnavailableError('crm-service');
     }
   }

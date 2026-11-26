@@ -61,6 +61,7 @@ export class PartnerBillSourcesHttpAdapter implements PartnerBillSources {
   async entities(ids: readonly string[]): Promise<{ id: string; name: string; kind: string }[]> {
     const found: { id: string; name: string; kind: string }[] = [];
     // One small read per entity (a handful of partners), which also gives the name for the bill.
+    // An unknown or odd answer leaves the entity out: the caller counts it as unreadable.
     for (const id of ids) {
       const { status, body } = await this.get(`legal-entities/internal/${encodeURIComponent(id)}`);
       const e = body as { name?: unknown; kind?: unknown } | null;
@@ -79,14 +80,23 @@ export class PartnerBillSourcesHttpAdapter implements PartnerBillSources {
       : null;
   }
 
-  async depotName(depotId: string): Promise<string> {
-    try {
-      const { body } = await this.get(`depots/internal/${encodeURIComponent(depotId)}/active`);
-      const name = (body as { name?: unknown } | null)?.name;
-      return typeof name === 'string' && name ? name : depotId;
-    } catch {
-      // A label only: a bill is never refused for a name it could not read.
-      return depotId;
+  async depot(depotId: string): Promise<{ name: string; code: string }> {
+    // A label is still part of a bill someone will pay: an unreadable depot stops the run (retryable)
+    // rather than putting a raw id on it.
+    const { body } = await this.get(`depots/internal/${encodeURIComponent(depotId)}/active`);
+    const d = body as { name?: unknown; code?: unknown } | null;
+    if (typeof d?.name !== 'string' || !d.name || typeof d.code !== 'string' || !d.code) {
+      throw new PartnerBillSourceUnavailableError('depot-service');
     }
+    return { name: d.name, code: d.code };
+  }
+
+  async ownersAsOf(depotId: string, asOfIso: string): Promise<string[]> {
+    const { body } = await this.get(
+      `depots/internal/${encodeURIComponent(depotId)}/owner?asOf=${encodeURIComponent(asOfIso)}`,
+    );
+    const owners = (body as { owners?: unknown } | null)?.owners;
+    if (!Array.isArray(owners)) throw new PartnerBillSourceUnavailableError('depot-service');
+    return owners.flatMap((o) => (typeof (o as { ownerId?: unknown })?.ownerId === 'string' ? [(o as { ownerId: string }).ownerId] : []));
   }
 }

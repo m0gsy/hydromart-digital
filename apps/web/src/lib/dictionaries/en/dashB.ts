@@ -303,6 +303,7 @@ export const dashB = {
     billsTitle: 'Royalty bills',
     billsError: 'Could not load the bills.',
     billsEmpty: 'No royalty bill has been sent yet.',
+    billVoid: 'Withdrawn: {reason}. A replacement bill will be sent if there is one.',
     billBank: 'Transfer to {bank} {number} in the name of {holder}',
     registeredAccount: 'reg. account holder',
     amountLabel: 'Withdrawal amount (IDR)',

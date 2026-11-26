@@ -644,6 +644,7 @@ export const CAPABILITIES = {
    * token's scopes; ids and a kind only, hydromart writes the text. Also in CUSTOM_FORBIDDEN.
    */
   aiAgentNotify: ['SUPER_ADMIN'],
+  /*
    * payout-service (HD-23) - the monthly royalty bill per franchisee legal entity. Read: the
    * list and each bill's lines. Approve = send: Finance clicks once, the bill goes to the
    * depot owners; also in CUSTOM_FORBIDDEN, a network-wide money write with no depot fence.

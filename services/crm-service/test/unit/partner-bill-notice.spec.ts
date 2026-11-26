@@ -13,7 +13,7 @@ import {
   templateFor,
 } from '../../src/domain/notification-event';
 import { STAFF_EMAIL_TEMPLATES } from '../../src/domain/staff-email';
-import { PartnerBillNoticeDto } from '../../src/modules/dto/notification.dto';
+import { PartnerBillNoticeDto, PartnerBillVoidNoticeDto } from '../../src/modules/dto/notification.dto';
 import { PartnerBillNoticeController } from '../../src/modules/partner-bill-notice.controller';
 
 const BILL = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -67,6 +67,54 @@ describe('PartnerBillNoticeService', () => {
       recipients: 12,
       notified: 12,
     });
+  });
+});
+
+describe('PartnerBillNoticeService void notice', () => {
+  const voided = { billId: BILL, monthLabel: 'Oktober 2026', legalEntityName: 'PT Mitra Air', reason: 'Salah badan hukum', recipientIds: [O1, O2] };
+
+  it('tells each owner once, keyed on the void, apart from the bill notice', async () => {
+    const notifyOnce = jest.fn(async () => ({ created: true }));
+    expect(await new PartnerBillNoticeService({ notifyOnce } as never).runVoid(voided)).toEqual({ recipients: 2, notified: 2 });
+    expect(notifyOnce).toHaveBeenCalledWith(
+      NotificationEvent.PARTNER_BILL_VOID,
+      '',
+      expect.objectContaining({ month: 'Oktober 2026', reason: 'Salah badan hukum' }),
+      O1,
+      null,
+      `partner-bill-void:${BILL}:${O1}`,
+    );
+    const failing = jest.fn(async () => {
+      throw new Error('db');
+    });
+    await expect(new PartnerBillNoticeService({ notifyOnce: failing } as never).runVoid(voided)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+  });
+
+  it('reads as the owner asked, in the bell, the email and the other language', () => {
+    const e = NotificationEvent.PARTNER_BILL_VOID;
+    expect(OPS_EVENTS).toContain(e);
+    expect(PERSONAL_OPS_EVENTS).toContain(e);
+    expect(STAFF_TOGGLE_FOR_EVENT[e]).toBe('approval');
+    expect(renderMessage(templateFor(e, 'id'), { month: 'Oktober 2026', reason: 'salah' })).toBe(
+      'Tagihan royalti Oktober 2026 dibatalkan: salah. Tagihan pengganti akan dikirim bila ada.',
+    );
+    expect(renderMessage(templateFor(e, 'en'), { month: 'October 2026', reason: 'wrong' })).toContain('withdrawn: wrong');
+    expect(STAFF_EMAIL_TEMPLATES[e]?.subject).toContain('{{month}}');
+    expect(destinationFor(e, {})).toBe('/dashboard/payout');
+  });
+
+  it('is served on its own route and validates the body', async () => {
+    const runVoid = jest.fn(async () => ({ recipients: 2, notified: 2 }));
+    const controller = new PartnerBillNoticeController({ runVoid } as never);
+    await expect(controller.partnerBillVoid(voided as never)).resolves.toEqual({ recipients: 2, notified: 2 });
+    const handler = PartnerBillNoticeController.prototype.partnerBillVoid;
+    expect(Reflect.getMetadata('path', handler)).toBe('internal/partner-bill-void');
+    expect(await validate(plainToInstance(PartnerBillVoidNoticeDto, voided))).toEqual([]);
+    for (const bad of [{ ...voided, reason: '' }, { ...voided, billId: 'x' }, { ...voided, recipientIds: [O1, O1] }]) {
+      expect((await validate(plainToInstance(PartnerBillVoidNoticeDto, bad))).length).toBeGreaterThan(0);
+    }
   });
 });
 
