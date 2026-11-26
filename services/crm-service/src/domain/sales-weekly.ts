@@ -25,6 +25,7 @@ const epochDay = (day: string): number => {
 export function weekRefusal(weekStart: string, now: Date): string | null {
   const start = epochDay(weekStart);
   // 1970-01-01 (day 0) was a Thursday, so a Monday is day 4 mod 7. Date.UTC rolls 31 Feb over, which the round trip catches.
+  // tz-ok: `start` is a WIB calendar day held as UTC midnight (epochDay), not an instant: the slice reads that same day back.
   if (new Date(start * DAY_MS).toISOString().slice(0, 10) !== weekStart) return 'weekStart is not a calendar day';
   if (((start % 7) + 7) % 7 !== 4) return 'weekStart must be a Monday';
   const sinceStart = epochDay(wibDate(now)) - start;
@@ -35,6 +36,7 @@ const dayMonth = (day: string): string => `${Number(day.slice(8))} ${MONTHS[Numb
 
 /** "23 Nov - 29 Nov": the Monday and the Sunday that closes it. */
 export function weekLabel(weekStart: string): string {
+  // tz-ok: calendar-day arithmetic on a WIB day held as UTC midnight (epochDay); no instant is converted.
   const sunday = new Date((epochDay(weekStart) + 6) * DAY_MS).toISOString().slice(0, 10);
   return `${dayMonth(weekStart)} - ${dayMonth(sunday)}`;
 }
