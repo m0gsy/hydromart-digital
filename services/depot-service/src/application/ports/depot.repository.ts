@@ -1,5 +1,6 @@
 import { OwnershipType } from '../../domain/inventory';
 import type { DepotOwnerShare } from '../../domain/depot-owners';
+import type { QualityHoldFlag } from '../../domain/quality-hold';
 import type { ServiceArea } from '../../domain/service-area';
 
 export interface DayHours {
@@ -46,6 +47,8 @@ export interface DepotRecord {
   holidays: Holiday[];
   /** Drawn polygons; null/absent = serve by `serviceRadiusKm`. Not read by routing yet. */
   serviceArea?: ServiceArea | null;
+  /** HD-14: whether the depot is on a quality hold (no reason, no note); absent on a freshly created row. */
+  qualityHold?: QualityHoldFlag;
   active: boolean;
   createdAt: Date;
   updatedAt: Date;

@@ -247,6 +247,7 @@ export class InternalOwnerResponseDto {
 export class InternalActiveResponseDto {
   @ApiProperty() active!: boolean;
   @ApiProperty() name!: string;
+  @ApiProperty() code!: string;
   @ApiProperty() lat!: number;
   @ApiProperty() lng!: number;
 }

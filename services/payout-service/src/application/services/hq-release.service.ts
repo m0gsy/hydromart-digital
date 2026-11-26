@@ -41,6 +41,7 @@ export class HqReleaseService {
     bankAccountRef: string | undefined,
     requestedBy: string,
   ): Promise<ReleaseRequestRecord> {
+    PayoutService.assertLedgerPayoutOpen();
     const balance = await this.ledger.balanceFor(ownerId);
     if (!(balance > 0)) throw new InvalidWithdrawalAmountError();
     // The floor is checked HERE as well as in `requestWithdrawal`: the approver pressing the
@@ -65,6 +66,7 @@ export class HqReleaseService {
   }
 
   async approve(id: string, approverId: string): Promise<ReleaseRequestRecord> {
+    PayoutService.assertLedgerPayoutOpen();
     const pending = await this.loadPending(id, approverId);
     const approved = await this.requests.decide(id, {
       status: 'APPROVED',

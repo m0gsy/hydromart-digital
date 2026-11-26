@@ -394,7 +394,7 @@ SEEN_IDS=''
 MA_NEW=''
 MA_SET=0
 machine_account AIWEB_N8N n8n required franchiseApplicationNotify \
-  morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiAgentNotify
+  morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiAgentNotify partnerBillGenerate
 machine_account AIWEB_APP aiweb skippable aiReadAgent
 if [ "$MA_SET" = 1 ]; then add MACHINE_ACCOUNTS "$MA_NEW"; fi
 

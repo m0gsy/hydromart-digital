@@ -622,6 +622,21 @@ export const CAPABILITIES = {
    */
   maintenanceDueNotify: ['SUPER_ADMIN'],
   /*
+   * depot-service (HD-14) - quality hold: a depot stops selling (online, counter, campaigns,
+   * promos) until a PASS lab test is recorded and head office ends it. START: the depot's Kepala
+   * (own depot, fenced by the DepotScopeGuard), HQ Operasional or the owner account. END is the
+   * riskier act, so head office only. `depotCompliance` records the lab tests and permits the
+   * end rests on. `complianceDueNotify` is the n8n machine account's daily permit/lab sweep
+   * (POST notifications/external/compliance-due), same reasoning as maintenanceDueNotify.
+   */
+  depotQualityHoldStart: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  depotQualityHoldEnd: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+  depotCompliance: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // HD-14: the "tertahan" list: accepted orders a hold holds back (own depot for a Kepala). Reading it is its
+  // own right; cancelling one stays the ordinary staff status path (orderFulfilment). Grantable to a custom role.
+  qualityHoldOrders: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  complianceDueNotify: ['SUPER_ADMIN'],
+  /*
    * crm-service (AI-26) - tell the people who read a legal entity's calon mitra CRM that the
    * weekly Sales report is ready (POST notifications/external/sales-weekly-ready). Held by the n8n
    * machine account through its token's scopes; ids only, hydromart picks the recipients and writes
@@ -651,6 +666,17 @@ export const CAPABILITIES = {
    * and its only scope: no people metrics, no other family. Also in CUSTOM_FORBIDDEN.
    */
   aiReadAgent: ['SUPER_ADMIN'],
+  /*
+   * payout-service (HD-23) - the monthly royalty bill per franchisee legal entity. Read: the
+   * list and each bill's lines. Approve = send: Finance clicks once, the bill goes to the
+   * depot owners; also in CUSTOM_FORBIDDEN, a network-wide money write with no depot fence.
+   * Generate: the n8n machine account's trigger (POST payouts/external/partner-bills/generate);
+   * Finance's own "Buat draf" button is the same service method, so it takes the staff route
+   * under partnerBillApprove, and the machine capability stays machine-only.
+   */
+  partnerBillRead: ['FINANCE', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  partnerBillApprove: ['FINANCE', 'SUPER_ADMIN'],
+  partnerBillGenerate: ['SUPER_ADMIN'],
   /*
    * depot-service (HD-15B) - write the checklist templates a supervisor visit starts from. Head
    * office and directors only; the network has one template list. Not in CUSTOM_FORBIDDEN: an
@@ -1181,12 +1207,20 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'customerReminderNotify',
   // HD-15: the n8n machine account's, same reasoning.
   'maintenanceDueNotify',
+  // HD-14: the n8n machine account's permit/lab-test sweep, same reasoning.
+  'complianceDueNotify',
+  // HD-14: ending a quality hold is head office's alone (owner decision); a custom role must never
+  // hold it. Starting one stays grantable: stopping is the safe direction.
+  'depotQualityHoldEnd',
   // AI-26: the n8n machine account's, same reasoning.
   'salesReportNotify',
   // AI-29/AI-31: the n8n machine account's, same reasoning; and who may switch agents on or change their caps.
   'aiAgentNotify',
   'aiReadAgent',
   'aiTeamManage',
+  // HD-23: approving a bill sends it to every owner of the entity's depots; generating is n8n's.
+  'partnerBillApprove',
+  'partnerBillGenerate',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

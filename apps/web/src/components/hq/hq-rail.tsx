@@ -93,6 +93,7 @@ export const HQ_ICONS: Record<string, Icon> = {
   '/hq/depots': Storefront,
   '/hq/hierarchy': TreeStructure,
   '/hq/legal-entities': Scales,
+  '/hq/partner-bills': Receipt,
   '/dashboard': Gauge,
   '/hq/staff': UserGear,
   '/hr': UsersThree,

@@ -452,15 +452,10 @@ export default function HqPaymentsPage() {
                       className="mt-1 block text-sm font-semibold text-brand-700"
                     />
                   </span>
+                  <span className="w-full text-xs text-muted">{t('hq.payments.release.closedNote')}</span>
                   {mayApprove && (
                     <span className="flex shrink-0 gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() => decide(r, true)}
-                        disabled={deciding === r.id}
-                      >
-                        {t('hq.payments.release.approve')}
-                      </Button>
+                      {/* HD-23: franchise balances are no longer paid out, so only rejecting is offered. */}
                       <Button
                         variant="ghost"
                         onClick={() => decide(r, false)}

@@ -12,6 +12,7 @@ import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swa
 import { AuditMutationsInterceptor, Can, ExternalAccess } from '@hydromart/platform';
 
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
+import { ComplianceDueService } from '../application/services/compliance-due.service';
 import { CustomerReminderService } from '../application/services/customer-reminder.service';
 import { MaintenanceDueService } from '../application/services/maintenance-due.service';
 import { MorningSummaryService } from '../application/services/morning-summary.service';
@@ -25,6 +26,8 @@ import { NotificationEvent } from '../domain/notification-event';
 import {
   AiAccessRequestedDto,
   AiAccessRequestedResultDto,
+  ComplianceDueDto,
+  ComplianceDueResultDto,
   CustomerReminderDto,
   CustomerReminderResultDto,
   FRANCHISE_EVENT_PREFIX,
@@ -63,6 +66,7 @@ export class NotificationExternalController {
     private readonly aiAccessRequests: AiAccessRequestService,
     private readonly customerReminders: CustomerReminderService,
     private readonly maintenanceDue: MaintenanceDueService,
+    private readonly complianceDue: ComplianceDueService,
     private readonly salesWeekly: SalesWeeklyService,
     private readonly aiAgentNotices: AiAgentNoticeService,
   ) {}
@@ -198,6 +202,25 @@ export class NotificationExternalController {
       throw new BadRequestException('date must be today in Asia/Jakarta');
     }
     return this.maintenanceDue.run(dto.date);
+  }
+
+  /*
+   * HD-14: n8n's daily permit and lab-test sweep, the twin of maintenance-due: depot-service says
+   * what is due, hydromart tells the depot's Kepala, supervisors and HQ Operasional. Never held
+   * back by a quality hold. `date` must be today in Asia/Jakarta.
+   */
+  @ExternalAccess('machine')
+  @Can('complianceDueNotify')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('compliance-due')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'n8n: tell who must know that depot permits or lab tests are due (HD-14)' })
+  @ApiOkResponse({ type: ComplianceDueResultDto })
+  async complianceDueRun(@Body() dto: ComplianceDueDto): Promise<ComplianceDueResultDto> {
+    if (dto.date !== wibDate(new Date())) {
+      throw new BadRequestException('date must be today in Asia/Jakarta');
+    }
+    return this.complianceDue.run(dto.date);
   }
 
   /*

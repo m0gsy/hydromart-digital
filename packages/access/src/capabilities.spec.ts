@@ -271,6 +271,24 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('maintenanceDueNotify');
   });
 
+  // HD-14: starting a hold is quick and urgent (Kepala may), ending is risky (head office only).
+  it('lets Kepala start a quality hold but only head office end it', () => {
+    expect(can('depotQualityHoldStart', 'KEPALA_DEPOT')).toBe(true);
+    expect(can('depotQualityHoldEnd', 'KEPALA_DEPOT')).toBe(false);
+    expect(can('depotQualityHoldEnd', 'HEAD_OFFICE')).toBe(true);
+    expect(can('depotCompliance', 'KEPALA_DEPOT')).toBe(true);
+    expect(can('depotQualityHoldStart', 'MANAGER')).toBe(false);
+    expect(CAPABILITIES.complianceDueNotify).toEqual(['SUPER_ADMIN']);
+    expect(can('complianceDueNotify', 'HEAD_OFFICE')).toBe(false);
+    expect(CUSTOM_FORBIDDEN).toContain('complianceDueNotify');
+    expect(CUSTOM_FORBIDDEN).toContain('depotQualityHoldEnd');
+    expect(CUSTOM_FORBIDDEN).not.toContain('depotQualityHoldStart');
+    // the held-orders list is its own right, grantable, and not the court that ends a hold
+    expect(CAPABILITIES.qualityHoldOrders).toEqual(['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+    expect(can('qualityHoldOrders', 'MANAGER')).toBe(false);
+    expect(CUSTOM_FORBIDDEN).not.toContain('qualityHoldOrders');
+  });
+
   // AI-26: n8n only triggers the weekly Sales report notice; no human role raises it.
   it('leaves the weekly Sales report notice to the machine account', () => {
     expect(CAPABILITIES.salesReportNotify).toEqual(['SUPER_ADMIN']);
@@ -297,6 +315,18 @@ describe('CAPABILITIES', () => {
     expect(CAPABILITIES.aiReadAgent).toEqual(['SUPER_ADMIN']);
     for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE']) expect(can('aiReadAgent', role)).toBe(false);
     expect(CUSTOM_FORBIDDEN).toContain('aiReadAgent');
+  });
+
+  // HD-23: Finance approves a bill with one click; n8n only triggers the draft run.
+  it('splits the partner bill into read, approve and a machine-only generate', () => {
+    expect(CAPABILITIES.partnerBillApprove).toEqual(['FINANCE', 'SUPER_ADMIN']);
+    expect(can('partnerBillRead', 'FINANCE')).toBe(true);
+    expect(can('partnerBillRead', 'DIREKTUR')).toBe(true);
+    expect(can('partnerBillRead', 'MARKETING')).toBe(false);
+    expect(can('partnerBillApprove', 'HEAD_OFFICE')).toBe(false);
+    expect(CAPABILITIES.partnerBillGenerate).toEqual(['SUPER_ADMIN']);
+    for (const cap of ['partnerBillApprove', 'partnerBillGenerate']) expect(CUSTOM_FORBIDDEN).toContain(cap);
+    expect(CUSTOM_FORBIDDEN).not.toContain('partnerBillRead');
   });
 
   it('lets FINANCE read names and orders without gaining any write beside them', () => {

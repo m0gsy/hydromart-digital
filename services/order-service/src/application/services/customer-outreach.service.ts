@@ -9,7 +9,9 @@ import {
   CustomerOutreachRepository,
   StatusOrderRow,
 } from '../ports/customer-outreach.repository';
-import { DepotDirectoryPort } from '../ports/depot-directory.port';
+import { addressToDeliver, routedDepot } from '../../domain/subscription-address';
+import { CustomerDirectoryPort } from '../ports/customer-directory.port';
+import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
 import { AccountByPhonePort, PaymentsOfOrdersPort } from '../ports/outreach-lookups.port';
 
 /** How many finished or cancelled orders the status answer adds to the running ones. */
@@ -45,6 +47,7 @@ export class CustomerOutreachService {
     @Inject(ORDER_TOKENS.AccountByPhone) private readonly accounts: AccountByPhonePort,
     @Inject(ORDER_TOKENS.PaymentsOfOrders) private readonly payments: PaymentsOfOrdersPort,
     @Inject(ORDER_TOKENS.DepotDirectory) private readonly depots: DepotDirectoryPort,
+    @Inject(ORDER_TOKENS.CustomerDirectory) private readonly customers: CustomerDirectoryPort,
     private readonly config: OrderConfigService,
   ) {}
 
@@ -91,10 +94,62 @@ export class CustomerOutreachService {
     };
   }
 
-  /** Active subscriptions delivering inside `[from, to)` (crm passes tomorrow's WIB day). */
+  /**
+   * Active subscriptions delivering inside `[from, to)` (crm passes tomorrow's WIB day). HD-14: a
+   * plan whose address routes to a depot on a quality hold is left out, because that delivery will
+   * not happen tomorrow and a "see you tomorrow" reminder would be a promise the depot cannot keep.
+   * THROWS (503) when the depots cannot be read: crm retries, nothing is guessed.
+   */
   async subscriptionsDue(from: Date, to: Date) {
     const rows = await this.repo.subscriptionsDueBetween(from, to, SUBSCRIPTION_CAP + 1);
-    return this.capped('subscriptions due', rows, SUBSCRIPTION_CAP);
+    // Nothing due: nothing to hold back, and a depot-service blip must not turn an empty answer into a 503.
+    if (rows.length === 0) return this.capped('subscriptions due', [], SUBSCRIPTION_CAP);
+    const { held, depots } = await this.heldDepots();
+    let kept = rows;
+    if (held.size > 0) {
+      // The depot is the one the sweep would deliver to: the plan's address, or the saved address it
+      // follows when the same depot still serves it (addressToDeliver is the sweep's own rule).
+      const saved = new Map(
+        await Promise.all(
+          rows
+            .filter((r) => r.addressId)
+            .map(async (r) => [r.id, await this.customers.addressById(r.customerId, r.addressId!)] as const),
+        ),
+      );
+      kept = rows.filter((r) => {
+        const snapshot = {
+          recipientName: r.recipientName,
+          phone: r.phone,
+          addressLine: r.addressLine,
+          city: r.city,
+          province: r.province,
+          postalCode: r.postalCode,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          notes: r.notes,
+        };
+        const where = routedDepot(addressToDeliver(!!r.addressId, snapshot, saved.get(r.id) ?? null, depots), depots);
+        return !(where && held.has(where.id));
+      });
+    }
+    const { items, truncated } = this.capped('subscriptions due', kept, SUBSCRIPTION_CAP);
+    return {
+      items: items.map((r) => ({
+        id: r.id,
+        customerId: r.customerId,
+        productName: r.productName,
+        quantity: r.quantity,
+        nextDeliveryAt: r.nextDeliveryAt,
+      })),
+      truncated,
+    };
+  }
+
+  /** HD-14: the active depots and the ids of those on a quality hold; throws 503 when the directory cannot be read. */
+  private async heldDepots(): Promise<{ depots: DepotLocation[]; held: Set<string> }> {
+    const depots = await this.depots.listActiveDepots();
+    if (depots === null) throw new ServiceUnavailableException('The depots could not be read; retry later');
+    return { depots, held: new Set(depots.filter((d) => d.onHold).map((d) => d.id)) };
   }
 
   /**
@@ -113,9 +168,14 @@ export class CustomerOutreachService {
     // says so and the next tick (10 minutes on) takes the rest.
     const { items: kept, truncated } = this.capped('unpaid orders', created, CANDIDATE_CAP);
     const payments = await this.payments.latestByOrder(kept.map((o) => o.id));
+    // HD-14: nobody is reminded to pay for an order of a depot on a quality hold. With no candidate there is
+    // nothing to hold back, and an unreadable depot-service must not turn an empty answer into a 503.
+    if (kept.length === 0) return { truncated, items: [] };
+    const { held } = await this.heldDepots();
     return {
       truncated,
       items: kept
+        .filter((o) => !(o.depotId && held.has(o.depotId)))
         .filter((o) => {
           const p = payments.get(o.id);
           return p?.status === 'PENDING' && (p.method === 'TRANSFER' || p.method === 'QRIS');

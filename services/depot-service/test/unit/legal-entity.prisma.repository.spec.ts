@@ -13,6 +13,9 @@ const ROW = {
   updatedBy: null,
   createdAt: NOW,
   updatedAt: NOW,
+  bankName: null,
+  bankAccountNumber: null,
+  bankAccountHolder: null,
 };
 const POINT = {
   id: 'p1',
@@ -32,6 +35,7 @@ function setup() {
   const prisma = {
     legalEntity: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       create: jest.fn(),
@@ -75,6 +79,16 @@ describe('LegalEntityPrismaRepository', () => {
     const { prisma, repo } = setup();
     prisma.legalEntity.findMany.mockResolvedValue([{ id: 'e1' }]);
     expect(await repo.existingIds(['e1', 'e2'])).toEqual(['e1']);
+  });
+
+  it('finds the oldest active franchisor, or none', async () => {
+    const { prisma, repo } = setup();
+    prisma.legalEntity.findFirst.mockResolvedValueOnce({ ...ROW, kind: 'FRANCHISOR' }).mockResolvedValueOnce(null);
+    expect(await repo.findFranchisor()).toMatchObject({ kind: 'FRANCHISOR' });
+    expect(prisma.legalEntity.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { kind: 'FRANCHISOR', active: true } }),
+    );
+    expect(await repo.findFranchisor()).toBeNull();
   });
 
   it('names the kind of each entity it finds', async () => {

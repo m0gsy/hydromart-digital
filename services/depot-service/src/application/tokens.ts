@@ -45,6 +45,8 @@ export const DEPOT_TOKENS = {
   /** CA-2-39: queues the refund a dispute resolution asks for. Fails CLOSED. */
   DisputeRefund: Symbol('DisputeRefund'),
   MaintenanceRepository: Symbol('MaintenanceRepository'),
+  /** HD-14: quality holds, lab tests and permits. */
+  QualityHoldRepository: Symbol('QualityHoldRepository'),
   WholesaleTierRepository: Symbol('WholesaleTierRepository'),
   SubscriptionRepository: Symbol('SubscriptionRepository'),
   OrderSubscriptionPort: Symbol('OrderSubscriptionPort'),

@@ -2,7 +2,13 @@ import { Module, OnApplicationBootstrap, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 
-import { JwtAuthGuard, RolesGuard, DepotScopeGuard, SettingsCache } from '@hydromart/platform';
+import {
+  AUDIT_MUTATION_SINK,
+  JwtAuthGuard,
+  RolesGuard,
+  DepotScopeGuard,
+  SettingsCache,
+} from '@hydromart/platform';
 
 import { PayoutConfigService } from '../config/payout-config.service';
 import { PhotoLinkHttpAdapter } from '../infrastructure/http/photo-link.http.adapter';
@@ -36,6 +42,12 @@ import { ExpenseApprovalController } from './expense-approval.controller';
 import { EarningRuleController } from './earning-rule.controller';
 import { SettingsController } from './settings.controller';
 import { PendingApprovalsController } from './pending-approvals.controller';
+import { PartnerBillController, PartnerBillExternalController } from './partner-bill.controller';
+import { PartnerBillService } from '../application/services/partner-bill.service';
+import { PartnerBillPrismaRepository } from '../infrastructure/prisma/partner-bill.prisma.repository';
+import { PartnerBillSourcesHttpAdapter } from '../infrastructure/http/partner-bill-sources.http.adapter';
+import { PartnerBillNotifierHttpAdapter } from '../infrastructure/http/partner-bill-notifier.http.adapter';
+import { PayoutAuditSink } from '../infrastructure/http/audit.sink';
 import { PendingApprovalsPrismaReader } from '../infrastructure/prisma/pending-approvals.prisma.reader';
 
 const providers: Provider[] = [
@@ -70,6 +82,12 @@ const providers: Provider[] = [
   { provide: PAYOUT_TOKENS.PhotoLink, useClass: PhotoLinkHttpAdapter },
   { provide: PAYOUT_TOKENS.ExpenseClaimAlert, useClass: ExpenseClaimAlertHttpAdapter },
   { provide: PAYOUT_TOKENS.PendingApprovalsReader, useClass: PendingApprovalsPrismaReader },
+  // HD-23: the monthly partner bill.
+  PartnerBillService,
+  { provide: PAYOUT_TOKENS.PartnerBillRepository, useClass: PartnerBillPrismaRepository },
+  { provide: PAYOUT_TOKENS.PartnerBillSources, useClass: PartnerBillSourcesHttpAdapter },
+  { provide: PAYOUT_TOKENS.PartnerBillNotifier, useClass: PartnerBillNotifierHttpAdapter },
+  { provide: AUDIT_MUTATION_SINK, useClass: PayoutAuditSink },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -87,6 +105,8 @@ const providers: Provider[] = [
     EarningRuleController,
     SettingsController,
     PendingApprovalsController,
+    PartnerBillController,
+    PartnerBillExternalController,
   ],
   providers,
   exports: [PrismaService, PayoutConfigService],

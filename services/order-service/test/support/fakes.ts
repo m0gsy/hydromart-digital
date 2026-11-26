@@ -1183,11 +1183,11 @@ export class InMemorySubscriptionRepository implements SubscriptionRepository {
     return [...live, ...cancelled].map((r) => structuredClone(r));
   }
   /** D8: bounded and oldest-first, mirroring the real repository. */
-  async findDue(now: Date, limit = 100): Promise<SubscriptionRecord[]> {
+  async findDue(now: Date, limit = 100, offset = 0): Promise<SubscriptionRecord[]> {
     return this.rows
       .filter((r) => r.status === 'ACTIVE' && r.nextDeliveryAt.getTime() <= now.getTime())
-      .sort((a, b) => a.nextDeliveryAt.getTime() - b.nextDeliveryAt.getTime())
-      .slice(0, limit)
+      .sort((a, b) => a.nextDeliveryAt.getTime() - b.nextDeliveryAt.getTime() || a.id.localeCompare(b.id))
+      .slice(offset, offset + limit)
       .map((r) => structuredClone(r));
   }
   async setStatus(id: string, status: SubscriptionStatus): Promise<SubscriptionRecord> {

@@ -136,6 +136,7 @@ export const walkIn = {
   cashShort: 'Kurang {amount}.',
   exactCash: 'Uang pas',
   checkingShift: 'Memeriksa shift…',
+  depotOnHold: 'Quality hold: penjualan dihentikan di depot ini.',
   openShiftFirst: 'Buka shift dulu',
   saveAndPrint: 'Simpan & cetak struk',
   paidAndPrint: 'Pembayaran diterima & cetak struk',

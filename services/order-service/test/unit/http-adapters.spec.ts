@@ -219,6 +219,22 @@ describe('InventoryHttpAdapter', () => {
 });
 
 describe('DepotDirectoryHttpAdapter', () => {
+  it('carries the quality hold flag as onHold (HD-14); absent or false reads as not held', async () => {
+    fetchMock.mockResolvedValue(
+      res({
+        body: {
+          items: [
+            { id: 'h', lat: 1, lng: 2, serviceRadiusKm: 5, deliveryFee: 0, qualityHold: { active: true, since: '2026-11-27T00:00:00.000Z' } },
+            { id: 'k', lat: 1, lng: 2, serviceRadiusKm: 5, deliveryFee: 0, qualityHold: { active: false, since: null } },
+            { id: 'n', lat: 1, lng: 2, serviceRadiusKm: 5, deliveryFee: 0 },
+          ],
+        },
+      }),
+    );
+    const out = await new DepotDirectoryHttpAdapter(makeConfig()).listActiveDepots();
+    expect(out!.map((d) => d.onHold)).toEqual([true, false, false]);
+  });
+
   it('maps active depots on happy path', async () => {
     fetchMock.mockResolvedValue(
       res({

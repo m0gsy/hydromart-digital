@@ -23,6 +23,7 @@ interface DepotResponse {
   operatingHours?: unknown;
   holidays?: unknown;
   serviceArea?: unknown;
+  qualityHold?: { active?: boolean } | null;
 }
 interface DepotPage {
   items: DepotResponse[];
@@ -102,6 +103,7 @@ export class DepotDirectoryHttpAdapter implements DepotDirectoryPort {
             ? (d.operatingHours as OperatingHours)
             : {},
         holidays: Array.isArray(d.holidays) ? (d.holidays as Holiday[]) : [],
+        onHold: d.qualityHold?.active === true,
       }));
     } catch (error) {
       this.logger.warn(

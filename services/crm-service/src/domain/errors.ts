@@ -24,6 +24,15 @@ export class CampaignNotDraftError extends DomainError {
   }
 }
 
+/** HD-14: the depot is on a quality hold, so its campaign is not made and not sent. */
+export class CampaignDepotOnHoldError extends DomainError {
+  readonly code = 'CAMPAIGN_DEPOT_ON_HOLD';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Depot ini sedang tidak melayani sementara, jadi kampanyenya tidak bisa dibuat atau dikirim.');
+  }
+}
+
 export class CampaignNotCancellableError extends DomainError {
   readonly code = 'CAMPAIGN_NOT_CANCELLABLE';
   readonly status = HTTP_STATUS.CONFLICT;

@@ -184,11 +184,37 @@ describe('/hq/legal-entities', () => {
     await userEvent.click(screen.getByRole('button', { name: 'hq.legalEntities.entities.save' }));
     expect(patch).toHaveBeenCalledWith(
       '/depots/api/v1/legal-entities/le-2',
-      { name: 'PT Indowater', kind: 'FRANCHISOR', seenUpdatedAt: INDO.updatedAt },
+      { name: 'PT Indowater', kind: 'FRANCHISOR', bankName: '', bankAccountNumber: '', bankAccountHolder: '', seenUpdatedAt: INDO.updatedAt },
       true,
     );
     expect(toast).toHaveBeenCalledWith('hq.common.staleWrite', 'error');
     await waitFor(() => expect(directoryReads()).toBe(3));
+  });
+
+  it('sends the official bank account with a franchisor edit, digits only, and never for another kind', async () => {
+    render(<HqLegalEntitiesPage />);
+    // [PT Kelola Air (OPERATOR), PT Indowater (FRANCHISOR)]: the operator has no account fields.
+    const edits = await screen.findAllByRole('button', { name: 'hq.legalEntities.entities.editing' });
+    await userEvent.click(edits[0]!);
+    expect(screen.queryByLabelText('hq.legalEntities.entities.bankNumber')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'hq.legalEntities.entities.cancel' }));
+    await userEvent.click((await screen.findAllByRole('button', { name: 'hq.legalEntities.entities.editing' }))[1]!);
+    await userEvent.type(screen.getByLabelText('hq.legalEntities.entities.bankName'), 'BCA');
+    await userEvent.type(screen.getByLabelText('hq.legalEntities.entities.bankNumber'), '12-34 5678');
+    await userEvent.type(screen.getByLabelText('hq.legalEntities.entities.bankHolder'), 'PT Indowater');
+    await userEvent.click(screen.getByRole('button', { name: 'hq.legalEntities.entities.save' }));
+    expect(patch).toHaveBeenCalledWith(
+      '/depots/api/v1/legal-entities/le-2',
+      {
+        name: 'PT Indowater',
+        kind: 'FRANCHISOR',
+        bankName: 'BCA',
+        bankAccountNumber: '12345678',
+        bankAccountHolder: 'PT Indowater',
+        seenUpdatedAt: INDO.updatedAt,
+      },
+      true,
+    );
   });
 
   it('asks before switching an entity off, and sends a bare toggle', async () => {
