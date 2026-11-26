@@ -255,3 +255,25 @@ describe('depot export', () => {
     expect(cells.slice(1).every((c) => c === '')).toBe(true);
   });
 });
+
+describe('depotExportCells edges', () => {
+  const idx = (key: string) => DEPOT_IMPORT_COLUMNS.findIndex((c) => c.key === key);
+  it('writes holidays without a label, empty lists as blank, undefined as blank', () => {
+    const cells = depotExportCells({
+      code: 'A',
+      holidays: [{ date: '2026-12-25' }, { date: '2026-08-17', label: 'x' }],
+      serviceArea: [],
+      operatingHours: { mon: { open: '08:00' } },
+      name: undefined,
+    });
+    expect(cells[idx('hariLibur')]).toBe('2026-12-25|2026-08-17:x');
+    expect(cells[idx('areaLayanan')]).toBe('');
+    expect(cells[idx('senBuka')]).toBe('08:00');
+    expect(cells[idx('selBuka')]).toBe('');
+    expect(cells[idx('name')]).toBe('');
+  });
+  it('falls back to the column key when it has no field', () => {
+    const cols = [{ key: 'code' }, { key: 'x', field: 'a.b' }] as never;
+    expect(depotExportCells({ code: 'Z', a: { b: 1 } }, cols)).toEqual(['Z', 1]);
+  });
+});

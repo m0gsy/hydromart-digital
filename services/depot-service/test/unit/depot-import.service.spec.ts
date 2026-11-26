@@ -458,6 +458,37 @@ describe('DepotImportService', () => {
       expect(out.rows).toHaveLength(500);
       expect(out.total).toBe(502);
     });
+    it('copes with odd rows: no area, a depot-less settings row, a page that comes back empty', async () => {
+      process.env.AUTH_SERVICE_URL = 'http://auth:3001';
+      process.env.INTERNAL_SERVICE_KEY = 'k';
+      global.fetch = jest.fn().mockResolvedValue({ ok: true }) as never;
+      settingsRepo.rows.push({
+        scope: 'DEPOT',
+        depotId: null,
+        key: 'gallonDepositIdr',
+        value: '1',
+        updatedBy: 'u',
+      });
+      await service.import('create', [row()], ADMIN);
+      const only = { ...repo.rows[0]!, serviceArea: undefined };
+      const search = jest
+        .spyOn(repo, 'search')
+        .mockResolvedValueOnce({ items: [only], total: 3 })
+        .mockResolvedValueOnce({ items: [], total: 3 });
+      const out = await service.export(ADMIN);
+      expect(search).toHaveBeenCalledTimes(2);
+      expect(out.rows).toHaveLength(1);
+      expect(out.rows[0]).toMatchObject({ serviceArea: null, settings: {} });
+    });
+
+    it('refuses a holiday label holding the sheet separator', async () => {
+      const out = await service.import(
+        'create',
+        [row({ holidays: [{ date: '2026-08-17', label: 'a|b' }] })],
+        ADMIN,
+      );
+      expect(out.failed).toBe(1);
+    });
   });
 
   describe('audit', () => {

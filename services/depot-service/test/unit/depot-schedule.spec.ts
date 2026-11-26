@@ -101,6 +101,10 @@ describe('parseOperatingHours', () => {
 });
 
 describe('parseHolidays', () => {
+  it('refuses a label holding the import separator', () => {
+    expect(parseHolidays([{ date: '2026-08-17', label: 'a|b' }]).ok).toBe(false);
+  });
+
   it('treats absent as none and sorts by date', () => {
     expect(holidays(undefined)).toEqual([]);
     expect(holidays(null)).toEqual([]);

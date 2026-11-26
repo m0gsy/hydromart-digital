@@ -107,11 +107,16 @@ describe('depotServes', () => {
   it('an empty area falls back to the radius', () => {
     expect(depotServes(here, dep('a', -6.1, 106.9, 1, []))).toBe(true);
   });
+  it('radius 0 serves the exact depot point only', () => {
+    expect(depotServes(here, dep('a', here.lat, here.lng, 0))).toBe(true);
+    expect(depotServes(here, dep('a', -6.1, 106.91, 0))).toBe(false);
+  });
   it.each([
     ['null radius', dep('a', -6.1, 106.9, null)],
     ['NaN radius', dep('a', -6.1, 106.9, NaN)],
     ['NaN lat', dep('a', NaN, 106.9, 50)],
     ['NaN lat with an area', dep('a', NaN, 106.9, 50, SQUARE)],
+    ['Infinity lng with an area', dep('a', -6.1, Infinity, 50, SQUARE)],
   ])('%s never serves', (_n, d) => {
     expect(depotServes(here, d)).toBe(false);
   });

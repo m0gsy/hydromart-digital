@@ -153,7 +153,7 @@ export class DepotImportService {
       items.push(...res.items);
       if (res.items.length === 0 || items.length >= total) break;
     }
-    const picked = items.sort((a, b) => a.code.localeCompare(b.code)).slice(0, DEPOT_EXPORT_MAX);
+    const picked = items.slice(0, DEPOT_EXPORT_MAX);
     await this.settings.cache.ensureFresh();
     const byDepot = new Map<string, Record<string, string>>();
     for (const r of this.settings.cache.depotRows()) {
