@@ -221,6 +221,10 @@ export function destinationFor(
       return withId('/dashboard/visits/detail', /^[0-9a-f-]{36}$/i.test(vars.visitId ?? '') ? vars.visitId : undefined);
     case NotificationEvent.FOLLOW_UP_OVERDUE:
       return forDepot('/dashboard/visits', /^[0-9a-f-]{36}$/i.test(vars.depotId ?? '') ? vars.depotId : null);
+    // HD-23: the owner's payout page, where the bills sent to them are listed.
+    case NotificationEvent.PARTNER_BILL:
+    case NotificationEvent.PARTNER_BILL_VOID:
+      return '/dashboard/payout';
     case NotificationEvent.MORNING_SUMMARY:
       return /^\/[a-z0-9/-]+$/.test(vars.href ?? '') ? vars.href : INBOX;
     case NotificationEvent.LEAVE_SUBMITTED:

@@ -633,6 +633,15 @@ export class LegalEntityInactiveError extends DomainError {
   }
 }
 
+/** HD-23: only the franchisor's account is ever paid into, so no other kind may carry one. */
+export class LegalEntityBankAccountNotAllowedError extends DomainError {
+  readonly code = 'LEGAL_ENTITY_BANK_ACCOUNT_FRANCHISOR_ONLY';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('Rekening resmi hanya diisi untuk badan hukum pewaralaba (FRANCHISOR).');
+  }
+}
+
 /** A dated change point that is not (any more) there. */
 export class DepotLegalEntityPointNotFoundError extends DomainError {
   readonly code = 'DEPOT_LEGAL_ENTITY_POINT_NOT_FOUND';

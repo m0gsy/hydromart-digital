@@ -218,6 +218,9 @@ function EntityEditForm({
   const [opened] = useState(entity);
   const [name, setName] = useState(entity.name);
   const [kind, setKind] = useState<LegalEntityKind>(entity.kind);
+  const [bankName, setBankName] = useState(entity.bankName ?? '');
+  const [bankNumber, setBankNumber] = useState(entity.bankAccountNumber ?? '');
+  const [bankHolder, setBankHolder] = useState(entity.bankAccountHolder ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const changedElsewhere = entity.updatedAt !== opened.updatedAt;
@@ -232,7 +235,15 @@ function EntityEditForm({
     try {
       await api.patch(
         endpoints.legalEntities.update(opened.id),
-        { name: name.trim(), kind, seenUpdatedAt: opened.updatedAt },
+        {
+          name: name.trim(),
+          kind,
+          // HD-23: only the franchisor carries the official account; an empty field clears it.
+          ...(kind === 'FRANCHISOR'
+            ? { bankName: bankName.trim(), bankAccountNumber: bankNumber.trim(), bankAccountHolder: bankHolder.trim() }
+            : {}),
+          seenUpdatedAt: opened.updatedAt,
+        },
         true,
       );
       toast(t('hq.legalEntities.entities.saved'), 'success');
@@ -269,6 +280,38 @@ function EntityEditForm({
         </Field>
         <KindSelect id={`le-kind-${opened.id}`} value={kind} onChange={setKind} />
       </div>
+      {kind === 'FRANCHISOR' && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted">{t('hq.legalEntities.entities.bankHint')}</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label={t('hq.legalEntities.entities.bankName')} htmlFor={`le-bank-${opened.id}`}>
+              <Input
+                id={`le-bank-${opened.id}`}
+                value={bankName}
+                maxLength={60}
+                onChange={(ev) => setBankName(ev.target.value)}
+              />
+            </Field>
+            <Field label={t('hq.legalEntities.entities.bankNumber')} htmlFor={`le-bank-no-${opened.id}`}>
+              <Input
+                id={`le-bank-no-${opened.id}`}
+                value={bankNumber}
+                maxLength={25}
+                inputMode="numeric"
+                onChange={(ev) => setBankNumber(ev.target.value.replace(/\D/g, ''))}
+              />
+            </Field>
+            <Field label={t('hq.legalEntities.entities.bankHolder')} htmlFor={`le-bank-holder-${opened.id}`}>
+              <Input
+                id={`le-bank-holder-${opened.id}`}
+                value={bankHolder}
+                maxLength={200}
+                onChange={(ev) => setBankHolder(ev.target.value)}
+              />
+            </Field>
+          </div>
+        </div>
+      )}
       {error && (
         <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
           {error}

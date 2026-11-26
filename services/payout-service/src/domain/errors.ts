@@ -189,3 +189,17 @@ export class InvalidEffectiveDateError extends DomainError {
     super(`effectiveDate ${value} is not a real calendar day`);
   }
 }
+
+/**
+ * HD-23: franchise-owner ledger balances are bookkeeping, not a purse. Customers pay the
+ * depot's own account and HQ collects its royalty only through the monthly partner bill, so
+ * paying the ledger balance out would net the commission a second time (owner decision
+ * 2026-11-26, "Tagihan saja").
+ */
+export class PayoutByPartnerBillError extends DomainError {
+  readonly code = 'PAYOUT_BY_PARTNER_BILL';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Franchise balances are not paid out: payment to HQ goes through the monthly royalty bill.');
+  }
+}

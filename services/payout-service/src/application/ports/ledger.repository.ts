@@ -17,6 +17,19 @@ export interface OwnerBalance {
   availableBalance: number;
 }
 
+/** HD-23: what HQ's commission from one depot over a window is made of. */
+export interface CommissionBasisRow {
+  depotId: string;
+  /** Net commission as a positive amount (the rows are debits), reversals netted out. */
+  commissionIdr: number;
+  rows: number;
+  /** Rows that give an earlier month's commission back, and what they gave (positive). */
+  reversalRows: number;
+  reversalIdr: number;
+  /** The franchise owners whose rows these are: the accounts the bill is sent to. */
+  ownerIds: string[];
+}
+
 export interface LedgerRepository {
   create(data: CreateLedgerEntryData): Promise<LedgerEntryRecord>;
   /**
@@ -53,6 +66,10 @@ export interface LedgerRepository {
     from: Date,
     to: Date,
   ): Promise<{ depotId: string; commissionIdr: number }[]>;
+  /** HD-23: every depot with a COMMISSION row in `[from, to)`. */
+  depotsWithCommission(from: Date, to: Date): Promise<string[]>;
+  /** HD-23: the commission basis of these depots in `[from, to)`; a depot with no rows has no entry. */
+  commissionBasis(depotIds: readonly string[], from: Date, to: Date): Promise<CommissionBasisRow[]>;
   /** Sum of entries of one type over an inclusive date range. */
   sumByType(franchiseOwnerId: string, type: LedgerEntryType, since: Date): Promise<number>;
   /**

@@ -1,5 +1,5 @@
 import { HqReleaseService } from '../../src/application/services/hq-release.service';
-import type { PayoutService } from '../../src/application/services/payout.service';
+import { PayoutService } from '../../src/application/services/payout.service';
 import type {
   CreateReleaseRequestData,
   ReleaseRequestRecord,
@@ -72,6 +72,35 @@ const OWNER = 'owner-1';
 const FINANCE = 'finance-1';
 const DIRECTOR = 'direktur-1';
 const CONFIG = { minWithdrawalIdr: 50_000 } as never;
+
+describe('HqReleaseService with franchise payouts closed (HD-23)', () => {
+  beforeEach(() => {
+    PayoutService.ledgerPayoutOpen = false;
+  });
+  it('refuses to queue or approve a release: royalty is collected by the monthly bill', async () => {
+    const svc = new HqReleaseService({} as never, {} as never, {} as never, {} as never);
+    await expect(svc.request('o', undefined, 'u')).rejects.toMatchObject({ code: 'PAYOUT_BY_PARTNER_BILL' });
+    await expect(svc.approve('r', 'u')).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('still lets HQ reject a request filed before the switch, so it can be closed', async () => {
+    const pending = { id: 'r', status: 'PENDING', requestedBy: 'maker' };
+    const requests = {
+      findById: jest.fn().mockResolvedValue(pending),
+      decide: jest.fn().mockResolvedValue({ ...pending, status: 'REJECTED', reason: 'Tagihan royalti' }),
+    };
+    const svc = new HqReleaseService(requests as never, {} as never, {} as never, {} as never);
+    await expect(svc.reject('r', 'checker', ' Tagihan royalti ')).resolves.toMatchObject({ status: 'REJECTED' });
+    expect(requests.decide).toHaveBeenCalledWith('r', { status: 'REJECTED', decidedBy: 'checker', reason: 'Tagihan royalti' });
+  });
+});
+
+beforeEach(() => {
+  PayoutService.ledgerPayoutOpen = true;
+});
+afterAll(() => {
+  PayoutService.ledgerPayoutOpen = false;
+});
 
 describe('HqReleaseService', () => {
   let requests: FakeRequests;

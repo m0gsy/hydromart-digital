@@ -17,6 +17,26 @@ export interface LegalEntity {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** HD-23: the official account a partner bill is paid into; read for the FRANCHISOR entity only. */
+  bankName: string | null;
+  bankAccountNumber: string | null;
+  bankAccountHolder: string | null;
+}
+
+/** HD-23: the three bank fields of an entity, all or nothing (a half-entered account is no account). */
+export interface BankAccount {
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountHolder: string;
+}
+
+/** The entity's account when all three parts are filled in, else null. */
+export function bankAccountOf(
+  e: Pick<LegalEntity, 'bankName' | 'bankAccountNumber' | 'bankAccountHolder'>,
+): BankAccount | null {
+  return e.bankName && e.bankAccountNumber && e.bankAccountHolder
+    ? { bankName: e.bankName, bankAccountNumber: e.bankAccountNumber, bankAccountHolder: e.bankAccountHolder }
+    : null;
 }
 
 /** A legal entity as the admin screen reads it, with the roles that may read it in the AI web. */

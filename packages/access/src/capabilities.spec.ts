@@ -311,6 +311,18 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).not.toContain('aiTeamStop');
   });
 
+  // HD-23: Finance approves a bill with one click; n8n only triggers the draft run.
+  it('splits the partner bill into read, approve and a machine-only generate', () => {
+    expect(CAPABILITIES.partnerBillApprove).toEqual(['FINANCE', 'SUPER_ADMIN']);
+    expect(can('partnerBillRead', 'FINANCE')).toBe(true);
+    expect(can('partnerBillRead', 'DIREKTUR')).toBe(true);
+    expect(can('partnerBillRead', 'MARKETING')).toBe(false);
+    expect(can('partnerBillApprove', 'HEAD_OFFICE')).toBe(false);
+    expect(CAPABILITIES.partnerBillGenerate).toEqual(['SUPER_ADMIN']);
+    for (const cap of ['partnerBillApprove', 'partnerBillGenerate']) expect(CUSTOM_FORBIDDEN).toContain(cap);
+    expect(CUSTOM_FORBIDDEN).not.toContain('partnerBillRead');
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);

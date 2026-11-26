@@ -955,6 +955,9 @@ export type NotificationEvent =
   | 'AI_AGENT_STOPPED'
   | 'VISIT_FINDING'
   | 'FOLLOW_UP_OVERDUE'
+  // HD-23: the monthly royalty bill, one row per franchise owner.
+  | 'PARTNER_BILL'
+  | 'PARTNER_BILL_VOID'
   | 'VOUCHER_EXPIRING'
   | 'COURIER_DELIVERY_ASSIGNED'
   | 'DELIVERY_SLA_BREACHED'
@@ -1016,6 +1019,8 @@ export const OPS_EVENTS = [
   'AI_AGENT_STOPPED',
   'VISIT_FINDING',
   'FOLLOW_UP_OVERDUE',
+  'PARTNER_BILL',
+  'PARTNER_BILL_VOID',
   'COURIER_DELIVERY_ASSIGNED',
   'DELIVERY_SLA_BREACHED',
   'STOCK_LOW',

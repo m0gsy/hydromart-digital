@@ -1,12 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   ArrayUnique,
   IsArray,
+  IsDefined,
   IsEnum,
   IsIn,
+  IsInt,
   IsISO8601,
   IsNotEmpty,
   IsObject,
@@ -15,6 +17,8 @@ import {
   IsUUID,
   Matches,
   MaxLength,
+  Min,
+  ValidateNested,
 } from 'class-validator';
 
 import { AI_AGENT_NOTICE_KINDS, AiAgentNoticeKind } from '../../domain/ai-agent-notice';
@@ -502,4 +506,99 @@ export class VisitNoticeResultDto {
 
   @ApiProperty({ description: 'Notifications filed by this call (a retry files none twice).' })
   notified!: number;
+}
+
+class PartnerBillBankDto {
+  @ApiProperty({ example: 'BCA' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  bankName!: string;
+
+  @ApiProperty({ example: '1234567890' })
+  @Matches(/^\d{5,25}$/)
+  bankAccountNumber!: string;
+
+  @ApiProperty({ example: 'PT Indowater' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  bankAccountHolder!: string;
+}
+
+/** HD-23: payout-service tells crm a royalty bill was approved. The numbers are its own. */
+export class PartnerBillNoticeDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  billId!: string;
+
+  @ApiProperty({ example: 'Oktober 2026' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  monthLabel!: string;
+
+  @ApiProperty({ example: 'PT Mitra Air' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  legalEntityName!: string;
+
+  @ApiProperty({ example: 1500000, description: 'Whole rupiah.' })
+  @IsInt()
+  @Min(1)
+  totalIdr!: number;
+
+  @ApiProperty({ type: PartnerBillBankDto })
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => PartnerBillBankDto)
+  bank!: PartnerBillBankDto;
+
+  @ApiProperty({ type: [String], format: 'uuid', description: 'The franchise-owner accounts to tell.' })
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  recipientIds!: string[];
+}
+
+export class PartnerBillNoticeResultDto {
+  @ApiProperty({ description: 'Owners that had to be told.' })
+  recipients!: number;
+
+  @ApiProperty({ description: 'Notices filed by this call (a retry files none twice).' })
+  notified!: number;
+}
+
+/** HD-23: payout-service tells crm a sent bill was withdrawn. */
+export class PartnerBillVoidNoticeDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  billId!: string;
+
+  @ApiProperty({ example: 'Oktober 2026' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  monthLabel!: string;
+
+  @ApiProperty({ example: 'PT Mitra Air' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  legalEntityName!: string;
+
+  @ApiProperty({ example: 'Salah badan hukum' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(300)
+  reason!: string;
+
+  @ApiProperty({ type: [String], format: 'uuid' })
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  recipientIds!: string[];
 }

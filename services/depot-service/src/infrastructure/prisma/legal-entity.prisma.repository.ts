@@ -38,6 +38,9 @@ interface EntityRow {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+  bankName: string | null;
+  bankAccountNumber: string | null;
+  bankAccountHolder: string | null;
 }
 
 interface PointRow {
@@ -100,6 +103,14 @@ export class LegalEntityPrismaRepository implements LegalEntityRepository {
 
   async findById(id: string): Promise<LegalEntity | null> {
     const row = await this.prisma.legalEntity.findUnique({ where: { id } });
+    return row ? this.toEntity(row) : null;
+  }
+
+  async findFranchisor(): Promise<LegalEntity | null> {
+    const row = await this.prisma.legalEntity.findFirst({
+      where: { kind: 'FRANCHISOR', active: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
     return row ? this.toEntity(row) : null;
   }
 
