@@ -113,7 +113,6 @@ export const money = {
       const qs = p.toString();
       return `/payout/api/v1/payout/ledger${qs ? `?${qs}` : ''}`;
     },
-    withdrawals: '/payout/api/v1/payout/withdrawals',
     // HQ payout-release queue (6a, FINANCE/SUPER_ADMIN): pending owners + release action.
     hqQueue: '/payout/api/v1/payout/hq/pending',
     /*

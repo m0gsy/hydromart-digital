@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ArrowLeft } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { Badge, Button, Card, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -16,6 +17,7 @@ import { useQueryParam } from '@/lib/use-query-param';
 
 /** HD-23 — one bill: its lines and what each is made of, with Setujui & kirim and Batalkan by capability. */
 export default function HqPartnerBillDetailPage() {
+  const { confirm } = useConfirm();
   const { t, locale } = useT();
   const { customer } = useAuth();
   const id = useQueryParam('id');
@@ -140,10 +142,13 @@ export default function HqPartnerBillDetailPage() {
                 {(b.status === 'DRAFT' || b.status === 'SENDING') && (
                   <Button
                     disabled={busy}
-                    onClick={() => {
-                      if (window.confirm(t('hq.partnerBills.detail.approveConfirm'))) {
-                        void act(() => api.post(endpoints.partnerBills.approve(b.id), {}, true));
-                      }
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: t('hq.partnerBills.detail.approve'),
+                        message: t('hq.partnerBills.detail.approveConfirm'),
+                        confirmLabel: t('hq.partnerBills.detail.approve'),
+                      });
+                      if (ok) void act(() => api.post(endpoints.partnerBills.approve(b.id), {}, true));
                     }}
                   >
                     {busy ? t('hq.partnerBills.detail.approving') : t('hq.partnerBills.detail.approve')}

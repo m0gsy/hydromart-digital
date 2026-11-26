@@ -4,7 +4,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, post, role, search } = vi.hoisted(() => ({
+const { get, post, role, search, confirmMock } = vi.hoisted(() => ({
+  confirmMock: vi.fn(),
   get: vi.fn(),
   post: vi.fn(),
   role: { value: 'FINANCE' },
@@ -21,6 +22,7 @@ class FakeApiError extends Error {
   }
 }
 
+vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: confirmMock }) }));
 vi.mock('@/lib/api', () => ({ api: { get, post }, ApiError: FakeApiError }));
 vi.mock('@/lib/locale-context', () => ({
   useT: () => ({
@@ -134,7 +136,7 @@ describe('/hq/partner-bills/detail', () => {
   it('shows the lines and what each is made of, and sends the bill on one confirmed click', async () => {
     get.mockResolvedValue(draft);
     post.mockResolvedValue({});
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    confirmMock.mockResolvedValue(true);
     const { default: Page } = await import('@/app/hq/partner-bills/detail/page');
     render(<Page />);
     expect(await screen.findByText('Royalti Depot Satu')).toBeTruthy();
@@ -145,7 +147,7 @@ describe('/hq/partner-bills/detail', () => {
 
   it('does not send when the confirmation is declined', async () => {
     get.mockResolvedValue(draft);
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    confirmMock.mockResolvedValue(false);
     const { default: Page } = await import('@/app/hq/partner-bills/detail/page');
     render(<Page />);
     fireEvent.click(await screen.findByRole('button', { name: 'hq.partnerBills.detail.approve' }));
@@ -155,7 +157,7 @@ describe('/hq/partner-bills/detail', () => {
   it('says why a bill cannot be sent without the official account, and links to where to enter it', async () => {
     get.mockResolvedValue(draft);
     post.mockRejectedValueOnce(new FakeApiError(409, 'x', 'BANK_ACCOUNT_MISSING'));
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    confirmMock.mockResolvedValue(true);
     const { default: Page } = await import('@/app/hq/partner-bills/detail/page');
     render(<Page />);
     fireEvent.click(await screen.findByRole('button', { name: 'hq.partnerBills.detail.approve' }));
@@ -169,7 +171,7 @@ describe('/hq/partner-bills/detail', () => {
       .mockRejectedValueOnce(new FakeApiError(409, 'x', 'PARTNER_BILL_NO_RECIPIENTS'))
       .mockRejectedValueOnce(new FakeApiError(503, 'x', 'PARTNER_BILL_SOURCE_UNAVAILABLE'))
       .mockRejectedValueOnce(new Error('boom'));
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    confirmMock.mockResolvedValue(true);
     const { default: Page } = await import('@/app/hq/partner-bills/detail/page');
     render(<Page />);
     const approve = await screen.findByRole('button', { name: 'hq.partnerBills.detail.approve' });
@@ -217,7 +219,7 @@ describe('/hq/partner-bills/detail', () => {
   it('lets a bill stuck while sending be approved again, but not voided, and says so', async () => {
     get.mockResolvedValue({ ...draft, status: 'SENDING' });
     post.mockRejectedValueOnce(new FakeApiError(409, 'x', 'PARTNER_BILL_SENDING'));
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    confirmMock.mockResolvedValue(true);
     const { default: Page } = await import('@/app/hq/partner-bills/detail/page');
     render(<Page />);
     expect(screen.queryByRole('button', { name: 'hq.partnerBills.detail.void' })).toBeNull();
