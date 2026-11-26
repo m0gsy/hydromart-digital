@@ -129,6 +129,7 @@ const DYNAMIC_PARENTS = [
   '/dashboard/customers',
   '/m/manager/approvals',
   '/driver/deliveries',
+  '/dashboard/visits',
   '/hq/applications',
   '/hr/me/payroll',
   '/hr/employees',

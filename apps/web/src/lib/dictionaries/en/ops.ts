@@ -63,6 +63,7 @@ export const ops = {
     hrLoans: 'Advances & loans',
     hrDepotRequests: 'Borrow an employee',
     handover: 'Shift handover',
+    visits: 'Supervisor visits',
     maintenance: 'Equipment maintenance',
     staffOnboarding: 'Manager guide',
     customers: 'Customers',

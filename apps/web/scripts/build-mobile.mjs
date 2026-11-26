@@ -121,6 +121,10 @@ const SURFACES = {
       'dashboard/incidents',
       'dashboard/reports',
       'dashboard/orders',
+      // HD-15B: supervisor visits (the list, a visit and the start screen).
+      'dashboard/visits',
+      'dashboard/visits/new',
+      'dashboard/visits/detail',
       // Flow 6b: where a courier's cash handed in is verified, and a courier's claim decided.
       'dashboard/settlements',
       'dashboard/expense-claims',

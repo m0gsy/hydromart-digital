@@ -143,7 +143,7 @@ const OPS = R(`
 /dashboard/reports /dashboard/resellers/import /dashboard/returns /dashboard/roles
 /dashboard/sales-import /dashboard/search /dashboard/settings /dashboard/settlements /dashboard/shift
 /dashboard/staff /dashboard/subscriptions /dashboard/suppliers /dashboard/targets
-/dashboard/team-performance /dashboard/tracking /dashboard/vouchers /dashboard/walk-in
+/dashboard/team-performance /dashboard/tracking /dashboard/vouchers /dashboard/visits /dashboard/visits/new /dashboard/visits/detail /dashboard/walk-in
 /dashboard/wastage /dashboard/wholesale
 `);
 
@@ -240,6 +240,7 @@ const ID_SOURCE = {
   '/dashboard/approvals/detail': '/dashboard/approvals',
   '/dashboard/customers/detail': '/dashboard/customers',
   '/dashboard/purchase-orders/detail': '/dashboard/purchase-orders',
+  '/dashboard/visits/detail': '/dashboard/visits',
   '/hr/employees/detail': '/hr/employees',
   '/hr/payroll/detail': '/hr/payroll',
   // /hq/depots itself opens a depot with onClick, not a link, so the id comes from a page that links.
