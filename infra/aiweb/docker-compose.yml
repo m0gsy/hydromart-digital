@@ -134,6 +134,12 @@ services:
       # here and nowhere else): the AI web posts its alarms to the channel hydromart's alerts use.
       # Blank, they go to its log only.
       ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      # AI-31: the AI web's OWN machine account at auth-service (read-only, scope aiReadAgent), for the
+      # agents' scheduled reads of the AI read API. The app trades the pair at POST /auth/api/v1/auth/machine/token.
+      # Made, rotated and switched off by scripts/aiweb-secrets.sh (blank secret = off); the app alone gets
+      # it, and never n8n's (check-aiweb-compose.mjs). Absent until the release holds aiReadAgent: blank = no agent reads.
+      HYDROMART_MACHINE_ID: ${AIWEB_APP_MACHINE_ID:-}
+      HYDROMART_MACHINE_SECRET: ${AIWEB_APP_MACHINE_SECRET:-}
     networks:
       - edge
       - private

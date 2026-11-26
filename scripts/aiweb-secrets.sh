@@ -181,37 +181,6 @@ fi
 # franchise application, PR #1042), required, and the optional ones (the morning summary, AI-9; the
 # AI access request, AI-7c; order status per WhatsApp number and customer reminders, HD-18; the maintenance-due sweep, HD-15; the weekly Sales report notice, AI-26; the AI agent notices, AI-31),
 # each added only once a rollback would still boot.
-SCOPE=franchiseApplicationNotify
-OPTIONAL_SCOPES=(morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiAgentNotify partnerBillGenerate)
-if absent AIWEB_N8N_MACHINE_ID; then
-  id="$("$node_bin" -e 'process.stdout.write(require("node:crypto").randomUUID())' 2>&1 || true)"
-  add AIWEB_N8N_MACHINE_ID "$id"
-else
-  id="$(value AIWEB_N8N_MACHINE_ID)"
-fi
-secret="$(value AIWEB_N8N_MACHINE_SECRET)"
-not_after="$(value AIWEB_N8N_MACHINE_NOT_AFTER)"
-if absent AIWEB_N8N_MACHINE_SECRET; then
-  mode=rotate
-elif [ -z "${secret//[[:space:]]/}" ]; then
-  mode=off
-else
-  # A date alone is 00:00 UTC that day, as auth-service reads it. Rotated from 30 days before it,
-  # so the many deploys of a month all have the chance; anything not a plain date, or 90 days or
-  # more ahead (auth-service refuses more than 90), is no date at all.
-  mode=keep
-  left=-1
-  if [[ "$not_after" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && day="$(date -u -d "$not_after" +%s 2>/dev/null)"; then
-    left=$(((day - $(date -u +%s)) / 86400))
-  fi
-  if [ "$left" -lt 30 ] || [ "$left" -gt 89 ]; then mode=rotate; fi
-fi
-if [ "$mode" = rotate ]; then
-  secret="$(openssl rand -hex 32)"
-  not_after="$(date -u -d '+89 days' +%F)"
-  add AIWEB_N8N_MACHINE_SECRET "$secret"
-  add AIWEB_N8N_MACHINE_NOT_AFTER "$not_after"
-fi
 
 # MACHINE_ACCOUNTS: read as compose hands it to auth-service, rewritten only where n8n's entries
 # change. The capability is looked up in the release this tree holds, which is what the converge
@@ -247,6 +216,63 @@ scope_capable() {
   fi
   return 1
 }
+
+# One machine account: <KEY PREFIX> <name in MACHINE_ACCOUNTS> <required|skippable> <base scope>
+# [optional scopes...]. Everything below is per account. MACHINE_ACCOUNTS is handed from one call
+# to the next in MA_CUR (as compose reads it) and written once, after both. A "skippable" account
+# is not made at all while the release in this tree or the last good one lacks its base scope
+# (nothing refuses, the next deploy makes it); a "required" one (n8n's) refuses instead.
+machine_account() {
+  local P="$1" NAME="$2" NEED="$3" SCOPE="$4" id secret not_after mode left day capable scopes_csv rc accounts s
+  shift 4
+  local OPTIONAL_SCOPES=("$@") scopes=()
+  # Two accounts on one id would let one's scopes overwrite the other's (entries are told apart by id):
+  # an id already in .env that another account holds refuses the run, nothing written.
+  local have_id
+  have_id="$(value ${P}_MACHINE_ID)"
+  if [ -n "$have_id" ] && [[ " $SEEN_IDS " == *" $have_id "* ]]; then
+    echo "aiweb-secrets: !! ${P}_MACHINE_ID is the id another machine account already uses; each account needs its own; nothing written" >&2
+    exit 1
+  fi
+  # The kill switch always runs: a present, blank secret removes the entries even when this release
+  # lacks the capability (nothing is added then, so nothing can refuse).
+  local blank=0
+  if ! absent ${P}_MACHINE_SECRET && [ -z "$(value ${P}_MACHINE_SECRET | tr -d '[:space:]')" ]; then blank=1; fi
+  if [ "$NEED" = skippable ] && [ "$blank" = 0 ] && ! scope_capable "$SCOPE"; then
+    echo "aiweb-secrets: $why_not yet; the $NAME machine account is made on a later deploy"
+    return 0
+  fi
+if absent ${P}_MACHINE_ID; then
+  id="$("$node_bin" -e 'process.stdout.write(require("node:crypto").randomUUID())' 2>&1 || true)"
+  add ${P}_MACHINE_ID "$id"
+else
+  id="$(value ${P}_MACHINE_ID)"
+fi
+SEEN_IDS+=" $id"
+secret="$(value ${P}_MACHINE_SECRET)"
+not_after="$(value ${P}_MACHINE_NOT_AFTER)"
+if absent ${P}_MACHINE_SECRET; then
+  mode=rotate
+elif [ -z "${secret//[[:space:]]/}" ]; then
+  mode=off
+else
+  # A date alone is 00:00 UTC that day, as auth-service reads it. Rotated from 30 days before it,
+  # so the many deploys of a month all have the chance; anything not a plain date, or 90 days or
+  # more ahead (auth-service refuses more than 90), is no date at all.
+  mode=keep
+  left=-1
+  if [[ "$not_after" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && day="$(date -u -d "$not_after" +%s 2>/dev/null)"; then
+    left=$(((day - $(date -u +%s)) / 86400))
+  fi
+  if [ "$left" -lt 30 ] || [ "$left" -gt 89 ]; then mode=rotate; fi
+fi
+if [ "$mode" = rotate ]; then
+  secret="$(openssl rand -hex 32)"
+  not_after="$(date -u -d '+89 days' +%F)"
+  add ${P}_MACHINE_SECRET "$secret"
+  add ${P}_MACHINE_NOT_AFTER "$not_after"
+fi
+
 capable=0
 scopes=()
 if scope_capable "$SCOPE"; then
@@ -256,15 +282,15 @@ if scope_capable "$SCOPE"; then
     if scope_capable "$s"; then
       scopes+=("$s")
     else
-      echo "aiweb-secrets: $why_not yet; n8n's entry gets it on a later deploy"
+      echo "aiweb-secrets: $why_not yet; $NAME's entry gets it on a later deploy"
     fi
   done
 elif [ "$have_prev" = 1 ] && has_scope "$SCOPE" "$tree_block"; then
-  echo "aiweb-secrets: $why_not: a rollback to it would not boot auth-service with n8n's entry" >&2
+  echo "aiweb-secrets: $why_not: a rollback to it would not boot auth-service with $NAME's entry" >&2
 fi
 scopes_csv="$(IFS=,; echo "${scopes[*]:-}")"
 rc=0
-accounts="$(MA_RAW="$(value MACHINE_ACCOUNTS)" MA_ID="$id" MA_MODE="$mode" MA_SECRET="$secret" \
+accounts="$(MA_RAW="$MA_CUR" MA_NAME="$NAME" MA_KEY="${P}_MACHINE_ID" MA_BASE="$SCOPE" MA_ID="$id" MA_MODE="$mode" MA_SECRET="$secret" \
   MA_NOT_AFTER="$not_after" MA_SCOPES="$scopes_csv" MA_CAPABLE="$capable" "$node_bin" -e '
   // Prints the new value (single-quoted for .env), exits 3 when nothing changes, 1 with the
   // reason when nothing may be written. Never prints a secret: entries hold its sha256 only.
@@ -276,7 +302,7 @@ accounts="$(MA_RAW="$(value MACHINE_ACCOUNTS)" MA_ID="$id" MA_MODE="$mode" MA_SE
     process.exit(1);
   };
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(e.MA_ID)) {
-    refuse("AIWEB_N8N_MACHINE_ID is not a lowercase UUID, so the n8n entries cannot be told apart");
+    refuse(e.MA_KEY + " is not a lowercase UUID, so the " + e.MA_NAME + " entries cannot be told apart");
   }
   let list;
   try {
@@ -295,7 +321,7 @@ accounts="$(MA_RAW="$(value MACHINE_ACCOUNTS)" MA_ID="$id" MA_MODE="$mode" MA_SE
   const scopes = e.MA_SCOPES.split(",");
   const entry = () => ({
     id: e.MA_ID,
-    name: "n8n",
+    name: e.MA_NAME,
     secretSha256: require("node:crypto").createHash("sha256").update(e.MA_SECRET).digest("hex"),
     scopes,
     notAfter: e.MA_NOT_AFTER,
@@ -320,9 +346,9 @@ accounts="$(MA_RAW="$(value MACHINE_ACCOUNTS)" MA_ID="$id" MA_MODE="$mode" MA_SE
   if (JSON.stringify(out) === original) process.exit(3);
   for (const a of next.filter((n) => !list.includes(n))) {
     if (e.MA_CAPABLE !== "1") {
-      refuse("the release in this tree, or the last good one a rollback returns to, has no capability franchiseApplicationNotify (hydromart-digital PR #1042): auth-service would refuse to boot with the n8n entry, so MACHINE_ACCOUNTS was not changed");
+      refuse("the release in this tree, or the last good one a rollback returns to, has no capability " + e.MA_BASE + ": auth-service would refuse to boot with the " + e.MA_NAME + " entry, so MACHINE_ACCOUNTS was not changed");
     }
-    if (!live(a)) refuse("the new n8n entry ends " + a.notAfter + ", not within the 90 days auth-service allows");
+    if (!live(a)) refuse("the new " + e.MA_NAME + " entry ends " + a.notAfter + ", not within the 90 days auth-service allows");
   }
   const pairs = new Set(out.map((a) => a.id + ":" + a.secretSha256));
   if (pairs.size !== out.length) refuse("MACHINE_ACCOUNTS would list one id with one secret twice, which auth-service refuses");
@@ -337,7 +363,12 @@ case "$rc" in
   # Empty, or one single-quoted JSON list on one line: anything else is not this script's answer.
   0)
     case "$accounts" in
-      "" | "'["*"]'") add MACHINE_ACCOUNTS "$accounts" ;;
+      "" | "'["*"]'")
+        MA_NEW="$accounts" MA_SET=1
+        MA_CUR=''
+        # The single quotes off, the way value() hands MACHINE_ACCOUNTS to the next account.
+        if [ -n "$accounts" ]; then MA_CUR="${accounts:1:${#accounts}-2}"; fi
+        ;;
       *)
         echo "aiweb-secrets: !! reading MACHINE_ACCOUNTS gave an answer that is not a JSON list; nothing written" >&2
         exit 1
@@ -351,9 +382,21 @@ case "$rc" in
     ;;
 esac
 case "$mode" in
-  off) echo "aiweb-secrets: AIWEB_N8N_MACHINE_SECRET is blank (n8n's kill switch): n8n has no entry in MACHINE_ACCOUNTS" ;;
-  rotate) echo "aiweb-secrets: n8n's machine secret made anew, valid until $not_after; its entry in MACHINE_ACCOUNTS beside any still valid" ;;
+  off) echo "aiweb-secrets: ${P}_MACHINE_SECRET is blank ($NAME's kill switch): $NAME has no entry in MACHINE_ACCOUNTS" ;;
+  rotate) echo "aiweb-secrets: $NAME's machine secret made anew, valid until $not_after; its entry in MACHINE_ACCOUNTS beside any still valid" ;;
 esac
+}
+
+# n8n's, then the AI web app's own (hydromart-digital's agents read the AI read API with it,
+# AI-31): a second account, read-only, one scope. n8n's secret is never handed on, the id is its own.
+MA_CUR="$(value MACHINE_ACCOUNTS)"
+SEEN_IDS=''
+MA_NEW=''
+MA_SET=0
+machine_account AIWEB_N8N n8n required franchiseApplicationNotify \
+  morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiAgentNotify partnerBillGenerate
+machine_account AIWEB_APP aiweb skippable aiReadAgent
+if [ "$MA_SET" = 1 ]; then add MACHINE_ACCOUNTS "$MA_NEW"; fi
 
 if [ -z "$BLOCK" ]; then
   echo "aiweb-secrets: nothing missing"

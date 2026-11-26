@@ -351,6 +351,7 @@ export const hq = {
       aiTeamManage: 'Nyalakan agen AI, ubah plafon, setujui playbook',
       aiTeamStop: 'Hentikan agen AI',
       aiAgentNotify: 'Picu pemberitahuan agen AI (akun mesin n8n)',
+      aiReadAgent: 'Baca angka keuangan semua depot untuk agen AI (akun mesin web AI)',
       partnerBillRead: 'Lihat tagihan royalti mitra',
       partnerBillApprove: 'Setujui dan kirim tagihan royalti mitra',
       partnerBillGenerate: 'Picu pembuatan draf tagihan royalti bulanan (akun mesin n8n)',

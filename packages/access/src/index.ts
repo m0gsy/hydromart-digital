@@ -660,6 +660,13 @@ export const CAPABILITIES = {
    */
   aiAgentNotify: ['SUPER_ADMIN'],
   /*
+   * dashboard-service (AI-31) - read the money family of the AI read API (U-02, U-04, U-05, P-01)
+   * across EVERY depot, on a schedule with nobody signed in. Held only by the AI web's own machine
+   * account (AIWEB_APP_MACHINE_*, scripts/aiweb-secrets.sh) through its token's scopes, read-only,
+   * and its only scope: no people metrics, no other family. Also in CUSTOM_FORBIDDEN.
+   */
+  aiReadAgent: ['SUPER_ADMIN'],
+  /*
    * payout-service (HD-23) - the monthly royalty bill per franchisee legal entity. Read: the
    * list and each bill's lines. Approve = send: Finance clicks once, the bill goes to the
    * depot owners; also in CUSTOM_FORBIDDEN, a network-wide money write with no depot fence.
@@ -1209,6 +1216,7 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'salesReportNotify',
   // AI-29/AI-31: the n8n machine account's, same reasoning; and who may switch agents on or change their caps.
   'aiAgentNotify',
+  'aiReadAgent',
   'aiTeamManage',
   // HD-23: approving a bill sends it to every owner of the entity's depots; generating is n8n's.
   'partnerBillApprove',

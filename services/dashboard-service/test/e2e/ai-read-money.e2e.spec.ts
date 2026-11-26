@@ -16,6 +16,7 @@ import {
 } from '@hydromart/platform';
 
 import { MONEY_METRICS, MONEY_METRIC_IDS } from '../../src/application/ai-read/money-metrics';
+import { SPLITTABLE_METRICS } from '../../src/application/ai-read/split';
 import { envValidationSchema } from '../../src/config/env.validation';
 import { DashboardModule } from '../../src/modules/dashboard.module';
 
@@ -75,15 +76,23 @@ describe('GET ai/read/money?metric= (HD-6 H2)', () => {
   let app: INestApplication;
   /** D1 moves PT_A -> PT_B on 16 Nov; D2 stays PT_B all month. */
   const asked: URL[] = [];
+  /** What reached auth-service's audit ingest, and whether it is answering. */
+  const audits: Array<Record<string, unknown>> = [];
+  let auditUp = true;
 
   beforeAll(async () => {
     Object.assign(process.env, testEnv);
     resetExternalKeyStores();
     configureDepotScope(async () => [D1, D2]);
-    jest.spyOn(global, 'fetch').mockImplementation(async (input) => {
+    jest.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
       const url = new URL(String(input));
       const json = (body: unknown) => ({ ok: true, json: async () => body }) as unknown as Response;
       if (url.href === `${AUTH_URL}/api/v1/auth/jwks`) return json({ keys: [JWK] });
+      if (url.href === `${AUTH_URL}/api/v1/auth/audit/internal`) {
+        if (!auditUp) return { ok: false, status: 500, json: async () => ({}) } as unknown as Response;
+        audits.push(JSON.parse(String((init as { body?: string } | undefined)?.body ?? '{}')));
+        return { ok: true, status: 201, json: async () => ({ recorded: true }) } as unknown as Response;
+      }
       if (url.href.startsWith(ORDER_URL)) {
         asked.push(url);
         const ids = (url.searchParams.get('depotIds') ?? '').split(',');
@@ -141,6 +150,8 @@ describe('GET ai/read/money?metric= (HD-6 H2)', () => {
 
   afterEach(() => {
     asked.length = 0;
+    audits.length = 0;
+    auditUp = true;
   });
 
   afterAll(async () => {
@@ -229,6 +240,49 @@ describe('GET ai/read/money?metric= (HD-6 H2)', () => {
     await get(aiToken('FRANCHISE_OWNER'), 'P-01').expect(403);
   });
 
+  describe('the AI web machine account (AI-31)', () => {
+    const agent = (scopes = ['aiReadAgent']) => es256({ iss: 'hydromart-auth', aud: 'hydromart-machine', sub: PERSON, scopes, exp: exp() });
+
+    it('reads P-01 over the whole network, no role grant looked up, and the read is audited first', async () => {
+      const res = await get(agent(), 'P-01').expect(200);
+      expect(res.body).toMatchObject({ metricId: 'P-01', status: 'ok', value: 600_000, scope: { depotIds: [D1, D2], legalEntityIds: [PT_A, PT_B] } });
+      expect(audits).toHaveLength(1);
+      expect(audits[0]).toMatchObject({ action: 'dashboard.ai-read.money.requested', actorId: PERSON, target: 'P-01', metadata: { via: 'machine', metric: 'P-01', period: 'month' } });
+    });
+
+    it('answers split=depot with the depot codes for U-02 (money sources unavailable here: belum_ada, not a 4xx)', async () => {
+      const res = await get(agent(), 'P-01', `${MONTH}&split=depot`).expect(200);
+      expect(res.body.value.byDepot.map((d: { depotId: string }) => d.depotId)).toEqual([D1, D2]);
+      await get(agent(), 'U-02', `${MONTH}&split=depot`).expect(200);
+    });
+
+    it('reads only the metrics the agents need: any other metric is 403 (still audited as an attempt)', async () => {
+      for (const metric of ['L-07', 'P-04', 'U-01', 'P-99']) await get(agent(), metric).expect(403);
+      expect(audits).toHaveLength(4);
+    });
+
+    it('is refused where the capability is not in its scopes, or the route is not open to machines', async () => {
+      await get(agent(['aiRead']), 'P-01').expect(403);
+      await get(agent(['franchiseApplicationNotify']), 'P-01').expect(403);
+      const other = await request(app.getHttpServer()).get('/api/v1/ai/read/scope?period=month').set('Authorization', `Bearer ${agent()}`);
+      expect(other.status).toBe(403);
+      const stock = await request(app.getHttpServer()).get('/api/v1/ai/read/stock?metric=S-01&period=month').set('Authorization', `Bearer ${agent()}`);
+      expect(stock.status).toBe(403);
+      expect(audits).toHaveLength(0);
+    });
+
+    it('answers 503 and reads nothing when the audit trail cannot be written', async () => {
+      auditUp = false;
+      await get(agent(), 'P-01').expect(503);
+      expect(asked).toHaveLength(0);
+    });
+
+    it('leaves the read of a person as it was: no audit row', async () => {
+      await get(aiToken('SUPER_ADMIN'), 'P-01').expect(200);
+      expect(audits).toHaveLength(0);
+    });
+  });
+
   /*
    * The AI web codes against contracts/ai-v1/read.openapi.json, in another repository: the metric
    * ids, their units, which ones are monthly and the status rules it quotes must be what is served.
@@ -237,6 +291,12 @@ describe('GET ai/read/money?metric= (HD-6 H2)', () => {
     expect(OP.parameters.map((p: { name: string }) => p.name).sort()).toEqual(['date', 'from', 'metric', 'period', 'split', 'to']);
     expect(OP.parameters.find((p: { name: string }) => p.name === 'metric').schema.enum).toEqual([...MONEY_METRIC_IDS]);
     expect(Object.keys(OP['x-metrics'])).toEqual([...MONEY_METRIC_IDS]);
+    // the splittable flags are the ones the service enforces, and the machine door is documented
+    expect(Object.entries(OP['x-metrics']).filter(([, m]) => (m as { splittable?: boolean }).splittable).map(([id]) => id).filter((id) => id.startsWith('P-') || id.startsWith('U-')).sort()).toEqual(
+      MONEY_METRIC_IDS.filter((id) => SPLITTABLE_METRICS.has(id)).sort(),
+    );
+    expect(OP.security).toEqual([{ aiToken: [] }, { machineToken: [] }]);
+    expect(contract.components.securitySchemes.machineToken).toBeDefined();
     for (const id of MONEY_METRIC_IDS) {
       const m = OP['x-metrics'][id];
       expect(m.unit).toBe(MONEY_METRICS[id].unit);

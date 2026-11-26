@@ -125,6 +125,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'aiTeamManage',
       'aiTeamStop',
       'aiAgentNotify',
+      'aiReadAgent',
       'partnerBillRead',
       'partnerBillApprove',
       'partnerBillGenerate',

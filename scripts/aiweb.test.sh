@@ -320,6 +320,19 @@ refuses alertdb 'doc.services.db.environment.HOOK = "${ALERT_WEBHOOK_URL:-}"' 's
   "ALERT_WEBHOOK_URL handed to anything but the app"
 refuses alert2 'doc.services.aiweb.environment.ALERT_WEBHOOK_URL = "${ALERT_WEBHOOK_URL_2:-}"' 'ALERT_WEBHOOK_URL_2' \
   "another hydromart key that only starts like the allowed one"
+# AI-31: the AI web app's own machine account reaches the app alone, and n8n's never reaches the app.
+refuses appn8n 'doc.services.aiweb.environment.HYDROMART_MACHINE_SECRET = "${AIWEB_N8N_MACHINE_SECRET:-}"' 'reads AIWEB_N8N_MACHINE_*' \
+  "n8n's machine secret handed to the AI web"
+refuses appton8n 'doc.services.n8n.environment.HYDROMART_MACHINE_SECRET = "${AIWEB_APP_MACHINE_SECRET:-}"' 'reads AIWEB_APP_MACHINE_*' \
+  "the AI web account's secret handed to n8n"
+refuses appsetup 'doc.services["n8n-setup"].environment.HYDROMART_MACHINE_ID = "${AIWEB_APP_MACHINE_ID:-}"' 'reads AIWEB_APP_MACHINE_*' \
+  "the AI web account's id handed to the n8n setup job"
+refuses appdb 'doc.services.db.environment.ID = "${AIWEB_APP_MACHINE_ID:-}"' 'services.db.environment.ID reads AIWEB_APP_MACHINE_*' \
+  "the AI web account's id handed to the database"
+refuses appswap 'doc.services.aiweb.environment.HYDROMART_MACHINE_ID = "${AIWEB_APP_MACHINE_SECRET:-}"' 'HYDROMART_MACHINE_ID must be ${AIWEB_APP_MACHINE_ID:-}' \
+  "the AI web's id and secret crossed"
+refuses appgone 'delete doc.services.aiweb.environment.HYDROMART_MACHINE_SECRET' 'HYDROMART_MACHINE_SECRET must be ${AIWEB_APP_MACHINE_SECRET:-}' \
+  "the AI web without its machine secret"
 refuses hardening 'doc.services.n8n.environment.N8N_SSRF_PROTECTION_ENABLED = "false"' 'sets N8N_SSRF_PROTECTION_ENABLED' \
   "an n8n setting in the compose file, over the image's"
 refuses n8nsuper 'doc.services.n8n.environment.DB_POSTGRESDB_USER = "postgres"' 'DB_POSTGRESDB_USER must be n8n' \
@@ -748,6 +761,195 @@ sed -n '/^export const CAPABILITIES = {/,/^}/p' packages/access/src/index.ts | g
 sed -n '/^export const CAPABILITIES = {/,/^}/p' packages/access/src/index.ts | grep -qE '^  dashboard:' &&
   ok "packages/access/src/index.ts declares CAPABILITIES in the shape aiweb-secrets.sh reads" ||
   bad "aiweb-secrets.sh can no longer find CAPABILITIES' keys in packages/access/src/index.ts"
+
+# ---------------------------------------------- AI-31: the AI web app's own machine account
+# Beside n8n's, on its own id and secret (never n8n's), read-only with one scope, made and rotated by
+# the same rules, switched off by blanking its secret, written only when the release holds aiReadAgent.
+echo "key maker, the AI web app's machine account (AI-31):"
+BOX_N8N="$BOX"
+BOX="$W/box-app"
+mkdir -p "$BOX/scripts" "$BOX/infra/aiweb" "$BOX/packages/access/src"
+cp scripts/aiweb-secrets.sh scripts/env-set.sh "$BOX/scripts/"
+cp infra/aiweb/docker-compose.yml "$BOX/infra/aiweb/"
+CAPS_APP="$(printf '%s\n' "$CAPS" | sed "s/^  morningSummaryNotify:.*/&\n  aiReadAgent: ['SUPER_ADMIN'],/")"
+printf '%s\n' "$CAPS_APP" > "$BOX/packages/access/src/index.ts"
+APPSC='["aiReadAgent"]'
+# <id> <day>: every MACHINE_ACCOUNTS entry of that id ends on <day> (the two accounts are made the same day).
+entry_day() {
+  ENV_FILE_PATH="$BOX/.env" ID="$1" DAY="$2" node -e '
+    const fs = require("fs");
+    const e = process.env;
+    const q = String.fromCharCode(39);
+    const lines = fs.readFileSync(e.ENV_FILE_PATH, "utf8").split(String.fromCharCode(10)).map((l) => {
+      if (!l.startsWith("MACHINE_ACCOUNTS=")) return l;
+      const list = JSON.parse(l.slice(18, -1)).map((a) => (a.id === e.ID ? { ...a, notAfter: e.DAY } : a));
+      return "MACHINE_ACCOUNTS=" + q + JSON.stringify(list) + q;
+    });
+    fs.writeFileSync(e.ENV_FILE_PATH, lines.join(String.fromCharCode(10)));
+  '
+}
+# <n8n entries> <ai web entries> [ai web scopes]: MACHINE_ACCOUNTS as auth-service parses it, the other
+# account exactly as it was, the two accounts apart (own id, own secret hash), the last entry of each
+# the current secret, its scopes and its day.
+both_ok() {
+  WANT_APP_SCOPES="${3:-$APPSC}" WANT_N8N="$1" WANT_APP="$2" MA="$(val MACHINE_ACCOUNTS)" OTHER="$OTHER" \
+    N8N_ID="$(val AIWEB_N8N_MACHINE_ID)" N8N_SECRET="$(val AIWEB_N8N_MACHINE_SECRET)" \
+    APP_ID="$(val AIWEB_APP_MACHINE_ID)" APP_SECRET="$(val AIWEB_APP_MACHINE_SECRET)" APP_NA="$(val AIWEB_APP_MACHINE_NOT_AFTER)" node -e '
+    const e = process.env;
+    const q = String.fromCharCode(39);
+    if (!e.MA.startsWith(q) || !e.MA.endsWith(q)) throw new Error("not single-quoted");
+    const list = JSON.parse(e.MA.slice(1, -1));
+    const now = Date.now();
+    const pairs = new Set();
+    for (const a of list) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(a.id)) throw new Error("id " + a.id);
+      if (!/^[a-z0-9-]{1,40}$/.test(a.name) || !/^[0-9a-f]{64}$/.test(a.secretSha256)) throw new Error("name or hash");
+      if (!Array.isArray(a.scopes) || a.scopes.length === 0) throw new Error("scopes");
+      if (Date.parse(a.notAfter) - now > 90 * 86400000) throw new Error("more than 90 days ahead");
+      pairs.add(a.id + ":" + a.secretSha256);
+    }
+    if (pairs.size !== list.length) throw new Error("a pair repeats");
+    if (new Set(list.map((a) => a.secretSha256)).size !== list.length) throw new Error("two accounts share a secret");
+    if (e.N8N_ID === e.APP_ID && e.APP_ID) throw new Error("the two accounts share an id");
+    const other = list.filter((a) => a.id !== e.N8N_ID && a.id !== e.APP_ID);
+    if (JSON.stringify(other) !== JSON.stringify([JSON.parse(e.OTHER)])) throw new Error("the other account changed");
+    const n8n = list.filter((a) => a.id === e.N8N_ID);
+    const app = list.filter((a) => a.id === e.APP_ID);
+    if (n8n.length !== Number(e.WANT_N8N)) throw new Error(n8n.length + " n8n entries");
+    if (app.length !== Number(e.WANT_APP)) throw new Error(app.length + " ai web entries");
+    if (n8n.some((a) => a.name !== "n8n") || app.some((a) => a.name !== "aiweb")) throw new Error("names");
+    // The AI web entries carry exactly aiReadAgent, never one of n8n scopes; n8n never that one.
+    if (app.some((a) => JSON.stringify(a.scopes) !== e.WANT_APP_SCOPES)) throw new Error("ai web scopes " + app.map((a) => a.scopes));
+    if (n8n.some((a) => a.scopes.includes("aiReadAgent"))) throw new Error("n8n holds aiReadAgent");
+    if (app.length > 0) {
+      const last = app[app.length - 1];
+      const sha = require("crypto").createHash("sha256").update(e.APP_SECRET).digest("hex");
+      if (last.secretSha256 !== sha || last.notAfter !== e.APP_NA) throw new Error("the ai web entry");
+    }
+  ' 2>&1
+}
+printf 'MACHINE_ACCOUNTS=%s\n' "'[$OTHER]'" > "$BOX/.env"
+secrets
+if [ "$RC" = 0 ] && [[ "$(val AIWEB_APP_MACHINE_ID)" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] &&
+  [[ "$(val AIWEB_APP_MACHINE_SECRET)" =~ ^[0-9a-f]{64}$ ]] && [ "$(val AIWEB_APP_MACHINE_NOT_AFTER)" = "$(date -u -d '+89 days' +%F)" ] &&
+  [ "$(val AIWEB_APP_MACHINE_ID)" != "$(val AIWEB_N8N_MACHINE_ID)" ] && [ "$(val AIWEB_APP_MACHINE_SECRET)" != "$(val AIWEB_N8N_MACHINE_SECRET)" ]; then
+  ok "absent: a UUID, a 64-hex secret and today + 89 days, none of them n8n's"
+else
+  bad "the AI web account was not made as asked ($RC): $OUT"
+fi
+why="$(both_ok 1 1)" && ok "MACHINE_ACCOUNTS: the other account as it was, n8n's entry, and the AI web's own with the one scope aiReadAgent" ||
+  bad "after the first run: $why: $(val MACHINE_ACCOUNTS)"
+printf '%s' "$OUT" | grep -qF "$(val AIWEB_APP_MACHINE_SECRET)" && bad "the AI web's secret was printed" || ok "  ...and its secret is never printed"
+cp "$BOX/.env" "$W/before"
+secrets
+cmp -s "$BOX/.env" "$W/before" && printf '%s' "$OUT" | grep -q 'nothing missing' && ok "a second run writes nothing" || bad "a second run changed .env: $OUT"
+
+# Rotation: a new secret and day for the AI web only; its old entry stays beside it, n8n's is not touched.
+n8n_secret_before="$(val AIWEB_N8N_MACHINE_SECRET)"
+app_before="$(val AIWEB_APP_MACHINE_SECRET)"
+app_id_before="$(val AIWEB_APP_MACHINE_ID)"
+soon="$(date -u -d '+10 days' +%F)"
+sed -i "s/^AIWEB_APP_MACHINE_NOT_AFTER=.*/AIWEB_APP_MACHINE_NOT_AFTER=$soon/" "$BOX/.env"
+entry_day "$app_id_before" "$soon"
+secrets
+why="$(both_ok 1 2)" && [ "$RC" = 0 ] && [ "$(val AIWEB_APP_MACHINE_SECRET)" != "$app_before" ] && [ "$(val AIWEB_APP_MACHINE_ID)" = "$app_id_before" ] &&
+  [ "$(val AIWEB_N8N_MACHINE_SECRET)" = "$n8n_secret_before" ] &&
+  grep -qF "\"secretSha256\":\"$(printf '%s' "$app_before" | sha256sum | cut -d' ' -f1)\",\"scopes\":[\"aiReadAgent\"],\"notAfter\":\"$soon\"" "$BOX/.env" &&
+  ok "10 days left: rotated, the old entry kept beside the new one (its own day), the id and n8n's account unchanged" ||
+  bad "rotation: rc=$RC $why: $(val MACHINE_ACCOUNTS)"
+printf '%s' "$OUT" | grep -qF "$(val AIWEB_APP_MACHINE_SECRET)" && bad "the new AI web secret was printed" || ok "  ...and the new secret is never printed"
+# An n8n rotation leaves the AI web's entries alone, and the other way round.
+cp "$BOX/.env" "$W/before"
+ids_app() { MA="$(val MACHINE_ACCOUNTS)" ID="$(val AIWEB_APP_MACHINE_ID)" node -e 'const l=JSON.parse(process.env.MA.slice(1,-1));console.log(JSON.stringify(l.filter(a=>a.id===process.env.ID)))'; }
+app_entries="$(ids_app)"
+sed -i "s/^AIWEB_N8N_MACHINE_NOT_AFTER=.*/AIWEB_N8N_MACHINE_NOT_AFTER=$soon/" "$BOX/.env"
+entry_day "$(val AIWEB_N8N_MACHINE_ID)" "$soon"
+secrets
+why="$(both_ok 2 2)" && [ "$RC" = 0 ] && [ "$(ids_app)" = "$app_entries" ] && ok "n8n's rotation leaves the AI web's entries exactly as they were" || bad "n8n rotation moved the AI web: $why"
+
+# The kill switch: the secret line kept and blanked. Its entries leave, n8n's and the other stay.
+sed -i 's/^AIWEB_APP_MACHINE_SECRET=.*/AIWEB_APP_MACHINE_SECRET=/' "$BOX/.env"
+secrets
+why="$(both_ok 2 0)" && [ "$RC" = 0 ] && grep -qx 'AIWEB_APP_MACHINE_SECRET=' "$BOX/.env" && printf '%s' "$OUT" | grep -qF "aiweb's kill switch" &&
+  ok "a blank secret: every AI web entry leaves MACHINE_ACCOUNTS, n8n's and the other stay, the line stays blank" ||
+  bad "kill switch: rc=$RC $why: $(val MACHINE_ACCOUNTS)"
+cp "$BOX/.env" "$W/before"
+secrets
+cmp -s "$BOX/.env" "$W/before" && ok "  ...and stays off: the next run writes nothing" || bad "the switched-off account changed: $OUT"
+# n8n's kill switch does not touch the AI web account either.
+sed -i -e 's/^AIWEB_APP_MACHINE_SECRET=.*/AIWEB_APP_MACHINE_SECRET=renew/' -e 's/^AIWEB_APP_MACHINE_NOT_AFTER=.*/AIWEB_APP_MACHINE_NOT_AFTER=/' "$BOX/.env"
+secrets
+why="$(both_ok 2 1)" && [ "$RC" = 0 ] && [[ "$(val AIWEB_APP_MACHINE_SECRET)" =~ ^[0-9a-f]{64}$ ]] &&
+  ok "back on: 'renew' with a blank day becomes a real secret and one AI web entry" || bad "back on: $why: $OUT"
+sed -i 's/^AIWEB_N8N_MACHINE_SECRET=.*/AIWEB_N8N_MACHINE_SECRET=/' "$BOX/.env"
+secrets
+why="$(both_ok 0 1)" && [ "$RC" = 0 ] && ok "n8n's kill switch removes only n8n's entries; the AI web's stays" || bad "n8n off: $why: $(val MACHINE_ACCOUNTS)"
+sed -i 's/^AIWEB_N8N_MACHINE_SECRET=.*/AIWEB_N8N_MACHINE_SECRET=renew/;s/^AIWEB_N8N_MACHINE_NOT_AFTER=.*/AIWEB_N8N_MACHINE_NOT_AFTER=/' "$BOX/.env"
+secrets
+# MACHINE_ACCOUNTS overwritten by hand: both accounts' entries come back, the other stays as it was.
+sed -i "s/^MACHINE_ACCOUNTS=.*/MACHINE_ACCOUNTS='[$OTHER]'/" "$BOX/.env"
+secrets
+why="$(both_ok 1 1)" && ok "a MACHINE_ACCOUNTS that lost both entries gets them back" || bad "repair: $why: $OUT"
+
+# A release without aiReadAgent: nothing of the account is made or written (n8n's behaviour as before),
+# and the run still succeeds, so the first deploy of this change cannot stop the deploy.
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
+printf 'MACHINE_ACCOUNTS=%s\n' "'[$OTHER]'" > "$BOX/.env"
+secrets
+if [ "$RC" = 0 ] && ! grep -q '^AIWEB_APP_' "$BOX/.env" && printf '%s' "$OUT" | grep -q 'no capability aiReadAgent yet' && [ "$(val MACHINE_ACCOUNTS | grep -c aiReadAgent)" = 0 ] &&
+  why="$(both_ok 1 0)"; then
+  ok "no capability aiReadAgent in this tree: no AIWEB_APP_* keys, no entry, one line says why, exit 0"
+else
+  bad "release without aiReadAgent: rc=$RC $why: $OUT"
+fi
+# The last good release lacks it (a rollback would not boot auth-service with that scope): the same.
+git -C "$BOX" init -q
+git -C "$BOX" -c user.name=t -c user.email=t@example.invalid add packages >/dev/null
+git -C "$BOX" -c user.name=t -c user.email=t@example.invalid commit -qm 'before AI-31' >/dev/null
+mkdir -p "$BOX/.deploy"
+git -C "$BOX" rev-parse HEAD > "$BOX/.deploy/last-good-sha"
+printf '%s\n' "$CAPS_APP" > "$BOX/packages/access/src/index.ts"
+printf 'MACHINE_ACCOUNTS=%s\n' "'[$OTHER]'" > "$BOX/.env"
+secrets
+if [ "$RC" = 0 ] && ! grep -q '^AIWEB_APP_' "$BOX/.env" && printf '%s' "$OUT" | grep -q 'last good release [0-9a-f]\{12\} has no capability aiReadAgent yet'; then
+  ok "the last good release lacks aiReadAgent: not made yet, exit 0"
+else
+  bad "last good lacks aiReadAgent: rc=$RC $OUT"
+fi
+rm -rf "$BOX/.deploy" "$BOX/.git"
+secrets
+why="$(both_ok 1 1)" && [ "$RC" = 0 ] && ok "  ...and made on the deploy after the release holds it" || bad "with the capability back: $why $OUT"
+# One id for both accounts would let one's scopes overwrite the other's: refused, nothing written.
+cp "$BOX/.env" "$W/good-app.env"
+sed -i "s/^AIWEB_APP_MACHINE_ID=.*/AIWEB_APP_MACHINE_ID=$(val AIWEB_N8N_MACHINE_ID)/" "$BOX/.env"
+cp "$BOX/.env" "$W/before"
+secrets
+if [ "$RC" != 0 ] && cmp -s "$BOX/.env" "$W/before" && printf '%s' "$OUT" | grep -qF 'is the id another machine account already uses'; then
+  ok "the AI web account on n8n's id: refused, nothing written, exit $RC"
+else
+  bad "equal ids: exit $RC, .env $(cmp -s "$BOX/.env" "$W/before" && echo unchanged || echo CHANGED): $OUT"
+fi
+cp "$W/good-app.env" "$BOX/.env"
+# The kill switch runs even when the release lacks aiReadAgent (a rollback): the entry must still leave.
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
+sed -i 's/^AIWEB_APP_MACHINE_SECRET=.*/AIWEB_APP_MACHINE_SECRET=/' "$BOX/.env"
+secrets
+why="$(both_ok 1 0)" && [ "$RC" = 0 ] && grep -qx 'AIWEB_APP_MACHINE_SECRET=' "$BOX/.env" &&
+  ok "a blank secret on a release without aiReadAgent: the entry still leaves MACHINE_ACCOUNTS, n8n's and the other stay" ||
+  bad "kill switch without the capability: rc=$RC $why: $(val MACHINE_ACCOUNTS)"
+printf '%s\n' "$CAPS_APP" > "$BOX/packages/access/src/index.ts"
+cp "$W/good-app.env" "$BOX/.env"
+# Nothing is written when MACHINE_ACCOUNTS cannot be read: not the AI web's keys either.
+sed -i "s/^MACHINE_ACCOUNTS=.*/MACHINE_ACCOUNTS='not json'/" "$BOX/.env"
+sed -i '/^AIWEB_APP_MACHINE_SECRET=/d' "$BOX/.env"
+cp "$BOX/.env" "$W/before"
+secrets
+ma_refused "the AI web account on a MACHINE_ACCOUNTS that is not JSON" 'MACHINE_ACCOUNTS in .env is not a JSON list'
+# The real tree declares the capability where the lookup reads it, machine-only.
+sed -n '/^export const CAPABILITIES = {/,/^}/p' packages/access/src/index.ts | grep -qE '^  aiReadAgent: \[.SUPER_ADMIN.\],' &&
+  ok "packages/access declares aiReadAgent where aiweb-secrets.sh reads it (SUPER_ADMIN only, as the machine capabilities are)" ||
+  bad "aiweb-secrets.sh cannot find aiReadAgent in packages/access/src/index.ts"
+BOX="$BOX_N8N"
 
 # -------------------------------------------------------------- 3. the deploy, fake docker
 echo "deploy (aiweb-deploy.sh, fake docker):"

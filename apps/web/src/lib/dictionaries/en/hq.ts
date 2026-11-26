@@ -348,6 +348,7 @@ export const hq = {
       aiTeamManage: 'Switch AI agents on, change their caps, approve playbooks',
       aiTeamStop: 'Stop an AI agent',
       aiAgentNotify: 'Raise the AI agent notices (n8n machine account)',
+      aiReadAgent: 'Read the money figures of every depot for the AI agents (AI web machine account)',
       partnerBillRead: 'View partner royalty bills',
       partnerBillApprove: 'Approve and send partner royalty bills',
       partnerBillGenerate: 'Trigger the monthly royalty bill drafts (n8n machine account)',

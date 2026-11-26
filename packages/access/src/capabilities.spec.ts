@@ -311,6 +311,12 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).not.toContain('aiTeamStop');
   });
 
+  it('leaves the money read of the AI web machine account to the machine alone', () => {
+    expect(CAPABILITIES.aiReadAgent).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE']) expect(can('aiReadAgent', role)).toBe(false);
+    expect(CUSTOM_FORBIDDEN).toContain('aiReadAgent');
+  });
+
   // HD-23: Finance approves a bill with one click; n8n only triggers the draft run.
   it('splits the partner bill into read, approve and a machine-only generate', () => {
     expect(CAPABILITIES.partnerBillApprove).toEqual(['FINANCE', 'SUPER_ADMIN']);

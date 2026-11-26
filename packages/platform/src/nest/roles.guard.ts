@@ -7,7 +7,8 @@ import { can, isRoleDisabled, type Capability } from '@hydromart/access';
 import { AuthenticatedUser } from '../http/authenticated-user';
 import { isDepotLocked } from './depot-scope';
 import { DepotScopeGuard } from './depot-scope.guard';
-import { CAPABILITY_KEY, IS_PUBLIC_KEY, ROLES_KEY, SELF_SCOPED_KEY } from './decorators';
+import { EXTERNAL_ACCESS_KEY, type ExternalCaller } from './external-access';
+import { CAPABILITY_KEY, IS_PUBLIC_KEY, MACHINE_CAPABILITY_KEY, ROLES_KEY, SELF_SCOPED_KEY } from './decorators';
 
 /**
  * Enforces @Can(capability) and @Roles(...). Runs after JwtAuthGuard.
@@ -40,7 +41,7 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const { capability, roles, selfScoped } = this.required(context);
+    const { capability, machineCapability, roles, selfScoped } = this.required(context);
     // HD-2: a machine account holds no role. It may use exactly the capabilities its token
     // lists, and only through @Can; a @Roles list or a self-scoped route means nothing for it.
     // Checked first so no other branch can admit it.
@@ -48,7 +49,16 @@ export class RolesGuard implements CanActivate {
       | AuthenticatedUser
       | undefined;
     if (caller?.via === 'machine') {
-      if (!capability || !(caller.scopes ?? []).includes(capability)) {
+      // AI-31: a route shared with people may name the capability its machine callers need.
+      // LOW-1: a route open to people too (lists 'ai') and naming no @MachineCan fails closed for a
+      // machine: it is never judged by the person's capability. A machine-only route keeps @Can.
+      const callers = this.reflector.getAllAndOverride<ExternalCaller[] | undefined>(EXTERNAL_ACCESS_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      const sharedWithPeople = callers?.includes('ai') ?? false;
+      const needed = capability && (machineCapability ?? (sharedWithPeople ? undefined : capability));
+      if (!needed || !(caller.scopes ?? []).includes(needed)) {
         throw new ForbiddenException('You do not have permission to perform this action.');
       }
       return true;
@@ -104,6 +114,7 @@ export class RolesGuard implements CanActivate {
    */
   private required(context: ExecutionContext): {
     capability?: Capability;
+    machineCapability?: Capability;
     roles?: readonly string[];
     selfScoped?: boolean;
   } {
@@ -111,12 +122,21 @@ export class RolesGuard implements CanActivate {
     const handlerCapability = this.reflector.get<Capability | undefined>(CAPABILITY_KEY, handler);
     const handlerRoles = this.reflector.get<readonly string[] | undefined>(ROLES_KEY, handler);
     const handlerSelfScoped = this.reflector.get<boolean | undefined>(SELF_SCOPED_KEY, handler);
+    // LOW-2: the machine capability is read from the handler when the handler decides, from the class
+    // otherwise. A class-level @MachineCan beside a handler-level @Can is ignored ON PURPOSE: the
+    // handler's own rule wins outright, and with no handler @MachineCan a shared route fails closed.
     if (handlerCapability || (handlerRoles && handlerRoles.length > 0) || handlerSelfScoped) {
-      return { capability: handlerCapability, roles: handlerRoles, selfScoped: handlerSelfScoped };
+      return {
+        capability: handlerCapability,
+        machineCapability: this.reflector.get<Capability | undefined>(MACHINE_CAPABILITY_KEY, handler),
+        roles: handlerRoles,
+        selfScoped: handlerSelfScoped,
+      };
     }
     const cls = context.getClass();
     return {
       capability: this.reflector.get<Capability | undefined>(CAPABILITY_KEY, cls),
+      machineCapability: this.reflector.get<Capability | undefined>(MACHINE_CAPABILITY_KEY, cls),
       roles: this.reflector.get<readonly string[] | undefined>(ROLES_KEY, cls),
       selfScoped: this.reflector.get<boolean | undefined>(SELF_SCOPED_KEY, cls),
     };
