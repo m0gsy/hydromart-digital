@@ -75,7 +75,7 @@ export class QualityHoldController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<LabTest> {
     assertDepotAccess(user, depotId);
-    return this.holds.addLabTest({ depotId, ...dto }, user.sub);
+    return this.holds.addLabTest({ depotId, ...dto }, { id: user.sub, role: user.role });
   }
 
   @ApiOkResponse({ description: "A depot's lab tests, newest first." })

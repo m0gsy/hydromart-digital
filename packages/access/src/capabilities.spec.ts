@@ -281,6 +281,8 @@ describe('CAPABILITIES', () => {
     expect(CAPABILITIES.complianceDueNotify).toEqual(['SUPER_ADMIN']);
     expect(can('complianceDueNotify', 'HEAD_OFFICE')).toBe(false);
     expect(CUSTOM_FORBIDDEN).toContain('complianceDueNotify');
+    expect(CUSTOM_FORBIDDEN).toContain('depotQualityHoldEnd');
+    expect(CUSTOM_FORBIDDEN).not.toContain('depotQualityHoldStart');
   });
 
   it('lets FINANCE read names and orders without gaining any write beside them', () => {

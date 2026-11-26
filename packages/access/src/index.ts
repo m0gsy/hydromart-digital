@@ -1165,6 +1165,9 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'maintenanceDueNotify',
   // HD-14: the n8n machine account's permit/lab-test sweep, same reasoning.
   'complianceDueNotify',
+  // HD-14: ending a quality hold is head office's alone (owner decision); a custom role must never
+  // hold it. Starting one stays grantable: stopping is the safe direction.
+  'depotQualityHoldEnd',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

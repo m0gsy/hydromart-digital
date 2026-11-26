@@ -1528,6 +1528,8 @@ model DepotLabTest {
   labName    String
   reportNo   String
   recordedBy String             @db.Uuid
+  /// Who they were when they recorded it (a Kepala may record their own retest; head office's End is the gate).
+  recordedByRole String         @default("")
   createdAt  DateTime           @default(now())
   holdsEnded DepotQualityHold[]
 

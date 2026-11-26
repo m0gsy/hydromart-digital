@@ -137,6 +137,7 @@ export const dashB = {
     PASS: 'PASS',
     FAIL: 'FAIL',
     labName: 'Laboratory',
+    recordedBy: 'recorded by {who} on {time}',
     reportNo: 'Report no.',
     addLab: 'Add lab test',
     permitTitle: 'Permits',

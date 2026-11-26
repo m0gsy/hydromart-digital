@@ -3724,6 +3724,8 @@ export interface DepotLabTest {
   result: 'PASS' | 'FAIL';
   labName: string;
   reportNo: string;
+  recordedByRole: string;
+  createdAt: string;
 }
 
 export interface DepotPermit {

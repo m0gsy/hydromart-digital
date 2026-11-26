@@ -69,6 +69,9 @@ export class QualityHoldService {
 
   async end(depotId: string, retestId: string, actorId: string, now = new Date()): Promise<QualityHold> {
     await this.requireDepot(depotId);
+    // The reads below sit outside the repository's transaction on purpose: a lab test is immutable
+    // once recorded, and `repo.end` re-guards the hold itself (updateMany on status ACTIVE), so a
+    // concurrent end or start cannot make this decision stale in a harmful way.
     const active = await this.repo.findActive(depotId);
     if (!active) throw new QualityHoldNotActiveError();
     if (!endsHold(active, await this.repo.findLabTest(retestId))) throw new QualityHoldRetestRequiredError();
@@ -83,12 +86,25 @@ export class QualityHoldService {
     return this.repo.history(depotId);
   }
 
-  async addLabTest(input: Omit<NewLabTest, 'recordedBy'>, actorId: string): Promise<LabTest> {
+  async addLabTest(
+    input: Omit<NewLabTest, 'recordedBy' | 'recordedByRole'>,
+    actor: { id: string; role: string },
+    now = new Date(),
+  ): Promise<LabTest> {
     await this.requireDepot(input.depotId);
-    if (!isRealDay(input.takenOn) || !isRealDay(input.resultOn) || input.resultOn < input.takenOn) {
+    // A test dated in the future would satisfy "taken on or after the hold's start day" forever, so
+    // neither day may be after today (WIB), and the result cannot precede the sample.
+    const today = localDayKey(now);
+    if (
+      !isRealDay(input.takenOn) ||
+      !isRealDay(input.resultOn) ||
+      input.resultOn < input.takenOn ||
+      input.takenOn > today ||
+      input.resultOn > today
+    ) {
       throw new LabTestDatesError();
     }
-    return this.repo.addLabTest({ ...input, recordedBy: actorId });
+    return this.repo.addLabTest({ ...input, recordedBy: actor.id, recordedByRole: actor.role });
   }
 
   async listLabTests(depotId: string): Promise<LabTest[]> {
@@ -108,6 +124,8 @@ export class QualityHoldService {
   }
 
   /** Permits and lab tests due or overdue at every active depot (the n8n sweep reads this via crm-service). */
+  // ponytail: loads every active depot's tests and permits once per sweep (a few hundred rows today);
+  // page by depot when the network grows past a few thousand rows.
   async due(now = new Date()): Promise<DueCompliance[]> {
     const today = localDayKey(now);
     const { depots, tests, permits } = await this.repo.complianceSource();

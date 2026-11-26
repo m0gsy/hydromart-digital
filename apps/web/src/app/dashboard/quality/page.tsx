@@ -80,7 +80,7 @@ function HoldCard({ depotId, tests, onChanged }: { depotId: string; tests: Depot
                     <option value="" />
                     {eligible.map((x) => (
                       <option key={x.id} value={x.id}>
-                        {x.takenOn} · {t(`dashB.quality.${x.kind}`)} · {x.labName} · {x.reportNo}
+                        {x.takenOn} · {t(`dashB.quality.${x.kind}`)} · {x.labName} · {x.reportNo} · {t('dashB.quality.recordedBy', { who: x.recordedByRole || '?', time: formatDateTime(x.createdAt) })}
                       </option>
                     ))}
                   </select>

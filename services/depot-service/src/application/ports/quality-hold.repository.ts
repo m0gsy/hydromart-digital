@@ -31,6 +31,7 @@ export interface NewLabTest {
   labName: string;
   reportNo: string;
   recordedBy: string;
+  recordedByRole: string;
 }
 
 export interface NewPermit {

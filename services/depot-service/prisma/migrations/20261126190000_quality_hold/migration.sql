@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS "depot_lab_tests" (
   "labName"    TEXT            NOT NULL,
   "reportNo"   TEXT            NOT NULL,
   "recordedBy" UUID            NOT NULL,
+  "recordedByRole" TEXT        NOT NULL DEFAULT '',
   "createdAt"  TIMESTAMP(3)    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "depot_lab_tests_pkey" PRIMARY KEY ("id")
 );

@@ -37,6 +37,7 @@ export interface LabTest {
   labName: string;
   reportNo: string;
   recordedBy: string;
+  recordedByRole: string;
   createdAt: Date;
 }
 

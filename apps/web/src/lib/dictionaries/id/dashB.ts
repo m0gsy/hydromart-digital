@@ -139,6 +139,7 @@ export const dashB = {
     PASS: 'LULUS',
     FAIL: 'GAGAL',
     labName: 'Laboratorium',
+    recordedBy: 'dicatat oleh {who} pada {time}',
     reportNo: 'No. laporan',
     addLab: 'Tambah uji lab',
     permitTitle: 'Izin',

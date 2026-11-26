@@ -60,6 +60,7 @@ const test = (over: Partial<LabTest> = {}): LabTest => ({
   labName: 'Lab A',
   reportNo: 'R-1',
   recordedBy: ACTOR,
+  recordedByRole: 'KEPALA_DEPOT',
   createdAt: START,
   ...over,
 });
@@ -219,14 +220,19 @@ describe('QualityHoldService', () => {
     await expect(build({ end: jest.fn(async () => null) }).service.end(D1, TEST, ACTOR)).rejects.toBeInstanceOf(QualityHoldNotActiveError);
   });
 
-  it('records lab tests and permits with real days only', async () => {
+  it('records lab tests and permits with real, non-future days only', async () => {
     const { service, repo } = build();
+    const actor = { id: ACTOR, role: 'KEPALA_DEPOT' };
+    // 2026-11-30 10:00 WIB
+    const now = new Date('2026-11-30T03:00:00Z');
     const input = { depotId: D1, kind: 'ECOLI' as const, takenOn: '2026-11-20', resultOn: '2026-11-21', result: 'PASS' as const, labName: 'Lab', reportNo: '1' };
-    await service.addLabTest(input, ACTOR);
-    expect(repo.addLabTest).toHaveBeenCalledWith({ ...input, recordedBy: ACTOR });
-    for (const bad of [{ resultOn: '2026-11-19' }, { takenOn: '2026-02-31' }, { resultOn: '2026-13-40' }]) {
-      await expect(service.addLabTest({ ...input, ...bad }, ACTOR)).rejects.toBeInstanceOf(LabTestDatesError);
+    await service.addLabTest(input, actor, now);
+    expect(repo.addLabTest).toHaveBeenCalledWith({ ...input, recordedBy: ACTOR, recordedByRole: 'KEPALA_DEPOT' });
+    await service.addLabTest({ ...input, takenOn: '2026-11-30', resultOn: '2026-11-30' }, actor, now);
+    for (const bad of [{ resultOn: '2026-11-19' }, { takenOn: '2026-02-31' }, { resultOn: '2026-13-40' }, { takenOn: '2030-01-01', resultOn: '2030-01-01' }, { resultOn: '2026-12-01' }]) {
+      await expect(service.addLabTest({ ...input, ...bad }, actor, now)).rejects.toBeInstanceOf(LabTestDatesError);
     }
+    await service.addLabTest(input, actor);
     await service.addPermit({ depotId: D1, kind: 'SLHS', number: '1', validUntil: '2027-01-01' }, ACTOR);
     await expect(service.addPermit({ depotId: D1, kind: 'SLHS', number: '1', validUntil: '2027-02-30' }, ACTOR)).rejects.toBeInstanceOf(LabTestDatesError);
     expect(await service.history(D1)).toHaveLength(1);
@@ -252,7 +258,7 @@ describe('QualityHoldService', () => {
     await expect(service.listLabTests(D1)).rejects.toBeInstanceOf(DepotNotFoundError);
     await expect(service.listPermits(D1)).rejects.toBeInstanceOf(DepotNotFoundError);
     await expect(service.end(D1, TEST, ACTOR)).rejects.toBeInstanceOf(DepotNotFoundError);
-    await expect(service.addLabTest({ depotId: D1 } as never, ACTOR)).rejects.toBeInstanceOf(DepotNotFoundError);
+    await expect(service.addLabTest({ depotId: D1 } as never, { id: ACTOR, role: 'X' })).rejects.toBeInstanceOf(DepotNotFoundError);
     await expect(service.addPermit({ depotId: D1 } as never, ACTOR)).rejects.toBeInstanceOf(DepotNotFoundError);
   });
 });
@@ -267,7 +273,7 @@ describe('QualityHoldController', () => {
     await c.start(D1, { reasonCode: 'COMPLAINT' }, user);
     await c.end(D1, { retestId: TEST }, user);
     await c.history(D1, user);
-    await c.addLabTest(D1, { kind: 'ECOLI', takenOn: '2026-11-20', resultOn: '2026-11-21', result: 'PASS', labName: 'L', reportNo: '1' }, user);
+    await c.addLabTest(D1, { kind: 'ECOLI', takenOn: '2026-11-20', resultOn: '2026-11-20', result: 'PASS', labName: 'L', reportNo: '1' }, user);
     await c.labTests(D1, user);
     await c.addPermit(D1, { kind: 'SLHS', number: '1', validUntil: '2027-01-01' }, user);
     await c.permits(D1, user);
@@ -348,7 +354,7 @@ describe('QualityHoldPrismaRepository', () => {
     const { repo } = prismaFake();
     expect((await repo.findActive(D1))?.id).toBe(HOLD);
     expect(await repo.history(D1)).toHaveLength(1);
-    await repo.addLabTest({ depotId: D1, kind: 'ECOLI', takenOn: 'a', resultOn: 'b', result: 'PASS', labName: 'l', reportNo: 'r', recordedBy: ACTOR });
+    await repo.addLabTest({ depotId: D1, kind: 'ECOLI', takenOn: 'a', resultOn: 'b', result: 'PASS', labName: 'l', reportNo: 'r', recordedBy: ACTOR, recordedByRole: 'X' });
     expect((await repo.findLabTest(TEST))?.id).toBe(TEST);
     expect(await repo.listLabTests(D1)).toHaveLength(1);
     await repo.addPermit({ depotId: D1, kind: 'SLHS', number: '1', validUntil: '2027-01-01', recordedBy: ACTOR });
