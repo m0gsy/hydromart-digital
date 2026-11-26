@@ -55,6 +55,9 @@ export const DEPOT_TOKENS = {
   /** HD-15B: supervisor visit checklist templates, and hr-service's SOP-in-force lookup. */
   VisitTemplateRepository: Symbol('VisitTemplateRepository'),
   SopLookup: Symbol('SopLookup'),
+  /** HD-15B PR-4: supervisor visits and the private bucket their finding photos live in. */
+  VisitRepository: Symbol('VisitRepository'),
+  VisitPhotoStorage: Symbol('VisitPhotoStorage'),
   HandoverRepository: Symbol('HandoverRepository'),
   OperationalReportRepository: Symbol('OperationalReportRepository'),
   Storage: Symbol('Storage'),

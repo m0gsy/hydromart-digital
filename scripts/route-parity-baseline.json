@@ -1,5 +1,13 @@
 {
   "orphans": [
-    "GET customer: /profile/directory"
+    "GET customer: /profile/directory",
+    "GET depot: /visits/:",
+    "GET depot: /visits/findings",
+    "GET depot: /visits/mine/open",
+    "GET depot: /visits/overview",
+    "PATCH depot: /visits/:/items/:",
+    "PATCH depot: /visits/findings/:/follow-up",
+    "POST depot: /visits/:/complete",
+    "POST depot: /visits/:/uploads"
   ]
 }

@@ -633,6 +633,25 @@ export const CAPABILITIES = {
    * does not visit (owner default, the matrix is editable).
    */
   visitConduct: ['ASSISTANT_SUPERVISOR', 'SUPERVISOR', 'SUPER_ADMIN'],
+  /*
+   * depot-service (HD-15B PR-4) - read visits and findings: the per-depot supervisor view, a
+   * visit's detail with its photo links. Depot-scoped like every depot read (a Kepala sees only
+   * their own depot, a supervisor the depots they oversee, head office all).
+   */
+  visitRead: [
+    'KEPALA_DEPOT',
+    'ASSISTANT_SUPERVISOR',
+    'SUPERVISOR',
+    'MANAGER',
+    'HEAD_OFFICE',
+    'DIREKTUR',
+    'SUPER_ADMIN',
+  ],
+  /*
+   * depot-service (HD-15B PR-4) - mark a finding's follow-up done, with a note. The depot's Kepala
+   * and the supervisors/manager over it; head office reads but does not close findings.
+   */
+  visitFollowUp: ['KEPALA_DEPOT', 'ASSISTANT_SUPERVISOR', 'SUPERVISOR', 'MANAGER', 'SUPER_ADMIN'],
   // promo-service — RETIRED: the voucher-request flow was removed, nothing enforces this any more.
   // Kept only so a stored matrix row naming it still validates.
   voucherRequestDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],

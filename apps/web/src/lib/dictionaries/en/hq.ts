@@ -322,6 +322,8 @@ export const hq = {
       sopRead: 'View SOPs and who has not read them',
       visitTemplateManage: 'Write supervisor visit templates',
       visitConduct: 'Conduct depot visits and fill the checklist',
+      visitRead: 'View supervisor visits, findings and photos',
+      visitFollowUp: 'Mark a finding follow-up done',
       kasbonApprove: 'Approve cash advance (the depot’s assistant SPV)',
       priceOverrideDecide: 'Decide a depot price proposal',
       franchiseApplications: 'Decide franchise applications',

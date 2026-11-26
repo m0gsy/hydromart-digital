@@ -4,6 +4,15 @@ import { BUSINESS_TIME_ZONE, SettingsCache } from '@hydromart/platform';
 
 import { SETTING_DEF_BY_KEY } from './setting-defs';
 
+/** The private bucket finding photos go to, or null while the owner has not set one up. */
+export interface VisitS3Settings {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+}
+
 @Injectable()
 export class DepotConfigService {
   constructor(
@@ -131,6 +140,25 @@ export class DepotConfigService {
     };
   }
   /**
+   * Private bucket for finding photos (HD-15B): the shared endpoint and region, a bucket and key of
+   * their own (never another service's credentials), objects under the `visits/` prefix.
+   */
+  get visitS3(): VisitS3Settings | null {
+    const bucket = this.config.get<string>('VISIT_STORAGE_S3_BUCKET', '');
+    const accessKeyId = this.config.get<string>('VISIT_STORAGE_S3_ACCESS_KEY_ID', '');
+    const secretAccessKey = this.config.get<string>('VISIT_STORAGE_S3_SECRET_ACCESS_KEY', '');
+    // Optional on purpose: until the owner makes a dedicated bucket and key, photo upload answers 503
+    // and everything else about visits works.
+    if (!bucket || !accessKeyId || !secretAccessKey) return null;
+    return {
+      endpoint: this.config.getOrThrow<string>('STORAGE_S3_ENDPOINT'),
+      region: this.config.get<string>('STORAGE_S3_REGION', 'auto'),
+      bucket,
+      accessKeyId,
+      secretAccessKey,
+    };
+  }
+  /**
    * The zone every business day boundary is measured in (H-16). One getter, because a
    * pricing rule's "today" and a daily close's "today" have to be the same day.
    */
@@ -148,6 +176,13 @@ export class DepotConfigService {
   /** Days a customer may hold a depot's gallons before they count as overdue. */
   gallonMaxHoldDays(depotId: string | null = null): number {
     return this.tunable('gallonMaxHoldDays', this.num('GALLON_MAX_HOLD_DAYS'), depotId);
+  }
+  /**
+   * HD-15B: how many metres from the depot's map point a supervisor may check in. 0 = not fenced
+   * (the visit is still recorded, flagged `fenceChecked: false`). Per-depot override allowed.
+   */
+  visitCheckInRadiusM(depotId: string | null = null): number {
+    return this.tunable('visitCheckInRadiusM', this.num('VISIT_CHECKIN_RADIUS_M'), depotId);
   }
   /** Days between reminders to one overdue customer. */
   gallonReminderEveryDays(depotId: string | null = null): number {

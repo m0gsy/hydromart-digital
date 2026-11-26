@@ -101,6 +101,13 @@ export const envValidationSchema = Joi.object({
     .uri()
     .when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
   STORAGE_S3_REGION: Joi.string().default('auto'),
+  // HD-15B: supervisor-visit finding photos, in a PRIVATE bucket of their own. Optional: unset, the
+  // service boots and the photo upload route answers 503 until the owner sets the three.
+  VISIT_STORAGE_S3_BUCKET: Joi.string().allow('').default(''),
+  VISIT_STORAGE_S3_ACCESS_KEY_ID: Joi.string().allow('').default(''),
+  VISIT_STORAGE_S3_SECRET_ACCESS_KEY: Joi.string().allow('').default(''),
+  // Metres from the depot's map point a supervisor may check in from; 0 = not fenced.
+  VISIT_CHECKIN_RADIUS_M: Joi.number().integer().min(0).max(5000).default(200),
   STORAGE_S3_BUCKET: Joi.string().when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
   STORAGE_S3_ACCESS_KEY_ID: Joi.string().when('STORAGE_DRIVER', {
     is: 's3',

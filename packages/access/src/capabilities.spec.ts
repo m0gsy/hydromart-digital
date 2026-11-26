@@ -168,6 +168,30 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).not.toContain('visitConduct');
   });
 
+  // HD-15B PR-4: who reads visits and who closes a finding's follow-up.
+  it('lets the depot side and head office read visits, and the depot side close findings', () => {
+    expect(CAPABILITIES.visitRead).toEqual([
+      'KEPALA_DEPOT',
+      'ASSISTANT_SUPERVISOR',
+      'SUPERVISOR',
+      'MANAGER',
+      'HEAD_OFFICE',
+      'DIREKTUR',
+      'SUPER_ADMIN',
+    ]);
+    expect(CAPABILITIES.visitFollowUp).toEqual([
+      'KEPALA_DEPOT',
+      'ASSISTANT_SUPERVISOR',
+      'SUPERVISOR',
+      'MANAGER',
+      'SUPER_ADMIN',
+    ]);
+    expect(can('visitRead', 'STAFF_DEPOT')).toBe(false);
+    expect(can('visitFollowUp', 'HEAD_OFFICE')).toBe(false);
+    expect(CUSTOM_FORBIDDEN).not.toContain('visitRead');
+    expect(CUSTOM_FORBIDDEN).not.toContain('visitFollowUp');
+  });
+
   // AI-5: n8n raises "new franchise application" with its machine token's scopes; the people
   // told are the ones who review applications, and nobody else gets to raise it.
   it('leaves raising the franchise-application notification to the machine account', () => {

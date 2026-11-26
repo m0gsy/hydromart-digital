@@ -101,6 +101,7 @@ model Depot {
   priceOverrideProposals PriceOverrideProposal[]
   pricingRules           PricingRule[]
   incidents              Incident[]
+  visits                 Visit[]
   suppliers              Supplier[]
   purchaseOrders         PurchaseOrder[]
   // CA-2-54: two sides of the same table, so a depot can list what it sent and what is
@@ -1333,4 +1334,85 @@ model VisitTemplateItem {
 
   @@index([templateId, position])
   @@map("visit_template_items")
+}
+
+enum VisitStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum VisitItemResult {
+  PENDING
+  PASS
+  FINDING
+}
+
+enum FollowUpStatus {
+  OPEN
+  DONE
+}
+
+/// HD-15B PR-4: one supervisor visit to one depot. Opened by a GPS check-in inside the depot's
+/// area; the checklist is COPIED from the template at that moment (text and the SOP version in
+/// force, by value), so nothing a head office later edits changes a visit already made.
+/// Two partial indexes are hand-written in the migration (Prisma cannot express them): at most one
+/// IN_PROGRESS visit per (visitorId, depotId), and the open-follow-up lookup on visit_items.
+model Visit {
+  id               String      @id @default(uuid()) @db.Uuid
+  depotId          String      @db.Uuid
+  depot            Depot       @relation(fields: [depotId], references: [id], onDelete: Restrict)
+  /// The template it started from. A bare id: the template may be edited or retired later.
+  templateId       String?     @db.Uuid
+  templateName     String
+  /// Auth account of the supervisor.
+  visitorId        String      @db.Uuid
+  status           VisitStatus @default(IN_PROGRESS)
+  checkInAt        DateTime    @default(now())
+  checkInLat       Float
+  checkInLng       Float
+  checkInAccuracyM Float?
+  checkInDistanceM Int?
+  /// The phone's fix was "Perkiraan" (about 2 km off) yet landed inside the fence.
+  approximateFix   Boolean     @default(false)
+  /// false when the depot has no centre or its radius is 0: the visit was recorded, not fenced.
+  fenceChecked     Boolean
+  completedAt      DateTime?
+  /// Photos accepted for this visit so far; capped at 3 per checklist line so a stuck client cannot fill the bucket.
+  photoUploads     Int         @default(0)
+  items            VisitItem[]
+
+  @@index([depotId, checkInAt])
+  @@index([visitorId, status])
+  @@map("visits")
+}
+
+/// One checklist line of a visit. text and the SOP columns are snapshots taken at check-in; there is
+/// deliberately NO reference to visit_template_items (a template edit replaces those rows).
+/// A finding is the line itself: result FINDING with a note, a photo and a follow-up (one per item).
+model VisitItem {
+  id                  String          @id @default(uuid()) @db.Uuid
+  visitId             String          @db.Uuid
+  visit               Visit           @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  /// Denormalised so findings and overdue follow-ups are queried per depot without a join.
+  depotId             String          @db.Uuid
+  position            Int
+  text                String
+  sopId               String?         @db.Uuid
+  sopVersionId        String?         @db.Uuid
+  sopVersionNo        Int?
+  sopTitle            String?
+  result              VisitItemResult @default(PENDING)
+  findingNote         String?
+  photoKey            String?
+  /// WIB day (a date, no clock).
+  followUpDueOn       DateTime?       @db.Date
+  followUpStatus      FollowUpStatus?
+  followUpDoneAt      DateTime?
+  followUpDoneBy      String?         @db.Uuid
+  followUpNote        String?
+  /// PR-6 stamps this when an overdue reminder goes out.
+  lastOverdueNoticeAt DateTime?
+
+  @@index([visitId])
+  @@map("visit_items")
 }

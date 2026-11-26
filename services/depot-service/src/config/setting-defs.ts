@@ -41,6 +41,15 @@ export const SETTING_DEFS: SettingDef[] = [
     requires: 'approvalThresholdWrite',
   },
   {
+    key: 'visitCheckInRadiusM',
+    label: 'Radius check-in kunjungan supervisor',
+    type: 'int',
+    unit: 'm',
+    min: 0,
+    max: 5000,
+    envDefault: 200,
+  },
+  {
     key: 'gallonMaxHoldDays',
     label: 'Batas hari galon dipinjam',
     type: 'int',

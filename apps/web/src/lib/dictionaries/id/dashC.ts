@@ -211,6 +211,8 @@ export const dashC = {
       sopRead: 'Lihat SOP',
       visitTemplateManage: 'Kelola template kunjungan',
       visitConduct: 'Lakukan kunjungan depot',
+      visitRead: 'Lihat kunjungan & temuan',
+      visitFollowUp: 'Selesaikan tindak lanjut temuan',
       kasbonApprove: 'Setujui kasbon',
       hrView: 'Laporan HR (lihat)',
       hrViewOwn: 'Absensi depot sendiri (waralaba)',

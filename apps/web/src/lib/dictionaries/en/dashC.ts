@@ -206,6 +206,8 @@ export const dashC = {
       sopRead: 'View SOPs',
       visitTemplateManage: 'Manage visit templates',
       visitConduct: 'Conduct depot visits',
+      visitRead: 'View visits and findings',
+      visitFollowUp: 'Close finding follow-ups',
       kasbonApprove: 'Approve cash advance',
       hrView: 'HR reports (view)',
       hrViewOwn: 'Attendance at their own depots (franchise)',
