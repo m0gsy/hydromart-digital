@@ -62,6 +62,9 @@ describe('PdpPrismaRepository (UU PDP tahap 1)', () => {
         // What the pin's quality said goes with the pin.
         pinAccuracyM: null,
         pinSource: null,
+        kecamatanCode: null,
+        kelurahanCode: null,
+        regionSource: null,
       },
     });
     expect(address.findMany).not.toHaveBeenCalled();

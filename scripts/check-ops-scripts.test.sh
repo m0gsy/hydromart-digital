@@ -988,7 +988,7 @@ chk scripts/f6-dynamic-matrix.mjs 'STACK_IS_TEST' "f6-dynamic-matrix: refuses to
 # S2A-28
 case "$(grep -n "scheduledAt: future" -A3 scripts/f6-hris-flows.mjs)" in *"dimension: 'COMPANY'"*) bad "f6-hris-flows: schedules a COMPANY-wide announcement that will reach every employee in 7 days (S2A-28)" ;; *) ok "f6-hris-flows: the scheduled fixture targets one depot, not the company" ;; esac
 # 52a backfill
-for f in scripts/backfill-favorite-depot.mjs scripts/backfill-order-volume.mjs scripts/backfill-staff-sync.mjs; do
+for f in scripts/backfill-favorite-depot.mjs scripts/backfill-order-volume.mjs scripts/backfill-staff-sync.mjs scripts/backfill-address-regions.mjs; do
   chk "$f" 'unknown argument' "$f: a mistyped flag is an error, not a live write" "$f: --dryrun (typo) silently runs the real write"
 done
 # F-32
