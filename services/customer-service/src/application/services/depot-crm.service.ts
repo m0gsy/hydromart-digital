@@ -29,6 +29,8 @@ import { DepotGeo, DepotProfilePort } from '../ports/depot-profile.port';
 import { parseLocation } from '../../domain/pin-location';
 import { classifySegment, daysBetween, needsFollowUp, CrmSegment } from '../../domain/crm-segment';
 import { CustomerConfigService } from '../../config/customer-config.service';
+import { NO_REGION } from '../../domain/region-codes';
+import { RegionLookup } from '../../infrastructure/geo/region-lookup';
 import { CUSTOMER_TOKENS } from '../tokens';
 
 /**
@@ -198,6 +200,8 @@ export class DepotCrmService {
     @Optional()
     @Inject(CUSTOMER_TOKENS.ChurnRiskPort)
     private readonly churn?: ChurnRiskPort,
+    @Optional()
+    private readonly regions?: RegionLookup,
   ) {}
 
   /**
@@ -259,6 +263,7 @@ export class DepotCrmService {
       ...pin,
       pinSource: 'STAFF',
       pinAccuracyM: null,
+      ...(this.regions?.codesFor(pin.latitude, pin.longitude, 'STAFF', null) ?? NO_REGION),
     });
     await recordAuditEvent(
       {

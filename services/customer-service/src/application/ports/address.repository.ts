@@ -16,6 +16,10 @@ export interface AddressRecord {
   pinAccuracyM?: number | null;
   /** Where the pin came from: GPS, MANUAL, STAFF, IMPORT or COURIER. Null = before this was kept. */
   pinSource?: PinSource | null;
+  /** HD-20a: BPS codes of the region the pin is in; null when no pin or the pin is too coarse. */
+  kecamatanCode?: string | null;
+  kelurahanCode?: string | null;
+  regionSource?: string | null;
   notes: string | null;
   isPrimary: boolean;
   createdAt: Date;

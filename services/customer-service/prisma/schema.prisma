@@ -83,6 +83,11 @@ model Address {
   // 2026-11-20: the pin's quality — metres of possible error (GPS only) and where it came from.
   pinAccuracyM  Int?
   pinSource     PinSource?
+  // 2026-11-26 (HD-20a): BPS codes of the kecamatan/kelurahan the pin falls in, filled server-side
+  // from the pin (never from the text) and only as far as the pin is precise enough to be sure.
+  kecamatanCode String?
+  kelurahanCode String?
+  regionSource  String?
   // Free-text landmark / patokan the customer adds ("pagar hijau sebelah warung Bu Ani").
   // Optional; flows to the courier via the per-order note at checkout.
   notes         String?

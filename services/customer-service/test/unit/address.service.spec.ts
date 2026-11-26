@@ -4,6 +4,7 @@ import {
   AddressNotFoundError,
   AddressPinInvalidError,
 } from '../../src/domain/errors';
+import { RegionLookup } from '../../src/infrastructure/geo/region-lookup';
 import { InMemoryAddressRepository, buildTestConfig } from '../support/fakes';
 
 const input = (label: string) => ({
@@ -201,5 +202,66 @@ describe('AddressService.primary (D10)', () => {
   it('answers null for a customer with no addresses', async () => {
     const { service } = build();
     await expect(service.primary('nobody')).resolves.toBeNull();
+  });
+});
+
+describe('AddressService region codes (HD-20a)', () => {
+  const sq = [5, -7, 8, -7, 8, -6, 5, -6, 5, -7]; // lng 5..8 x lat -7..-6
+  const lookup = new RegionLookup({
+    adm3: [{ c: '320101', n: 'Kec', b: [5, -7, 8, -6], g: [[sq]] }],
+    adm4: [{ c: '3201010001', n: 'Kel', p: '320101', b: [5, -7, 8, -6], g: [[sq]] }],
+  });
+  const at = { latitude: -6.5, longitude: 6 };
+  const codes = (a: { kecamatanCode?: string | null; kelurahanCode?: string | null; regionSource?: string | null }) => [
+    a.kecamatanCode,
+    a.kelurahanCode,
+    a.regionSource,
+  ];
+  let svc: AddressService;
+  beforeEach(() => {
+    svc = new AddressService(new InMemoryAddressRepository(), buildTestConfig(), lookup);
+  });
+
+  it('fills both codes for a placed pin, only the kecamatan for an import, nothing for a rough GPS fix', async () => {
+    const placed = await svc.create('c', { ...input('A'), ...at, pinSource: 'MANUAL' });
+    expect(codes(placed)).toEqual(['320101', '3201010001', 'PIN']);
+    const imported = await svc.create('c', { ...input('B'), ...at });
+    expect(codes(imported)).toEqual(['320101', null, 'PIN']);
+    const rough = await svc.create('c', { ...input('C'), ...at, pinSource: 'GPS', pinAccuracyM: 1500 });
+    expect(codes(rough)).toEqual([null, null, null]);
+    const fine = await svc.create('c', { ...input('D'), ...at, pinSource: 'GPS', pinAccuracyM: 40 });
+    expect(codes(fine)).toEqual(['320101', '3201010001', 'PIN']);
+  });
+
+  it('moves the codes with the pin, keeps them when the same pin is re-sent, clears them with the pin', async () => {
+    const a = await svc.create('c', { ...input('A'), ...at, pinSource: 'MANUAL' });
+    expect(codes(await svc.update('c', a.id, { ...at, city: 'X' }))).toEqual(['320101', '3201010001', 'PIN']);
+    expect(
+      codes(await svc.update('c', a.id, { latitude: 40, longitude: 40, pinSource: 'MANUAL' })),
+    ).toEqual([null, null, null]);
+    const back = await svc.update('c', a.id, { ...at, pinSource: 'STAFF' });
+    expect(codes(back)).toEqual(['320101', '3201010001', 'PIN']);
+    expect(codes(await svc.update('c', a.id, { latitude: null, longitude: null }))).toEqual([null, null, null]);
+  });
+
+  it('recomputes the codes when a pin saved without quality is now told its source', async () => {
+    const old = await svc.create('c', { ...input('A'), ...at }); // unknown source: kecamatan only
+    expect(codes(old)).toEqual(['320101', null, 'PIN']);
+    expect(codes(await svc.update('c', old.id, { ...at, pinSource: 'MANUAL' }))).toEqual([
+      '320101',
+      '3201010001',
+      'PIN',
+    ]);
+    // Known now: the same pin re-sent with another source keeps what it had.
+    expect(codes(await svc.update('c', old.id, { ...at, pinSource: 'GPS', pinAccuracyM: 3000 }))).toEqual([
+      '320101',
+      '3201010001',
+      'PIN',
+    ]);
+  });
+
+  it('writes no codes when no lookup is wired', async () => {
+    const bare = new AddressService(new InMemoryAddressRepository(), buildTestConfig());
+    expect(codes(await bare.create('c', { ...input('A'), ...at, pinSource: 'MANUAL' }))).toEqual([null, null, null]);
   });
 });

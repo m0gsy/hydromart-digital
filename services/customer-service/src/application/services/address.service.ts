@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
 import { AddressNotFoundError, AddressPinInvalidError } from '../../domain/errors';
@@ -9,6 +9,8 @@ import {
   UpdateAddressData,
   PinSource,
 } from '../ports/address.repository';
+import { NO_REGION, RegionCodes } from '../../domain/region-codes';
+import { RegionLookup } from '../../infrastructure/geo/region-lookup';
 import { CUSTOMER_TOKENS } from '../tokens';
 
 /** Both halves or neither (an import has none yet), and never 0,0. */
@@ -63,6 +65,8 @@ export class AddressService {
   constructor(
     @Inject(CUSTOMER_TOKENS.AddressRepository) private readonly addresses: AddressRepository,
     private readonly config: CustomerConfigService,
+    // Optional and last: without it no region codes are written, as before HD-20a.
+    @Optional() private readonly regions?: RegionLookup,
   ) {}
 
   /**
@@ -104,6 +108,7 @@ export class AddressService {
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
       ...pinQualityFor(input.latitude, input.pinSource, input.pinAccuracyM),
+      ...this.regionFor(input.latitude, input.longitude, input.pinSource, input.pinAccuracyM),
       notes: input.notes ?? null,
     };
 
@@ -130,11 +135,24 @@ export class AddressService {
       patch.latitude !== undefined && current.pinSource == null && patch.pinSource !== undefined;
     if (moved || told) {
       Object.assign(data, pinQualityFor(patch.latitude, patch.pinSource, patch.pinAccuracyM));
+      Object.assign(data, this.regionFor(patch.latitude, patch.longitude, patch.pinSource, patch.pinAccuracyM));
     } else {
       delete data.pinAccuracyM;
       delete data.pinSource;
     }
     return this.addresses.update(customerId, id, data);
+  }
+
+  /** The region codes that belong to this pin; all null for no pin or a pin too coarse to be sure. */
+  regionFor(
+    lat: number | null | undefined,
+    lng: number | null | undefined,
+    source: PinSource | null | undefined,
+    accuracyM: number | null | undefined,
+  ): RegionCodes {
+    // Accuracy is only meaningful for a GPS fix, exactly as pinQualityFor stores it.
+    if (!this.regions) return NO_REGION;
+    return this.regions.codesFor(lat, lng, source, source === 'GPS' ? accuracyM : null);
   }
 
   async setPrimary(customerId: string, id: string): Promise<AddressRecord> {

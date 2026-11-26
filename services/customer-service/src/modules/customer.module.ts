@@ -6,6 +6,7 @@ import { JwtAuthGuard, RolesGuard, DepotScopeGuard } from '@hydromart/platform';
 
 import { CustomerConfigService } from '../config/customer-config.service';
 import { CUSTOMER_TOKENS } from '../application/tokens';
+import { RegionLookup } from '../infrastructure/geo/region-lookup';
 import { AddressService } from '../application/services/address.service';
 import { NotificationService } from '../application/services/notification.service';
 import { PaymentMethodService } from '../application/services/payment-method.service';
@@ -47,6 +48,7 @@ const providers: Provider[] = [
   CustomerConfigService,
   ProfileService,
   AddressService,
+  RegionLookup,
   NotificationService,
   PaymentMethodService,
   DepotCrmService,

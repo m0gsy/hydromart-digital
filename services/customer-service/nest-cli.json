@@ -4,6 +4,7 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
+    "assets": [{ "include": "infrastructure/geo/regions.json", "outDir": "dist/src" }],
     "tsConfigPath": "tsconfig.build.json",
     "plugins": [{ "name": "@nestjs/swagger", "options": { "introspectComments": true } }]
   }

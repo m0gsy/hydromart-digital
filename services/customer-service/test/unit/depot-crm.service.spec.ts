@@ -1,4 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
+import { RegionLookup } from '../../src/infrastructure/geo/region-lookup';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { DEFAULT_MAX_ROWS } from '@hydromart/platform';
@@ -1076,6 +1077,7 @@ describe('DepotCrmService.setAddressPin (P2-2)', () => {
       orders?: number;
       address?: AddressRecord | null;
       geo?: typeof AREA | null;
+      regions?: RegionLookup;
     } = {},
   ) {
     const update = jest.fn(async (_c: string, _id: string, patch: object) => ({ ...stored, ...patch }));
@@ -1103,9 +1105,26 @@ describe('DepotCrmService.setAddressPin (P2-2)', () => {
       new FakeIdentity(),
       { authServiceUrl: 'http://auth', internalServiceKey: 'k' } as never,
       depotProfile as never,
+      undefined,
+      opts.regions,
     );
     return { svc, update, fetchMock, orderCrm };
   }
+
+  it('stores the region codes of a staff pin when a lookup is wired (HD-20a)', async () => {
+    const sq = [107.5, -7, 107.7, -7, 107.7, -6.8, 107.5, -6.8, 107.5, -7];
+    const regions = new RegionLookup({
+      adm3: [{ c: '320101', n: 'K', b: [107.5, -7, 107.7, -6.8], g: [[sq]] }],
+      adm4: [],
+    });
+    const { svc, update } = build({ regions });
+    await svc.setAddressPin(staff, 'c1', 'a1', 'depot-a', '-6.914744, 107.60981', SEEN);
+    expect(update).toHaveBeenCalledWith(
+      'c1',
+      'a1',
+      expect.objectContaining({ kecamatanCode: '320101', kelurahanCode: null, regionSource: 'PIN' }),
+    );
+  });
 
   it('sets a pin from a Maps link, as STAFF with no accuracy claimed, and records what it replaced', async () => {
     const { svc, update, fetchMock } = build();
@@ -1122,6 +1141,9 @@ describe('DepotCrmService.setAddressPin (P2-2)', () => {
       longitude: 107.60981,
       pinSource: 'STAFF',
       pinAccuracyM: null,
+      kecamatanCode: null,
+      kelurahanCode: null,
+      regionSource: null,
     });
     expect(out).toMatchObject({ pinSource: 'STAFF', latitude: -6.914744 });
     const [url, init] = fetchMock.mock.calls[0]!;
