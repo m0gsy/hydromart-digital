@@ -291,6 +291,8 @@ describe('CAPABILITIES', () => {
     for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING']) expect(can('aiAgentNotify', role)).toBe(false);
     expect(CUSTOM_FORBIDDEN).toEqual(expect.arrayContaining(['aiAgentNotify', 'aiTeamManage']));
     expect(CUSTOM_FORBIDDEN).not.toContain('aiTeamStop');
+  });
+
   // HD-23: Finance approves a bill with one click; n8n only triggers the draft run.
   it('splits the partner bill into read, approve and a machine-only generate', () => {
     expect(CAPABILITIES.partnerBillApprove).toEqual(['FINANCE', 'SUPER_ADMIN']);
