@@ -10,6 +10,7 @@ import { CampaignService } from '../application/services/campaign.service';
 import { SavedSegmentService } from '../application/services/saved-segment.service';
 import { NotificationService } from '../application/services/notification.service';
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
+import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
 import { SalesWeeklyService } from '../application/services/sales-weekly.service';
 import { LegalEntityAudienceHttpAdapter } from '../infrastructure/http/legal-entity-audience.http.adapter';
 import { MaintenanceDueService } from '../application/services/maintenance-due.service';
@@ -68,6 +69,7 @@ const providers: Provider[] = [
   AiAccessRequestService,
   MaintenanceDueService,
   SalesWeeklyService,
+  AiAgentNoticeService,
   { provide: CRM_TOKENS.LegalEntityAudience, useClass: LegalEntityAudienceHttpAdapter },
   DepotAudienceService,
   VisitNoticeService,

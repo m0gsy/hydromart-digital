@@ -629,6 +629,22 @@ export const CAPABILITIES = {
    */
   salesReportNotify: ['SUPER_ADMIN'],
   /*
+   * depot-service + crm-service (AI-29/AI-31) - the "Tim AI" screen of the AI web (its agents).
+   * Owner decision 26 Nov 2026: Direksi and SUPER_ADMIN switch agents on, change caps and approve
+   * playbooks (aiTeamManage); an agent's boss role and head office may only STOP (aiTeamStop); an
+   * agent locked by its boss is switched on again only by that boss or Direksi (the agent -> boss
+   * map is the AI web's). aiTeamRead opens the screen. GET depot ai/team/access answers all three.
+   */
+  aiTeamRead: ['DIREKTUR', 'HEAD_OFFICE', 'FINANCE', 'MARKETING', 'SUPER_ADMIN'],
+  aiTeamManage: ['DIREKTUR', 'SUPER_ADMIN'],
+  aiTeamStop: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  /*
+   * crm-service (AI-31) - tell people an AI agent flagged something, reached its cap or was stopped
+   * (POST notifications/external/ai-agent-notice). Held by the n8n machine account through its
+   * token's scopes; ids and a kind only, hydromart writes the text. Also in CUSTOM_FORBIDDEN.
+   */
+  aiAgentNotify: ['SUPER_ADMIN'],
+  /*
    * depot-service (HD-15B) - write the checklist templates a supervisor visit starts from. Head
    * office and directors only; the network has one template list. Not in CUSTOM_FORBIDDEN: an
    * ordinary capability with no depot fence.
@@ -1160,6 +1176,9 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'maintenanceDueNotify',
   // AI-26: the n8n machine account's, same reasoning.
   'salesReportNotify',
+  // AI-29/AI-31: the n8n machine account's, same reasoning; and who may switch agents on or change their caps.
+  'aiAgentNotify',
+  'aiTeamManage',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

@@ -53,8 +53,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "The draft was made.",
+          "200": {
+            "description": "This X-AI-Suggestion-Id already made exactly this draft; it is returned unchanged.",
             "content": {
               "application/json": {
                 "schema": {
@@ -63,8 +63,8 @@
               }
             }
           },
-          "200": {
-            "description": "This X-AI-Suggestion-Id already made exactly this draft; it is returned unchanged.",
+          "201": {
+            "description": "The draft was made.",
             "content": {
               "application/json": {
                 "schema": {
@@ -196,8 +196,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "The draft was made.",
+          "200": {
+            "description": "This X-AI-Suggestion-Id already made exactly this draft; it is returned unchanged.",
             "content": {
               "application/json": {
                 "schema": {
@@ -206,8 +206,8 @@
               }
             }
           },
-          "200": {
-            "description": "This X-AI-Suggestion-Id already made exactly this draft; it is returned unchanged.",
+          "201": {
+            "description": "The draft was made.",
             "content": {
               "application/json": {
                 "schema": {
@@ -339,8 +339,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "The draft was made.",
+          "200": {
+            "description": "This X-AI-Suggestion-Id already made exactly this draft; it is returned unchanged.",
             "content": {
               "application/json": {
                 "schema": {
@@ -349,8 +349,8 @@
               }
             }
           },
-          "200": {
-            "description": "This X-AI-Suggestion-Id already made exactly this draft; it is returned unchanged.",
+          "201": {
+            "description": "The draft was made.",
             "content": {
               "application/json": {
                 "schema": {
@@ -472,8 +472,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "The draft was made, or a REJECTED one was reopened (createdAt stays the first creation).",
+          "200": {
+            "description": "The same prospect with exactly this body already has a DRAFT; it is returned unchanged.",
             "content": {
               "application/json": {
                 "schema": {
@@ -482,8 +482,8 @@
               }
             }
           },
-          "200": {
-            "description": "The same prospect with exactly this body already has a DRAFT; it is returned unchanged.",
+          "201": {
+            "description": "The draft was made, or a REJECTED one was reopened (createdAt stays the first creation).",
             "content": {
               "application/json": {
                 "schema": {
@@ -819,6 +819,67 @@
           },
           "403": {
             "description": "FORBIDDEN: a machine token, a staff session token, or a person whose role lacks prospectRead.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/depot/api/v1/ai/team/access": {
+      "get": {
+        "summary": "What the signed-in person may do on the AI web Tim AI screen (AI-29).",
+        "description": "Needs aiTeamRead (built in: DIREKTUR, HEAD_OFFICE, FINANCE, MARKETING, SUPER_ADMIN, plus any custom role the owner grants it). read, manage and stop are evaluated against the matrix in force now (custom roles and per-depot grants included), so a change shows on the next call. manage (aiTeamManage: Direksi, SUPER_ADMIN) switches agents on, changes caps and approves playbooks; stop (aiTeamStop) only stops. role is the caller's role key, for the AI web's agent -> boss role rule.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The person's access.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiTeamAccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: the person lacks aiTeamRead (the AI web shows its no-access notice), or the token is a machine or staff session token.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1786,6 +1847,33 @@
                 }
               }
             }
+          }
+        }
+      },
+      "AiTeamAccess": {
+        "type": "object",
+        "required": [
+          "read",
+          "manage",
+          "stop",
+          "role"
+        ],
+        "properties": {
+          "read": {
+            "type": "boolean",
+            "description": "Holds aiTeamRead."
+          },
+          "manage": {
+            "type": "boolean",
+            "description": "Holds aiTeamManage."
+          },
+          "stop": {
+            "type": "boolean",
+            "description": "Holds aiTeamStop."
+          },
+          "role": {
+            "type": "string",
+            "description": "The caller's role key."
           }
         }
       }

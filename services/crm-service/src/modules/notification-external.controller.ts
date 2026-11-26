@@ -17,6 +17,7 @@ import { MaintenanceDueService } from '../application/services/maintenance-due.s
 import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { NotificationService } from '../application/services/notification.service';
 import { oneLine } from '../domain/ai-access-request';
+import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
 import { SalesWeeklyService } from '../application/services/sales-weekly.service';
 import { weekRefusal } from '../domain/sales-weekly';
 import { wibDate } from '../domain/morning-summary';
@@ -33,6 +34,8 @@ import {
   MORNING_SUMMARY_PREFIX,
   MorningSummaryDto,
   MorningSummaryResultDto,
+  AiAgentNoticeDto,
+  AiAgentNoticeResultDto,
   NotificationIdDto,
   SALES_WEEKLY_PREFIX,
   SalesWeeklyReadyDto,
@@ -61,6 +64,7 @@ export class NotificationExternalController {
     private readonly customerReminders: CustomerReminderService,
     private readonly maintenanceDue: MaintenanceDueService,
     private readonly salesWeekly: SalesWeeklyService,
+    private readonly aiAgentNotices: AiAgentNoticeService,
   ) {}
 
   /*
@@ -217,5 +221,21 @@ export class NotificationExternalController {
     const refusal = weekRefusal(dto.weekStart, new Date());
     if (refusal) throw new BadRequestException(refusal);
     return this.salesWeekly.run(dto.eventId, dto.weekStart, dto.legalEntityIds);
+  }
+
+  /*
+   * AI-31: n8n relays an event of one AI agent (flag, cap reached, stopped, all stopped). Ids and a
+   * kind only; hydromart writes the words and picks the recipients: everyone who manages the AI team
+   * plus the agent's boss role, when that role may read it. eventId is the dedupe key per person.
+   */
+  @ExternalAccess('machine')
+  @Can('aiAgentNotify')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('ai-agent-notice')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'n8n: tell who runs the AI team that an agent flagged, hit its cap or was stopped (AI-31)' })
+  @ApiOkResponse({ type: AiAgentNoticeResultDto })
+  aiAgentNotice(@Body() dto: AiAgentNoticeDto): Promise<AiAgentNoticeResultDto> {
+    return this.aiAgentNotices.run(dto);
   }
 }

@@ -309,6 +309,7 @@ describe('the staff switch for each depot alert', () => {
       'morningSummary',
       'aiAccessRequest',
       'salesWeekly',
+      'aiAgent',
       'maintenanceDue',
       'visitFinding',
     ];

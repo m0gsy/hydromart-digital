@@ -888,6 +888,16 @@ test('CRM calon mitra: access, depot draft with the D1 re-check, replay and stat
     assert.equal((await get(mock, `${base}/crm/access`, await tokenOf(mock, user('SUPERVISOR')))).status, 403);
     assert.equal((await get(mock, `${base}/crm/access`, await machineToken(mock))).status, 403);
 
+    // AI-29: the Tim AI screen's access read follows the built-in matrix; 401 / 403 as the CRM's.
+    const teamUrl = '/depot/api/v1/ai/team/access';
+    assert.ok(drafts.paths[teamUrl], 'team access is in drafts.openapi.json');
+    const team = await (await get(mock, teamUrl, sales)).json();
+    for (const f of drafts.components.schemas.AiTeamAccess.required) assert.ok(team[f] !== undefined, `team access has ${f}`);
+    assert.deepEqual(team, { read: true, manage: false, stop: false, role: 'MARKETING' });
+    assert.equal((await get(mock, teamUrl)).status, 401);
+    assert.equal((await get(mock, teamUrl, await tokenOf(mock, user('SUPERVISOR')))).status, 403);
+    assert.equal((await get(mock, teamUrl, await machineToken(mock))).status, 403);
+
     // Draft: 201, then 200 for the same body, 409 for another, with the contract's statuses.
     const documented = new Set(Object.keys(drafts.paths[FROM_CRM].post.responses));
     for (const s of [200, 201, 400, 401, 403, 409, 422]) assert.ok(documented.has(String(s)), `documents ${s}`);

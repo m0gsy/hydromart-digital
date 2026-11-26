@@ -17,6 +17,7 @@ import {
   MaxLength,
 } from 'class-validator';
 
+import { AI_AGENT_NOTICE_KINDS, AiAgentNoticeKind } from '../../domain/ai-agent-notice';
 import { CUSTOMER_REMINDER_KINDS, CustomerReminderKind } from '../../domain/customer-reminder';
 import { NotificationEvent } from '../../domain/notification-event';
 import { NotificationStatus } from '../../domain/notification-status';
@@ -411,6 +412,44 @@ export class SalesWeeklyReadyResultDto {
   @ApiProperty({ description: 'Ids that are not a legal entity: nothing was sent for them.' })
   unknownEntities!: number;
   @ApiProperty({ description: 'People who may read these entities reports.' })
+  recipients!: number;
+  @ApiProperty({ description: 'Of those, how many have the notice (a retry files none twice).' })
+  notified!: number;
+  @ApiProperty({ enum: ['pending'] })
+  whatsapp!: 'pending';
+}
+
+
+/** AI-31: n8n relays an agent event of the AI web: ids and a kind. The words and the recipients are hydromart's. */
+export class AiAgentNoticeDto {
+  @ApiProperty({ example: 'agent-flag:7c1f0f64' })
+  @IsString()
+  @Matches(/^[A-Za-z0-9:._-]{1,120}$/, { message: 'eventId: 1 to 120 characters of A-Z a-z 0-9 : . _ -' })
+  eventId!: string;
+
+  @ApiProperty({ example: 'kasir-depot' })
+  @IsString()
+  @Matches(/^[a-z][a-z0-9-]{1,39}$/, { message: 'agentId must be a lower-case slug' })
+  agentId!: string;
+
+  @ApiProperty({ example: 'Agen Stok', maxLength: 40 })
+  @IsString()
+  @Matches(/^[\p{L}\p{N} ]{1,40}$/u, { message: 'agentName: letters, digits and spaces, 40 at most' })
+  agentName!: string;
+
+  @ApiProperty({ enum: AI_AGENT_NOTICE_KINDS })
+  @IsIn(AI_AGENT_NOTICE_KINDS)
+  kind!: AiAgentNoticeKind;
+
+  @ApiPropertyOptional({ example: 'FINANCE', description: "The agent's boss role (built-in key or custom role key)." })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z][A-Za-z0-9_]{0,63}$/, { message: 'bossRole must be a role key' })
+  bossRole?: string;
+}
+
+export class AiAgentNoticeResultDto {
+  @ApiProperty({ description: 'People who manage the AI team, plus the boss role holders that may read it.' })
   recipients!: number;
   @ApiProperty({ description: 'Of those, how many have the notice (a retry files none twice).' })
   notified!: number;

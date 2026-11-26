@@ -262,7 +262,7 @@ describe('maintenance-due words, keys and reminder window', () => {
 
 describe('NotificationExternalController.maintenanceDueRun', () => {
   const run = jest.fn(async () => ({ date: DATE, depots: 1, items: 1, notified: 2, remindLater: 0, whatsapp: 'pending' as const }));
-  const controller = new NotificationExternalController({} as never, {} as never, {} as never, {} as never, { run } as never, {} as never);
+  const controller = new NotificationExternalController({} as never, {} as never, {} as never, {} as never, { run } as never, {} as never, {} as never);
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-11-26T00:30:00.000Z'));
     run.mockClear();

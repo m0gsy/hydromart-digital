@@ -644,6 +644,23 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       await get(ACCESS, null).expect(401);
     });
 
+    it('team access (AI-29): read / manage / stop per role, a custom role by override, 403 below, 401 without a token', async () => {
+      const TEAM = '/api/v1/ai/team/access';
+      const read = async (role: string) => (await get(TEAM, aiToken(role, null)).expect(200)).body;
+      expect(await read('DIREKTUR')).toEqual({ read: true, manage: true, stop: true, role: 'DIREKTUR' });
+      expect(await read('HEAD_OFFICE')).toEqual({ read: true, manage: false, stop: true, role: 'HEAD_OFFICE' });
+      expect(await read('FINANCE')).toEqual({ read: true, manage: false, stop: false, role: 'FINANCE' });
+      await get(TEAM, aiToken('MANAGER', depotId)).expect(403);
+      await get(TEAM, staff(Role.SUPER_ADMIN)).expect(403);
+      await get(TEAM, machineToken()).expect(403);
+      await get(TEAM, null).expect(401);
+      const custom = aiToken('C_SALES', null);
+      await get(TEAM, custom).expect(403);
+      loadCustomRoles([{ key: 'C_SALES', name: 'Sales', scope: 'GLOBAL' }]);
+      loadOverrides({ aiTeamRead: [...CAPABILITIES.aiTeamRead, 'C_SALES'], aiTeamStop: [...CAPABILITIES.aiTeamStop, 'C_SALES'] });
+      expect((await get(TEAM, custom).expect(200)).body).toEqual({ read: true, manage: false, stop: true, role: 'C_SALES' });
+    });
+
     it('access follows the RUNTIME matrix: a custom role granted by override, with its legal entities', async () => {
       const sales = aiToken('C_SALES', null);
       await get(ACCESS, sales).expect(403);
