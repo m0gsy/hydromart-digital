@@ -68,6 +68,7 @@ export const ops = {
     handover: 'Serah terima shift',
     maintenance: 'Perawatan alat',
     quality: 'Uji lab & izin',
+    held: 'Pesanan tertahan',
     visits: 'Kunjungan supervisor',
     staffOnboarding: 'Panduan manajer',
     customers: 'Pelanggan',

@@ -19,6 +19,9 @@ export interface DueSubscriptionRow {
   productName: string;
   quantity: number;
   nextDeliveryAt: Date;
+  /** Where it delivers, to tell which depot (and so which quality hold) it falls under. */
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface UnpaidCandidateRow {
@@ -26,6 +29,7 @@ export interface UnpaidCandidateRow {
   customerId: string;
   orderNumber: string;
   total: number;
+  depotId: string | null;
 }
 
 export interface CustomerOutreachRepository {

@@ -104,6 +104,16 @@ export const dashB = {
     gateTitle: 'Access denied',
     gateBody: 'Reward hand-over is for depot operators and managers.',
   },
+  held: {
+    title: 'Orders on hold',
+    subtitle: 'Accepted orders of a depot on quality hold. Each one waits for a person.',
+    empty: 'Nothing on hold',
+    emptyBody: 'No accepted order is waiting at a depot on hold.',
+    leaveHint: 'Leave it, and it goes out after the hold ends.',
+    cancelRefund: 'Cancel and refund',
+    cancelConfirm: 'Cancel order {n} and refund the customer?',
+    cancelError: 'Could not cancel the order.',
+  },
   quality: {
     title: 'Lab tests & permits',
     gateTitle: 'Not available for your role',

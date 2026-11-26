@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { FeatureFlagReader } from '@hydromart/platform';
 
 import {
+  DepotOnHoldError,
   DepotUnavailableError,
   ProductUnavailableError,
   SubscriptionsDisabledError,
@@ -484,6 +485,13 @@ export class SubscriptionService {
           placed += 1;
         }
       } catch (err) {
+        // HD-14: a depot on a quality hold is a pause, not a failure: no failure count, no auto-pause,
+        // no text to the customer, and nextDeliveryAt stays put, so the next sweep tries again and,
+        // once the hold ends, `nextDeliveryOnOrAfter` collapses the backlog to one delivery.
+        if (err instanceof DepotOnHoldError) {
+          this.logger.log(`Subscription ${sub.id} waits: its depot is on hold`);
+          continue;
+        }
         failed += 1;
         await this.recordCycleFailure(sub, err, now);
       }

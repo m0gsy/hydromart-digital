@@ -337,6 +337,8 @@ export interface NearbyDepot {
   /** Weekly hours incl. the optional midday break; absent = never configured (= open). */
   operatingHours?: Record<string, DepotHours>;
   holidays?: DepotHoliday[];
+  /** HD-14: the depot is on a quality hold (no reason ever reaches here). Absent = not held. */
+  qualityHold?: { active: boolean; since: string | null };
 }
 
 export interface Page<T> {
@@ -1591,6 +1593,8 @@ export interface Depot {
   /** Per-galon delivery fee. Checkout previews the ongkir from the depot the customer picks. */
   deliveryFee: number;
   minOrderAmount: number | null;
+  /** HD-14: on a quality hold (the fact and the day, never why). Absent = not held. */
+  qualityHold?: { active: boolean; since: string | null };
   /** Weekly hours incl. the optional midday break; absent = never configured (= open). */
   operatingHours?: Record<string, DepotHours>;
   holidays?: DepotHoliday[];

@@ -66,7 +66,7 @@ export class CustomerOutreachPrismaRepository implements CustomerOutreachReposit
       where: { status: 'ACTIVE', nextDeliveryAt: { gte: from, lt: to } },
       orderBy: { nextDeliveryAt: 'asc' },
       take: limit,
-      select: { id: true, customerId: true, productName: true, quantity: true, nextDeliveryAt: true },
+      select: { id: true, customerId: true, productName: true, quantity: true, nextDeliveryAt: true, latitude: true, longitude: true },
     });
   }
 
@@ -84,7 +84,7 @@ export class CustomerOutreachPrismaRepository implements CustomerOutreachReposit
       },
       orderBy: { statusChangedAt: 'asc' },
       take: limit,
-      select: { id: true, customerId: true, orderNumber: true, total: true },
+      select: { id: true, customerId: true, orderNumber: true, total: true, depotId: true },
     });
     return rows.map((r) => ({ ...r, total: r.total.toNumber() }));
   }

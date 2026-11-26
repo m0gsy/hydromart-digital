@@ -11,6 +11,7 @@ import { SavedSegmentService } from '../application/services/saved-segment.servi
 import { NotificationService } from '../application/services/notification.service';
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
 import { ComplianceDueService } from '../application/services/compliance-due.service';
+import { HeldDepotsHttpAdapter } from '../infrastructure/http/held-depots.http.adapter';
 import { ComplianceDueHttpAdapter } from '../infrastructure/http/compliance-due.http.adapter';
 import { MaintenanceDueService } from '../application/services/maintenance-due.service';
 import { DepotAudienceService } from '../application/services/depot-audience.service';
@@ -72,6 +73,7 @@ const providers: Provider[] = [
   VisitNoticeService,
   { provide: CRM_TOKENS.MaintenanceDue, useClass: MaintenanceDueHttpAdapter },
   { provide: CRM_TOKENS.ComplianceDue, useClass: ComplianceDueHttpAdapter },
+  { provide: CRM_TOKENS.HeldDepots, useClass: HeldDepotsHttpAdapter },
   BroadcastService,
   PushService,
   { provide: CRM_TOKENS.CampaignRepository, useClass: CampaignPrismaRepository },

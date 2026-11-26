@@ -38,6 +38,7 @@ const build = (
     customerId?: string | null;
     payments?: () => Promise<Map<string, OrderPaymentRow>>;
     contacts?: () => Promise<{ id: string; name: string }[] | null>;
+    active?: () => Promise<unknown[] | null>;
     abandon?: number;
   } = {},
 ) => {
@@ -51,7 +52,10 @@ const build = (
   const payments = {
     latestByOrder: jest.fn(over.payments ?? (async () => new Map([['o1', { orderId: 'o1', method: 'TRANSFER', status: 'PENDING' }]]))),
   };
-  const depots = { listContacts: jest.fn(over.contacts ?? (async () => [{ id: 'd1', name: 'Depot Pekayon' }])) };
+  const depots = {
+    listContacts: jest.fn(over.contacts ?? (async () => [{ id: 'd1', name: 'Depot Pekayon' }])),
+    listActiveDepots: jest.fn(over.active ?? (async () => [])),
+  };
   const config = { abandonMinutes: over.abandon ?? 60 } as unknown as OrderConfigService;
   const service = new CustomerOutreachService(repo, accounts, payments, depots as never, config);
   return { service, repo, accounts, payments, depots };
@@ -303,6 +307,45 @@ describe('CustomerOutreachPrismaRepository (HD-18)', () => {
       subscriptionId: null,
       statusChangedAt: { gt: after, lte: upTo },
     });
+  });
+});
+
+describe('reminders skip a depot on quality hold (HD-14)', () => {
+  // Two depots a few km apart; the plan near d-held routes to it.
+  const depot = (id: string, lat: number, onHold: boolean) => ({ id, lat, lng: 106.8, serviceRadiusKm: 10, deliveryFee: 0, minOrderAmount: null, onHold });
+  const active = async () => [depot('d-held', -6.2, true), depot('d-ok', -6.5, false)];
+  const sub = (id: string, lat: number | null) => ({ id, customerId: 'c', productName: 'Galon', quantity: 1, nextDeliveryAt: NOW, latitude: lat, longitude: lat === null ? null : 106.8 });
+
+  it('drops the subscription reminders of a held depot, keeps the others and a plan with no pin', async () => {
+    const { service } = build({
+      active,
+      repo: { subscriptionsDueBetween: jest.fn().mockResolvedValue([sub('near-held', -6.2), sub('near-ok', -6.5), sub('nopin', null)]) },
+    });
+    const out = await service.subscriptionsDue(NOW, NOW);
+    expect(out.items.map((i) => i.id)).toEqual(['near-ok', 'nopin']);
+    // The coordinates are for routing only and never leave.
+    expect(JSON.stringify(out)).not.toMatch(/latitude/);
+  });
+
+  it('with no depot on hold the list is unchanged (and the depots are still read)', async () => {
+    const { service } = build({ active: async () => [depot('d-ok', -6.5, false)], repo: { subscriptionsDueBetween: jest.fn().mockResolvedValue([sub('a', -6.5)]) } });
+    expect((await service.subscriptionsDue(NOW, NOW)).items).toHaveLength(1);
+  });
+
+  it('drops the unpaid-order reminders of a held depot', async () => {
+    const o = (id: string, depotId: string | null) => ({ id, customerId: 'c', orderNumber: id, total: 1, depotId });
+    const { service } = build({
+      active,
+      repo: { createdOrdersBetween: jest.fn().mockResolvedValue([o('h', 'd-held'), o('k', 'd-ok'), o('n', null)]) },
+      payments: async () => new Map(['h', 'k', 'n'].map((id) => [id, { orderId: id, method: 'QRIS', status: 'PENDING' }] as [string, OrderPaymentRow])),
+    });
+    expect((await service.unpaidOrders(NOW)).items.map((i) => i.orderId)).toEqual(['k', 'n']);
+  });
+
+  it('answers 503 rather than guess when the depots cannot be read', async () => {
+    const { service } = build({ active: async () => null });
+    await expect(service.subscriptionsDue(NOW, NOW)).rejects.toThrow('could not be read');
+    await expect(service.unpaidOrders(NOW)).rejects.toThrow('could not be read');
   });
 });
 

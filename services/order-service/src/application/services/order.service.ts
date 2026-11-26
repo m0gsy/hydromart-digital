@@ -13,6 +13,7 @@ import {
   BelowMinimumOrderError,
   ExpressUnavailableError,
   CatalogUnavailableError,
+  DepotOnHoldError,
   DepotUnavailableError,
   CounterBasketChangedError,
   CounterTotalChangedError,
@@ -279,6 +280,20 @@ export interface ListOrdersInput {
  * PICKED_UP the goods are physically on that courier's bike. Changing the depot then would
  * not re-route anything — it would only make the record disagree with where the water is.
  */
+/** HD-14: the steps that put an order in a courier's hands. Refused for a held depot (see updateStatus). */
+const HOLD_BLOCKED_STATUSES: ReadonlySet<OrderStatus> = new Set([
+  OrderStatus.DRIVER_ASSIGNED,
+  OrderStatus.PICKED_UP,
+  OrderStatus.ON_DELIVERY,
+]);
+
+/** HD-14: accepted but not yet out for delivery: what the "tertahan" list shows. */
+const HELD_LIST_STATUSES: readonly OrderStatus[] = [
+  OrderStatus.CONFIRMED,
+  OrderStatus.PREPARING,
+  OrderStatus.DRIVER_ASSIGNED,
+];
+
 const REROUTABLE_STATUSES: ReadonlySet<OrderStatus> = new Set([
   OrderStatus.CREATED,
   OrderStatus.CONFIRMED,
@@ -603,6 +618,9 @@ export class OrderService {
     // order that reaches no depot is an order nobody can see or fulfil, so checkout
     // rejects instead. The pin decides the depot; without one there is no order.
     const depot = await this.resolveDepot(input.deliveryAddress);
+    // HD-14: a depot on a quality hold takes no new order. The flag is read with the depot just
+    // now, so there is no cache to outlive a hold.
+    if (depot.onHold) throw new DepotOnHoldError();
 
     // Pricing and reseller status are independent of each other — the reseller lookup only
     // needs the caller's token — so both are in flight at once (audit S-2). Checkout used to
@@ -1101,6 +1119,9 @@ export class OrderService {
     // cannot be routed and there is nobody to ask, so the sweep skips it with a log
     // (subscription.service isolates each run) instead of placing a lost order.
     const depot = await this.resolveDepot(address);
+    // HD-14: refused BEFORE anything is priced or reserved; the subscription sweep treats this one
+    // refusal as a skip, never as a failed cycle.
+    if (depot.onHold) throw new DepotOnHoldError();
     const { items, subtotal, catalogFallback } = await this.priceLines(depot.id, lines);
     const deliveryFee = money(depot.deliveryFee * galonQuantity(items));
     const discountRate = this.config.subscriptionDiscountRate(depot.id);
@@ -1886,7 +1907,10 @@ export class OrderService {
     if (order.depotId) throw new OrderAlreadyRoutedError();
     const depots = await this.depotDirectory.listActiveDepots();
     if (depots === null) throw new DepotUnavailableError();
-    if (!depots.some((d) => d.id === depotId)) throw new DepotUnavailableError();
+    const target = depots.find((d) => d.id === depotId);
+    if (!target) throw new DepotUnavailableError();
+    // HD-14: a held depot is not a place to send an order to.
+    if (target.onHold) throw new DepotOnHoldError();
     // Before the write: an order recorded at a depot that cannot fill it is the state this
     // exists to prevent, and it is not undone by the operator trying again.
     await this.inventory.reserve(
@@ -1960,7 +1984,10 @@ export class OrderService {
     }
     const depots = await this.depotDirectory.listActiveDepots();
     if (depots === null) throw new DepotUnavailableError();
-    if (!depots.some((d) => d.id === depotId)) throw new DepotUnavailableError();
+    const target = depots.find((d) => d.id === depotId);
+    if (!target) throw new DepotUnavailableError();
+    // HD-14: a held depot is not a place to send an order to.
+    if (target.onHold) throw new DepotOnHoldError();
 
     const lines = stockLinesFor(order.items);
     await this.inventory.reserve(depotId, orderId, lines, authorization);
@@ -3016,6 +3043,10 @@ export class OrderService {
     /** The cashier ringing this up, for the daily first-order ceiling. Absent = not capped. */
     cashierId?: string,
   ): Promise<CounterBasketQuote> {
+    // HD-14 (owner decision #28): the counter stops selling during a hold, like online orders.
+    // Both the quote and the sale price through here, so neither can pass. Fails CLOSED (an
+    // unreadable directory refuses), like the cashier-shift check.
+    await this.assertDepotSelling(depotId);
     const { items: pricedItems, tierPricedTotal, tieredProductIds, categoryIdByProductId, catalogFallback } =
       await this.priceLines(depotId, lines);
     // Item 5 fase 1: auto-apply promo rules for the counter channel, computed BEFORE
@@ -3257,6 +3288,11 @@ export class OrderService {
     if (!canTransition(order.status, to)) {
       throw new InvalidStatusTransitionError(order.status, to);
     }
+    // HD-14: no courier is assigned to, and none takes out, an order of a held depot. Cancelling,
+    // preparing and everything after the order is out for delivery stay open.
+    if (HOLD_BLOCKED_STATUSES.has(to) && order.depotId && (await this.depotIsHeld(order.depotId))) {
+      throw new DepotOnHoldError();
+    }
     // K2.3: staff and delivery-service cancel through here too. The reversal is owed through
     // the outbox, written with the status (see `cancel()` for why it no longer runs first).
     const updated = await this.applyStatusNotifying(
@@ -3397,6 +3433,54 @@ export class OrderService {
       }
     }
     return this.cartService.view(customerId);
+  }
+
+  /**
+   * HD-14: refuses a counter sale at a held depot. Fails CLOSED: with the directory unreadable the
+   * flag cannot be known, and a counter sale already needs depot-service for prices and stock.
+   * A depot absent from the active list has no hold to speak of (its own checks refuse it).
+   */
+  private async assertDepotSelling(depotId: string): Promise<void> {
+    const depots = await this.depotDirectory.listActiveDepots();
+    if (depots === null) throw new DepotUnavailableError();
+    if (depots.find((d) => d.id === depotId)?.onHold) throw new DepotOnHoldError();
+  }
+
+  /**
+   * HD-14: is this depot held, for the courier steps. Fails OPEN on an unreadable directory, unlike
+   * a sale: a courier on the road must not be stuck by a directory blip, and no new sale is let in.
+   */
+  private async depotIsHeld(depotId: string): Promise<boolean> {
+    const depots = await this.depotDirectory.listActiveDepots();
+    if (depots === null) {
+      this.logger.warn(`Quality hold of ${depotId} not checked: depot directory unreachable`);
+      return false;
+    }
+    return depots.find((d) => d.id === depotId)?.onHold === true;
+  }
+
+  /**
+   * HD-14: the "tertahan" list. Online orders already accepted at a held depot but not yet out for
+   * delivery wait here for a person: cancel and refund through the ordinary staff cancel (reason
+   * "quality hold"), or leave them to go out after the hold. `scope` is the caller's depot set
+   * (undefined = every depot). Out-for-delivery orders finish normally and are not listed.
+   */
+  async heldOrders(scope: readonly string[] | undefined): Promise<OrderRecord[]> {
+    const depots = await this.depotDirectory.listActiveDepots();
+    if (depots === null) throw new DepotUnavailableError();
+    const heldIds = depots
+      .filter((d) => d.onHold && (scope === undefined || scope.includes(d.id)))
+      .map((d) => d.id);
+    if (heldIds.length === 0) return [];
+    const pages = await Promise.all(
+      HELD_LIST_STATUSES.map((status) =>
+        this.orders.search({ page: 1, limit: OrderService.MAX_LIMIT, status, depotIds: heldIds }),
+      ),
+    );
+    return pages
+      .flatMap((p) => p.items)
+      .filter((o) => !o.isWalkIn)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
   }
 
   /** The active depots, as checkout routes against them; null when the directory is down. */

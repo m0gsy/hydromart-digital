@@ -106,6 +106,16 @@ export const dashB = {
     gateTitle: 'Akses ditolak',
     gateBody: 'Penukaran hadiah hanya untuk petugas dan manajer depot.',
   },
+  held: {
+    title: 'Pesanan tertahan',
+    subtitle: 'Pesanan yang sudah diterima di depot yang sedang quality hold. Tiap pesanan menunggu keputusan orang.',
+    empty: 'Tidak ada yang tertahan',
+    emptyBody: 'Tidak ada pesanan diterima yang menunggu di depot yang sedang hold.',
+    leaveHint: 'Biarkan saja, pesanan dikirim setelah hold berakhir.',
+    cancelRefund: 'Batalkan dan refund',
+    cancelConfirm: 'Batalkan pesanan {n} dan refund ke pelanggan?',
+    cancelError: 'Gagal membatalkan pesanan.',
+  },
   quality: {
     title: 'Uji lab & izin',
     gateTitle: 'Tidak tersedia untuk peran Anda',

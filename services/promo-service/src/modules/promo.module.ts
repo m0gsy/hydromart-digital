@@ -20,6 +20,7 @@ import { PromotionPrismaRepository } from '../infrastructure/prisma/promotion.pr
 import { PromoRulePrismaRepository } from '../infrastructure/prisma/promo-rule.prisma.repository';
 import { CustomerLookupHttpAdapter } from '../infrastructure/http/customer-lookup.http.adapter';
 import { NotificationHttpAdapter } from '../infrastructure/http/notification.http.adapter';
+import { HeldDepotsHttpAdapter } from '../infrastructure/http/held-depots.http.adapter';
 import { OrderValueHttpAdapter } from '../infrastructure/http/order-value.http.adapter';
 import { LocalDiskStorageAdapter } from '../infrastructure/storage/local-disk-storage.adapter';
 import { S3StorageAdapter } from '../infrastructure/storage/s3-storage.adapter';
@@ -41,6 +42,7 @@ export const providers: Provider[] = [
   { provide: PROMO_TOKENS.CustomerLookup, useClass: CustomerLookupHttpAdapter },
   { provide: PROMO_TOKENS.Notification, useClass: NotificationHttpAdapter },
   { provide: PROMO_TOKENS.OrderValues, useClass: OrderValueHttpAdapter },
+  { provide: PROMO_TOKENS.HeldDepots, useClass: HeldDepotsHttpAdapter },
   {
     provide: PROMO_TOKENS.Storage,
     inject: [PromoConfigService],

@@ -93,6 +93,7 @@ export class CampaignPrismaRepository implements CampaignRepository {
           aiSuggestionId: data.aiSuggestionId ?? null,
           aiReason: data.aiReason ?? null,
           aiRequestHash: data.aiRequestHash ?? null,
+          depotId: data.depotId ?? null,
           recipients: {
             create: data.recipients.map((r) => ({
               customerId: r.customerId ?? null,

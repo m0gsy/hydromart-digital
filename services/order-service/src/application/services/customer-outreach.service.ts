@@ -9,7 +9,8 @@ import {
   CustomerOutreachRepository,
   StatusOrderRow,
 } from '../ports/customer-outreach.repository';
-import { DepotDirectoryPort } from '../ports/depot-directory.port';
+import { selectNearestDepot } from '../../domain/geo';
+import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
 import { AccountByPhonePort, PaymentsOfOrdersPort } from '../ports/outreach-lookups.port';
 
 /** How many finished or cancelled orders the status answer adds to the running ones. */
@@ -91,10 +92,31 @@ export class CustomerOutreachService {
     };
   }
 
-  /** Active subscriptions delivering inside `[from, to)` (crm passes tomorrow's WIB day). */
+  /**
+   * Active subscriptions delivering inside `[from, to)` (crm passes tomorrow's WIB day). HD-14: a
+   * plan whose address routes to a depot on a quality hold is left out, because that delivery will
+   * not happen tomorrow and a "see you tomorrow" reminder would be a promise the depot cannot keep.
+   * THROWS (503) when the depots cannot be read: crm retries, nothing is guessed.
+   */
   async subscriptionsDue(from: Date, to: Date) {
     const rows = await this.repo.subscriptionsDueBetween(from, to, SUBSCRIPTION_CAP + 1);
-    return this.capped('subscriptions due', rows, SUBSCRIPTION_CAP);
+    const { held, depots } = await this.heldDepots();
+    const kept = held.size === 0
+      ? rows
+      : rows.filter((r) => {
+          if (r.latitude === null || r.longitude === null) return true;
+          const depot = selectNearestDepot(r.latitude, r.longitude, depots);
+          return !(depot && held.has(depot.id));
+        });
+    const { items, truncated } = this.capped('subscriptions due', kept, SUBSCRIPTION_CAP);
+    return { items: items.map(({ latitude: _la, longitude: _lo, ...rest }) => rest), truncated };
+  }
+
+  /** HD-14: the active depots and the ids of those on a quality hold; throws 503 when the directory cannot be read. */
+  private async heldDepots(): Promise<{ depots: DepotLocation[]; held: Set<string> }> {
+    const depots = await this.depots.listActiveDepots();
+    if (depots === null) throw new ServiceUnavailableException('The depots could not be read; retry later');
+    return { depots, held: new Set(depots.filter((d) => d.onHold).map((d) => d.id)) };
   }
 
   /**
@@ -113,9 +135,12 @@ export class CustomerOutreachService {
     // says so and the next tick (10 minutes on) takes the rest.
     const { items: kept, truncated } = this.capped('unpaid orders', created, CANDIDATE_CAP);
     const payments = await this.payments.latestByOrder(kept.map((o) => o.id));
+    // HD-14: nobody is reminded to pay for an order of a depot on a quality hold.
+    const { held } = await this.heldDepots();
     return {
       truncated,
       items: kept
+        .filter((o) => !(o.depotId && held.has(o.depotId)))
         .filter((o) => {
           const p = payments.get(o.id);
           return p?.status === 'PENDING' && (p.method === 'TRANSFER' || p.method === 'QRIS');

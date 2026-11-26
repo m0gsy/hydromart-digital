@@ -35,6 +35,8 @@ export interface CampaignRecord {
   aiSuggestionId: string | null;
   aiReason: string | null;
   aiRequestHash: string | null;
+  /** HD-14: the depot a depot campaign was made for; null/absent = network-wide or older. */
+  depotId?: string | null;
   recipients: CampaignRecipientRecord[];
 }
 
@@ -57,6 +59,8 @@ export interface CreateCampaignData {
   aiSuggestionId?: string;
   aiReason?: string;
   aiRequestHash?: string;
+  /** HD-14: set by a depot campaign. */
+  depotId?: string;
 }
 
 export interface CampaignRepository {

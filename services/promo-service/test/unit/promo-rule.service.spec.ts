@@ -1,4 +1,6 @@
-﻿import { randomUUID } from 'node:crypto';
+﻿import { PromoDepotOnHoldError } from '../../src/domain/errors';
+import { HeldDepotsHttpAdapter } from '../../src/infrastructure/http/held-depots.http.adapter';
+import { randomUUID } from 'node:crypto';
 
 import { StaleWriteError } from '@hydromart/platform';
 
@@ -1099,3 +1101,77 @@ describe('PromoRuleService', () => {
       expect(table.truncated).toBe(true);
     });
   });});
+
+// HD-14: a depot on a quality hold takes no promotion. Switching one on for it is refused (a new
+// rule is live at once, so creating one counts); edits, switching off and network-wide rules are not.
+describe('PromoRuleService and quality hold (HD-14)', () => {
+  const HELD = '00000000-0000-4000-8000-0000000000d1';
+  const OTHER = '00000000-0000-4000-8000-0000000000d2';
+  let repo: InMemoryPromoRuleRepository;
+  let held: Set<string>;
+  let readable: boolean;
+  let service: PromoRuleService;
+
+  beforeEach(() => {
+    repo = new InMemoryPromoRuleRepository();
+    held = new Set([HELD]);
+    readable = true;
+    const holds = {
+      heldDepotIds: async () => {
+        if (!readable) throw new Error('depot-service down');
+        return new Set(held);
+      },
+    };
+    service = new PromoRuleService(repo, fakeConfig, undefined, undefined, holds);
+  });
+
+  it('refuses a new rule for a held depot, and accepts one for another depot or the whole network', async () => {
+    await expect(service.create(baseInput({ depotId: HELD }))).rejects.toBeInstanceOf(PromoDepotOnHoldError);
+    expect((await service.create(baseInput({ depotId: OTHER }))).depotId).toBe(OTHER);
+    expect((await service.create(baseInput({ depotId: null }))).depotId).toBeNull();
+  });
+
+  it('refuses to switch a rule on, or move it, to a held depot; edits and switching off stay open', async () => {
+    const seen = async (id: string) => (await service.findById(id)).updatedAt.toISOString();
+    const rule = await service.create(baseInput({ depotId: OTHER }));
+    await expect(service.update(rule.id, { depotId: HELD }, await seen(rule.id))).rejects.toBeInstanceOf(PromoDepotOnHoldError);
+    expect((await service.update(rule.id, { active: false }, await seen(rule.id))).active).toBe(false);
+    // The hold begins while the rule is off: switching it on is refused, renaming it is not.
+    expect((await service.update(rule.id, { name: 'Baru' }, await seen(rule.id))).name).toBe('Baru');
+    held.add(OTHER);
+    await expect(service.update(rule.id, { active: true }, await seen(rule.id))).rejects.toBeInstanceOf(PromoDepotOnHoldError);
+    held.clear();
+    expect((await service.update(rule.id, { active: true }, await seen(rule.id))).active).toBe(true);
+  });
+
+  it('does not ask when there is no depot to check, and refuses when the holds cannot be read', async () => {
+    readable = false;
+    await expect(service.create(baseInput({ depotId: null }))).resolves.toBeDefined();
+    await expect(service.create(baseInput({ depotId: OTHER }))).rejects.toThrow('depot-service down');
+  });
+});
+
+describe('HeldDepotsHttpAdapter (HD-14)', () => {
+  const adapter = (url: string) => new HeldDepotsHttpAdapter({ depotServiceUrl: url } as never);
+  afterEach(() => jest.restoreAllMocks());
+  const reply = (body: unknown, ok = true, status = 200) =>
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok, status, json: async () => body } as Response);
+
+  it('collects active holds across pages', async () => {
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [{ id: 'a', qualityHold: { active: true } }, { id: 'b' }], totalPages: 2 }) } as Response)
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ items: [{ id: 'c', qualityHold: { active: true } }] }) } as Response);
+    expect([...(await adapter('http://d').heldDepotIds())]).toEqual(['a', 'c']);
+  });
+
+  it('throws on a missing url, a bad status, a malformed page or row', async () => {
+    await expect(adapter('').heldDepotIds()).rejects.toThrow('missing');
+    reply({}, false, 500);
+    await expect(adapter('http://d').heldDepotIds()).rejects.toThrow('500');
+    reply({ items: 'x' });
+    await expect(adapter('http://d').heldDepotIds()).rejects.toThrow('malformed');
+    reply({ items: [{ id: 5 }] });
+    await expect(adapter('http://d').heldDepotIds()).rejects.toThrow('malformed');
+  });
+});

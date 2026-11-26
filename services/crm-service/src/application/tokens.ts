@@ -29,4 +29,6 @@ export const CRM_TOKENS = {
   MaintenanceDue: Symbol('MaintenanceDue'),
   // HD-14: the permits and lab tests due (depot-service).
   ComplianceDue: Symbol('ComplianceDue'),
+  // HD-14: which depots are on a quality hold (depot-service).
+  HeldDepots: Symbol('HeldDepots'),
 } as const;

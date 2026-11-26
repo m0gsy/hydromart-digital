@@ -301,6 +301,35 @@ describe('SubscriptionService', () => {
     });
   });
 
+  // HD-14: a depot on a quality hold is a pause for the plan, never a failed cycle.
+  describe('HD-14 · a depot on quality hold', () => {
+    const due = new Date('2026-07-02T00:00:00Z');
+    it('skips the cycle: no failure counted, no pause, no text, the date stays, and it delivers once the hold ends', async () => {
+      const p = seedProduct();
+      const sub = await service.create(customer, {
+        productId: p.id,
+        quantity: 1,
+        frequency: 'WEEKLY',
+        firstDeliveryAt: new Date('2026-07-01T00:00:00Z'),
+        address,
+      });
+      const before = subs.rows.find((r) => r.id === sub.id)!.nextDeliveryAt;
+      depots.depots = [{ ...homeDepot, onHold: true }];
+      for (let i = 0; i < 6; i += 1) {
+        expect(await service.processDue(due)).toEqual({ placed: 0, failed: 0, ok: true });
+      }
+      const held = subs.rows.find((r) => r.id === sub.id)!;
+      expect(held.status).toBe('ACTIVE');
+      expect(held.nextDeliveryAt).toEqual(before);
+      expect(orders.rows).toHaveLength(0);
+      expect(notification.calls).toEqual([]);
+
+      depots.depots = [homeDepot];
+      expect((await service.processDue(due)).placed).toBe(1);
+      expect(orders.rows).toHaveLength(1);
+    });
+  });
+
   /*
    * P3-5. A plan made from a saved address follows it: a better pin or a new patokan
    * reaches the next delivery. Never across depots, though — a plan does not change depot

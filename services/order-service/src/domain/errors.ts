@@ -141,6 +141,19 @@ export class ExpressUnavailableError extends DomainError {
  * depot directory was reachable and returned depots — an outage is DepotUnavailableError
  * (fail-closed: checkout, and since 2026-11-20 a subscription's create and move, refuse).
  */
+/**
+ * HD-14: the depot is on a quality hold, so it takes no new sale (online order, scheduled order,
+ * counter sale) and no courier takes one of its orders out. Neutral on purpose: no reason, no
+ * word about a lab test (owner decision, 26 Nov 2026). 409 so clients can tell it from "closed".
+ */
+export class DepotOnHoldError extends DomainError {
+  readonly code = 'DEPOT_ON_HOLD';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Depot ini sedang tidak melayani sementara.');
+  }
+}
+
 export class OutOfServiceAreaError extends DomainError {
   readonly code = 'ORDER_OUT_OF_SERVICE_AREA';
   readonly status = HTTP_STATUS.UNPROCESSABLE;
