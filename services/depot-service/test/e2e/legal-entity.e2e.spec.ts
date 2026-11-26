@@ -227,7 +227,7 @@ describe('Legal entities (e2e)', () => {
       .get(`/api/v1/legal-entities/internal/${id}`)
       .set({ 'x-internal-key': INTERNAL_KEY })
       .expect(200);
-    expect(res.body).toMatchObject({ id, name: 'PT Kelola Air', kind: 'OPERATOR', active: true });
+    expect(res.body).toMatchObject({ id, name: 'PT Kelola Air', kind: 'OPERATOR', active: true, bankAccount: null });
     expect(res.body.aiReadRoles).toEqual(expect.any(Array));
     await request(server())
       .get('/api/v1/legal-entities/internal/00000000-0000-4000-8000-000000000000')

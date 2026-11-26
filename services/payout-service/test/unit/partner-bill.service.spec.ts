@@ -157,6 +157,19 @@ describe('PartnerBillService.generate', () => {
     expect(hkp.created).toHaveLength(0);
   });
 
+  it('leaves out a depot span that has no commission rows', async () => {
+    const { svc, created } = build({
+      depots: [D1, D2],
+      spans: [
+        { depotId: D1, legalEntityId: PT_A, from: '2026-10-01' },
+        { depotId: D2, legalEntityId: PT_A, from: '2026-10-01' },
+      ],
+      basis: () => [basis(D1, 5000)],
+    });
+    expect(await svc.generate('2026-10')).toMatchObject({ made: 1 });
+    expect(created[0].lines).toHaveLength(1);
+  });
+
   it('is idempotent: a live bill is counted, never doubled, and a lost race counts as existing', async () => {
     const live = { [`${PT_A}|2026-10`]: { id: 'b1' } as PartnerBillRecord };
     const again = build({ live });
@@ -210,6 +223,8 @@ describe('PartnerBillService approve, void and reads', () => {
     const nobody = build({ basis: () => [] });
     nobody.stored.set('b1', draft());
     await expect(nobody.svc.approve('b1', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_NO_RECIPIENTS' });
+    nobody.stored.set('b2', draft({ id: 'b2', lines: undefined }));
+    await expect(nobody.svc.approve('b2', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_NO_RECIPIENTS' });
 
     const sent = build();
     sent.stored.set('b1', draft({ status: 'SENT' }));

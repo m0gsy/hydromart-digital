@@ -69,6 +69,7 @@ describe('PartnerBill controllers', () => {
     expect(await bad(GenerateBillsDto, { month: '2026-10' })).toBe(0);
     expect(await bad(GenerateBillsDto, { month: '2026-13' })).toBeGreaterThan(0);
     expect(await bad(VoidBillDto, { reason: '  ab ' })).toBeGreaterThan(0);
+    expect(await bad(VoidBillDto, { reason: 5 })).toBeGreaterThan(0);
     expect(await bad(VoidBillDto, { reason: ' salah badan hukum ' })).toBe(0);
     expect(await bad(PartnerBillListQueryDto, { status: 'DRAFT', month: '2026-10' })).toBe(0);
     expect(await bad(PartnerBillListQueryDto, { status: 'PAID' })).toBeGreaterThan(0);
@@ -166,6 +167,7 @@ describe('LedgerPrismaRepository commission basis (HD-23)', () => {
       ])
       .mockResolvedValueOnce([
         { depotId: 'd1', _sum: { amount: 2500 }, _count: { _all: 1 } },
+        { depotId: 'd2', _sum: { amount: null }, _count: { _all: 1 } },
         { depotId: 'dX', _sum: { amount: 1 }, _count: { _all: 1 } },
         { depotId: null, _sum: { amount: 1 }, _count: { _all: 1 } },
       ]);
@@ -173,7 +175,7 @@ describe('LedgerPrismaRepository commission basis (HD-23)', () => {
     const rows = await repo.commissionBasis(['d1', 'd2'], NOW, NOW);
     expect(rows).toEqual([
       { depotId: 'd1', commissionIdr: 150000, rows: 6, reversalRows: 1, reversalIdr: 2500, ownerIds: ['o1', 'o2'] },
-      { depotId: 'd2', commissionIdr: 0, rows: 1, reversalRows: 0, reversalIdr: 0, ownerIds: ['o3'] },
+      { depotId: 'd2', commissionIdr: 0, rows: 1, reversalRows: 1, reversalIdr: 0, ownerIds: ['o3'] },
     ]);
   });
 });
@@ -197,6 +199,8 @@ describe('PartnerBillSourcesHttpAdapter', () => {
     fetchMock.mockResolvedValue(reply(200, { spans: [{ nope: 1 }] }));
     await expect(adapter.entityTimeline(['d1'], 'a', 'b')).rejects.toMatchObject({ code: 'PARTNER_BILL_SOURCE_UNAVAILABLE' });
     fetchMock.mockResolvedValue(reply(200, {}));
+    await expect(adapter.entityTimeline(['d1'], 'a', 'b')).rejects.toMatchObject({ status: 503 });
+    fetchMock.mockResolvedValue(reply(200, { spans: [null] }));
     await expect(adapter.entityTimeline(['d1'], 'a', 'b')).rejects.toMatchObject({ status: 503 });
   });
 
@@ -274,6 +278,15 @@ describe('PartnerBillNotifierHttpAdapter', () => {
 });
 
 describe('PayoutAuditSink', () => {
+  it('still tries to write when the environment names no auth service (the ingest refuses, the sink does not crash)', async () => {
+    const saved = { ...process.env };
+    delete process.env.AUTH_SERVICE_URL;
+    delete process.env.INTERNAL_SERVICE_KEY;
+    global.fetch = jest.fn().mockResolvedValue({ ok: true }) as never;
+    await expect(new PayoutAuditSink().record({ action: 'x', actorId: null, target: 'y' } as never)).resolves.toBeUndefined();
+    process.env = saved;
+  });
+
   it('writes to the trail under the service name, and throws when the row cannot be stored', async () => {
     process.env.AUTH_SERVICE_URL = 'http://auth';
     process.env.INTERNAL_SERVICE_KEY = 'k';
