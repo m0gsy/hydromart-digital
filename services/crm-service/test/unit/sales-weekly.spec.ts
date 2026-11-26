@@ -41,7 +41,7 @@ describe('SalesWeeklyService', () => {
   const E = '22222222-2222-4222-8222-222222222222';
   const build = (over: { origin?: string; audience?: unknown; notify?: jest.Mock } = {}) => {
     const notify = over.notify ?? jest.fn(async () => ({}));
-    const entities = { audienceOf: jest.fn(async () => over.audience ?? { name: 'PT A', aiReadRoles: ['MARKETING'] }) };
+    const entities = { audienceOf: jest.fn(async () => over.audience ?? { name: 'PT A', active: true, aiReadRoles: ['MARKETING', 'MARKETING'] }) };
     const directory = {
       staffIdsByRoles: jest.fn(async () => ['a', 'b']),
       // b was moved to another role after the id read: the re-check drops it
@@ -67,6 +67,17 @@ describe('SalesWeeklyService', () => {
     );
   });
 
+  it('skips a switched-off entity, counts it, and asks the directory for each role once', async () => {
+    const off = build({ audience: { name: 'PT Off', active: false, aiReadRoles: ['MARKETING'] } });
+    expect(await off.service.run('x', '2026-11-23', [E])).toMatchObject({ inactiveEntities: 1, recipients: 0, notified: 0 });
+    expect(off.notify).not.toHaveBeenCalled();
+    const dup = build();
+    dup.directory.staffIdsByRoles.mockResolvedValue(['a', 'a', 'b']);
+    await dup.service.run('x', '2026-11-23', [E]);
+    expect(dup.directory.staffIdsByRoles).toHaveBeenCalledWith(['MARKETING']);
+    expect(dup.notify).toHaveBeenCalledTimes(1);
+  });
+
   it('answers 503 without AI_WEB_URL, when a read fails, and when a recipient could not be filed', async () => {
     await expect(build({ origin: '' }).service.run('x', '2026-11-23', [E])).rejects.toBeInstanceOf(ServiceUnavailableException);
     const down = build();
@@ -85,8 +96,8 @@ describe('LegalEntityAudienceHttpAdapter', () => {
   afterEach(() => jest.restoreAllMocks());
 
   it('reads the entity name and AI-read roles with the internal key', async () => {
-    const f = answer(200, { name: ' PT A ', aiReadRoles: ['MARKETING', 7] });
-    expect(await adapter().audienceOf('e1')).toEqual({ name: 'PT A', aiReadRoles: ['MARKETING'] });
+    const f = answer(200, { name: ' PT A ', active: false, aiReadRoles: ['MARKETING', 7] });
+    expect(await adapter().audienceOf('e1')).toEqual({ name: 'PT A', active: false, aiReadRoles: ['MARKETING'] });
     expect(f.mock.calls[0]![1]).toMatchObject({ headers: { 'x-internal-key': 'k' } });
   });
   it('reads a 404 as not an entity and throws on anything else, a malformed answer or no config', async () => {
@@ -94,8 +105,10 @@ describe('LegalEntityAudienceHttpAdapter', () => {
     expect(await adapter().audienceOf('e1')).toBeNull();
     answer(500);
     await expect(adapter().audienceOf('e1')).rejects.toThrow('500');
-    answer(200, { name: '', aiReadRoles: [] });
+    answer(200, { name: '', active: true, aiReadRoles: [] });
     await expect(adapter().audienceOf('e1')).rejects.toThrow('without a name');
+    answer(200, { name: 'PT A', aiReadRoles: [] });
+    await expect(adapter().audienceOf('e1')).rejects.toThrow('active flag');
     await expect(adapter('', '').audienceOf('e1')).rejects.toThrow('missing');
   });
 });

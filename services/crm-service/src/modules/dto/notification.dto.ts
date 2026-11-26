@@ -411,6 +411,8 @@ export class SalesWeeklyReadyResultDto {
   @ApiProperty() legalEntities!: number;
   @ApiProperty({ description: 'Ids that are not a legal entity: nothing was sent for them.' })
   unknownEntities!: number;
+  @ApiProperty({ description: 'Legal entities switched off: nothing was sent for them either.' })
+  inactiveEntities!: number;
   @ApiProperty({ description: 'People who may read these entities reports.' })
   recipients!: number;
   @ApiProperty({ description: 'Of those, how many have the notice (a retry files none twice).' })

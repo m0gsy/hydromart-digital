@@ -8,7 +8,7 @@ import { CrmConfigService } from '../../config/crm-config.service';
 export class LegalEntityAudienceHttpAdapter implements LegalEntityAudiencePort {
   constructor(private readonly config: CrmConfigService) {}
 
-  async audienceOf(id: string): Promise<{ name: string; aiReadRoles: string[] } | null> {
+  async audienceOf(id: string): Promise<{ name: string; active: boolean; aiReadRoles: string[] } | null> {
     const base = this.config.depotServiceUrl;
     const key = this.config.internalServiceKey;
     if (!base || !key) throw new Error('depot-service URL or internal key missing');
@@ -18,10 +18,10 @@ export class LegalEntityAudienceHttpAdapter implements LegalEntityAudiencePort {
     });
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`depot-service responded ${res.status}`);
-    const { name, aiReadRoles } = (await res.json()) as { name?: unknown; aiReadRoles?: unknown };
-    if (typeof name !== 'string' || !name.trim() || !Array.isArray(aiReadRoles)) {
-      throw new Error('depot-service answered an entity without a name or roles');
+    const { name, active, aiReadRoles } = (await res.json()) as { name?: unknown; active?: unknown; aiReadRoles?: unknown };
+    if (typeof name !== 'string' || !name.trim() || typeof active !== 'boolean' || !Array.isArray(aiReadRoles)) {
+      throw new Error('depot-service answered an entity without a name, active flag or roles');
     }
-    return { name: name.trim(), aiReadRoles: aiReadRoles.filter((r): r is string => typeof r === 'string') };
+    return { name: name.trim(), active, aiReadRoles: aiReadRoles.filter((r): r is string => typeof r === 'string') };
   }
 }

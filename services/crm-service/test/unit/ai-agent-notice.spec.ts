@@ -1,6 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 
 import { AiAgentNoticeService } from '../../src/application/services/ai-agent-notice.service';
+import { BossRoleUnknownError } from '../../src/domain/errors';
 import { NotificationEvent } from '../../src/domain/notification-event';
 
 const DTO = { eventId: 'e1', agentId: 'stok', agentName: 'Stok', kind: 'CAP_REACHED' as const };
@@ -28,9 +29,16 @@ describe('AiAgentNoticeService', () => {
       { who: 'Agen Stok', link: 'https://ai.test/tim-ai/stok' },
       'a',
       null,
-      'e1:a',
+      'ai-agent:CAP_REACHED:stok:e1:a',
     );
     expect(staffIdsByRoles.mock.calls[0]![0]).toEqual(expect.arrayContaining(['DIREKTUR', 'SUPER_ADMIN']));
+  });
+
+  it('refuses a boss role that may not read the AI team, and adds one that may', async () => {
+    await expect(build().service.run({ ...DTO, bossRole: 'MANAGER' })).rejects.toBeInstanceOf(BossRoleUnknownError);
+    const ok = build();
+    await ok.service.run({ ...DTO, bossRole: 'FINANCE' });
+    expect(ok.staffIdsByRoles.mock.calls[0]![0]).toContain('FINANCE');
   });
 
   it('answers 503 without AI_WEB_URL, when the directory is down, and when a recipient could not be filed', async () => {

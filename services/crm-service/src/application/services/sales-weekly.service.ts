@@ -13,6 +13,8 @@ export interface SalesWeeklyResult {
   legalEntities: number;
   /** Ids that are not a legal entity: nothing was sent for them. */
   unknownEntities: number;
+  /** Legal entities switched off: nothing was sent for them either. */
+  inactiveEntities: number;
   recipients: number;
   notified: number;
   whatsapp: 'pending';
@@ -41,17 +43,24 @@ export class SalesWeeklyService {
       throw new ServiceUnavailableException('AI_WEB_URL is not set to the AI web origin');
     }
     let unknownEntities = 0;
+    let inactiveEntities = 0;
     let recipients = 0;
     let notified = 0;
     let failed = 0;
+    // ponytail: sequential, one directory read per entity and one write per recipient: 50 entities of a
+    // few people each fit a minute or two. Callers allow a long HTTP timeout; a retry is safe (deduped).
     for (const entityId of legalEntityIds) {
       const audience = await this.read(`legal entity ${entityId}`, () => this.entities.audienceOf(entityId));
       if (!audience) {
         unknownEntities += 1;
         continue;
       }
-      const roles = audience.aiReadRoles.filter(isSalesReportRole);
-      const ids = await this.read('recipients', () => this.directory.staffIdsByRoles(roles));
+      if (!audience.active) {
+        inactiveEntities += 1;
+        continue;
+      }
+      const roles = [...new Set(audience.aiReadRoles.filter(isSalesReportRole))];
+      const ids = [...new Set(await this.read('recipients', () => this.directory.staffIdsByRoles(roles)))];
       const held = await this.read('recipients', () => this.directory.rolesOf(ids));
       const people = ids.filter((id) => roles.includes(held.get(id) ?? ''));
       recipients += people.length;
@@ -80,7 +89,7 @@ export class SalesWeeklyService {
     if (failed > 0) {
       throw new ServiceUnavailableException(`${failed} recipient(s) could not be told; retry the same eventId`);
     }
-    return { weekStart, legalEntities: legalEntityIds.length, unknownEntities, recipients, notified, whatsapp: 'pending' };
+    return { weekStart, legalEntities: legalEntityIds.length, unknownEntities, inactiveEntities, recipients, notified, whatsapp: 'pending' };
   }
 
   private read<T>(what: string, fn: () => Promise<T>): Promise<T> {

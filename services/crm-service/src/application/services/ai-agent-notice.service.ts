@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs
 import { can, rolesFor } from '@hydromart/access';
 
 import { CrmConfigService } from '../../config/crm-config.service';
+import { BossRoleUnknownError } from '../../domain/errors';
 import { NotificationEvent } from '../../domain/notification-event';
 import { AiAgentNoticeKind } from '../../domain/ai-agent-notice';
 import { ApproverDirectoryPort } from '../ports/approver-directory.port';
@@ -26,7 +27,7 @@ const EVENT_OF: Record<AiAgentNoticeKind, NotificationEvent> = {
  * AI-31: an AI agent of the "Tim AI" flagged something, hit its cap or was stopped. n8n carries
  * ids and a kind; the words, the link and the recipients are hydromart's: the holders of
  * `aiTeamManage` (Direksi), plus the agent's boss role when that role holds `aiTeamRead`. No amount
- * and no depot staff are told. There is no depotId: a body carrying one is read by the depot-scope guard and a machine token is refused 403.
+ * and no depot staff are told. There is no depotId: the depot-scope guard reads that body field before validation, so a machine token sending one is refused 403 (checked in the e2e).
  */
 @Injectable()
 export class AiAgentNoticeService {
@@ -50,8 +51,10 @@ export class AiAgentNoticeService {
     if (!/^https:\/\/[^/\s]+$/.test(origin)) {
       throw new ServiceUnavailableException('AI_WEB_URL is not set to the AI web origin');
     }
+    // A wrong key is the AI web's mistake: say so (400), rather than quietly telling nobody extra.
+    if (dto.bossRole && !can('aiTeamRead', dto.bossRole)) throw new BossRoleUnknownError();
     const roles = new Set(rolesFor('aiTeamManage'));
-    if (dto.bossRole && can('aiTeamRead', dto.bossRole)) roles.add(dto.bossRole);
+    if (dto.bossRole) roles.add(dto.bossRole);
     const recipients = await this.recipients([...roles], dto.bossRole);
     const all = dto.kind === 'STOPPED_ALL';
     const vars = {
@@ -62,7 +65,7 @@ export class AiAgentNoticeService {
     let failed = 0;
     for (const id of recipients) {
       try {
-        await this.notifications.notify(EVENT_OF[dto.kind], '', vars, id, null, `${dto.eventId}:${id}`);
+        await this.notifications.notify(EVENT_OF[dto.kind], '', vars, id, null, `ai-agent:${dto.kind}:${dto.agentId}:${dto.eventId}:${id}`);
         notified += 1;
       } catch (e) {
         failed += 1;

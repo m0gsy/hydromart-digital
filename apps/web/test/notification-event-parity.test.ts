@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { OPS_EVENT_GROUP } from '@/lib/ops-notifications';
+import { OPS_EVENT_GROUP, filterOpsFeed } from '@/lib/ops-notifications';
 import { OPS_EVENTS } from '@/lib/types';
 
 /**
@@ -46,6 +46,15 @@ describe('notification events: web mirrors crm-service', () => {
 
   it('lists every ops event for the staff feed', () => {
     expect([...OPS_EVENTS].sort()).toEqual([...crmOpsEvents()].sort());
+  });
+
+  it('shows the AI team and Sales report notices to an HQ reader on "all" and on their chip, whatever the depot', () => {
+    const row = (event: string) => ({ id: event, event, createdAt: '2026-11-26T00:00:00Z', readAt: null, depotId: null }) as never;
+    const feed = ['AI_AGENT_FLAG', 'AI_AGENT_CAP', 'AI_AGENT_STOPPED', 'SALES_WEEKLY_REPORT'].map(row);
+    const unread = () => false;
+    expect(filterOpsFeed(feed, 'all', unread)).toHaveLength(4);
+    expect(filterOpsFeed(feed, 'orders', unread).map((n) => n.event)).toEqual(['AI_AGENT_FLAG', 'AI_AGENT_CAP', 'AI_AGENT_STOPPED']);
+    expect(filterOpsFeed(feed, 'sales', unread).map((n) => n.event)).toEqual(['SALES_WEEKLY_REPORT']);
   });
 
   it('files every ops event under a feed chip', () => {

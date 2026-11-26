@@ -173,12 +173,27 @@ describe('POST notifications/external/ai-agent-notice (AI-31)', () => {
     const cap = await post(scoped(), { ...BODY, eventId: 'cap:1', kind: 'CAP_REACHED', bossRole: 'FINANCE' }).expect(200);
     expect(cap.body).toMatchObject({ recipients: 4, notified: 4 });
     expect(repo.records.filter((r) => r.event === 'AI_AGENT_CAP')[0]!.message).toContain('plafon bulan ini tercapai');
-    // MANAGER holds no aiTeamRead: named as a boss it adds nobody
-    expect((await post(scoped(), { ...BODY, eventId: 'stop:1', kind: 'STOPPED', bossRole: 'MANAGER' }).expect(200)).body).toMatchObject({ recipients: 2 });
+    // MANAGER holds no aiTeamRead: a wrong key is refused, not silently ignored
+    const wrong = await post(scoped(), { ...BODY, eventId: 'stop:1', kind: 'STOPPED', bossRole: 'MANAGER' }).expect(400);
+    expect(wrong.body.code).toBe('BOSS_ROLE_UNKNOWN');
+    expect(await post(scoped(), { ...BODY, eventId: 'stop:1', kind: 'STOPPED' }).expect(200)).toMatchObject({ body: { recipients: 2 } });
     const all = await post(scoped(), { ...BODY, eventId: 'stop:2', kind: 'STOPPED_ALL', bossRole: 'HEAD_OFFICE' }).expect(200);
     expect(all.body).toMatchObject({ recipients: 3 });
     const last = repo.records.filter((r) => r.event === 'AI_AGENT_STOPPED').pop()!;
     expect(last.message).toBe('Semua agen AI dihentikan. Buka Tim AI untuk detail. https://ai.test/tim-ai');
+  });
+
+  it('treats a reused eventId for another kind or agent as a new notice, not a duplicate', async () => {
+    const base = repo.records.length;
+    await post(scoped(), { ...BODY, eventId: 'reuse:1', kind: 'FLAG' }).expect(200);
+    const cap = await post(scoped(), { ...BODY, eventId: 'reuse:1', kind: 'CAP_REACHED' }).expect(200);
+    const other = await post(scoped(), { ...BODY, eventId: 'reuse:1', kind: 'CAP_REACHED', agentId: 'kas-depot' }).expect(200);
+    expect(cap.body.notified).toBe(2);
+    expect(other.body.notified).toBe(2);
+    expect(repo.records).toHaveLength(base + 6);
+    // and the same notice twice is still one
+    await post(scoped(), { ...BODY, eventId: 'reuse:1', kind: 'FLAG' }).expect(200);
+    expect(repo.records).toHaveLength(base + 6);
   });
 
   it.each([
@@ -192,6 +207,10 @@ describe('POST notifications/external/ai-agent-notice (AI-31)', () => {
     const count = repo.records.length;
     await post(token()).expect(403);
     expect(repo.records).toHaveLength(count);
+  });
+
+  it('refuses a body carrying depotId with 403: the depot-scope guard reads it before validation', async () => {
+    await post(scoped(), { ...BODY, depotId: '33333333-3333-4333-8333-333333333333' }).expect(403);
   });
 
   it('refuses no token with 401 and a body outside the shape with 400', async () => {

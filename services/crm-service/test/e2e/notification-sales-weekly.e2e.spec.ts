@@ -38,6 +38,7 @@ const MACHINE = '6a1d1c55-0000-4000-8000-00000000aaaa';
 const ROUTE = '/api/v1/notifications/external/sales-weekly-ready';
 const E1 = '22222222-2222-4222-8222-222222222222';
 const E2 = '33333333-3333-4333-8333-333333333333';
+const E3 = '55555555-5555-4555-8555-555555555555';
 const GONE = '44444444-4444-4444-8444-444444444444';
 
 const DAY = 86_400_000;
@@ -60,6 +61,7 @@ const ROLES: Record<string, string> = {
 const GRANTS: Record<string, string[]> = {
   [E1]: ['MARKETING', 'DIREKTUR', 'HEAD_OFFICE', 'FINANCE'],
   [E2]: ['FINANCE'],
+  [E3]: ['MARKETING'],
 };
 
 const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
@@ -135,7 +137,7 @@ describe('POST notifications/external/sales-weekly-ready (AI-26)', () => {
       .overrideProvider(CRM_TOKENS.LegalEntityAudience)
       .useValue({
         audienceOf: async (id: string) =>
-          GRANTS[id] ? { name: id === E1 ? 'PT Indowater' : 'PT Dua', aiReadRoles: GRANTS[id] } : null,
+          GRANTS[id] ? { name: id === E1 ? 'PT Indowater' : 'PT Dua', active: id !== E3, aiReadRoles: GRANTS[id] } : null,
       })
       .overrideProvider(PushService)
       .useValue({ sendToCustomer: async (id: string) => void pushed.push(id) })
@@ -174,6 +176,7 @@ describe('POST notifications/external/sales-weekly-ready (AI-26)', () => {
       weekStart: lastMonday,
       legalEntities: 1,
       unknownEntities: 0,
+      inactiveEntities: 0,
       recipients: 3,
       notified: 3,
       whatsapp: 'pending',
@@ -206,6 +209,12 @@ describe('POST notifications/external/sales-weekly-ready (AI-26)', () => {
   it('skips an id that is not an entity and tells nobody when no qualifying role is granted', async () => {
     const res = await post(scoped(), { ...BODY, legalEntityIds: [E2, GONE] }).expect(200);
     expect(res.body).toMatchObject({ legalEntities: 2, unknownEntities: 1, recipients: 0, notified: 0 });
+    expect(repo.records).toHaveLength(3);
+  });
+
+  it('sends nothing for a switched-off entity and says so', async () => {
+    const res = await post(scoped(), { ...BODY, legalEntityIds: [E3] }).expect(200);
+    expect(res.body).toMatchObject({ inactiveEntities: 1, recipients: 0, notified: 0 });
     expect(repo.records).toHaveLength(3);
   });
 

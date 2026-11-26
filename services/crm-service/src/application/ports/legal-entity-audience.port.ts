@@ -4,5 +4,5 @@
  * cannot answer, so a retry (not a vaguer notice) is what follows.
  */
 export interface LegalEntityAudiencePort {
-  audienceOf(id: string): Promise<{ name: string; aiReadRoles: string[] } | null>;
+  audienceOf(id: string): Promise<{ name: string; active: boolean; aiReadRoles: string[] } | null>;
 }
