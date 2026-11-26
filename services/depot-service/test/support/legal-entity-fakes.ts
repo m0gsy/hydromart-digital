@@ -67,6 +67,11 @@ export class InMemoryLegalEntityRepository implements LegalEntityRepository {
     return found ? { ...found } : null;
   }
 
+  async findFranchisor(): Promise<LegalEntity | null> {
+    const found = this.entities.find((e) => e.kind === 'FRANCHISOR' && e.active);
+    return found ? { ...found } : null;
+  }
+
   async kindsOf(ids: string[]) {
     return this.entities.filter((e) => ids.includes(e.id)).map((e) => ({ id: e.id, kind: e.kind }));
   }
@@ -87,6 +92,9 @@ export class InMemoryLegalEntityRepository implements LegalEntityRepository {
       updatedBy: null,
       createdAt: now,
       updatedAt: now,
+      bankName: null,
+      bankAccountNumber: null,
+      bankAccountHolder: null,
     };
     this.entities.push(row);
     return { ...row };

@@ -63,6 +63,26 @@ export class UpdateLegalEntityDto {
   @IsBoolean()
   active?: boolean;
 
+  @ApiPropertyOptional({ example: 'BCA', description: 'Official account (FRANCHISOR only); empty clears.' })
+  @present
+  @Transform(trimmed)
+  @IsString()
+  @MaxLength(60)
+  bankName?: string;
+
+  @ApiPropertyOptional({ example: '1234567890', description: 'Digits only, 5 to 25 of them; empty clears.' })
+  @present
+  @Transform(trimmed)
+  @Matches(/^(\d{5,25})?$/, { message: 'bankAccountNumber must be 5 to 25 digits' })
+  bankAccountNumber?: string;
+
+  @ApiPropertyOptional({ example: 'PT Indowater Waralaba', description: 'Account holder; empty clears.' })
+  @present
+  @Transform(trimmed)
+  @IsString()
+  @MaxLength(200)
+  bankAccountHolder?: string;
+
   @ApiPropertyOptional({
     description:
       'The updatedAt the form was shown. Required for a rename or a change of kind; a bare on/off toggle may leave it out.',
@@ -166,6 +186,12 @@ export class LegalEntityResponseDto {
   createdAt!: Date;
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: Date;
+  @ApiProperty({ type: String, nullable: true })
+  bankName!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  bankAccountNumber!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  bankAccountHolder!: string | null;
 }
 
 export class LegalEntityRecordResponseDto extends LegalEntityResponseDto {
@@ -237,6 +263,8 @@ export class LegalEntitySummaryResponseDto {
   active!: boolean;
   @ApiProperty({ type: [String], description: 'Role keys granted to read this entity in the AI web (never SUPER_ADMIN).' })
   aiReadRoles!: string[];
+  @ApiProperty({ type: Object, nullable: true, description: 'HD-23: { bankName, bankAccountNumber, bankAccountHolder } when all three are entered.' })
+  bankAccount!: { bankName: string; bankAccountNumber: string; bankAccountHolder: string } | null;
 }
 
 /** HD-6: which legal entity these depots belonged to over a period (calendar days, inclusive). */

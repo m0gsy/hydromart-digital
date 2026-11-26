@@ -3,6 +3,7 @@ import {
   InvalidRevenueAmountError,
   InvalidRevenueOwnersError,
   InvalidWithdrawalAmountError,
+  PayoutByPartnerBillError,
   WithdrawalBelowMinimumError,
   PayoutDestinationNotVerifiedError,
   WithdrawalNotFoundError,
@@ -261,6 +262,44 @@ class FakeWithdrawals implements WithdrawalRepository {
  * VERIFIED account on file. These specs are about the ledger, so the account is present.
  */
 const verifiedAccounts = () => ({ verifiedDestination: async () => 'BCA ···· 4821' }) as never;
+
+// HD-23: the ledger is bookkeeping; the withdrawal mechanics below are exercised with the
+// kill-switch open, and the refusals with it shut.
+beforeEach(() => {
+  PayoutService.ledgerPayoutOpen = true;
+});
+afterAll(() => {
+  PayoutService.ledgerPayoutOpen = false;
+});
+
+describe('PayoutService franchise payouts are closed (HD-23)', () => {
+  beforeEach(() => {
+    PayoutService.ledgerPayoutOpen = false;
+  });
+  const build = () => {
+    const ledger = new FakeLedger([900000]);
+    const withdrawals = new FakeWithdrawals(ledger);
+    const svc = new PayoutService(ledger, withdrawals, new FakeSchemes(), payoutTestConfig(), verifiedAccounts());
+    return { ledger, withdrawals, svc };
+  };
+
+  it('refuses a withdrawal and a release with PAYOUT_BY_PARTNER_BILL and writes nothing', async () => {
+    const { ledger, withdrawals, svc } = build();
+    await expect(svc.requestWithdrawal('owner-1', 100000)).rejects.toMatchObject({
+      code: 'PAYOUT_BY_PARTNER_BILL',
+      status: 409,
+    });
+    await expect(svc.releaseForOwner('owner-1')).rejects.toBeInstanceOf(PayoutByPartnerBillError);
+    expect(withdrawals.created).toHaveLength(0);
+    expect(await ledger.balanceFor('owner-1')).toBe(900000);
+  });
+
+  it('offers nobody in the HQ release queue, though the balance is still bookkept', async () => {
+    const { svc } = build();
+    expect(await svc.pendingPayouts()).toEqual([]);
+    expect((await svc.availableForOwner('owner-1')).availableBalance).toBe(900000);
+  });
+});
 
 describe('PayoutService.requestWithdrawal', () => {
   // Owner decision 2026-10-14: nothing under the floor goes to the bank.

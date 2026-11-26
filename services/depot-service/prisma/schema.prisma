@@ -1226,6 +1226,11 @@ model LegalEntity {
   updatedBy String?         @db.Uuid
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
+  /// HD-23: the official account partner bills ask the mitra to pay into. Only the FRANCHISOR
+  /// entity's is ever read; empty until head office enters it.
+  bankName          String?
+  bankAccountNumber String?
+  bankAccountHolder String?
 
   depots    DepotLegalEntity[]
   aiGrants  LegalEntityAiGrant[]
