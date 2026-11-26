@@ -94,6 +94,10 @@ export class DepotConfigService {
   get adminServiceUrl(): string {
     return this.config.get<string>('ADMIN_SERVICE_URL', '').replace(/\/+$/, '');
   }
+  /** hr-service: which SOP version is in force at a depot (visit checklists). Blank = no SOP shown. */
+  get hrServiceUrl(): string {
+    return this.config.get<string>('HR_SERVICE_URL', '').replace(/\/+$/, '');
+  }
   /** auth-service base URL — where the shared audit trail lives (H-29). */
   get authServiceUrl(): string {
     return this.config.get<string>('AUTH_SERVICE_URL', '').replace(/\/+$/, '');

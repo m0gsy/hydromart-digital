@@ -69,6 +69,8 @@ const SEGMENT_ENV: Record<string, string> = {
   // HD-16: SOP documents and versions (hr-service). Own public segment, same upstream.
   sops: 'HR_SERVICE_URL',
   'shift-rotations': 'HR_SERVICE_URL',
+  // HD-15B: supervisor visit checklist templates (depot-service). Own public segment, same upstream.
+  'visit-templates': 'DEPOT_SERVICE_URL',
 };
 
 @Injectable()

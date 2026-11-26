@@ -663,3 +663,13 @@ export class AiSuggestionReusedError extends DomainError {
     super('This X-AI-Suggestion-Id already made a different draft.');
   }
 }
+
+/* ---------- Visit templates (HD-15B) ---------- */
+
+export class VisitTemplateNotFoundError extends DomainError {
+  readonly code = 'VISIT_TEMPLATE_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Template kunjungan tidak ditemukan.');
+  }
+}

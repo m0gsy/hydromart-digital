@@ -621,6 +621,18 @@ export const CAPABILITIES = {
    * says "now"; which items are due and who is told is hydromart's.
    */
   maintenanceDueNotify: ['SUPER_ADMIN'],
+  /*
+   * depot-service (HD-15B) - write the checklist templates a supervisor visit starts from. Head
+   * office and directors only; the network has one template list. Not in CUSTOM_FORBIDDEN: an
+   * ordinary capability with no depot fence.
+   */
+  visitTemplateManage: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  /*
+   * depot-service (HD-15B) - conduct a depot visit: read the active templates, and (PR-4) check in,
+   * answer the checklist and record findings. Assistant supervisors and supervisors; a manager
+   * does not visit (owner default, the matrix is editable).
+   */
+  visitConduct: ['ASSISTANT_SUPERVISOR', 'SUPERVISOR', 'SUPER_ADMIN'],
   // promo-service — RETIRED: the voucher-request flow was removed, nothing enforces this any more.
   // Kept only so a stored matrix row naming it still validates.
   voucherRequestDecide: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],

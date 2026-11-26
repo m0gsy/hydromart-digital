@@ -8,6 +8,13 @@
 // `endpoints` is still one object, assembled in ./index.ts.
 
 export const depot = {
+  // HD-15B — supervisor visit checklist templates (depot-service). HQ reads `manage` and writes
+  // with visitTemplateManage; the gateway segment is `visit-templates`.
+  visitTemplates: {
+    manage: '/visit-templates/api/v1/visit-templates/manage',
+    create: '/visit-templates/api/v1/visit-templates',
+    update: (id: string) => `/visit-templates/api/v1/visit-templates/${id}`,
+  },
   // HD-5 — /hq/legal-entities (depot-service). Read and write are legalEntityAdmin; the AI-web
   // matrix (aiGrants) is legalEntityAiAccess, the superuser by default.
   legalEntities: {

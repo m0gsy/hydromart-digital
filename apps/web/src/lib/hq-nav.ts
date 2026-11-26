@@ -121,6 +121,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/inventory', labelKey: 'inventory', cap: 'inventoryRead' },
       { href: '/hq/returns', labelKey: 'returns', cap: 'returnsRead' },
       { href: '/hq/roster', labelKey: 'roster', cap: 'driverRoster' },
+      { href: '/hq/visit-templates', labelKey: 'visitTemplates', cap: 'visitTemplateManage' },
     ],
   },
   {

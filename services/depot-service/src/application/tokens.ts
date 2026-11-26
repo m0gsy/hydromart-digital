@@ -52,6 +52,9 @@ export const DEPOT_TOKENS = {
   /** HD-15: water through a depot's meter over a range (order-service), for volume-based maintenance. */
   MeterVolume: Symbol('MeterVolume'),
   HuddleRepository: Symbol('HuddleRepository'),
+  /** HD-15B: supervisor visit checklist templates, and hr-service's SOP-in-force lookup. */
+  VisitTemplateRepository: Symbol('VisitTemplateRepository'),
+  SopLookup: Symbol('SopLookup'),
   HandoverRepository: Symbol('HandoverRepository'),
   OperationalReportRepository: Symbol('OperationalReportRepository'),
   Storage: Symbol('Storage'),

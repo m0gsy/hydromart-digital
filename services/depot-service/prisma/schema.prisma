@@ -1304,3 +1304,33 @@ model WebhookEventOutbox {
   @@index([status, nextAttemptAt])
   @@map("webhook_event_outbox")
 }
+
+/// HD-15B: a checklist head office writes once and every supervisor visit starts from (decision
+/// D18). Network-wide, no depot column. A visit COPIES the item text when it starts (PR-4), so
+/// editing or deactivating a template never changes a visit already made.
+model VisitTemplate {
+  id        String              @id @default(uuid()) @db.Uuid
+  name      String
+  active    Boolean             @default(true)
+  createdBy String?             @db.Uuid
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  items     VisitTemplateItem[]
+
+  @@map("visit_templates")
+}
+
+/// One line of a template's checklist, in `position` order. `sopId` is hr-service's Sop.id, a bare
+/// id on purpose (no cross-service FK): an id hr does not know simply resolves to "no SOP in
+/// force" when it is looked up, so this table never depends on hr being up.
+model VisitTemplateItem {
+  id         String        @id @default(uuid()) @db.Uuid
+  templateId String        @db.Uuid
+  position   Int
+  text       String
+  sopId      String?       @db.Uuid
+  template   VisitTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@index([templateId, position])
+  @@map("visit_template_items")
+}

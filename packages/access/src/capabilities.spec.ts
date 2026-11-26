@@ -158,6 +158,16 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).not.toContain('sopManage');
   });
 
+  // HD-15B: head office writes visit templates; supervisors conduct visits, a manager does not.
+  it('lets head office write visit templates and supervisors conduct visits', () => {
+    expect(CAPABILITIES.visitTemplateManage).toEqual(['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);
+    expect(CAPABILITIES.visitConduct).toEqual(['ASSISTANT_SUPERVISOR', 'SUPERVISOR', 'SUPER_ADMIN']);
+    expect(can('visitConduct', 'MANAGER')).toBe(false);
+    expect(can('visitTemplateManage', 'SUPERVISOR')).toBe(false);
+    expect(CUSTOM_FORBIDDEN).not.toContain('visitTemplateManage');
+    expect(CUSTOM_FORBIDDEN).not.toContain('visitConduct');
+  });
+
   // AI-5: n8n raises "new franchise application" with its machine token's scopes; the people
   // told are the ones who review applications, and nobody else gets to raise it.
   it('leaves raising the franchise-application notification to the machine account', () => {
