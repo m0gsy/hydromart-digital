@@ -50,7 +50,8 @@ describe('FranchiseApplicationService.openForCrm (HD-21 section 5)', () => {
     ]);
     const service = new FranchiseApplicationService({ listOpen } as never, {} as never, {} as never);
     const { applications } = await service.openForCrm();
-    expect(listOpen).toHaveBeenCalledWith(2000);
+    expect(listOpen).toHaveBeenCalledWith(2001);
+    expect(await service.openForCrm().then((r) => r.truncated)).toBe(false);
     expect(applications[0]).toEqual({
       id: '00000000-0000-4000-8000-0000000000a1',
       stage: 'PENDING',
@@ -69,6 +70,19 @@ describe('FranchiseApplicationService.openForCrm (HD-21 section 5)', () => {
     expect(Object.keys(applications[0]!).sort()).toEqual(
       ['applicantName', 'applicantPhoneE164', 'city', 'firstSource', 'id', 'investmentAmountIdr', 'privacyConsentVersion', 'proposedName', 'province', 'stage', 'submittedAt'],
     );
+  });
+});
+
+describe('the export cap', () => {
+  const rows = (n: number) => Array.from({ length: n }, (_, i) => row({ id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}` }));
+  const svc = (n: number) => new FranchiseApplicationService({ listOpen: async () => rows(n) } as never, {} as never, {} as never);
+
+  it('says truncated only when there are MORE than 2000 open applications, and then returns exactly 2000', async () => {
+    const exact = await svc(2000).openForCrm();
+    expect([exact.applications.length, exact.truncated]).toEqual([2000, false]);
+    const more = await svc(2001).openForCrm();
+    expect([more.applications.length, more.truncated]).toEqual([2000, true]);
+    expect((await svc(0).openForCrm())).toEqual({ applications: [], truncated: false });
   });
 });
 

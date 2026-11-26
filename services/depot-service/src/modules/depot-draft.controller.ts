@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Logger, Param, ParseUUIDPipe, Post, Query, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpException, HttpStatus, Logger, Param, ParseUUIDPipe, Post, Query, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import {
@@ -6,6 +6,7 @@ import {
   AuthenticatedUser,
   Can,
   CurrentUser,
+  DomainError,
   recordAuditEvent,
 } from '@hydromart/platform';
 
@@ -76,9 +77,25 @@ export class DepotDraftController {
     @Body() dto: CreateDepotDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<DepotRecord> {
-    const depot = await this.drafts.activate(id, toCreateDepotData(dto), user.sub);
+    const sink = { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey };
+    let depot: DepotRecord;
+    try {
+      depot = await this.drafts.activate(id, toCreateDepotData(dto), user.sub);
+    } catch (e) {
+      // A refusal (4xx) is worth a line too: who tried, and the code that stopped it. The code only.
+      const status = e instanceof DomainError ? e.status : e instanceof HttpException ? e.getStatus() : 500;
+      if (status >= 400 && status < 500) {
+        const code = e instanceof DomainError ? e.code : `HTTP_${status}`;
+        await recordAuditEvent(
+          sink,
+          { action: 'depot.draft.activate.refused', actorId: user.sub, target: id, metadata: { draftId: id, code } },
+          this.logger,
+        );
+      }
+      throw e;
+    }
     await recordAuditEvent(
-      { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey },
+      sink,
       {
         action: 'depot.draft.activated',
         actorId: user.sub,

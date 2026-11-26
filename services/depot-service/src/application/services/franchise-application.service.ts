@@ -108,11 +108,16 @@ export class FranchiseApplicationService {
    * for and no more (no GPS pin, no checklist, no projected revenue). Read only: nothing is deleted
    * here, and there is no AI-token delete route.
    */
-  async openForCrm(): Promise<{ applications: LegacyApplicationView[] }> {
-    // ponytail: one read capped at LEGACY_EXPORT_CAP; the open queue is tens of rows, not thousands.
-    const rows = await this.applications.listOpen(LEGACY_EXPORT_CAP);
+  async openForCrm(): Promise<{ applications: LegacyApplicationView[]; truncated: boolean }> {
+    // `stage` is the ONLY lifecycle flag of franchise_applications: there is no soft-delete,
+    // withdrawn or archived column, so "open" is exactly PENDING, DOC_VERIFICATION and SURVEY (a row
+    // that was deleted is simply absent). One more row than the cap is read to tell "exactly the cap"
+    // from "more than the cap", and the answer says so rather than silently dropping the rest.
+    const rows = await this.applications.listOpen(LEGACY_EXPORT_CAP + 1);
+    const truncated = rows.length > LEGACY_EXPORT_CAP;
     return {
-      applications: rows.map((a) => ({
+      truncated,
+      applications: rows.slice(0, LEGACY_EXPORT_CAP).map((a) => ({
         id: a.id,
         stage: a.stage as 'PENDING' | 'DOC_VERIFICATION' | 'SURVEY',
         applicantName: a.applicantName,

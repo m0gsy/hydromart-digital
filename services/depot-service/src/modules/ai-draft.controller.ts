@@ -8,6 +8,7 @@ import {
   Get,
   Injectable,
   Headers,
+  Logger,
   HttpCode,
   HttpStatus,
   Param,
@@ -28,9 +29,11 @@ import {
   CurrentUser,
   ExternalAccess,
   isDepotLocked,
+  recordAuditEvent,
 } from '@hydromart/platform';
 
 import { DepotDraftService, DepotDraftStatusView } from '../application/services/depot-draft.service';
+import { DepotConfigService } from '../config/depot-config.service';
 import { FranchiseApplicationService, LegacyApplicationView } from '../application/services/franchise-application.service';
 import { LegalEntityService } from '../application/services/legal-entity.service';
 import { PriceOverrideService } from '../application/services/price-override.service';
@@ -212,9 +215,12 @@ export class AiDraftController {
 @UseGuards(AiTokenOnlyGuard)
 @Controller({ path: 'ai/crm', version: '1' })
 export class AiCrmController {
+  private readonly logger = new Logger(AiCrmController.name);
+
   constructor(
     private readonly entities: LegalEntityService,
     private readonly applications: FranchiseApplicationService,
+    private readonly config: DepotConfigService,
   ) {}
 
   @ApiOkResponse({ type: CrmAccessResponseDto })
@@ -243,7 +249,21 @@ export class AiCrmController {
   @Can('prospectSettings')
   @Get('legacy-applications')
   @ApiOperation({ summary: 'AI web CRM: the open franchise applications to import as prospects (HD-21)' })
-  legacyApplications(): Promise<{ applications: LegacyApplicationView[] }> {
-    return this.applications.openForCrm();
+  async legacyApplications(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ applications: LegacyApplicationView[]; truncated: boolean }> {
+    const result = await this.applications.openForCrm();
+    // One event per call: who read the export and how much, never what (no name, no phone).
+    await recordAuditEvent(
+      { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey },
+      {
+        action: 'ai.crm.legacy-applications.read',
+        actorId: user.sub,
+        target: 'franchise_applications',
+        metadata: { via: 'ai', count: result.applications.length, truncated: result.truncated },
+      },
+      this.logger,
+    );
+    return result;
   }
 }

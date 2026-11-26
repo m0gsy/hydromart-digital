@@ -121,7 +121,7 @@ describe('AccountService.staffNamesByRoles', () => {
     const { service } = build();
     const endless = { listStaff: async () => ({ items: [makeCustomer({ role: Role.MARKETING, fullName: 'X' })], total: 1_000_000 }) };
     const big = new AccountService(endless as never, {} as never, new AuditService(new InMemoryAuditLogRepository()));
-    await expect(big.staffNamesByRoles(['MARKETING'], 5)).rejects.toThrow();
+    await expect(big.staffNamesByRoles(['MARKETING'], 5)).rejects.toMatchObject({ code: 'AUTH_PIC_ROSTER_TOO_LARGE', status: 422 });
     expect(service).toBeDefined();
   });
 });

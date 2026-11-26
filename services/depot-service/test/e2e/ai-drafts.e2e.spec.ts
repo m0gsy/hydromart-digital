@@ -534,6 +534,7 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       const LEGACY = '/api/v1/ai/crm/legacy-applications';
       const res = await get(LEGACY, aiToken('SUPER_ADMIN', null)).expect(200);
       expect(res.body.applications).toHaveLength(2);
+      expect(res.body.truncated).toBe(false);
       expect(res.body.applications[0]).toMatchObject({ stage: 'PENDING', applicantPhoneE164: '+6281200000001', investmentAmountIdr: 100_000_000 });
       expect(res.body.applications[1]).toMatchObject({ stage: 'SURVEY', applicantPhoneE164: null });
       expect(JSON.stringify(res.body)).not.toMatch(/"lat"|"lng"|checklist/);

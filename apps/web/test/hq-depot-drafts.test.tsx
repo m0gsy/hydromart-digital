@@ -7,7 +7,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, post, push, toast, askReason, auth, formProps } = vi.hoisted(() => ({
+const { get, post, push, toast, askReason, confirm, auth, formProps } = vi.hoisted(() => ({
+  confirm: vi.fn(),
   get: vi.fn(),
   post: vi.fn(),
   push: vi.fn(),
@@ -19,7 +20,14 @@ const { get, post, push, toast, askReason, auth, formProps } = vi.hoisted(() => 
 
 vi.mock('@/lib/api', () => ({
   api: { get, getCached: get, post },
-  ApiError: class ApiError extends Error {},
+  ApiError: class ApiError extends Error {
+    constructor(
+      public readonly status: number,
+      message: string,
+    ) {
+      super(message);
+    }
+  },
 }));
 vi.mock('@/lib/locale-context', () => ({
   useT: () => ({
@@ -31,7 +39,7 @@ vi.mock('@/lib/auth-context', () => ({
   useAuth: () => ({ customer: { id: 'u-1', role: auth.role } }),
 }));
 vi.mock('@/components/toast', () => ({ useToast: () => ({ toast }) }));
-vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ askReason }) }));
+vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ askReason, confirm }) }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, replace: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => '/hq/depot-drafts',
@@ -73,6 +81,17 @@ const draft = (over: Record<string, unknown> = {}) => ({
   updatedAt: '2026-11-20T03:00:00.000Z',
   ...over,
 });
+
+/** The detail read, and the phone lookup the invite asks first: 404 unless a lookup answer is given. */
+function serve(d: Record<string, unknown> = draft(), lookup: Record<string, unknown> | null = null) {
+  get.mockImplementation(async (url: string) => {
+    if (String(url).includes('/customers/lookup')) {
+      if (lookup) return lookup;
+      throw new (await import('@/lib/api')).ApiError(404, 'tidak ada');
+    }
+    return d;
+  });
+}
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -129,7 +148,7 @@ describe('/hq/depot-drafts', () => {
 
 describe('/hq/depot-drafts/detail', () => {
   it('shows the draft, the checklist and the 14-day check', async () => {
-    get.mockResolvedValue(draft());
+    serve();
     render(<HqDepotDraftDetailPage />);
     expect(await screen.findByText(/Budi Santoso/)).toBeTruthy();
     expect(screen.getByText(/\+6281234567890/)).toBeTruthy();
@@ -147,7 +166,7 @@ describe('/hq/depot-drafts/detail', () => {
   });
 
   it('rejects with a note, posts it, and goes back to the list; a cancelled prompt posts nothing', async () => {
-    get.mockResolvedValue(draft());
+    serve();
     post.mockResolvedValue({});
     render(<HqDepotDraftDetailPage />);
     const reject = await screen.findByText('hq.depotDrafts.detail.reject');
@@ -162,7 +181,7 @@ describe('/hq/depot-drafts/detail', () => {
   });
 
   it('invites a FRANCHISE_OWNER first, then opens the depot form prefilled and aimed at the activate route', async () => {
-    get.mockResolvedValue(draft());
+    serve();
     post.mockResolvedValue({ id: 'owner-9' });
     render(<HqDepotDraftDetailPage />);
     await userEvent.click(await screen.findByText('hq.depotDrafts.detail.activate'));
@@ -186,7 +205,7 @@ describe('/hq/depot-drafts/detail', () => {
   });
 
   it('keeps the invited owner for this draft across a reload: no second invite, the form opens straight away', async () => {
-    get.mockResolvedValue(draft());
+    serve();
     post.mockResolvedValue({ id: 'owner-9' });
     const first = render(<HqDepotDraftDetailPage />);
     await userEvent.click(await screen.findByText('hq.depotDrafts.detail.activate'));
@@ -200,7 +219,7 @@ describe('/hq/depot-drafts/detail', () => {
   });
 
   it('rejecting after an invite says the owner account stays; the kept id is forgotten once rejected', async () => {
-    get.mockResolvedValue(draft());
+    serve();
     post.mockResolvedValue({ id: 'owner-9' });
     render(<HqDepotDraftDetailPage />);
     await userEvent.click(await screen.findByText('hq.depotDrafts.detail.activate'));
@@ -213,7 +232,7 @@ describe('/hq/depot-drafts/detail', () => {
   });
 
   it('without an invite the reject prompt does not mention an owner account', async () => {
-    get.mockResolvedValue(draft());
+    serve();
     post.mockResolvedValue({});
     render(<HqDepotDraftDetailPage />);
     askReason.mockResolvedValueOnce('batal');
@@ -222,8 +241,80 @@ describe('/hq/depot-drafts/detail', () => {
     expect(askReason.mock.calls[0]![0].message).not.toContain('rejectAfterInvite');
   });
 
+  describe('the invite never silently re-roles an account that holds the phone', () => {
+    const LOOKUP = '/auth/api/v1/auth/customers/lookup?phone=%2B6281234567890';
+    const click = async () => userEvent.click(await screen.findByText('hq.depotDrafts.detail.activate'));
+
+    it('no account: invites as before', async () => {
+      serve();
+      post.mockResolvedValue({ id: 'owner-9' });
+      render(<HqDepotDraftDetailPage />);
+      await click();
+      await waitFor(() => expect(screen.getByTestId('depot-form')).toBeTruthy());
+      expect(get).toHaveBeenCalledWith(LOOKUP, true);
+      expect(post).toHaveBeenCalledWith('/auth/api/v1/auth/staff/invite', expect.objectContaining({ role: 'FRANCHISE_OWNER' }), true);
+      expect(confirm).not.toHaveBeenCalled();
+    });
+
+    it('an active franchise owner: reuses that account, no invite and no prompt', async () => {
+      serve(draft(), { id: 'owner-5', role: 'FRANCHISE_OWNER', status: 'ACTIVE' });
+      render(<HqDepotDraftDetailPage />);
+      await click();
+      await waitFor(() => expect(screen.getByTestId('depot-form')).toBeTruthy());
+      expect(formProps.current?.initial).toMatchObject({ owners: [{ ownerId: 'owner-5' }] });
+      expect(post).not.toHaveBeenCalled();
+      expect(confirm).not.toHaveBeenCalled();
+    });
+
+    it('an active customer: asks first, naming what happens, and invites only after a yes', async () => {
+      serve(draft(), { id: 'cust-1', role: 'CUSTOMER', status: 'ACTIVE' });
+      post.mockResolvedValue({ id: 'cust-1' });
+      confirm.mockResolvedValueOnce(false);
+      render(<HqDepotDraftDetailPage />);
+      await click();
+      await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+      expect(confirm.mock.calls[0]![0].message).toBe('hq.depotDrafts.detail.customerMessage');
+      expect(post).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('depot-form')).toBeNull();
+      confirm.mockResolvedValueOnce(true);
+      await userEvent.click(screen.getByText('hq.depotDrafts.detail.activate'));
+      await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.getByTestId('depot-form')).toBeTruthy());
+    });
+
+    it.each([
+      ['an employee', { id: 'e-1', role: 'KEPALA_DEPOT', status: 'ACTIVE' }, 'KEPALA_DEPOT', 'ACTIVE'],
+      ['a head office account', { id: 'e-2', role: 'HEAD_OFFICE', status: 'ACTIVE' }, 'HEAD_OFFICE', 'ACTIVE'],
+      ['a suspended customer', { id: 'c-2', role: 'CUSTOMER', status: 'SUSPENDED' }, 'CUSTOMER', 'SUSPENDED'],
+      ['a suspended franchise owner', { id: 'o-2', role: 'FRANCHISE_OWNER', status: 'SUSPENDED' }, 'FRANCHISE_OWNER', 'SUSPENDED'],
+      ['a pending account', { id: 'c-3', role: 'CUSTOMER', status: 'PENDING' }, 'CUSTOMER', 'PENDING'],
+    ])('%s: blocked with the role and status named, nothing sent, no form', async (_n, account, role, status) => {
+      serve(draft(), account);
+      render(<HqDepotDraftDetailPage />);
+      await click();
+      await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.stringContaining('hq.depotDrafts.detail.phoneTaken'), 'error'));
+      const message = toast.mock.calls.find((c) => String(c[0]).includes('phoneTaken'))![0] as string;
+      expect(message).toContain(`"status":"${status}"`);
+      expect(message).toContain(role);
+      expect(post).not.toHaveBeenCalled();
+      expect(confirm).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('depot-form')).toBeNull();
+    });
+
+    it('a lookup that fails for another reason stops the invite too', async () => {
+      get.mockImplementation(async (url: string) => {
+        if (String(url).includes('/customers/lookup')) throw new Error('down');
+        return draft();
+      });
+      render(<HqDepotDraftDetailPage />);
+      await click();
+      await waitFor(() => expect(toast).toHaveBeenCalledWith('hq.depotDrafts.detail.inviteError', 'error'));
+      expect(post).not.toHaveBeenCalled();
+    });
+  });
+
   it('opens no form when the invite fails, and says why', async () => {
-    get.mockResolvedValue(draft());
+    serve();
     post.mockRejectedValue(new Error('x'));
     render(<HqDepotDraftDetailPage />);
     await userEvent.click(await screen.findByText('hq.depotDrafts.detail.activate'));
@@ -233,7 +324,7 @@ describe('/hq/depot-drafts/detail', () => {
 
   it('a role without staff-admin cannot invite: the button is off and the hint says who can', async () => {
     auth.role = 'DIREKTUR';
-    get.mockResolvedValue(draft());
+    serve();
     render(<HqDepotDraftDetailPage />);
     const button = (await screen.findByText('hq.depotDrafts.detail.activate')).closest('button') as HTMLButtonElement;
     expect(button.disabled).toBe(true);

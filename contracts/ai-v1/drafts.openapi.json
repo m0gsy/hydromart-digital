@@ -729,7 +729,7 @@
     "/depot/api/v1/ai/crm/legacy-applications": {
       "get": {
         "summary": "The open franchise applications, for the CRM's one-time import (HD-21).",
-        "description": "Needs prospectSettings. Only the open stages (PENDING, DOC_VERIFICATION, SURVEY), never APPROVED or REJECTED, oldest first. Exactly the fields below: no GPS pin, no checklist, no projected revenue. Read only: there is no AI-token route that changes or deletes an application; the hydromart copies are removed later by a reviewed one-shot after a dry run and a separate owner confirmation. The AI web maps investmentAmountIdr to a capital RANGE at import and never stores the amount.",
+        "description": "Needs prospectSettings. Only the open stages (PENDING, DOC_VERIFICATION, SURVEY), never APPROVED or REJECTED, oldest first. Exactly the fields below: no GPS pin, no checklist, no projected revenue. Read only: there is no AI-token route that changes or deletes an application; the hydromart copies are removed later by a reviewed one-shot after a dry run and a separate owner confirmation. The AI web maps investmentAmountIdr to a capital RANGE at import and never stores the amount. At most 2000 applications are answered (the oldest); truncated says when there were more. Every call is written to the audit trail with the count and the truncated flag, never the content.",
         "security": [
           {
             "aiToken": []
@@ -1670,7 +1670,8 @@
       "LegacyApplications": {
         "type": "object",
         "required": [
-          "applications"
+          "applications",
+          "truncated"
         ],
         "properties": {
           "applications": {
@@ -1678,6 +1679,10 @@
             "items": {
               "$ref": "#/components/schemas/LegacyApplication"
             }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when more than 2000 open applications exist: the 2000 oldest are answered and the rest are not."
           }
         }
       },

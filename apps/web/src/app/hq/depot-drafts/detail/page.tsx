@@ -11,6 +11,7 @@ import { useToast } from '@/components/toast';
 import { Badge, Button, Card, ErrorState, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { roleLabel } from '@/lib/custom-role';
 import { DRAFT_CHECKLIST, earliestSigning, type DepotDraft } from '@/lib/depot-drafts';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
@@ -31,7 +32,7 @@ export default function HqDepotDraftDetailPage() {
   const id = useQueryParam('id');
   const { t } = useT();
   const { toast } = useToast();
-  const { askReason } = useConfirm();
+  const { askReason, confirm } = useConfirm();
   const router = useRouter();
   const { customer } = useAuth();
   const [busy, setBusy] = useState(false);
@@ -113,8 +114,43 @@ export default function HqDepotDraftDetailPage() {
     }, t('hq.depotDrafts.detail.actionError'));
   };
 
+  /**
+   * The invite re-roles an account that already holds the phone: an employee would be demoted, their
+   * HR record closed, a suspended login lifted. So the phone is looked up first (the staff phone
+   * lookup HEAD_OFFICE already has) and only a number nobody holds, or a plain active customer who
+   * agrees, is invited. An active franchise owner is simply reused.
+   */
   const invite = () =>
     guarded(async () => {
+      let existing: { id: string; role: string; status: string } | null = null;
+      try {
+        existing = await api.get<{ id: string; role: string; status: string }>(
+          endpoints.auth.customerLookup(draft.ownerPhoneE164 ?? ''),
+          true,
+        );
+      } catch (err) {
+        if (!(err instanceof ApiError) || err.status !== 404) throw err;
+      }
+      if (existing) {
+        if (existing.role === 'FRANCHISE_OWNER' && existing.status === 'ACTIVE') {
+          setOwnerId(existing.id);
+          toast(t('hq.depotDrafts.detail.ownerReused'), 'success');
+          return;
+        }
+        if (existing.role !== 'CUSTOMER' || existing.status !== 'ACTIVE') {
+          toast(
+            t('hq.depotDrafts.detail.phoneTaken', { role: roleLabel(t, existing.role), status: existing.status }),
+            'error',
+          );
+          return;
+        }
+        const yes = await confirm({
+          title: t('hq.depotDrafts.detail.customerTitle'),
+          message: t('hq.depotDrafts.detail.customerMessage'),
+          confirmLabel: t('hq.depotDrafts.detail.customerConfirm'),
+        });
+        if (!yes) return;
+      }
       const owner = await api.post<{ id: string }>(
         endpoints.auth.inviteStaff,
         {

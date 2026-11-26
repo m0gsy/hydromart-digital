@@ -11,6 +11,7 @@ import {
 import {
   CustomerNotFoundError,
   DriverRosterTooLargeError,
+  PicRosterTooLargeError,
   EmailAlreadyRegisteredError,
   ErasureRequestOpenError,
   InvalidStaffRoleError,
@@ -57,6 +58,8 @@ import { SessionInfo, SessionService } from './session.service';
  * table into one response, not to bound normal use.
  */
 const MAX_DRIVERS = 2_000;
+/** The most staff rows `staffNamesByRoles` reads while looking for PIC candidates. */
+const MAX_PIC_ROSTER = 2_000;
 
 /** One row of a bulk staff invite — the same fields the single invite takes. */
 export interface ImportStaffRow extends InviteStaffInput {}
@@ -357,7 +360,7 @@ export class AccountService {
           if (c.status === CustomerStatus.ACTIVE && name) people.set(c.id, name);
         }
         if (items.length === 0 || seen >= total) break;
-        if (seen >= MAX_DRIVERS) throw new DriverRosterTooLargeError(MAX_DRIVERS);
+        if (seen >= MAX_PIC_ROSTER) throw new PicRosterTooLargeError(MAX_PIC_ROSTER);
       }
     }
     return [...people]

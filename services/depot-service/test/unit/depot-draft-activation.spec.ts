@@ -339,6 +339,61 @@ describe('DepotDraftPrismaRepository list and reject', () => {
   });
 });
 
+describe('audit of the legacy export and of a refused activation', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+  const sent: Record<string, unknown>[] = [];
+  const config = { authServiceUrl: 'http://auth.test', internalServiceKey: 'k'.repeat(32) };
+  beforeEach(() => {
+    sent.length = 0;
+    global.fetch = jest.fn(async (_u: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return { ok: true, status: 201 } as never;
+    }) as never;
+  });
+
+  it('records one event per export call with the count and the truncated flag, and nothing personal', async () => {
+    const { AiCrmController } = await import('../../src/modules/ai-draft.controller');
+    const applications = {
+      openForCrm: jest.fn(async () => ({
+        applications: [{ id: 'a', applicantName: 'Calon Contoh Satu', applicantPhoneE164: '+6281200000001' }],
+        truncated: true,
+      })),
+    };
+    const controller = new AiCrmController({} as never, applications as never, config as never);
+    await expect(controller.legacyApplications({ sub: HQ } as never)).resolves.toMatchObject({ truncated: true });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      action: 'ai.crm.legacy-applications.read',
+      actorId: HQ,
+      metadata: { via: 'ai', count: 1, truncated: true },
+    });
+    expect(JSON.stringify(sent[0])).not.toMatch(/Calon Contoh|\+62812/);
+  });
+
+  it('records a refused activation (4xx) with its code only, then rethrows; a 5xx is not recorded', async () => {
+    const { DepotDraftController } = await import('../../src/modules/depot-draft.controller');
+    const { DepotDraftNotOpenError } = await import('../../src/domain/errors');
+    const { BadRequestException } = await import('@nestjs/common');
+    const activate = jest
+      .fn()
+      .mockRejectedValueOnce(new DepotDraftNotOpenError())
+      .mockRejectedValueOnce(new BadRequestException('bad'))
+      .mockRejectedValueOnce(new Error('boom'));
+    const controller = new DepotDraftController({ activate } as never, config as never);
+    const dto = { code: 'X-1', name: 'n', ownershipType: 'WARALABA', address: 'Jl. Rahasia 1', deliveryFee: 1, lat: 1, lng: 2 };
+    await expect(controller.activate(DRAFT, dto as never, { sub: HQ } as never)).rejects.toMatchObject({ code: 'DEPOT_DRAFT_NOT_OPEN' });
+    await expect(controller.activate(DRAFT, dto as never, { sub: HQ } as never)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.activate(DRAFT, dto as never, { sub: HQ } as never)).rejects.toThrow('boom');
+    expect(sent).toHaveLength(2);
+    expect(sent[0]).toMatchObject({ action: 'depot.draft.activate.refused', metadata: { draftId: DRAFT, code: 'DEPOT_DRAFT_NOT_OPEN' } });
+    expect(sent[1]).toMatchObject({ metadata: { draftId: DRAFT, code: 'HTTP_400' } });
+    expect(JSON.stringify(sent)).not.toMatch(/Rahasia/);
+  });
+});
+
 describe('DepotDraftController audit of an activation', () => {
   const realFetch = global.fetch;
   afterEach(() => {

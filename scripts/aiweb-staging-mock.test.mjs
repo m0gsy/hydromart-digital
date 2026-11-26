@@ -957,6 +957,8 @@ test('CRM calon mitra: the legacy applications and the PIC candidates hold the c
     const legacy = await (await get(mock, legacyPath, sales)).json();
     const l = drafts.components.schemas.LegacyApplication;
     assert.equal(legacy.applications.length, 2);
+    assert.equal(legacy.truncated, false);
+    for (const f of drafts.components.schemas.LegacyApplications.required) assert.ok(legacy[f] !== undefined, `response has ${f}`);
     assert.deepEqual(legacy.applications.map((a) => a.stage), ['PENDING', 'SURVEY']);
     for (const a of legacy.applications) {
       for (const f of l.required) assert.ok(a[f] !== undefined, `application has ${f}`);

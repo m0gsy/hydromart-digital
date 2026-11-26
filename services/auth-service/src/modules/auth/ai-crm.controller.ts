@@ -41,6 +41,10 @@ export class AiTokenOnlyGuard implements CanActivate {
 /**
  * HD-21 section 6: who the AI web's CRM may name as a PIC (person in charge): the active staff
  * whose role holds `prospectCrm` right now. Names only.
+ *
+ * Shown to every `prospectRead` holder on purpose, not only to `prospectCrm`: the aggregate view lists
+ * a summary per Sales person, so the picker and those lists need their names. Staff names are not
+ * prospect data, and no phone, email or role leaves here.
  */
 @ApiTags('AI CRM')
 @ApiBearerAuth()

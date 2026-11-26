@@ -555,7 +555,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
   function crmLegacy(req) {
     const who = crmPerson(req);
     if (who.fail) return who.fail;
-    return [200, { applications: LEGACY_SAMPLE }];
+    return [200, { applications: LEGACY_SAMPLE, truncated: false }];
   }
 
   function crmPics(req) {

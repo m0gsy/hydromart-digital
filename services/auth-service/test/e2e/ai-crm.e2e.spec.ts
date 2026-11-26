@@ -1,14 +1,15 @@
-import { generateKeyPairSync } from 'node:crypto';
+import { generateKeyPairSync, randomUUID } from 'node:crypto';
 
-import { INestApplication, VersioningType } from '@nestjs/common';
+import { INestApplication, RequestMethod, VersioningType } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
 import { CAPABILITIES, loadCustomRoles, loadOverrides } from '@hydromart/access';
-import { TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
+import { EXTERNAL_ACCESS_KEY, TOKEN_AUDIENCE, TOKEN_ISSUER } from '@hydromart/platform';
 
+import { IS_PUBLIC_KEY } from '../../src/common/decorators/public.decorator';
 import { AccessMatrixService } from '../../src/application/services/access-matrix.service';
 import { AUTH_TOKENS } from '../../src/application/tokens';
 import { AllExceptionsFilter } from '../../src/common/filters/all-exceptions.filter';
@@ -85,7 +86,7 @@ describe('AI CRM pic-candidates (HD-21, e2e)', () => {
               OTP_DELIVERY_CHANNEL: 'console',
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
-              RATE_LIMIT_MAX: 100,
+              RATE_LIMIT_MAX: 1_000_000,
             }),
           ],
         }),
@@ -178,5 +179,68 @@ describe('AI CRM pic-candidates (HD-21, e2e)', () => {
   it('no other auth route admits the AI token: the staff list refuses it', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/auth/staff').set('Authorization', `Bearer ${ai('SUPER_ADMIN')}`);
     expect(res.status).toBe(403);
+  });
+
+  /*
+   * The regression proof for the guard change: the AI and machine tokens reach exactly ONE route in
+   * auth-service. The route table is read off the controllers' own metadata, so a route added
+   * tomorrow is in the table without anybody listing it here.
+   */
+  describe('the route table', () => {
+    type Route = { verb: 'get' | 'post' | 'put' | 'patch' | 'delete'; url: string; label: string; external: boolean };
+    const VERBS: readonly Route['verb'][] = ['get', 'post', 'put', 'delete', 'patch'];
+    const routes: Route[] = [];
+    const norm = (v: unknown): string => String(Array.isArray(v) ? v[0] : (v ?? '')).replace(/^\/+|\/+$/g, '');
+    for (const controller of Reflect.getMetadata('controllers', AuthModule) as (new () => object)[]) {
+      const base = norm(Reflect.getMetadata('path', controller));
+      const version = String(Reflect.getMetadata('__version__', controller) ?? '1');
+      const classPublic = Reflect.getMetadata(IS_PUBLIC_KEY, controller) === true;
+      const classExternal = Reflect.getMetadata(EXTERNAL_ACCESS_KEY, controller) !== undefined;
+      for (const name of Object.getOwnPropertyNames(controller.prototype)) {
+        const handler = (controller.prototype as Record<string, unknown>)[name];
+        if (typeof handler !== 'function') continue;
+        const method = Reflect.getMetadata('method', handler) as RequestMethod | undefined;
+        if (method === undefined || method === RequestMethod.ALL) continue;
+        if (classPublic || Reflect.getMetadata(IS_PUBLIC_KEY, handler) === true) continue;
+        const own = norm(Reflect.getMetadata('path', handler));
+        const path = [base, own].filter(Boolean).join('/').replace(/:[A-Za-z]+/g, () => randomUUID());
+        routes.push({
+          verb: VERBS[method as number]!,
+          url: `/api/v${version}/${path}`,
+          label: `${controller.name}.${name}`,
+          external: classExternal || Reflect.getMetadata(EXTERNAL_ACCESS_KEY, handler) !== undefined,
+        });
+      }
+    }
+
+    it('reads a real table: many routes, every one behind the token check', () => {
+      expect(routes.length).toBeGreaterThan(40);
+      expect(routes.some((r) => r.label === 'AiCrmController.picCandidates')).toBe(true);
+    });
+
+    it('carries @ExternalAccess on exactly one route: GET ai/crm/pic-candidates', () => {
+      const external = routes.filter((r) => r.external);
+      expect(external.map((r) => `${r.verb.toUpperCase()} ${r.url}`)).toEqual(['GET /api/v1/ai/crm/pic-candidates']);
+    });
+
+    it('answers 403 to an AI token and to a machine token on every other non-public route', async () => {
+      const ai = signer.sign({ aud: 'hydromart-ai', sub: PERSON, role: 'SUPER_ADMIN' }, 600, new Date());
+      const machine = signer.sign({ aud: 'hydromart-machine', sub: PERSON, scopes: ['hqConsole'] }, 600, new Date());
+      const bad: string[] = [];
+      for (const r of routes.filter((x) => !x.external)) {
+        for (const [who, token] of [['ai', ai], ['machine', machine]] as const) {
+          const res = await request(app.getHttpServer())[r.verb](r.url).set('Authorization', `Bearer ${token}`).send({});
+          if (res.status !== 403) bad.push(`${who} ${r.verb.toUpperCase()} ${r.url} (${r.label}) -> ${res.status}`);
+        }
+      }
+      expect(bad).toEqual([]);
+    });
+
+    it('the one external route takes the AI token and refuses the machine token', async () => {
+      const ai = signer.sign({ aud: 'hydromart-ai', sub: PERSON, role: 'SUPER_ADMIN' }, 600, new Date());
+      const machine = signer.sign({ aud: 'hydromart-machine', sub: PERSON, scopes: ['prospectRead'] }, 600, new Date());
+      await get(ai).expect(200);
+      await get(machine).expect(403);
+    });
   });
 });
