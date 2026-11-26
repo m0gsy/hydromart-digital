@@ -57,7 +57,7 @@ HYDROMART_PROJECT="${HYDROMART_PROJECT:-hydromart}"
 AI_PROJECT="${AI_PROJECT:-$(sed -n 's/^name: *//p' infra/aiweb/docker-compose.yml | tr -d "\"' \r")}"
 STAGING_PROJECT="${STAGING_PROJECT:-$(sed -n 's/^name: *//p' "$FILE" | tr -d "\"' \r")}"
 MIGRATE_TIMEOUT="${STAGING_MIGRATE_TIMEOUT:-900}"
-SETUP_TIMEOUT="${STAGING_N8N_SETUP_TIMEOUT:-300}"
+SETUP_TIMEOUT="${STAGING_N8N_SETUP_TIMEOUT:-900}"
 AUTH_FILE=infra/caddy/staging-auth/10-staging.caddy
 setting() { sed -n "s/^ *$1: *//p" "$FILE" | head -1 | tr -d "\"' \r"; }
 AI_WEB_URL="$(setting AI_WEB_URL)"
