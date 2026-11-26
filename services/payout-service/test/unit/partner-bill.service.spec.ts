@@ -350,6 +350,18 @@ describe('PartnerBillService approve, void and reads', () => {
     expect(t.bills.listForOwner).toHaveBeenCalledWith(OWNER_1, 200);
     await expect(t.svc.get('nope')).rejects.toMatchObject({ status: 404 });
   });
+
+  it('never hands out the payment account of a withdrawn bill', async () => {
+    const t = build();
+    const bank = { bankName: 'BCA', bankAccountNumber: '1234567890', bankAccountHolder: 'PT Contoh' };
+    t.bills.listForOwner.mockResolvedValueOnce([
+      draft({ id: 's1', status: 'SENT', bank }),
+      draft({ id: 'v1', status: 'VOID', bank, voidReason: 'salah hitung' }),
+    ] as never);
+    const out = await t.svc.forOwner(OWNER_1);
+    expect(out.find((b) => b.id === 's1')?.bank).toEqual(bank);
+    expect(out.find((b) => b.id === 'v1')).toMatchObject({ bank: null, voidReason: 'salah hitung' });
+  });
 });
 
 describe('partner bill dates', () => {

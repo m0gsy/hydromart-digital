@@ -201,9 +201,13 @@ export class PartnerBillService {
     return bill;
   }
 
-  /** The bills sent to this franchise owner, with their lines. */
-  forOwner(ownerId: string): Promise<PartnerBillRecord[]> {
-    return this.bills.listForOwner(ownerId, LIST_LIMIT);
+  /**
+   * The bills sent to this franchise owner, with their lines. A withdrawn (VOID) bill keeps its reason
+   * but never the account to pay into: nothing may be paid against it, so the answer itself drops it.
+   */
+  async forOwner(ownerId: string): Promise<PartnerBillRecord[]> {
+    const bills = await this.bills.listForOwner(ownerId, LIST_LIMIT);
+    return bills.map((b) => (b.status === 'VOID' ? { ...b, bank: null } : b));
   }
 
   /**
