@@ -224,6 +224,8 @@ export class LegalEntityService {
   /**
    * HD-21: the active legal entities a role may act for in the AI web, the same grants the AI read
    * API's scope applies (HD-5 matrix): no grant = none, SUPER_ADMIN = every active entity.
+   * Deliberately narrower than the read API, which also answers for an entity switched off (its
+   * history is still data): the CRM may only open NEW prospects under an active entity.
    */
   async accessibleTo(roleKey: string): Promise<{ id: string; name: string }[]> {
     const grants = await this.aiGrantsFor(roleKey);

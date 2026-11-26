@@ -838,6 +838,15 @@ export class DraftConflictError extends DomainError {
   }
 }
 
+/** Two writers on one rejected draft kept colliding: nobody is wrong, the caller may retry. */
+export class DraftBusyError extends DomainError {
+  readonly code = 'DRAFT_BUSY';
+  readonly status = HTTP_STATUS.SERVICE_UNAVAILABLE;
+  constructor() {
+    super('Draf depot sedang diubah pihak lain; coba lagi sebentar lagi.');
+  }
+}
+
 /** The prospect is already a depot; the ids let the CRM link to it. */
 export class AlreadyOnboardedError extends DomainError {
   readonly code = 'ALREADY_ONBOARDED';

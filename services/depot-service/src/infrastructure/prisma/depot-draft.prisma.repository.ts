@@ -28,10 +28,10 @@ export class DepotDraftPrismaRepository implements DepotDraftRepository {
   }
 
   async reopen(id: string, data: NewDepotDraft): Promise<DepotDraftRecord | null> {
-    // The prospect and its first author stay; everything the CRM said anew replaces the old.
+    // The prospect stays and createdAt stays the FIRST creation; the new content, the new
+    // suggestion id and the new author replace the old (the audit trail keeps every suggestion id).
     const content: Partial<ReturnType<typeof columns>> = columns(data);
     delete content.prospectId;
-    delete content.createdBy;
     const { count } = await this.prisma.depotDraft.updateMany({
       where: { id, status: 'REJECTED' },
       data: { ...content, status: 'DRAFT', decisionNote: null, decidedBy: null, decidedAt: null },

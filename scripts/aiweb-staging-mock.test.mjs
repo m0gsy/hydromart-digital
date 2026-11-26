@@ -912,7 +912,7 @@ test('CRM calon mitra: access, depot draft with the D1 re-check, replay and stat
 
     // D1: exactly 14 days passes, 13 is refused with earliestOn; a lacking item lists the items; dates are 400.
     const other = '00000000-0000-4000-8000-0000000000a3';
-    const at = (over) => say(sales, ok({ prospectId: other, ...over }), other);
+    const at = (over) => say(sales, ok({ prospectId: other, ...over }), over.prospectId ?? other);
     assert.equal((await at({ prospectusHandedOn: '2026-11-01', agreementSignedOn: '2026-11-15' })).status, 201);
     const early = await at({ prospectId: '00000000-0000-4000-8000-0000000000a4', prospectusHandedOn: '2026-11-01', agreementSignedOn: '2026-11-14' });
     assert.equal(early.status, 422);
@@ -924,6 +924,13 @@ test('CRM calon mitra: access, depot draft with the D1 re-check, replay and stat
     assert.deepEqual(lb.items, ['ktpNpwp', 'fieldSurvey']);
     assert.equal((await at({ prospectId: '00000000-0000-4000-8000-0000000000a6', agreementSignedOn: '2099-01-01' })).status, 400);
     assert.equal((await at({ prospectId: '00000000-0000-4000-8000-0000000000a7', prospectusHandedOn: '2026-10-20', agreementSignedOn: '2026-10-01' })).status, 400);
+
+    // An upper-case prospect id is the same prospect (replay), and the header must equal the body's id.
+    const upper = await say(sales, ok({ prospectId: PROSPECT.toUpperCase() }), PROSPECT.toUpperCase());
+    assert.equal(upper.status, 200);
+    assert.equal((await upper.json()).draftId, made.draftId);
+    const mismatch = await say(sales, ok(), '00000000-0000-4000-8000-0000000000a9');
+    assert.equal(mismatch.status, 400);
 
     // Validation, the header, and who may call.
     assert.equal((await say(sales, ok({ prospectusSha256: 'A'.repeat(64) }))).status, 400);

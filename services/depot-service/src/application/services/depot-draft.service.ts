@@ -8,6 +8,7 @@ import {
   ChecklistIncompleteError,
   CoolingOffNotMetError,
   DepotDraftNotFoundError,
+  DraftBusyError,
   DraftConflictError,
   InvalidDraftDatesError,
 } from '../../domain/errors';
@@ -112,12 +113,15 @@ export class DepotDraftService {
       throw new AlreadyOnboardedError(row.depotId, await this.codeOf(row.depotId));
     }
     if (row.status === 'REJECTED') {
-      const reopened = await this.drafts.reopen(row.id, data);
-      if (reopened) return { draft: reopened, replayed: false };
-      // Lost the race to another reopen (or an activation): read again and answer what is there.
-      const now = await this.drafts.findByProspectId(data.prospectId);
-      if (!now || now.status === 'REJECTED') throw new DraftConflictError();
-      return this.settle(now, data);
+      // Lost the race to another reopen (or an activation) is answered by what is there now. A row
+      // that is still (or again) REJECTED after one retry is not the caller's conflict: busy, retry.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const reopened = await this.drafts.reopen(row.id, data);
+        if (reopened) return { draft: reopened, replayed: false };
+        const now = await this.drafts.findByProspectId(data.prospectId);
+        if (now && now.status !== 'REJECTED') return this.settle(now, data);
+      }
+      throw new DraftBusyError();
     }
     if (row.requestHash !== data.requestHash) throw new DraftConflictError();
     return { draft: row, replayed: true };

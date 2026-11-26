@@ -90,11 +90,13 @@ model Depot {
   holidays       Json          @default("[]")
   active         Boolean       @default(true)
   /// HD-21: the AI web CRM's prospect this depot was onboarded from; set by the activation PR.
-  crmProspectId  String?       @unique @db.Uuid
+  crmProspectId  String?       @db.Uuid
   /// HD-21: the legacy franchise application it came from, when there was one.
   franchiseApplicationId String? @db.Uuid
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+  /// HD-21: the CRM draft this depot was activated from.
+  crmDraft       DepotDraft?
 
   inventory      InventoryItem[]
   gallonReturns  GallonReturn[]
@@ -1447,6 +1449,7 @@ model DepotDraft {
   decidedBy              String?          @db.Uuid
   decidedAt              DateTime?
   depotId                String?          @unique @db.Uuid
+  depot                  Depot?           @relation(fields: [depotId], references: [id], onDelete: Restrict)
   createdBy              String           @db.Uuid
   createdAt              DateTime         @default(now())
   updatedAt              DateTime         @updatedAt

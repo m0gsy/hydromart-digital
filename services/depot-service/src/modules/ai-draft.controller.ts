@@ -27,6 +27,7 @@ import {
   Can,
   CurrentUser,
   ExternalAccess,
+  isDepotLocked,
 } from '@hydromart/platform';
 
 import { DepotDraftService, DepotDraftStatusView } from '../application/services/depot-draft.service';
@@ -170,12 +171,17 @@ export class AiDraftController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ draftId: string; status: 'DRAFT'; createdAt: Date }> {
     const id = suggestionId(header);
-    const { prospectId, owner, checklist, legacyApplicationId, ...rest } = dto;
+    const { owner, checklist, ...rest } = dto;
+    // One spelling of an id, before the request hash: an upper-case retry is the same prospect.
+    const prospectId = dto.prospectId.toLowerCase();
+    if (id !== prospectId) {
+      throw new BadRequestException('X-AI-Suggestion-Id must equal the prospectId of the body.');
+    }
     const { draft, replayed } = await this.depotDrafts.draftFromCrm(
       prospectId,
       {
         ...rest,
-        legacyApplicationId: legacyApplicationId ?? null,
+        legacyApplicationId: dto.legacyApplicationId?.toLowerCase() ?? null,
         ownerFullName: owner.fullName,
         ownerPhoneE164: owner.phoneE164,
         checklist: { ...checklist },
@@ -213,9 +219,12 @@ export class AiCrmController {
   @Get('access')
   @ApiOperation({ summary: 'AI web CRM: full / settings access and the legal entities the caller may act for' })
   async access(@CurrentUser() user: AuthenticatedUser): Promise<CrmAccessResponseDto> {
+    // RolesGuard's own call: a depot-locked person is judged at their depot, so a per-depot
+    // grant or deny shows here exactly as it would on the route.
+    const depots = isDepotLocked(user.role) && user.depotId ? [user.depotId] : undefined;
     return {
-      full: can('prospectCrm', user.role),
-      settings: can('prospectSettings', user.role),
+      full: can('prospectCrm', user.role, depots),
+      settings: can('prospectSettings', user.role, depots),
       legalEntities: await this.entities.accessibleTo(user.role),
     };
   }

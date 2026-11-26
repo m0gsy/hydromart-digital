@@ -1,6 +1,6 @@
 -- RERUNNABLE: HD-21a, the AI web CRM's depot drafts. A NEW table (indexes built inline, no rows yet)
 -- plus two nullable columns on depots that the activation PR fills.
--- indexes: depot_drafts_prospectId_key, depot_drafts_depotId_key, depots_crmProspectId_key
+-- indexes: depot_drafts_prospectId_key, depot_drafts_depotId_key
 DO $$ BEGIN
   CREATE TYPE "DepotDraftStatus" AS ENUM ('DRAFT', 'ACTIVATED', 'REJECTED');
 EXCEPTION WHEN duplicate_object THEN NULL;
@@ -36,8 +36,16 @@ CREATE TABLE IF NOT EXISTS "depot_drafts" (
 CREATE UNIQUE INDEX IF NOT EXISTS "depot_drafts_prospectId_key" ON "depot_drafts"("prospectId");
 CREATE UNIQUE INDEX IF NOT EXISTS "depot_drafts_depotId_key" ON "depot_drafts"("depotId");
 
--- depots is small (one row per depot) and every new value is NULL, so the plain unique index is cheap.
+-- No index on depots.crmProspectId: depot_drafts.prospectId (one draft per prospect) and
+-- depot_drafts.depotId (one depot per draft) already hold it, and lookups go through depot_drafts.
 ALTER TABLE "depots"
   ADD COLUMN IF NOT EXISTS "crmProspectId" UUID,
   ADD COLUMN IF NOT EXISTS "franchiseApplicationId" UUID;
-CREATE UNIQUE INDEX IF NOT EXISTS "depots_crmProspectId_key" ON "depots"("crmProspectId");
+
+-- A depot cannot be deleted while a draft says it came from it.
+DO $$ BEGIN
+  ALTER TABLE "depot_drafts"
+    ADD CONSTRAINT "depot_drafts_depotId_fkey" FOREIGN KEY ("depotId")
+    REFERENCES "depots"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

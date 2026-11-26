@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
-import { CAPABILITIES, loadCustomRoles, loadOverrides } from '@hydromart/access';
+import { CAPABILITIES, loadCustomRoles, loadDepotOverrides, loadOverrides, loadRoleSettings } from '@hydromart/access';
 import { ConfigModule } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -127,8 +127,13 @@ class DraftStore {
     this.rows.push(row);
     return row;
   }
-  async reopen() {
-    return null;
+  /** Like the repository: only a REJECTED row reopens; the prospect and createdAt stay. */
+  async reopen(id: string, data: Record<string, unknown>) {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || row.status !== 'REJECTED') return null;
+    const { prospectId: _kept, ...content } = data;
+    Object.assign(row, content, { status: 'DRAFT', decisionNote: null, decidedBy: null, decidedAt: null, updatedAt: new Date() });
+    return row;
   }
 }
 
@@ -468,6 +473,8 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
     afterEach(() => {
       loadOverrides({});
       loadCustomRoles([]);
+      loadDepotOverrides([]);
+      loadRoleSettings([]);
     });
 
     it('drafts a depot (201), replays (200), refuses another body (409), and sends nothing else', async () => {
@@ -486,6 +493,30 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       expect(crmDrafts.rows).toHaveLength(1);
       const status = await get(`${FROM_CRM}/${PROSPECT}`, crm()).expect(200);
       expect(status.body).toMatchObject({ draftId: first.body.draftId, status: 'DRAFT', depotId: null, depotCode: null });
+    });
+
+    it('treats an upper-case prospect id as the same prospect (replay), and the header must equal it', async () => {
+      const upper = { ...crmBody(), prospectId: PROSPECT.toUpperCase() };
+      const first = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(201);
+      const again = await post(FROM_CRM, crm(), upper, PROSPECT.toUpperCase()).expect(200);
+      expect(again.body.draftId).toBe(first.body.draftId);
+      expect(crmDrafts.rows).toHaveLength(1);
+      expect(crmDrafts.rows[0]!.prospectId).toBe(PROSPECT);
+      const other = '00000000-0000-4000-8000-0000000000a9';
+      const mismatch = await post(FROM_CRM, crm(), crmBody(), other).expect(400);
+      expect(mismatch.body.message).toContain('prospectId');
+      expect(crmDrafts.rows).toHaveLength(1);
+    });
+
+    it('reopens a REJECTED draft for the new caller and keeps the first createdAt', async () => {
+      const first = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(201);
+      const row = crmDrafts.rows[0]!;
+      Object.assign(row, { status: 'REJECTED', decisionNote: 'kurang dokumen' });
+      const reopened = await post(FROM_CRM, crm(), { ...crmBody(), city: 'Depok' }, PROSPECT).expect(201);
+      expect(reopened.body).toMatchObject({ draftId: first.body.draftId, status: 'DRAFT' });
+      expect(reopened.body.createdAt).toBe(first.body.createdAt);
+      expect(crmDrafts.rows).toHaveLength(1);
+      expect(row).toMatchObject({ status: 'DRAFT', city: 'Depok', decisionNote: null, createdBy: PERSON });
     });
 
     it('re-checks D1: 422 with items / earliestOn, 400 for a future signing, nothing stored', async () => {
@@ -550,6 +581,29 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       loadOverrides({ prospectRead: [...CAPABILITIES.prospectRead, 'C_SALES'], prospectSettings: ['SUPER_ADMIN', 'C_SALES'] });
       expect((await get(ACCESS, sales).expect(200)).body).toMatchObject({ full: false, settings: true });
       await post(FROM_CRM, sales, crmBody(), PROSPECT).expect(403);
+    });
+
+    it('access judges a depot-locked role at its own depot: a per-depot grant shows, a deny hides', async () => {
+      const mgr = aiToken('KEPALA_DEPOT', depotId);
+      await get(ACCESS, mgr).expect(403);
+      loadOverrides({ prospectRead: [...CAPABILITIES.prospectRead, 'KEPALA_DEPOT'] });
+      expect((await get(ACCESS, mgr).expect(200)).body).toMatchObject({ full: false, settings: false });
+      loadDepotOverrides([{ capability: 'prospectCrm', roleKey: 'KEPALA_DEPOT', depotId, effect: 'GRANT' }]);
+      expect((await get(ACCESS, mgr).expect(200)).body).toMatchObject({ full: true, settings: false });
+      // Another depot's grant does nothing here.
+      loadDepotOverrides([{ capability: 'prospectCrm', roleKey: 'KEPALA_DEPOT', depotId: otherDepotId, effect: 'GRANT' }]);
+      expect((await get(ACCESS, mgr).expect(200)).body).toMatchObject({ full: false });
+      // A deny at the person's depot beats the global list.
+      loadOverrides({ prospectRead: [...CAPABILITIES.prospectRead, 'KEPALA_DEPOT'], prospectCrm: [...CAPABILITIES.prospectCrm, 'KEPALA_DEPOT'] });
+      expect((await get(ACCESS, mgr).expect(200)).body).toMatchObject({ full: true });
+      loadDepotOverrides([{ capability: 'prospectCrm', roleKey: 'KEPALA_DEPOT', depotId, effect: 'DENY' }]);
+      expect((await get(ACCESS, mgr).expect(200)).body).toMatchObject({ full: false });
+    });
+
+    it('a disabled built-in role holds nothing: 403 on access and on the draft', async () => {
+      loadRoleSettings([{ roleKey: 'MARKETING', disabled: true }]);
+      await get(ACCESS, crm()).expect(403);
+      await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(403);
     });
   });
 

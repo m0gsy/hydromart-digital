@@ -433,7 +433,7 @@
     "/depot/api/v1/ai/drafts/depots/from-crm": {
       "post": {
         "summary": "Draft a depot from a calon mitra (HD-21).",
-        "description": "Records what HQ will activate as a depot, one draft per prospectId. Needs the prospectCrm capability (built in: MARKETING, SUPER_ADMIN; a custom role such as Sales when the owner grants it in the Akses screen). hydromart-digital RE-CHECKS the owner decision D1 whatever the CRM already checked: all four checklist items VERIFIED, agreementSignedOn at least 14 calendar days after prospectusHandedOn, agreementSignedOn not after today (WIB), prospectusHandedOn not after agreementSignedOn. All dates are WIB calendar days (YYYY-MM-DD). Nothing is sent to the owner and no depot is created here: HQ activates the draft in a later step.\n\nOne row per prospectId: no draft yet makes one (201); the same body again, while it is still DRAFT, answers it unchanged (200); a different body while DRAFT is a 409 DRAFT_CONFLICT; a REJECTED draft is reopened as DRAFT with the new content (201); an ACTIVATED one is a 409 ALREADY_ONBOARDED carrying depotId and depotCode.",
+        "description": "Records what HQ will activate as a depot, one draft per prospectId. Needs the prospectCrm capability (built in: MARKETING, SUPER_ADMIN; a custom role such as Sales when the owner grants it in the Akses screen). hydromart-digital RE-CHECKS the owner decision D1 whatever the CRM already checked: all four checklist items VERIFIED, agreementSignedOn at least 14 calendar days after prospectusHandedOn, agreementSignedOn not after today (WIB), prospectusHandedOn not after agreementSignedOn. All dates are WIB calendar days (YYYY-MM-DD). Nothing is sent to the owner and no depot is created here: HQ activates the draft in a later step.\n\nOne row per prospectId: no draft yet makes one (201); the same body again, while it is still DRAFT, answers it unchanged (200); a different body while DRAFT is a 409 DRAFT_CONFLICT; a REJECTED draft is reopened as DRAFT with the new content (201); an ACTIVATED one is a 409 ALREADY_ONBOARDED carrying depotId and depotCode.\n\nUUIDs are compared and stored in lower case, so an upper-case prospectId is the same prospect. A reopened draft keeps `createdAt` as the FIRST creation and takes the new caller as its author.",
         "security": [
           {
             "aiToken": []
@@ -444,7 +444,7 @@
             "name": "X-AI-Suggestion-Id",
             "in": "header",
             "required": true,
-            "description": "The CRM sends the prospect id as its value (a UUID). Written to the audit trail with the call. The idempotency key of this route is the prospectId in the body, not this header.",
+            "description": "The CRM sends the prospect id as its value (a UUID), and it MUST equal body.prospectId (compared case-insensitively): a different value is a 400. Written to the audit trail with the call, which keeps every suggestion id. The idempotency key of this route is the prospectId in the body.",
             "schema": {
               "type": "string",
               "format": "uuid"
@@ -473,7 +473,7 @@
         },
         "responses": {
           "201": {
-            "description": "The draft was made (or a REJECTED one was reopened).",
+            "description": "The draft was made, or a REJECTED one was reopened (createdAt stays the first creation).",
             "content": {
               "application/json": {
                 "schema": {
@@ -493,7 +493,7 @@
             }
           },
           "400": {
-            "description": "BAD_REQUEST: X-AI-Suggestion-Id missing or not a UUID, the body failed validation, or INVALID_DRAFT_DATES: agreementSignedOn is after today (WIB), or prospectusHandedOn is after agreementSignedOn.",
+            "description": "BAD_REQUEST: X-AI-Suggestion-Id missing, not a UUID, or not equal to body.prospectId; the body failed validation; or INVALID_DRAFT_DATES: agreementSignedOn is after today (WIB), or prospectusHandedOn is after agreementSignedOn.",
             "content": {
               "application/json": {
                 "schema": {
@@ -556,6 +556,16 @@
                 "description": "Seconds to wait before retrying.",
                 "schema": {
                   "type": "integer"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DRAFT_BUSY: two callers kept reopening the same rejected draft; nothing is wrong with the request, retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -1075,7 +1085,7 @@
           },
           "code": {
             "type": "string",
-            "description": "BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, AI_SUGGESTION_REUSED, DRAFT_CONFLICT, ALREADY_ONBOARDED, CHECKLIST_INCOMPLETE, COOLING_OFF_NOT_MET, INVALID_DRAFT_DATES, DEPOT_DRAFT_NOT_FOUND, CAMPAIGN_NO_RECIPIENTS, CAMPAIGN_SCHEDULED_IN_PAST, CAMPAIGN_SEGMENT_UNAVAILABLE, RATE_LIMITED or SERVICE_UNAVAILABLE."
+            "description": "BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, AI_SUGGESTION_REUSED, DRAFT_CONFLICT, DRAFT_BUSY, ALREADY_ONBOARDED, CHECKLIST_INCOMPLETE, COOLING_OFF_NOT_MET, INVALID_DRAFT_DATES, DEPOT_DRAFT_NOT_FOUND, CAMPAIGN_NO_RECIPIENTS, CAMPAIGN_SCHEDULED_IN_PAST, CAMPAIGN_SEGMENT_UNAVAILABLE, RATE_LIMITED or SERVICE_UNAVAILABLE."
           },
           "message": {
             "oneOf": [
@@ -1445,7 +1455,8 @@
           },
           "createdAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "The FIRST creation of the draft; a reopen does not change it."
           }
         }
       },

@@ -175,7 +175,18 @@ describe('DepotDraftService.draftFromCrm', () => {
     await service.draftFromCrm(PROSPECT, content(), ai);
     drafts.rows[0]!.status = 'REJECTED';
     drafts.reopenLoses = true;
-    await expect(service.draftFromCrm(PROSPECT, content(), ai)).rejects.toMatchObject({ code: 'DRAFT_CONFLICT' });
+    // Still REJECTED after one retry: busy (503, retryable), not the caller's conflict.
+    const lost = jest.spyOn(drafts, 'reopen');
+    await expect(service.draftFromCrm(PROSPECT, content(), ai)).rejects.toMatchObject({ code: 'DRAFT_BUSY', status: 503 });
+    expect(lost).toHaveBeenCalledTimes(2);
+    lost.mockClear();
+    // The first attempt loses, the retry wins.
+    lost.mockResolvedValueOnce(null);
+    drafts.reopenLoses = false;
+    await expect(service.draftFromCrm(PROSPECT, content(), ai)).resolves.toMatchObject({ replayed: false });
+    expect(lost).toHaveBeenCalledTimes(2);
+    drafts.rows[0]!.status = 'REJECTED';
+    drafts.reopenLoses = true;
     // The other reopener already made it a DRAFT with this very content: that is a replay.
     const hash = requestHashOf(PROSPECT, content());
     const reopen = jest.spyOn(drafts, 'reopen').mockImplementation(async () => {
@@ -276,6 +287,11 @@ describe('DepotDraftPrismaRepository', () => {
         data: expect.objectContaining({ status: 'DRAFT', decisionNote: null, decidedBy: null, decidedAt: null }),
       }),
     );
+    // The new author and suggestion id replace the old; the prospect and createdAt stay.
+    const written = model.updateMany.mock.calls[0][0].data;
+    expect(written).toMatchObject({ createdBy: PROSPECT, suggestionId: PROSPECT });
+    expect(written).not.toHaveProperty('prospectId');
+    expect(written).not.toHaveProperty('createdAt');
     model.updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(repo.reopen(row.id, data)).resolves.toBeNull();
   });

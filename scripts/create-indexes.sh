@@ -45,8 +45,7 @@
 # NULL, so the build is instant.
 #
 # depot_drafts_prospectId_key and depot_drafts_depotId_key (depot-service, 2026-11-28, HD-21a) sit on a table its own
-# migration creates, and depots_crmProspectId_key is a unique index on a column that migration adds with every value NULL
-# (depots is one row per depot): all three are built by that migration, not here, and the build is instant.
+# migration creates: both are built by that migration, not here, and the build is instant.
 #
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh

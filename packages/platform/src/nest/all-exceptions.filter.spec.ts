@@ -57,6 +57,23 @@ describe('AllExceptionsFilter', () => {
     const { host, body } = hostFor();
     filter.catch(new WithDetailsError(), host);
     expect(body()).toMatchObject({ statusCode: 422, code: 'WITH_DETAILS', items: ['a'] });
+    expect(body()).toMatchObject({ message: 'x', path: '/api/v1/orders' });
+    expect(typeof body().timestamp).toBe('string');
+  });
+
+  it('never lets details override status, code, message, timestamp or path', () => {
+    class Hostile extends DomainError {
+      readonly code = 'REAL';
+      readonly status = HTTP_STATUS.CONFLICT;
+      readonly details = { statusCode: 200, code: 'FAKE', message: 'fake', timestamp: 'fake', path: '/fake' };
+      constructor() {
+        super('real');
+      }
+    }
+    const { host, body } = hostFor();
+    filter.catch(new Hostile(), host);
+    expect(body()).toMatchObject({ statusCode: 409, code: 'REAL', message: 'real', path: '/api/v1/orders' });
+    expect(body().timestamp).not.toBe('fake');
   });
 
   it('keeps the validation message array from a Nest HttpException', () => {

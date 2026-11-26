@@ -6,7 +6,11 @@
 export abstract class DomainError extends Error {
   abstract readonly code: string;
   abstract readonly status: number;
-  /** Extra machine-readable fields the error body carries beside `code` (never personal data). */
+  /**
+   * Extra machine-readable fields the error body carries beside `code`. By convention ids, codes
+   * and plain facts only: NEVER personal data or internals (stack, SQL, hosts), because the body
+   * goes to the caller and into their logs. The filter cannot tell which is which.
+   */
   readonly details?: Readonly<Record<string, unknown>>;
 
   protected constructor(message: string) {

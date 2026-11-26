@@ -567,6 +567,10 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     if (who.fail) return who.fail;
     if (!RX.uuid.test(req.headers['x-ai-suggestion-id'] ?? '')) return [400, errorBody(400, 'BAD_REQUEST', 'X-AI-Suggestion-Id must be a UUID.')];
     if (!crmDraftValid(body)) return [400, errorBody(400, 'BAD_REQUEST', ['The draft is not what the contract asks for'])];
+    // The header carries the prospect id, in either case.
+    if (req.headers['x-ai-suggestion-id'].toLowerCase() !== body.prospectId.toLowerCase()) {
+      return [400, errorBody(400, 'BAD_REQUEST', 'X-AI-Suggestion-Id must equal the prospectId of the body.')];
+    }
     // The D1 re-check, in the real order: dates (400), checklist (422), cooling-off (422).
     const handed = dayNo(body.prospectusHandedOn);
     const signed = dayNo(body.agreementSignedOn);
@@ -578,7 +582,14 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       return [422, { ...errorBody(422, 'COOLING_OFF_NOT_MET', 'The agreement may not be signed yet.'), earliestOn: isoOf(handed + 14) }];
     }
     const key = body.prospectId.toLowerCase();
-    const hash = createHash('sha256').update(JSON.stringify(CRM_KEYS.map((k) => body[k] ?? null))).digest('hex');
+    // The same canonical flattening as depot-service's requestHashOf: fixed field order, nested keys in order, ids lower-cased.
+    const flat = [
+      key, body.legacyApplicationId?.toLowerCase() ?? null, body.proposedName, body.city, body.province,
+      body.owner.fullName, body.owner.phoneE164, body.prospectusHandedOn, body.agreementSignedOn,
+      body.prospectusSha256, body.prospectusVersionLabel, body.prospectusReceipt,
+      ...CHECKLIST_KEYS.map((k) => body.checklist[k]),
+    ];
+    const hash = createHash('sha256').update(JSON.stringify(flat)).digest('hex');
     const existing = state.crmDrafts.get(key);
     if (existing) {
       if (existing.status === 'ACTIVATED') return [409, { ...errorBody(409, 'ALREADY_ONBOARDED', 'Already a depot.'), depotId: existing.depotId, depotCode: existing.depotCode }];
