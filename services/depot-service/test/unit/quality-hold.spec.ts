@@ -14,6 +14,7 @@ import {
   endsHold,
   holdFlag,
   isRealDay,
+  LAB_CLOCK_STARTS_ON,
   LabTest,
   labTestsDue,
   noHold,
@@ -108,25 +109,36 @@ describe('quality hold domain', () => {
   });
 
   describe('lab tests due', () => {
-    const depot = { id: D1, name: 'Cikini', createdOn: '2026-01-01' };
+    const depot = { id: D1, name: 'Cikini', createdOn: '2026-12-01' };
     it('never tested: the clock starts the day the depot was added', () => {
-      const due = labTestsDue(depot, [], '2026-02-01');
+      const due = labTestsDue(depot, [], '2027-01-01');
       expect(due.map((i) => i.name)).toEqual(['Uji fisik dan mikrobiologi']);
-      expect(due[0]).toMatchObject({ kind: 'LAB_TEST', dueOn: '2026-01-31', daysLeft: -1, cycleStart: '2026-01-01', depotName: 'Cikini' });
-      expect(labTestsDue(depot, [], '2026-01-30')).toEqual([]);
+      expect(due[0]).toMatchObject({ kind: 'LAB_TEST', dueOn: '2026-12-31', daysLeft: -1, cycleStart: '2026-12-01', depotName: 'Cikini' });
+      expect(labTestsDue(depot, [], '2026-12-30')).toEqual([]);
+    });
+    it('never starts before launch: an old depot is not overdue on day one', () => {
+      const old = { id: D1, name: 'Lama', createdOn: '2020-01-01' };
+      expect(labTestsDue(old, [], '2026-11-27')).toEqual([]);
+      expect(labTestsDue(old, [{ kind: 'ECOLI', takenOn: '2025-01-01' }], '2026-12-26')).toEqual([]);
+      const first = labTestsDue(old, [], '2026-12-27');
+      expect(first.map((i) => i.name)).toEqual(['Uji fisik dan mikrobiologi']);
+      expect(first[0]).toMatchObject({ cycleStart: LAB_CLOCK_STARTS_ON, dueOn: '2026-12-27', daysLeft: 0 });
+      // 90 and 180 days after launch the other two kinds follow.
+      expect(labTestsDue(old, [], '2027-02-25').map((i) => i.name)).toEqual(['Uji fisik dan mikrobiologi', 'Uji E. coli']);
+      expect(labTestsDue(old, [], '2027-05-26')).toHaveLength(3);
     });
     it('each kind has its own interval and a full panel counts for all three', () => {
-      const tests = [{ kind: 'ECOLI' as const, takenOn: '2026-09-01' }, { kind: 'FISIK_MIKRO' as const, takenOn: '2026-11-10' }];
-      const names = labTestsDue(depot, tests, '2026-12-01').map((i) => i.name);
-      expect(names).toEqual(['Uji E. coli', 'Uji kimia']);
-      expect(labTestsDue(depot, [...tests, { kind: 'LENGKAP' as const, takenOn: '2026-11-30' }], '2026-12-01')).toEqual([]);
+      const tests = [{ kind: 'ECOLI' as const, takenOn: '2026-12-01' }, { kind: 'FISIK_MIKRO' as const, takenOn: '2027-03-10' }];
+      const names = labTestsDue(depot, tests, '2027-03-20').map((i) => i.name);
+      expect(names).toEqual(['Uji E. coli']);
+      expect(labTestsDue(depot, [...tests, { kind: 'LENGKAP' as const, takenOn: '2027-03-19' }], '2027-03-20')).toEqual([]);
     });
     it('uses the latest test of a kind and gives each kind a distinct stable id', () => {
-      const a = labTestsDue(depot, [{ kind: 'FISIK_MIKRO', takenOn: '2026-01-05' }, { kind: 'FISIK_MIKRO', takenOn: '2026-01-02' }], '2026-02-10');
-      const b = labTestsDue(depot, [], '2027-01-01');
-      expect(a.find((i) => i.name.includes('fisik'))?.cycleStart).toBe('2026-01-05');
+      const a = labTestsDue(depot, [{ kind: 'FISIK_MIKRO', takenOn: '2027-01-05' }, { kind: 'FISIK_MIKRO', takenOn: '2027-01-02' }], '2027-02-10');
+      const b = labTestsDue(depot, [], '2028-01-01');
+      expect(a.find((i) => i.name.includes('fisik'))?.cycleStart).toBe('2027-01-05');
       expect(new Set(b.map((i) => i.id)).size).toBe(3);
-      expect(b[0].id).toBe(labTestsDue(depot, [], '2027-06-01')[0].id);
+      expect(b[0].id).toBe(labTestsDue(depot, [], '2028-06-01')[0].id);
     });
   });
 

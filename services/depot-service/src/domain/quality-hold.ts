@@ -99,9 +99,13 @@ export function endsHold(hold: Pick<QualityHold, 'depotId' | 'startedAt'>, test:
 // --- due dates (computed here; n8n only says "now") -------------------------------------------
 
 /**
- * Days between required tests, per kind. ponytail: code constants until Dinkes answers (open
- * question in the Rencana Induk). Stricter reading of the annex: physical/microbiology monthly,
- * E. coli every 3 months, chemistry every 6 months. A LENGKAP (full panel) counts for all three.
+ * Days between required tests, per kind. ponytail: code constants until Dinkes answers.
+ * Rencana Induk (checked 26 Nov 2026, rev 289) says: "Frekuensi uji di lampiran tidak konsisten:
+ * fisik dan mikrobiologi bulanan serta kimia 6 bulanan, berbanding E. coli 3 bulanan dan parameter
+ * lengkap 6 bulanan. Konfirmasi ke Dinkes setempat sebelum jadwal uji dibuat di sistem." The text is
+ * ambiguous, so we keep the stricter reading: physical+microbiology monthly, E. coli every 3 months,
+ * chemistry every 6 months; a LENGKAP (full panel) counts for all three (a lenient reading of
+ * "parameter lengkap 6 bulanan": revisit when Dinkes answers).
  */
 export const LAB_TEST_EVERY_DAYS = { FISIK_MIKRO: 30, ECOLI: 90, KIMIA: 180 } as const;
 type RequiredKind = keyof typeof LAB_TEST_EVERY_DAYS;
@@ -110,6 +114,13 @@ const LAB_TEST_NAME: Record<RequiredKind, string> = {
   ECOLI: 'Uji E. coli',
   KIMIA: 'Uji kimia',
 };
+
+/**
+ * The reminder clock never starts before this WIB day (the day HD-14 ships), so depots that existed
+ * before it, or whose last recorded test is older, are not all overdue on day one: the first
+ * reminder per kind comes one interval after launch unless a test is recorded.
+ */
+export const LAB_CLOCK_STARTS_ON = '2026-11-27';
 
 /** A permit is reminded from this many days before its validUntil, and every run after that. */
 export const PERMIT_REMIND_DAYS = 30;
@@ -155,8 +166,9 @@ export function labTestsDue(
   const out: DueCompliance[] = [];
   for (const kind of Object.keys(LAB_TEST_EVERY_DAYS) as RequiredKind[]) {
     const taken = tests.filter((t) => t.kind === kind || t.kind === 'LENGKAP').map((t) => t.takenOn);
-    // Never tested: the clock starts the day the depot was added, not at zero.
-    const cycleStart = taken.length > 0 ? taken.reduce((a, b) => (a > b ? a : b)) : depot.createdOn;
+    // Never tested: the clock starts the day the depot was added. Either way not before launch.
+    const last = taken.length > 0 ? taken.reduce((a, b) => (a > b ? a : b)) : depot.createdOn;
+    const cycleStart = last > LAB_CLOCK_STARTS_ON ? last : LAB_CLOCK_STARTS_ON;
     const dueOn = addDays(cycleStart, LAB_TEST_EVERY_DAYS[kind]);
     const daysLeft = daysBetween(today, dueOn);
     if (daysLeft > 0) continue;
