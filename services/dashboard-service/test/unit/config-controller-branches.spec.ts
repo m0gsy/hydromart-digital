@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 
 import { DashboardConfigService } from '../../src/config/dashboard-config.service';
+import { LegalEntityPnlService } from '../../src/application/services/legal-entity-pnl.service';
 import { DashboardController } from '../../src/modules/dashboard.controller';
 import { HealthController } from '../../src/modules/health.controller';
 import { DashboardService } from '../../src/application/services/dashboard.service';
@@ -98,7 +99,8 @@ describe('DashboardController', () => {
     networkPnl: jest.fn().mockResolvedValue('network-pnl'),
     franchise: jest.fn().mockResolvedValue('fr'),
   } as unknown as DashboardService;
-  const controller = new DashboardController(stub);
+  const legal = { legalEntityPnl: jest.fn().mockResolvedValue('legal-pnl') } as unknown as LegalEntityPnlService;
+  const controller = new DashboardController(stub, legal);
 
   const headOffice = { sub: 'hq-1', role: 'HEAD_OFFICE', phone: null, depotId: null } as never;
   const manager = (...depotIds: string[]) =>
@@ -162,6 +164,14 @@ describe('DashboardController', () => {
     // DSH-1: a manager's roll-up is its own depots.
     await controller.networkPnl({ month: '2026-07' }, 'Bearer t', manager('d1', 'd2'));
     expect(stub.networkPnl).toHaveBeenLastCalledWith('2026-07', 'Bearer t', ['d1', 'd2'], true);
+  });
+
+  // HD-16 PR-B: same scope and payrollRead rule as the network P&L.
+  it('delegates legalEntityPnl with the caller scope and the pay rule', async () => {
+    await expect(controller.legalEntityPnl({ month: '2026-07' }, 'Bearer t', headOffice)).resolves.toBe('legal-pnl');
+    expect(legal.legalEntityPnl).toHaveBeenCalledWith('2026-07', 'Bearer t', undefined, true);
+    await controller.legalEntityPnl({ month: '2026-07' }, 'Bearer t', manager('d1', 'd2'));
+    expect(legal.legalEntityPnl).toHaveBeenLastCalledWith('2026-07', 'Bearer t', ['d1', 'd2'], true);
   });
 
   it('delegates network with the parsed range + token', async () => {

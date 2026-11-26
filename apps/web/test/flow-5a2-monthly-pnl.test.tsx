@@ -91,6 +91,26 @@ describe('the depot P&L (flow 5a-2)', () => {
     expect(screen.queryByText('mgrFix.pnl.partial')).toBeNull();
   });
 
+  it('shows the imported fixed costs as a line, and says so when head office has not entered them (HD-16)', async () => {
+    get.mockResolvedValue({ ...REPORT, fixedCostIdr: 120_000, fixedCostStatus: 'entered' });
+    const first = render(<MonthlyPnlPage />);
+    expect(await screen.findByText('mgrFix.pnl.fixedCosts')).toBeTruthy();
+    expect(screen.getByText(/120.000/)).toBeTruthy();
+    expect(screen.queryByText('mgrFix.pnl.fixedNotEntered')).toBeNull();
+    first.unmount();
+
+    get.mockResolvedValue({ ...REPORT, fixedCostIdr: null, fixedCostStatus: 'not_entered' });
+    render(<MonthlyPnlPage />);
+    expect(await screen.findByText('mgrFix.pnl.fixedNotEntered')).toBeTruthy();
+  });
+
+  it('says the fixed costs could not be read, which is not the same as not entered (HD-16)', async () => {
+    get.mockResolvedValue({ ...REPORT, fixedCostIdr: null, fixedCostStatus: 'unavailable', netProfitIdr: null, netMarginPct: null });
+    render(<MonthlyPnlPage />);
+    expect(await screen.findByText('mgrFix.pnl.fixedUnavailable')).toBeTruthy();
+    expect(screen.queryByText('mgrFix.pnl.fixedNotEntered')).toBeNull();
+  });
+
   it('says the report is partial when a cost source could not be read', async () => {
     get.mockResolvedValue({
       ...REPORT,

@@ -140,6 +140,7 @@ import { LegalEntityController } from './legal-entity.controller';
 import { PurchaseOrderController } from './purchase-order.controller';
 import { RosterController } from './roster.controller';
 import { DepotFixedCostController } from './depot-fixed-cost.controller';
+import { DepotFixedCostInternalController } from './depot-fixed-cost-internal.controller';
 import { DepotTargetController } from './depot-target.controller';
 import { DepotTargetInternalController } from './depot-target-internal.controller';
 import { CashbookController } from './cashbook.controller';
@@ -319,6 +320,7 @@ const providers: Provider[] = [
     RosterController,
     DepotTargetController,
     DepotFixedCostController,
+    DepotFixedCostInternalController,
     DepotTargetInternalController,
     CashbookController,
     CashierShiftController,

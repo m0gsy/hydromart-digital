@@ -241,6 +241,11 @@ export class InMemoryDashboardSources implements DashboardSourcesPort {
     for (const id of depotIds) if (!out.has(id)) out.set(id, 100_000);
     return out;
   }
+  /** HD-16: imported fixed costs per depot; an absent depot = none entered. null = depot-service down. */
+  fixedCostsResult: Map<string, number> | null = new Map();
+  async fixedCosts(_depotIds: string[], _month: string): Promise<Map<string, number> | null> {
+    return this.fixedCostsResult === null ? null : new Map(this.fixedCostsResult);
+  }
   async crmSummary(_depotId: string): Promise<CrmDepotSummary | null> {
     return {
       counts: { baru: 1, aktif: 3, inactive: 2, total: 6 },

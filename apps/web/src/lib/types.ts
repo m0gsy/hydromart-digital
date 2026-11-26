@@ -1317,6 +1317,9 @@ export interface OperationalMonthlyPnl {
   courierCommissionIdr: number | null;
   expenseClaimIdr: number | null;
   refundIdr: number | null;
+  /** HD-16: imported fixed costs; null = none entered (belum diisi), and the profit is then without them. */
+  fixedCostIdr?: number | null;
+  fixedCostStatus?: 'entered' | 'not_entered' | 'unavailable' | 'hidden' | 'partial';
   /** Laba bersih — the one formula (netProfit, @hydromart/platform) the network P&L also uses. */
   netProfitIdr: number | null;
   netMarginPct: number | null;
@@ -1451,6 +1454,9 @@ export interface NetworkPnlDepotRow {
   courierCommissionIdr: number | null;
   expenseClaimIdr: number | null;
   refundIdr: number | null;
+  /** HD-16: imported fixed costs; null = none entered (belum diisi), and the profit is then without them. */
+  fixedCostIdr?: number | null;
+  fixedCostStatus?: 'entered' | 'not_entered' | 'unavailable' | 'hidden' | 'partial';
   netProfitIdr: number | null;
 }
 
@@ -1491,7 +1497,25 @@ export interface NetworkPnl {
     payroll: 'ok' | 'partial' | 'unavailable';
     payout: 'ok' | 'unavailable';
     refunds: 'ok' | 'unavailable';
+    fixedCosts?: 'ok' | 'unavailable' | 'hidden';
   };
+}
+
+/** HD-16 PR-B (D22, D25): the P&L of each legal entity for a month. */
+export interface LegalEntityPnl {
+  payVisible: boolean;
+  month: string;
+  disclaimer: string;
+  entities: {
+    legalEntityId: string | null;
+    name: string;
+    nameUnread?: boolean;
+    depots: { depotId: string; code: string; name: string }[];
+    totals: NetworkPnl['totals'];
+  }[];
+  excluded: { depotId: string; code: string; name: string; reason: string }[];
+  excludedTotals?: NetworkPnl['totals'] | null;
+  sources: { legalEntities: 'ok' | 'unavailable' };
 }
 
 export interface FranchiseHr {

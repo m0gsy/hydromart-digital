@@ -26,6 +26,13 @@ export interface NetProfitTerms {
   expenseClaimIdr: number | null;
   /** Refunds on orders that still count as sales (a cancelled order's refund is not a cost twice). */
   refundIdr: number | null;
+  /**
+   * HD-16 (D22): the fixed costs HQ imported for the month (rent, electricity, ...). Optional, and
+   * `null`/absent means NONE WERE ENTERED, so there is nothing to subtract and the profit is the
+   * five-term one; the caller says so on screen ("belum diisi"). A caller that could not READ them
+   * must not pass null: it reports the profit as unknown itself.
+   */
+  fixedCostIdr?: number | null;
 }
 
 const known = (term: number | null): term is number =>
@@ -40,5 +47,7 @@ export function netProfit(terms: NetProfitTerms): number | null {
     terms.refundIdr,
   ];
   if (!known(terms.revenueIdr) || !costs.every(known)) return null;
-  return costs.reduce((net, cost) => net - cost, terms.revenueIdr);
+  const fixed = terms.fixedCostIdr ?? 0;
+  if (!known(fixed)) return null;
+  return costs.reduce((net, cost) => net - cost, terms.revenueIdr) - fixed;
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { ChartPieSlice, WarningCircle } from '@phosphor-icons/react';
 
@@ -58,6 +59,7 @@ const COST_KEYS = [
   'courierCommissionIdr',
   'expenseClaimIdr',
   'refundIdr',
+  'fixedCostIdr',
 ] as const;
 
 export default function HqPnlPage() {
@@ -72,7 +74,7 @@ export default function HqPnlPage() {
 
   const unreadable = report.data
     ? Object.entries(report.data.sources)
-        .filter(([source, status]) => status !== 'ok' && !(source === 'payroll' && report.data?.payVisible === false))
+        .filter(([source, status]) => status !== 'ok' && status !== 'hidden' && !(source === 'payroll' && report.data?.payVisible === false))
         .map(([source]) => t(`hq.pnl.source.${source}`))
     : [];
 
@@ -85,6 +87,9 @@ export default function HqPnlPage() {
         action={
           <div className="flex items-center gap-2">
             <Badge tone="brand">{t('hq.pnl.operational')}</Badge>
+            <Link href="/hq/pnl/legal-entities" className="rounded-lg border border-app px-3 py-2 text-sm font-medium">
+              {t('hq.pnl.entities.link')}
+            </Link>
             <select
               value={monthKey}
               onChange={(e) => setMonthKey(e.target.value)}
@@ -133,7 +138,12 @@ function PnlTable({ data }: { data: NetworkPnl }) {
   const { t } = useT();
   // payrollRead's (owner decision 2026-11-19): without it, no payroll or net column at all.
   const payHidden = data.payVisible === false;
-  const costKeys = payHidden ? COST_KEYS.filter((k) => k !== 'payrollIdr') : COST_KEYS;
+  const costKeys = payHidden
+    ? COST_KEYS.filter((k) => k !== 'payrollIdr' && k !== 'fixedCostIdr')
+    : COST_KEYS;
+  // HD-16: a depot without imported fixed costs is profit WITHOUT them, never a silent Rp 0.
+  const fixedGap = !payHidden && ['not_entered', 'partial'].includes(data.totals.fixedCostStatus ?? '');
+  const fixedDown = !payHidden && data.totals.fixedCostStatus === 'unavailable';
   const cell = (value: number | null, negative = false) => (
     <td
       className={`px-3 py-2 text-right tabular-nums ${
@@ -156,6 +166,7 @@ function PnlTable({ data }: { data: NetworkPnl }) {
             <th className="px-3 py-2 text-right">{t('hq.pnl.colCommission')}</th>
             <th className="px-3 py-2 text-right">{t('hq.pnl.colClaims')}</th>
             <th className="px-3 py-2 text-right">{t('hq.pnl.colRefunds')}</th>
+            {!payHidden && <th className="px-3 py-2 text-right">{t('hq.pnl.colFixed')}</th>}
             {!payHidden && <th className="px-3 py-2 text-right">{t('hq.pnl.colNet')}</th>}
           </tr>
         </thead>
@@ -172,7 +183,7 @@ function PnlTable({ data }: { data: NetworkPnl }) {
               {cell(row.revenueIdr)}
               {costKeys.map((key) => (
                 <span key={key} className="contents">
-                  {cell(row[key], true)}
+                  {cell(row[key] ?? null, true)}
                 </span>
               ))}
               {!payHidden && (
@@ -192,7 +203,7 @@ function PnlTable({ data }: { data: NetworkPnl }) {
           ))}
           {data.depots.length === 0 && (
             <tr>
-              <td colSpan={8} className="px-3 py-6 text-center text-muted">
+              <td colSpan={9} className="px-3 py-6 text-center text-muted">
                 {t('hq.pnl.empty')}
               </td>
             </tr>
@@ -204,7 +215,7 @@ function PnlTable({ data }: { data: NetworkPnl }) {
             {cell(data.totals.revenueIdr)}
             {costKeys.map((key) => (
               <span key={key} className="contents">
-                {cell(data.totals[key], true)}
+                {cell(data.totals[key] ?? null, true)}
               </span>
             ))}
             {!payHidden && (
@@ -221,6 +232,12 @@ function PnlTable({ data }: { data: NetworkPnl }) {
           </tr>
         </tfoot>
       </table>
+      {fixedDown && (
+        <p className="border-t border-app px-3 py-2 text-xs text-[color:var(--warning)]">{t('hq.pnl.fixedUnavailable')}</p>
+      )}
+      {fixedGap && (
+        <p className="border-t border-app px-3 py-2 text-xs text-muted">{t('hq.pnl.fixedNote')}</p>
+      )}
     </Card>
   );
 }

@@ -132,6 +132,8 @@ export class MonthlyOperationalPnlSourcesResponseDto {
   payout!: string;
   @ApiProperty({ enum: ['ok', 'unavailable'] })
   refunds!: string;
+  @ApiProperty({ enum: ['ok', 'unavailable', 'hidden'] })
+  fixedCosts!: string;
 }
 
 /** Mirrors `MonthlyOperationalPnl` exactly — generated for audit D-6, no field added or removed. */
@@ -166,6 +168,10 @@ export class MonthlyOperationalPnlResponseDto {
   expenseClaimIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
   refundIdr!: number | null;
+  @ApiProperty({ type: Number, nullable: true, description: 'HD-16: imported fixed costs, inside netProfitIdr. null = none entered (belum diisi).' })
+  fixedCostIdr!: number | null;
+  @ApiProperty({ enum: ['entered', 'not_entered', 'unavailable', 'hidden', 'partial'] })
+  fixedCostStatus!: string;
   @ApiProperty({ type: Number, nullable: true })
   netProfitIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
@@ -356,6 +362,10 @@ export class NetworkPnlDepotRowResponseDto {
   @ApiProperty({ type: Number, nullable: true })
   refundIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
+  fixedCostIdr!: number | null;
+  @ApiProperty({ enum: ['entered', 'not_entered', 'unavailable', 'hidden', 'partial'] })
+  fixedCostStatus!: string;
+  @ApiProperty({ type: Number, nullable: true })
   netProfitIdr!: number | null;
 }
 
@@ -374,6 +384,10 @@ export class NetworkPnlTotalsResponseDto {
   @ApiProperty({ type: Number, nullable: true })
   refundIdr!: number | null;
   @ApiProperty({ type: Number, nullable: true })
+  fixedCostIdr!: number | null;
+  @ApiProperty({ enum: ['entered', 'not_entered', 'unavailable', 'hidden', 'partial'] })
+  fixedCostStatus!: string;
+  @ApiProperty({ type: Number, nullable: true })
   netProfitIdr!: number | null;
 }
 
@@ -391,6 +405,8 @@ export class NetworkPnlSourcesResponseDto {
   payout!: string;
   @ApiProperty({ type: String })
   refunds!: string;
+  @ApiProperty({ type: String })
+  fixedCosts!: string;
 }
 
 /** Mirrors `NetworkPnl` exactly (CA-2-59). */

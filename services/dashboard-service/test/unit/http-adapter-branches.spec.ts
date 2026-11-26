@@ -204,6 +204,27 @@ describe('DashboardSourcesHttpAdapter', () => {
     );
   });
 
+  it('fixedCosts reads totals in batches of 100 ids, and is null if any batch fails', async () => {
+    const adapter = makeAdapter();
+    expect((await adapter.fixedCosts([], '2026-07'))?.size).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const ids = Array.from({ length: 101 }, (_, i) => `d${i}`);
+    fetchMock.mockResolvedValueOnce(okResponse([{ depotId: 'd0', totalIdr: 5 }]));
+    fetchMock.mockResolvedValueOnce(okResponse([{ depotId: 'd100', totalIdr: 7 }]));
+    const out = await adapter.fixedCosts(ids, '2026-07');
+    expect([...out!]).toEqual([['d0', 5], ['d100', 7]]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('http://depot/api/v1/depot-fixed-costs/internal/totals?depotIds=d0%2Cd1');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('month=2026-07');
+
+    // The chunks go out together, not one after the other.
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValueOnce(okResponse([]));
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({}), text: async () => '' });
+    expect(await adapter.fixedCosts(ids, '2026-07')).toBeNull();
+  });
+
   it('hrSummary returns null without a call when hr-service is unwired', async () => {
     const adapter = makeAdapter();
     expect(await adapter.hrSummary('d1')).toBeNull();

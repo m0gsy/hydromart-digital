@@ -12,6 +12,7 @@ import {
 import { DashboardConfigService } from '../config/dashboard-config.service';
 import { DASHBOARD_TOKENS } from '../application/tokens';
 import { DashboardService } from '../application/services/dashboard.service';
+import { LegalEntityPnlService } from '../application/services/legal-entity-pnl.service';
 import { DashboardSourcesHttpAdapter } from '../infrastructure/http/dashboard-sources.http.adapter';
 import { DashboardController } from './dashboard.controller';
 import { PendingApprovalsController } from './pending-approvals.controller';
@@ -42,6 +43,7 @@ import { PendingApprovalSourcesHttpAdapter } from '../infrastructure/http/pendin
 const providers: Provider[] = [
   DashboardConfigService,
   DashboardService,
+  LegalEntityPnlService,
   { provide: DASHBOARD_TOKENS.Sources, useClass: DashboardSourcesHttpAdapter },
   ReadScopeService,
   { provide: DASHBOARD_TOKENS.AiReadSources, useClass: AiReadSourcesHttpAdapter },

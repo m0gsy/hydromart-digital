@@ -173,6 +173,17 @@ function PnlReport({ data }: { data: OperationalMonthlyPnl }) {
           border
         />
         <PnlLine label={t('mgrFix.pnl.refunds')} value={data.refundIdr} negative indent border />
+        {!payHidden && data.fixedCostStatus && (
+          <>
+            <PnlLine label={t('mgrFix.pnl.fixedCosts')} value={data.fixedCostIdr ?? null} negative indent border />
+            {data.fixedCostStatus === 'unavailable' && (
+              <p className="pb-2 text-xs text-[color:var(--warning)]">{t('mgrFix.pnl.fixedUnavailable')}</p>
+            )}
+            {data.fixedCostStatus === 'not_entered' && (
+              <p className="pb-2 text-xs text-muted">{t('mgrFix.pnl.fixedNotEntered')}</p>
+            )}
+          </>
+        )}
         {!payHidden && (
           <PnlLine label={t('mgrFix.pnl.netProfit')} value={data.netProfitIdr} bold brand />
         )}

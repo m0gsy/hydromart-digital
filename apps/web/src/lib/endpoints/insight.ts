@@ -208,6 +208,9 @@ export const insight = {
     // whole point is the network; one depot's own P&L is `monthlyPnl` above.
     networkPnl: (month: string) =>
       `/dashboard/api/v1/dashboard/network-pnl?${new URLSearchParams({ month })}`,
+    // HD-16 PR-B: the network P&L grouped by legal entity (movers mid-month left out and named).
+    legalEntityPnl: (month: string) =>
+      `/dashboard/api/v1/dashboard/legal-entity-pnl?${new URLSearchParams({ month })}`,
     // `depotId` scopes the whole dashboard to one depot. A depot-scoped caller is narrowed
     // to their own depots with or without it; naming one is how a console that displays a
     // single depot's name makes sure the numbers under it belong to that depot.

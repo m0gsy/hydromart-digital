@@ -13,9 +13,11 @@ import { DepotFixedCostService } from '../../src/application/services/depot-fixe
 import { DepotFixedCost } from '../../src/domain/depot-fixed-cost';
 import { OwnershipType } from '../../src/domain/inventory';
 import { DepotFixedCostPrismaRepository } from '../../src/infrastructure/prisma/depot-fixed-cost.prisma.repository';
+import { DepotFixedCostInternalController } from '../../src/modules/depot-fixed-cost-internal.controller';
 import { DepotFixedCostController } from '../../src/modules/depot-fixed-cost.controller';
 import {
   DepotFixedCostsQueryDto,
+  DepotFixedCostTotalsQueryDto,
   ImportDepotFixedCostRowDto,
   ImportDepotFixedCostsDto,
 } from '../../src/modules/dto/depot-fixed-cost.dto';
@@ -33,6 +35,14 @@ class InMemoryCosts implements DepotFixedCostRepository {
 
   async listForMonth(month: string, depotId?: string) {
     return this.rows.filter((r) => r.month === month && (!depotId || r.depotId === depotId));
+  }
+
+  async totalsForDepots(month: string, depotIds: string[]) {
+    const out = new Map<string, number>();
+    for (const r of this.rows) {
+      if (r.month === month && depotIds.includes(r.depotId)) out.set(r.depotId, (out.get(r.depotId) ?? 0) + r.amountIdr);
+    }
+    return [...out].map(([depotId, totalIdr]) => ({ depotId, totalIdr }));
   }
 
   async upsert(d: UpsertDepotFixedCostData) {
@@ -165,6 +175,15 @@ describe('DepotFixedCostService', () => {
     audit.mockRestore();
   });
 
+  it('gives the P&L one total per depot for the month, and nothing for a depot without rows', async () => {
+    await service.import([row(), row({ category: 'listrik', amountIdr: 500_000 })], HQ);
+    const [a, b] = repo.rows;
+    expect(await service.totalsForDepots('2026-11', [a!.depotId, 'other'])).toEqual([{ depotId: a!.depotId, totalIdr: 4_000_000 }]);
+    expect(await service.totalsForDepots('2026-10', [a!.depotId])).toEqual([]);
+    const internal = new DepotFixedCostInternalController(service);
+    expect(await internal.totals({ month: '2026-11', depotIds: [b!.depotId] })).toHaveLength(1);
+  });
+
   it('the controller hands the query and the rows to the service', async () => {
     const controller = new DepotFixedCostController(service);
     const out = await controller.import({ rows: [row()] }, HQ);
@@ -184,13 +203,19 @@ describe('depot fixed cost DTOs', () => {
     expect(await validate(plainToInstance(DepotFixedCostsQueryDto, { month: '2026-13' }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(DepotFixedCostsQueryDto, { month: '2026-11', depotId: 'nope' }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(DepotFixedCostsQueryDto, { month: '2026-11' }))).toHaveLength(0);
+    const id = '00000000-0000-4000-8000-000000000001';
+    const totals = plainToInstance(DepotFixedCostTotalsQueryDto, { depotIds: ` ${id}, ${id},`, month: '2026-11' });
+    expect(totals.depotIds).toEqual([id, id]);
+    expect(await validate(totals)).toHaveLength(0);
+    expect(await validate(plainToInstance(DepotFixedCostTotalsQueryDto, { depotIds: '', month: '2026-11' }))).not.toHaveLength(0);
+    expect(await validate(plainToInstance(DepotFixedCostTotalsQueryDto, { depotIds: Array(101).fill(id).join(','), month: '2026-11' }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(DepotFixedCostsQueryDto, { month: '2019-12' }))).not.toHaveLength(0);
     expect(await validate(plainToInstance(DepotFixedCostsQueryDto, { month: '2099-01' }))).not.toHaveLength(0);
   });
 });
 
 describe('DepotFixedCostPrismaRepository', () => {
-  const model = { findUnique: jest.fn(), findMany: jest.fn(), upsert: jest.fn() };
+  const model = { findUnique: jest.fn(), findMany: jest.fn(), upsert: jest.fn(), groupBy: jest.fn() };
   const repo = new DepotFixedCostPrismaRepository({ depotFixedCost: model } as never);
   const dbRow = {
     id: 'c1', depotId: 'd1', month: '2026-11', category: 'sewa', amountIdr: 5, note: null,
@@ -217,6 +242,12 @@ describe('DepotFixedCostPrismaRepository', () => {
     expect(model.findMany.mock.calls[0][0].where).toEqual({ month: '2026-11' });
     await repo.listForMonth('2026-11', 'd1');
     expect(model.findMany.mock.calls[1][0].where).toEqual({ month: '2026-11', depotId: 'd1' });
+  });
+
+  it('sums one month per depot in a single grouped query', async () => {
+    model.groupBy.mockResolvedValue([{ depotId: 'd1', _sum: { amountIdr: 9 } }, { depotId: 'd2', _sum: { amountIdr: null } }]);
+    expect(await repo.totalsForDepots('2026-11', ['d1', 'd2'])).toEqual([{ depotId: 'd1', totalIdr: 9 }, { depotId: 'd2', totalIdr: 0 }]);
+    expect(model.groupBy.mock.calls[0][0].where).toEqual({ month: '2026-11', depotId: { in: ['d1', 'd2'] } });
   });
 
   it('upserts splitting the key from the values', async () => {
