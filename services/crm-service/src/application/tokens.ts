@@ -27,4 +27,5 @@ export const CRM_TOKENS = {
   CustomerReminderSource: Symbol('CustomerReminderSource'),
   // HD-15: the items due for service by days or water volume (depot-service).
   MaintenanceDue: Symbol('MaintenanceDue'),
+  LegalEntityAudience: Symbol('LegalEntityAudience'),
 } as const;

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
+  ArrayMinSize,
   ArrayUnique,
   IsArray,
   IsEnum,
@@ -375,6 +376,45 @@ export class MaintenanceDueResultDto {
     enum: ['pending'],
     description: 'WhatsApp is not sent until the Meta channel is ready; never reported as sent.',
   })
+  whatsapp!: 'pending';
+}
+
+/** AI-26: the dedupe base of the weekly Sales report notice is `sales-weekly:<Monday, WIB>`. */
+export const SALES_WEEKLY_PREFIX = 'sales-weekly:';
+
+/** AI-26: n8n's trigger: which week and which legal entities, ids only. Text, recipients and numbers are not n8n's. */
+export class SalesWeeklyReadyDto {
+  @ApiProperty({ example: 'sales-weekly:2026-11-30' })
+  @IsString()
+  @Matches(/^sales-weekly:\d{4}-\d{2}-\d{2}$/, { message: 'eventId must be sales-weekly:<YYYY-MM-DD>' })
+  eventId!: string;
+
+  @ApiProperty({ example: '2026-11-23', description: 'The Monday (WIB) the reported week starts on.' })
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'weekStart must be YYYY-MM-DD' })
+  weekStart!: string;
+
+  @ApiProperty({ type: [String], format: 'uuid', minItems: 1, maxItems: 50 })
+  @Transform(lowerEach)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  legalEntityIds!: string[];
+}
+
+export class SalesWeeklyReadyResultDto {
+  @ApiProperty({ example: '2026-11-23' })
+  weekStart!: string;
+  @ApiProperty() legalEntities!: number;
+  @ApiProperty({ description: 'Ids that are not a legal entity: nothing was sent for them.' })
+  unknownEntities!: number;
+  @ApiProperty({ description: 'People who may read these entities reports.' })
+  recipients!: number;
+  @ApiProperty({ description: 'Of those, how many have the notice (a retry files none twice).' })
+  notified!: number;
+  @ApiProperty({ enum: ['pending'] })
   whatsapp!: 'pending';
 }
 

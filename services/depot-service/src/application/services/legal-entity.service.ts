@@ -235,6 +235,13 @@ export class LegalEntityService {
       .map(({ id, name }) => ({ id, name }));
   }
 
+  /** AI-26: the role keys granted to read one entity in the AI web (SUPER_ADMIN is never a row). */
+  async aiReadRolesOf(id: string): Promise<string[]> {
+    // ponytail: the whole (small) entity list is read, as accessibleTo does; a per-entity query if it grows.
+    const found = (await this.entities.list()).find((e) => lowerId(e.id) === lowerId(id));
+    return found ? found.aiReadRoles : [];
+  }
+
   async get(id: string): Promise<LegalEntity> {
     const found = await this.entities.findById(lowerId(id));
     if (!found) throw new LegalEntityNotFoundError();

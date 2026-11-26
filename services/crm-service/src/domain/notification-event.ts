@@ -81,6 +81,10 @@ export enum NotificationEvent {
   // Operasional), raised by POST notifications/external/maintenance-due. Tokens: {{depot}},
   // {{items}} (the due items with the reason each; for HQ the count per depot).
   MAINTENANCE_DUE = 'MAINTENANCE_DUE',
+  // AI-26: the weekly Sales report of one legal entity is ready in the AI web. One row per person who
+  // may read that entity's calon mitra CRM, raised by POST notifications/external/sales-weekly-ready.
+  // Tokens: {{week}} ("23 Nov - 29 Nov"), {{entity}}, {{link}} (the AI web page, the AI web page).
+  SALES_WEEKLY_REPORT = 'SALES_WEEKLY_REPORT',
   // HD-15B: a completed supervisor visit with findings (one digest per recipient per visit), and the
   // open follow-ups past their deadline (one digest per recipient per depot per day). Raised by
   // POST notifications/internal/visit-notice from depot-service. Tokens: {{depot}}, {{items}},
@@ -255,6 +259,8 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     '{{points}} poinmu akan hangus pada {{expires}}. Tukarkan dengan voucher di halaman Rewards sebelum hangus ⭐',
   [NotificationEvent.UNPAID_ORDER]:
     'Pesanan {{orderNumber}} ({{amount}}) masih menunggu pembayaran. Selesaikan sekarang, pesanan yang belum dibayar dibatalkan otomatis.',
+  [NotificationEvent.SALES_WEEKLY_REPORT]:
+    'Minggu {{week}}: buka laporan calon mitra untuk {{entity}}. {{link}}',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Perawatan jatuh tempo di {{depot}}: {{items}}. Buka menu Perawatan untuk menjadwalkan servis.',
   [NotificationEvent.VISIT_FINDING]:
@@ -380,6 +386,8 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_ACCESS_REQUESTED,
   // HD-15: addressed to one account (also in PERSONAL_OPS_EVENTS); the depot is in the text.
   NotificationEvent.MAINTENANCE_DUE,
+  // AI-26: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
+  NotificationEvent.SALES_WEEKLY_REPORT,
   // HD-15B: the same, addressed to one account (also in PERSONAL_OPS_EVENTS); the depot is in the text.
   NotificationEvent.VISIT_FINDING,
   NotificationEvent.FOLLOW_UP_OVERDUE,
@@ -440,6 +448,7 @@ export type StaffToggle =
   | 'newFranchiseApp'
   | 'morningSummary'
   | 'aiAccessRequest'
+  | 'salesWeekly'
   | 'maintenanceDue'
   | 'visitFinding';
 
@@ -468,6 +477,8 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.AI_ACCESS_REQUESTED]: 'aiAccessRequest',
   // HD-15: its own switch on /hq/profile, push and email, both defaulting on.
   [NotificationEvent.MAINTENANCE_DUE]: 'maintenanceDue',
+  // AI-26: its own switch on /hq/profile, push and email, both defaulting on.
+  [NotificationEvent.SALES_WEEKLY_REPORT]: 'salesWeekly',
   // HD-15B: one switch for both visit notices (depot lists and /hq/profile), push and email, default on.
   [NotificationEvent.VISIT_FINDING]: 'visitFinding',
   [NotificationEvent.FOLLOW_UP_OVERDUE]: 'visitFinding',
@@ -515,6 +526,8 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_ACCESS_REQUESTED,
   // HD-15: one recipient's own row (the same text goes to each of them, but each has their own).
   NotificationEvent.MAINTENANCE_DUE,
+  // AI-26: each recipient's own row.
+  NotificationEvent.SALES_WEEKLY_REPORT,
   // HD-15B: each recipient's own row.
   NotificationEvent.VISIT_FINDING,
   NotificationEvent.FOLLOW_UP_OVERDUE,
@@ -552,6 +565,8 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     'Order {{orderNumber}} ({{amount}}) is still waiting for payment. Pay now: orders left unpaid are cancelled automatically.',
   [NotificationEvent.AI_ACCESS_REQUESTED]:
     '{{who}} asks for AI web access to {{what}}. Open Legal entities, the AI access section, to grant it.',
+  [NotificationEvent.SALES_WEEKLY_REPORT]:
+    'Week {{week}}: open the calon mitra report for {{entity}}. {{link}}',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Maintenance is due at {{depot}}: {{items}}. Open Maintenance to schedule the service.',
   [NotificationEvent.VISIT_FINDING]:

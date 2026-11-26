@@ -115,6 +115,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'orderStatusByPhone',
       'customerReminderNotify',
       'maintenanceDueNotify',
+      'salesReportNotify',
       'depotDirectory',
       'orderManageRead',
       'staffDirectoryFinance',

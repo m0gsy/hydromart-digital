@@ -308,6 +308,7 @@ describe('the staff switch for each depot alert', () => {
       'newFranchiseApp',
       'morningSummary',
       'aiAccessRequest',
+      'salesWeekly',
       'maintenanceDue',
       'visitFinding',
     ];

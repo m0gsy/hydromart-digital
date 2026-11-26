@@ -11,6 +11,7 @@
 #                            only while hydromart_auth holds no sealed secret at all (below)
 #   AI_WEB_RETURN_URL        auth-service: AI_WEB_URL from infra/aiweb/docker-compose.yml plus
 #                            /masuk/callback (not a secret; made here so the two cannot differ)
+#   AI_WEB_URL               crm-service: that same origin, for the link in the weekly Sales report email (AI-26)
 #
 # AI-5, n8n's (infra/aiweb/docker-compose.yml, services n8n and n8n-setup):
 #
@@ -157,6 +158,17 @@ if absent AI_WEB_RETURN_URL; then
   origin="$(sed -n 's/^ *AI_WEB_URL: *//p' infra/aiweb/docker-compose.yml | head -1 | tr -d "\"' \r")"
   case "$origin" in
     https://*[!/]) add AI_WEB_RETURN_URL "$origin/masuk/callback" ;;
+    *)
+      echo "aiweb-secrets: infra/aiweb/docker-compose.yml has no https AI_WEB_URL origin; nothing written" >&2
+      exit 1
+      ;;
+  esac
+fi
+
+if absent AI_WEB_URL; then
+  origin="$(sed -n 's/^ *AI_WEB_URL: *//p' infra/aiweb/docker-compose.yml | head -1 | tr -d "\"' \r")"
+  case "$origin" in
+    https://*[!/]) add AI_WEB_URL "$origin" ;;
     *)
       echo "aiweb-secrets: infra/aiweb/docker-compose.yml has no https AI_WEB_URL origin; nothing written" >&2
       exit 1

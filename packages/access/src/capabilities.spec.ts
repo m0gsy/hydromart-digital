@@ -271,6 +271,15 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('maintenanceDueNotify');
   });
 
+  // AI-26: n8n only triggers the weekly Sales report notice; no human role raises it.
+  it('leaves the weekly Sales report notice to the machine account', () => {
+    expect(CAPABILITIES.salesReportNotify).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING', 'MANAGER']) {
+      expect(can('salesReportNotify', role)).toBe(false);
+    }
+    expect(CUSTOM_FORBIDDEN).toContain('salesReportNotify');
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);

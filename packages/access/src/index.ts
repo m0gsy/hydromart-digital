@@ -622,6 +622,13 @@ export const CAPABILITIES = {
    */
   maintenanceDueNotify: ['SUPER_ADMIN'],
   /*
+   * crm-service (AI-26) - tell the people who read a legal entity's calon mitra CRM that the
+   * weekly Sales report is ready (POST notifications/external/sales-weekly-ready). Held by the n8n
+   * machine account through its token's scopes; ids only, hydromart picks the recipients and writes
+   * the text, so also in CUSTOM_FORBIDDEN like maintenanceDueNotify.
+   */
+  salesReportNotify: ['SUPER_ADMIN'],
+  /*
    * depot-service (HD-15B) - write the checklist templates a supervisor visit starts from. Head
    * office and directors only; the network has one template list. Not in CUSTOM_FORBIDDEN: an
    * ordinary capability with no depot fence.
@@ -1151,6 +1158,8 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'customerReminderNotify',
   // HD-15: the n8n machine account's, same reasoning.
   'maintenanceDueNotify',
+  // AI-26: the n8n machine account's, same reasoning.
+  'salesReportNotify',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

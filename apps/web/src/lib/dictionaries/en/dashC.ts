@@ -224,6 +224,7 @@ export const dashC = {
       orderStatusByPhone: 'Read order status for one WhatsApp number (n8n machine account)',
       customerReminderNotify: 'Trigger customer reminders: subscription, points, unpaid (n8n machine account)',
       maintenanceDueNotify: 'Trigger the maintenance-due reminder (n8n machine account)',
+      salesReportNotify: 'Trigger the weekly Sales report notice (n8n machine account)',
       voucherRequestDecide: 'Decide voucher requests',
       fraudReview: 'Review fraud flags',
       refundIssue: 'Raise a refund',

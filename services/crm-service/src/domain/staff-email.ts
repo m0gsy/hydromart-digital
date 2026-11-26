@@ -29,6 +29,10 @@ export const STAFF_EMAIL_TEMPLATES: Partial<Record<NotificationEvent, StaffEmail
     subject: 'Perawatan jatuh tempo di {{depot}}',
     body: 'Perawatan jatuh tempo di {{depot}}: {{items}}. Buka tautan di bawah untuk menjadwalkan servis.',
   },
+  [NotificationEvent.SALES_WEEKLY_REPORT]: {
+    subject: 'Laporan Sales mingguan siap',
+    body: 'Minggu {{week}}: laporan calon mitra untuk {{entity}} sudah siap. Buka {{link}} (masuk dulu dengan akun hydromart Anda).',
+  },
   [NotificationEvent.VISIT_FINDING]: {
     subject: 'Temuan kunjungan supervisor di {{depot}}',
     body: 'Kunjungan supervisor ke {{depot}} menemukan: {{items}}. Buka tautan di bawah untuk melihat dan menindaklanjutinya.',
