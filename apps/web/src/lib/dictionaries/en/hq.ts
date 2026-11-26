@@ -2330,6 +2330,7 @@ export const hq = {
       morningSummary: 'Morning approvals summary',
       aiAccessRequest: 'AI web access request',
       maintenanceDue: 'Equipment maintenance due',
+      visitFinding: 'Supervisor visit findings',
       payoutPending: 'Payout pending release',
       systemIncident: 'System incident (critical)',
       dailyDigest: 'Daily digest (email)',

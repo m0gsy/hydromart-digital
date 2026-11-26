@@ -14,6 +14,22 @@ export const depot = {
     manage: '/visit-templates/api/v1/visit-templates/manage',
     create: '/visit-templates/api/v1/visit-templates',
     update: (id: string) => `/visit-templates/api/v1/visit-templates/${id}`,
+    // A supervisor's read (visitConduct): the active ones.
+    active: '/visit-templates/api/v1/visit-templates',
+  },
+  // HD-15B PR-5 — supervisor visits (depot-service, gateway segment `visits`).
+  visits: {
+    start: '/visits/api/v1/visits',
+    mineOpen: '/visits/api/v1/visits/mine/open',
+    overview: '/visits/api/v1/visits/overview',
+    list: (depotId: string, page = 1) => `/visits/api/v1/visits?depotId=${depotId}&page=${page}&pageSize=20`,
+    findings: (depotId: string, state: string, page = 1) =>
+      `/visits/api/v1/visits/findings?depotId=${depotId}&state=${state}&page=${page}&pageSize=20`,
+    closeFollowUp: (itemId: string) => `/visits/api/v1/visits/findings/${itemId}/follow-up`,
+    one: (id: string) => `/visits/api/v1/visits/${id}`,
+    upload: (id: string) => `/visits/api/v1/visits/${id}/uploads`,
+    answer: (id: string, itemId: string) => `/visits/api/v1/visits/${id}/items/${itemId}`,
+    complete: (id: string) => `/visits/api/v1/visits/${id}/complete`,
   },
   // HD-5 — /hq/legal-entities (depot-service). Read and write are legalEntityAdmin; the AI-web
   // matrix (aiGrants) is legalEntityAiAccess, the superuser by default.

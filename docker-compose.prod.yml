@@ -463,6 +463,9 @@ services:
       VISIT_STORAGE_S3_BUCKET: ${VISIT_STORAGE_S3_BUCKET:-}
       VISIT_STORAGE_S3_ACCESS_KEY_ID: ${VISIT_STORAGE_S3_ACCESS_KEY_ID:-}
       VISIT_STORAGE_S3_SECRET_ACCESS_KEY: ${VISIT_STORAGE_S3_SECRET_ACCESS_KEY:-}
+      # HD-15B: bell + push + email to the depot's Kepala, supervisors and HQ for visit findings and
+      # overdue follow-ups. Keep false until the Ops build with the visit screens is on phones.
+      VISIT_NOTIFY_ENABLED: ${VISIT_NOTIFY_ENABLED:-false}
       GALLON_DEPOSIT_IDR: ${GALLON_DEPOSIT_IDR:-20000}
       # Object storage for each depot's static QRIS image. It shares the PRODUCT bucket on
       # purpose — the objects are namespaced by the `qris/` key prefix, and reusing the

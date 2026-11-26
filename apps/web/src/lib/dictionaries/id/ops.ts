@@ -67,6 +67,7 @@ export const ops = {
     hrDepotRequests: 'Pinjam karyawan',
     handover: 'Serah terima shift',
     maintenance: 'Perawatan alat',
+    visits: 'Kunjungan supervisor',
     staffOnboarding: 'Panduan manajer',
     customers: 'Pelanggan',
     crm: 'CRM & follow-up',

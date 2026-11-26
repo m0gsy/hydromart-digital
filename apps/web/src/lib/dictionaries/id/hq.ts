@@ -2347,6 +2347,7 @@ export const hq = {
       morningSummary: 'Ringkasan persetujuan pagi',
       aiAccessRequest: 'Permintaan akses AI web',
       maintenanceDue: 'Perawatan alat jatuh tempo',
+      visitFinding: 'Temuan kunjungan supervisor',
       payoutPending: 'Payout menunggu rilis',
       systemIncident: 'Insiden sistem (kritis)',
       dailyDigest: 'Ringkasan harian (email)',

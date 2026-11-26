@@ -155,6 +155,13 @@
 # already reminded inside the interval is skipped, so a double run sends nothing more.
 0 9 * * * sh /scripts/sweep.sh gallon-outstanding/internal/overdue-reminders depot:3007
 
+# Supervisor visits (HD-15B): remind each depot's Kepala, its supervisors and HQ Operasional of follow-ups
+# left open past their WIB deadline, one notice per depot per run, again every 3 days while they stay
+# overdue (the follow-up carries its own lastOverdueNoticeAt). Daily at 07:30 WIB, before the depots
+# open. A count-only no-op until depot-service has VISIT_NOTIFY_ENABLED; safe to run twice (crm files
+# one notice per recipient per depot per day).
+30 7 * * * sh /scripts/sweep.sh visits/internal/overdue-sweep depot:3007
+
 # A depot-made subscription is listed under the depot that delivers it (owner decision
 # 2026-11-21). The engine routes each plan by its pin on every run, so closing, moving or
 # redrawing a depot — or a customer moving the plan — changes who delivers it; this moves the

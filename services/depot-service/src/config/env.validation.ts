@@ -108,6 +108,9 @@ export const envValidationSchema = Joi.object({
   VISIT_STORAGE_S3_SECRET_ACCESS_KEY: Joi.string().allow('').default(''),
   // Metres from the depot's map point a supervisor may check in from; 0 = not fenced.
   VISIT_CHECKIN_RADIUS_M: Joi.number().integer().min(0).max(5000).default(200),
+  // HD-15B PR-6: tell Kepala / supervisors / HQ about visit findings and overdue follow-ups.
+  // false until the Ops build with the visit screens is on phones.
+  VISIT_NOTIFY_ENABLED: Joi.boolean().default(false),
   STORAGE_S3_BUCKET: Joi.string().when('STORAGE_DRIVER', { is: 's3', then: Joi.required() }),
   STORAGE_S3_ACCESS_KEY_ID: Joi.string().when('STORAGE_DRIVER', {
     is: 's3',

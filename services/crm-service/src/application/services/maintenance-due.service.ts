@@ -7,13 +7,12 @@ import {
   hqKey,
   hqTracked,
   ITEMS_PER_DIGEST,
-  MAINTENANCE_DUE_DEPOT_ROLE,
-  MAINTENANCE_DUE_HQ_ROLES,
   REMINDER_EVERY_DAYS,
   tagOf,
   toldBy,
 } from '../../domain/maintenance-due';
 import { NotificationEvent } from '../../domain/notification-event';
+import { DepotAudienceService } from './depot-audience.service';
 import { ApproverDirectoryPort } from '../ports/approver-directory.port';
 import { DepotOverseersPort } from '../ports/depot-overseers.port';
 import { DepotStaffPort } from '../ports/depot-staff.port';
@@ -56,14 +55,17 @@ interface Job {
 @Injectable()
 export class MaintenanceDueService {
   private readonly logger = new Logger(MaintenanceDueService.name);
+  private readonly audience: DepotAudienceService;
 
   constructor(
     private readonly notifications: NotificationService,
     @Inject(CRM_TOKENS.MaintenanceDue) private readonly due: MaintenanceDuePort,
-    @Inject(CRM_TOKENS.ApproverDirectory) private readonly directory: ApproverDirectoryPort,
-    @Inject(CRM_TOKENS.DepotStaff) private readonly staff: DepotStaffPort,
-    @Inject(CRM_TOKENS.DepotOverseers) private readonly overseers: DepotOverseersPort,
-  ) {}
+    @Inject(CRM_TOKENS.ApproverDirectory) directory: ApproverDirectoryPort,
+    @Inject(CRM_TOKENS.DepotStaff) staff: DepotStaffPort,
+    @Inject(CRM_TOKENS.DepotOverseers) overseers: DepotOverseersPort,
+  ) {
+    this.audience = new DepotAudienceService(directory, staff, overseers);
+  }
 
   /**
    * THROWS 503 when the due items, the recipients or the earlier notices cannot be read, or a
@@ -89,7 +91,7 @@ export class MaintenanceDueService {
     const reached = new Set<string>();
     let hq: string[] = [];
     if (items.length > 0) {
-      hq = await this.hq().catch(unreadable('HQ recipients'));
+      hq = await this.audience.hq().catch(unreadable('HQ recipients'));
       // HQ is told when an item it has not heard of (in the window) is due: one row per run.
       const tracked = hqTracked(items);
       for (const recipient of hq) {
@@ -103,7 +105,7 @@ export class MaintenanceDueService {
     const byDepot = new Map<string, DueMaintenance[]>();
     for (const i of items) byDepot.set(i.depotId, [...(byDepot.get(i.depotId) ?? []), i]);
     for (const [depotId, depotItems] of byDepot) {
-      const recipients = await this.depotRecipients(depotId).catch(unreadable('recipients'));
+      const recipients = await this.audience.depotRecipients(depotId).catch(unreadable('recipients'));
       // An HQ account that also oversees the depot has its HQ digest already: no second row.
       for (const recipient of recipients.filter((id) => !hq.includes(id))) {
         const known = told.get(`${depotId}|${recipient}`);
@@ -149,24 +151,5 @@ export class MaintenanceDueService {
       remindLater: items.filter((i) => !reached.has(i.id)).length,
       whatsapp: 'pending',
     };
-  }
-
-  /** The depot's Kepala and the people over the depot: one set, no one twice. HQ has its own digest. */
-  private async depotRecipients(depotId: string): Promise<string[]> {
-    const [staffIds, overseers] = await Promise.all([
-      this.staff.staffIdsForDepot(depotId),
-      this.overseers.overseersOfDepot(depotId),
-    ]);
-    const roles =
-      staffIds.length > 0 ? await this.directory.rolesOf(staffIds) : new Map<string, string>();
-    const kepala = staffIds.filter((id) => roles.get(id) === MAINTENANCE_DUE_DEPOT_ROLE);
-    return [...new Set([...kepala, ...overseers])];
-  }
-
-  /** Active accounts holding an HQ Operasional role, re-checked against their current role. */
-  private async hq(): Promise<string[]> {
-    const ids = await this.directory.staffIdsByRoles(MAINTENANCE_DUE_HQ_ROLES);
-    const roles = await this.directory.rolesOf(ids);
-    return ids.filter((id) => MAINTENANCE_DUE_HQ_ROLES.includes(roles.get(id) ?? ''));
   }
 }

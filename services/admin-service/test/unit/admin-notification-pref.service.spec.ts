@@ -58,7 +58,7 @@ describe('AdminNotificationPrefService', () => {
     await service.save('acc-1', [{ id: 'bogus', push: true, email: true, wa: true }]);
     const prefs = await service.get('acc-1');
     expect(prefs.channels.some((c) => c.id === 'bogus')).toBe(false);
-    expect(prefs.channels).toHaveLength(13);
+    expect(prefs.channels).toHaveLength(14);
   });
 
   it('serves the depot event list in DEPOT scope, with its own defaults', async () => {
@@ -70,6 +70,7 @@ describe('AdminNotificationPrefService', () => {
       'approval',
       'dailySummary',
       'maintenanceDue',
+      'visitFinding',
     ]);
     // An operator is on the floor, not in an inbox.
     expect(prefs.channels.find((c) => c.id === 'newOrder')).toMatchObject({
@@ -87,7 +88,7 @@ describe('AdminNotificationPrefService', () => {
 
   it('serves both lists in ALL scope', async () => {
     const prefs = await service.get('acc-1', 'ALL');
-    expect(prefs.channels).toHaveLength(13);
+    expect(prefs.channels).toHaveLength(14);
   });
 
   /*
@@ -167,6 +168,15 @@ describe('AdminNotificationPrefService', () => {
       await service.save('acc-1', [{ id: 'newFranchiseApp', ...off }]);
       expect(await service.pushDisabledFor(['acc-1', 'acc-2'], 'newFranchiseApp')).toEqual(['acc-1']);
       expect(PUSH_TOGGLE_IDS).toEqual([...DEPOT_EVENT_IDS, 'newFranchiseApp', 'morningSummary', 'aiAccessRequest']);
+    });
+
+    // HD-15B: an HQ account (ALL scope) with no saved row resolves the depot-list toggle by its default (push + email on); a saved off wins.
+    it('resolves visitFinding for HQ accounts too, from the depot defaults', async () => {
+      expect(await service.pushDisabledFor(['hq-1'], 'visitFinding')).toEqual([]);
+      expect(await service.emailOnFor(['hq-1'], 'visitFinding')).toEqual(['hq-1']);
+      await service.save('hq-1', [{ id: 'visitFinding', push: false, email: false, wa: false }], 'ALL');
+      expect(await service.pushDisabledFor(['hq-1'], 'visitFinding')).toEqual(['hq-1']);
+      expect(await service.emailOnFor(['hq-1'], 'visitFinding')).toEqual([]);
     });
 
     // HD-15: the depot heads get the maintenance reminder, so their own screen must save its switch.

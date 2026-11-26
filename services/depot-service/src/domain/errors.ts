@@ -709,6 +709,18 @@ export class VisitDepotClosedError extends DomainError {
   }
 }
 
+/** Check-in refused: the phone sent no usable accuracy, so the "Perkiraan" rule cannot be applied. */
+export class VisitAccuracyMissingError extends DomainError {
+  readonly code = 'VISIT_ACCURACY_MISSING';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super(
+      'Akurasi lokasi HP tidak terbaca, jadi kunjungan tidak bisa dimulai. ' +
+        'Di izin lokasi aplikasi pilih "Tepat" (bukan "Perkiraan"), nyalakan GPS, tunggu sebentar, lalu coba lagi.',
+    );
+  }
+}
+
 /** Check-in refused: the phone is not inside the depot's visit area. The text is the guidance. */
 export class VisitOutsideAreaError extends DomainError {
   readonly code = 'VISIT_OUTSIDE_AREA';

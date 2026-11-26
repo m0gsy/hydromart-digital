@@ -14,6 +14,7 @@ import { DepotConfigService } from '../../config/depot-config.service';
 import {
   DepotNotFoundError,
   InvalidFindingError,
+  VisitAccuracyMissingError,
   VisitAlreadyOpenError,
   VisitClosedError,
   VisitDepotClosedError,
@@ -40,6 +41,7 @@ import {
 } from '../../domain/visit';
 import { SopInForce } from '../../domain/visit-template';
 import { DepotRepository } from '../ports/depot.repository';
+import { VisitNotifierPort } from '../ports/visit-notifier.port';
 import { SopLookupPort } from '../ports/sop-lookup.port';
 import { VisitPhotoStoragePort } from '../ports/visit-photo-storage.port';
 import {
@@ -51,17 +53,36 @@ import {
 import { VisitTemplateRepository } from '../ports/visit-template.repository';
 import { DEPOT_TOKENS } from '../tokens';
 
+/** The depot name a notice carries: crm refuses an empty one or one over 120 characters, so clamp and fall back to the id. */
+function noticeName(name: string | null | undefined, depotId: string): string {
+  return (name?.trim() || depotId).slice(0, 120);
+}
+
+/** One checklist line as a notice names it: the line, then what was found (200 characters at most). */
+function lineOf(text: string, note: string | null): string {
+  return (note ? `${text}: ${note}` : text).slice(0, 200);
+}
+
 /** How long a signed photo link lives. Minted per response, never stored. */
 export const PHOTO_LINK_TTL_SECONDS = 300;
 const PAGE_MAX = 100;
 const OVERVIEW_MAX_DEPOTS = 200;
+/** Lines in one notice (crm's cap), and overdue follow-ups read per sweep (the rest wait for tomorrow). */
+const NOTICE_LINES = 30;
+const SWEEP_READ_MAX = 500; // depots per sweep
+/**
+ * A depot is reminded again every 3 days. An hour short of 72, so the daily 07:30 run is never a
+ * day late because last time's stamp landed a few seconds after today's threshold.
+ */
+const REMIND_AFTER_MS = (3 * 24 - 1) * 3_600_000;
 
 export interface StartVisitInput {
   depotId: string;
   templateId: string;
   lat: number;
   lng: number;
-  accuracyM?: number;
+  /** Required: a check-in that omits it would skip the accuracy / "Perkiraan" rule. */
+  accuracyM: number;
 }
 
 export interface AnswerInput {
@@ -110,6 +131,7 @@ export class VisitService {
     @Inject(DEPOT_TOKENS.SopLookup) private readonly sops: SopLookupPort,
     @Inject(DEPOT_TOKENS.VisitPhotoStorage) private readonly photos: VisitPhotoStoragePort,
     private readonly config: DepotConfigService,
+    @Inject(DEPOT_TOKENS.VisitNotifier) private readonly notifier: VisitNotifierPort,
   ) {}
 
   /** The caller's own unfinished visits, so the app can resume one after a refusal or a restart. */
@@ -125,6 +147,7 @@ export class VisitService {
     const template = await this.templates.findById(input.templateId);
     if (!template || !template.active) throw new VisitTemplateNotFoundError();
 
+    if (!Number.isFinite(input.accuracyM) || input.accuracyM < 0) throw new VisitAccuracyMissingError();
     const open = (await this.visits.findOpenOf(user.sub)).find((v) => v.depotId === depot.id);
     if (open) throw new VisitAlreadyOpenError(open.id);
 
@@ -140,12 +163,12 @@ export class VisitService {
     // With the fence on, a fix that cannot prove presence is refused even when it lands inside: an
     // approximate one (about 2 km off) or one whose own accuracy is wider than the radius.
     const tooLoose =
-      fenceChecked && (approximate || (input.accuracyM != null && input.accuracyM > fence.radiusM));
+      fenceChecked && (approximate || input.accuracyM > fence.radiusM);
     if (tooLoose || !ok) {
       // What is asked about afterwards; never the coordinates themselves.
       this.logger.warn(
         `Visit refused: visitor ${user.sub}, depot ${depot.id}, ${distanceM} m, radius ${fence.radiusM} m, ` +
-          `accuracy ${input.accuracyM ?? '?'} m, approximate ${approximate}, outside ${!ok}`,
+          `accuracy ${input.accuracyM} m, approximate ${approximate}, outside ${!ok}`,
       );
       throw new VisitOutsideAreaError(
         tooLoose
@@ -164,7 +187,7 @@ export class VisitService {
       visitorId: user.sub,
       lat: input.lat,
       lng: input.lng,
-      accuracyM: input.accuracyM ?? null,
+      accuracyM: input.accuracyM,
       distanceM,
       approximateFix: approximate,
       fenceChecked,
@@ -307,7 +330,34 @@ export class VisitService {
     if (pending > 0) throw new VisitIncompleteError(pending);
     const done = await this.visits.complete(visitId, now);
     if (!done) throw new VisitClosedError();
+    this.noticeFindings(done);
     return this.withPhotos(done);
+  }
+
+  /**
+   * HD-15B PR-6: a completed visit with findings tells the depot's Kepala, the supervisors over it and
+   * HQ (crm). Fire-and-forget after the commit and fail-open: a notice never fails the visit.
+   * Off unless VISIT_NOTIFY_ENABLED.
+   */
+  private noticeFindings(visit: Visit): void {
+    if (!this.config.visitNotifyEnabled) return;
+    const items = visit.items
+      .filter((i) => i.result === VisitItemResult.FINDING)
+      .map((i) => lineOf(i.text, i.findingNote));
+    if (items.length === 0) return;
+    void this.depots
+      .findById(visit.depotId, false)
+      .then((depot) =>
+        this.notifier.notify({
+          kind: 'FINDING',
+          depotId: visit.depotId,
+          depotName: noticeName(depot?.name, visit.depotId),
+          visitId: visit.id,
+          dateKey: localDayKey(visit.completedAt ?? new Date()),
+          items: items.slice(0, NOTICE_LINES),
+        }),
+      )
+      .catch((e: Error) => this.logger.warn(`Visit ${visit.id} finding notice not sent: ${e.message}`));
   }
 
   async get(visitId: string, user: AuthenticatedUser): Promise<VisitView> {
@@ -399,9 +449,43 @@ export class VisitService {
     return this.withPhoto(closed);
   }
 
-  /** Counts only in this PR; the reminder that uses it ships with the notifications (PR-6). */
-  overdueSweep(now: Date = new Date()): Promise<{ depots: number; items: number }> {
-    return this.visits.overdueCounts(localDayKey(now));
+  /**
+   * The overdue follow-ups, counted; and, when VISIT_NOTIFY_ENABLED, one notice per depot for the ones
+   * nobody was reminded of in the last 3 days. A follow-up is stamped only once crm took the notice, so
+   * a failed call is retried by tomorrow's run. At most NOTICE_LINES per depot per run (the rest go
+   * out the next day) and SWEEP_READ_MAX depots per run. One depot failing never stops the next.
+   */
+  async overdueSweep(now: Date = new Date()): Promise<{ depots: number; items: number; notified: number }> {
+    const todayKey = localDayKey(now);
+    const counts = await this.visits.overdueCounts(todayKey);
+    if (!this.config.visitNotifyEnabled || counts.items === 0) return { ...counts, notified: 0 };
+    const due = await this.visits.overdueToRemind(
+      todayKey,
+      new Date(now.getTime() - REMIND_AFTER_MS),
+      NOTICE_LINES,
+      SWEEP_READ_MAX,
+    );
+    const byDepot = new Map<string, typeof due>();
+    for (const f of due) byDepot.set(f.depotId, [...(byDepot.get(f.depotId) ?? []), f]);
+    let notified = 0;
+    for (const [depotId, found] of byDepot) {
+      const sent = found.slice(0, NOTICE_LINES);
+      try {
+        const ok = await this.notifier.notify({
+          kind: 'OVERDUE',
+          depotId,
+          depotName: noticeName(sent[0].depotName, depotId),
+          dateKey: todayKey,
+          items: sent.map((f) => lineOf(f.text, f.findingNote)),
+        });
+        if (!ok) continue;
+        await this.visits.stampOverdueNotice(sent.map((f) => f.id), now);
+        notified += 1;
+      } catch (e) {
+        this.logger.warn(`Overdue notice for depot ${depotId} failed: ${(e as Error).message}`);
+      }
+    }
+    return { ...counts, notified };
   }
 
   private async withPhoto(item: VisitItem): Promise<VisitItemView> {

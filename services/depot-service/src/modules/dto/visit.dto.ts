@@ -45,12 +45,11 @@ export class StartVisitDto {
   @Max(180)
   lng!: number;
 
-  @ApiPropertyOptional({ description: "The phone's accuracy for that fix, in metres." })
-  @IsOptional()
+  @ApiProperty({ description: "The phone's accuracy for that fix, in metres (required: the \"Perkiraan\" rule needs it)." })
   @IsNumber()
   @Min(0)
   @Max(INT4_MAX)
-  accuracyM?: number;
+  accuracyM!: number;
 }
 
 export class AnswerVisitItemDto {
@@ -215,4 +214,6 @@ export class VisitPhotoUploadResponseDto {
 export class OverdueSweepResponseDto {
   @ApiProperty() depots!: number;
   @ApiProperty() items!: number;
+  @ApiProperty({ description: 'Depot reminders crm accepted this run (0 while VISIT_NOTIFY_ENABLED is off).' })
+  notified!: number;
 }

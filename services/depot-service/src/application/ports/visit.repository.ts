@@ -63,6 +63,15 @@ export interface DepotVisitStat {
   overdueFollowUps: number;
 }
 
+/** One overdue follow-up, with what a reminder says about it. */
+export interface OverdueFollowUp {
+  id: string;
+  depotId: string;
+  depotName: string;
+  text: string;
+  findingNote: string | null;
+}
+
 export interface VisitRepository {
   /** Creates the visit with its copied lines; a second open visit by the same person at the same depot throws VisitAlreadyOpenError. */
   create(data: NewVisit): Promise<Visit>;
@@ -88,4 +97,13 @@ export interface VisitRepository {
   closeFollowUp(itemId: string, by: string, note: string | null, now: Date): Promise<VisitItem | null>;
   /** Open follow-ups past their WIB deadline, in total and per depot (the sweep, PR-6 notifies). */
   overdueCounts(todayKey: string): Promise<{ depots: number; items: number }>;
+  /** Overdue open follow-ups nobody was reminded of since `remindedBefore`, oldest deadline first, per depot name. */
+  overdueToRemind(
+    todayKey: string,
+    remindedBefore: Date,
+    perDepot: number,
+    maxDepots: number,
+  ): Promise<OverdueFollowUp[]>;
+  /** Stamps the follow-ups a reminder went out for. */
+  stampOverdueNotice(ids: string[], now: Date): Promise<void>;
 }

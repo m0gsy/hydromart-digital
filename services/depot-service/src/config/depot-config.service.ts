@@ -184,6 +184,13 @@ export class DepotConfigService {
   visitCheckInRadiusM(depotId: string | null = null): number {
     return this.tunable('visitCheckInRadiusM', this.num('VISIT_CHECKIN_RADIUS_M'), depotId);
   }
+  /**
+   * HD-15B PR-6: supervisor-visit notices (findings, overdue follow-ups) go out. Off until the Ops
+   * build that shows the visit screens is on phones: a push to a route an older app lacks lands on '/'.
+   */
+  get visitNotifyEnabled(): boolean {
+    return String(this.config.get('VISIT_NOTIFY_ENABLED', 'false')) === 'true';
+  }
   /** Days between reminders to one overdue customer. */
   gallonReminderEveryDays(depotId: string | null = null): number {
     return this.tunable('gallonReminderEveryDays', this.num('GALLON_REMINDER_EVERY_DAYS'), depotId);

@@ -13,8 +13,8 @@ export class VisitInternalController {
   constructor(private readonly visits: VisitService) {}
 
   /**
-   * Counts the open follow-ups past their WIB deadline. Counting only in this release: the reminder
-   * that uses it ships with the visit notifications.
+   * Counts the open follow-ups past their WIB deadline and, when VISIT_NOTIFY_ENABLED, reminds each
+   * depot's Kepala, supervisors and HQ (every 3 days while a follow-up stays overdue).
    */
   @ApiOkResponse({ type: OverdueSweepResponseDto })
   @Post('overdue-sweep')
@@ -22,8 +22,8 @@ export class VisitInternalController {
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
-  @ApiOperation({ summary: 'Count overdue visit follow-ups (internal service auth)' })
-  overdueSweep(): Promise<{ depots: number; items: number }> {
+  @ApiOperation({ summary: 'Count and remind overdue visit follow-ups (internal service auth)' })
+  overdueSweep(): Promise<{ depots: number; items: number; notified: number }> {
     return this.visits.overdueSweep();
   }
 }

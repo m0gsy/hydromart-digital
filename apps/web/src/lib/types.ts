@@ -944,6 +944,8 @@ export type NotificationEvent =
   | 'UNPAID_ORDER'
   // HD-15: depot equipment due for service by days or water volume, one row per recipient.
   | 'MAINTENANCE_DUE'
+  | 'VISIT_FINDING'
+  | 'FOLLOW_UP_OVERDUE'
   | 'VOUCHER_EXPIRING'
   | 'COURIER_DELIVERY_ASSIGNED'
   | 'DELIVERY_SLA_BREACHED'
@@ -997,6 +999,8 @@ export const OPS_EVENTS = [
   'MORNING_SUMMARY',
   'AI_ACCESS_REQUESTED',
   'MAINTENANCE_DUE',
+  'VISIT_FINDING',
+  'FOLLOW_UP_OVERDUE',
   'COURIER_DELIVERY_ASSIGNED',
   'DELIVERY_SLA_BREACHED',
   'STOCK_LOW',
@@ -2947,7 +2951,7 @@ export interface SecurityPolicy {
 
 // Per-admin notification prefs (23a). Event ids are canonical; labels are i18n on the web.
 export type NotificationEventId =
-  'criticalSla' | 'newFranchiseApp' | 'morningSummary' | 'aiAccessRequest' | 'maintenanceDue' | 'payoutPending' | 'systemIncident' | 'dailyDigest';
+  'criticalSla' | 'newFranchiseApp' | 'morningSummary' | 'aiAccessRequest' | 'maintenanceDue' | 'visitFinding' | 'payoutPending' | 'systemIncident' | 'dailyDigest';
 export interface NotificationChannelPref {
   id: NotificationEventId;
   push: boolean;

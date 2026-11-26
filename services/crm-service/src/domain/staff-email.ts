@@ -29,6 +29,14 @@ export const STAFF_EMAIL_TEMPLATES: Partial<Record<NotificationEvent, StaffEmail
     subject: 'Perawatan jatuh tempo di {{depot}}',
     body: 'Perawatan jatuh tempo di {{depot}}: {{items}}. Buka tautan di bawah untuk menjadwalkan servis.',
   },
+  [NotificationEvent.VISIT_FINDING]: {
+    subject: 'Temuan kunjungan supervisor di {{depot}}',
+    body: 'Kunjungan supervisor ke {{depot}} menemukan: {{items}}. Buka tautan di bawah untuk melihat dan menindaklanjutinya.',
+  },
+  [NotificationEvent.FOLLOW_UP_OVERDUE]: {
+    subject: 'Tindak lanjut kunjungan terlambat di {{depot}}',
+    body: 'Tindak lanjut kunjungan di {{depot}} terlambat: {{items}}. Buka tautan di bawah untuk menyelesaikannya.',
+  },
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: {
     subject: 'Lamaran waralaba baru: calon mitra di {{city}}, {{province}}',
     body: 'Lamaran waralaba baru dari calon mitra di {{city}}, {{province}}. Buka tautan di bawah untuk meninjaunya.',

@@ -11,6 +11,8 @@ import { SavedSegmentService } from '../application/services/saved-segment.servi
 import { NotificationService } from '../application/services/notification.service';
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
 import { MaintenanceDueService } from '../application/services/maintenance-due.service';
+import { DepotAudienceService } from '../application/services/depot-audience.service';
+import { VisitNoticeService } from '../application/services/visit-notice.service';
 import { MaintenanceDueHttpAdapter } from '../infrastructure/http/maintenance-due.http.adapter';
 import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { CustomerReminderService } from '../application/services/customer-reminder.service';
@@ -47,6 +49,7 @@ import { AiCampaignController } from './ai-campaign.controller';
 import { CampaignController } from './campaign.controller';
 import { SavedSegmentController } from './saved-segment.controller';
 import { NotificationController } from './notification.controller';
+import { VisitNoticeController } from './visit-notice.controller';
 import { NotificationExternalController } from './notification-external.controller';
 import { BroadcastController } from './broadcast.controller';
 import { PushController } from './push.controller';
@@ -62,6 +65,8 @@ const providers: Provider[] = [
   MorningSummaryService,
   AiAccessRequestService,
   MaintenanceDueService,
+  DepotAudienceService,
+  VisitNoticeService,
   { provide: CRM_TOKENS.MaintenanceDue, useClass: MaintenanceDueHttpAdapter },
   BroadcastService,
   PushService,
@@ -106,6 +111,7 @@ const providers: Provider[] = [
     CampaignController,
     SavedSegmentController,
     NotificationController,
+    VisitNoticeController,
     NotificationExternalController,
     BroadcastController,
     PushController,

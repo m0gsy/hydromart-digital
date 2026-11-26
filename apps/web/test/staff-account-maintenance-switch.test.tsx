@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const role = vi.hoisted(() => ({ current: 'KEPALA_DEPOT' }));
 const events = [
   { id: 'maintenanceDue', push: true, email: true, wa: false },
+  { id: 'visitFinding', push: true, email: true, wa: false },
   { id: 'approval', push: true, email: false, wa: false },
 ];
 const put = vi.hoisted(() => vi.fn<(url: string, body: { events: unknown[] }) => Promise<unknown>>());
@@ -67,6 +68,15 @@ describe('maintenance-due switches on /dashboard/account', () => {
     fireEvent.click(push);
     await waitFor(() => expect(put).toHaveBeenCalledTimes(2));
     expect(put.mock.calls[1]![1].events).toContainEqual({ id: 'maintenanceDue', push: false, email: false, wa: false });
+  });
+
+  it('also carries the supervisor visit findings switch, and saves it on its own channel', async () => {
+    put.mockImplementation(async (_url, body) => ({ events: body.events }));
+    draw();
+    const email = await screen.findByRole('switch', { name: /Temuan kunjungan supervisor \(Email\)/ });
+    fireEvent.click(email);
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    expect(put.mock.calls[0]![1].events).toContainEqual({ id: 'visitFinding', push: true, email: false, wa: false });
   });
 
   it('is not drawn for a depot operator', async () => {
