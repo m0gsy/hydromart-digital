@@ -1,4 +1,13 @@
-import { LatLng, pointInServiceArea, readServiceArea, ServiceArea } from './service-area';
+import {
+  depotServes,
+  LatLng,
+  pointInServiceArea,
+  readServiceArea,
+  ServiceArea,
+  servingDepot,
+  ServingDepot,
+} from './service-area';
+import { haversineKm } from './geo';
 
 const p = (lat: number, lng: number): LatLng => ({ lat, lng });
 
@@ -67,5 +76,70 @@ describe('readServiceArea', () => {
     expect(readServiceArea([[{ lat: 0, lng: 0, x: 1 }, p(0, 1), p(1, 1)]])).toEqual([
       [p(0, 0), p(0, 1), p(1, 1)],
     ]);
+  });
+});
+
+const dep = (
+  id: string,
+  lat: number,
+  lng: number,
+  r: number | null,
+  area?: ServiceArea | null,
+): ServingDepot => ({
+  id,
+  lat,
+  lng,
+  serviceRadiusKm: r,
+  serviceArea: area,
+});
+
+describe('depotServes', () => {
+  const here = p(-6.1, 106.9);
+  it('radius decides without an area, edge included', () => {
+    const km = haversineKm(here.lat, here.lng, -6.1, 106.95);
+    expect(depotServes(here, dep('a', -6.1, 106.95, km))).toBe(true);
+    expect(depotServes(here, dep('a', -6.1, 106.95, km - 0.001))).toBe(false);
+  });
+  it('a drawn area wins over the radius, edge included', () => {
+    expect(depotServes(p(-6.2, 106.9), dep('a', -6.1, 106.9, 0.1, SQUARE))).toBe(true);
+    expect(depotServes(p(-5.9, 106.9), dep('a', -6.1, 106.9, 999, SQUARE))).toBe(false);
+  });
+  it('an empty area falls back to the radius', () => {
+    expect(depotServes(here, dep('a', -6.1, 106.9, 1, []))).toBe(true);
+  });
+  it('radius 0 serves the exact depot point only', () => {
+    expect(depotServes(here, dep('a', here.lat, here.lng, 0))).toBe(true);
+    expect(depotServes(here, dep('a', -6.1, 106.91, 0))).toBe(false);
+  });
+  it.each([
+    ['null radius', dep('a', -6.1, 106.9, null)],
+    ['NaN radius', dep('a', -6.1, 106.9, NaN)],
+    ['NaN lat', dep('a', NaN, 106.9, 50)],
+    ['NaN lat with an area', dep('a', NaN, 106.9, 50, SQUARE)],
+    ['Infinity lng with an area', dep('a', -6.1, Infinity, 50, SQUARE)],
+  ])('%s never serves', (_n, d) => {
+    expect(depotServes(here, d)).toBe(false);
+  });
+});
+
+describe('servingDepot', () => {
+  const here = p(-6.1, 106.9);
+  it('picks the nearest serving depot', () => {
+    const far = dep('far', -6.1, 106.95, 50);
+    const near = dep('near', -6.1, 106.91, 50);
+    expect(servingDepot(here, [far, near])).toBe(near);
+  });
+  it('ignores non-serving and garbage rows, null when none serves', () => {
+    const bad = dep('bad', NaN, NaN, NaN);
+    const out = dep('out', -6.1, 107.5, 1);
+    expect(servingDepot(here, [bad, out])).toBeNull();
+    expect(servingDepot(here, [])).toBeNull();
+    expect(servingDepot(here, [bad, dep('ok', -6.1, 106.91, 5)])?.id).toBe('ok');
+  });
+  it('breaks a distance tie by id, whatever the order', () => {
+    const a = dep('a', -6.1, 106.95, 50);
+    const b = dep('b', -6.1, 106.95, 50);
+    expect(servingDepot(here, [b, a])).toBe(a);
+    expect(servingDepot(here, [a, b])).toBe(a);
   });
 });

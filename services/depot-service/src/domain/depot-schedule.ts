@@ -65,8 +65,7 @@ export function parseOperatingHours(input: unknown): Parsed<OperatingHours> {
     if (blank(open) || blank(close)) {
       return { ok: false, error: `${day}: jam buka dan jam tutup harus diisi bersama` };
     }
-    const bad =
-      timeError(`${day}: jam buka`, open) ?? timeError(`${day}: jam tutup`, close);
+    const bad = timeError(`${day}: jam buka`, open) ?? timeError(`${day}: jam tutup`, close);
     if (bad) return { ok: false, error: bad };
     if (minutes(open as string) >= minutes(close as string)) {
       return { ok: false, error: `${day}: jam tutup harus setelah jam buka` };
@@ -124,7 +123,10 @@ export function parseHolidays(input: unknown): Parsed<Holiday[]> {
     }
     const m = typeof date === 'string' ? DATE.exec(date) : null;
     if (!m || !realDate(Number(m[1]), Number(m[2]), Number(m[3]))) {
-      return { ok: false, error: `tanggal libur "${String(date)}" bukan tanggal YYYY-MM-DD yang valid` };
+      return {
+        ok: false,
+        error: `tanggal libur "${String(date)}" bukan tanggal YYYY-MM-DD yang valid`,
+      };
     }
     if (seen.has(date as string)) {
       return { ok: false, error: `tanggal libur ${date as string} muncul lebih dari sekali` };
@@ -135,7 +137,14 @@ export function parseHolidays(input: unknown): Parsed<Holiday[]> {
     }
     const text = typeof label === 'string' ? label.trim() : '';
     if (text.length > MAX_HOLIDAY_LABEL) {
-      return { ok: false, error: `${date as string}: keterangan maksimal ${MAX_HOLIDAY_LABEL} karakter` };
+      return {
+        ok: false,
+        error: `${date as string}: keterangan maksimal ${MAX_HOLIDAY_LABEL} karakter`,
+      };
+    }
+    // `|` separates holidays in the import sheet and its export, so a label holding one would not round-trip.
+    if (text.includes('|')) {
+      return { ok: false, error: `${date as string}: keterangan tidak boleh memuat tanda |` };
     }
     out.push(text ? { date: date as string, label: text } : { date: date as string });
   }

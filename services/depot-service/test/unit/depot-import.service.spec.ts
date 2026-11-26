@@ -388,6 +388,109 @@ describe('DepotImportService', () => {
     });
   });
 
+  describe('export', () => {
+    const env = { ...process.env };
+    afterEach(() => {
+      process.env = { ...env };
+      jest.restoreAllMocks();
+    });
+
+    const full = row({
+      serviceRadiusKm: 8,
+      minOrderAmount: 20000,
+      contactPhone: '081234567890',
+      paymentBankName: 'BCA',
+      paymentBankAccountNumber: '1234567890',
+      operatingHours: {
+        mon: { open: '08:00', close: '20:00', breakStart: '12:00', breakEnd: '13:00' },
+      },
+      holidays: [{ date: '2026-08-17', label: 'Kemerdekaan' }],
+      serviceArea: SQUARE,
+      settings: { gallonDepositIdr: 25000 },
+    });
+
+    it('re-imports as a no-op upsert, and the trail entry is written first', async () => {
+      process.env.AUTH_SERVICE_URL = 'http://auth:3001';
+      process.env.INTERNAL_SERVICE_KEY = 'k';
+      const fetchMock = jest.fn().mockResolvedValue({ ok: true });
+      global.fetch = fetchMock as never;
+      await service.import('create', [full, row({ code: 'JKT-02' })], ADMIN);
+      const strip = () =>
+        JSON.stringify(repo.rows.map(({ updatedAt: _u, ...rest }) => rest)) +
+        JSON.stringify(settingsRepo.rows);
+      const before = strip();
+
+      const out = await service.export(ADMIN);
+      expect(out.total).toBe(2);
+      expect(out.rows.map((r) => r.code)).toEqual(['JKT-01', 'JKT-02']);
+      expect(out.rows[0]).toMatchObject({
+        serviceArea: SQUARE,
+        settings: { gallonDepositIdr: '25000' },
+      });
+      const logged = fetchMock.mock.calls.map((c) => JSON.parse((c[1] as { body: string }).body));
+      expect(logged.find((b) => b.action === 'depot.export')).toMatchObject({
+        actorId: 'u1',
+        metadata: { count: 2, total: 2 },
+      });
+
+      // The wire drops nulls the way a blank cell does.
+      const rows = out.rows.map((r) =>
+        Object.fromEntries(Object.entries(r).filter(([, v]) => v !== null)),
+      ) as unknown as ImportDepotRowDto[];
+      const again = await service.import('upsert', rows, ADMIN);
+      expect(again).toMatchObject({ failed: 0 });
+      expect(strip()).toBe(before);
+    });
+
+    it('refuses to export without a trail, and stops at the 500-row import ceiling', async () => {
+      await service.import('create', [row()], ADMIN);
+      await expect(service.export(ADMIN)).rejects.toThrow('not configured');
+      process.env.AUTH_SERVICE_URL = 'http://auth:3001';
+      process.env.INTERNAL_SERVICE_KEY = 'k';
+      global.fetch = jest.fn().mockResolvedValue({ ok: true }) as never;
+      const many = Array.from({ length: 501 }, (_, i) =>
+        row({ code: `X-${String(i).padStart(3, '0')}` }),
+      );
+      for (let i = 0; i < many.length; i += 100) {
+        await service.import('create', many.slice(i, i + 100), ADMIN);
+      }
+      const out = await service.export(ADMIN);
+      expect(out.rows).toHaveLength(500);
+      expect(out.total).toBe(502);
+    });
+    it('copes with odd rows: no area, a depot-less settings row, a page that comes back empty', async () => {
+      process.env.AUTH_SERVICE_URL = 'http://auth:3001';
+      process.env.INTERNAL_SERVICE_KEY = 'k';
+      global.fetch = jest.fn().mockResolvedValue({ ok: true }) as never;
+      settingsRepo.rows.push({
+        scope: 'DEPOT',
+        depotId: null,
+        key: 'gallonDepositIdr',
+        value: '1',
+        updatedBy: 'u',
+      });
+      await service.import('create', [row()], ADMIN);
+      const only = { ...repo.rows[0]!, serviceArea: undefined };
+      const search = jest
+        .spyOn(repo, 'search')
+        .mockResolvedValueOnce({ items: [only], total: 3 })
+        .mockResolvedValueOnce({ items: [], total: 3 });
+      const out = await service.export(ADMIN);
+      expect(search).toHaveBeenCalledTimes(2);
+      expect(out.rows).toHaveLength(1);
+      expect(out.rows[0]).toMatchObject({ serviceArea: null, settings: {} });
+    });
+
+    it('refuses a holiday label holding the sheet separator', async () => {
+      const out = await service.import(
+        'create',
+        [row({ holidays: [{ date: '2026-08-17', label: 'a|b' }] })],
+        ADMIN,
+      );
+      expect(out.failed).toBe(1);
+    });
+  });
+
   describe('audit', () => {
     const env = { ...process.env };
     afterEach(() => {
@@ -423,7 +526,13 @@ describe('DepotImportService', () => {
       await service.import('create', [row({ code: 'AUD-1' })], ADMIN);
       await service.import(
         'upsert',
-        [{ code: 'AUD-1', paymentBankAccountNumber: '1234567890', ownerId: undefined } as ImportDepotRowDto],
+        [
+          {
+            code: 'AUD-1',
+            paymentBankAccountNumber: '1234567890',
+            ownerId: undefined,
+          } as ImportDepotRowDto,
+        ],
         ADMIN,
       );
       const perRow = bodies(fetchMock).filter((b) => b.action === 'depot.import.row');
@@ -443,7 +552,11 @@ describe('DepotImportService', () => {
       global.fetch = fetchMock as never;
       await service.import('create', [row({ code: 'AUD-2' })], ADMIN);
       fetchMock.mockClear();
-      await service.import('create', [row({ code: 'AUD-2' }), row({ code: 'AUD-3', lat: 500 as never })], ADMIN);
+      await service.import(
+        'create',
+        [row({ code: 'AUD-2' }), row({ code: 'AUD-3', lat: 500 as never })],
+        ADMIN,
+      );
       expect(bodies(fetchMock).filter((b) => b.action === 'depot.import.row')).toHaveLength(0);
     });
   });
@@ -452,7 +565,10 @@ describe('DepotImportService', () => {
 describe('DepotImportController', () => {
   const summary = { created: 0, updated: 0, skipped: 0, failed: 0, results: [] };
   const make = () => {
-    const imports = { import: jest.fn().mockResolvedValue(summary) };
+    const imports = {
+      import: jest.fn().mockResolvedValue(summary),
+      export: jest.fn().mockResolvedValue({ rows: [], total: 0 }),
+    };
     return { imports, controller: new DepotImportController(imports as never) };
   };
 
@@ -461,6 +577,12 @@ describe('DepotImportController', () => {
     await expect(controller.import({ mode: 'create', rows: [] }, HQ)).resolves.toBe(summary);
     expect(() => controller.import({ mode: 'upsert', rows: [] }, HQ)).toThrow(ForbiddenException);
     expect(imports.import).toHaveBeenCalledTimes(1);
+  });
+
+  it('exports through the service', async () => {
+    const { controller, imports } = make();
+    await expect(controller.export(ADMIN)).resolves.toEqual({ rows: [], total: 0 });
+    expect(imports.export).toHaveBeenCalledWith(ADMIN);
   });
 
   it('lets the superuser update', async () => {

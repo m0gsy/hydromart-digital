@@ -491,6 +491,14 @@ export class ImportDepotRowDto extends PartialType(OmitType(CreateDepotDto, ['co
   settings?: Record<string, string | number | null>;
 }
 
+/** GET /depots/import/export: import-shaped rows (Area-D14) and how many depots exist in all. */
+export class DepotExportResponseDto {
+  @ApiProperty({ type: 'array', items: { type: 'object', additionalProperties: true } })
+  rows!: Record<string, unknown>[];
+  @ApiProperty({ type: Number })
+  total!: number;
+}
+
 export class ImportDepotsDto {
   @ApiProperty({
     enum: ['create', 'upsert'],
