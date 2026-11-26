@@ -14,6 +14,7 @@ import { DepotConfigService } from '../../config/depot-config.service';
 import {
   DepotNotFoundError,
   InvalidFindingError,
+  VisitAccuracyMissingError,
   VisitAlreadyOpenError,
   VisitClosedError,
   VisitDepotClosedError,
@@ -80,7 +81,8 @@ export interface StartVisitInput {
   templateId: string;
   lat: number;
   lng: number;
-  accuracyM?: number;
+  /** Required: a check-in that omits it would skip the accuracy / "Perkiraan" rule. */
+  accuracyM: number;
 }
 
 export interface AnswerInput {
@@ -145,6 +147,7 @@ export class VisitService {
     const template = await this.templates.findById(input.templateId);
     if (!template || !template.active) throw new VisitTemplateNotFoundError();
 
+    if (!Number.isFinite(input.accuracyM) || input.accuracyM < 0) throw new VisitAccuracyMissingError();
     const open = (await this.visits.findOpenOf(user.sub)).find((v) => v.depotId === depot.id);
     if (open) throw new VisitAlreadyOpenError(open.id);
 
@@ -160,12 +163,12 @@ export class VisitService {
     // With the fence on, a fix that cannot prove presence is refused even when it lands inside: an
     // approximate one (about 2 km off) or one whose own accuracy is wider than the radius.
     const tooLoose =
-      fenceChecked && (approximate || (input.accuracyM != null && input.accuracyM > fence.radiusM));
+      fenceChecked && (approximate || input.accuracyM > fence.radiusM);
     if (tooLoose || !ok) {
       // What is asked about afterwards; never the coordinates themselves.
       this.logger.warn(
         `Visit refused: visitor ${user.sub}, depot ${depot.id}, ${distanceM} m, radius ${fence.radiusM} m, ` +
-          `accuracy ${input.accuracyM ?? '?'} m, approximate ${approximate}, outside ${!ok}`,
+          `accuracy ${input.accuracyM} m, approximate ${approximate}, outside ${!ok}`,
       );
       throw new VisitOutsideAreaError(
         tooLoose
@@ -184,7 +187,7 @@ export class VisitService {
       visitorId: user.sub,
       lat: input.lat,
       lng: input.lng,
-      accuracyM: input.accuracyM ?? null,
+      accuracyM: input.accuracyM,
       distanceM,
       approximateFix: approximate,
       fenceChecked,

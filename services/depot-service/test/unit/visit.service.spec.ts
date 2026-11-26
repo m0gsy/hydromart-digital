@@ -8,6 +8,7 @@ import { DepotConfigService } from '../../src/config/depot-config.service';
 import {
   DepotNotFoundError,
   InvalidFindingError,
+  VisitAccuracyMissingError,
   VisitAlreadyOpenError,
   VisitClosedError,
   VisitDepotClosedError,
@@ -264,7 +265,7 @@ describe('VisitService', () => {
       expect(byAccuracy).toBeInstanceOf(VisitOutsideAreaError);
       expect(byAccuracy.message).toContain('Perkiraan');
       // a point on Android's 2 km grid, far from the depot, with no accuracy sent
-      const byGrid = await svc.start({ ...start, lat: -6.27027027027027, lng: 106.9642098165971, accuracyM: undefined }, supervisor()).catch((e) => e);
+      const byGrid = await svc.start({ ...start, lat: -6.27027027027027, lng: 106.9642098165971, accuracyM: 12 }, supervisor()).catch((e) => e);
       expect(byGrid.message).toContain('Perkiraan');
     });
 
@@ -275,7 +276,7 @@ describe('VisitService', () => {
       // a point on Android's 2 km grid, which here IS the depot, with no accuracy sent
       depots.findById.mockResolvedValue(depot({ lat: -6.27027027027027, lng: 106.9642098165971 }));
       const byGrid = await svc
-        .start({ ...start, lat: -6.27027027027027, lng: 106.9642098165971, accuracyM: undefined }, supervisor())
+        .start({ ...start, lat: -6.27027027027027, lng: 106.9642098165971, accuracyM: 12 }, supervisor())
         .catch((e) => e);
       expect(byGrid).toBeInstanceOf(VisitOutsideAreaError);
       expect(repo.create).not.toHaveBeenCalled();
@@ -286,7 +287,16 @@ describe('VisitService', () => {
       expect(err).toBeInstanceOf(VisitOutsideAreaError);
       expect(err.message).toContain('Perkiraan');
       await expect(svc.start({ ...start, accuracyM: 200 }, supervisor())).resolves.toBeDefined();
-      await expect(svc.start({ ...start, accuracyM: undefined }, supervisor())).resolves.toBeDefined();
+    });
+
+    it('refuses a check-in with no usable accuracy (422), so the Perkiraan rule cannot be skipped', async () => {
+      for (const accuracyM of [undefined, NaN, -1, Infinity]) {
+        const err = await svc.start({ ...start, accuracyM: accuracyM as number }, supervisor()).catch((e) => e);
+        expect(err).toBeInstanceOf(VisitAccuracyMissingError);
+        expect(err.status).toBe(422);
+        expect(err.message).toContain('Perkiraan');
+      }
+      expect(repo.create).not.toHaveBeenCalled();
     });
 
     it('with the fence off (radius 0) records the visit as unchecked and does not judge the fix', async () => {
@@ -884,8 +894,8 @@ describe('visit DTOs', () => {
   const base = { depotId: DEPOT, templateId: TPL, lat: -6.2, lng: 106.8 };
 
   it('bounds the check-in', () => {
-    expect(props(StartVisitDto, base)).toEqual([]);
     expect(props(StartVisitDto, { ...base, accuracyM: 12 })).toEqual([]);
+    expect(props(StartVisitDto, base)).toContain('accuracyM');
     expect(props(StartVisitDto, { ...base, lat: 91 })).toContain('lat');
     expect(props(StartVisitDto, { ...base, lng: -181 })).toContain('lng');
     expect(props(StartVisitDto, { ...base, accuracyM: -1 })).toContain('accuracyM');

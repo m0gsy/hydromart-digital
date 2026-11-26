@@ -4,7 +4,7 @@
 // per-depot view with follow-up closing. The server owns every rule (radius, "Perkiraan", caps);
 // these tests hold the screens to showing its refusal verbatim, sending what was typed, and to
 // offering each action only to the capability that may use it.
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -338,15 +338,15 @@ describe('start a visit', () => {
     expect(screen.queryByRole('link', { name: 'opsFix.visits.new.resumeExisting' })).toBeNull();
   });
 
-  it('sends no accuracy when the phone gave none (the server field is optional)', async () => {
-    position.mockResolvedValue({
-      coords: { latitude: -6.2, longitude: 106.8, accuracy: Number.NaN },
-    });
-    post.mockResolvedValue(visit({ id: 'v-new' }));
-    await setup();
-    await begin();
-    await waitFor(() => expect(post).toHaveBeenCalled());
-    expect(post.mock.calls[0]![1].accuracyM).toBeUndefined();
+  it('refuses client-side when the phone gave no finite accuracy, with the geo message and no post', async () => {
+    for (const accuracy of [Number.NaN, -1]) {
+      position.mockResolvedValue({ coords: { latitude: -6.2, longitude: 106.8, accuracy } });
+      await setup();
+      await begin();
+      expect(await screen.findByText('errors.geo.unavailable')).toBeTruthy();
+      expect(post).not.toHaveBeenCalled();
+      cleanup();
+    }
   });
 
   it('shows an error state with retry when the depots or checklists fail to load', async () => {

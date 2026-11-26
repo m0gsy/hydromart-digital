@@ -41,10 +41,9 @@ function Body() {
     setOpenId(null);
     try {
       const { coords } = await currentPosition({ precise: true });
-      const accuracyM =
-        Number.isFinite(coords.accuracy) && coords.accuracy >= 0
-          ? Math.round(coords.accuracy)
-          : undefined;
+      // The server needs the fix's accuracy to apply its "Perkiraan" rule: no figure, no check-in.
+      if (!Number.isFinite(coords.accuracy) || coords.accuracy < 0) throw new GeoError('unavailable');
+      const accuracyM = Math.round(coords.accuracy);
       const visit = await api.post<Visit>(
         endpoints.visits.start,
         { depotId, templateId, lat: coords.latitude, lng: coords.longitude, accuracyM },
