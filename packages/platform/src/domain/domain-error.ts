@@ -6,6 +6,8 @@
 export abstract class DomainError extends Error {
   abstract readonly code: string;
   abstract readonly status: number;
+  /** Extra machine-readable fields the error body carries beside `code` (never personal data). */
+  readonly details?: Readonly<Record<string, unknown>>;
 
   protected constructor(message: string) {
     super(message);

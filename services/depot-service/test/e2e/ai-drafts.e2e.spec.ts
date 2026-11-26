@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
+import { CAPABILITIES, loadCustomRoles, loadOverrides } from '@hydromart/access';
 import { ConfigModule } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -22,6 +23,7 @@ import {
 
 import { DEPOT_TOKENS } from '../../src/application/tokens';
 import { envValidationSchema } from '../../src/config/env.validation';
+import { DepotDraftRecord } from '../../src/domain/depot-draft';
 import { PriceOverrideProposalRecord } from '../../src/domain/price-override-proposal';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { DepotModule } from '../../src/modules/depot.module';
@@ -101,6 +103,41 @@ class ProposalStore {
   }
 }
 
+const ENTITY = '00000000-0000-4000-8000-000000000001';
+
+/** Just the depot-draft store the CRM routes touch: one row per prospect. */
+class DraftStore {
+  rows: DepotDraftRecord[] = [];
+  async findByProspectId(id: string) {
+    return this.rows.find((r) => r.prospectId === id) ?? null;
+  }
+  async create(data: Record<string, unknown>) {
+    const now = new Date();
+    const row = {
+      id: randomUUID(),
+      status: 'DRAFT',
+      decisionNote: null,
+      decidedBy: null,
+      decidedAt: null,
+      depotId: null,
+      createdAt: now,
+      updatedAt: now,
+      ...data,
+    } as unknown as DepotDraftRecord;
+    this.rows.push(row);
+    return row;
+  }
+  async reopen() {
+    return null;
+  }
+}
+
+/** The HD-5 matrix as the AI web sees it: the custom Sales role may act for one entity. */
+const legalEntities = {
+  list: async () => [{ id: ENTITY, name: 'PT Contoh Waralaba', active: true }],
+  grantedEntityIds: async (role: string) => (role === 'C_SALES' ? [ENTITY] : []),
+};
+
 describe('AI drafts (HD-17 part A, e2e)', () => {
   let app: INestApplication;
   let depotId: string;
@@ -108,6 +145,7 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
   let supplierId: string;
   let proposals: ProposalStore;
   let orders: InMemoryPurchaseOrderRepository;
+  let crmDrafts: DraftStore;
   let staff: (role: Role, depot?: string | null) => string;
   const trail: AuditEvent[] = [];
   let failTrail = false;
@@ -156,6 +194,7 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       );
     proposals = new ProposalStore();
     orders = new InMemoryPurchaseOrderRepository();
+    crmDrafts = new DraftStore();
     const moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({
@@ -189,6 +228,10 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       .useValue(proposals)
       .overrideProvider(DEPOT_TOKENS.PurchaseOrderRepository)
       .useValue(orders)
+      .overrideProvider(DEPOT_TOKENS.DepotDraftRepository)
+      .useValue(crmDrafts)
+      .overrideProvider(DEPOT_TOKENS.LegalEntityRepository)
+      .useValue(legalEntities)
       .overrideProvider(DEPOT_TOKENS.SupplierRepository)
       .useValue(new InMemorySupplierRepository())
       .overrideProvider(AUDIT_MUTATION_SINK)
@@ -392,6 +435,121 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       failTrail = true;
       await post(PO, manager(), poBody()).expect(503);
       expect(orders.rows).toHaveLength(0);
+    });
+  });
+
+  describe('CRM calon mitra (HD-21a)', () => {
+    const FROM_CRM = '/api/v1/ai/drafts/depots/from-crm';
+    const ACCESS = '/api/v1/ai/crm/access';
+    const PROSPECT = '00000000-0000-4000-8000-0000000000a1';
+    const crm = () => aiToken('MARKETING', null);
+    const crmBody = () => ({
+      prospectId: PROSPECT,
+      legacyApplicationId: null,
+      proposedName: 'Depot Contoh',
+      city: 'Bekasi',
+      province: 'Jawa Barat',
+      owner: { fullName: 'Budi Santoso', phoneE164: '+6281234567890' },
+      prospectusHandedOn: '2026-10-01',
+      prospectusSha256: 'a'.repeat(64),
+      prospectusVersionLabel: 'v1',
+      prospectusReceipt: 'Tanda terima 1',
+      agreementSignedOn: '2026-11-01',
+      checklist: { ktpNpwp: 'VERIFIED', locationProof: 'VERIFIED', capitalDeposit: 'VERIFIED', fieldSurvey: 'VERIFIED' },
+    });
+    const get = (url: string, token: string | null) => {
+      const req = request(app.getHttpServer()).get(url);
+      return token ? req.set('Authorization', `Bearer ${token}`) : req;
+    };
+
+    beforeEach(() => {
+      crmDrafts.rows.length = 0;
+    });
+    afterEach(() => {
+      loadOverrides({});
+      loadCustomRoles([]);
+    });
+
+    it('drafts a depot (201), replays (200), refuses another body (409), and sends nothing else', async () => {
+      const first = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(201);
+      expect(first.body).toMatchObject({ status: 'DRAFT' });
+      expect(first.body.draftId).toEqual(expect.any(String));
+      expect(trail[0]).toMatchObject({
+        action: 'ai.drafts.depots.from-crm.created.requested',
+        actorId: PERSON,
+        metadata: { via: 'ai', suggestionId: PROSPECT },
+      });
+      const again = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(200);
+      expect(again.body.draftId).toBe(first.body.draftId);
+      const clash = await post(FROM_CRM, crm(), { ...crmBody(), city: 'Depok' }, PROSPECT).expect(409);
+      expect(clash.body.code).toBe('DRAFT_CONFLICT');
+      expect(crmDrafts.rows).toHaveLength(1);
+      const status = await get(`${FROM_CRM}/${PROSPECT}`, crm()).expect(200);
+      expect(status.body).toMatchObject({ draftId: first.body.draftId, status: 'DRAFT', depotId: null, depotCode: null });
+    });
+
+    it('re-checks D1: 422 with items / earliestOn, 400 for a future signing, nothing stored', async () => {
+      const lacking = await post(
+        FROM_CRM,
+        crm(),
+        { ...crmBody(), checklist: { ...crmBody().checklist, fieldSurvey: 'SUBMITTED' } },
+        PROSPECT,
+      ).expect(422);
+      expect(lacking.body).toMatchObject({ code: 'CHECKLIST_INCOMPLETE', items: ['fieldSurvey'] });
+      const early = await post(FROM_CRM, crm(), { ...crmBody(), agreementSignedOn: '2026-10-14' }, PROSPECT).expect(422);
+      expect(early.body).toMatchObject({ code: 'COOLING_OFF_NOT_MET', earliestOn: '2026-10-15' });
+      await post(FROM_CRM, crm(), { ...crmBody(), agreementSignedOn: '2099-01-01' }, PROSPECT).expect(400);
+      await post(FROM_CRM, crm(), { ...crmBody(), prospectusSha256: 'zz' }, PROSPECT).expect(400);
+      await post(FROM_CRM, crm(), crmBody(), null).expect(400);
+      expect(crmDrafts.rows).toHaveLength(0);
+    });
+
+    it('answers ALREADY_ONBOARDED with depotId and depotCode once the draft is a depot', async () => {
+      await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(201);
+      Object.assign(crmDrafts.rows[0]!, { status: 'ACTIVATED', depotId });
+      const res = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(409);
+      expect(res.body).toMatchObject({ code: 'ALREADY_ONBOARDED', depotId, depotCode: 'AID-01' });
+    });
+
+    it('is 404 for a prospect with no draft', async () => {
+      await get(`${FROM_CRM}/${PROSPECT}`, crm()).expect(404);
+      await get(`${FROM_CRM}/not-a-uuid`, crm()).expect(400);
+    });
+
+    it('refuses the AI token without prospectCrm, a staff token, a machine token and no token', async () => {
+      await post(FROM_CRM, aiToken('HEAD_OFFICE', null), crmBody(), PROSPECT).expect(403);
+      await post(FROM_CRM, aiToken('MANAGER', depotId), crmBody(), PROSPECT).expect(403);
+      await get(`${FROM_CRM}/${PROSPECT}`, aiToken('HEAD_OFFICE', null)).expect(403);
+      await post(FROM_CRM, staff(Role.SUPER_ADMIN), crmBody(), PROSPECT).expect(403);
+      await post(FROM_CRM, machineToken(), crmBody(), PROSPECT).expect(403);
+      await post(FROM_CRM, null, crmBody(), PROSPECT).expect(401);
+      await get(`${FROM_CRM}/${PROSPECT}`, staff(Role.SUPER_ADMIN)).expect(403);
+      expect(crmDrafts.rows).toHaveLength(0);
+    });
+
+    it('access: summary for HEAD_OFFICE, full for MARKETING, everything for SUPER_ADMIN, 403 below', async () => {
+      const read = async (token: string) => (await get(ACCESS, token).expect(200)).body;
+      expect(await read(aiToken('HEAD_OFFICE', null))).toEqual({ full: false, settings: false, legalEntities: [] });
+      expect(await read(crm())).toEqual({ full: true, settings: false, legalEntities: [] });
+      expect(await read(aiToken('SUPER_ADMIN', null))).toEqual({
+        full: true,
+        settings: true,
+        legalEntities: [{ id: ENTITY, name: 'PT Contoh Waralaba' }],
+      });
+      await get(ACCESS, aiToken('MANAGER', depotId)).expect(403);
+      await get(ACCESS, staff(Role.SUPER_ADMIN)).expect(403);
+      await get(ACCESS, null).expect(401);
+    });
+
+    it('access follows the RUNTIME matrix: a custom role granted by override, with its legal entities', async () => {
+      const sales = aiToken('C_SALES', null);
+      await get(ACCESS, sales).expect(403);
+      loadCustomRoles([{ key: 'C_SALES', name: 'Sales', scope: 'GLOBAL' }]);
+      loadOverrides({ prospectRead: [...CAPABILITIES.prospectRead, 'C_SALES'], prospectCrm: [...CAPABILITIES.prospectCrm, 'C_SALES'] });
+      expect((await get(ACCESS, sales).expect(200)).body).toEqual({ full: true, settings: false, legalEntities: [{ id: ENTITY, name: 'PT Contoh Waralaba' }] });
+      loadOverrides({ prospectRead: [...CAPABILITIES.prospectRead, 'C_SALES'], prospectSettings: ['SUPER_ADMIN', 'C_SALES'] });
+      expect((await get(ACCESS, sales).expect(200)).body).toMatchObject({ full: false, settings: true });
+      await post(FROM_CRM, sales, crmBody(), PROSPECT).expect(403);
     });
   });
 

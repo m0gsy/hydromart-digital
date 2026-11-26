@@ -849,3 +849,93 @@ test('n8n: ai-access-requested needs its machine scope, validates the body, and 
     await mock.close();
   }
 });
+
+const drafts = contract('drafts');
+
+test('CRM calon mitra: access, depot draft with the D1 re-check, replay and status (HD-21a)', async () => {
+  const mock = await boot();
+  const base = '/depot/api/v1/ai';
+  const FROM_CRM = `${base}/drafts/depots/from-crm`;
+  const PROSPECT = '00000000-0000-4000-8000-0000000000a1';
+  try {
+    for (const path of [`${base}/crm/access`, FROM_CRM, `${FROM_CRM}/{prospectId}`]) assert.ok(drafts.paths[path], `${path} is in drafts.openapi.json`);
+    const sales = await tokenOf(mock, user('MARKETING'));
+    const cp = drafts.components.schemas.CrmDepotDraft;
+    const say = (token, body, id = PROSPECT) => json('POST', mock.base, FROM_CRM, body, { authorization: `Bearer ${token}`, 'x-ai-suggestion-id': id });
+    const ok = (over = {}) => ({
+      prospectId: PROSPECT,
+      legacyApplicationId: null,
+      proposedName: 'Depot Contoh',
+      city: 'Bekasi',
+      province: 'Jawa Barat',
+      owner: { fullName: 'Budi Contoh', phoneE164: '+6281234567890' },
+      prospectusHandedOn: '2026-10-01',
+      prospectusSha256: 'a'.repeat(64),
+      prospectusVersionLabel: 'v1',
+      prospectusReceipt: 'Tanda terima 1',
+      agreementSignedOn: '2026-10-20',
+      checklist: { ktpNpwp: 'VERIFIED', locationProof: 'VERIFIED', capitalDeposit: 'VERIFIED', fieldSurvey: 'VERIFIED' },
+      ...over,
+    });
+    for (const f of cp.required) assert.ok(f in ok(), `the fixture sends ${f}`);
+
+    // Access: the contract's shape, the one fixed legal entity, and only for people who may enter.
+    const access = await (await get(mock, `${base}/crm/access`, sales)).json();
+    const a = drafts.components.schemas.CrmAccess;
+    for (const f of a.required) assert.ok(access[f] !== undefined, `access has ${f}`);
+    assert.deepEqual(access, { full: true, settings: true, legalEntities: [{ id: '00000000-0000-4000-8000-000000000001', name: 'PT Contoh Waralaba' }] });
+    assert.equal((await get(mock, `${base}/crm/access`)).status, 401);
+    assert.equal((await get(mock, `${base}/crm/access`, await tokenOf(mock, user('SUPERVISOR')))).status, 403);
+    assert.equal((await get(mock, `${base}/crm/access`, await machineToken(mock))).status, 403);
+
+    // Draft: 201, then 200 for the same body, 409 for another, with the contract's statuses.
+    const documented = new Set(Object.keys(drafts.paths[FROM_CRM].post.responses));
+    for (const s of [200, 201, 400, 401, 403, 409, 422]) assert.ok(documented.has(String(s)), `documents ${s}`);
+    const first = await say(sales, ok());
+    assert.equal(first.status, 201);
+    const made = await first.json();
+    for (const f of drafts.components.schemas.CrmDepotDraftCreated.required) assert.ok(made[f] !== undefined, `created has ${f}`);
+    assert.equal(made.status, 'DRAFT');
+    const again = await say(sales, ok());
+    assert.equal(again.status, 200);
+    assert.equal((await again.json()).draftId, made.draftId);
+    const clash = await say(sales, ok({ city: 'Depok' }));
+    assert.equal(clash.status, 409);
+    assert.equal((await clash.json()).code, 'DRAFT_CONFLICT');
+
+    // Status.
+    const st = await (await get(mock, `${FROM_CRM}/${PROSPECT}`, sales)).json();
+    for (const f of drafts.components.schemas.CrmDepotDraftStatus.required) assert.ok(st[f] !== undefined, `status has ${f}`);
+    assert.deepEqual([st.draftId, st.status, st.depotId, st.depotCode], [made.draftId, 'DRAFT', null, null]);
+    assert.equal((await get(mock, `${FROM_CRM}/00000000-0000-4000-8000-0000000000a2`, sales)).status, 404);
+    assert.equal((await get(mock, `${FROM_CRM}/nope`, sales)).status, 400);
+
+    // D1: exactly 14 days passes, 13 is refused with earliestOn; a lacking item lists the items; dates are 400.
+    const other = '00000000-0000-4000-8000-0000000000a3';
+    const at = (over) => say(sales, ok({ prospectId: other, ...over }), other);
+    assert.equal((await at({ prospectusHandedOn: '2026-11-01', agreementSignedOn: '2026-11-15' })).status, 201);
+    const early = await at({ prospectId: '00000000-0000-4000-8000-0000000000a4', prospectusHandedOn: '2026-11-01', agreementSignedOn: '2026-11-14' });
+    assert.equal(early.status, 422);
+    assert.deepEqual(await early.json(), { statusCode: 422, code: 'COOLING_OFF_NOT_MET', message: 'The agreement may not be signed yet.', earliestOn: '2026-11-15' });
+    const lacking = await at({ prospectId: '00000000-0000-4000-8000-0000000000a5', checklist: { ...ok().checklist, fieldSurvey: 'SUBMITTED', ktpNpwp: 'REJECTED' } });
+    assert.equal(lacking.status, 422);
+    const lb = await lacking.json();
+    assert.equal(lb.code, 'CHECKLIST_INCOMPLETE');
+    assert.deepEqual(lb.items, ['ktpNpwp', 'fieldSurvey']);
+    assert.equal((await at({ prospectId: '00000000-0000-4000-8000-0000000000a6', agreementSignedOn: '2099-01-01' })).status, 400);
+    assert.equal((await at({ prospectId: '00000000-0000-4000-8000-0000000000a7', prospectusHandedOn: '2026-10-20', agreementSignedOn: '2026-10-01' })).status, 400);
+
+    // Validation, the header, and who may call.
+    assert.equal((await say(sales, ok({ prospectusSha256: 'A'.repeat(64) }))).status, 400);
+    assert.equal((await say(sales, { ...ok(), extra: 1 })).status, 400);
+    assert.equal((await say(sales, ok(), 'not-a-uuid')).status, 400);
+    assert.equal((await say(await tokenOf(mock, user('SUPERVISOR')), ok())).status, 403);
+    assert.equal((await json('POST', mock.base, FROM_CRM, ok(), { 'x-ai-suggestion-id': PROSPECT })).status, 401);
+
+    // Reset empties the drafts.
+    await fetch(`${mock.base}/_mock/reset`, { method: 'POST', redirect: 'manual' });
+    assert.equal((await get(mock, `${FROM_CRM}/${PROSPECT}`, sales)).status, 404);
+  } finally {
+    await mock.close();
+  }
+});

@@ -158,6 +158,18 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).not.toContain('sopManage');
   });
 
+  // HD-21: CRM calon mitra caps; custom roles (Sales, Sales Lead) get them by matrix override.
+  it('gives the prospect CRM caps their built-in holders and keeps them grantable', () => {
+    expect(CAPABILITIES.prospectRead).toEqual(['MARKETING', 'DIREKTUR', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+    expect(CAPABILITIES.prospectCrm).toEqual(['MARKETING', 'SUPER_ADMIN']);
+    expect(CAPABILITIES.prospectSettings).toEqual(['SUPER_ADMIN']);
+    expect(can('prospectCrm', 'HEAD_OFFICE')).toBe(false);
+    expect(can('prospectRead', 'KEPALA_DEPOT')).toBe(false);
+    for (const c of ['prospectRead', 'prospectCrm', 'prospectSettings'] as const) {
+      expect(CUSTOM_FORBIDDEN).not.toContain(c);
+    }
+  });
+
   // HD-15B: head office writes visit templates; supervisors conduct visits, a manager does not.
   it('lets head office write visit templates and supervisors conduct visits', () => {
     expect(CAPABILITIES.visitTemplateManage).toEqual(['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);

@@ -5,15 +5,19 @@ import {
   Controller,
   ExecutionContext,
   ForbiddenException,
+  Get,
   Injectable,
   Headers,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
   Post,
   Res,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { can } from '@hydromart/access';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 
@@ -25,11 +29,19 @@ import {
   ExternalAccess,
 } from '@hydromart/platform';
 
+import { DepotDraftService, DepotDraftStatusView } from '../application/services/depot-draft.service';
+import { LegalEntityService } from '../application/services/legal-entity.service';
 import { PriceOverrideService } from '../application/services/price-override.service';
 import { PurchaseOrderService } from '../application/services/purchase-order.service';
 import { PriceOverrideProposalRecord } from '../domain/price-override-proposal';
 import { PurchaseOrder } from '../domain/purchase-order';
 import { AiPriceOverrideDraftDto, AiPurchaseOrderDraftDto } from './dto/ai-draft.dto';
+import {
+  CrmAccessResponseDto,
+  CrmDepotDraftDto,
+  CrmDepotDraftResponseDto,
+  CrmDepotDraftStatusResponseDto,
+} from './dto/ai-crm.dto';
 import {
   PriceOverrideProposalResponseDto,
   PurchaseOrderResponseDto,
@@ -79,6 +91,7 @@ export class AiDraftController {
   constructor(
     private readonly overrides: PriceOverrideService,
     private readonly orders: PurchaseOrderService,
+    private readonly depotDrafts: DepotDraftService,
   ) {}
 
   @ApiOkResponse({ type: PriceOverrideProposalResponseDto })
@@ -137,5 +150,73 @@ export class AiDraftController {
     );
     status(res, replayed);
     return draft;
+  }
+
+  /**
+   * HD-21a: the CRM's depot draft for a prospect. Never a depot: HQ activates it later. The
+   * cooling-off and checklist are re-checked here (D1), whatever the CRM already checked.
+   */
+  @ApiOkResponse({ type: CrmDepotDraftResponseDto })
+  @ExternalAccess('ai')
+  @Can('prospectCrm')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('depots/from-crm')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'AI web CRM: draft a depot from a calon mitra for HQ to activate (HD-21)' })
+  async depotFromCrm(
+    @CurrentUser() user: AuthenticatedUser,
+    @Headers('x-ai-suggestion-id') header: string | undefined,
+    @Body() dto: CrmDepotDraftDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ draftId: string; status: 'DRAFT'; createdAt: Date }> {
+    const id = suggestionId(header);
+    const { prospectId, owner, checklist, legacyApplicationId, ...rest } = dto;
+    const { draft, replayed } = await this.depotDrafts.draftFromCrm(
+      prospectId,
+      {
+        ...rest,
+        legacyApplicationId: legacyApplicationId ?? null,
+        ownerFullName: owner.fullName,
+        ownerPhoneE164: owner.phoneE164,
+        checklist: { ...checklist },
+      },
+      { suggestionId: id, createdBy: user.sub },
+    );
+    status(res, replayed);
+    return { draftId: draft.id, status: 'DRAFT', createdAt: draft.createdAt };
+  }
+
+  @ApiOkResponse({ type: CrmDepotDraftStatusResponseDto })
+  @ExternalAccess('ai')
+  @Can('prospectCrm')
+  @Get('depots/from-crm/:prospectId')
+  @ApiOperation({ summary: 'AI web CRM: where the depot draft of a calon mitra stands (HD-21)' })
+  statusFromCrm(@Param('prospectId', ParseUUIDPipe) prospectId: string): Promise<DepotDraftStatusView> {
+    return this.depotDrafts.statusOf(prospectId.toLowerCase());
+  }
+}
+
+/**
+ * HD-21a: what the signed-in person may do in the CRM calon mitra, evaluated with the RUNTIME
+ * matrix (`can` reads the loaded overrides and custom roles, as RolesGuard does).
+ */
+@ApiTags('AI drafts')
+@ApiBearerAuth()
+@UseGuards(AiTokenOnlyGuard)
+@Controller({ path: 'ai/crm', version: '1' })
+export class AiCrmController {
+  constructor(private readonly entities: LegalEntityService) {}
+
+  @ApiOkResponse({ type: CrmAccessResponseDto })
+  @ExternalAccess('ai')
+  @Can('prospectRead')
+  @Get('access')
+  @ApiOperation({ summary: 'AI web CRM: full / settings access and the legal entities the caller may act for' })
+  async access(@CurrentUser() user: AuthenticatedUser): Promise<CrmAccessResponseDto> {
+    return {
+      full: can('prospectCrm', user.role),
+      settings: can('prospectSettings', user.role),
+      legalEntities: await this.entities.accessibleTo(user.role),
+    };
   }
 }

@@ -795,3 +795,64 @@ export class VisitPhotoUnavailableError extends DomainError {
     super('Penyimpanan foto sedang tidak tersedia. Coba lagi sebentar lagi.');
   }
 }
+
+/* ---------- Depot drafts from the AI web CRM (HD-21) ---------- */
+
+/** D1: not all four checklist items are VERIFIED. */
+export class ChecklistIncompleteError extends DomainError {
+  readonly code = 'CHECKLIST_INCOMPLETE';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  readonly details: Readonly<Record<string, unknown>>;
+  constructor(readonly items: readonly string[]) {
+    super('Daftar periksa calon mitra belum lengkap: semua butir harus terverifikasi.');
+    this.details = { items };
+  }
+}
+
+/** D1: the agreement was signed before 14 calendar days after the prospectus. */
+export class CoolingOffNotMetError extends DomainError {
+  readonly code = 'COOLING_OFF_NOT_MET';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  readonly details: Readonly<Record<string, unknown>>;
+  constructor(readonly earliestOn: string) {
+    super(`Perjanjian baru boleh ditandatangani mulai ${earliestOn} (14 hari setelah prospektus diserahkan).`);
+    this.details = { earliestOn };
+  }
+}
+
+/** The agreement or prospectus date does not add up (a future signing, or the order swapped). */
+export class InvalidDraftDatesError extends DomainError {
+  readonly code = 'INVALID_DRAFT_DATES';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+/** The prospect already has a pending draft with different content. */
+export class DraftConflictError extends DomainError {
+  readonly code = 'DRAFT_CONFLICT';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Calon mitra ini sudah punya draf depot dengan isi yang berbeda.');
+  }
+}
+
+/** The prospect is already a depot; the ids let the CRM link to it. */
+export class AlreadyOnboardedError extends DomainError {
+  readonly code = 'ALREADY_ONBOARDED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  readonly details: Readonly<Record<string, unknown>>;
+  constructor(depotId: string | null, depotCode: string | null) {
+    super('Calon mitra ini sudah menjadi depot.');
+    this.details = { depotId, depotCode };
+  }
+}
+
+export class DepotDraftNotFoundError extends DomainError {
+  readonly code = 'DEPOT_DRAFT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Draf depot untuk calon mitra ini tidak ditemukan.');
+  }
+}

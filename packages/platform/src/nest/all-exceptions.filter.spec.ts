@@ -11,6 +11,15 @@ class OutOfStockError extends DomainError {
   }
 }
 
+class WithDetailsError extends DomainError {
+  readonly code = 'WITH_DETAILS';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  readonly details = { items: ['a'], code: 'IGNORED' };
+  constructor() {
+    super('x');
+  }
+}
+
 function hostFor(url = '/api/v1/orders', method = 'POST') {
   const json = jest.fn();
   const status = jest.fn().mockReturnValue({ json });
@@ -42,6 +51,12 @@ describe('AllExceptionsFilter', () => {
       message: 'Stok galon habis.',
       path: '/api/v1/orders',
     });
+  });
+
+  it('adds the details of a domain error to the body without overriding code or status', () => {
+    const { host, body } = hostFor();
+    filter.catch(new WithDetailsError(), host);
+    expect(body()).toMatchObject({ statusCode: 422, code: 'WITH_DETAILS', items: ['a'] });
   });
 
   it('keeps the validation message array from a Nest HttpException', () => {

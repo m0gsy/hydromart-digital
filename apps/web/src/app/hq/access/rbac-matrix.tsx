@@ -92,6 +92,9 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'visitConduct',
       'visitRead',
       'visitFollowUp',
+      'prospectRead',
+      'prospectCrm',
+      'prospectSettings',
     ],
   },
   {

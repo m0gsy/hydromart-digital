@@ -89,6 +89,10 @@ model Depot {
   /// Closure dates (FR-080): [{ date: "2026-08-17", label?: "..." }].
   holidays       Json          @default("[]")
   active         Boolean       @default(true)
+  /// HD-21: the AI web CRM's prospect this depot was onboarded from; set by the activation PR.
+  crmProspectId  String?       @unique @db.Uuid
+  /// HD-21: the legacy franchise application it came from, when there was one.
+  franchiseApplicationId String? @db.Uuid
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -1415,4 +1419,43 @@ model VisitItem {
 
   @@index([visitId])
   @@map("visit_items")
+}
+
+/// HD-21: what the AI web's CRM proposes as a new depot, one row per prospect. A draft is never a
+/// depot: HQ (franchiseApplications holders) activates it in a later PR. Dates are WIB calendar
+/// days as YYYY-MM-DD text. `requestHash` is the replay key: the same prospect and body answers
+/// the row, another body while DRAFT is a 409.
+model DepotDraft {
+  id                     String           @id @default(uuid()) @db.Uuid
+  prospectId             String           @unique @db.Uuid
+  legacyApplicationId    String?          @db.Uuid
+  proposedName           String
+  city                   String
+  province               String
+  ownerFullName          String
+  ownerPhoneE164         String
+  prospectusHandedOn     String           @db.VarChar(10)
+  agreementSignedOn      String           @db.VarChar(10)
+  prospectusSha256       String           @db.VarChar(64)
+  prospectusVersionLabel String
+  prospectusReceipt      String
+  checklist              Json
+  requestHash            String           @db.VarChar(64)
+  suggestionId           String           @db.Uuid
+  status                 DepotDraftStatus @default(DRAFT)
+  decisionNote           String?
+  decidedBy              String?          @db.Uuid
+  decidedAt              DateTime?
+  depotId                String?          @unique @db.Uuid
+  createdBy              String           @db.Uuid
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+
+  @@map("depot_drafts")
+}
+
+enum DepotDraftStatus {
+  DRAFT
+  ACTIVATED
+  REJECTED
 }
