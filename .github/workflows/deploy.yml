@@ -47,7 +47,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), install-docker-daemon (install ops/docker-daemon.json to /etc/docker/daemon.json and restart the daemon so the log cap applies; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back), restore-rehearsal (restore a few backed-up objects to a SCRATCH prefix in each live bucket, compare byte for byte, clean up; never touches a live key), staging-deploy (deploy just the staging AI web now: after setting, rotating or deleting the STAGING_AI_PASSWORD secret), staging-reset (drop the staging AI web data and deploy it again; `confirm` must be staging)'
+        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), purge-applications (DRY RUN unless `confirm` is PURGE-APPLICATIONS: deletes the hydromart copies of the franchise applications named in ops/purge-applications.txt once the AI web CRM holds them), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), install-docker-daemon (install ops/docker-daemon.json to /etc/docker/daemon.json and restart the daemon so the log cap applies; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back), restore-rehearsal (restore a few backed-up objects to a SCRATCH prefix in each live bucket, compare byte for byte, clean up; never touches a live key), staging-deploy (deploy just the staging AI web now: after setting, rotating or deleting the STAGING_AI_PASSWORD secret), staging-reset (drop the staging AI web data and deploy it again; `confirm` must be staging)'
         type: choice
         default: deploy
         options:
@@ -65,6 +65,7 @@ on:
             backup-objects,
             storage-policy,
             reset-test-data,
+            purge-applications,
             install-node,
             backup-second,
             backup-env,
@@ -89,7 +90,7 @@ on:
         required: false
         default: '+6281199900001'
       confirm:
-        description: 'staging-reset: type staging; reset-test-data: type RESET-TEST-DATA to actually clear; install-node / install-docker-daemon: type install to actually upgrade / restart (anything else = dry run / check only, writes nothing)'
+        description: 'staging-reset: type staging; reset-test-data: type RESET-TEST-DATA to actually clear; purge-applications: type PURGE-APPLICATIONS to actually delete; install-node / install-docker-daemon: type install to actually upgrade / restart (anything else = dry run / check only, writes nothing)'
         required: false
         default: ''
 
@@ -375,6 +376,7 @@ jobs:
             # depots, catalogue, stock quantities or the audit trail). The phrase rides an
             # environment variable, never the script body, and the button is not offered to the
             # automatic workflow_run path — only a person can press it.
+            purge-applications) echo 'run=if [ "${RESET_CONFIRM:-}" = "PURGE-APPLICATIONS" ]; then CONFIRM=PURGE-APPLICATIONS bash scripts/purge-applications.sh --execute; else bash scripts/purge-applications.sh; fi' >> "$GITHUB_OUTPUT" ;;
             reset-test-data) echo 'run=if [ "${RESET_CONFIRM:-}" = "RESET-TEST-DATA" ]; then CONFIRM=RESET-TEST-DATA bash scripts/reset-test-data.sh --execute; else bash scripts/reset-test-data.sh; fi' >> "$GITHUB_OUTPUT" ;;
             # The second alert channel: writes the ALERT_WEBHOOK_URL_2 repo secret into
             # ops/alertmanager-secondary/webhook-url on the box (never printed) and posts one test line to it.
@@ -470,6 +472,10 @@ jobs:
             if [ "${{ github.event.inputs.mode }}" = "reset-test-data" ]; then
               git fetch --quiet origin main
               git checkout origin/main -- scripts/reset-test-data.sh scripts/backup-db.sh scripts/lib/deploy-common.sh scripts/lib/backup-report.sh
+            fi
+            if [ "${{ github.event.inputs.mode }}" = "purge-applications" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/purge-applications.sh ops/purge-applications.txt scripts/backup-db.sh scripts/lib/deploy-common.sh scripts/lib/backup-report.sh scripts/lib/backup-dir.sh
             fi
             if [ "${{ github.event.inputs.mode }}" = "restore-rehearsal" ]; then
               git fetch --quiet origin main
