@@ -89,6 +89,7 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
     everyMinutes: 1440,
     label: 'Pengingat galon telat',
   },
+  { job: 'visits/internal/overdue-sweep', everyMinutes: 1440, label: 'Pengingat tindak lanjut kunjungan' },
   {
     job: 'subscriptions/internal/rehome',
     everyMinutes: 15,

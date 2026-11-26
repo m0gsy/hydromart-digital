@@ -13,6 +13,10 @@ export const dashA = {
         label: 'Equipment maintenance due',
         sub: 'Depot equipment maintenance reminder, by notification and email',
       },
+      visitFinding: {
+        label: 'Supervisor visit findings',
+        sub: 'Findings from a depot visit and overdue follow-ups, by notification and email',
+      },
     },
     channelPush: 'Push',
     channelEmail: 'Email',

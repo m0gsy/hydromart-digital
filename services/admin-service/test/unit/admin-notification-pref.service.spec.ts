@@ -58,7 +58,7 @@ describe('AdminNotificationPrefService', () => {
     await service.save('acc-1', [{ id: 'bogus', push: true, email: true, wa: true }]);
     const prefs = await service.get('acc-1');
     expect(prefs.channels.some((c) => c.id === 'bogus')).toBe(false);
-    expect(prefs.channels).toHaveLength(13);
+    expect(prefs.channels).toHaveLength(14);
   });
 
   it('serves the depot event list in DEPOT scope, with its own defaults', async () => {
@@ -70,6 +70,7 @@ describe('AdminNotificationPrefService', () => {
       'approval',
       'dailySummary',
       'maintenanceDue',
+      'visitFinding',
     ]);
     // An operator is on the floor, not in an inbox.
     expect(prefs.channels.find((c) => c.id === 'newOrder')).toMatchObject({
@@ -87,7 +88,7 @@ describe('AdminNotificationPrefService', () => {
 
   it('serves both lists in ALL scope', async () => {
     const prefs = await service.get('acc-1', 'ALL');
-    expect(prefs.channels).toHaveLength(13);
+    expect(prefs.channels).toHaveLength(14);
   });
 
   /*

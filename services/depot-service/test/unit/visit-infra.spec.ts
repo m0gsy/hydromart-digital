@@ -414,3 +414,76 @@ describe('VisitPrismaRepository', () => {
     expect(visitItem.groupBy.mock.calls[0][0].where.followUpDueOn).toEqual({ lt: new Date('2026-11-28T00:00:00.000Z') });
   });
 });
+
+describe('VISIT_NOTIFY_ENABLED', () => {
+  const flag = (value: unknown) =>
+    new DepotConfigService({ get: (_k: string, dflt?: unknown) => (value === undefined ? dflt : value) } as never, {} as never)
+      .visitNotifyEnabled;
+
+  it('is off by default and on only for true', () => {
+    expect(flag(undefined)).toBe(false);
+    expect(flag(false)).toBe(false);
+    expect(flag(true)).toBe(true);
+    expect(flag('true')).toBe(true);
+  });
+});
+
+describe('VisitNotifierHttpAdapter', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { VisitNotifierHttpAdapter } = require('../../src/infrastructure/http/visit-notifier.http.adapter');
+  const notice = { kind: 'OVERDUE', depotId: 'd', depotName: 'Depot A', dateKey: '2026-11-27', items: ['x'] };
+  const adapter = (over: object = {}) =>
+    new VisitNotifierHttpAdapter({ crmServiceUrl: 'http://crm', internalServiceKey: 'k', ...over });
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('posts to crm with the internal key and says true on 2xx', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: true }) as never;
+    await expect(adapter().notify(notice)).resolves.toBe(true);
+    const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
+    expect(url).toBe('http://crm/api/v1/notifications/internal/visit-notice');
+    expect(init.headers['x-internal-key']).toBe('k');
+    expect(JSON.parse(init.body)).toEqual(notice);
+  });
+
+  it('fails open: a non-2xx, a network error or a missing url/key answers false', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 503 }) as never;
+    await expect(adapter().notify(notice)).resolves.toBe(false);
+    global.fetch = jest.fn().mockRejectedValue(new Error('down')) as never;
+    await expect(adapter().notify(notice)).resolves.toBe(false);
+    global.fetch = jest.fn() as never;
+    await expect(adapter({ crmServiceUrl: '' }).notify(notice)).resolves.toBe(false);
+    await expect(adapter({ internalServiceKey: '' }).notify(notice)).resolves.toBe(false);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('VisitPrismaRepository overdue reminders', () => {
+  const visitItem = { findMany: jest.fn(), updateMany: jest.fn() };
+  const repo = new VisitPrismaRepository({ visit: {}, visitItem } as never);
+  beforeEach(() => jest.resetAllMocks());
+
+  it('reads overdue open follow-ups not reminded since the cutoff, oldest deadline first, with the depot name', async () => {
+    const cutoff = new Date('2026-11-24T10:00:00.000Z');
+    visitItem.findMany.mockResolvedValue([
+      { id: 'i1', depotId: 'd1', text: 'Filter', findingNote: 'Kotor', visit: { depot: { name: 'Depot A' } } },
+    ]);
+    await expect(repo.overdueToRemind('2026-11-28', cutoff, 500)).resolves.toEqual([
+      { id: 'i1', depotId: 'd1', depotName: 'Depot A', text: 'Filter', findingNote: 'Kotor' },
+    ]);
+    const args = visitItem.findMany.mock.calls[0][0];
+    expect(args.where.followUpDueOn).toEqual({ lt: new Date('2026-11-28T00:00:00.000Z') });
+    expect(args.where.OR).toEqual([{ lastOverdueNoticeAt: null }, { lastOverdueNoticeAt: { lt: cutoff } }]);
+    expect(args.take).toBe(500);
+  });
+
+  it('stamps the reminded follow-ups, and does nothing for none', async () => {
+    const now = new Date('2026-11-27T00:30:00.000Z');
+    await repo.stampOverdueNotice([], now);
+    expect(visitItem.updateMany).not.toHaveBeenCalled();
+    await repo.stampOverdueNotice(['i1', 'i2'], now);
+    expect(visitItem.updateMany).toHaveBeenCalledWith({ where: { id: { in: ['i1', 'i2'] } }, data: { lastOverdueNoticeAt: now } });
+  });
+});

@@ -61,6 +61,8 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   AI_ACCESS_REQUESTED: 'orders',
   // HD-15: equipment maintenance is a depot upkeep matter, filed with stock.
   MAINTENANCE_DUE: 'stock',
+  VISIT_FINDING: 'stock',
+  FOLLOW_UP_OVERDUE: 'stock',
   COURIER_DELIVERY_ASSIGNED: 'courier',
   DELIVERY_SLA_BREACHED: 'courier',
   STOCK_LOW: 'stock',

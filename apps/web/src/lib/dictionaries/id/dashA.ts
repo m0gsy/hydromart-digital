@@ -14,6 +14,10 @@ export const dashA = {
         label: 'Perawatan alat jatuh tempo',
         sub: 'Pengingat perawatan alat depot, lewat notifikasi dan email',
       },
+      visitFinding: {
+        label: 'Temuan kunjungan supervisor',
+        sub: 'Temuan kunjungan ke depot dan tindak lanjut yang terlambat, lewat notifikasi dan email',
+      },
     },
     channelPush: 'Notifikasi',
     channelEmail: 'Email',

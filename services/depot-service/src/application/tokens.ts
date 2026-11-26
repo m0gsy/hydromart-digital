@@ -58,6 +58,8 @@ export const DEPOT_TOKENS = {
   /** HD-15B PR-4: supervisor visits and the private bucket their finding photos live in. */
   VisitRepository: Symbol('VisitRepository'),
   VisitPhotoStorage: Symbol('VisitPhotoStorage'),
+  /** HD-15B PR-6: crm-service's visit notices (findings, overdue follow-ups). */
+  VisitNotifier: Symbol('VisitNotifier'),
   HandoverRepository: Symbol('HandoverRepository'),
   OperationalReportRepository: Symbol('OperationalReportRepository'),
   Storage: Symbol('Storage'),

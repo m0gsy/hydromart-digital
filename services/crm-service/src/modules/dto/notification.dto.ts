@@ -377,3 +377,44 @@ export class MaintenanceDueResultDto {
   })
   whatsapp!: 'pending';
 }
+
+/** HD-15B: depot-service tells crm about one visit's findings, or one depot's overdue follow-ups. */
+export class VisitNoticeDto {
+  @ApiProperty({ enum: ['FINDING', 'OVERDUE'] })
+  @IsIn(['FINDING', 'OVERDUE'])
+  kind!: 'FINDING' | 'OVERDUE';
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  depotId!: string;
+
+  @ApiProperty({ example: 'Depot Pekayon' })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  depotName!: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'The visit (required for FINDING).' })
+  @IsOptional()
+  @IsUUID()
+  visitId?: string;
+
+  @ApiProperty({ example: '2026-11-26', description: 'The WIB day of the notice.' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  dateKey!: string;
+
+  @ApiProperty({ type: [String], description: 'One line per finding, 30 at most.' })
+  @IsArray()
+  @ArrayMaxSize(30)
+  @IsString({ each: true })
+  @MaxLength(200, { each: true })
+  items!: string[];
+}
+
+export class VisitNoticeResultDto {
+  @ApiProperty({ description: 'People who had to be told.' })
+  recipients!: number;
+
+  @ApiProperty({ description: 'Notifications filed by this call (a retry files none twice).' })
+  notified!: number;
+}

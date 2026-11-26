@@ -81,6 +81,12 @@ export enum NotificationEvent {
   // Operasional), raised by POST notifications/external/maintenance-due. Tokens: {{depot}},
   // {{items}} (the due items with the reason each; for HQ the count per depot).
   MAINTENANCE_DUE = 'MAINTENANCE_DUE',
+  // HD-15B: a completed supervisor visit with findings (one digest per recipient per visit), and the
+  // open follow-ups past their deadline (one digest per recipient per depot per day). Raised by
+  // POST notifications/internal/visit-notice from depot-service. Tokens: {{depot}}, {{items}},
+  // {{visitId}} / {{depotId}} (the tap).
+  VISIT_FINDING = 'VISIT_FINDING',
+  FOLLOW_UP_OVERDUE = 'FOLLOW_UP_OVERDUE',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -251,6 +257,10 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
     'Pesanan {{orderNumber}} ({{amount}}) masih menunggu pembayaran. Selesaikan sekarang, pesanan yang belum dibayar dibatalkan otomatis.',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Perawatan jatuh tempo di {{depot}}: {{items}}. Buka menu Perawatan untuk menjadwalkan servis.',
+  [NotificationEvent.VISIT_FINDING]:
+    'Kunjungan supervisor ke {{depot}} menemukan: {{items}}. Buka kunjungan untuk melihat dan menindaklanjutinya.',
+  [NotificationEvent.FOLLOW_UP_OVERDUE]:
+    'Tindak lanjut kunjungan di {{depot}} terlambat: {{items}}. Buka menu Kunjungan untuk menyelesaikannya.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
   [NotificationEvent.PAYMENT_REMINDER]:
@@ -370,6 +380,9 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_ACCESS_REQUESTED,
   // HD-15: addressed to one account (also in PERSONAL_OPS_EVENTS); the depot is in the text.
   NotificationEvent.MAINTENANCE_DUE,
+  // HD-15B: the same, addressed to one account (also in PERSONAL_OPS_EVENTS); the depot is in the text.
+  NotificationEvent.VISIT_FINDING,
+  NotificationEvent.FOLLOW_UP_OVERDUE,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -427,7 +440,8 @@ export type StaffToggle =
   | 'newFranchiseApp'
   | 'morningSummary'
   | 'aiAccessRequest'
-  | 'maintenanceDue';
+  | 'maintenanceDue'
+  | 'visitFinding';
 
 export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffToggle>> = {
   [NotificationEvent.DEPOT_ORDER_INCOMING]: 'newOrder',
@@ -454,6 +468,9 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.AI_ACCESS_REQUESTED]: 'aiAccessRequest',
   // HD-15: its own switch on /hq/profile, push and email, both defaulting on.
   [NotificationEvent.MAINTENANCE_DUE]: 'maintenanceDue',
+  // HD-15B: one switch for both visit notices (depot lists and /hq/profile), push and email, default on.
+  [NotificationEvent.VISIT_FINDING]: 'visitFinding',
+  [NotificationEvent.FOLLOW_UP_OVERDUE]: 'visitFinding',
   [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
 };
 
@@ -498,6 +515,9 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_ACCESS_REQUESTED,
   // HD-15: one recipient's own row (the same text goes to each of them, but each has their own).
   NotificationEvent.MAINTENANCE_DUE,
+  // HD-15B: each recipient's own row.
+  NotificationEvent.VISIT_FINDING,
+  NotificationEvent.FOLLOW_UP_OVERDUE,
 ];
 
 // English. Same tokens, same order, same meaning — including the operational ones, which go
@@ -534,6 +554,10 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
     '{{who}} asks for AI web access to {{what}}. Open Legal entities, the AI access section, to grant it.',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Maintenance is due at {{depot}}: {{items}}. Open Maintenance to schedule the service.',
+  [NotificationEvent.VISIT_FINDING]:
+    'A supervisor visit to {{depot}} found: {{items}}. Open the visit to review and follow up.',
+  [NotificationEvent.FOLLOW_UP_OVERDUE]:
+    'Visit follow-ups at {{depot}} are overdue: {{items}}. Open Visits to close them.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Hi {{name}}, the payment for order {{orderNumber}} did not go through ({{reason}}). Please pay again from the app.',
   [NotificationEvent.PAYMENT_REMINDER]:

@@ -33,6 +33,8 @@ export const DEPOT_EVENT_IDS = [
   'dailySummary',
   // HD-15: also the depot heads' and supervisors' own switch (/dashboard/account), push and email.
   'maintenanceDue',
+  // HD-15B: a supervisor visit with findings, and its overdue follow-ups; push and email.
+  'visitFinding',
 ] as const;
 
 export const NOTIFICATION_EVENT_IDS = [...HQ_EVENT_IDS, ...DEPOT_EVENT_IDS] as const;
@@ -76,6 +78,7 @@ const DEPOT_DEFAULTS: NotificationChannelPref[] = [
   // HD-15: depot maintenance due by days or water volume. The one depot toggle with email on, as
   // it always resolved for a depot account (it came from the HQ list); WhatsApp is pending Meta.
   { id: 'maintenanceDue', push: true, email: true, wa: false },
+  { id: 'visitFinding', push: true, email: true, wa: false },
 ];
 
 function defaultsFor(scope: NotificationScope): NotificationChannelPref[] {

@@ -6,6 +6,7 @@ import {
   FindingQuery,
   ItemAnswer,
   NewVisit,
+  OverdueFollowUp,
   VisitListQuery,
   VisitRepository,
   VisitSummary,
@@ -276,6 +277,37 @@ export class VisitPrismaRepository implements VisitRepository {
       },
     });
     return this.findItem(itemId);
+  }
+
+  async overdueToRemind(todayKey: string, remindedBefore: Date, limit: number): Promise<OverdueFollowUp[]> {
+    const rows = await this.prisma.visitItem.findMany({
+      where: {
+        ...OPEN_FINDING,
+        followUpDueOn: { lt: dateOfDayKey(todayKey) },
+        OR: [{ lastOverdueNoticeAt: null }, { lastOverdueNoticeAt: { lt: remindedBefore } }],
+      },
+      orderBy: [{ followUpDueOn: 'asc' }, { id: 'asc' }],
+      take: limit,
+      select: {
+        id: true,
+        depotId: true,
+        text: true,
+        findingNote: true,
+        visit: { select: { depot: { select: { name: true } } } },
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      depotId: r.depotId,
+      depotName: r.visit.depot.name,
+      text: r.text,
+      findingNote: r.findingNote,
+    }));
+  }
+
+  async stampOverdueNotice(ids: string[], now: Date): Promise<void> {
+    if (ids.length === 0) return;
+    await this.prisma.visitItem.updateMany({ where: { id: { in: ids } }, data: { lastOverdueNoticeAt: now } });
   }
 
   async overdueCounts(todayKey: string): Promise<{ depots: number; items: number }> {

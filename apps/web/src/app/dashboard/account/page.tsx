@@ -9,6 +9,7 @@ import {
   DeviceMobile,
   Gear,
   Wrench,
+  ClipboardText,
   Lock,
   ShieldCheck,
   ShoppingBag,
@@ -55,6 +56,8 @@ const OPERATOR_ALERTS: Alert[] = [
 // and by email, so those roles carry both switches here (the depot staff are never sent it).
 const MAINTENANCE_ALERT: Alert = { id: 'maintenanceDue', icon: Wrench, def: true, email: true };
 
+const VISIT_ALERT: Alert = { id: 'visitFinding', icon: ClipboardText, def: true, email: true };
+
 function initials(name: string | null | undefined): string {
   if (!name) return '·';
   return name
@@ -84,7 +87,7 @@ function AccountBody() {
   const depot = selected ?? depots[0] ?? null;
   const assigned = canUseManagerConsole(role) || isDepotOperator(role);
   const base = canUseOperatorConsole(role) ? [...ALERTS, ...OPERATOR_ALERTS] : ALERTS;
-  const alerts = role === 'STAFF_DEPOT' ? base : [...base, MAINTENANCE_ALERT];
+  const alerts = role === 'STAFF_DEPOT' ? base : [...base, MAINTENANCE_ALERT, VISIT_ALERT];
   // The capability list was the manager's profile; it stays theirs.
   const myCaps = canUseManagerConsole(role)
     ? (Object.keys(caps) as (keyof typeof caps)[]).filter((cap) =>

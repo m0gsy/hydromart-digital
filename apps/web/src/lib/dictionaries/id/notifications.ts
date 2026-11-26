@@ -41,6 +41,8 @@ export const notifications = {
     FRANCHISE_APPLICATION_SUBMITTED: 'Lamaran waralaba baru',
     MORNING_SUMMARY: 'Persetujuan menunggu Anda',
     MAINTENANCE_DUE: 'Perawatan alat jatuh tempo',
+    VISIT_FINDING: 'Temuan kunjungan supervisor',
+    FOLLOW_UP_OVERDUE: 'Tindak lanjut kunjungan terlambat',
     AI_ACCESS_REQUESTED: 'Permintaan akses AI web',
     SUBSCRIPTION_TOMORROW: 'Langganan diantar besok',
     POINTS_EXPIRING: 'Poin segera hangus',

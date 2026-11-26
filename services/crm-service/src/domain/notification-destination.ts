@@ -212,6 +212,11 @@ export function destinationFor(
     // does not filter by it yet, so the tap opens the whole maintenance list.
     case NotificationEvent.MAINTENANCE_DUE:
       return forDepot('/dashboard/maintenance', /^[0-9a-f-]{36}$/i.test(vars.depotId ?? '') ? vars.depotId : null);
+    // HD-15B: the supervisor view in the Ops APK: the visit itself, or the depot's visit list.
+    case NotificationEvent.VISIT_FINDING:
+      return withId('/dashboard/visits/detail', /^[0-9a-f-]{36}$/i.test(vars.visitId ?? '') ? vars.visitId : undefined);
+    case NotificationEvent.FOLLOW_UP_OVERDUE:
+      return forDepot('/dashboard/visits', /^[0-9a-f-]{36}$/i.test(vars.depotId ?? '') ? vars.depotId : null);
     case NotificationEvent.MORNING_SUMMARY:
       return /^\/[a-z0-9/-]+$/.test(vars.href ?? '') ? vars.href : INBOX;
     case NotificationEvent.LEAVE_SUBMITTED:

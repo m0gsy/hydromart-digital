@@ -151,12 +151,15 @@ describe('VisitService', () => {
     overview: jest.fn(),
     closeFollowUp: jest.fn(),
     overdueCounts: jest.fn(),
+    overdueToRemind: jest.fn(),
+    stampOverdueNotice: jest.fn(),
   };
+  const notifier = { notify: jest.fn() };
   const depots = { findById: jest.fn(), findManyByIds: jest.fn(), search: jest.fn() };
   const templates = { findById: jest.fn() };
   const sops = { inForce: jest.fn() };
   const photos = { put: jest.fn(), signedUrl: jest.fn(), remove: jest.fn(), exists: jest.fn() };
-  const config = { visitCheckInRadiusM: jest.fn() };
+  const config = { visitCheckInRadiusM: jest.fn(), visitNotifyEnabled: false };
   const svc = new VisitService(
     repo as never,
     depots as never,
@@ -164,6 +167,7 @@ describe('VisitService', () => {
     sops as never,
     photos as never,
     config as unknown as DepotConfigService,
+    notifier as never,
   );
 
   const depot = (over: Record<string, unknown> = {}) => ({
@@ -188,6 +192,8 @@ describe('VisitService', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    config.visitNotifyEnabled = false;
+    notifier.notify.mockResolvedValue(true);
     depots.findById.mockResolvedValue(depot());
     templates.findById.mockResolvedValue(template());
     repo.findOpenOf.mockResolvedValue([]);
@@ -544,6 +550,63 @@ describe('VisitService', () => {
       await expect(svc.complete(V, supervisor(), NOON)).rejects.toBeInstanceOf(VisitClosedError);
     });
 
+    describe('finding notice (VISIT_NOTIFY_ENABLED)', () => {
+      const flush = () => new Promise((r) => setImmediate(r));
+      const withFinding = () => {
+        const done = visit({
+          completedAt: NOON,
+          items: [
+            item({ result: VisitItemResult.PASS }),
+            item({ id: ITEM2, text: 'Filter diganti', result: VisitItemResult.FINDING, findingNote: 'x'.repeat(300) }),
+            item({ id: 'i3', text: 'Lantai', result: VisitItemResult.FINDING }),
+          ],
+        });
+        repo.findById.mockResolvedValue(done);
+        repo.complete.mockResolvedValue({ ...done, status: VisitStatus.COMPLETED });
+      };
+
+      it('is silent while the flag is off', async () => {
+        withFinding();
+        await svc.complete(V, supervisor(), NOON);
+        await flush();
+        expect(notifier.notify).not.toHaveBeenCalled();
+      });
+
+      it('tells crm once, after the commit, naming each finding (200 characters at most)', async () => {
+        config.visitNotifyEnabled = true;
+        withFinding();
+        await svc.complete(V, supervisor(), NOON);
+        await flush();
+        expect(notifier.notify).toHaveBeenCalledTimes(1);
+        const sent = notifier.notify.mock.calls[0][0];
+        expect(sent).toMatchObject({ kind: 'FINDING', depotId: DEPOT, depotName: 'Depot A', visitId: V, dateKey: '2026-11-27' });
+        expect(sent.items).toHaveLength(2);
+        expect(sent.items[0]).toHaveLength(200);
+        expect(sent.items[1]).toBe('Lantai');
+      });
+
+      it('says nothing for a visit with no finding, and never fails the visit when the notice breaks', async () => {
+        config.visitNotifyEnabled = true;
+        const clean = visit({ items: [item({ result: VisitItemResult.PASS })] });
+        repo.findById.mockResolvedValue(clean);
+        repo.complete.mockResolvedValue(clean);
+        await svc.complete(V, supervisor(), NOON);
+        await flush();
+        expect(notifier.notify).not.toHaveBeenCalled();
+
+        withFinding();
+        depots.findById.mockRejectedValue(new Error('db down'));
+        await expect(svc.complete(V, supervisor(), NOON)).resolves.toMatchObject({ status: VisitStatus.COMPLETED });
+        await flush();
+        expect(notifier.notify).not.toHaveBeenCalled();
+
+        depots.findById.mockResolvedValue(null); // a vanished depot is still named
+        await svc.complete(V, supervisor(), NOON);
+        await flush();
+        expect(notifier.notify.mock.calls[0][0].depotName).toBe('depot');
+      });
+    });
+
     it('lists the caller own open visits', async () => {
       repo.findOpenOf.mockResolvedValue([visit()]);
       await expect(svc.openOf(ME)).resolves.toHaveLength(1);
@@ -641,8 +704,59 @@ describe('VisitService', () => {
 
     it('counts overdue follow-ups against the WIB day', async () => {
       repo.overdueCounts.mockResolvedValue({ depots: 2, items: 5 });
-      await expect(svc.overdueSweep(AFTER_MIDNIGHT)).resolves.toEqual({ depots: 2, items: 5 });
+      await expect(svc.overdueSweep(AFTER_MIDNIGHT)).resolves.toEqual({ depots: 2, items: 5, notified: 0 });
       expect(repo.overdueCounts).toHaveBeenCalledWith('2026-11-28');
+      expect(repo.overdueToRemind).not.toHaveBeenCalled(); // flag off: counting only
+      expect(notifier.notify).not.toHaveBeenCalled();
+    });
+
+    describe('with VISIT_NOTIFY_ENABLED', () => {
+      const due = (id: string, depotId: string, text = 'Filter', note: string | null = 'Kotor') => ({
+        id,
+        depotId,
+        depotName: depotId === DEPOT ? 'Depot A' : 'Depot B',
+        text,
+        findingNote: note,
+      });
+      beforeEach(() => {
+        config.visitNotifyEnabled = true;
+      });
+
+      it('sends one notice per depot for reminders older than ~3 days, on the WIB day, and stamps what crm accepted', async () => {
+        repo.overdueCounts.mockResolvedValue({ depots: 2, items: 3 });
+        repo.overdueToRemind.mockResolvedValue([due('i1', DEPOT), due('i2', DEPOT, 'Lantai', null), due('i3', DEPOT2)]);
+        notifier.notify.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+        await expect(svc.overdueSweep(AFTER_MIDNIGHT)).resolves.toEqual({ depots: 2, items: 3, notified: 1 });
+        // 00:30 WIB on the 28th: the WIB day, and the window opens 71 hours back.
+        expect(repo.overdueToRemind).toHaveBeenCalledWith(
+          '2026-11-28',
+          new Date(AFTER_MIDNIGHT.getTime() - 71 * 3_600_000),
+          500,
+        );
+        expect(notifier.notify).toHaveBeenNthCalledWith(1, {
+          kind: 'OVERDUE',
+          depotId: DEPOT,
+          depotName: 'Depot A',
+          dateKey: '2026-11-28',
+          items: ['Filter: Kotor', 'Lantai'],
+        });
+        // Depot B's notice failed (crm down): not stamped, tomorrow retries it.
+        expect(repo.stampOverdueNotice).toHaveBeenCalledTimes(1);
+        expect(repo.stampOverdueNotice).toHaveBeenCalledWith(['i1', 'i2'], AFTER_MIDNIGHT);
+      });
+
+      it('sends nothing when nothing is overdue, and caps a notice at 30 lines (the rest wait a day)', async () => {
+        repo.overdueCounts.mockResolvedValue({ depots: 0, items: 0 });
+        await expect(svc.overdueSweep(NOON)).resolves.toEqual({ depots: 0, items: 0, notified: 0 });
+        expect(repo.overdueToRemind).not.toHaveBeenCalled();
+
+        const many = Array.from({ length: 35 }, (_, n) => due('i' + n, DEPOT, 'L' + n, null));
+        repo.overdueCounts.mockResolvedValue({ depots: 1, items: 35 });
+        repo.overdueToRemind.mockResolvedValue(many);
+        await svc.overdueSweep(NOON);
+        expect(notifier.notify.mock.calls[0][0].items).toHaveLength(30);
+        expect(repo.stampOverdueNotice.mock.calls[0][0]).toHaveLength(30);
+      });
     });
   });
 });
@@ -736,9 +850,9 @@ describe('VisitController', () => {
 
 describe('VisitInternalController', () => {
   it('counts the sweep and is open to the internal key only', async () => {
-    const svc = { overdueSweep: jest.fn().mockResolvedValue({ depots: 1, items: 2 }) };
+    const svc = { overdueSweep: jest.fn().mockResolvedValue({ depots: 1, items: 2, notified: 0 }) };
     const controller = new VisitInternalController(svc as never);
-    await expect(controller.overdueSweep()).resolves.toEqual({ depots: 1, items: 2 });
+    await expect(controller.overdueSweep()).resolves.toEqual({ depots: 1, items: 2, notified: 0 });
     const handler = VisitInternalController.prototype.overdueSweep;
     expect(Reflect.getMetadata('method', handler)).toBe(1); // POST
     expect(Reflect.getMetadata('path', handler)).toBe('overdue-sweep');
@@ -812,7 +926,7 @@ describe('VisitService clock default', () => {
       };
       const depots = { findManyByIds: jest.fn().mockResolvedValue([]), search: jest.fn() };
       const photos = { signedUrl: jest.fn(), exists: jest.fn().mockResolvedValue(true), remove: jest.fn() };
-      const s = new VisitService(repo as never, depots as never, {} as never, {} as never, photos as never, {} as never);
+      const s = new VisitService(repo as never, depots as never, {} as never, {} as never, photos as never, {} as never, {} as never);
       const answered = visit({ items: [item({ result: VisitItemResult.PASS })] });
       repo.findById.mockResolvedValue(answered);
       repo.complete.mockResolvedValue(answered);

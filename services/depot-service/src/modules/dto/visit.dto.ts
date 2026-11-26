@@ -215,4 +215,6 @@ export class VisitPhotoUploadResponseDto {
 export class OverdueSweepResponseDto {
   @ApiProperty() depots!: number;
   @ApiProperty() items!: number;
+  @ApiProperty({ description: 'Depot reminders crm accepted this run (0 while VISIT_NOTIFY_ENABLED is off).' })
+  notified!: number;
 }
