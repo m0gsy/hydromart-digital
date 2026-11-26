@@ -718,6 +718,31 @@ export class VisitOutsideAreaError extends DomainError {
   }
 }
 
+/** The depot has no map point, so there is nothing to check in against. */
+export class VisitNoLocationError extends DomainError {
+  readonly code = 'VISIT_DEPOT_NO_LOCATION';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Depot ini belum punya titik lokasi. Minta HQ mengisinya.');
+  }
+}
+
+export class VisitPhotoNotConfiguredError extends DomainError {
+  readonly code = 'VISIT_PHOTO_NOT_CONFIGURED';
+  readonly status = HTTP_STATUS.SERVICE_UNAVAILABLE;
+  constructor() {
+    super('Penyimpanan foto kunjungan belum disiapkan');
+  }
+}
+
+export class VisitUploadLimitError extends DomainError {
+  readonly code = 'VISIT_UPLOAD_LIMIT';
+  readonly status = HTTP_STATUS.TOO_MANY;
+  constructor() {
+    super('Terlalu banyak foto untuk kunjungan ini. Pakai foto yang sudah diunggah atau selesaikan kunjungan.');
+  }
+}
+
 export class VisitNotYoursError extends DomainError {
   readonly code = 'VISIT_NOT_YOURS';
   readonly status = HTTP_STATUS.FORBIDDEN;

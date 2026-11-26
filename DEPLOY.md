@@ -253,6 +253,15 @@ network, never this project's default one. A release that changes anything under
 `infra/caddy/` reloads Caddy, and a file that does not validate leaves the old config
 serving and raises an alert.
 
+
+### Supervisor visit photos (HD-15B) — one owner step
+
+Finding photos need their own PRIVATE bucket and key; until then the photo upload answers 503 and every
+other visit route works. Owner, once: (1) create a private bucket (e.g. `hydromart-visits`) on the same
+object storage and a key that can read/write only it; (2) set `VISIT_STORAGE_S3_BUCKET`,
+`VISIT_STORAGE_S3_ACCESS_KEY_ID` and `VISIT_STORAGE_S3_SECRET_ACCESS_KEY` in `.env`; (3) redeploy depot.
+Keep it private (the deploy's anonymous-listing probe covers it) and do not reuse the delivery key.
+
 ---
 
 ## 7. Operations

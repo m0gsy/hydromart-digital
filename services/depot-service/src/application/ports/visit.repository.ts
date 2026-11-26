@@ -57,6 +57,8 @@ export interface DepotVisitStat {
   depotId: string;
   lastVisitAt: Date | null;
   visitsLast30d: number;
+  /** Visits in the last 30 days made where the fence was off (radius 0): recorded, never checked. */
+  unfencedVisitsLast30d: number;
   openFindings: number;
   overdueFollowUps: number;
 }
@@ -65,6 +67,10 @@ export interface VisitRepository {
   /** Creates the visit with its copied lines; a second open visit by the same person at the same depot throws VisitAlreadyOpenError. */
   create(data: NewVisit): Promise<Visit>;
   findOpenOf(visitorId: string): Promise<Visit[]>;
+  /** Counts one photo against an open visit's cap; false when the cap is reached or the visit is not open. */
+  reserveUpload(visitId: string, max: number): Promise<boolean>;
+  /** Gives a reserved slot back after a failed put. */
+  releaseUpload(visitId: string): Promise<void>;
   findById(id: string): Promise<Visit | null>;
   findItem(itemId: string): Promise<VisitItem | null>;
   /** Writes one line's answer, only while its visit is still IN_PROGRESS; null when it is not. */

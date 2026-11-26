@@ -55,8 +55,13 @@ export interface Visit {
   approximateFix: boolean;
   fenceChecked: boolean;
   completedAt: Date | null;
+  /** Photos accepted so far, against the cap of MAX_UPLOADS_PER_ITEM x lines. */
+  photoUploads: number;
   items: VisitItem[];
 }
+
+/** Photo uploads a visit accepts per checklist line (retakes included). */
+export const MAX_UPLOADS_PER_ITEM = 3;
 
 /** The longest a follow-up deadline may be set out, in days from today. */
 export const MAX_FOLLOW_UP_DAYS = 90;

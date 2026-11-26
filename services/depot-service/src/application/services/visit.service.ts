@@ -20,13 +20,17 @@ import {
   VisitIncompleteError,
   VisitItemNotFoundError,
   VisitNotFoundError,
+  VisitNoLocationError,
   VisitNotYoursError,
   VisitOutsideAreaError,
+  VisitPhotoNotConfiguredError,
   VisitPhotoUnavailableError,
   VisitTemplateNotFoundError,
+  VisitUploadLimitError,
 } from '../../domain/errors';
 import {
   FollowUpStatus,
+  MAX_UPLOADS_PER_ITEM,
   Visit,
   VisitItem,
   VisitItemResult,
@@ -78,6 +82,12 @@ export interface DepotOverview extends DepotVisitStat {
   depotName: string;
 }
 
+/** `truncated`: more depots are in scope than the 200 listed. */
+export interface VisitOverview {
+  depots: DepotOverview[];
+  truncated: boolean;
+}
+
 const REFUSAL_APPROXIMATE =
   'Lokasi HP masih "Perkiraan" (bisa meleset sampai ±2 km), jadi kunjungan tidak bisa dimulai. ' +
   'Buka Setelan HP → Aplikasi → Hydromart → Izin → Lokasi, nyalakan "Gunakan lokasi akurat" (Tepat), ' +
@@ -118,24 +128,27 @@ export class VisitService {
     const open = (await this.visits.findOpenOf(user.sub)).find((v) => v.depotId === depot.id);
     if (open) throw new VisitAlreadyOpenError(open.id);
 
-    // A depot still on the 0,0 placeholder has no centre to measure from.
-    const hasCentre = !(depot.lat === 0 && depot.lng === 0);
-    const fence = {
-      lat: hasCentre ? depot.lat : null,
-      lng: hasCentre ? depot.lng : null,
-      radiusM: this.config.visitCheckInRadiusM(depot.id),
-    };
+    // A depot still on the 0,0 placeholder has no centre: a visit from anywhere would look valid, so
+    // it is refused. (Radius 0 is the explicit, per-depot "off" and is flagged on the visit instead.)
+    const hasCentre =
+      Number.isFinite(depot.lat) && Number.isFinite(depot.lng) && !(depot.lat === 0 && depot.lng === 0);
+    if (!hasCentre) throw new VisitNoLocationError();
+    const fence = { lat: depot.lat, lng: depot.lng, radiusM: this.config.visitCheckInRadiusM(depot.id) };
     const fenceChecked = geofenceEnabled(fence);
     const { ok, distanceM } = withinGeofence(fence, input.lat, input.lng);
     const approximate = isApproximateFix(input.lat, input.lng, input.accuracyM);
-    if (!ok) {
+    // With the fence on, a fix that cannot prove presence is refused even when it lands inside: an
+    // approximate one (about 2 km off) or one whose own accuracy is wider than the radius.
+    const tooLoose =
+      fenceChecked && (approximate || (input.accuracyM != null && input.accuracyM > fence.radiusM));
+    if (tooLoose || !ok) {
       // What is asked about afterwards; never the coordinates themselves.
       this.logger.warn(
-        `Visit refused outside the fence: visitor ${user.sub}, depot ${depot.id}, ${distanceM} m, ` +
-          `radius ${fence.radiusM} m, accuracy ${input.accuracyM ?? '?'} m, approximate ${approximate}`,
+        `Visit refused: visitor ${user.sub}, depot ${depot.id}, ${distanceM} m, radius ${fence.radiusM} m, ` +
+          `accuracy ${input.accuracyM ?? '?'} m, approximate ${approximate}, outside ${!ok}`,
       );
       throw new VisitOutsideAreaError(
-        approximate
+        tooLoose
           ? REFUSAL_APPROXIMATE
           : `Di luar area depot (${distanceM} m dari titik, batas ${fence.radiusM} m). ` +
               'Kunjungan harus dimulai di lokasi. Kalau sudah di sana, lokasi HP belum akurat: ' +
@@ -200,9 +213,15 @@ export class VisitService {
   ): Promise<{ key: string }> {
     const visit = await this.openOwn(visitId, user.sub);
     assertDepotAccess(user, visit.depotId);
+    // Counted before the put, so a stuck client retrying forever hits the cap, not the bucket.
+    if (!(await this.visits.reserveUpload(visitId, visit.items.length * MAX_UPLOADS_PER_ITEM))) {
+      throw new VisitUploadLimitError();
+    }
     try {
       return await this.photos.put({ visitId, ...file });
     } catch (error) {
+      await this.visits.releaseUpload(visitId).catch(() => undefined);
+      if (error instanceof VisitPhotoNotConfiguredError) throw error;
       this.logger.error(`Visit photo upload failed: ${(error as Error).message}`);
       throw new VisitPhotoUnavailableError();
     }
@@ -235,11 +254,16 @@ export class VisitService {
       if (!input.photoKey || !photoKeyPattern(visitId).test(input.photoKey)) {
         throw new InvalidFindingError('Foto temuan wajib, dan harus diunggah lewat kunjungan ini.');
       }
+      const key = input.photoKey;
+      if (visit.items.some((i) => i.id !== itemId && i.photoKey === key)) {
+        throw new InvalidFindingError('Foto ini sudah dipakai butir lain. Ambil foto untuk butir ini.');
+      }
       if (!input.followUpDueOn || !dueDayInWindow(input.followUpDueOn, now)) {
         throw new InvalidFindingError(
           'Tenggat tindak lanjut wajib, paling cepat hari ini dan paling lambat 90 hari lagi.',
         );
       }
+      await this.assertPhotoThere(key);
       saved = await this.visits.answerItem(visitId, itemId, {
         result: VisitItemResult.FINDING,
         findingNote: note,
@@ -249,7 +273,31 @@ export class VisitService {
       });
     }
     if (!saved) throw new VisitClosedError();
+    await this.dropReplacedPhoto(visit.items.find((i) => i.id === itemId)?.photoKey, saved.photoKey);
     return this.withPhoto(saved);
+  }
+
+  /** A key that was never uploaded (or was lost) must not be saved as a finding's proof. */
+  private async assertPhotoThere(key: string): Promise<void> {
+    let there: boolean;
+    try {
+      there = await this.photos.exists(key);
+    } catch (error) {
+      if (error instanceof VisitPhotoNotConfiguredError) throw error;
+      this.logger.error(`Visit photo check failed: ${(error as Error).message}`);
+      throw new VisitPhotoUnavailableError();
+    }
+    if (!there) throw new InvalidFindingError('Foto belum terunggah. Unggah fotonya dulu, lalu simpan temuan.');
+  }
+
+  /** A retake or a switch to PASS leaves the old photo orphaned: delete it, and only log if that fails. */
+  private async dropReplacedPhoto(before: string | null | undefined, after: string | null): Promise<void> {
+    if (!before || before === after) return;
+    try {
+      await this.photos.remove(before);
+    } catch (error) {
+      this.logger.warn(`Replaced visit photo not deleted: ${(error as Error).message}`);
+    }
   }
 
   async complete(visitId: string, user: AuthenticatedUser, now: Date = new Date()): Promise<VisitView> {
@@ -300,11 +348,18 @@ export class VisitService {
   }
 
   /** Every depot in the caller's scope with its visit numbers, overdue first. */
-  async overview(user: AuthenticatedUser, now: Date = new Date()): Promise<DepotOverview[]> {
+  async overview(user: AuthenticatedUser, now: Date = new Date()): Promise<VisitOverview> {
     const scope = depotScopeIds(user);
-    const records = scope
-      ? await this.depots.findManyByIds([...scope].slice(0, OVERVIEW_MAX_DEPOTS), true)
-      : (await this.depots.search({ page: 1, limit: OVERVIEW_MAX_DEPOTS, activeOnly: true })).items;
+    let records;
+    let truncated: boolean;
+    if (scope) {
+      truncated = scope.length > OVERVIEW_MAX_DEPOTS;
+      records = await this.depots.findManyByIds([...scope].slice(0, OVERVIEW_MAX_DEPOTS), true);
+    } else {
+      const found = await this.depots.search({ page: 1, limit: OVERVIEW_MAX_DEPOTS, activeOnly: true });
+      truncated = found.total > OVERVIEW_MAX_DEPOTS;
+      records = found.items;
+    }
     const stats = new Map(
       (
         await this.visits.overview(
@@ -314,17 +369,19 @@ export class VisitService {
         )
       ).map((s) => [s.depotId, s]),
     );
-    return records
+    const depots = records
       .map((d) => ({
         depotId: d.id,
         depotName: d.name,
         lastVisitAt: null,
         visitsLast30d: 0,
+        unfencedVisitsLast30d: 0,
         openFindings: 0,
         overdueFollowUps: 0,
         ...stats.get(d.id),
       }))
       .sort((a, b) => b.overdueFollowUps - a.overdueFollowUps || a.depotName.localeCompare(b.depotName));
+    return { depots, truncated };
   }
 
   /** Marks a finding's follow-up done, with a note. Idempotent: a second call changes nothing. */
@@ -348,12 +405,16 @@ export class VisitService {
   }
 
   private async withPhoto(item: VisitItem): Promise<VisitItemView> {
-    return {
-      ...item,
-      photoUrl: item.photoKey
-        ? await this.photos.signedUrl(item.photoKey, PHOTO_LINK_TTL_SECONDS)
-        : null,
-    };
+    let photoUrl: string | null = null;
+    if (item.photoKey) {
+      try {
+        photoUrl = await this.photos.signedUrl(item.photoKey, PHOTO_LINK_TTL_SECONDS);
+      } catch (error) {
+        // A link that cannot be made hides the picture, not the visit.
+        this.logger.warn(`Visit photo link not made: ${(error as Error).message}`);
+      }
+    }
+    return { ...item, photoUrl };
   }
 
   private async withPhotos(visit: Visit): Promise<VisitView> {

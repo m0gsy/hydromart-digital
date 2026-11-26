@@ -13,5 +13,7 @@ export interface VisitPhotoPutInput {
 export interface VisitPhotoStoragePort {
   put(input: VisitPhotoPutInput): Promise<{ key: string }>;
   signedUrl(key: string, ttlSeconds: number): Promise<string>;
+  /** Whether the object is really there (a HEAD), so a key that was never uploaded is not saved. */
+  exists(key: string): Promise<boolean>;
   remove(key: string): Promise<void>;
 }

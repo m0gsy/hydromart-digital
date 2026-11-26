@@ -197,8 +197,15 @@ export class DepotOverviewResponseDto {
   @ApiProperty() depotName!: string;
   @ApiProperty({ nullable: true }) lastVisitAt!: Date | null;
   @ApiProperty() visitsLast30d!: number;
+  @ApiProperty({ description: 'Visits of the last 30 days made with the fence off (radius 0).' })
+  unfencedVisitsLast30d!: number;
   @ApiProperty() openFindings!: number;
   @ApiProperty() overdueFollowUps!: number;
+}
+
+export class VisitOverviewResponseDto {
+  @ApiProperty({ type: [DepotOverviewResponseDto] }) depots!: DepotOverviewResponseDto[];
+  @ApiProperty({ description: 'More depots are in scope than the 200 listed.' }) truncated!: boolean;
 }
 
 export class VisitPhotoUploadResponseDto {

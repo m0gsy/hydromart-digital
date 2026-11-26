@@ -3,13 +3,14 @@ import { randomUUID } from 'node:crypto';
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Injectable } from '@nestjs/common';
 
-import { DepotConfigService } from '../../config/depot-config.service';
+import { VisitS3Settings } from '../../config/depot-config.service';
 import {
   VisitPhotoPutInput,
   VisitPhotoStoragePort,
@@ -29,8 +30,7 @@ export class VisitS3StorageAdapter implements VisitPhotoStoragePort {
   private readonly client: S3Client;
   private readonly bucket: string;
 
-  constructor(config: DepotConfigService) {
-    const s3 = config.visitS3;
+  constructor(s3: VisitS3Settings) {
     this.bucket = s3.bucket;
     this.client = new S3Client({
       region: s3.region,
@@ -54,6 +54,20 @@ export class VisitS3StorageAdapter implements VisitPhotoStoragePort {
     return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
       expiresIn: ttlSeconds,
     });
+  }
+
+  /** A HEAD: 404 means "not there", anything else (a timeout, a 403) is a real failure and is thrown. */
+  async exists(key: string): Promise<boolean> {
+    try {
+      await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }), {
+        abortSignal: AbortSignal.timeout(VisitS3StorageAdapter.TIMEOUT_MS),
+      });
+      return true;
+    } catch (error) {
+      const e = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+      if (e.name === 'NotFound' || e.$metadata?.httpStatusCode === 404) return false;
+      throw error;
+    }
   }
 
   /** S3 DELETE is idempotent: a missing key is a success. */

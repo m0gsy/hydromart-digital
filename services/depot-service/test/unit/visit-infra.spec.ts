@@ -4,6 +4,7 @@ jest.mock('@aws-sdk/client-s3', () => ({
   S3Client: jest.fn().mockImplementation(() => ({ send })),
   PutObjectCommand: jest.fn().mockImplementation((input) => ({ kind: 'put', input })),
   GetObjectCommand: jest.fn().mockImplementation((input) => ({ kind: 'get', input })),
+  HeadObjectCommand: jest.fn().mockImplementation((input) => ({ kind: 'head', input })),
   DeleteObjectCommand: jest.fn().mockImplementation((input) => ({ kind: 'delete', input })),
 }));
 jest.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: (...a: unknown[]) => getSignedUrl(...a) }));
@@ -22,6 +23,11 @@ import { FollowUpStatus, VisitItemResult, VisitStatus } from '../../src/domain/v
 import { VisitPrismaRepository } from '../../src/infrastructure/prisma/visit.prisma.repository';
 import { VisitLocalStorageAdapter } from '../../src/infrastructure/storage/visit-local-storage.adapter';
 import { VisitS3StorageAdapter } from '../../src/infrastructure/storage/visit-s3-storage.adapter';
+import {
+  VisitDisabledStorageAdapter,
+  visitPhotoStorageFor,
+} from '../../src/infrastructure/storage/visit-storage.factory';
+import { VisitPhotoNotConfiguredError } from '../../src/domain/errors';
 import { MulterExceptionFilter } from '../../src/modules/multer-exception.filter';
 
 const V = '00000000-0000-4000-8000-0000000000b1';
@@ -30,38 +36,85 @@ const ITEM = '00000000-0000-4000-8000-0000000000e1';
 const ME = '00000000-0000-4000-8000-000000000001';
 
 describe('VisitS3StorageAdapter', () => {
-  const config = {
-    visitS3: {
-      endpoint: 'https://nos.jkt-1.neo.id',
-      region: 'jkt-1',
-      bucket: 'hydromart-pod',
-      accessKeyId: 'k',
-      secretAccessKey: 's',
-    },
-  } as unknown as DepotConfigService;
+  const settings = {
+    endpoint: 'https://nos.jkt-1.neo.id',
+    region: 'jkt-1',
+    bucket: 'hydromart-visits',
+    accessKeyId: 'k',
+    secretAccessKey: 's',
+  };
 
   beforeEach(() => jest.clearAllMocks());
 
   it('puts under visits/<visitId>/<uuid>.<ext> in the private bucket and returns only the key', async () => {
     const body = Buffer.from('bytes');
-    const adapter = new VisitS3StorageAdapter(config);
+    const adapter = new VisitS3StorageAdapter(settings);
     const { key } = await adapter.put({ visitId: V, body, contentType: 'image/webp', ext: 'webp' });
 
     expect(key).toMatch(new RegExp(`^visits/${V}/[0-9a-f-]{36}\\.webp$`));
     expect(S3Client).toHaveBeenCalledWith(expect.objectContaining({ endpoint: 'https://nos.jkt-1.neo.id', forcePathStyle: true }));
-    expect(PutObjectCommand).toHaveBeenCalledWith({ Bucket: 'hydromart-pod', Key: key, Body: body, ContentType: 'image/webp' });
+    expect(PutObjectCommand).toHaveBeenCalledWith({ Bucket: 'hydromart-visits', Key: key, Body: body, ContentType: 'image/webp' });
     expect(send.mock.calls[0][1].abortSignal).toBeInstanceOf(AbortSignal);
   });
 
   it('mints a signed read link for the key, expiring as asked, and removes by key', async () => {
-    const adapter = new VisitS3StorageAdapter(config);
+    const adapter = new VisitS3StorageAdapter(settings);
     await expect(adapter.signedUrl(`visits/${V}/a.jpg`, 300)).resolves.toContain('signed.example');
-    expect(getSignedUrl.mock.calls[0][1]).toEqual({ kind: 'get', input: { Bucket: 'hydromart-pod', Key: `visits/${V}/a.jpg` } });
+    expect(getSignedUrl.mock.calls[0][1]).toEqual({ kind: 'get', input: { Bucket: 'hydromart-visits', Key: `visits/${V}/a.jpg` } });
     expect(getSignedUrl.mock.calls[0][2]).toEqual({ expiresIn: 300 });
 
     await adapter.remove(`visits/${V}/a.jpg`);
-    expect(send.mock.calls[0][0]).toEqual({ kind: 'delete', input: { Bucket: 'hydromart-pod', Key: `visits/${V}/a.jpg` } });
+    expect(send.mock.calls[0][0]).toEqual({ kind: 'delete', input: { Bucket: 'hydromart-visits', Key: `visits/${V}/a.jpg` } });
     expect(send.mock.calls[0][1].abortSignal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+describe('VisitS3StorageAdapter.exists', () => {
+  const settings = { endpoint: 'https://nos.jkt-1.neo.id', region: 'jkt-1', bucket: 'hydromart-visits', accessKeyId: 'k', secretAccessKey: 's' };
+  beforeEach(() => send.mockReset());
+
+  it('is true for an object that is there, asking with a HEAD and a timeout', async () => {
+    send.mockResolvedValue({});
+    await expect(new VisitS3StorageAdapter(settings).exists('visits/x.jpg')).resolves.toBe(true);
+    expect(send.mock.calls[0][0]).toEqual({ kind: 'head', input: { Bucket: 'hydromart-visits', Key: 'visits/x.jpg' } });
+    expect(send.mock.calls[0][1].abortSignal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('is false only for a 404, and throws for every other failure', async () => {
+    const adapter = new VisitS3StorageAdapter(settings);
+    send.mockRejectedValueOnce({ name: 'NotFound' });
+    await expect(adapter.exists('k')).resolves.toBe(false);
+    send.mockRejectedValueOnce({ name: 'Other', $metadata: { httpStatusCode: 404 } });
+    await expect(adapter.exists('k')).resolves.toBe(false);
+    const forbidden = { name: 'Forbidden', $metadata: { httpStatusCode: 403 } };
+    send.mockRejectedValueOnce(forbidden);
+    await expect(adapter.exists('k')).rejects.toBe(forbidden);
+    const bare = new Error('socket');
+    send.mockRejectedValueOnce(bare);
+    await expect(adapter.exists('k')).rejects.toBe(bare);
+  });
+});
+
+describe('visitPhotoStorageFor', () => {
+  const s3 = { endpoint: 'https://nos', region: 'jkt-1', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' };
+  const cfg = (over: object) => ({ storageDriver: 's3', isProduction: true, visitS3: s3, ...over }) as unknown as DepotConfigService;
+
+  it('uses the private bucket when the s3 driver has its own bucket and key', () => {
+    expect(visitPhotoStorageFor(cfg({}))).toBeInstanceOf(VisitS3StorageAdapter);
+  });
+
+  it('is disabled, not a boot failure, when the s3 driver has no visit bucket yet', async () => {
+    const store = visitPhotoStorageFor(cfg({ visitS3: null }));
+    expect(store).toBeInstanceOf(VisitDisabledStorageAdapter);
+    await expect(store.put({ visitId: V, body: Buffer.from('x'), contentType: 'image/png', ext: 'png' })).rejects.toBeInstanceOf(VisitPhotoNotConfiguredError);
+    await expect(store.signedUrl('k', 1)).rejects.toBeInstanceOf(VisitPhotoNotConfiguredError);
+    await expect(store.exists('k')).rejects.toBeInstanceOf(VisitPhotoNotConfiguredError);
+    await expect(store.remove('k')).rejects.toBeInstanceOf(VisitPhotoNotConfiguredError);
+  });
+
+  it('keeps photos on a local disk in development only, never in production', () => {
+    expect(visitPhotoStorageFor(cfg({ storageDriver: 'local', isProduction: false }))).toBeInstanceOf(VisitLocalStorageAdapter);
+    expect(visitPhotoStorageFor(cfg({ storageDriver: 'local', isProduction: true }))).toBeInstanceOf(VisitDisabledStorageAdapter);
   });
 });
 
@@ -78,10 +131,12 @@ describe('VisitLocalStorageAdapter', () => {
     expect(key).toMatch(new RegExp(`^visits/${V}/[0-9a-f-]{36}\\.png$`));
     expect(await readFile(join(root, key))).toEqual(body);
     await expect(adapter.signedUrl(key, 300)).resolves.toBe(`http://localhost:3007/uploads/${key}`);
+    await expect(adapter.exists(key)).resolves.toBe(true);
 
     await adapter.remove(key);
     await expect(stat(join(root, key))).rejects.toBeDefined();
     await expect(adapter.remove(key)).resolves.toBeUndefined();
+    await expect(adapter.exists(key)).resolves.toBe(false);
   });
 });
 
@@ -134,11 +189,24 @@ describe('DepotConfigService (visits)', () => {
       secretAccessKey: 's',
     });
   });
+
+  it.each(['VISIT_STORAGE_S3_BUCKET', 'VISIT_STORAGE_S3_ACCESS_KEY_ID', 'VISIT_STORAGE_S3_SECRET_ACCESS_KEY'])(
+    'has no visit bucket while %s is unset: photos are off, nothing else is',
+    (key) => {
+      const saved = env[key];
+      env[key] = '';
+      try {
+        expect(svc.visitS3).toBeNull();
+      } finally {
+        env[key] = saved;
+      }
+    },
+  );
 });
 
 describe('VisitPrismaRepository', () => {
   const visit = { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn(), findFirst: jest.fn(), count: jest.fn(), updateMany: jest.fn(), groupBy: jest.fn() };
-  const visitItem = { findUnique: jest.fn(), findMany: jest.fn(), count: jest.fn(), updateMany: jest.fn(), groupBy: jest.fn() };
+  const visitItem = { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), updateMany: jest.fn(), groupBy: jest.fn() };
   const repo = new VisitPrismaRepository({ visit, visitItem } as never);
   const NOW = new Date('2026-11-27T10:00:00.000Z');
   const itemRow = (over: object = {}) => ({ id: ITEM, visitId: V, depotId: DEPOT, followUpDueOn: new Date('2026-12-05T00:00:00.000Z'), result: 'FINDING', ...over });
@@ -185,6 +253,23 @@ describe('VisitPrismaRepository', () => {
     const other = new Error('db down');
     visit.create.mockRejectedValueOnce(other);
     await expect(repo.create(newVisit)).rejects.toBe(other);
+  });
+
+  it('counts a photo against an open visit up to its cap, and gives a slot back', async () => {
+    visit.updateMany.mockResolvedValue({ count: 1 });
+    await expect(repo.reserveUpload(V, 6)).resolves.toBe(true);
+    expect(visit.updateMany).toHaveBeenLastCalledWith({
+      where: { id: V, status: VisitStatus.IN_PROGRESS, photoUploads: { lt: 6 } },
+      data: { photoUploads: { increment: 1 } },
+    });
+    visit.updateMany.mockResolvedValue({ count: 0 });
+    await expect(repo.reserveUpload(V, 6)).resolves.toBe(false);
+
+    await repo.releaseUpload(V);
+    expect(visit.updateMany).toHaveBeenLastCalledWith({
+      where: { id: V, photoUploads: { gt: 0 } },
+      data: { photoUploads: { decrement: 1 } },
+    });
   });
 
   it('reads open visits, one visit, one line', async () => {
@@ -265,24 +350,32 @@ describe('VisitPrismaRepository', () => {
     visitItem.count.mockResolvedValue(1);
     visitItem.findMany.mockResolvedValue([itemRow()]);
     const out = await repo.findings({ depotIds: [DEPOT], state, todayKey: '2026-11-28', page: 1, pageSize: 20 });
-    expect(visitItem.count).toHaveBeenCalledWith({ where: { depotId: { in: [DEPOT] }, result: VisitItemResult.FINDING, ...extra } });
+    expect(visitItem.count).toHaveBeenCalledWith({
+      where: { depotId: { in: [DEPOT] }, result: VisitItemResult.FINDING, visit: { status: VisitStatus.COMPLETED }, ...extra },
+    });
     expect(out.items[0].followUpDueOn).toBe('2026-12-05');
   });
 
   it('adds the grouped counts up per depot, quiet ones left out', async () => {
     const D2 = '00000000-0000-4000-8000-0000000000d2';
-    visit.groupBy.mockResolvedValueOnce([{ depotId: DEPOT, _max: { checkInAt: NOW } }]).mockResolvedValueOnce([{ depotId: D2, _count: { _all: 2 } }]);
+    visit.groupBy
+      .mockResolvedValueOnce([{ depotId: DEPOT, _max: { checkInAt: NOW } }])
+      .mockResolvedValueOnce([{ depotId: D2, _count: { _all: 2 } }])
+      .mockResolvedValueOnce([{ depotId: D2, _count: { _all: 1 } }]);
     visitItem.groupBy.mockResolvedValueOnce([{ depotId: DEPOT, _count: { _all: 3 } }]).mockResolvedValueOnce([{ depotId: DEPOT, _count: { _all: 1 } }]);
     const out = await repo.overview(undefined, new Date('2026-10-28T00:00:00.000Z'), '2026-11-27');
     expect(out).toEqual([
-      { depotId: DEPOT, lastVisitAt: NOW, visitsLast30d: 0, openFindings: 3, overdueFollowUps: 1 },
-      { depotId: D2, lastVisitAt: null, visitsLast30d: 2, openFindings: 0, overdueFollowUps: 0 },
+      { depotId: DEPOT, lastVisitAt: NOW, visitsLast30d: 0, unfencedVisitsLast30d: 0, openFindings: 3, overdueFollowUps: 1 },
+      { depotId: D2, lastVisitAt: null, visitsLast30d: 2, unfencedVisitsLast30d: 1, openFindings: 0, overdueFollowUps: 0 },
     ]);
     expect(visitItem.groupBy.mock.calls[1][0].where).toEqual({
       result: VisitItemResult.FINDING,
       followUpStatus: FollowUpStatus.OPEN,
+      visit: { status: VisitStatus.COMPLETED },
       followUpDueOn: { lt: new Date('2026-11-27T00:00:00.000Z') },
     });
+    // the unfenced count: this window, fence off
+    expect(visit.groupBy.mock.calls[2][0].where).toEqual({ checkInAt: { gte: new Date('2026-10-28T00:00:00.000Z') }, fenceChecked: false });
   });
 
   it('scopes the overview to the given depots', async () => {
@@ -292,24 +385,26 @@ describe('VisitPrismaRepository', () => {
     expect(visit.groupBy.mock.calls[0][0].where).toEqual({ depotId: { in: [DEPOT] } });
   });
 
-  it('closes an open follow-up once, hands back a done one untouched, and ignores what is not a finding', async () => {
-    visitItem.findUnique.mockResolvedValueOnce(itemRow({ followUpStatus: 'OPEN' })).mockResolvedValueOnce(itemRow({ followUpStatus: 'DONE' }));
+  it('closes an open follow-up once, only for a finding of a COMPLETED visit', async () => {
+    visitItem.findFirst.mockResolvedValueOnce(itemRow({ followUpStatus: 'OPEN' }));
     visitItem.updateMany.mockResolvedValue({ count: 1 });
-    await repo.closeFollowUp(ITEM, ME, 'selesai', NOW);
+    visitItem.findUnique.mockResolvedValue(itemRow({ followUpStatus: 'DONE' }));
+    await expect(repo.closeFollowUp(ITEM, ME, 'selesai', NOW)).resolves.toMatchObject({ followUpStatus: 'DONE' });
+    expect(visitItem.findFirst).toHaveBeenCalledWith({
+      where: { id: ITEM, result: VisitItemResult.FINDING, visit: { status: VisitStatus.COMPLETED } },
+    });
     expect(visitItem.updateMany).toHaveBeenCalledWith({
       where: { id: ITEM, followUpStatus: FollowUpStatus.OPEN },
       data: { followUpStatus: FollowUpStatus.DONE, followUpDoneAt: NOW, followUpDoneBy: ME, followUpNote: 'selesai' },
     });
+  });
 
-    visitItem.updateMany.mockClear();
-    visitItem.findUnique.mockReset();
-    visitItem.findUnique.mockResolvedValue(itemRow({ followUpStatus: 'DONE' }));
+  it('hands back an already DONE follow-up untouched, and ignores a line of a draft visit or one that is not a finding', async () => {
+    visitItem.findFirst.mockResolvedValueOnce(itemRow({ followUpStatus: 'DONE' }));
     await expect(repo.closeFollowUp(ITEM, ME, null, NOW)).resolves.toMatchObject({ followUpStatus: 'DONE' });
     expect(visitItem.updateMany).not.toHaveBeenCalled();
 
-    visitItem.findUnique.mockResolvedValue(itemRow({ result: 'PASS' }));
-    await expect(repo.closeFollowUp(ITEM, ME, null, NOW)).resolves.toBeNull();
-    visitItem.findUnique.mockResolvedValue(null);
+    visitItem.findFirst.mockResolvedValueOnce(null);
     await expect(repo.closeFollowUp(ITEM, ME, null, NOW)).resolves.toBeNull();
   });
 

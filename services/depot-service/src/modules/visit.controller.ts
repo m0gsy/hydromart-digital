@@ -7,7 +7,6 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
-  PayloadTooLargeException,
   Post,
   Query,
   UploadedFile,
@@ -26,8 +25,8 @@ import {
 import { AuthenticatedUser, Can, CurrentUser, SNIFFED_MIME, sniffFileType } from '@hydromart/platform';
 
 import {
-  DepotOverview,
   VisitItemView,
+  VisitOverview,
   VisitService,
   VisitView,
 } from '../application/services/visit.service';
@@ -36,7 +35,7 @@ import { Visit } from '../domain/visit';
 import {
   AnswerVisitItemDto,
   CloseFollowUpDto,
-  DepotOverviewResponseDto,
+  VisitOverviewResponseDto,
   FindingPageResponseDto,
   ListFindingsQueryDto,
   ListVisitsQueryDto,
@@ -78,11 +77,11 @@ export class VisitController {
     return this.visits.openOf(user.sub);
   }
 
-  @ApiOkResponse({ type: DepotOverviewResponseDto, isArray: true })
+  @ApiOkResponse({ type: VisitOverviewResponseDto })
   @Get('overview')
   @Can('visitRead')
   @ApiOperation({ summary: 'Per depot in scope: last visit, visits in 30 days, open and overdue findings' })
-  overview(@CurrentUser() user: AuthenticatedUser): Promise<DepotOverview[]> {
+  overview(@CurrentUser() user: AuthenticatedUser): Promise<VisitOverview> {
     return this.visits.overview(user);
   }
 
@@ -146,7 +145,6 @@ export class VisitController {
     const sniffed = sniffFileType(file.buffer);
     const ext = sniffed && sniffed !== 'pdf' ? sniffed : undefined;
     if (!ext) throw new BadRequestException('unsupported file type (allowed: jpeg, png, webp)');
-    if (file.size > MAX_PHOTO_BYTES) throw new PayloadTooLargeException('file exceeds 5MB');
     return this.visits.uploadPhoto(id, user, {
       body: file.buffer,
       contentType: SNIFFED_MIME[ext],

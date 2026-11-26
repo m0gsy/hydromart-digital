@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { Injectable } from '@nestjs/common';
@@ -26,6 +26,13 @@ export class VisitLocalStorageAdapter implements VisitPhotoStoragePort {
   /** Dev has no presigner, so the "signed" link is the plain one the dev server already serves. */
   async signedUrl(key: string, _ttlSeconds: number): Promise<string> {
     return `${this.config.storagePublicBaseUrl}/uploads/${key}`;
+  }
+
+  async exists(key: string): Promise<boolean> {
+    return stat(join(this.config.storageLocalDir, key)).then(
+      () => true,
+      () => false,
+    );
   }
 
   async remove(key: string): Promise<void> {

@@ -40,6 +40,8 @@ const inScope = (depotIds?: readonly string[]) =>
 const OPEN_FINDING = {
   result: VisitItemResult.FINDING,
   followUpStatus: FollowUpStatus.OPEN,
+  // A finding exists for the Kepala and the counts once its visit is COMPLETED, not while it is a draft.
+  visit: { status: VisitStatus.COMPLETED },
 } as const;
 
 @Injectable()
@@ -91,6 +93,21 @@ export class VisitPrismaRepository implements VisitRepository {
       include: WITH_ITEMS,
     });
     return rows.map((r) => toVisit(r as unknown as VisitRow));
+  }
+
+  async reserveUpload(visitId: string, max: number): Promise<boolean> {
+    const { count } = await this.prisma.visit.updateMany({
+      where: { id: visitId, status: VisitStatus.IN_PROGRESS, photoUploads: { lt: max } },
+      data: { photoUploads: { increment: 1 } },
+    });
+    return count > 0;
+  }
+
+  async releaseUpload(visitId: string): Promise<void> {
+    await this.prisma.visit.updateMany({
+      where: { id: visitId, photoUploads: { gt: 0 } },
+      data: { photoUploads: { decrement: 1 } },
+    });
   }
 
   async findById(id: string): Promise<Visit | null> {
@@ -168,6 +185,7 @@ export class VisitPrismaRepository implements VisitRepository {
     const where: Prisma.VisitItemWhereInput = {
       ...inScope(q.depotIds),
       result: VisitItemResult.FINDING,
+      visit: { status: VisitStatus.COMPLETED },
       ...(q.state === 'done' ? { followUpStatus: FollowUpStatus.DONE } : {}),
       ...(q.state === 'open' ? { followUpStatus: FollowUpStatus.OPEN } : {}),
       ...(q.state === 'overdue'
@@ -192,11 +210,16 @@ export class VisitPrismaRepository implements VisitRepository {
     todayKey: string,
   ): Promise<DepotVisitStat[]> {
     const scope = inScope(depotIds);
-    const [last, recent, open, overdue] = await Promise.all([
+    const [last, recent, unfenced, open, overdue] = await Promise.all([
       this.prisma.visit.groupBy({ by: ['depotId'], where: scope, _max: { checkInAt: true } }),
       this.prisma.visit.groupBy({
         by: ['depotId'],
         where: { ...scope, checkInAt: { gte: since } },
+        _count: { _all: true },
+      }),
+      this.prisma.visit.groupBy({
+        by: ['depotId'],
+        where: { ...scope, checkInAt: { gte: since }, fenceChecked: false },
         _count: { _all: true },
       }),
       this.prisma.visitItem.groupBy({ by: ['depotId'], where: { ...scope, ...OPEN_FINDING }, _count: { _all: true } }),
@@ -210,13 +233,21 @@ export class VisitPrismaRepository implements VisitRepository {
     const at = (depotId: string) => {
       let s = stats.get(depotId);
       if (!s) {
-        s = { depotId, lastVisitAt: null, visitsLast30d: 0, openFindings: 0, overdueFollowUps: 0 };
+        s = {
+          depotId,
+          lastVisitAt: null,
+          visitsLast30d: 0,
+          unfencedVisitsLast30d: 0,
+          openFindings: 0,
+          overdueFollowUps: 0,
+        };
         stats.set(depotId, s);
       }
       return s;
     };
     for (const r of last) at(r.depotId).lastVisitAt = r._max.checkInAt;
     for (const r of recent) at(r.depotId).visitsLast30d = r._count._all;
+    for (const r of unfenced) at(r.depotId).unfencedVisitsLast30d = r._count._all;
     for (const r of open) at(r.depotId).openFindings = r._count._all;
     for (const r of overdue) at(r.depotId).overdueFollowUps = r._count._all;
     return [...stats.values()];
@@ -228,8 +259,12 @@ export class VisitPrismaRepository implements VisitRepository {
     note: string | null,
     now: Date,
   ): Promise<VisitItem | null> {
-    const item = await this.findItem(itemId);
-    if (!item || item.result !== VisitItemResult.FINDING) return null;
+    // Only a finding of a COMPLETED visit can be closed: a draft visit's answers may still change.
+    const row = await this.prisma.visitItem.findFirst({
+      where: { id: itemId, result: VisitItemResult.FINDING, visit: { status: VisitStatus.COMPLETED } },
+    });
+    if (!row) return null;
+    const item = toItem(row as unknown as ItemRow);
     if (item.followUpStatus === FollowUpStatus.DONE) return item;
     await this.prisma.visitItem.updateMany({
       where: { id: itemId, followUpStatus: FollowUpStatus.OPEN },

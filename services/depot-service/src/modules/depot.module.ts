@@ -157,8 +157,7 @@ import { VisitController } from './visit.controller';
 import { VisitInternalController } from './visit-internal.controller';
 import { VisitService } from '../application/services/visit.service';
 import { VisitPrismaRepository } from '../infrastructure/prisma/visit.prisma.repository';
-import { VisitS3StorageAdapter } from '../infrastructure/storage/visit-s3-storage.adapter';
-import { VisitLocalStorageAdapter } from '../infrastructure/storage/visit-local-storage.adapter';
+import { visitPhotoStorageFor } from '../infrastructure/storage/visit-storage.factory';
 import { VisitTemplateService } from '../application/services/visit-template.service';
 import { VisitTemplatePrismaRepository } from '../infrastructure/prisma/visit-template.prisma.repository';
 import { SopLookupHttpAdapter } from '../infrastructure/http/sop-lookup.http.adapter';
@@ -279,10 +278,7 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.VisitRepository, useClass: VisitPrismaRepository },
   {
     provide: DEPOT_TOKENS.VisitPhotoStorage,
-    useFactory: (config: DepotConfigService) =>
-      config.storageDriver === 's3'
-        ? new VisitS3StorageAdapter(config)
-        : new VisitLocalStorageAdapter(config),
+    useFactory: visitPhotoStorageFor,
     inject: [DepotConfigService],
   },
   { provide: DEPOT_TOKENS.HandoverRepository, useClass: HandoverPrismaRepository },

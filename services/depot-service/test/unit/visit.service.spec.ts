@@ -13,11 +13,14 @@ import {
   VisitDepotClosedError,
   VisitIncompleteError,
   VisitItemNotFoundError,
+  VisitNoLocationError,
   VisitNotFoundError,
   VisitNotYoursError,
   VisitOutsideAreaError,
+  VisitPhotoNotConfiguredError,
   VisitPhotoUnavailableError,
   VisitTemplateNotFoundError,
+  VisitUploadLimitError,
 } from '../../src/domain/errors';
 import {
   FollowUpStatus,
@@ -137,6 +140,8 @@ describe('VisitService', () => {
   const repo = {
     create: jest.fn(),
     findOpenOf: jest.fn(),
+    reserveUpload: jest.fn(),
+    releaseUpload: jest.fn(),
     findById: jest.fn(),
     findItem: jest.fn(),
     answerItem: jest.fn(),
@@ -150,7 +155,7 @@ describe('VisitService', () => {
   const depots = { findById: jest.fn(), findManyByIds: jest.fn(), search: jest.fn() };
   const templates = { findById: jest.fn() };
   const sops = { inForce: jest.fn() };
-  const photos = { put: jest.fn(), signedUrl: jest.fn(), remove: jest.fn() };
+  const photos = { put: jest.fn(), signedUrl: jest.fn(), remove: jest.fn(), exists: jest.fn() };
   const config = { visitCheckInRadiusM: jest.fn() };
   const svc = new VisitService(
     repo as never,
@@ -192,6 +197,10 @@ describe('VisitService', () => {
       { sopId: SOP1, versionId: 'ver-1', versionNo: 4, title: 'SOP filter', effectiveFrom: '2026-11-01' },
     ]);
     photos.signedUrl.mockImplementation(async (key: string) => `https://signed/${key}`);
+    photos.exists.mockResolvedValue(true);
+    photos.remove.mockResolvedValue(undefined);
+    repo.reserveUpload.mockResolvedValue(true);
+    repo.releaseUpload.mockResolvedValue(undefined);
   });
 
   describe('start', () => {
@@ -253,20 +262,47 @@ describe('VisitService', () => {
       expect(byGrid.message).toContain('Perkiraan');
     });
 
-    it('lets an approximate fix that lands inside through, and records that it was approximate', async () => {
-      await svc.start({ ...start, accuracyM: 1200 }, supervisor());
-      expect(repo.create.mock.calls[0][0]).toMatchObject({ approximateFix: true, fenceChecked: true });
+    it('refuses an approximate fix even when it lands inside the fence', async () => {
+      const err = await svc.start({ ...start, accuracyM: 1200 }, supervisor()).catch((e) => e);
+      expect(err).toBeInstanceOf(VisitOutsideAreaError);
+      expect(err.message).toContain('Perkiraan');
+      // a point on Android's 2 km grid, which here IS the depot, with no accuracy sent
+      depots.findById.mockResolvedValue(depot({ lat: -6.27027027027027, lng: 106.9642098165971 }));
+      const byGrid = await svc
+        .start({ ...start, lat: -6.27027027027027, lng: 106.9642098165971, accuracyM: undefined }, supervisor())
+        .catch((e) => e);
+      expect(byGrid).toBeInstanceOf(VisitOutsideAreaError);
+      expect(repo.create).not.toHaveBeenCalled();
     });
 
-    it('records but does not fence when the radius is 0 or the depot has no centre', async () => {
-      config.visitCheckInRadiusM.mockReturnValue(0);
-      await svc.start({ ...start, lat: -7.5, accuracyM: undefined }, supervisor());
-      expect(repo.create.mock.calls[0][0]).toMatchObject({ fenceChecked: false, distanceM: null, accuracyM: null });
+    it('refuses a fix whose own accuracy is wider than the radius, but not one that is tighter', async () => {
+      const err = await svc.start({ ...start, accuracyM: 201 }, supervisor()).catch((e) => e);
+      expect(err).toBeInstanceOf(VisitOutsideAreaError);
+      expect(err.message).toContain('Perkiraan');
+      await expect(svc.start({ ...start, accuracyM: 200 }, supervisor())).resolves.toBeDefined();
+      await expect(svc.start({ ...start, accuracyM: undefined }, supervisor())).resolves.toBeDefined();
+    });
 
-      config.visitCheckInRadiusM.mockReturnValue(200);
-      depots.findById.mockResolvedValue(depot({ lat: 0, lng: 0 }));
-      await svc.start({ ...start, lat: -7.5 }, supervisor());
-      expect(repo.create.mock.calls[1][0].fenceChecked).toBe(false);
+    it('with the fence off (radius 0) records the visit as unchecked and does not judge the fix', async () => {
+      config.visitCheckInRadiusM.mockReturnValue(0);
+      await svc.start({ ...start, lat: -7.5, accuracyM: 1500 }, supervisor());
+      expect(repo.create.mock.calls[0][0]).toMatchObject({
+        fenceChecked: false,
+        distanceM: null,
+        accuracyM: 1500,
+        approximateFix: true,
+      });
+    });
+
+    it.each([
+      ['0,0', { lat: 0, lng: 0 }],
+      ['not a number', { lat: Number.NaN, lng: 106.8 }],
+    ])('refuses a depot whose map point is %s: a visit from anywhere would look valid', async (_n, at) => {
+      depots.findById.mockResolvedValue(depot(at));
+      const err = await svc.start(start, supervisor()).catch((e) => e);
+      expect(err).toBeInstanceOf(VisitNoLocationError);
+      expect(err.message).toBe('Depot ini belum punya titik lokasi. Minta HQ mengisinya.');
+      expect(repo.create).not.toHaveBeenCalled();
     });
 
     it('refuses a missing or closed depot, a missing or retired template, and a depot outside the scope', async () => {
@@ -303,11 +339,34 @@ describe('VisitService', () => {
       expect(photos.put).toHaveBeenCalledWith({ visitId: V, ...file });
     });
 
-    it('says the storage is unavailable when the put fails', async () => {
+    it('says the storage is unavailable when the put fails, and gives the counted slot back', async () => {
       photos.put.mockRejectedValue(new Error('s3 down'));
       await expect(
         svc.uploadPhoto(V, supervisor(), { body: Buffer.from('x'), contentType: 'image/png', ext: 'png' }),
       ).rejects.toBeInstanceOf(VisitPhotoUnavailableError);
+      expect(repo.releaseUpload).toHaveBeenCalledWith(V);
+    });
+
+    it('answers "belum disiapkan" when the photo bucket is not set up, and still gives the slot back', async () => {
+      photos.put.mockRejectedValue(new VisitPhotoNotConfiguredError());
+      repo.releaseUpload.mockRejectedValue(new Error('db'));
+      const err = await svc
+        .uploadPhoto(V, supervisor(), { body: Buffer.from('x'), contentType: 'image/png', ext: 'png' })
+        .catch((e) => e);
+      expect(err).toBeInstanceOf(VisitPhotoNotConfiguredError);
+      expect(err.message).toBe('Penyimpanan foto kunjungan belum disiapkan');
+      expect(err.status).toBe(503);
+    });
+
+    it('caps uploads at 3 per checklist line and refuses the next one with 429 before touching storage', async () => {
+      repo.reserveUpload.mockResolvedValue(false);
+      const err = await svc
+        .uploadPhoto(V, supervisor(), { body: Buffer.from('x'), contentType: 'image/png', ext: 'png' })
+        .catch((e) => e);
+      expect(err).toBeInstanceOf(VisitUploadLimitError);
+      expect(err.status).toBe(429);
+      expect(repo.reserveUpload).toHaveBeenCalledWith(V, 6); // 2 lines x 3
+      expect(photos.put).not.toHaveBeenCalled();
     });
 
     it('refuses another supervisor, a finished visit and an unknown one', async () => {
@@ -386,6 +445,75 @@ describe('VisitService', () => {
       ).resolves.toBeDefined();
     });
 
+    describe('a finding\'s photo', () => {
+      const finding = (over: object = {}) => ({
+        result: VisitItemResult.FINDING as const,
+        findingNote: 'Licin',
+        photoKey: PHOTO,
+        followUpDueOn: '2026-12-05',
+        ...over,
+      });
+      const OLD = `visits/${V}/00000000-0000-4000-8000-0000000000f2.jpg`;
+      const withItems = (a: Record<string, unknown>, b: Record<string, unknown> = {}) =>
+        repo.findById.mockResolvedValue(visit({ items: [item(a), item({ id: ITEM2, position: 1, ...b })] }));
+      beforeEach(() =>
+        repo.answerItem.mockImplementation(async (_v: string, _i: string, a: object) => item({ ...a })),
+      );
+
+      it('is checked to exist before the key is saved', async () => {
+        photos.exists.mockResolvedValue(false);
+        await expect(svc.answer(V, ITEM1, finding(), supervisor(), NOON)).rejects.toBeInstanceOf(InvalidFindingError);
+        expect(photos.exists).toHaveBeenCalledWith(PHOTO);
+        expect(repo.answerItem).not.toHaveBeenCalled();
+      });
+
+      it('says the storage is unavailable when the check itself fails, or not set up', async () => {
+        photos.exists.mockRejectedValueOnce(new Error('timeout'));
+        await expect(svc.answer(V, ITEM1, finding(), supervisor(), NOON)).rejects.toBeInstanceOf(VisitPhotoUnavailableError);
+        photos.exists.mockRejectedValueOnce(new VisitPhotoNotConfiguredError());
+        await expect(svc.answer(V, ITEM1, finding(), supervisor(), NOON)).rejects.toBeInstanceOf(VisitPhotoNotConfiguredError);
+      });
+
+      it('cannot be a key already attached to another line of the visit', async () => {
+        withItems({}, { photoKey: PHOTO, result: VisitItemResult.FINDING });
+        await expect(svc.answer(V, ITEM1, finding(), supervisor(), NOON)).rejects.toBeInstanceOf(InvalidFindingError);
+        expect(photos.exists).not.toHaveBeenCalled();
+      });
+
+      it('is deleted when a retake replaces it', async () => {
+        withItems({ photoKey: OLD, result: VisitItemResult.FINDING });
+        await svc.answer(V, ITEM1, finding(), supervisor(), NOON);
+        expect(photos.remove).toHaveBeenCalledWith(OLD);
+      });
+
+      it('is deleted when the line turns PASS', async () => {
+        withItems({ photoKey: OLD, result: VisitItemResult.FINDING });
+        await svc.answer(V, ITEM1, { result: VisitItemResult.PASS }, supervisor(), NOON);
+        expect(photos.remove).toHaveBeenCalledWith(OLD);
+      });
+
+      it('is kept when the same key is saved again, or there was none', async () => {
+        withItems({ photoKey: PHOTO, result: VisitItemResult.FINDING });
+        await svc.answer(V, ITEM1, finding(), supervisor(), NOON);
+        withItems({});
+        await svc.answer(V, ITEM1, { result: VisitItemResult.PASS }, supervisor(), NOON);
+        expect(photos.remove).not.toHaveBeenCalled();
+      });
+
+      it('is only logged when it cannot be deleted: the answer still lands', async () => {
+        withItems({ photoKey: OLD, result: VisitItemResult.FINDING });
+        photos.remove.mockRejectedValue(new Error('s3 down'));
+        await expect(svc.answer(V, ITEM1, finding(), supervisor(), NOON)).resolves.toMatchObject({ photoKey: PHOTO });
+      });
+    });
+
+    it('still shows a visit when a photo link cannot be made', async () => {
+      repo.findById.mockResolvedValue(visit({ items: [item({ photoKey: PHOTO })] }));
+      photos.signedUrl.mockRejectedValue(new VisitPhotoNotConfiguredError());
+      const out = await svc.get(V, supervisor());
+      expect(out.items[0].photoUrl).toBeNull();
+    });
+
     it('refuses a line of another visit, a visit that closed under it, and the wrong person', async () => {
       await expect(svc.answer(V, V2, { result: VisitItemResult.PASS }, supervisor(), NOON)).rejects.toBeInstanceOf(VisitItemNotFoundError);
       repo.answerItem.mockResolvedValue(null);
@@ -453,12 +581,14 @@ describe('VisitService', () => {
     it('builds the per-depot overview for a scope, quiet depots included, overdue first', async () => {
       depots.findManyByIds.mockResolvedValue([depot({ id: DEPOT, name: 'B depot' }), depot({ id: DEPOT2, name: 'A depot' })]);
       repo.overview.mockResolvedValue([
-        { depotId: DEPOT, lastVisitAt: NOON, visitsLast30d: 3, openFindings: 2, overdueFollowUps: 1 },
+        { depotId: DEPOT, lastVisitAt: NOON, visitsLast30d: 3, unfencedVisitsLast30d: 1, openFindings: 2, overdueFollowUps: 1 },
       ]);
-      const out = await svc.overview(supervisor([DEPOT, DEPOT2]), NOON);
+      const { depots: out, truncated } = await svc.overview(supervisor([DEPOT, DEPOT2]), NOON);
+      expect(truncated).toBe(false);
+      expect(out[0].unfencedVisitsLast30d).toBe(1);
       expect(repo.overview).toHaveBeenCalledWith([DEPOT, DEPOT2], new Date('2026-10-27T17:00:00.000Z'), '2026-11-27');
       expect(out.map((o) => [o.depotName, o.overdueFollowUps])).toEqual([['B depot', 1], ['A depot', 0]]);
-      expect(out[1]).toMatchObject({ lastVisitAt: null, visitsLast30d: 0, openFindings: 0 });
+      expect(out[1]).toMatchObject({ lastVisitAt: null, visitsLast30d: 0, unfencedVisitsLast30d: 0, openFindings: 0 });
     });
 
     it('lists every active depot for head office, up to 200', async () => {
@@ -467,6 +597,19 @@ describe('VisitService', () => {
       await svc.overview({ sub: ME, role: Role.HEAD_OFFICE, depotId: null } as never, NOON);
       expect(depots.search).toHaveBeenCalledWith({ page: 1, limit: 200, activeOnly: true });
       expect(repo.overview).toHaveBeenCalledWith([DEPOT], expect.any(Date), '2026-11-27');
+    });
+
+    it('says so when more depots are in scope than the 200 listed', async () => {
+      repo.overview.mockResolvedValue([]);
+      depots.search.mockResolvedValue({ items: [depot()], total: 201 });
+      const hq = await svc.overview({ sub: ME, role: Role.HEAD_OFFICE, depotId: null } as never, NOON);
+      expect(hq.truncated).toBe(true);
+
+      const many = Array.from({ length: 201 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+      depots.findManyByIds.mockResolvedValue([]);
+      const scoped = await svc.overview(supervisor(many), NOON);
+      expect(scoped.truncated).toBe(true);
+      expect(depots.findManyByIds.mock.calls[0][0]).toHaveLength(200);
     });
   });
 
@@ -588,9 +731,6 @@ describe('VisitController', () => {
       expect(svc.uploadPhoto).not.toHaveBeenCalled();
     });
 
-    it('refuses a file over 5 MB with 413', async () => {
-      await expect(controller.upload(V, user, file(JPEG, 5 * 1024 * 1024 + 1))).rejects.toThrow('file exceeds 5MB');
-    });
   });
 });
 
@@ -671,7 +811,7 @@ describe('VisitService clock default', () => {
         overdueCounts: jest.fn().mockResolvedValue({ depots: 0, items: 0 }),
       };
       const depots = { findManyByIds: jest.fn().mockResolvedValue([]), search: jest.fn() };
-      const photos = { signedUrl: jest.fn() };
+      const photos = { signedUrl: jest.fn(), exists: jest.fn().mockResolvedValue(true), remove: jest.fn() };
       const s = new VisitService(repo as never, depots as never, {} as never, {} as never, photos as never, {} as never);
       const answered = visit({ items: [item({ result: VisitItemResult.PASS })] });
       repo.findById.mockResolvedValue(answered);

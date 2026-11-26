@@ -4,6 +4,15 @@ import { BUSINESS_TIME_ZONE, SettingsCache } from '@hydromart/platform';
 
 import { SETTING_DEF_BY_KEY } from './setting-defs';
 
+/** The private bucket finding photos go to, or null while the owner has not set one up. */
+export interface VisitS3Settings {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+}
+
 @Injectable()
 export class DepotConfigService {
   constructor(
@@ -131,23 +140,22 @@ export class DepotConfigService {
     };
   }
   /**
-   * Private bucket for finding photos (HD-15B). Same endpoint and region as the other storage, a
-   * bucket and key of its own: compose points them at the delivery PoD bucket, whose objects are
-   * private, under the `visits/` prefix.
+   * Private bucket for finding photos (HD-15B): the shared endpoint and region, a bucket and key of
+   * their own (never another service's credentials), objects under the `visits/` prefix.
    */
-  get visitS3(): {
-    endpoint: string;
-    region: string;
-    bucket: string;
-    accessKeyId: string;
-    secretAccessKey: string;
-  } {
+  get visitS3(): VisitS3Settings | null {
+    const bucket = this.config.get<string>('VISIT_STORAGE_S3_BUCKET', '');
+    const accessKeyId = this.config.get<string>('VISIT_STORAGE_S3_ACCESS_KEY_ID', '');
+    const secretAccessKey = this.config.get<string>('VISIT_STORAGE_S3_SECRET_ACCESS_KEY', '');
+    // Optional on purpose: until the owner makes a dedicated bucket and key, photo upload answers 503
+    // and everything else about visits works.
+    if (!bucket || !accessKeyId || !secretAccessKey) return null;
     return {
       endpoint: this.config.getOrThrow<string>('STORAGE_S3_ENDPOINT'),
       region: this.config.get<string>('STORAGE_S3_REGION', 'auto'),
-      bucket: this.config.getOrThrow<string>('VISIT_STORAGE_S3_BUCKET'),
-      accessKeyId: this.config.getOrThrow<string>('VISIT_STORAGE_S3_ACCESS_KEY_ID'),
-      secretAccessKey: this.config.getOrThrow<string>('VISIT_STORAGE_S3_SECRET_ACCESS_KEY'),
+      bucket,
+      accessKeyId,
+      secretAccessKey,
     };
   }
   /**

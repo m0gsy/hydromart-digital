@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS "visits" (
   "approximateFix"   BOOLEAN          NOT NULL DEFAULT false,
   "fenceChecked"     BOOLEAN          NOT NULL,
   "completedAt"      TIMESTAMP(3),
+  "photoUploads"     INTEGER          NOT NULL DEFAULT 0,
   CONSTRAINT "visits_pkey" PRIMARY KEY ("id"),
   CONSTRAINT "visits_depotId_fkey" FOREIGN KEY ("depotId")
     REFERENCES "depots"("id") ON DELETE RESTRICT ON UPDATE CASCADE

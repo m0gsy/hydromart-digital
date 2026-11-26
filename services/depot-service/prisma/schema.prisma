@@ -1377,6 +1377,8 @@ model Visit {
   /// false when the depot has no centre or its radius is 0: the visit was recorded, not fenced.
   fenceChecked     Boolean
   completedAt      DateTime?
+  /// Photos accepted for this visit so far; capped at 3 per checklist line so a stuck client cannot fill the bucket.
+  photoUploads     Int         @default(0)
   items            VisitItem[]
 
   @@index([depotId, checkInAt])
