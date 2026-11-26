@@ -1,19 +1,20 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Inject, Query, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser, ExternalAccess } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, ExternalAccess, MachineCan } from '@hydromart/platform';
 
 import { AnswerEnvelope, belumAda, ok } from '../application/ai-read/envelope';
 import { assertNoPersonalData } from '../application/ai-read/masking';
 import { FRANCHISE_METRICS, FranchiseMetricsService } from '../application/ai-read/franchise-metrics';
 import { HR_METRICS, HrMetricsService } from '../application/ai-read/hr-metrics';
-import { MONEY_METRICS, MoneyMetricsService } from '../application/ai-read/money-metrics';
+import { AI_AGENT_MONEY_METRICS, MONEY_METRICS, MoneyMetricsService } from '../application/ai-read/money-metrics';
 import { parsePeriod } from '../application/ai-read/period';
 import { ReadScopeService } from '../application/ai-read/scope.service';
 import { assertSplittable } from '../application/ai-read/split';
 import { DashboardSourcesPort } from '../application/ports/dashboard-sources.port';
 import { DASHBOARD_TOKENS } from '../application/tokens';
 import { AnswerEnvelopeDto, FranchiseQueryDto, HrQueryDto, MoneyQueryDto, PeriodQueryDto } from './dto/ai-read.dto';
+import { MachineReadAuditInterceptor } from './machine-read-audit.interceptor';
 
 /** One depot of the scope. A null code or label = depot-service could not name it; never guessed. */
 export interface ScopeDepot {
@@ -26,7 +27,7 @@ export interface ScopeDepot {
  * HD-6: the AI web's read API (contracts/ai-v1/read.openapi.json). Every route answers the same
  * envelope, within the caller's own depots narrowed by the legal-entity matrix, in the WIB
  * calendar, with no phone, name or address. The person's own AI-web token; machine tokens are not
- * let in. H1 is the foundation: `scope` answers what the caller may read, and each metric group
+ * let in, but on `money` (AI-31: the AI web's own account, four metrics, the whole network). H1 is the foundation: `scope` answers what the caller may read, and each metric group
  * adds its routes beside it.
  */
 @ApiTags('AI read')
@@ -80,10 +81,15 @@ export class AiReadController {
    * HD-6 H2: the money metrics (sales P-, cash U-, profit and loss L-). One route, the metric id in
    * the `metric` query; the answer is the same envelope as `scope`, so a new metric changes only its id,
    * value and unit. An id outside the dictionary is a 404.
+   *
+   * AI-31: also the one route the AI web's own machine account may read (a token holding
+   * aiReadAgent): the whole network, only the metrics the agents need, every read audited first.
    */
   @ApiOkResponse({ type: AnswerEnvelopeDto })
-  @ExternalAccess('ai')
+  @ExternalAccess('ai', 'machine')
   @Can('aiRead')
+  @MachineCan('aiReadAgent')
+  @UseInterceptors(MachineReadAuditInterceptor)
   @Get('money')
   @ApiOperation({ summary: 'One money metric (sales, cash and COD, profit and loss) for a period' })
   moneyMetric(
@@ -91,6 +97,9 @@ export class AiReadController {
     @Query() query: MoneyQueryDto,
   ): Promise<AnswerEnvelope> {
     const { metric, ...period } = query;
+    if (user.via === 'machine' && !AI_AGENT_MONEY_METRICS.has(metric)) {
+      throw new ForbiddenException('Akun mesin ini hanya boleh membaca metrik yang disediakan untuk agen AI.');
+    }
     assertSplittable(metric, period, MONEY_METRICS);
     return this.money.answer(metric, user, period);
   }

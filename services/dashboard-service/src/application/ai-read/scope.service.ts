@@ -2,7 +2,7 @@ import { Inject, Injectable, ServiceUnavailableException } from '@nestjs/common'
 
 import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
 
-import { AiReadSourcesPort } from '../ports/ai-read-sources.port';
+import { AiGrants, AiReadSourcesPort } from '../ports/ai-read-sources.port';
 import { DashboardSourcesPort, NetworkDepot } from '../ports/dashboard-sources.port';
 import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerScope } from './envelope';
@@ -52,6 +52,10 @@ const UNAVAILABLE = 'Cakupan badan hukum belum bisa dipastikan sekarang; coba la
  *  2. Narrowed to the depots whose legal entity at some point of the period is one their ROLE is
  *     granted (HD-5; no row = SUPER_ADMIN only). A grant never widens step 1.
  * Fails closed: when depot-service cannot say, nothing is answered.
+ *
+ * AI-31: the AI web's own machine account (a token holding aiReadAgent, admitted only on the routes
+ * that say so) reads the whole network: every depot, every legal entity, no role to narrow by. What
+ * it may ask is closed by the route, not here.
  */
 @Injectable()
 export class ReadScopeService {
@@ -65,7 +69,7 @@ export class ReadScopeService {
     if (own.length === 0) return { spans: [], echo: { depotIds: [], legalEntityIds: [] } };
     const [spans, grants] = await Promise.all([
       this.sources.entityTimeline(own, period.from, period.to),
-      this.sources.aiGrants(user.role),
+      user.via === 'machine' ? Promise.resolve<AiGrants>({ all: true, legalEntityIds: [] }) : this.sources.aiGrants(user.role),
     ]);
     if (!spans || !grants) throw new ServiceUnavailableException(UNAVAILABLE);
     const granted = new Set(grants.legalEntityIds);
@@ -94,7 +98,8 @@ export class ReadScopeService {
   private async ownDepots(user: AuthenticatedUser): Promise<{ ids: string[]; network?: NetworkDepot[] }> {
     let scope: readonly string[] | undefined;
     try {
-      scope = depotScopeIds(user);
+      // A machine account holds no role to scope by: the whole network (its token's scope).
+      scope = user.via === 'machine' ? undefined : depotScopeIds(user);
     } catch {
       return { ids: [] };
     }

@@ -200,3 +200,29 @@ describe('AiReadSourcesHttpAdapter', () => {
     );
   });
 });
+
+describe('ReadScopeService: the AI web machine account (AI-31)', () => {
+  const machine = { sub: 'm1', role: 'MACHINE', depotId: null, via: 'machine', scopes: ['aiReadAgent'] } as unknown as AuthenticatedUser;
+  afterEach(() => resetDepotScope());
+
+  it('reads the whole network and every legal entity, with no role grant to look up', async () => {
+    const sources = new FakeSources();
+    sources.timeline = [
+      { depotId: D1, legalEntityId: PT_A, from: '2026-11-01' },
+      { depotId: D2, legalEntityId: PT_B, from: '2026-11-01' },
+      { depotId: D3, legalEntityId: null, from: '2026-11-01' },
+    ];
+    const aiGrants = jest.spyOn(sources, 'aiGrants');
+    // The depot-scope resolver would hand a person one depot; the machine must not use it.
+    configureDepotScope(async () => [D2]);
+    const depots = { allDepots: async () => [{ id: D1 }, { id: D2 }, { id: D3 }] } as unknown as DashboardSourcesPort;
+    const scope = await new ReadScopeService(sources, depots).resolve(machine, NOVEMBER);
+    expect(scope.echo).toEqual({ depotIds: [D1, D2, D3], legalEntityIds: [PT_A, PT_B] });
+    expect(aiGrants).not.toHaveBeenCalled();
+  });
+
+  it('fails closed like a person when depot-service cannot list the network', async () => {
+    const depots = { allDepots: async () => null } as unknown as DashboardSourcesPort;
+    await expect(new ReadScopeService(new FakeSources(), depots).resolve(machine, NOVEMBER)).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+});

@@ -11,6 +11,7 @@ import { AnswerEnvelope, ditahan, belumAda, ok } from './envelope';
 import { PeriodQuery, ResolvedPeriod, parsePeriod } from './period';
 import { ReadScope, ReadScopeService, grantedRanges } from './scope.service';
 import { splitByDepot, wantsSplit } from './split';
+import { PersonalDataError, assertNoPersonalData } from './masking';
 import { DEPOTS_PER_READ, Stretch, stretchesOf } from './stretches';
 
 /**
@@ -52,6 +53,8 @@ export const MONEY_METRICS = {
   'L-09': { unit: 'Rp', month: true },
 } as const satisfies Record<string, { unit: string; month?: boolean }>;
 export type MoneyMetricId = keyof typeof MONEY_METRICS;
+/** AI-31: the only metrics the AI web's machine account may read (the scheduled agents' cash scan and sales). */
+export const AI_AGENT_MONEY_METRICS: ReadonlySet<string> = new Set(['P-01', 'U-02', 'U-04', 'U-05']);
 export const MONEY_METRIC_IDS = Object.keys(MONEY_METRICS) as MoneyMetricId[];
 
 interface Ctx {
@@ -174,15 +177,45 @@ export class MoneyMetricsService {
     ctx: Ctx,
     read: (depotId: string, range: InstantRange) => Promise<T | null>,
   ): Promise<T[] | null> {
+    return (await this.perDepotKeyed(ctx, read))?.map((r) => r.row) ?? null;
+  }
+
+  /** The same reads as perDepot, each row with the depot it came from (for a split). */
+  private async perDepotKeyed<T>(
+    ctx: Ctx,
+    read: (depotId: string, range: InstantRange) => Promise<T | null>,
+  ): Promise<{ depotId: string; row: T }[] | null> {
     const jobs = ctx.stretches.flatMap((st) => st.depotIds.map((d) => ({ d, range: st.range })));
     if (jobs.length > MAX_DEPOT_READS) throw new TooManyReads();
-    const out: T[] = [];
+    const out: { depotId: string; row: T }[] = [];
     for (let i = 0; i < jobs.length; i += 10) {
       const part = await Promise.all(jobs.slice(i, i + 10).map((j) => read(j.d, j.range)));
       if (part.some((p) => p === null)) return null;
-      out.push(...(part as T[]));
+      part.forEach((row, k) => out.push({ depotId: jobs[i + k].d, row: row as T }));
     }
     return out;
+  }
+
+  /**
+   * AI-31: split=depot on the cash figures. make(depotId) builds the answer value for one depot
+   * (null = every depot, the unsplit answer); the split is { total, byDepot: [{ depotId, code, value }] }
+   * with every depot of the scope once and total the unsplit answer. A depot code depot-service
+   * cannot name, or that reads as personal data, is null: never guessed.
+   */
+  private async cashValue<V>(c: Ctx, make: (depotId: string | null) => V): Promise<V | { total: V; byDepot: { depotId: string; code: string | null; value: V }[] }> {
+    if (!c.split) return make(null);
+    const names = new Map(((await this.depots.allDepots('')) ?? []).map((d) => [d.id, d.code]));
+    const codeOf = (depotId: string): string | null => {
+      const code = names.get(depotId) ?? null;
+      try {
+        assertNoPersonalData({ code });
+        return code;
+      } catch (error) {
+        if (!(error instanceof PersonalDataError)) throw error;
+        return null;
+      }
+    };
+    return { total: make(null), byDepot: c.scope.echo.depotIds.map((depotId) => ({ depotId, code: codeOf(depotId), value: make(depotId) })) };
   }
 
   private async compute(id: MoneyMetricId, c: Ctx, make: (s: ReadScope) => Pick<Ctx, 'ok' | 'none' | 'held'>): Promise<AnswerEnvelope> {
@@ -387,38 +420,52 @@ export class MoneyMetricsService {
         'pembayaran lunas menurut tanggal lunas, dikurangi refund sebesar yang dikembalikan; tunai mencakup COD dan kasir' + note,
       );
     }
+    // One depot's rows, or all of them (null): what a split asks of every figure below.
+    const of = <T extends { depotId: string }>(xs: readonly T[], d: string | null): T[] => (d === null ? [...xs] : xs.filter((x) => x.depotId === d));
     if (id === 'U-02') {
+      const value = await this.cashValue(c, (d) => {
+        const mine = of(rows, d);
+        return { totalIdr: rp(sum(mine, (r) => r.amountIdr)), count: sum(mine, (r) => r.count), byMethod: tally(mine, (r) => r.method), byAge: tally(mine, (r) => r.age ?? '') };
+      });
       return c.ok(
-        { totalIdr: rp(sum(rows, (r) => r.amountIdr)), count: sum(rows, (r) => r.count), byMethod: tally(rows, (r) => r.method), byAge: tally(rows, (r) => r.age ?? '') },
+        value,
         'pembayaran MENUNGGU yang dibuat pada periode; umur dalam hari kalender WIB sampai hari ini' + note,
       );
     }
     if (id === 'U-05') {
       const cash = rows.filter((r) => r.channel === 'counter' && r.method === 'CASH');
-      const shifts = await this.perDepot(c, (d, r) => this.sources.shiftVariance(d, r));
-      return c.ok(
-        {
-          cashIdr: rp(sum(cash, (r) => r.amountIdr)),
+      const shifts = await this.perDepotKeyed(c, (d, r) => this.sources.shiftVariance(d, r));
+      const value = await this.cashValue(c, (d) => {
+        const mine = shifts && of(shifts, d).map((s) => s.row);
+        return {
+          cashIdr: rp(sum(of(cash, d), (r) => r.amountIdr)),
           // A sub-number whose source cannot answer says so inside the answer; it is never left out or 0.
-          shiftVariance: shifts
-            ? { shifts: sum(shifts, (s) => s.shifts), shortfallIdr: rp(sum(shifts, (s) => s.shortfallIdr)), surplusIdr: rp(sum(shifts, (s) => s.surplusIdr)) }
+          shiftVariance: mine
+            ? { shifts: sum(mine, (s) => s.shifts), shortfallIdr: rp(sum(mine, (s) => s.shortfallIdr)), surplusIdr: rp(sum(mine, (s) => s.surplusIdr)) }
             : { status: 'belum_ada', reason: DOWN },
-        },
+        };
+      });
+      return c.ok(
+        value,
         'kas konter: tunai lunas di kasir menurut tanggal lunas, tanpa modal awal; selisih shift = uang dihitung dikurangi seharusnya pada shift yang ditutup dalam periode, kurang dan lebih terpisah' + note,
       );
     }
-    const collected = rp(sum(rows.filter((r) => r.channel === 'delivery' && r.method === 'CASH'), (r) => r.amountIdr));
-    const dep = await this.perDepot(c, (d, r) => this.sources.codPeriod(d, r));
-    if (!dep) return c.none(DOWN);
-    return c.ok(
-      {
-        collectedIdr: collected,
+    const delivered = rows.filter((r) => r.channel === 'delivery' && r.method === 'CASH');
+    const keyed = await this.perDepotKeyed(c, (d, r) => this.sources.codPeriod(d, r));
+    if (!keyed) return c.none(DOWN);
+    const value = await this.cashValue(c, (d) => {
+      const dep = of(keyed, d).map((k) => k.row);
+      return {
+        collectedIdr: rp(sum(of(delivered, d), (r) => r.amountIdr)),
         depositedIdr: rp(sum(dep, (r) => r.depositedIdr)),
         undepositedIdr: rp(sum(dep, (r) => r.undepositedIdr)),
         expectedIdr: rp(sum(dep, (r) => r.expectedIdr)),
         shortfallIdr: rp(sum(dep, (r) => r.shortfallIdr)),
         surplusIdr: rp(sum(dep, (r) => r.surplusIdr)),
-      },
+      };
+    });
+    return c.ok(
+      value,
       'COD: tertagih = tunai lunas pada pesanan antar menurut tanggal lunas; disetor = setoran kurir terverifikasi menurut tanggal verifikasi; belum disetor = COD pesanan terkirim pada periode yang belum masuk setoran mana pun; seharusnya disetor dengan kurang dan lebih dijumlah terpisah (shortfallIdr, surplusIdr). Tertagih mengikuti depot PESANAN; setoran, seharusnya, kurang dan lebih mengikuti depot SHIFT kurir yang menyetor (satu setoran bisa memuat pesanan depot lain); belum disetor mengikuti depot pengiriman' + note,
     );
   }

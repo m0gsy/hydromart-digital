@@ -19,6 +19,7 @@ import { PendingApprovalsController } from './pending-approvals.controller';
 import { PendingApprovalsInternalController } from './pending-approvals-internal.controller';
 import { PendingApprovalsService } from '../application/services/pending-approvals.service';
 import { AiReadController } from './ai-read.controller';
+import { MachineReadAuditInterceptor } from './machine-read-audit.interceptor';
 import { ReadScopeService } from '../application/ai-read/scope.service';
 import { AiReadSourcesHttpAdapter } from '../infrastructure/http/ai-read-sources.http.adapter';
 import { AiMoneySourcesHttpAdapter } from '../infrastructure/http/ai-money-sources.http.adapter';
@@ -46,6 +47,7 @@ const providers: Provider[] = [
   LegalEntityPnlService,
   { provide: DASHBOARD_TOKENS.Sources, useClass: DashboardSourcesHttpAdapter },
   ReadScopeService,
+  MachineReadAuditInterceptor,
   { provide: DASHBOARD_TOKENS.AiReadSources, useClass: AiReadSourcesHttpAdapter },
   { provide: DASHBOARD_TOKENS.AiMoneySources, useClass: AiMoneySourcesHttpAdapter },
   { provide: DASHBOARD_TOKENS.AiOrgSources, useClass: AiOrgSourcesHttpAdapter },

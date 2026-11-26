@@ -383,6 +383,60 @@ describe('MoneyMetricsService: cash and COD (3.3)', () => {
     });
   });
 
+  describe('split=depot on the cash figures (AI-31)', () => {
+    const SPLIT = { ...NOVEMBER, split: 'depot' };
+    const withCodes = (b: ReturnType<typeof build>, rows: Array<{ id: string; code: string }> | null = [{ id: D1, code: 'JKT-01' }, { id: D2, code: 'BKS-02' }]) => {
+      (b.depots as unknown as { allDepots: jest.Mock }).allDepots = jest.fn(async () => rows);
+      return b;
+    };
+
+    it('U-02: total is the unsplit answer, every depot once with its code, an empty depot a real zero', async () => {
+      const { ask } = withCodes(build());
+      const plain = await ask('U-02');
+      const split = (await ask('U-02', 'SUPER_ADMIN', SPLIT)).value as { total: unknown; byDepot: Array<{ depotId: string; code: string; value: { totalIdr: number; count: number } }> };
+      expect(split.total).toEqual(plain.value);
+      expect(split.byDepot.map((d) => [d.depotId, d.code])).toEqual([[D1, 'JKT-01'], [D2, 'BKS-02']]);
+      expect(split.byDepot[0].value).toEqual(plain.value);
+      expect(split.byDepot[1].value).toEqual({ totalIdr: 0, count: 0, byMethod: {}, byAge: {} });
+    });
+
+    it('U-04 and U-05: each depot carries its own shift and COD reads, the total adds them up', async () => {
+      const b = withCodes(build());
+      b.sources.codPeriod.mockImplementation((async (d: string) => ({ depositedIdr: d === D1 ? 70_000 : 20_000, expectedIdr: 100_000, shortfallIdr: 0, surplusIdr: 0, undepositedIdr: 0 })) as never);
+      b.sources.shiftVariance.mockImplementation((async (d: string) => ({ shifts: d === D1 ? 5 : 1, shortfallIdr: 0, surplusIdr: 0 })) as never);
+      const cod = (await b.ask('U-04', 'SUPER_ADMIN', SPLIT)).value as { total: { depositedIdr: number }; byDepot: Array<{ value: { depositedIdr: number; collectedIdr: number } }> };
+      expect(cod.total.depositedIdr).toBe(90_000);
+      expect(cod.byDepot.map((d) => d.value.depositedIdr)).toEqual([70_000, 20_000]);
+      expect(cod.byDepot.map((d) => d.value.collectedIdr)).toEqual([100_000, 0]);
+      const till = (await b.ask('U-05', 'SUPER_ADMIN', SPLIT)).value as { total: { shiftVariance: { shifts: number } }; byDepot: Array<{ value: { cashIdr: number; shiftVariance: { shifts: number } } }> };
+      expect(till.total.shiftVariance.shifts).toBe(6);
+      expect(till.byDepot.map((d) => d.value.shiftVariance.shifts)).toEqual([5, 1]);
+      expect(till.byDepot.map((d) => d.value.cashIdr)).toEqual([60_000, 0]);
+    });
+
+    it('U-05: a shift source that cannot answer says so inside every depot, never 0', async () => {
+      const b = withCodes(build());
+      b.sources.shiftVariance.mockResolvedValue(null);
+      const till = (await b.ask('U-05', 'SUPER_ADMIN', SPLIT)).value as { byDepot: Array<{ value: { shiftVariance: { status: string } } }> };
+      expect(till.byDepot.map((d) => d.value.shiftVariance.status)).toEqual(['belum_ada', 'belum_ada']);
+    });
+
+    it('names no code it cannot: depot-service down, an unknown depot, or a code that reads as a phone number', async () => {
+      const down = withCodes(build(), null);
+      const a = (await down.ask('U-02', 'SUPER_ADMIN', SPLIT)).value as { byDepot: Array<{ code: string | null }> };
+      expect(a.byDepot.map((d) => d.code)).toEqual([null, null]);
+      const odd = withCodes(build(), [{ id: D1, code: '081234567890' }]);
+      const b = (await odd.ask('U-02', 'SUPER_ADMIN', SPLIT)).value as { byDepot: Array<{ code: string | null }> };
+      expect(b.byDepot.map((d) => d.code)).toEqual([null, null]);
+    });
+
+    it('stays belum_ada when a source is down: never a partial list', async () => {
+      const b = withCodes(build());
+      b.sources.codPeriod.mockResolvedValue(null as never);
+      expect(await b.ask('U-04', 'SUPER_ADMIN', SPLIT)).toMatchObject({ status: 'belum_ada', value: null });
+    });
+  });
+
   it('U-06 / L-02 cashbook costs and U-07 closed days, summed over the depots', async () => {
     const { ask } = build();
     expect((await ask('U-06')).value).toBe(600);

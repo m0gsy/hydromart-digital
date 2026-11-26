@@ -5,7 +5,7 @@ import { BadRequestException } from '@nestjs/common';
  * be split. A per-depot answer beside a network answer lets a reader subtract small groups, so every
  * people metric, ratio, object, balance and "now" figure refuses it (400).
  */
-export const SPLITTABLE_METRICS: ReadonlySet<string> = new Set(['P-01', 'P-04', 'P-07', 'P-10', 'G-01', 'T-01', 'T-02', 'T-03']);
+export const SPLITTABLE_METRICS: ReadonlySet<string> = new Set(['P-01', 'P-04', 'P-07', 'P-10', 'U-02', 'U-04', 'U-05', 'G-01', 'T-01', 'T-02', 'T-03']);
 
 export interface DepotSplit {
   total: number;
