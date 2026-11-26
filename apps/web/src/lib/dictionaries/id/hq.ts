@@ -325,6 +325,8 @@ export const hq = {
       sopRead: 'Lihat SOP & siapa yang belum membaca',
       visitTemplateManage: 'Tulis template kunjungan supervisor',
       visitConduct: 'Lakukan kunjungan depot & isi daftar periksa',
+      visitRead: 'Lihat kunjungan supervisor, temuan, dan foto',
+      visitFollowUp: 'Tandai tindak lanjut temuan selesai',
       kasbonApprove: 'Setujui kasbon (asisten SPV depotnya)',
       priceOverrideDecide: 'Putuskan usulan harga depot',
       franchiseApplications: 'Putuskan aplikasi waralaba',

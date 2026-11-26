@@ -153,6 +153,12 @@ import { WholesaleTierController } from './wholesale-tier.controller';
 import { SubscriptionController } from './subscription.controller';
 import { HuddleController } from './huddle.controller';
 import { VisitTemplateController } from './visit-template.controller';
+import { VisitController } from './visit.controller';
+import { VisitInternalController } from './visit-internal.controller';
+import { VisitService } from '../application/services/visit.service';
+import { VisitPrismaRepository } from '../infrastructure/prisma/visit.prisma.repository';
+import { VisitS3StorageAdapter } from '../infrastructure/storage/visit-s3-storage.adapter';
+import { VisitLocalStorageAdapter } from '../infrastructure/storage/visit-local-storage.adapter';
 import { VisitTemplateService } from '../application/services/visit-template.service';
 import { VisitTemplatePrismaRepository } from '../infrastructure/prisma/visit-template.prisma.repository';
 import { SopLookupHttpAdapter } from '../infrastructure/http/sop-lookup.http.adapter';
@@ -215,6 +221,7 @@ const providers: Provider[] = [
   SubscriptionService,
   HuddleService,
   VisitTemplateService,
+  VisitService,
   HandoverService,
   OperationalReportService,
   { provide: DEPOT_TOKENS.DepotRepository, useClass: DepotPrismaRepository },
@@ -269,6 +276,15 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.HuddleRepository, useClass: HuddlePrismaRepository },
   { provide: DEPOT_TOKENS.VisitTemplateRepository, useClass: VisitTemplatePrismaRepository },
   { provide: DEPOT_TOKENS.SopLookup, useClass: SopLookupHttpAdapter },
+  { provide: DEPOT_TOKENS.VisitRepository, useClass: VisitPrismaRepository },
+  {
+    provide: DEPOT_TOKENS.VisitPhotoStorage,
+    useFactory: (config: DepotConfigService) =>
+      config.storageDriver === 's3'
+        ? new VisitS3StorageAdapter(config)
+        : new VisitLocalStorageAdapter(config),
+    inject: [DepotConfigService],
+  },
   { provide: DEPOT_TOKENS.HandoverRepository, useClass: HandoverPrismaRepository },
   {
     provide: DEPOT_TOKENS.OperationalReportRepository,
@@ -339,6 +355,8 @@ const providers: Provider[] = [
     SubscriptionController,
     HuddleController,
     VisitTemplateController,
+    VisitController,
+    VisitInternalController,
     HandoverController,
     OperationalReportController,
     SettingsController,

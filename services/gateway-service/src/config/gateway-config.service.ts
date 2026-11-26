@@ -71,6 +71,8 @@ const SEGMENT_ENV: Record<string, string> = {
   'shift-rotations': 'HR_SERVICE_URL',
   // HD-15B: supervisor visit checklist templates (depot-service). Own public segment, same upstream.
   'visit-templates': 'DEPOT_SERVICE_URL',
+  // HD-15B: supervisor visits, findings and follow-ups (depot-service). Own public segment.
+  visits: 'DEPOT_SERVICE_URL',
 };
 
 @Injectable()

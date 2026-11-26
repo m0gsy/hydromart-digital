@@ -457,6 +457,12 @@ services:
       # HD-15B: a visit checklist item names an SOP; hr says which version is in force at the depot.
       # Optional: blank only hides the SOP link, a visit never waits on it.
       HR_SERVICE_URL: http://hr:3018
+      # HD-15B: finding photos of supervisor visits go to the PRIVATE delivery PoD bucket under the
+      # `visits/` key prefix, with the delivery credentials the stack already has: no new bucket and
+      # no new secret to create by hand. Read access is by signed link only.
+      VISIT_STORAGE_S3_BUCKET: ${DELIVERY_STORAGE_S3_BUCKET:?set DELIVERY_STORAGE_S3_BUCKET}
+      VISIT_STORAGE_S3_ACCESS_KEY_ID: ${DELIVERY_STORAGE_S3_ACCESS_KEY_ID:?set DELIVERY_STORAGE_S3_ACCESS_KEY_ID}
+      VISIT_STORAGE_S3_SECRET_ACCESS_KEY: ${DELIVERY_STORAGE_S3_SECRET_ACCESS_KEY:?set DELIVERY_STORAGE_S3_SECRET_ACCESS_KEY}
       GALLON_DEPOSIT_IDR: ${GALLON_DEPOSIT_IDR:-20000}
       # Object storage for each depot's static QRIS image. It shares the PRODUCT bucket on
       # purpose — the objects are namespaced by the `qris/` key prefix, and reusing the

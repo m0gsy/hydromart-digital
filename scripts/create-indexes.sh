@@ -350,3 +350,7 @@ echo "All indexes present."
 # visit_template_items_templateId_position_idx (depot-service, 2026-11-27, HD-15B) is built by its own
 # migration, not here: it indexes a table that migration creates, so it is empty and the build is
 # instant.
+
+# visits_depotId_checkInAt_idx, visits_visitorId_status_idx, visits_visitorId_depotId_in_progress_key, visit_items_visitId_idx and
+# visit_items_depotId_followUpDueOn_open_idx (depot-service, 2026-11-27, HD-15B PR-4) are built by their own
+# migration, not here: they index tables that migration creates, so they are empty and the build is instant.

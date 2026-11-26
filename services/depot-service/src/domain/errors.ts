@@ -673,3 +673,88 @@ export class VisitTemplateNotFoundError extends DomainError {
     super('Template kunjungan tidak ditemukan.');
   }
 }
+
+/* ---------- Supervisor visits (HD-15B PR-4) ---------- */
+
+export class VisitNotFoundError extends DomainError {
+  readonly code = 'VISIT_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Kunjungan tidak ditemukan.');
+  }
+}
+
+export class VisitItemNotFoundError extends DomainError {
+  readonly code = 'VISIT_ITEM_NOT_FOUND';
+  readonly status = HTTP_STATUS.NOT_FOUND;
+  constructor() {
+    super('Butir kunjungan tidak ditemukan.');
+  }
+}
+
+/** The supervisor already has a visit open at this depot; the id lets the app resume it. */
+export class VisitAlreadyOpenError extends DomainError {
+  readonly code = 'VISIT_ALREADY_OPEN';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(readonly visitId: string) {
+    super(`Kunjungan di depot ini masih berjalan (id ${visitId}). Lanjutkan atau selesaikan dulu.`);
+  }
+}
+
+export class VisitDepotClosedError extends DomainError {
+  readonly code = 'VISIT_DEPOT_CLOSED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Depot ini sudah tidak aktif, jadi tidak bisa dikunjungi.');
+  }
+}
+
+/** Check-in refused: the phone is not inside the depot's visit area. The text is the guidance. */
+export class VisitOutsideAreaError extends DomainError {
+  readonly code = 'VISIT_OUTSIDE_AREA';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+export class VisitNotYoursError extends DomainError {
+  readonly code = 'VISIT_NOT_YOURS';
+  readonly status = HTTP_STATUS.FORBIDDEN;
+  constructor() {
+    super('Kunjungan ini dilakukan supervisor lain.');
+  }
+}
+
+export class VisitClosedError extends DomainError {
+  readonly code = 'VISIT_CLOSED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Kunjungan ini sudah selesai dan tidak bisa diubah.');
+  }
+}
+
+export class VisitIncompleteError extends DomainError {
+  readonly code = 'VISIT_INCOMPLETE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor(pending: number) {
+    super(`Masih ada ${pending} butir yang belum dijawab. Jawab semuanya sebelum menyelesaikan.`);
+  }
+}
+
+/** A finding without what it needs (note, this visit's photo, a deadline inside the window). */
+export class InvalidFindingError extends DomainError {
+  readonly code = 'VISIT_FINDING_INVALID';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+export class VisitPhotoUnavailableError extends DomainError {
+  readonly code = 'VISIT_PHOTO_UNAVAILABLE';
+  readonly status = HTTP_STATUS.SERVICE_UNAVAILABLE;
+  constructor() {
+    super('Penyimpanan foto sedang tidak tersedia. Coba lagi sebentar lagi.');
+  }
+}

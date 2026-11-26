@@ -131,6 +131,26 @@ export class DepotConfigService {
     };
   }
   /**
+   * Private bucket for finding photos (HD-15B). Same endpoint and region as the other storage, a
+   * bucket and key of its own: compose points them at the delivery PoD bucket, whose objects are
+   * private, under the `visits/` prefix.
+   */
+  get visitS3(): {
+    endpoint: string;
+    region: string;
+    bucket: string;
+    accessKeyId: string;
+    secretAccessKey: string;
+  } {
+    return {
+      endpoint: this.config.getOrThrow<string>('STORAGE_S3_ENDPOINT'),
+      region: this.config.get<string>('STORAGE_S3_REGION', 'auto'),
+      bucket: this.config.getOrThrow<string>('VISIT_STORAGE_S3_BUCKET'),
+      accessKeyId: this.config.getOrThrow<string>('VISIT_STORAGE_S3_ACCESS_KEY_ID'),
+      secretAccessKey: this.config.getOrThrow<string>('VISIT_STORAGE_S3_SECRET_ACCESS_KEY'),
+    };
+  }
+  /**
    * The zone every business day boundary is measured in (H-16). One getter, because a
    * pricing rule's "today" and a daily close's "today" have to be the same day.
    */
@@ -148,6 +168,13 @@ export class DepotConfigService {
   /** Days a customer may hold a depot's gallons before they count as overdue. */
   gallonMaxHoldDays(depotId: string | null = null): number {
     return this.tunable('gallonMaxHoldDays', this.num('GALLON_MAX_HOLD_DAYS'), depotId);
+  }
+  /**
+   * HD-15B: how many metres from the depot's map point a supervisor may check in. 0 = not fenced
+   * (the visit is still recorded, flagged `fenceChecked: false`). Per-depot override allowed.
+   */
+  visitCheckInRadiusM(depotId: string | null = null): number {
+    return this.tunable('visitCheckInRadiusM', this.num('VISIT_CHECKIN_RADIUS_M'), depotId);
   }
   /** Days between reminders to one overdue customer. */
   gallonReminderEveryDays(depotId: string | null = null): number {

@@ -1,0 +1,65 @@
+import { randomUUID } from 'node:crypto';
+
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Injectable } from '@nestjs/common';
+
+import { DepotConfigService } from '../../config/depot-config.service';
+import {
+  VisitPhotoPutInput,
+  VisitPhotoStoragePort,
+} from '../../application/ports/visit-photo-storage.port';
+
+/**
+ * Finding photos in the PRIVATE bucket (the one delivery-service keeps PoD photos in, under its own
+ * `visits/` prefix: compose maps VISIT_STORAGE_S3_* onto the DELIVERY_STORAGE_S3_* values, so no
+ * bucket is created and no secret is added). Nothing is readable without a signed link minted per
+ * read; the QRIS adapter next door is for a PUBLIC bucket and is deliberately not reused.
+ */
+@Injectable()
+export class VisitS3StorageAdapter implements VisitPhotoStoragePort {
+  /** Bounded so an unreachable endpoint fails fast instead of hanging the request. */
+  private static readonly TIMEOUT_MS = 10_000;
+
+  private readonly client: S3Client;
+  private readonly bucket: string;
+
+  constructor(config: DepotConfigService) {
+    const s3 = config.visitS3;
+    this.bucket = s3.bucket;
+    this.client = new S3Client({
+      region: s3.region,
+      endpoint: s3.endpoint,
+      forcePathStyle: true,
+      credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey },
+    });
+  }
+
+  async put({ visitId, body, contentType, ext }: VisitPhotoPutInput): Promise<{ key: string }> {
+    const key = `visits/${visitId}/${randomUUID()}.${ext}`;
+    await this.client.send(
+      new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body, ContentType: contentType }),
+      { abortSignal: AbortSignal.timeout(VisitS3StorageAdapter.TIMEOUT_MS) },
+    );
+    return { key };
+  }
+
+  /** Pure local signing: the SDK never talks to the endpoint to build the link. */
+  signedUrl(key: string, ttlSeconds: number): Promise<string> {
+    return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
+      expiresIn: ttlSeconds,
+    });
+  }
+
+  /** S3 DELETE is idempotent: a missing key is a success. */
+  async remove(key: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }), {
+      abortSignal: AbortSignal.timeout(VisitS3StorageAdapter.TIMEOUT_MS),
+    });
+  }
+}
