@@ -27,6 +27,11 @@ export interface DepotLocation {
   operatingHours?: OperatingHours;
   /** Dated full-day closures. */
   holidays?: Holiday[];
+  /**
+   * HD-14: the depot is on a quality hold (read fresh with the depot on every directory call).
+   * Absent reads as "not on hold"; an UNREADABLE directory is a different thing and fails closed.
+   */
+  onHold?: boolean;
 }
 
 /**

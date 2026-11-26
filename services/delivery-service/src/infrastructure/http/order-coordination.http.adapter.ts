@@ -60,7 +60,10 @@ export class OrderCoordinationHttpAdapter implements OrderCoordinationPort {
          * Carried as a flag on the error rather than a delivery-domain error, because this
          * adapter must not know what the service above it calls a lost race.
          */
+        // HD-14: order-service's 409 DEPOT_ON_HOLD is neither a lost race nor a retryable fault.
+        const body = (await res.json().catch(() => null)) as { code?: unknown } | null;
         throw Object.assign(new Error(`order-service responded ${res.status}`), {
+          onHold: body?.code === 'DEPOT_ON_HOLD',
           refused: res.status === 409 || res.status === 422,
           // 403 = the order is outside this account's depot (or role): a different fact from both
           // a lost race and a dropped connection, and nothing a retry can change.

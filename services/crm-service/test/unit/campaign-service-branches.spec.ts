@@ -7,6 +7,7 @@ import {
   FakeCustomerDirectory,
   FakeBroadcastDelivery,
   InMemoryCampaignRepository,
+  FakeHeldDepots,
 } from '../support/fakes';
 
 // Branch gap-fills for CampaignService the main spec leaves out: list() + clampPage clamping,
@@ -23,7 +24,7 @@ describe('CampaignService branches', () => {
   });
 
   const service = (delivery: BroadcastDeliveryPort): CampaignService =>
-    new CampaignService(repo, delivery, directory, new FakeActivitySegment());
+    new CampaignService(repo, delivery, directory, new FakeActivitySegment(), new FakeHeldDepots());
 
   it('uses the default (empty) recipients list, throwing NoRecipientsError', async () => {
     await expect(service(new FakeBroadcastDelivery()).create('staff', 'Blast', 'Hi')).rejects.toBeInstanceOf(

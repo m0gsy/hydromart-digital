@@ -892,3 +892,38 @@ export class DepotDraftNotFoundError extends DomainError {
     super('Draf depot untuk calon mitra ini tidak ditemukan.');
   }
 }
+
+/* ---------- Quality hold (HD-14) ---------- */
+
+export class QualityHoldAlreadyActiveError extends DomainError {
+  readonly code = 'QUALITY_HOLD_ALREADY_ACTIVE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Depot ini sudah berstatus quality hold.');
+  }
+}
+
+export class QualityHoldNotActiveError extends DomainError {
+  readonly code = 'QUALITY_HOLD_NOT_ACTIVE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Depot ini tidak sedang quality hold.');
+  }
+}
+
+/** Ending needs a PASS lab test of this depot, taken on or after the day the hold started. */
+export class QualityHoldRetestRequiredError extends DomainError {
+  readonly code = 'QUALITY_HOLD_RETEST_REQUIRED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Quality hold hanya bisa diakhiri dengan hasil uji lab LULUS depot ini yang diambil pada atau setelah hari hold dimulai.');
+  }
+}
+
+export class LabTestDatesError extends DomainError {
+  readonly code = 'LAB_TEST_DATES_INVALID';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Tanggal tidak valid, atau tanggal hasil uji sebelum tanggal pengambilan sampel.');
+  }
+}

@@ -65,6 +65,8 @@ export const ops = {
     handover: 'Shift handover',
     visits: 'Supervisor visits',
     maintenance: 'Equipment maintenance',
+    quality: 'Lab tests & permits',
+    held: 'Orders on hold',
     staffOnboarding: 'Manager guide',
     customers: 'Customers',
     crm: 'CRM & follow-up',

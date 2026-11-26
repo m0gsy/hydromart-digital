@@ -11,6 +11,7 @@ import {
   BelowMinimumOrderError,
   ExpressUnavailableError,
   CatalogUnavailableError,
+  DepotOnHoldError,
   DepotUnavailableError,
   DuplicateCheckoutError,
   EmptyCartError,
@@ -4976,6 +4977,144 @@ describe('OrderService', () => {
       }
     });
   });
+  /*
+   * HD-14 hold drill: a quality hold stops every way of selling at the depot and every courier step
+   * for its orders, lets the depot's people decide the accepted orders, and the day it ends
+   * everything accepts again. A retest alone is depot-service's business (it never ends a hold).
+   */
+  describe('quality hold drill (HD-14)', () => {
+    // A hold must bite at once in these walks; the cache has its own test below.
+    beforeEach(() => {
+      OrderService.heldCacheMs = 0;
+    });
+    afterEach(() => {
+      OrderService.heldCacheMs = 5_000;
+    });
+    const hq = { sub: 'hq-1', role: 'HEAD_OFFICE' as never, phone: '08', depotId: null } as never;
+    const otherDepot = { ...homeDepot, id: 'depot-other', lat: -7.5, lng: 108.2 };
+    const hold = (on: boolean) => {
+      depots.depots = [{ ...homeDepot, onHold: on }, otherDepot];
+    };
+    const sellAtCounter = async () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      return service.walkInSale(
+        { sub: 'op-1', role: 'KEPALA_DEPOT' as never, phone: '08', depotId: 'depot-home' },
+        { depotId: 'depot-home', lines: [{ productId: product.id, quantity: 1 }] },
+      );
+    };
+    const quote = () => {
+      const product = catalog.seed({ id: randomUUID(), basePrice: 20000 });
+      return service.quoteCounterBasket(null, 'depot-home', [{ productId: product.id, quantity: 1 }], null);
+    };
+
+    it('walks start -> every way of selling and moving refuses -> end -> all accept again', async () => {
+      // Before: an order is accepted and waiting at the depot.
+      await addToCart(20000, 1);
+      const waiting = await service.checkout(customer, { deliveryAddress: address });
+      await service.updateStatus(waiting.id, OrderStatus.CONFIRMED, 'staff');
+      await service.updateStatus(waiting.id, OrderStatus.PREPARING, 'staff');
+
+      hold(true);
+      // 1. online checkout, scheduled orders
+      await addToCart(20000, 1);
+      await expect(service.checkout(customer, { deliveryAddress: address })).rejects.toBeInstanceOf(DepotOnHoldError);
+      const line = [{ productId: catalog.seed({ id: randomUUID(), basePrice: 20000 }).id, quantity: 1 }];
+      await expect(service.placeScheduled(customer, line, address, 'sub-key-1', randomUUID())).rejects.toBeInstanceOf(DepotOnHoldError);
+      // 2. the counter, both the quote and the sale
+      await expect(sellAtCounter()).rejects.toBeInstanceOf(DepotOnHoldError);
+      await expect(quote()).rejects.toBeInstanceOf(DepotOnHoldError);
+      // 3. courier steps for the order already accepted
+      for (const to of [OrderStatus.DRIVER_ASSIGNED]) {
+        await expect(service.updateStatus(waiting.id, to, 'staff')).rejects.toBeInstanceOf(DepotOnHoldError);
+      }
+      // 4. it waits in the "tertahan" list, for the depot's Kepala and head office, not for another depot
+      expect((await service.heldOrders(undefined)).map((o) => o.id)).toEqual([waiting.id]);
+      expect((await service.heldOrders(['depot-home'])).map((o) => o.id)).toEqual([waiting.id]);
+      expect(await service.heldOrders(['depot-other'])).toEqual([]);
+      // 5. nothing is cancelled for anyone; a person cancels through the ordinary path (reason "quality hold")
+      const cancelled = await service.updateStatus(waiting.id, OrderStatus.CANCELLED, 'hq-1', 'quality hold');
+      expect(cancelled.status).toBe(OrderStatus.CANCELLED);
+      expect(await service.heldOrders(undefined)).toEqual([]);
+
+      // The hold ends: everything accepts again.
+      hold(false);
+      await expect(sellAtCounter()).resolves.toBeDefined();
+      await expect(quote()).resolves.toBeDefined();
+      await addToCart(20000, 1);
+      const again = await service.checkout(customer, { deliveryAddress: address });
+      await service.updateStatus(again.id, OrderStatus.CONFIRMED, 'staff');
+      await service.updateStatus(again.id, OrderStatus.PREPARING, 'staff');
+      await expect(service.updateStatus(again.id, OrderStatus.DRIVER_ASSIGNED, 'staff')).resolves.toBeDefined();
+      expect(hq).toBeDefined();
+    });
+
+    it('refuses to send an order to a held depot, by assign and by reroute', async () => {
+      await addToCart(20000, 1);
+      const placed = await service.checkout(customer, { deliveryAddress: address });
+      // an unrouted order to assign, and a routed one to reroute away from the other depot
+      hold(false);
+      depots.depots = [homeDepot, { ...otherDepot, onHold: true }];
+      const operator = { sub: 'hq-1', role: 'SUPER_ADMIN' as never, phone: '08', depotId: null };
+      await expect(service.rerouteDepot(operator, placed.id, 'depot-other')).rejects.toBeInstanceOf(DepotOnHoldError);
+      const row = orders.rows.find((r) => r.id === placed.id) as unknown as { depotId: string | null };
+      row.depotId = null;
+      await expect(service.assignDepot(placed.id, 'depot-other')).rejects.toBeInstanceOf(DepotOnHoldError);
+    });
+
+    it('fails closed for a sale and open for a courier when the directory cannot be read', async () => {
+      await addToCart(20000, 1);
+      const placed = await service.checkout(customer, { deliveryAddress: address });
+      await service.updateStatus(placed.id, OrderStatus.CONFIRMED, 'staff');
+      await service.updateStatus(placed.id, OrderStatus.PREPARING, 'staff');
+      depots.unreachable = true;
+      await expect(sellAtCounter()).rejects.toBeInstanceOf(DepotUnavailableError);
+      // a courier on the road is not stopped by a directory blip
+      await expect(service.updateStatus(placed.id, OrderStatus.DRIVER_ASSIGNED, 'staff')).resolves.toBeDefined();
+      await expect(service.heldOrders(undefined)).rejects.toBeInstanceOf(DepotUnavailableError);
+    });
+
+    it('reuses the held-depot ids for a few seconds instead of downloading the directory on every call, and never caches an outage', async () => {
+      OrderService.heldCacheMs = 5_000;
+      hold(false);
+      await addToCart(20000, 1);
+      const placed = await service.checkout(customer, { deliveryAddress: address });
+      await service.updateStatus(placed.id, OrderStatus.CONFIRMED, 'staff');
+      await service.updateStatus(placed.id, OrderStatus.PREPARING, 'staff');
+      const spy = jest.spyOn(depots, 'listActiveDepots');
+      await sellAtCounter();
+      await sellAtCounter();
+      await service.updateStatus(placed.id, OrderStatus.DRIVER_ASSIGNED, 'staff');
+      expect(spy).toHaveBeenCalledTimes(1);
+      // a cached "not held" still lets sales through; a fresh service instance (or 5 s on) sees the hold
+      jest.useFakeTimers().setSystemTime(Date.now() + 6_000);
+      hold(true);
+      await expect(sellAtCounter()).rejects.toBeInstanceOf(DepotOnHoldError);
+      jest.useRealTimers();
+      // an unreadable directory is retried at once, not remembered
+      OrderService.heldCacheMs = 0;
+      depots.unreachable = true;
+      await expect(sellAtCounter()).rejects.toBeInstanceOf(DepotUnavailableError);
+      depots.unreachable = false;
+      hold(false);
+      await expect(sellAtCounter()).resolves.toBeDefined();
+    });
+
+    it('neither pickup nor start can happen for a held depot, but delivery of what is out finishes', async () => {
+      await addToCart(20000, 1);
+      const placed = await service.checkout(customer, { deliveryAddress: address });
+      for (const to of [OrderStatus.CONFIRMED, OrderStatus.PREPARING, OrderStatus.DRIVER_ASSIGNED]) {
+        await service.updateStatus(placed.id, to, 'staff');
+      }
+      hold(true);
+      await expect(service.updateStatus(placed.id, OrderStatus.PICKED_UP, 'staff')).rejects.toBeInstanceOf(DepotOnHoldError);
+      hold(false);
+      await service.updateStatus(placed.id, OrderStatus.PICKED_UP, 'staff');
+      await service.updateStatus(placed.id, OrderStatus.ON_DELIVERY, 'staff');
+      hold(true);
+      // out for delivery: finishes normally
+      await expect(service.updateStatus(placed.id, OrderStatus.DELIVERED, 'staff')).resolves.toBeDefined();
+    });
+  });
 });
 
 describe('OrderService franchise revenue on completion', () => {
@@ -5172,4 +5311,5 @@ describe('OrderService franchise revenue on completion', () => {
     };
     await expect(complete(service, order.id)).resolves.not.toThrow();
   });
+
 });

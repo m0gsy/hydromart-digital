@@ -92,6 +92,15 @@ export class PromotionNotFoundError extends DomainError {
   }
 }
 
+/** HD-14: a depot on a quality hold takes no promotion; switching one on for it waits for the hold to end. */
+export class PromoDepotOnHoldError extends DomainError {
+  readonly code = 'PROMO_DEPOT_ON_HOLD';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Depot ini sedang tidak melayani sementara, jadi promonya belum bisa diaktifkan.');
+  }
+}
+
 export class PromoRuleNotFoundError extends DomainError {
   readonly code = 'PROMO_RULE_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

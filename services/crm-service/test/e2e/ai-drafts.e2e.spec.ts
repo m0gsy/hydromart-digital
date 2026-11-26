@@ -120,6 +120,8 @@ describe('AI campaign draft (HD-17, e2e)', () => {
         CampaignModule,
       ],
     })
+      .overrideProvider(CRM_TOKENS.HeldDepots)
+      .useValue({ heldDepotIds: async () => new Set<string>() })
       .overrideProvider(PrismaService)
       .useValue({ onModuleInit: jest.fn(), onModuleDestroy: jest.fn() })
       .overrideProvider(CRM_TOKENS.CampaignRepository)

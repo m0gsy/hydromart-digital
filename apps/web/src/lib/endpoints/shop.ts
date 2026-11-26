@@ -139,6 +139,9 @@ export const shop = {
     // GET → existing review (null if unrated), POST → submit (spec 7c).
     review: (id: string) => `/orders/api/v1/orders/${id}/review`,
     status: (id: string) => `/orders/api/v1/orders/${id}/status`,
+    // HD-14: accepted orders a depot quality hold is holding back ("tertahan").
+    held: (depotId?: string | null) =>
+      `/orders/api/v1/orders/manage/held${depotId ? `?depotId=${encodeURIComponent(depotId)}` : ''}`,
     // Staff queue across all customers; depotId scopes to one depot (switcher).
     // unrouted=true is the HQ tray of orders that reached no depot at all.
     manage: (
