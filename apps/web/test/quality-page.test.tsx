@@ -5,9 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /** HD-14: the quality hold card, lab tests and permits on one depot's page. */
 
-const { get, post, role } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), role: { value: 'HEAD_OFFICE' } }));
+const { get, post, role, confirmMock } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), confirmMock: vi.fn(), role: { value: 'HEAD_OFFICE' } }));
 
 vi.mock('@/lib/api', () => ({ api: { get, post }, ApiError: class extends Error {} }));
+vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: confirmMock }) }));
 vi.mock('@/components/require-auth', () => ({ RequireAuth: ({ children }: { children: unknown }) => children }));
 vi.mock('@/lib/locale-context', () => ({
   useT: () => ({ t: (k: string, v?: Record<string, unknown>) => (v ? `${k}:${Object.values(v).join('/')}` : k), locale: 'id' }),
@@ -35,6 +36,8 @@ beforeEach(() => {
   get.mockReset();
   post.mockReset();
   post.mockResolvedValue({});
+  confirmMock.mockReset();
+  confirmMock.mockResolvedValue(true);
   role.value = 'HEAD_OFFICE';
 });
 
@@ -47,10 +50,18 @@ describe('quality page', () => {
 
   it('starts a hold with a reason and a note', async () => {
     serve();
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<QualityPage />);
     await userEvent.click(await screen.findByText('dashB.quality.start'));
     await waitFor(() => expect(post).toHaveBeenCalledWith('/depots/api/v1/depots/d-1/quality-hold', { reasonCode: 'LAB_FAIL' }, true));
+  });
+
+  it('starts nothing when the person declines the confirmation', async () => {
+    serve();
+    confirmMock.mockResolvedValue(false);
+    render(<QualityPage />);
+    await userEvent.click(await screen.findByText('dashB.quality.start'));
+    await waitFor(() => expect(confirmMock).toHaveBeenCalledTimes(1));
+    expect(post).not.toHaveBeenCalled();
   });
 
   it('offers only a PASS taken on or after the hold started, and ends with it', async () => {

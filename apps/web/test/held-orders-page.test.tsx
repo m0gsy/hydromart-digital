@@ -5,9 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /** HD-14: the "tertahan" list: accepted orders of a held depot wait for a person. */
 
-const { get, patch, role } = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn(), role: { value: 'KEPALA_DEPOT' } }));
+const { get, patch, role, confirmMock } = vi.hoisted(() => ({ get: vi.fn(), patch: vi.fn(), confirmMock: vi.fn(), role: { value: 'KEPALA_DEPOT' } }));
 
 vi.mock('@/lib/api', () => ({ api: { get, patch }, ApiError: class extends Error {} }));
+vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: confirmMock }) }));
 vi.mock('@/components/require-auth', () => ({ RequireAuth: ({ children }: { children: unknown }) => children }));
 vi.mock('@/lib/locale-context', () => ({
   useT: () => ({ t: (k: string, v?: Record<string, unknown>) => (v ? `${k}:${Object.values(v).join('/')}` : k), locale: 'id' }),
@@ -23,6 +24,8 @@ beforeEach(() => {
   get.mockReset();
   patch.mockReset();
   patch.mockResolvedValue({});
+  confirmMock.mockReset();
+  confirmMock.mockResolvedValue(true);
   role.value = 'KEPALA_DEPOT';
 });
 
@@ -42,7 +45,6 @@ describe('held orders page', () => {
 
   it('cancels and refunds through the ordinary status path with the reason "quality hold"', async () => {
     get.mockResolvedValue([ORDER]);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     render(<HeldOrdersPage />);
     await userEvent.click(await screen.findByText('dashB.held.cancelRefund'));
     await waitFor(() => expect(patch).toHaveBeenCalledWith('/orders/api/v1/orders/o1/status', { status: 'CANCELLED', note: 'quality hold' }, true));
@@ -50,11 +52,12 @@ describe('held orders page', () => {
 
   it('does nothing when the person declines, and shows the error when the cancel fails', async () => {
     get.mockResolvedValue([ORDER]);
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    confirmMock.mockResolvedValue(false);
     render(<HeldOrdersPage />);
     await userEvent.click(await screen.findByText('dashB.held.cancelRefund'));
     expect(patch).not.toHaveBeenCalled();
-    confirm.mockReturnValue(true);
+    expect(confirmMock).toHaveBeenCalledTimes(1);
+    confirmMock.mockResolvedValue(true);
     patch.mockRejectedValue(new Error('boom'));
     await userEvent.click(screen.getByText('dashB.held.cancelRefund'));
     expect(await screen.findByText('dashB.held.cancelError')).toBeTruthy();

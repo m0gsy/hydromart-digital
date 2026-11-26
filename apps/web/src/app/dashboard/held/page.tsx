@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { HourglassMedium, Lock } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Money, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -20,11 +21,18 @@ const CANCEL_NOTE = 'quality hold';
 
 function HeldRow({ order, onChanged }: { order: Order; onChanged: () => void }) {
   const { t } = useT();
+  const { confirm } = useConfirm();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function cancel() {
-    if (!window.confirm(t('dashB.held.cancelConfirm', { n: order.orderNumber }))) return;
+    const ok = await confirm({
+      title: t('dashB.held.cancelRefund'),
+      message: t('dashB.held.cancelConfirm', { n: order.orderNumber }),
+      confirmLabel: t('dashB.held.cancelRefund'),
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     try {

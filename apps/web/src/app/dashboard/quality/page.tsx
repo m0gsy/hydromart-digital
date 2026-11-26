@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Flask, Lock } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -24,6 +25,7 @@ function HoldCard({ depotId, tests, onChanged }: { depotId: string; tests: Depot
   const { t } = useT();
   const { customer } = useAuth();
   const role = customer?.role;
+  const { confirm } = useConfirm();
   const history = useAsync<QualityHold[]>(() => api.get(endpoints.quality.hold(depotId), true), [depotId]);
   const active = history.data?.find((h) => h.status === 'ACTIVE') ?? null;
   const [reason, setReason] = useState<(typeof REASONS)[number]>('LAB_FAIL');
@@ -119,8 +121,14 @@ function HoldCard({ depotId, tests, onChanged }: { depotId: string; tests: Depot
                 <Button
                   variant="danger"
                   loading={busy}
-                  onClick={() => {
-                    if (window.confirm(t('dashB.quality.startConfirm'))) {
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: t('dashB.quality.start'),
+                      message: t('dashB.quality.startConfirm'),
+                      confirmLabel: t('dashB.quality.start'),
+                      tone: 'danger',
+                    });
+                    if (ok) {
                       void act(endpoints.quality.hold(depotId), { reasonCode: reason, ...(note.trim() ? { note: note.trim() } : {}) }, 'dashB.quality.startError');
                     }
                   }}
