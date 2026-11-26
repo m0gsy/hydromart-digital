@@ -8,25 +8,28 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, post, patch, upload, push, position, auth, query, FakeApiError } = vi.hoisted(() => ({
-  get: vi.fn(),
-  post: vi.fn(),
-  patch: vi.fn(),
-  upload: vi.fn(),
-  push: vi.fn(),
-  position: vi.fn(),
-  auth: { role: 'SUPERVISOR' },
-  query: { id: 'v-1' },
-  FakeApiError: class extends Error {
-    constructor(
-      public readonly status: number,
-      message: string,
-      public readonly code?: string,
-    ) {
-      super(message);
-    }
-  },
-}));
+const { get, post, patch, upload, push, position, auth, query, ask, FakeApiError } = vi.hoisted(
+  () => ({
+    ask: vi.fn(),
+    get: vi.fn(),
+    post: vi.fn(),
+    patch: vi.fn(),
+    upload: vi.fn(),
+    push: vi.fn(),
+    position: vi.fn(),
+    auth: { role: 'SUPERVISOR' },
+    query: { id: 'v-1' },
+    FakeApiError: class extends Error {
+      constructor(
+        public readonly status: number,
+        message: string,
+        public readonly code?: string,
+      ) {
+        super(message);
+      }
+    },
+  }),
+);
 
 vi.mock('@/lib/api', () => ({
   api: { get, getCached: get, post, patch },
@@ -46,6 +49,7 @@ vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock('@/components/hr/precise-location-notice', () => ({ PreciseLocationNotice: () => null }));
+vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: ask }) }));
 vi.mock('@/lib/image', () => ({ compressImage: async (f: File) => f }));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: () => query.id }));
 vi.mock('next/navigation', () => ({
@@ -61,6 +65,7 @@ import VisitsPage from '@/app/dashboard/visits/page';
 import NewVisitPage from '@/app/dashboard/visits/new/page';
 import VisitDetailPage from '@/app/dashboard/visits/detail/page';
 import { GeoError } from '@/lib/geo';
+import { loadSessionCapabilities } from '@/lib/roles';
 
 const OVERVIEW = '/visits/api/v1/visits/overview';
 const DEPOT = '00000000-0000-4000-8000-0000000000d1';
@@ -135,12 +140,14 @@ function serve(routes: Record<string, unknown>) {
 
 beforeEach(() => {
   auth.role = 'SUPERVISOR';
+  loadSessionCapabilities(null, null);
   query.id = 'v-1';
   get.mockReset();
   post.mockReset();
   patch.mockReset();
   upload.mockReset();
   push.mockReset();
+  ask.mockReset().mockResolvedValue(true);
   position
     .mockReset()
     .mockResolvedValue({ coords: { latitude: -6.2, longitude: 106.8, accuracy: 8.4 } });
@@ -317,6 +324,50 @@ describe('start a visit', () => {
     expect(await screen.findByText('errors.geo.timeout')).toBeTruthy();
   });
 
+  it('only offers the resume link for the "already open" refusal, not for any uuid in a text', async () => {
+    post.mockRejectedValueOnce(
+      new FakeApiError(
+        422,
+        'Depot 00000000-0000-4000-8000-0000000000aa belum punya titik lokasi.',
+        'VISIT_DEPOT_NO_LOCATION',
+      ),
+    );
+    await setup();
+    await begin();
+    expect(await screen.findByText(/belum punya titik lokasi/)).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'opsFix.visits.new.resumeExisting' })).toBeNull();
+  });
+
+  it('sends no accuracy when the phone gave none (the server field is optional)', async () => {
+    position.mockResolvedValue({
+      coords: { latitude: -6.2, longitude: 106.8, accuracy: Number.NaN },
+    });
+    post.mockResolvedValue(visit({ id: 'v-new' }));
+    await setup();
+    await begin();
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post.mock.calls[0]![1].accuracyM).toBeUndefined();
+  });
+
+  it('shows an error state with retry when the depots or checklists fail to load', async () => {
+    get.mockRejectedValue(new FakeApiError(500, 'x'));
+    render(<NewVisitPage />);
+    expect(await screen.findByText('opsFix.visits.new.loadError')).toBeTruthy();
+    expect(screen.queryByLabelText('opsFix.visits.new.depot')).toBeNull();
+  });
+
+  it('refuses a role holding visitConduct without visitRead, and the reverse', async () => {
+    auth.role = 'CUSTOM_CONDUCT_ONLY';
+    loadSessionCapabilities('CUSTOM_CONDUCT_ONLY', ['visitConduct']);
+    const a = render(<NewVisitPage />);
+    expect(await screen.findByText('opsFix.visits.gateTitle')).toBeTruthy();
+    expect(get).not.toHaveBeenCalled();
+    a.unmount();
+    auth.role = 'KEPALA_DEPOT';
+    render(<NewVisitPage />);
+    expect(await screen.findByText('opsFix.visits.gateTitle')).toBeTruthy();
+  });
+
   it('refuses a role without visitConduct', async () => {
     auth.role = 'KEPALA_DEPOT';
     render(<NewVisitPage />);
@@ -472,5 +523,84 @@ describe('answer and complete a visit', () => {
     render(<VisitDetailPage />);
     expect(await screen.findByText(/Lantai bersih/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'opsFix.visits.detail.pass' })).toBeNull();
+  });
+
+  it('asks before a PASS replaces a finding, and keeps the finding when declined', async () => {
+    serve({ '/visits/api/v1/visits/v-1': visit({ items: [finding()] }) });
+    patch.mockResolvedValue(item({ result: 'PASS' }));
+    render(<VisitDetailPage />);
+    const pass = await screen.findByRole('button', { name: 'opsFix.visits.detail.pass' });
+    ask.mockResolvedValueOnce(false);
+    await userEvent.click(pass);
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(patch).not.toHaveBeenCalled();
+    await userEvent.click(pass);
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith(
+        '/visits/api/v1/visits/v-1/items/it-1',
+        { result: 'PASS' },
+        true,
+      ),
+    );
+  });
+
+  it('refuses a photo that is too big or not an image before uploading, and names a bare 429', async () => {
+    serve({ '/visits/api/v1/visits/v-1': visit({ items: [item()] }) });
+    render(<VisitDetailPage />);
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'opsFix.visits.detail.finding' }),
+    );
+    const input = screen.getByLabelText('opsFix.visits.detail.photoLabel');
+    await userEvent.upload(input, new File(['%PDF'], 'a.pdf', { type: 'application/pdf' }), {
+      applyAccept: false,
+    });
+    expect(await screen.findByText('opsFix.visits.detail.photoBad')).toBeTruthy();
+    const big = new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'b.jpg', { type: 'image/jpeg' });
+    await userEvent.upload(input, big);
+    expect(await screen.findByText('opsFix.visits.detail.photoBad')).toBeTruthy();
+    expect(upload).not.toHaveBeenCalled();
+
+    upload.mockRejectedValueOnce(new FakeApiError(429, ''));
+    await userEvent.upload(input, photo());
+    expect(await screen.findByText('opsFix.visits.detail.photoLimit')).toBeTruthy();
+  });
+
+  it('says a lost connection in its own words on save and on complete', async () => {
+    serve({ '/visits/api/v1/visits/v-1': visit({ items: [item({ result: 'PASS' })] }) });
+    patch.mockRejectedValue(new FakeApiError(0, 'Tidak bisa menghubungi server.'));
+    post.mockRejectedValue(new FakeApiError(0, 'Tidak bisa menghubungi server.'));
+    render(<VisitDetailPage />);
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'opsFix.visits.detail.complete' }),
+    );
+    expect(await screen.findByText('opsFix.visits.detail.offline')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'opsFix.visits.detail.pass' }));
+    await waitFor(() => expect(patch).toHaveBeenCalled());
+    expect(screen.getAllByText('opsFix.visits.detail.offline').length).toBe(2);
+  });
+
+  it('shows 403 and 404 as their own state with no retry, and a failed read with one', async () => {
+    get.mockRejectedValue(new FakeApiError(403, 'x'));
+    const a = render(<VisitDetailPage />);
+    expect(await screen.findByText('opsFix.visits.detail.forbidden')).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+    a.unmount();
+    get.mockReset().mockRejectedValue(new FakeApiError(404, 'x'));
+    const b = render(<VisitDetailPage />);
+    expect(await screen.findByText('opsFix.visits.detail.notFound')).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+    b.unmount();
+    get.mockReset().mockRejectedValue(new FakeApiError(500, 'x'));
+    render(<VisitDetailPage />);
+    expect(await screen.findByText('opsFix.visits.detail.loadError')).toBeTruthy();
+    expect(screen.getByRole('button')).toBeTruthy();
+  });
+
+  it('gates the detail on visitRead too', async () => {
+    auth.role = 'CUSTOM_CONDUCT_ONLY';
+    loadSessionCapabilities('CUSTOM_CONDUCT_ONLY', ['visitConduct']);
+    render(<VisitDetailPage />);
+    expect(await screen.findByText('opsFix.visits.gateTitle')).toBeTruthy();
+    expect(get).not.toHaveBeenCalled();
   });
 });

@@ -2,12 +2,15 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { Lock } from '@phosphor-icons/react';
 
+import { useConfirm } from '@/components/confirm';
 import { RequireAuth } from '@/components/require-auth';
 import {
   Badge,
   Button,
   Card,
+  CenterState,
   ErrorState,
   Field,
   FormError,
@@ -26,6 +29,15 @@ import { useQueryParam } from '@/lib/use-query-param';
 import type { Visit, VisitItem } from '@/lib/visits';
 import { dateInDaysWib, todayWib } from '@/lib/wib';
 
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+/** A lost connection says so in its own words; anything else shows the server's text or the fallback. */
+function offlineOr(e: unknown, offline: string, fallback: string): string {
+  if (!(e instanceof ApiError)) return fallback;
+  if (e.status === 0 && e.code !== 'CLIENT_MISSING_ROUTE_ID') return offline;
+  return e.message || fallback;
+}
+
 // The server's window for a follow-up deadline: today through 90 days out.
 const MAX_FOLLOW_UP_DAYS = 90;
 
@@ -41,6 +53,9 @@ function ItemCard({
   onSaved: (item: VisitItem) => void;
 }) {
   const { t } = useT();
+  const { confirm } = useConfirm();
+  const failure = (e: unknown, fallback: string) =>
+    offlineOr(e, t('opsFix.visits.detail.offline'), fallback);
   const [finding, setFinding] = useState(false);
   const [note, setNote] = useState(item.findingNote ?? '');
   const [due, setDue] = useState(item.followUpDueOn ?? '');
@@ -57,10 +72,25 @@ function ItemCard({
       onSaved(await api.patch<VisitItem>(endpoints.visits.answer(visitId, item.id), body, true));
       setFinding(false);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('opsFix.visits.detail.saveFailed'));
+      setError(failure(e, t('opsFix.visits.detail.saveFailed')));
     } finally {
       setBusy(false);
     }
+  }
+
+  async function pass() {
+    if (
+      item.result === 'FINDING' &&
+      !(await confirm({
+        title: t('opsFix.visits.detail.replaceTitle'),
+        message: t('opsFix.visits.detail.replaceBody'),
+        confirmLabel: t('opsFix.visits.detail.replaceConfirm'),
+        cancelLabel: t('opsFix.visits.cancel'),
+        tone: 'danger',
+      }))
+    )
+      return;
+    await answer({ result: 'PASS' });
   }
 
   async function pick(file: File | undefined) {
@@ -68,20 +98,22 @@ function ItemCard({
     setUploading(true);
     setError(null);
     try {
-      const sent = await uploadFile<{ key: string }>(
-        endpoints.visits.upload(visitId),
-        await compressImage(file),
-      );
+      const blob = await compressImage(file);
+      // The server sniffs bytes and caps at 5 MB; a PDF or a huge file fails there after the wait.
+      if (blob.size > MAX_PHOTO_BYTES || !/^image\/(jpeg|png|webp)$/.test(blob.type)) {
+        setError(t('opsFix.visits.detail.photoBad'));
+        return;
+      }
+      const sent = await uploadFile<{ key: string }>(endpoints.visits.upload(visitId), blob);
       setPhotoKey(sent.key);
     } catch (e) {
-      setError(
-        e instanceof ApiError
-          ? e.message ||
-              (e.status === 503
-                ? t('opsFix.visits.detail.photoStorage')
-                : t('opsFix.visits.detail.photoFailed'))
-          : t('opsFix.visits.detail.photoFailed'),
-      );
+      const fallback =
+        e instanceof ApiError && e.status === 503
+          ? t('opsFix.visits.detail.photoStorage')
+          : e instanceof ApiError && e.status === 429
+            ? t('opsFix.visits.detail.photoLimit')
+            : t('opsFix.visits.detail.photoFailed');
+      setError(failure(e, fallback));
     } finally {
       setUploading(false);
     }
@@ -146,7 +178,7 @@ function ItemCard({
           <Button
             variant={item.result === 'PASS' ? 'primary' : 'secondary'}
             loading={busy}
-            onClick={() => answer({ result: 'PASS' })}
+            onClick={pass}
           >
             {t('opsFix.visits.detail.pass')}
           </Button>
@@ -213,6 +245,7 @@ function Body({ id }: { id: string }) {
   const { t } = useT();
   const { customer } = useAuth();
   const [completing, setCompleting] = useState(false);
+  const [blocked, setBlocked] = useState<403 | 404 | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Answers come back one at a time; keep them here instead of re-reading the whole visit (and
   // re-minting every photo link) after each one.
@@ -226,7 +259,11 @@ function Body({ id }: { id: string }) {
           return v;
         })
         .catch((e: unknown) => {
-          if (e instanceof ApiError && e.status === 404) return null;
+          // Not there, or not yours: its own state, and no retry that cannot change the answer.
+          if (e instanceof ApiError && (e.status === 404 || e.status === 403)) {
+            setBlocked(e.status);
+            return null;
+          }
           throw e;
         }),
     [id],
@@ -247,9 +284,15 @@ function Body({ id }: { id: string }) {
         {back}
         <ErrorState
           message={
-            loaded.error ? t('opsFix.visits.detail.loadError') : t('opsFix.visits.detail.notFound')
+            loaded.error
+              ? t('opsFix.visits.detail.loadError')
+              : t(
+                  blocked === 403
+                    ? 'opsFix.visits.detail.forbidden'
+                    : 'opsFix.visits.detail.notFound',
+                )
           }
-          onRetry={loaded.reload}
+          onRetry={loaded.error ? loaded.reload : undefined}
         />
       </div>
     );
@@ -264,7 +307,9 @@ function Body({ id }: { id: string }) {
     try {
       setVisit(await api.post<Visit>(endpoints.visits.complete(id), {}, true));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('opsFix.visits.detail.completeFailed'));
+      setError(
+        offlineOr(e, t('opsFix.visits.detail.offline'), t('opsFix.visits.detail.completeFailed')),
+      );
     } finally {
       setCompleting(false);
     }
@@ -316,11 +361,25 @@ function Body({ id }: { id: string }) {
   );
 }
 
+function Gate({ id }: { id: string }) {
+  const { t } = useT();
+  const { customer } = useAuth();
+  // The visit is read with visitRead; a role without it would only meet a 403.
+  if (!can('visitRead', customer?.role)) {
+    return (
+      <CenterState title={t('opsFix.visits.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.visits.gateBody')}
+      </CenterState>
+    );
+  }
+  return <Body id={id} />;
+}
+
 export default function VisitDetailPage() {
   const id = useQueryParam('id');
   return (
     <RequireAuth>
-      <Body id={id} />
+      <Gate id={id} />
     </RequireAuth>
   );
 }

@@ -7,7 +7,7 @@ import { Lock } from '@phosphor-icons/react';
 
 import { PreciseLocationNotice } from '@/components/hr/precise-location-notice';
 import { RequireAuth } from '@/components/require-auth';
-import { Button, CenterState, Field, FormError, Skeleton } from '@/components/ui';
+import { Button, CenterState, ErrorState, Field, FormError, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
@@ -56,9 +56,13 @@ function Body() {
       else if (e instanceof ApiError) {
         // The refusal text IS the guidance (outside the area, "Perkiraan", no depot point...): verbatim.
         setError(e.message);
+        // Only the "already open" refusal names a visit to resume; any other text may carry a uuid.
         setOpenId(
-          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.exec(e.message)?.[0] ??
-            null,
+          e.code === 'VISIT_ALREADY_OPEN'
+            ? (/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/.exec(
+                e.message,
+              )?.[0] ?? null)
+            : null,
         );
       } else setError(t('opsFix.visits.new.startFailed'));
       setBusy(false);
@@ -66,6 +70,17 @@ function Body() {
   }
 
   if (depots.loading || templates.loading) return <Skeleton className="h-40 w-full" />;
+  if (depots.error || templates.error) {
+    return (
+      <ErrorState
+        message={t('opsFix.visits.new.loadError')}
+        onRetry={() => {
+          depots.reload();
+          templates.reload();
+        }}
+      />
+    );
+  }
   const list = templates.data ?? [];
 
   return (
@@ -129,7 +144,9 @@ function Body() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!can('visitConduct', customer?.role)) {
+  // The page reads the depot overview (visitRead) and starts with visitConduct: a custom role
+  // holding only one of them would see an empty form or a 403 after the GPS wait.
+  if (!can('visitConduct', customer?.role) || !can('visitRead', customer?.role)) {
     return (
       <CenterState title={t('opsFix.visits.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('opsFix.visits.gateBody')}

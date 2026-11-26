@@ -801,6 +801,7 @@ const opsFixShared = {
       startFailed: "Gagal memulai kunjungan.",
       resumeExisting: "Lanjutkan kunjungan yang berjalan",
       back: "Kembali ke kunjungan",
+      loadError: "Gagal memuat depot atau daftar periksa.",
     },
     detail: {
       back: "Kembali ke kunjungan",
@@ -832,6 +833,13 @@ const opsFixShared = {
       completedAt: "Selesai {time}",
       readOnly: "Kunjungan ini hanya bisa dibaca.",
       sop: "SOP {title} v{n}",
+      photoBad: "Foto harus JPG, PNG atau WebP dan tidak lebih dari 5 MB.",
+      photoLimit: "Terlalu banyak foto untuk kunjungan ini.",
+      offline: "Tidak ada koneksi, catatan belum tersimpan. Coba lagi saat sinyal kembali.",
+      forbidden: "Anda tidak punya akses ke kunjungan ini.",
+      replaceTitle: "Ganti temuan jadi Sesuai?",
+      replaceBody: "Catatan, foto, dan tenggat temuan ini akan hilang.",
+      replaceConfirm: "Ganti jadi Sesuai",
     },
   },
   nav: {

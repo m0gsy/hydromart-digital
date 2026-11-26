@@ -941,6 +941,7 @@ export const opsFix = {
       startFailed: "Could not start the visit.",
       resumeExisting: "Resume the visit in progress",
       back: "Back to visits",
+      loadError: "Could not load the depots or checklists.",
     },
     detail: {
       back: "Back to visits",
@@ -972,6 +973,13 @@ export const opsFix = {
       completedAt: "Completed {time}",
       readOnly: "This visit is read-only.",
       sop: "SOP {title} v{n}",
+      photoBad: "The photo must be JPG, PNG or WebP and at most 5 MB.",
+      photoLimit: "Too many photos for this visit.",
+      offline: "No connection, your answer is not saved yet. Try again when the signal is back.",
+      forbidden: "You do not have access to this visit.",
+      replaceTitle: "Change this finding to OK?",
+      replaceBody: "This finding's note, photo and deadline will be lost.",
+      replaceConfirm: "Change to OK",
     },
   },
   nav: {
