@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { PATTERNS, RECOVERY_CODE, REMINDER_KINDS, TOTP_CODE, createMock, signEvent } from '../infra/aiweb-staging/mock/server.mjs';
+import { AGENT_NOTICE_KINDS, PATTERNS, RECOVERY_CODE, REMINDER_KINDS, TOTP_CODE, createMock, signEvent } from '../infra/aiweb-staging/mock/server.mjs';
 
 const contract = (name) => JSON.parse(readFileSync(new URL(`../contracts/ai-v1/${name}.openapi.json`, import.meta.url), 'utf8'));
 const auth = contract('auth');
@@ -294,6 +294,7 @@ test('n8n: machine token, then the franchise notification, idempotent, validated
     assert.equal(claims.aud, 'hydromart-machine');
     assert.deepEqual(claims.scopes, [
       'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
+      'salesReportNotify', 'aiAgentNotify',
     ]);
 
     const applicationId = randomUUID();
@@ -403,6 +404,55 @@ test('n8n: customer reminders and the maintenance sweep need the machine token, 
     for (const [route, body] of [['customer-reminders', { kind: 'UNPAID_ORDER', date }], ['maintenance-due', { date }]]) {
       assert.equal((await send(route, human.accessToken, body)).status, 401);
       assert.equal((await send(route, null, body)).status, 401);
+    }
+  } finally {
+    await mock.close();
+  }
+});
+
+test('n8n: the weekly Sales report trigger and the agent notice need their machine scopes and the contract body', async () => {
+  // 25 Nov 2026 is a Wednesday: the week that just ended began Monday 16 Nov (9 days back).
+  const mock = await boot({}, () => Date.parse('2026-11-25T03:00:00Z'));
+  const send = (route, token, body) =>
+    json('POST', mock.base, `/crm/api/v1/notifications/external/${route}`, body, token ? { authorization: `Bearer ${token}`, 'x-workflow': 'wf' } : {});
+  const s = notifications.components.schemas;
+  try {
+    for (const route of ['sales-weekly-ready', 'ai-agent-notice']) {
+      assert.deepEqual(notifications.paths[`/crm/api/v1/notifications/external/${route}`].post.security, [{ machineToken: [] }]);
+    }
+    assert.deepEqual(AGENT_NOTICE_KINDS, s.AiAgentNoticeTrigger.properties.kind.enum);
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    const entity = randomUUID();
+    const ok = await send('sales-weekly-ready', accessToken, { eventId: 'sales-weekly:2026-11-16', weekStart: '2026-11-16', legalEntityIds: [entity] });
+    assert.equal(ok.status, 200);
+    const body = await ok.json();
+    assert.deepEqual(Object.keys(body).sort(), [...s.SalesWeeklyReadyResult.required].sort());
+    assert.equal(body.whatsapp, 'pending');
+    for (const bad of [
+      { eventId: 'sales-weekly:2026-11-23', weekStart: '2026-11-23', legalEntityIds: [entity] }, // this week, not the one that ended
+      { eventId: 'sales-weekly:2026-11-17', weekStart: '2026-11-17', legalEntityIds: [entity] }, // not a Monday
+      { eventId: 'sales-weekly:2026-11-09', weekStart: '2026-11-09', legalEntityIds: [entity] }, // too old
+      { eventId: 'sales-weekly:2026-11-16', weekStart: '2026-11-23', legalEntityIds: [entity] }, // eventId of another week
+      { eventId: 'sales-weekly:2026-11-16', weekStart: '2026-11-16', legalEntityIds: [] },
+      { eventId: 'sales-weekly:2026-11-16', weekStart: '2026-11-16', legalEntityIds: [entity, entity] },
+      { eventId: 'sales-weekly:2026-11-16', weekStart: '2026-11-16', legalEntityIds: ['nope'] },
+      { eventId: 'sales-weekly:2026-11-16', weekStart: '2026-11-16', legalEntityIds: [entity], extra: 1 },
+    ]) {
+      assert.equal((await send('sales-weekly-ready', accessToken, bad)).status, 400, JSON.stringify(bad));
+    }
+    const notice = { eventId: 'agent-flag:7c1f0f64', agentId: 'keuangan', agentName: 'Agen Keuangan', kind: 'FLAG', bossRole: 'FINANCE' };
+    const n = await send('ai-agent-notice', accessToken, notice);
+    assert.equal(n.status, 200);
+    assert.deepEqual(await n.json(), { recipients: 0, notified: 0, whatsapp: 'pending' });
+    for (const bad of [{ ...notice, kind: 'NOPE' }, { ...notice, agentId: 'Keuangan' }, { ...notice, agentName: 'x'.repeat(41) }, { ...notice, depotId: 'x' }, { ...notice, bossRole: '1x' }, { agentId: 'keuangan' }]) {
+      assert.equal((await send('ai-agent-notice', accessToken, bad)).status, 400, JSON.stringify(bad));
+    }
+    const p = pkce();
+    const { code } = await pick(mock, user('SUPER_ADMIN'), p);
+    const human = await (await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE })).json();
+    for (const [route, b] of [['sales-weekly-ready', { eventId: 'sales-weekly:2026-11-16', weekStart: '2026-11-16', legalEntityIds: [entity] }], ['ai-agent-notice', notice]]) {
+      assert.equal((await send(route, human.accessToken, b)).status, 401);
+      assert.equal((await send(route, null, b)).status, 401);
     }
   } finally {
     await mock.close();

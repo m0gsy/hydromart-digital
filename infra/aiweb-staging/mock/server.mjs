@@ -14,6 +14,8 @@
 //   POST /crm/api/v1/notifications/external/ai-access-requested   n8n's "Minta akses" notification
 //   POST /crm/api/v1/notifications/external/customer-reminders   n8n's customer reminders (HD-18)
 //   POST /crm/api/v1/notifications/external/maintenance-due   n8n's 07.30 WIB maintenance sweep (HD-15)
+//   POST /crm/api/v1/notifications/external/sales-weekly-ready   n8n's Monday weekly Sales report trigger (AI-26)
+//   POST /crm/api/v1/notifications/external/ai-agent-notice   n8n's relay of an AI agent event (AI-31)
 //   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers|targets   the read API: made-up numbers
 //                                       derived from the date; a depot-bound person sees one depot
 //   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
@@ -152,7 +154,9 @@ const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 
 const ACCESS_KEYS = new Set(['eventId', 'requesterAccountId', 'legalEntityIds', 'group']);
 const MACHINE_SCOPES = [
   'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
+  'salesReportNotify', 'aiAgentNotify',
 ];
+export const AGENT_NOTICE_KINDS = ['FLAG', 'CAP_REACHED', 'STOPPED', 'STOPPED_ALL'];
 export const REMINDER_KINDS = ['SUBSCRIPTION_TOMORROW', 'POINTS_EXPIRING', 'UNPAID_ORDER'];
 const ACCESS_PER_REQUESTER = 3;
 const ACCESS_PER_HOUR = 30;
@@ -382,6 +386,50 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
   const maintenanceDue = (req, body) =>
     trigger(req, body, 'maintenanceDueNotify', 'date', { depots: 0, items: 0, notified: 0, remindLater: 0 });
 
+  // AI-26's Monday trigger: ids only. eventId is sales-weekly:<weekStart>; weekStart a real Monday that is
+  // 7 to 13 days back (the week that just ended, accepted until its own Sunday), as the real weekRefusal.
+  // Staging has no staff to notify: the real shape with every count zero (an id is "unknown": no legal
+  // entity is modelled here).
+  function salesWeeklyReady(req, body) {
+    if (!machineAllowed(req, 'salesReportNotify')) return refusedToken();
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const ids = b.legalEntityIds;
+    const valid =
+      Object.keys(b).sort().join(',') === 'eventId,legalEntityIds,weekStart' &&
+      typeof b.weekStart === 'string' && validDay(b.weekStart) && b.eventId === `sales-weekly:${b.weekStart}` &&
+      Array.isArray(ids) && ids.length >= 1 && ids.length <= 50 &&
+      ids.every((i) => typeof i === 'string' && RX.uuid.test(i)) &&
+      new Set(ids.map((i) => i.toLowerCase())).size === ids.length;
+    if (!valid) return [400, errorBody(400, 'VALIDATION_ERROR', ['The trigger is not what the contract asks for'])];
+    const since = dayNo(todayWib()) - dayNo(b.weekStart);
+    if (((dayNo(b.weekStart) % 7) + 7) % 7 !== 4) return [400, errorBody(400, 'BAD_REQUEST', 'weekStart must be a Monday')];
+    if (since < 7 || since > 13) return [400, errorBody(400, 'BAD_REQUEST', 'weekStart must be the week that just ended (Asia/Jakarta)')];
+    keep(state.calls.notifications, {
+      workflow: String(req.headers['x-workflow'] ?? '').slice(0, 120) || null,
+      eventId: b.eventId, city: null, province: null,
+    });
+    return [200, { weekStart: b.weekStart, legalEntities: 0, unknownEntities: ids.length, inactiveEntities: 0, recipients: 0, notified: 0, whatsapp: 'pending' }];
+  }
+
+  // AI-31's relay of an agent event: ids and a kind only (AiAgentNoticeTrigger). Nobody to tell in staging.
+  function aiAgentNotice(req, body) {
+    if (!machineAllowed(req, 'aiAgentNotify')) return refusedToken();
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const valid =
+      Object.keys(b).every((k) => ['eventId', 'agentId', 'agentName', 'kind', 'bossRole'].includes(k)) &&
+      typeof b.eventId === 'string' && /^[A-Za-z0-9:._-]{1,120}$/.test(b.eventId) &&
+      typeof b.agentId === 'string' && /^[a-z][a-z0-9-]{1,39}$/.test(b.agentId) &&
+      typeof b.agentName === 'string' && b.agentName.length >= 1 && b.agentName.length <= 40 && /^[\p{L}\p{N} ]+$/u.test(b.agentName) &&
+      AGENT_NOTICE_KINDS.includes(b.kind) &&
+      (b.bossRole === undefined || (typeof b.bossRole === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(b.bossRole)));
+    if (!valid) return [400, errorBody(400, 'VALIDATION_ERROR', ['The notification is not what the contract asks for'])];
+    keep(state.calls.notifications, {
+      workflow: String(req.headers['x-workflow'] ?? '').slice(0, 120) || null,
+      eventId: b.eventId, city: null, province: null,
+    });
+    return [200, { recipients: 0, notified: 0, whatsapp: 'pending' }];
+  }
+
   // "Minta akses": ids only (contract AiAccessRequestedNotify). A requester that is a fixture person
   // who cannot grant access counts toward the caps (3 distinct eventIds per requester, 30 overall,
   // rolling hour); anyone else is "unknown": 200, nobody told, not counted.
@@ -522,7 +570,8 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
   // Staging does not model the capability matrix: any person who may enter the CRM (the four
   // roles that hold prospectRead built in) is answered full and settings, and may draft. The
   // D1 checks and the one-row-per-prospect rules are the real ones (drafts.openapi.json).
-  const CRM_ROLES = new Set(['MARKETING', 'DIREKTUR', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+  // SALES_LEAD stands for a custom role that holds prospectSettings (the weekly Sales report's readers).
+  const CRM_ROLES = new Set(['MARKETING', 'DIREKTUR', 'HEAD_OFFICE', 'SUPER_ADMIN', 'SALES_LEAD']);
   const CHECKLIST_KEYS = ['ktpNpwp', 'locationProof', 'capitalDeposit', 'fieldSurvey'];
   const CHECKLIST_STATES = new Set(['NOT_STARTED', 'SUBMITTED', 'VERIFIED', 'REJECTED']);
   const CRM_KEYS = ['prospectId', 'legacyApplicationId', 'proposedName', 'city', 'province', 'owner', 'prospectusHandedOn', 'prospectusSha256', 'prospectusVersionLabel', 'prospectusReceipt', 'agreementSignedOn', 'checklist'];
@@ -840,6 +889,14 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (post && path === '/crm/api/v1/notifications/external/morning-summary') {
         const [status, body] = morningSummary(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (post && path === '/crm/api/v1/notifications/external/sales-weekly-ready') {
+        const [status, body] = salesWeeklyReady(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (post && path === '/crm/api/v1/notifications/external/ai-agent-notice') {
+        const [status, body] = aiAgentNotice(req, parseJson(raw));
         return send(res, status, body);
       }
       if (post && path === '/crm/api/v1/notifications/external/ai-access-requested') {
