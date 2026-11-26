@@ -68,6 +68,10 @@ export class PromoConfigService {
   get customerServiceUrl(): string {
     return this.config.get<string>('CUSTOMER_SERVICE_URL', '');
   }
+  /** HD-14: where quality holds are read. Blank = unreadable, which fails closed for a depot rule's activation. */
+  get depotServiceUrl(): string {
+    return this.config.get<string>('DEPOT_SERVICE_URL', '').trim().replace(/\/+$/, '');
+  }
   get orderServiceUrl(): string {
     return this.config.getOrThrow<string>('ORDER_SERVICE_URL').replace(/\/+$/, '');
   }

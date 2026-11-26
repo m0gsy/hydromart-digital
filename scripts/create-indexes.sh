@@ -47,6 +47,10 @@
 # depot_drafts_prospectId_key and depot_drafts_depotId_key (depot-service, 2026-11-28, HD-21a) sit on a table its own
 # migration creates: both are built by that migration, not here, and the build is instant.
 #
+# depot_quality_holds_depotId_startedAt_idx, depot_quality_holds_one_active_per_depot, depot_lab_tests_depotId_takenOn_idx and
+# depot_permits_depotId_validUntil_idx (depot-service, 2026-11-29, HD-14) sit on three tables its own migration creates:
+# built by that migration, not here, and the build is instant.
+#
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh
 # database — CI, a new environment — the migration builds it itself, where locking an

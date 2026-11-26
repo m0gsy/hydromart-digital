@@ -408,6 +408,18 @@ export const GROUPS: RailGroup[] = [
         labelKey: 'maintenance',
         show: (r) => can('depotMaintenance', r),
       },
+      // HD-14: orders a quality hold holds back, for the depot's Kepala and head office.
+      {
+        href: '/dashboard/held',
+        labelKey: 'held',
+        show: (r) => can('qualityHoldOrders', r),
+      },
+      // HD-14: quality hold, lab tests and permits.
+      {
+        href: '/dashboard/quality',
+        labelKey: 'quality',
+        show: (r) => can('depotCompliance', r),
+      },
       // HD-15B: supervisor visits. The page's own server calls are visitRead (overview) and
       // visitConduct (start/answer); the door follows the read.
       {

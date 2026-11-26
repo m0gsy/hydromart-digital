@@ -132,7 +132,7 @@ describe('webhook request DTOs (HD-7)', () => {
     expect(errors(CreateWebhookDto, { url, events: ['franchise.application_submitted'] })).toEqual([]);
     expect(errors(CreateWebhookDto, { url, events: ['delivery.delivered'] })).toEqual([]);
     // Every event a service now publishes is accepted (HD-17B added order.created, order.status_changed, stock.low).
-    for (const event of ['order.created', 'order.status_changed', 'stock.low', 'depot.onboarded']) {
+    for (const event of ['order.created', 'order.status_changed', 'stock.low', 'depot.onboarded', 'depot.quality_hold_changed']) {
       expect(errors(CreateWebhookDto, { url, events: [event] })).toEqual([]);
     }
     for (const events of [['order.shipped'], ['franchise.application_submited'], ['delivery.delivered', 'x.y']]) {

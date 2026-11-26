@@ -367,6 +367,9 @@ function CheckoutInner() {
    * `nearbyLoading` guards it: an empty list mid-fetch is not an out-of-area verdict.
    */
   const outOfServiceArea = !pinMissing && !nearbyLoading && nearbyDepots != null && depot === null;
+  // HD-14: a depot on a quality hold takes no order. Neutral wording, no reason; the customer may pick
+  // another depot themselves (no automatic reroute).
+  const depotOnHold = depot?.qualityHold?.active === true;
 
   /*
    * A1/A2. The cart, priced by the depot that will actually fulfil the order — the depot's
@@ -1690,7 +1693,7 @@ function CheckoutInner() {
             type="submit"
             loading={submitting}
             disabled={
-              pinMissing || nearbyLoading || outOfServiceArea || expressBlocked || belowMinimum
+              pinMissing || nearbyLoading || outOfServiceArea || depotOnHold || expressBlocked || belowMinimum
             }
             className="h-[54px] rounded-full text-[15px] font-extrabold"
           >
@@ -1700,6 +1703,11 @@ function CheckoutInner() {
           {outOfServiceArea && (
             <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
               {t('order.checkout.outOfServiceArea')}
+            </p>
+          )}
+          {depotOnHold && (
+            <p className="text-xs font-medium text-[color:var(--danger)]" role="alert">
+              {t('order.checkout.depotOnHold')}
             </p>
           )}
           {depotClosed && (
@@ -1763,6 +1771,11 @@ function CheckoutInner() {
           {t('order.checkout.outOfServiceArea')}
         </p>
       )}
+      {depotOnHold && (
+        <p className="mb-2 text-xs font-medium text-[color:var(--danger)] lg:hidden" role="alert">
+          {t('order.checkout.depotOnHold')}
+        </p>
+      )}
       {depotClosed && (
         <p className="mb-2 text-xs font-medium text-[color:var(--danger)] lg:hidden" role="alert">
           {t('hrFix.checkoutFix.depotClosed')}
@@ -1795,7 +1808,7 @@ function CheckoutInner() {
           type="submit"
           loading={submitting}
           disabled={
-            pinMissing || nearbyLoading || outOfServiceArea || expressBlocked || belowMinimum
+            pinMissing || nearbyLoading || outOfServiceArea || depotOnHold || expressBlocked || belowMinimum
           }
           className="h-13 flex-1 rounded-full text-[15px] font-extrabold"
         >

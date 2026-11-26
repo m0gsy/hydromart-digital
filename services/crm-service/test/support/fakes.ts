@@ -81,6 +81,7 @@ export class InMemoryCampaignRepository implements CampaignRepository {
       aiSuggestionId: data.aiSuggestionId ?? null,
       aiReason: data.aiReason ?? null,
       aiRequestHash: data.aiRequestHash ?? null,
+      depotId: data.depotId ?? null,
       recipients,
     };
     this.campaigns.push(campaign);
@@ -127,9 +128,10 @@ export class InMemoryCampaignRepository implements CampaignRepository {
     return true;
   }
 
-  async findSending(limit: number, now: Date): Promise<CampaignRecord[]> {
+  async findSending(limit: number, now: Date, exceptDepotIds: readonly string[] = []): Promise<CampaignRecord[]> {
     return this.campaigns
       .filter((c) => c.status === CampaignStatus.SENDING)
+      .filter((c) => !c.depotId || !exceptDepotIds.includes(c.depotId))
       .filter((c) => c.scheduledFor === null || c.scheduledFor <= now)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit)
@@ -482,5 +484,15 @@ export class InMemorySavedSegmentRepository implements SavedSegmentRepository {
     const before = this.rows.length;
     this.rows = this.rows.filter((r) => r.id !== id);
     return this.rows.length < before;
+  }
+}
+
+/** HD-14: which depots are on a quality hold. Empty by default; `fail` makes the read throw. */
+export class FakeHeldDepots {
+  held = new Set<string>();
+  fail = false;
+  async heldDepotIds(): Promise<ReadonlySet<string>> {
+    if (this.fail) throw new Error('depot-service down');
+    return new Set(this.held);
   }
 }

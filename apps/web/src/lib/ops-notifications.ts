@@ -61,6 +61,8 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   AI_ACCESS_REQUESTED: 'orders',
   // HD-15: equipment maintenance is a depot upkeep matter, filed with stock.
   MAINTENANCE_DUE: 'stock',
+  PERMIT_DUE: 'stock',
+  LAB_TEST_DUE: 'stock',
   // AI-26: the weekly Sales report is a sales matter, like a new franchise application.
   SALES_WEEKLY_REPORT: 'sales',
   // AI-31: an agent needs a person's attention, the same bucket as the access request.

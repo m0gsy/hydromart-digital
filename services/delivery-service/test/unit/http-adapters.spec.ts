@@ -118,6 +118,15 @@ describe('OrderCoordinationHttpAdapter', () => {
     ).rejects.toThrow(/403/);
   });
 
+  it('tells a quality hold (409 DEPOT_ON_HOLD) from a lost race, so the courier is not told "already taken" (HD-14)', async () => {
+    fetchMock.mockResolvedValue(res({ ok: false, status: 409, body: { code: 'DEPOT_ON_HOLD' } }));
+    const held = await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus('o1', 'PICKED_UP', 'Bearer x').catch((e) => e);
+    expect(held).toMatchObject({ refused: true, onHold: true });
+    fetchMock.mockResolvedValue(res({ ok: false, status: 409, body: { code: 'STALE' } }));
+    const race = await new OrderCoordinationHttpAdapter(makeConfig()).advanceStatus('o1', 'PICKED_UP', 'Bearer x').catch((e) => e);
+    expect(race).toMatchObject({ refused: true, onHold: false });
+  });
+
   it('fails closed (throws) when the order-service is unreachable', async () => {
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
     await expect(

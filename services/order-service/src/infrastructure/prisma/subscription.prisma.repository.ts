@@ -8,6 +8,7 @@ import {
   SubscriptionRecord,
   SubscriptionRepository,
   SubscriptionStatus,
+  DUE_SWEEP_BATCH,
 } from '../../application/ports/subscription.repository';
 import { PrismaService } from './prisma.service';
 
@@ -53,7 +54,6 @@ const CANCELLED_HISTORY = 5;
  * inside a single request. Unbounded, a backlog is work the tick cannot finish, and it
  * dies partway with nothing recording where it stopped.
  */
-const DUE_SWEEP_BATCH = 100;
 
 @Injectable()
 export class SubscriptionPrismaRepository implements SubscriptionRepository {
@@ -135,10 +135,11 @@ export class SubscriptionPrismaRepository implements SubscriptionRepository {
     return [...live, ...cancelled].map((r) => this.toRecord(r));
   }
 
-  async findDue(now: Date, limit = DUE_SWEEP_BATCH): Promise<SubscriptionRecord[]> {
+  async findDue(now: Date, limit = DUE_SWEEP_BATCH, offset = 0): Promise<SubscriptionRecord[]> {
     const rows = await this.prisma.subscription.findMany({
       where: { status: 'ACTIVE', nextDeliveryAt: { lte: now } },
-      orderBy: { nextDeliveryAt: 'asc' },
+      orderBy: [{ nextDeliveryAt: 'asc' }, { id: 'asc' }],
+      skip: offset,
       take: limit,
     });
     return rows.map((r) => this.toRecord(r));

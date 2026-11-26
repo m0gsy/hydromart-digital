@@ -622,6 +622,21 @@ export const CAPABILITIES = {
    */
   maintenanceDueNotify: ['SUPER_ADMIN'],
   /*
+   * depot-service (HD-14) - quality hold: a depot stops selling (online, counter, campaigns,
+   * promos) until a PASS lab test is recorded and head office ends it. START: the depot's Kepala
+   * (own depot, fenced by the DepotScopeGuard), HQ Operasional or the owner account. END is the
+   * riskier act, so head office only. `depotCompliance` records the lab tests and permits the
+   * end rests on. `complianceDueNotify` is the n8n machine account's daily permit/lab sweep
+   * (POST notifications/external/compliance-due), same reasoning as maintenanceDueNotify.
+   */
+  depotQualityHoldStart: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  depotQualityHoldEnd: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+  depotCompliance: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // HD-14: the "tertahan" list: accepted orders a hold holds back (own depot for a Kepala). Reading it is its
+  // own right; cancelling one stays the ordinary staff status path (orderFulfilment). Grantable to a custom role.
+  qualityHoldOrders: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  complianceDueNotify: ['SUPER_ADMIN'],
+  /*
    * crm-service (AI-26) - tell the people who read a legal entity's calon mitra CRM that the
    * weekly Sales report is ready (POST notifications/external/sales-weekly-ready). Held by the n8n
    * machine account through its token's scopes; ids only, hydromart picks the recipients and writes
@@ -1185,6 +1200,11 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'customerReminderNotify',
   // HD-15: the n8n machine account's, same reasoning.
   'maintenanceDueNotify',
+  // HD-14: the n8n machine account's permit/lab-test sweep, same reasoning.
+  'complianceDueNotify',
+  // HD-14: ending a quality hold is head office's alone (owner decision); a custom role must never
+  // hold it. Starting one stays grantable: stopping is the safe direction.
+  'depotQualityHoldEnd',
   // AI-26: the n8n machine account's, same reasoning.
   'salesReportNotify',
   // AI-29/AI-31: the n8n machine account's, same reasoning; and who may switch agents on or change their caps.
