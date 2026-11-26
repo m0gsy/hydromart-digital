@@ -95,8 +95,16 @@ function CampaignCard({
               ` · ${t('dashboard.campaigns.scheduledFor', { at: formatDateTime(campaign.scheduledFor) })}`}
           </p>
         </div>
-        <Badge tone={STATUS_TONE[campaign.status]}>{campaign.status}</Badge>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {campaign.source === 'AI' ? <Badge tone="brand">{t('dashboard.campaigns.aiBadge')}</Badge> : null}
+          <Badge tone={STATUS_TONE[campaign.status]}>{campaign.status}</Badge>
+        </div>
       </div>
+      {campaign.source === 'AI' && campaign.aiReason ? (
+        <p className="text-xs text-muted">
+          <span className="font-semibold">{t('dashboard.campaigns.aiReason')}:</span> {campaign.aiReason}
+        </p>
+      ) : null}
       <dl className="grid grid-cols-3 gap-2 text-center text-sm">
         <div>
           <dt className="text-xs text-muted">{t('dashboard.campaigns.recipientsCol')}</dt>

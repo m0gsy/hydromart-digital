@@ -1,9 +1,9 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "hydromart-digital drafts the AI web may make (depot-service)",
+    "title": "hydromart-digital drafts the AI web may make (depot-service, crm-service)",
     "version": "1.0.0",
-    "description": "HD-17 part A. The closed list of writes the AI web's token may make in depot-service: a price proposal (status PENDING) and a purchase order (status DRAFT). Nothing here decides anything: HQ approves or rejects the price proposal in /hq/pricing, and a staff member reviews the purchase order and presses Kirim, exactly as for a draft a person made. Approval, rejection, import, send, receive and every other write answer 403 to the AI token.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. hydromart-digital applies that person's own role and depots exactly as on the staff create route: price proposals need the depotAdmin capability (a depot manager) at that depot, purchase orders the procurement capability at that depot; otherwise 403. A machine token or a staff session token is refused with 403.\n\nAudit: every call is written to the audit trail BEFORE it runs, with the X-AI-Suggestion-Id (suggestionId), and is refused with 503 when it cannot be written.\n\nRate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a key you do not know; removing or renaming one is a new contract version."
+    "description": "HD-17. The closed list of writes the AI web's token may make: in depot-service a price proposal (status PENDING) and a purchase order (status DRAFT), in crm-service an in-app/push campaign (status DRAFT, nothing sent). Nothing here decides anything: HQ approves or rejects the price proposal in /hq/pricing, a staff member reviews the purchase order and presses Kirim, and a staff member with the campaign permission reviews the campaign and presses Kirim, exactly as for a draft a person made. Approval, rejection, import, send, receive and every other write answer 403 to the AI token.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. hydromart-digital applies that person's own role and depots exactly as on the staff create route: price proposals need the depotAdmin capability (a depot manager) at that depot, purchase orders the procurement capability at that depot, campaigns the depotCampaign capability at that depot; otherwise 403. A machine token or a staff session token is refused with 403.\n\nAudit: every call is written to the audit trail BEFORE it runs, with the X-AI-Suggestion-Id (suggestionId), and is refused with 503 when it cannot be written.\n\nRate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a key you do not know; removing or renaming one is a new contract version."
   },
   "servers": [
     {
@@ -286,6 +286,139 @@
           },
           "503": {
             "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call, so nothing was drafted. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/api/v1/ai/drafts/campaigns": {
+      "post": {
+        "summary": "Draft an in-app/push campaign for staff to review and send.",
+        "description": "Makes a campaign in status DRAFT for one depot's own customers, marked source AI with the reason. NOTHING IS SENT: it appears in the campaign list and report with an \"Usulan AI\" badge and the reason, and a staff member with the campaign permission reviews it and presses Kirim (that is the approval), as for any draft. The audience is resolved from the segment by the same rules as a staff depot campaign, so customers who switched promotional messages off are not in it, and opt-out is checked again for every recipient when the campaign is sent. The answer carries the audience SIZE only (totalRecipients), never a name or phone number. There is no route for the AI token to send, cancel, edit or read a campaign.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-AI-Suggestion-Id",
+            "in": "header",
+            "required": true,
+            "description": "The AI web's id for this suggestion (a UUID). The idempotency key: the same id with the same body answers the draft it already made (200); the same id with a different body is a 409. The id is stored on the draft and written to the audit trail.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "Optional label for the audit trail (the workflow that made the call).",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiCampaignDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The draft was made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDraft"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "This X-AI-Suggestion-Id already made exactly this draft; it is returned unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDraft"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: X-AI-Suggestion-Id missing or not a UUID, or the body failed validation (message lists what).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI access was switched off (the published key set is empty).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token or a staff session token, or a person whose role lacks the depotCampaign capability, or who may not act at that depot. The same answer the staff depot-campaign route gives that person.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "AI_SUGGESTION_REUSED: this X-AI-Suggestion-Id already made a different draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "UNPROCESSABLE: the segment matches nobody who can be messaged (CAMPAIGN_NO_RECIPIENTS), the send time is in the past (CAMPAIGN_SCHEDULED_IN_PAST), or the audience could not be resolved (CAMPAIGN_SEGMENT_UNAVAILABLE).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -656,7 +789,7 @@
           },
           "code": {
             "type": "string",
-            "description": "BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, AI_SUGGESTION_REUSED, RATE_LIMITED or SERVICE_UNAVAILABLE."
+            "description": "BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, AI_SUGGESTION_REUSED, CAMPAIGN_NO_RECIPIENTS, CAMPAIGN_SCHEDULED_IN_PAST, CAMPAIGN_SEGMENT_UNAVAILABLE, RATE_LIMITED or SERVICE_UNAVAILABLE."
           },
           "message": {
             "oneOf": [
@@ -671,6 +804,182 @@
               }
             ],
             "description": "For people reading logs. Route on statusCode and code."
+          }
+        }
+      },
+      "AiCampaignDraft": {
+        "type": "object",
+        "required": [
+          "depotId",
+          "name",
+          "messageTemplate",
+          "reason"
+        ],
+        "properties": {
+          "depotId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The depot whose customers are targeted."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "messageTemplate": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "The message body. Supports {{name}} and {{phone}} tokens."
+          },
+          "segment": {
+            "type": "object",
+            "description": "Narrows the depot's customers. Omit for all of the depot's customers who can be messaged. There is no explicit recipient list. A value for the removed tier filter is a 400.",
+            "properties": {
+              "city": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "recencyDays": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Last order within this many days."
+              },
+              "lapsedDays": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Last order older than this many days."
+              },
+              "newWithinDays": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "First order within this many days."
+              },
+              "minOrders": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "customerIds": {
+                "type": "array",
+                "maxItems": 500,
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              }
+            }
+          },
+          "scheduledFor": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When to send once a person presses Kirim. Must not be in the past. The draft is never sent before that."
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Why the AI proposes this, in one or two sentences; shown to the person who sends it. Trimmed. It must not contain customer personal data: a run of 8 or more digits (spaces and dashes allowed between them), such as a phone number, is a 400."
+          }
+        }
+      },
+      "CampaignDraft": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "channel",
+          "status",
+          "totalRecipients",
+          "sentCount",
+          "failedCount",
+          "createdBy",
+          "createdAt",
+          "sentAt",
+          "scheduledFor",
+          "source",
+          "aiReason",
+          "messageTemplate",
+          "aiSuggestionId"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "WHATSAPP",
+              "IN_APP"
+            ],
+            "description": "IN_APP: an inbox row plus best-effort push."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT"
+            ],
+            "description": "Always DRAFT here."
+          },
+          "totalRecipients": {
+            "type": "integer",
+            "description": "The audience size. Never the audience itself."
+          },
+          "sentCount": {
+            "type": "integer"
+          },
+          "failedCount": {
+            "type": "integer"
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The person behind the token."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sentAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "scheduledFor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "STAFF",
+              "AI"
+            ],
+            "description": "AI here."
+          },
+          "aiReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "messageTemplate": {
+            "type": "string"
+          },
+          "aiSuggestionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
           }
         }
       }

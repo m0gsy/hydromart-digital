@@ -1,3 +1,4 @@
+import { DraftSource } from '../../src/domain/draft-source';
 import { CampaignChannel } from '../../src/domain/channel';
 import { CampaignStatus } from '../../src/domain/campaign-status';
 import { RecipientStatus } from '../../src/domain/recipient-status';
@@ -36,6 +37,9 @@ const campaignRow = () => ({
   updatedAt: new Date('2026-01-01'),
   sentAt: null,
   scheduledFor: null,
+  source: 'STAFF',
+  aiSuggestionId: null,
+  aiReason: null,
 });
 
 describe('CampaignPrismaRepository', () => {
@@ -82,6 +86,9 @@ describe('CampaignPrismaRepository', () => {
         createdBy: 'staff-1',
         totalRecipients: 2,
         scheduledFor: null,
+        aiSuggestionId: null,
+        aiReason: null,
+        aiRequestHash: null,
         recipients: {
           create: [
             { customerId: 'cust-1', phone: '+6281234567890', name: 'Budi' },
@@ -105,6 +112,34 @@ describe('CampaignPrismaRepository', () => {
     });
     expect(record?.id).toBe('camp-1');
     expect(record?.recipients).toHaveLength(1);
+  });
+
+  it('stores the AI marker on create and finds a draft by its suggestion id (HD-17)', async () => {
+    const row = { ...campaignRow(), source: 'AI', aiSuggestionId: 's-1', aiReason: 'sepi', recipients: [] };
+    campaign.create.mockResolvedValue(row);
+    await repo.create({
+      createdBy: 'p-1',
+      name: 'n',
+      messageTemplate: 'm',
+      recipients: [{ phone: '+62800' }],
+      source: DraftSource.AI,
+      aiSuggestionId: 's-1',
+      aiReason: 'sepi',
+    });
+    expect(campaign.create.mock.calls.at(-1)![0].data).toMatchObject({
+      source: 'AI',
+      aiSuggestionId: 's-1',
+      aiReason: 'sepi',
+    });
+    campaign.findUnique.mockResolvedValue(row);
+    const found = await repo.findByAiSuggestionId('s-1');
+    expect(campaign.findUnique).toHaveBeenLastCalledWith({
+      where: { aiSuggestionId: 's-1' },
+      include: { recipients: { orderBy: { createdAt: 'asc' } } },
+    });
+    expect(found).toMatchObject({ source: 'AI', aiSuggestionId: 's-1', aiReason: 'sepi' });
+    campaign.findUnique.mockResolvedValue(null);
+    expect(await repo.findByAiSuggestionId('none')).toBeNull();
   });
 
   it('findById returns null when absent', async () => {

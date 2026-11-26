@@ -18,6 +18,7 @@ import {
 } from 'class-validator';
 import { INT4_MAX, MAX_DAYS } from '@hydromart/platform';
 
+import { DraftSource } from '../../domain/draft-source';
 import { CampaignChannel } from '../../domain/channel';
 import { CampaignStatus } from '../../domain/campaign-status';
 import { RecipientStatus } from '../../domain/recipient-status';
@@ -273,6 +274,10 @@ export class CampaignListItemDto {
   sentAt!: Date | null;
   @ApiProperty({ nullable: true, type: String, format: 'date-time', description: 'Due time; null = immediately.' })
   scheduledFor!: Date | null;
+  @ApiProperty({ enum: DraftSource, description: 'AI = a draft the AI web made; a person still presses Kirim.' })
+  source!: DraftSource;
+  @ApiProperty({ nullable: true, description: 'Why the AI proposed it (source AI only).' })
+  aiReason!: string | null;
 
   static from(record: CampaignRecord): CampaignListItemDto {
     return {
@@ -287,6 +292,8 @@ export class CampaignListItemDto {
       createdAt: record.createdAt,
       sentAt: record.sentAt,
       scheduledFor: record.scheduledFor,
+      source: record.source,
+      aiReason: record.aiReason,
     };
   }
 }

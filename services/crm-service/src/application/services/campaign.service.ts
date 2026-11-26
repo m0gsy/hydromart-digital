@@ -1,9 +1,13 @@
+import { createHash } from 'node:crypto';
+
 import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 
+import { DraftSource } from '../../domain/draft-source';
 import { CampaignStatus, canCancel, canSend } from '../../domain/campaign-status';
 import { RecipientStatus } from '../../domain/recipient-status';
 import { renderTemplate } from '../../domain/template';
 import {
+  AiSuggestionReusedError,
   CampaignNotCancellableError,
   CampaignNotDraftError,
   CampaignNotFoundError,
@@ -16,6 +20,7 @@ import { Page, buildPage } from '../pagination';
 import {
   CampaignRecord,
   CampaignRepository,
+  CreateCampaignData,
   CreateRecipientData,
 } from '../ports/campaign.repository';
 import {
@@ -55,6 +60,21 @@ export interface CampaignSweepResult {
    * a tick with no campaign sending at all.
    */
   ok: boolean;
+}
+
+/** Keys sorted at every level, so the same request always hashes the same. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_k, v: unknown) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).sort(([x], [y]) => (x < y ? -1 : 1)))
+      : v,
+  );
+}
+
+/** Prisma P2002 on the aiSuggestionId unique index. */
+function isSuggestionIdCollision(e: unknown): boolean {
+  const err = e as { code?: string; meta?: { target?: unknown } };
+  return err?.code === 'P2002' && String(err.meta?.target ?? '').includes('aiSuggestionId');
 }
 
 /** Digits only, local 0-prefix read as Indonesian +62, so +62812…, 62812… and 0812… compare equal. */
@@ -191,6 +211,7 @@ export class CampaignService {
     messageTemplate: string,
     segment: SegmentFilter = {},
     scheduledFor?: Date | null,
+    ai: Pick<CreateCampaignData, 'source' | 'aiSuggestionId' | 'aiReason' | 'aiRequestHash'> = {},
   ): Promise<CampaignRecord> {
     this.assertNotPast(scheduledFor);
     const { city, ...activityConditions } = { ...segment, depotId };
@@ -202,7 +223,61 @@ export class CampaignService {
 
     const deduped = [...new Map(list.map((r) => [r.phone, r])).values()];
     if (deduped.length === 0) throw new NoRecipientsError();
-    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor });
+    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor, ...ai });
+  }
+
+  /**
+   * HD-17: the AI web's draft. The depot blast a manager would make (same audience rules, same
+   * validation), left DRAFT and marked AI with the suggestion id and the AI's reason. Nothing is
+   * sent: a person with the campaign permission presses Kirim, exactly as for their own draft.
+   * Idempotent per suggestion id: the same id and the same request (depot, segment, text, schedule,
+   * reason, author, compared by a stored hash) answers the row it made (replayed), anything else is
+   * a 409. The unique index still stops a second row when two calls race.
+   */
+  async draftFromAi(
+    createdBy: string,
+    depotId: string,
+    input: { name: string; messageTemplate: string; segment?: SegmentFilter; scheduledFor?: Date | null },
+    ai: { suggestionId: string; reason: string },
+  ): Promise<{ draft: CampaignRecord; replayed: boolean }> {
+    const aiRequestHash = createHash('sha256')
+      .update(
+        canonicalJson({
+          depotId,
+          segment: input.segment ?? {},
+          name: input.name,
+          messageTemplate: input.messageTemplate,
+          scheduledFor: input.scheduledFor?.toISOString() ?? null,
+          reason: ai.reason,
+          createdBy,
+        }),
+      )
+      .digest('hex');
+    const replay = (r: CampaignRecord) => {
+      if (r.aiRequestHash !== aiRequestHash) throw new AiSuggestionReusedError();
+      return { draft: r, replayed: true };
+    };
+    const existing = await this.repo.findByAiSuggestionId(ai.suggestionId);
+    if (existing) return replay(existing);
+    try {
+      const draft = await this.createForDepot(
+        createdBy,
+        depotId,
+        input.name,
+        input.messageTemplate,
+        input.segment,
+        input.scheduledFor,
+        { source: DraftSource.AI, aiSuggestionId: ai.suggestionId, aiReason: ai.reason, aiRequestHash },
+      );
+      return { draft, replayed: false };
+    } catch (e) {
+      // Only a lost race on the suggestion id's unique index is answered with the winner; a 422, a
+      // database outage or anything else is the caller's to see.
+      if (!isSuggestionIdCollision(e)) throw e;
+      const raced = await this.repo.findByAiSuggestionId(ai.suggestionId);
+      if (!raced) throw e;
+      return replay(raced);
+    }
   }
 
   // No defaults here on purpose: the only caller already defaults, so a second set

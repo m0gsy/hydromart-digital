@@ -7,6 +7,7 @@ import { plainToInstance } from 'class-transformer';
 
 import { AuthenticatedUser } from '@hydromart/platform';
 
+import { DraftSource } from '../../src/domain/draft-source';
 import { HealthController } from '../../src/modules/health.controller';
 import { PushController } from '../../src/modules/push.controller';
 import { NotificationController } from '../../src/modules/notification.controller';
@@ -273,6 +274,10 @@ describe('CampaignController', () => {
     failedCount: 0,
     createdBy: 'staff-1',
     scheduledFor: null,
+    source: DraftSource.STAFF,
+    aiSuggestionId: null,
+    aiReason: null,
+    aiRequestHash: null,
     createdAt: new Date('2026-01-01'),
     updatedAt: new Date('2026-01-01'),
     sentAt: null,

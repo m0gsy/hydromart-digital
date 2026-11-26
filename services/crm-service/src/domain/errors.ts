@@ -104,3 +104,12 @@ export class PushEndpointTakenError extends DomainError {
     super('Perangkat ini terdaftar untuk akun lain.');
   }
 }
+
+/** HD-17: an AI suggestion id was already used for a different draft. The same id means the same draft. */
+export class AiSuggestionReusedError extends DomainError {
+  readonly code = 'AI_SUGGESTION_REUSED';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This X-AI-Suggestion-Id already made a different draft.');
+  }
+}
