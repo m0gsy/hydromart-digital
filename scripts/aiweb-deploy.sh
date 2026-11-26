@@ -19,7 +19,7 @@
 #   5. The migration job, as the owning role, for at most AIWEB_MIGRATE_TIMEOUT (900) seconds. A
 #      failure stops here: the app is not swapped and ai_app's password is not touched.
 #   6. AI-5, n8n: removed (not merely stopped: a stopped container is one the watchdog starts
-#      again), then the n8n-setup job, for at most AIWEB_N8N_SETUP_TIMEOUT (300) seconds, puts the
+#      again), then the n8n-setup job, for at most AIWEB_N8N_SETUP_TIMEOUT (900) seconds, puts the
 #      credentials and the workflows git holds into n8n's database. A failure stops here and
 #      leaves n8n off: hydromart's events wait in the AI web's hd_events, which it retries without
 #      giving up, until a deploy sets n8n up. A blank AIWEB_N8N_MACHINE_SECRET is n8n's kill switch:
@@ -67,7 +67,7 @@ AIWEB_COMPOSE="${AIWEB_COMPOSE:-docker compose -f $AIWEB_FILE --env-file .env}"
 HYDROMART_PROJECT="${HYDROMART_PROJECT:-hydromart}"
 AI_PROJECT="${AI_PROJECT:-$(sed -n 's/^name: *//p' "$AIWEB_FILE" | tr -d "\"' \r")}"
 MIGRATE_TIMEOUT="${AIWEB_MIGRATE_TIMEOUT:-900}"
-N8N_SETUP_TIMEOUT="${AIWEB_N8N_SETUP_TIMEOUT:-300}"
+N8N_SETUP_TIMEOUT="${AIWEB_N8N_SETUP_TIMEOUT:-900}"
 DRIFT_TIMEOUT="${AIWEB_N8N_DRIFT_TIMEOUT:-300}"
 # Literals in the compose file, read from it so they are written in one place.
 setting() { sed -n "s/^ *$1: *//p" "$AIWEB_FILE" | head -1 | tr -d "\"' \r"; }
