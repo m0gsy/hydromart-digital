@@ -644,6 +644,16 @@ export const CAPABILITIES = {
    * token's scopes; ids and a kind only, hydromart writes the text. Also in CUSTOM_FORBIDDEN.
    */
   aiAgentNotify: ['SUPER_ADMIN'],
+   * payout-service (HD-23) - the monthly royalty bill per franchisee legal entity. Read: the
+   * list and each bill's lines. Approve = send: Finance clicks once, the bill goes to the
+   * depot owners; also in CUSTOM_FORBIDDEN, a network-wide money write with no depot fence.
+   * Generate: the n8n machine account's trigger (POST payouts/external/partner-bills/generate);
+   * Finance's own "Buat draf" button is the same service method, so it takes the staff route
+   * under partnerBillApprove, and the machine capability stays machine-only.
+   */
+  partnerBillRead: ['FINANCE', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  partnerBillApprove: ['FINANCE', 'SUPER_ADMIN'],
+  partnerBillGenerate: ['SUPER_ADMIN'],
   /*
    * depot-service (HD-15B) - write the checklist templates a supervisor visit starts from. Head
    * office and directors only; the network has one template list. Not in CUSTOM_FORBIDDEN: an
@@ -1179,6 +1189,9 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   // AI-29/AI-31: the n8n machine account's, same reasoning; and who may switch agents on or change their caps.
   'aiAgentNotify',
   'aiTeamManage',
+  // HD-23: approving a bill sends it to every owner of the entity's depots; generating is n8n's.
+  'partnerBillApprove',
+  'partnerBillGenerate',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

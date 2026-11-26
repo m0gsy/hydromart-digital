@@ -3,6 +3,7 @@ import { nextCursor, pageArgs } from '@hydromart/platform';
 
 import { LedgerEntryRecord, LedgerEntryType, LedgerEntryWithRef } from '../../domain/ledger';
 import {
+  CommissionBasisRow,
   CreateLedgerEntryData,
   LedgerRepository,
   OwnerBalance,
@@ -99,6 +100,56 @@ export class LedgerPrismaRepository implements LedgerRepository {
     });
     const byDepot = new Map(rows.map((r) => [r.depotId, 0 - Number(r._sum.amount ?? 0)]));
     return depotIds.map((depotId) => ({ depotId, commissionIdr: byDepot.get(depotId) ?? 0 }));
+  }
+
+  async depotsWithCommission(from: Date, to: Date): Promise<string[]> {
+    const rows = await this.prisma.ledgerEntry.groupBy({
+      by: ['depotId'],
+      where: { type: 'COMMISSION', depotId: { not: null }, occurredAt: { gte: from, lt: to } },
+    });
+    return rows.flatMap((r) => (r.depotId ? [r.depotId] : []));
+  }
+
+  async commissionBasis(depotIds: readonly string[], from: Date, to: Date): Promise<CommissionBasisRow[]> {
+    const where = { type: 'COMMISSION' as const, depotId: { in: [...depotIds] }, occurredAt: { gte: from, lt: to } };
+    const [perOwner, reversals] = await Promise.all([
+      this.prisma.ledgerEntry.groupBy({
+        by: ['depotId', 'franchiseOwnerId'],
+        where,
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      // A reversal of an earlier sale is the only COMMISSION row with a positive amount.
+      this.prisma.ledgerEntry.groupBy({
+        by: ['depotId'],
+        where: { ...where, amount: { gt: 0 } },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+    ]);
+    const byDepot = new Map<string, CommissionBasisRow>();
+    for (const r of perOwner) {
+      if (!r.depotId) continue;
+      const row = byDepot.get(r.depotId) ?? {
+        depotId: r.depotId,
+        commissionIdr: 0,
+        rows: 0,
+        reversalRows: 0,
+        reversalIdr: 0,
+        ownerIds: [],
+      };
+      row.commissionIdr += 0 - Number(r._sum.amount ?? 0);
+      row.rows += r._count._all;
+      row.ownerIds.push(r.franchiseOwnerId);
+      byDepot.set(r.depotId, row);
+    }
+    for (const r of reversals) {
+      const row = r.depotId ? byDepot.get(r.depotId) : undefined;
+      if (!row) continue;
+      row.reversalRows = r._count._all;
+      row.reversalIdr = Number(r._sum.amount ?? 0);
+    }
+    return [...byDepot.values()];
   }
 
   async sumByType(franchiseOwnerId: string, type: LedgerEntryType, since: Date): Promise<number> {

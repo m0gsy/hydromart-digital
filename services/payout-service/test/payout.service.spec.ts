@@ -89,6 +89,13 @@ class FakeLedger implements LedgerRepository {
         .reduce((sum, e) => sum + e.amount, 0),
     }));
   }
+  // HD-23's reads are exercised in partner-bill.service.spec.ts with their own stub.
+  async depotsWithCommission(): Promise<string[]> {
+    return [];
+  }
+  async commissionBasis() {
+    return [];
+  }
   async findBySourceRef(sourceRef: string): Promise<LedgerEntryRecord | null> {
     return this.refs.get(sourceRef) ?? null;
   }

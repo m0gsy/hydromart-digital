@@ -53,6 +53,10 @@ export const STAFF_EMAIL_TEMPLATES: Partial<Record<NotificationEvent, StaffEmail
     subject: 'Tindak lanjut kunjungan terlambat di {{depot}}',
     body: 'Tindak lanjut kunjungan di {{depot}} terlambat: {{items}}. Buka tautan di bawah untuk menyelesaikannya.',
   },
+  [NotificationEvent.PARTNER_BILL]: {
+    subject: 'Tagihan royalti {{month}} untuk {{entity}}',
+    body: 'Tagihan royalti {{month}} untuk {{entity}}: {{total}}. Transfer ke {{bank}} {{number}} a.n. {{holder}}. Buka tautan di bawah untuk melihat rinciannya.',
+  },
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: {
     subject: 'Lamaran waralaba baru: calon mitra di {{city}}, {{province}}',
     body: 'Lamaran waralaba baru dari calon mitra di {{city}}, {{province}}. Buka tautan di bawah untuk meninjaunya.',
