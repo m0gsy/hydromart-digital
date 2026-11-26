@@ -944,6 +944,9 @@ export type NotificationEvent =
   | 'UNPAID_ORDER'
   // HD-15: depot equipment due for service by days or water volume, one row per recipient.
   | 'MAINTENANCE_DUE'
+  // HD-14: a depot permit near expiry / a lab test overdue.
+  | 'PERMIT_DUE'
+  | 'LAB_TEST_DUE'
   | 'VISIT_FINDING'
   | 'FOLLOW_UP_OVERDUE'
   | 'VOUCHER_EXPIRING'
@@ -999,6 +1002,8 @@ export const OPS_EVENTS = [
   'MORNING_SUMMARY',
   'AI_ACCESS_REQUESTED',
   'MAINTENANCE_DUE',
+  'PERMIT_DUE',
+  'LAB_TEST_DUE',
   'VISIT_FINDING',
   'FOLLOW_UP_OVERDUE',
   'COURIER_DELIVERY_ASSIGNED',
@@ -3696,4 +3701,35 @@ export interface RatingByDepotReport {
   from: string | null;
   to: string | null;
   items: { depotId: string; rating: number; reviewCount: number }[];
+}
+
+/** HD-14: a depot's quality hold (the note is staff text, shown to staff only). */
+export interface QualityHold {
+  id: string;
+  depotId: string;
+  status: 'ACTIVE' | 'ENDED';
+  reasonCode: 'LAB_FAIL' | 'PERMIT' | 'COMPLAINT' | 'OTHER';
+  note: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  endRetestId: string | null;
+}
+
+export interface DepotLabTest {
+  id: string;
+  depotId: string;
+  kind: 'FISIK_MIKRO' | 'KIMIA' | 'ECOLI' | 'LENGKAP';
+  takenOn: string;
+  resultOn: string;
+  result: 'PASS' | 'FAIL';
+  labName: string;
+  reportNo: string;
+}
+
+export interface DepotPermit {
+  id: string;
+  depotId: string;
+  kind: string;
+  number: string;
+  validUntil: string;
 }

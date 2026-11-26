@@ -378,6 +378,11 @@ export class MaintenanceDueResultDto {
   whatsapp!: 'pending';
 }
 
+/** HD-14: n8n's trigger for the permit and lab-test sweep: the same body as the maintenance one. */
+export class ComplianceDueDto extends MaintenanceDueDto {}
+
+export class ComplianceDueResultDto extends MaintenanceDueResultDto {}
+
 /** HD-15B: depot-service tells crm about one visit's findings, or one depot's overdue follow-ups. */
 export class VisitNoticeDto {
   @ApiProperty({ enum: ['FINDING', 'OVERDUE'] })

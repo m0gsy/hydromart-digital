@@ -38,6 +38,8 @@ export const notifications = {
     FRANCHISE_APPLICATION_SUBMITTED: 'New franchise application',
     MORNING_SUMMARY: 'Approvals waiting for you',
     MAINTENANCE_DUE: 'Equipment maintenance due',
+    PERMIT_DUE: 'Depot permit due',
+    LAB_TEST_DUE: 'Lab test due',
     VISIT_FINDING: 'Supervisor visit findings',
     FOLLOW_UP_OVERDUE: 'Visit follow-up overdue',
     AI_ACCESS_REQUESTED: 'AI web access request',

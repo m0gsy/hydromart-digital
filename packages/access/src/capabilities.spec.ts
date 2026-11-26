@@ -271,6 +271,18 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('maintenanceDueNotify');
   });
 
+  // HD-14: starting a hold is quick and urgent (Kepala may), ending is risky (head office only).
+  it('lets Kepala start a quality hold but only head office end it', () => {
+    expect(can('depotQualityHoldStart', 'KEPALA_DEPOT')).toBe(true);
+    expect(can('depotQualityHoldEnd', 'KEPALA_DEPOT')).toBe(false);
+    expect(can('depotQualityHoldEnd', 'HEAD_OFFICE')).toBe(true);
+    expect(can('depotCompliance', 'KEPALA_DEPOT')).toBe(true);
+    expect(can('depotQualityHoldStart', 'MANAGER')).toBe(false);
+    expect(CAPABILITIES.complianceDueNotify).toEqual(['SUPER_ADMIN']);
+    expect(can('complianceDueNotify', 'HEAD_OFFICE')).toBe(false);
+    expect(CUSTOM_FORBIDDEN).toContain('complianceDueNotify');
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);

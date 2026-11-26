@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../../prisma/generated/client';
 import type { DepotOwnerShare } from '../../domain/depot-owners';
 import { OwnershipType } from '../../domain/inventory';
+import { holdFlag } from '../../domain/quality-hold';
 import type { ServiceArea } from '../../domain/service-area';
 import {
   CreateDepotData,
@@ -39,6 +40,8 @@ interface DepotRow {
   holidays: unknown;
   serviceArea?: unknown;
   owners?: { ownerId: string; sharePct: { toNumber(): number }; isPrimary: boolean }[];
+  /** HD-14: the ACTIVE hold's start, when the row was read with WITH_OWNERS. */
+  qualityHolds?: { startedAt: Date }[];
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -50,6 +53,8 @@ const WITH_OWNERS = {
     where: { effectiveTo: null },
     orderBy: [{ isPrimary: 'desc' as const }, { ownerId: 'asc' as const }],
   },
+  // HD-14: read with the depot, fresh on every call, so the hold flag is never staler than the row.
+  qualityHolds: { where: { status: 'ACTIVE' as const }, select: { startedAt: true }, take: 1 },
 };
 
 function ownerRows(owners: readonly DepotOwnerShare[], depotId: string, now: Date, by?: string) {
@@ -68,9 +73,10 @@ export class DepotPrismaRepository implements DepotRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   private toRecord(row: DepotRow): DepotRecord {
-    const { owners, ...rest } = row;
+    const { owners, qualityHolds, ...rest } = row;
     return {
       ...rest,
+      qualityHold: holdFlag(qualityHolds?.[0]?.startedAt),
       ...(owners
         ? {
             owners: owners.map((o) => ({

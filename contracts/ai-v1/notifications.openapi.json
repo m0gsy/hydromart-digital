@@ -582,6 +582,120 @@
           }
         }
       }
+    },
+    "/crm/api/v1/notifications/external/compliance-due": {
+      "post": {
+        "summary": "Tell who must know that a depot permit or lab test is due.",
+        "description": "Called by n8n once a day (recommended 07:30 WIB) to run the permit and lab-test sweep. The token's scopes must include complianceDueNotify. n8n only says 'now' and sends today's WIB date; what is due, who is told and the words are hydromart-digital's.\n\nWhat is due: a permit (e.g. SLHS) from 30 days before its valid-until day, and after it expires (a renewed permit of the same kind replaces the old one); a required lab test when the days since the last test of its kind pass its interval (physical and microbiology 30 days, E. coli 90 days, chemistry 180 days; a full-panel test counts for all three; a depot never tested counts from the day it was added). The intervals are code constants until Dinkes answers.\n\nWho is told, channels, de-duplication (first day found due, then every 3 days while it stays due) and the whatsapp 'pending' rule are the same as maintenance-due. Permit and lab-test reminders are separate notifications (kinds PERMIT_DUE and LAB_TEST_DUE) under the same profile switch as maintenance. They are never held back by a quality hold: they are how one ends.",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "The n8n workflow making the call, recorded in the audit trail as workflow (trimmed, at most 120 characters). Not checked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "hd15-maintenance-due"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplianceDueTrigger"
+              },
+              "example": {
+                "date": "2026-11-26"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The sweep ran: everyone due to be told has the notice, or nothing was due, or every due item was told about less than 3 days ago.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplianceDueResult"
+                },
+                "example": {
+                  "date": "2026-11-26",
+                  "depots": 2,
+                  "items": 3,
+                  "notified": 12,
+                  "remindLater": 1,
+                  "whatsapp": "pending"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: date missing or malformed, an unknown field, or a date that is not today in Asia/Jakarta. Not worth retrying with the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI and machine access was switched off (the published key set is empty): POST /auth/api/v1/auth/machine/token then answers 503. Get a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include maintenanceDueNotify. Not worth retrying until the machine account's scopes change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this machine account. Wait the seconds in Retry-After, then retry with the same body.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call (nothing was sent), or the due items, the meter volume, the recipients or the earlier notices could not be read, or a recipient could not be filed. An outage never answers as \"nothing due\". Retry the same body the same WIB day: rows already filed stay, and nobody is told twice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -894,6 +1008,60 @@
         }
       },
       "MaintenanceDueResult": {
+        "type": "object",
+        "required": [
+          "date",
+          "depots",
+          "items",
+          "notified",
+          "remindLater",
+          "whatsapp"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "The WIB date of the sweep."
+          },
+          "depots": {
+            "type": "integer",
+            "description": "Depots with at least one item due or overdue."
+          },
+          "items": {
+            "type": "integer",
+            "description": "Items due or overdue, by days or by volume."
+          },
+          "notified": {
+            "type": "integer",
+            "description": "Notifications filed by this call (digests: one per recipient and depot, one per HQ account). What a retry already filed is not filed or counted again."
+          },
+          "remindLater": {
+            "type": "integer",
+            "description": "Of the items, how many nobody needed telling about this run (everyone was told less than 3 days ago)."
+          },
+          "whatsapp": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ],
+            "description": "WhatsApp waits for the Meta channel; it is never reported as sent."
+          }
+        }
+      },
+      "ComplianceDueTrigger": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "The WIB date of the sweep: today, in Asia/Jakarta."
+          }
+        }
+      },
+      "ComplianceDueResult": {
         "type": "object",
         "required": [
           "date",

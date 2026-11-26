@@ -622,6 +622,18 @@ export const CAPABILITIES = {
    */
   maintenanceDueNotify: ['SUPER_ADMIN'],
   /*
+   * depot-service (HD-14) - quality hold: a depot stops selling (online, counter, campaigns,
+   * promos) until a PASS lab test is recorded and head office ends it. START: the depot's Kepala
+   * (own depot, fenced by the DepotScopeGuard), HQ Operasional or the owner account. END is the
+   * riskier act, so head office only. `depotCompliance` records the lab tests and permits the
+   * end rests on. `complianceDueNotify` is the n8n machine account's daily permit/lab sweep
+   * (POST notifications/external/compliance-due), same reasoning as maintenanceDueNotify.
+   */
+  depotQualityHoldStart: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  depotQualityHoldEnd: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+  depotCompliance: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  complianceDueNotify: ['SUPER_ADMIN'],
+  /*
    * depot-service (HD-15B) - write the checklist templates a supervisor visit starts from. Head
    * office and directors only; the network has one template list. Not in CUSTOM_FORBIDDEN: an
    * ordinary capability with no depot fence.
@@ -1151,6 +1163,8 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'customerReminderNotify',
   // HD-15: the n8n machine account's, same reasoning.
   'maintenanceDueNotify',
+  // HD-14: the n8n machine account's permit/lab-test sweep, same reasoning.
+  'complianceDueNotify',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

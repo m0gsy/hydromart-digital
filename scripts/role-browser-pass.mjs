@@ -137,7 +137,7 @@ const OPS = R(`
 /dashboard/monthly-review /dashboard/notifications /dashboard/onboarding
 /dashboard/operator-settings /dashboard/orders /dashboard/payment-recon
 /dashboard/payments /dashboard/payout /dashboard/pricing /dashboard/pricing/import
-/dashboard/products/manage /dashboard/profile /dashboard/promo-rules /dashboard/promotions
+/dashboard/products/manage /dashboard/profile /dashboard/promo-rules /dashboard/promotions /dashboard/quality
 /dashboard/purchase-orders /dashboard/purchase-orders/detail
 /dashboard/ratings /dashboard/recommendations /dashboard/redemptions /dashboard/referral
 /dashboard/reports /dashboard/resellers/import /dashboard/returns /dashboard/roles
