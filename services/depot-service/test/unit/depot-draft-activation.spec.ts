@@ -373,6 +373,17 @@ describe('audit of the legacy export and of a refused activation', () => {
     expect(JSON.stringify(sent[0])).not.toMatch(/Calon Contoh|\+62812/);
   });
 
+  it('fails closed: when the read cannot be recorded the export answers 503 and returns no data', async () => {
+    global.fetch = jest.fn(async () => ({ ok: false, status: 503 }) as never) as never;
+    const { AiCrmController } = await import('../../src/modules/ai-draft.controller');
+    const applications = { openForCrm: jest.fn(async () => ({ applications: [{ id: 'a' }], truncated: false })) };
+    const controller = new AiCrmController({} as never, applications as never, config as never);
+    await expect(controller.legacyApplications({ sub: HQ } as never)).rejects.toMatchObject({ status: 503 });
+    // Not configured at all is the same refusal.
+    const bare = new AiCrmController({} as never, applications as never, { authServiceUrl: '', internalServiceKey: '' } as never);
+    await expect(bare.legacyApplications({ sub: HQ } as never)).rejects.toMatchObject({ status: 503 });
+  });
+
   it('records a refused activation (4xx) with its code only, then rethrows; a 5xx is not recorded', async () => {
     const { DepotDraftController } = await import('../../src/modules/depot-draft.controller');
     const { DepotDraftNotOpenError } = await import('../../src/domain/errors');

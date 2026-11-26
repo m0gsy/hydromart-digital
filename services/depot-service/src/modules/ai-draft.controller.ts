@@ -15,6 +15,7 @@ import {
   ParseUUIDPipe,
   Post,
   Res,
+  ServiceUnavailableException,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -29,7 +30,7 @@ import {
   CurrentUser,
   ExternalAccess,
   isDepotLocked,
-  recordAuditEvent,
+  recordAuditEventOrThrow,
 } from '@hydromart/platform';
 
 import { DepotDraftService, DepotDraftStatusView } from '../application/services/depot-draft.service';
@@ -253,17 +254,22 @@ export class AiCrmController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<{ applications: LegacyApplicationView[]; truncated: boolean }> {
     const result = await this.applications.openForCrm();
+    // Fail CLOSED: personal data leaves only when the read is on record. Order: read, record, return.
     // One event per call: who read the export and how much, never what (no name, no phone).
-    await recordAuditEvent(
-      { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey },
-      {
-        action: 'ai.crm.legacy-applications.read',
-        actorId: user.sub,
-        target: 'franchise_applications',
-        metadata: { via: 'ai', count: result.applications.length, truncated: result.truncated },
-      },
-      this.logger,
-    );
+    try {
+      await recordAuditEventOrThrow(
+        { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey },
+        {
+          action: 'ai.crm.legacy-applications.read',
+          actorId: user.sub,
+          target: 'franchise_applications',
+          metadata: { via: 'ai', count: result.applications.length, truncated: result.truncated },
+        },
+      );
+    } catch (e) {
+      this.logger.error(`Legacy export refused: the read could not be recorded (${(e as Error).message})`);
+      throw new ServiceUnavailableException('Jejak audit tidak bisa ditulis; data tidak dikirim. Coba lagi.');
+    }
     return result;
   }
 }

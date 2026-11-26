@@ -104,6 +104,7 @@ class ProposalStore {
 }
 
 const ENTITY = '00000000-0000-4000-8000-000000000001';
+let auditIngestUp = true;
 
 /** Two open /waralaba applications, the way the repository reads them (oldest first). */
 const legacyRows = [
@@ -222,13 +223,15 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
     process.env.DEPOT_DATABASE_URL = 'postgresql://u:p@localhost:5432/db?schema=public';
     process.env.JWT_ACCESS_SECRET = SECRET;
     resetExternalKeyStores();
-    jest
-      .spyOn(global, 'fetch')
-      .mockImplementation(async (url) =>
-        String(url) === `${AUTH_URL}/api/v1/auth/jwks`
-          ? ({ ok: true, json: async () => ({ keys: [JWK] }) } as unknown as Response)
-          : ({ ok: false, status: 404, json: async () => ({}) } as unknown as Response),
-      );
+    jest.spyOn(global, 'fetch').mockImplementation(async (url) => {
+      const u = String(url);
+      if (u === `${AUTH_URL}/api/v1/auth/jwks`) return { ok: true, json: async () => ({ keys: [JWK] }) } as unknown as Response;
+      // The audit ingest of auth-service: answers ok, unless a test switches it off.
+      if (u === `${AUTH_URL}/api/v1/auth/audit/internal`) {
+        return (auditIngestUp ? { ok: true, status: 201 } : { ok: false, status: 503 }) as unknown as Response;
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as unknown as Response;
+    });
     proposals = new ProposalStore();
     orders = new InMemoryPurchaseOrderRepository();
     crmDrafts = new DraftStore();
@@ -247,6 +250,7 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
               DEPOT_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
               JWT_ACCESS_SECRET: SECRET,
               AUTH_SERVICE_URL: AUTH_URL,
+              INTERNAL_SERVICE_KEY: 'internal-key-for-the-e2e-0123456789',
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
               RATE_LIMIT_MAX: 100,
@@ -506,6 +510,7 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       crmDrafts.rows.length = 0;
     });
     afterEach(() => {
+      auditIngestUp = true;
       loadOverrides({});
       loadCustomRoles([]);
       loadDepotOverrides([]);
@@ -538,6 +543,12 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       expect(res.body.applications[0]).toMatchObject({ stage: 'PENDING', applicantPhoneE164: '+6281200000001', investmentAmountIdr: 100_000_000 });
       expect(res.body.applications[1]).toMatchObject({ stage: 'SURVEY', applicantPhoneE164: null });
       expect(JSON.stringify(res.body)).not.toMatch(/"lat"|"lng"|checklist/);
+      // Fail closed: when the read cannot be recorded, no application leaves.
+      auditIngestUp = false;
+      const refused = await get(LEGACY, aiToken('SUPER_ADMIN', null)).expect(503);
+      expect(refused.body).not.toHaveProperty("applications");
+      expect(JSON.stringify(refused.body)).not.toMatch(/Calon Contoh|applicantName/);
+      auditIngestUp = true;
       await get(LEGACY, crm()).expect(403);
       await get(LEGACY, aiToken('HEAD_OFFICE', null)).expect(403);
       await get(LEGACY, staff(Role.SUPER_ADMIN)).expect(403);
