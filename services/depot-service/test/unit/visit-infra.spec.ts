@@ -441,7 +441,10 @@ describe('VisitNotifierHttpAdapter', () => {
 
   it('posts to crm with the internal key and says true on 2xx', async () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: true }) as never;
+    const timer = jest.spyOn(global, 'setTimeout');
     await expect(adapter().notify(notice)).resolves.toBe(true);
+    expect(timer.mock.calls.some((c) => c[1] === 30_000)).toBe(true); // crm files every recipient before answering
+    timer.mockRestore();
     const [url, init] = (global.fetch as jest.Mock).mock.calls[0];
     expect(url).toBe('http://crm/api/v1/notifications/internal/visit-notice');
     expect(init.headers['x-internal-key']).toBe('k');
@@ -465,18 +468,22 @@ describe('VisitPrismaRepository overdue reminders', () => {
   const repo = new VisitPrismaRepository({ visit: {}, visitItem } as never);
   beforeEach(() => jest.resetAllMocks());
 
-  it('reads overdue open follow-ups not reminded since the cutoff, oldest deadline first, with the depot name', async () => {
+  it('reads depots first, then at most perDepot follow-ups of each (oldest deadline first), so no depot starves another', async () => {
     const cutoff = new Date('2026-11-24T10:00:00.000Z');
-    visitItem.findMany.mockResolvedValue([
-      { id: 'i1', depotId: 'd1', text: 'Filter', findingNote: 'Kotor', visit: { depot: { name: 'Depot A' } } },
-    ]);
-    await expect(repo.overdueToRemind('2026-11-28', cutoff, 500)).resolves.toEqual([
+    const visitItemGroup = visitItem as unknown as { groupBy: jest.Mock };
+    visitItemGroup.groupBy = jest.fn().mockResolvedValue([{ depotId: 'd1' }, { depotId: 'd2' }]);
+    visitItem.findMany
+      .mockResolvedValueOnce([{ id: 'i1', depotId: 'd1', text: 'Filter', findingNote: 'Kotor', visit: { depot: { name: 'Depot A' } } }])
+      .mockResolvedValueOnce([{ id: 'i2', depotId: 'd2', text: 'Lantai', findingNote: null, visit: { depot: { name: 'Depot B' } } }]);
+    await expect(repo.overdueToRemind('2026-11-28', cutoff, 30, 500)).resolves.toEqual([
       { id: 'i1', depotId: 'd1', depotName: 'Depot A', text: 'Filter', findingNote: 'Kotor' },
+      { id: 'i2', depotId: 'd2', depotName: 'Depot B', text: 'Lantai', findingNote: null },
     ]);
-    const args = visitItem.findMany.mock.calls[0][0];
-    expect(args.where.followUpDueOn).toEqual({ lt: new Date('2026-11-28T00:00:00.000Z') });
-    expect(args.where.OR).toEqual([{ lastOverdueNoticeAt: null }, { lastOverdueNoticeAt: { lt: cutoff } }]);
-    expect(args.take).toBe(500);
+    const g = visitItemGroup.groupBy.mock.calls[0][0];
+    expect(g.take).toBe(500);
+    expect(g.where.followUpDueOn).toEqual({ lt: new Date('2026-11-28T00:00:00.000Z') });
+    expect(g.where.OR).toEqual([{ lastOverdueNoticeAt: null }, { lastOverdueNoticeAt: { lt: cutoff } }]);
+    expect(visitItem.findMany.mock.calls.map((c) => [c[0].where.depotId, c[0].take])).toEqual([['d1', 30], ['d2', 30]]);
   });
 
   it('stamps the reminded follow-ups, and does nothing for none', async () => {

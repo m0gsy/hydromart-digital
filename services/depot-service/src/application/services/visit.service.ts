@@ -52,6 +52,11 @@ import {
 import { VisitTemplateRepository } from '../ports/visit-template.repository';
 import { DEPOT_TOKENS } from '../tokens';
 
+/** The depot name a notice carries: crm refuses an empty one or one over 120 characters, so clamp and fall back to the id. */
+function noticeName(name: string | null | undefined, depotId: string): string {
+  return (name?.trim() || depotId).slice(0, 120);
+}
+
 /** One checklist line as a notice names it: the line, then what was found (200 characters at most). */
 function lineOf(text: string, note: string | null): string {
   return (note ? `${text}: ${note}` : text).slice(0, 200);
@@ -63,7 +68,7 @@ const PAGE_MAX = 100;
 const OVERVIEW_MAX_DEPOTS = 200;
 /** Lines in one notice (crm's cap), and overdue follow-ups read per sweep (the rest wait for tomorrow). */
 const NOTICE_LINES = 30;
-const SWEEP_READ_MAX = 500;
+const SWEEP_READ_MAX = 500; // depots per sweep
 /**
  * A depot is reminded again every 3 days. An hour short of 72, so the daily 07:30 run is never a
  * day late because last time's stamp landed a few seconds after today's threshold.
@@ -343,7 +348,7 @@ export class VisitService {
         this.notifier.notify({
           kind: 'FINDING',
           depotId: visit.depotId,
-          depotName: depot?.name ?? 'depot',
+          depotName: noticeName(depot?.name, visit.depotId),
           visitId: visit.id,
           dateKey: localDayKey(visit.completedAt ?? new Date()),
           items: items.slice(0, NOTICE_LINES),
@@ -445,7 +450,7 @@ export class VisitService {
    * The overdue follow-ups, counted; and, when VISIT_NOTIFY_ENABLED, one notice per depot for the ones
    * nobody was reminded of in the last 3 days. A follow-up is stamped only once crm took the notice, so
    * a failed call is retried by tomorrow's run. At most NOTICE_LINES per depot per run (the rest go
-   * out the next day) and SWEEP_READ_MAX read per run.
+   * out the next day) and SWEEP_READ_MAX depots per run. One depot failing never stops the next.
    */
   async overdueSweep(now: Date = new Date()): Promise<{ depots: number; items: number; notified: number }> {
     const todayKey = localDayKey(now);
@@ -454,6 +459,7 @@ export class VisitService {
     const due = await this.visits.overdueToRemind(
       todayKey,
       new Date(now.getTime() - REMIND_AFTER_MS),
+      NOTICE_LINES,
       SWEEP_READ_MAX,
     );
     const byDepot = new Map<string, typeof due>();
@@ -461,16 +467,20 @@ export class VisitService {
     let notified = 0;
     for (const [depotId, found] of byDepot) {
       const sent = found.slice(0, NOTICE_LINES);
-      const ok = await this.notifier.notify({
-        kind: 'OVERDUE',
-        depotId,
-        depotName: sent[0].depotName,
-        dateKey: todayKey,
-        items: sent.map((f) => lineOf(f.text, f.findingNote)),
-      });
-      if (!ok) continue;
-      await this.visits.stampOverdueNotice(sent.map((f) => f.id), now);
-      notified += 1;
+      try {
+        const ok = await this.notifier.notify({
+          kind: 'OVERDUE',
+          depotId,
+          depotName: noticeName(sent[0].depotName, depotId),
+          dateKey: todayKey,
+          items: sent.map((f) => lineOf(f.text, f.findingNote)),
+        });
+        if (!ok) continue;
+        await this.visits.stampOverdueNotice(sent.map((f) => f.id), now);
+        notified += 1;
+      } catch (e) {
+        this.logger.warn(`Overdue notice for depot ${depotId} failed: ${(e as Error).message}`);
+      }
     }
     return { ...counts, notified };
   }

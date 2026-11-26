@@ -279,30 +279,43 @@ export class VisitPrismaRepository implements VisitRepository {
     return this.findItem(itemId);
   }
 
-  async overdueToRemind(todayKey: string, remindedBefore: Date, limit: number): Promise<OverdueFollowUp[]> {
-    const rows = await this.prisma.visitItem.findMany({
-      where: {
-        ...OPEN_FINDING,
-        followUpDueOn: { lt: dateOfDayKey(todayKey) },
-        OR: [{ lastOverdueNoticeAt: null }, { lastOverdueNoticeAt: { lt: remindedBefore } }],
-      },
-      orderBy: [{ followUpDueOn: 'asc' }, { id: 'asc' }],
-      take: limit,
-      select: {
-        id: true,
-        depotId: true,
-        text: true,
-        findingNote: true,
-        visit: { select: { depot: { select: { name: true } } } },
-      },
+  /** At most `perDepot` follow-ups for each of at most `maxDepots` depots, so one busy depot never starves another. */
+  async overdueToRemind(
+    todayKey: string,
+    remindedBefore: Date,
+    perDepot: number,
+    maxDepots: number,
+  ): Promise<OverdueFollowUp[]> {
+    const where = {
+      ...OPEN_FINDING,
+      followUpDueOn: { lt: dateOfDayKey(todayKey) },
+      OR: [{ lastOverdueNoticeAt: null }, { lastOverdueNoticeAt: { lt: remindedBefore } }],
+    };
+    const depots = await this.prisma.visitItem.groupBy({
+      by: ['depotId'],
+      where,
+      orderBy: { depotId: 'asc' },
+      take: maxDepots,
     });
-    return rows.map((r) => ({
-      id: r.id,
-      depotId: r.depotId,
-      depotName: r.visit.depot.name,
-      text: r.text,
-      findingNote: r.findingNote,
-    }));
+    const out: OverdueFollowUp[] = [];
+    for (const { depotId } of depots) {
+      const rows = await this.prisma.visitItem.findMany({
+        where: { ...where, depotId },
+        orderBy: [{ followUpDueOn: 'asc' }, { id: 'asc' }],
+        take: perDepot,
+        select: {
+          id: true,
+          depotId: true,
+          text: true,
+          findingNote: true,
+          visit: { select: { depot: { select: { name: true } } } },
+        },
+      });
+      for (const r of rows) {
+        out.push({ id: r.id, depotId: r.depotId, depotName: r.visit.depot.name, text: r.text, findingNote: r.findingNote });
+      }
+    }
+    return out;
   }
 
   async stampOverdueNotice(ids: string[], now: Date): Promise<void> {

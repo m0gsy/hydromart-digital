@@ -170,6 +170,15 @@ describe('AdminNotificationPrefService', () => {
       expect(PUSH_TOGGLE_IDS).toEqual([...DEPOT_EVENT_IDS, 'newFranchiseApp', 'morningSummary', 'aiAccessRequest']);
     });
 
+    // HD-15B: an HQ account (ALL scope) with no saved row resolves the depot-list toggle by its default (push + email on); a saved off wins.
+    it('resolves visitFinding for HQ accounts too, from the depot defaults', async () => {
+      expect(await service.pushDisabledFor(['hq-1'], 'visitFinding')).toEqual([]);
+      expect(await service.emailOnFor(['hq-1'], 'visitFinding')).toEqual(['hq-1']);
+      await service.save('hq-1', [{ id: 'visitFinding', push: false, email: false, wa: false }], 'ALL');
+      expect(await service.pushDisabledFor(['hq-1'], 'visitFinding')).toEqual(['hq-1']);
+      expect(await service.emailOnFor(['hq-1'], 'visitFinding')).toEqual([]);
+    });
+
     // HD-15: the depot heads get the maintenance reminder, so their own screen must save its switch.
     it('lets a depot account save the maintenance-due switch, push and email, on by default', async () => {
       expect((await service.get('acc-1', 'DEPOT')).channels.find((c) => c.id === 'maintenanceDue')).toEqual({

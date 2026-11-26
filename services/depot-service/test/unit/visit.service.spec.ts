@@ -603,7 +603,7 @@ describe('VisitService', () => {
         depots.findById.mockResolvedValue(null); // a vanished depot is still named
         await svc.complete(V, supervisor(), NOON);
         await flush();
-        expect(notifier.notify.mock.calls[0][0].depotName).toBe('depot');
+        expect(notifier.notify.mock.calls[0][0].depotName).toBe(DEPOT); // no name: the id
       });
     });
 
@@ -731,6 +731,7 @@ describe('VisitService', () => {
         expect(repo.overdueToRemind).toHaveBeenCalledWith(
           '2026-11-28',
           new Date(AFTER_MIDNIGHT.getTime() - 71 * 3_600_000),
+          30,
           500,
         );
         expect(notifier.notify).toHaveBeenNthCalledWith(1, {
@@ -743,6 +744,22 @@ describe('VisitService', () => {
         // Depot B's notice failed (crm down): not stamped, tomorrow retries it.
         expect(repo.stampOverdueNotice).toHaveBeenCalledTimes(1);
         expect(repo.stampOverdueNotice).toHaveBeenCalledWith(['i1', 'i2'], AFTER_MIDNIGHT);
+      });
+
+      it('goes on with the next depot when one depot fails to stamp or notify, and clamps its name to 120', async () => {
+        repo.overdueCounts.mockResolvedValue({ depots: 3, items: 3 });
+        repo.overdueToRemind.mockResolvedValue([
+          { ...due('i1', DEPOT), depotName: 'N'.repeat(300) },
+          due('i2', DEPOT2),
+          { ...due('i3', 'd3'), depotName: '  ' },
+        ]);
+        repo.stampOverdueNotice.mockRejectedValueOnce(new Error('db')).mockResolvedValue(undefined);
+        notifier.notify.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce(true);
+        await expect(svc.overdueSweep(NOON)).resolves.toMatchObject({ notified: 1 });
+        expect(notifier.notify).toHaveBeenCalledTimes(3);
+        expect(notifier.notify.mock.calls[0][0].depotName).toHaveLength(120);
+        expect(notifier.notify.mock.calls[2][0].depotName).toBe('d3'); // blank name: the id
+        expect(repo.stampOverdueNotice).toHaveBeenCalledTimes(2);
       });
 
       it('sends nothing when nothing is overdue, and caps a notice at 30 lines (the rest wait a day)', async () => {

@@ -9,7 +9,7 @@ import { VisitNotice, VisitNotifierPort } from '../../application/ports/visit-no
  */
 @Injectable()
 export class VisitNotifierHttpAdapter implements VisitNotifierPort {
-  private static readonly TIMEOUT_MS = 5000;
+  private static readonly TIMEOUT_MS = 30_000; // crm files every recipient before it answers
   private readonly logger = new Logger(VisitNotifierHttpAdapter.name);
 
   constructor(private readonly config: DepotConfigService) {}

@@ -98,7 +98,12 @@ export interface VisitRepository {
   /** Open follow-ups past their WIB deadline, in total and per depot (the sweep, PR-6 notifies). */
   overdueCounts(todayKey: string): Promise<{ depots: number; items: number }>;
   /** Overdue open follow-ups nobody was reminded of since `remindedBefore`, oldest deadline first, per depot name. */
-  overdueToRemind(todayKey: string, remindedBefore: Date, limit: number): Promise<OverdueFollowUp[]>;
+  overdueToRemind(
+    todayKey: string,
+    remindedBefore: Date,
+    perDepot: number,
+    maxDepots: number,
+  ): Promise<OverdueFollowUp[]>;
   /** Stamps the follow-ups a reminder went out for. */
   stampOverdueNotice(ids: string[], now: Date): Promise<void>;
 }
