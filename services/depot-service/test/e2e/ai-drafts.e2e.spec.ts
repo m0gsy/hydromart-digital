@@ -105,13 +105,21 @@ class ProposalStore {
 
 const ENTITY = '00000000-0000-4000-8000-000000000001';
 
+/** Two open /waralaba applications, the way the repository reads them (oldest first). */
+const legacyRows = [
+  { id: '00000000-0000-4000-8000-0000000000f1', applicantName: 'Calon Contoh Satu', applicantPhone: '081200000001', proposedName: 'Depot Satu', city: 'Bekasi', province: 'Jawa Barat', investmentAmount: 100_000_000, stage: 'PENDING', firstSource: null, privacyConsentVersion: '2026-11-24', submittedAt: new Date('2026-11-01T03:00:00Z'), lat: -6.2, lng: 107 },
+  { id: '00000000-0000-4000-8000-0000000000f2', applicantName: 'Calon Contoh Dua', applicantPhone: 'bukan nomor', proposedName: 'Depot Dua', city: 'Depok', province: 'Jawa Barat', investmentAmount: 200_000_000, stage: 'SURVEY', firstSource: 'ig', privacyConsentVersion: null, submittedAt: new Date('2026-11-05T03:00:00Z'), lat: -6.3, lng: 106.8 },
+];
+
 /** Just the depot-draft store the CRM routes touch: one row per prospect. */
 class DraftStore {
   rows: DepotDraftRecord[] = [];
   depots: InMemoryDepotRepository | null = null;
   async list({ page, limit }: { page: number; limit: number }) {
     const order = { DRAFT: 0, ACTIVATED: 1, REJECTED: 2 } as Record<string, number>;
-    const items = [...this.rows].sort((a, b) => order[a.status]! - order[b.status]! || b.createdAt.getTime() - a.createdAt.getTime());
+    const items = [...this.rows].sort(
+      (a, b) => (a.status === 'DRAFT' ? 0 : 1) - (b.status === 'DRAFT' ? 0 : 1) || (a.status === 'DRAFT' ? 1 : -1) * (a.createdAt.getTime() - b.createdAt.getTime()) || order[a.status]! - order[b.status]!,
+    );
     return { items: items.slice((page - 1) * limit, page * limit), total: items.length };
   }
   async findById(id: string) {
@@ -120,7 +128,7 @@ class DraftStore {
   async reject(id: string, note: string, by: string, at: Date) {
     const row = this.rows.find((r) => r.id === id);
     if (!row || row.status !== 'DRAFT') return null;
-    Object.assign(row, { status: 'REJECTED', decisionNote: note, decidedBy: by, decidedAt: at, ownerFullName: null, ownerPhoneE164: null });
+    Object.assign(row, { status: 'REJECTED', decisionNote: note, decidedBy: by, decidedAt: at, ownerFullName: null, ownerPhoneE164: null, requestHash: null });
     return row;
   }
   async activate(id: string, data: Record<string, unknown>, by: string, at: Date) {
@@ -260,6 +268,8 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       .useValue(orders)
       .overrideProvider(DEPOT_TOKENS.DepotDraftRepository)
       .useValue(crmDrafts)
+      .overrideProvider(DEPOT_TOKENS.FranchiseApplicationRepository)
+      .useValue({ listOpen: async () => legacyRows })
       .overrideProvider(DEPOT_TOKENS.LegalEntityRepository)
       .useValue(legalEntities)
       .overrideProvider(DEPOT_TOKENS.SupplierRepository)
@@ -520,6 +530,25 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       expect(status.body).toMatchObject({ draftId: first.body.draftId, status: 'DRAFT', depotId: null, depotCode: null });
     });
 
+    it('legacy applications: needs prospectSettings (SUPER_ADMIN or a granted custom role), read only, contract fields', async () => {
+      const LEGACY = '/api/v1/ai/crm/legacy-applications';
+      const res = await get(LEGACY, aiToken('SUPER_ADMIN', null)).expect(200);
+      expect(res.body.applications).toHaveLength(2);
+      expect(res.body.applications[0]).toMatchObject({ stage: 'PENDING', applicantPhoneE164: '+6281200000001', investmentAmountIdr: 100_000_000 });
+      expect(res.body.applications[1]).toMatchObject({ stage: 'SURVEY', applicantPhoneE164: null });
+      expect(JSON.stringify(res.body)).not.toMatch(/"lat"|"lng"|checklist/);
+      await get(LEGACY, crm()).expect(403);
+      await get(LEGACY, aiToken('HEAD_OFFICE', null)).expect(403);
+      await get(LEGACY, staff(Role.SUPER_ADMIN)).expect(403);
+      await get(LEGACY, null).expect(401);
+      loadCustomRoles([{ key: 'C_LEAD', name: 'Sales Lead', scope: 'GLOBAL' }]);
+      loadOverrides({ prospectSettings: ['SUPER_ADMIN', 'C_LEAD'] });
+      expect((await get(LEGACY, aiToken('C_LEAD', null)).expect(200)).body.applications).toHaveLength(2);
+      // The AI token has no way to delete or change them: only GET exists on this path.
+      await request(app.getHttpServer()).delete(`${LEGACY}/${legacyRows[0]!.id}`).set('Authorization', `Bearer ${aiToken('SUPER_ADMIN', null)}`).expect(404);
+      await request(app.getHttpServer()).post(LEGACY).set('Authorization', `Bearer ${aiToken('SUPER_ADMIN', null)}`).send({}).expect(404);
+    });
+
     it('treats an upper-case prospect id as the same prospect (replay), and the header must equal it', async () => {
       const upper = { ...crmBody(), prospectId: PROSPECT.toUpperCase() };
       const first = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(201);
@@ -531,6 +560,12 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       const mismatch = await post(FROM_CRM, crm(), crmBody(), other).expect(400);
       expect(mismatch.body.message).toContain('prospectId');
       expect(crmDrafts.rows).toHaveLength(1);
+    });
+
+    it('stores both ids in lower case, whatever case the CRM wrote them in', async () => {
+      const legacy = '00000000-0000-4000-8000-0000000000EE';
+      await post(FROM_CRM, crm(), { ...crmBody(), prospectId: PROSPECT.toUpperCase(), legacyApplicationId: legacy }, PROSPECT).expect(201);
+      expect(crmDrafts.rows[0]).toMatchObject({ prospectId: PROSPECT, legacyApplicationId: legacy.toLowerCase() });
     });
 
     it('reopens a REJECTED draft for the new caller and keeps the first createdAt', async () => {
@@ -645,6 +680,11 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
         ownerFullName: 'Budi Santoso',
         ownerPhoneE164: '+6281234567890',
         status: 'DRAFT',
+        requestHash: 'h'.repeat(64),
+        checklist: { ktpNpwp: 'VERIFIED', locationProof: 'VERIFIED', capitalDeposit: 'SUBMITTED', fieldSurvey: 'VERIFIED' },
+        decidedAt: null,
+        suggestionId: randomUUID(),
+        createdBy: randomUUID(),
         decisionNote: null,
         depotId: null,
         createdAt: new Date(),
@@ -652,7 +692,13 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
         ...over,
       }) as unknown as DepotDraftRecord;
     const as = (token: string) => ({ Authorization: `Bearer ${token}` });
-    const createBody = (code: string) => ({ ...depotBody, code, name: 'Depot Dari Calon Mitra', ownershipType: 'HKP' });
+    const createBody = (code: string) => ({
+      ...depotBody,
+      code,
+      name: 'Depot Dari Calon Mitra',
+      ownershipType: 'WARALABA',
+      owners: [{ ownerId: randomUUID(), sharePct: 100, isPrimary: true }],
+    });
 
     beforeEach(() => {
       crmDrafts.rows.length = 0;
@@ -660,17 +706,25 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
 
     it('lets HEAD_OFFICE and DIREKTUR list, read, reject and activate; DRAFT comes first', async () => {
       const a = row({ status: 'REJECTED' });
+      const old = row({ createdAt: new Date(Date.now() - 5 * 86_400_000) });
       const b = row();
-      crmDrafts.rows.push(a, b);
+      crmDrafts.rows.push(a, b, old);
       for (const role of [Role.HEAD_OFFICE, Role.DIREKTUR]) {
         const list = await request(app.getHttpServer()).get(BASE).set(as(staff(role))).expect(200);
-        expect(list.body.items.map((i: { id: string }) => i.id)).toEqual([b.id, a.id]);
+        // Open drafts first and the oldest of them first; the decided one last.
+        expect(list.body.items.map((i: { id: string }) => i.id)).toEqual([old.id, b.id, a.id]);
+        expect(list.body.items[0]).toMatchObject({ proposedName: 'Depot Contoh', status: 'DRAFT', ageDays: 5, checklist: { verified: 3, total: 4 } });
+        // A list item carries nothing personal and nothing internal.
+        expect(Object.keys(list.body.items[0]).sort()).toEqual(['ageDays', 'checklist', 'city', 'createdAt', 'decidedAt', 'id', 'proposedName', 'province', 'status']);
       }
-      await request(app.getHttpServer()).get(`${BASE}/${b.id}`).set(as(staff(Role.DIREKTUR))).expect(200);
+      const one = await request(app.getHttpServer()).get(`${BASE}/${b.id}`).set(as(staff(Role.DIREKTUR))).expect(200);
+      expect(one.body).toMatchObject({ id: b.id, ownerFullName: 'Budi Santoso' });
+      expect(one.body).not.toHaveProperty('requestHash');
       await request(app.getHttpServer()).get(`${BASE}/${randomUUID()}`).set(as(staff(Role.HEAD_OFFICE))).expect(404);
       await request(app.getHttpServer()).post(`${BASE}/${b.id}/reject`).set(as(staff(Role.DIREKTUR))).send({}).expect(400);
       const rejected = await request(app.getHttpServer()).post(`${BASE}/${b.id}/reject`).set(as(staff(Role.DIREKTUR))).send({ note: 'kurang dokumen' }).expect(200);
       expect(rejected.body).toMatchObject({ status: 'REJECTED', decisionNote: 'kurang dokumen', ownerFullName: null, ownerPhoneE164: null });
+      expect(rejected.body).not.toHaveProperty('requestHash');
       await request(app.getHttpServer()).post(`${BASE}/${b.id}/reject`).set(as(staff(Role.DIREKTUR))).send({ note: 'lagi' }).expect(409);
       const c = row();
       crmDrafts.rows.push(c);
@@ -683,7 +737,10 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       crmDrafts.rows.push(d);
       const taken = await request(app.getHttpServer()).post(`${BASE}/${d.id}/activate`).set(as(staff(Role.HEAD_OFFICE))).send(createBody('CRM-01')).expect(409);
       expect(taken.body.code).toBe('DEPOT_CODE_TAKEN');
-      const noOwner = await request(app.getHttpServer()).post(`${BASE}/${d.id}/activate`).set(as(staff(Role.HEAD_OFFICE))).send({ ...createBody('CRM-03'), ownershipType: 'WARALABA' });
+      const hkp = await request(app.getHttpServer()).post(`${BASE}/${d.id}/activate`).set(as(staff(Role.HEAD_OFFICE))).send({ ...createBody('CRM-04'), ownershipType: 'HKP', owners: undefined });
+      expect(hkp.status).toBe(400);
+      expect(hkp.body.code).toBe('DEPOT_DRAFT_NOT_FRANCHISE');
+      const noOwner = await request(app.getHttpServer()).post(`${BASE}/${d.id}/activate`).set(as(staff(Role.HEAD_OFFICE))).send({ ...createBody('CRM-03'), owners: undefined });
       expect(noOwner.status).toBe(400);
       expect(d.status).toBe('DRAFT');
     });

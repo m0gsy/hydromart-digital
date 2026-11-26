@@ -3,7 +3,7 @@
   "info": {
     "title": "hydromart-digital drafts the AI web may make (depot-service, crm-service)",
     "version": "1.0.0",
-    "description": "HD-17. The closed list of writes the AI web's token may make: in depot-service a price proposal (status PENDING) and a purchase order (status DRAFT), in crm-service an in-app/push campaign (status DRAFT, nothing sent). Nothing here decides anything: HQ approves or rejects the price proposal in /hq/pricing, a staff member reviews the purchase order and presses Kirim, and a staff member with the campaign permission reviews the campaign and presses Kirim, exactly as for a draft a person made. Approval, rejection, import, send, receive and every other write answer 403 to the AI token.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. hydromart-digital applies that person's own role and depots exactly as on the staff create route: price proposals need the depotAdmin capability (a depot manager) at that depot, purchase orders the procurement capability at that depot, campaigns the depotCampaign capability at that depot; otherwise 403. A machine token or a staff session token is refused with 403.\n\nAudit: every call is written to the audit trail BEFORE it runs, with the X-AI-Suggestion-Id (suggestionId), and is refused with 503 when it cannot be written.\n\nRate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a key you do not know; removing or renaming one is a new contract version.\n\nHD-21 (CRM calon mitra): the routes under /depot/api/v1/ai/crm and /depot/api/v1/ai/drafts/depots/from-crm are the draft and the access read the AI web's CRM uses in depot-service. The draft is not an approval either: HQ activates it as a depot in hydromart-digital."
+    "description": "HD-17. The closed list of writes the AI web's token may make: in depot-service a price proposal (status PENDING) and a purchase order (status DRAFT), in crm-service an in-app/push campaign (status DRAFT, nothing sent). Nothing here decides anything: HQ approves or rejects the price proposal in /hq/pricing, a staff member reviews the purchase order and presses Kirim, and a staff member with the campaign permission reviews the campaign and presses Kirim, exactly as for a draft a person made. Approval, rejection, import, send, receive and every other write answer 403 to the AI token.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. hydromart-digital applies that person's own role and depots exactly as on the staff create route: price proposals need the depotAdmin capability (a depot manager) at that depot, purchase orders the procurement capability at that depot, campaigns the depotCampaign capability at that depot; otherwise 403. A machine token or a staff session token is refused with 403.\n\nAudit: every call is written to the audit trail BEFORE it runs, with the X-AI-Suggestion-Id (suggestionId), and is refused with 503 when it cannot be written.\n\nRate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a key you do not know; removing or renaming one is a new contract version.\n\nHD-21 (CRM calon mitra): the routes under /depot/api/v1/ai/crm and /depot/api/v1/ai/drafts/depots/from-crm are the draft and the access read the AI web's CRM uses in depot-service. The draft is not an approval either: HQ activates it as a depot in hydromart-digital.\n\nHD-21 also reads: GET /depot/api/v1/ai/crm/legacy-applications (the open franchise applications) and GET /auth/api/v1/ai/crm/pic-candidates (staff who may be a PIC)."
   },
   "servers": [
     {
@@ -697,6 +697,128 @@
           },
           "403": {
             "description": "FORBIDDEN: the person lacks prospectRead (the AI web shows its no-access notice), or the token is a machine or staff session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/depot/api/v1/ai/crm/legacy-applications": {
+      "get": {
+        "summary": "The open franchise applications, for the CRM's one-time import (HD-21).",
+        "description": "Needs prospectSettings. Only the open stages (PENDING, DOC_VERIFICATION, SURVEY), never APPROVED or REJECTED, oldest first. Exactly the fields below: no GPS pin, no checklist, no projected revenue. Read only: there is no AI-token route that changes or deletes an application; the hydromart copies are removed later by a reviewed one-shot after a dry run and a separate owner confirmation. The AI web maps investmentAmountIdr to a capital RANGE at import and never stores the amount.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The open applications.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyApplications"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, a staff session token, or a person whose role lacks prospectSettings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/api/v1/ai/crm/pic-candidates": {
+      "get": {
+        "summary": "Who the CRM may name as a PIC: active staff who hold prospectCrm (HD-21).",
+        "description": "auth-service. Needs prospectRead. The active staff accounts whose role holds prospectCrm in the matrix in force now (built-in defaults, SUPER_ADMIN's overrides, custom roles), sorted by name, at most 500. Names only: no phone, no email. An account with no name is left out.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The people.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PicCandidates"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, a staff session token, or a person whose role lacks prospectRead.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1538,6 +1660,123 @@
                   "format": "uuid"
                 },
                 "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "LegacyApplications": {
+        "type": "object",
+        "required": [
+          "applications"
+        ],
+        "properties": {
+          "applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegacyApplication"
+            }
+          }
+        }
+      },
+      "LegacyApplication": {
+        "type": "object",
+        "required": [
+          "id",
+          "stage",
+          "applicantName",
+          "applicantPhoneE164",
+          "city",
+          "province",
+          "proposedName",
+          "investmentAmountIdr",
+          "firstSource",
+          "privacyConsentVersion",
+          "submittedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "DOC_VERIFICATION",
+              "SURVEY"
+            ]
+          },
+          "applicantName": {
+            "type": "string"
+          },
+          "applicantPhoneE164": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[+]62[0-9]{8,13}$",
+            "description": "Null when the number the applicant typed cannot be read as an Indonesian number."
+          },
+          "city": {
+            "type": "string"
+          },
+          "province": {
+            "type": "string"
+          },
+          "proposedName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "investmentAmountIdr": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "firstSource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privacyConsentVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PicCandidates": {
+        "type": "object",
+        "required": [
+          "people"
+        ],
+        "properties": {
+          "people": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "fullName"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fullName": {
                   "type": "string"
                 }
               }

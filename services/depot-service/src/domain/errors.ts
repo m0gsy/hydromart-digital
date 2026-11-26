@@ -847,6 +847,24 @@ export class DepotDraftNotOpenError extends DomainError {
   }
 }
 
+/** Activation hit a unique clash that is not the depot code: somebody wrote the same thing a moment ago. */
+export class DepotDraftConflictError extends DomainError {
+  readonly code = 'DEPOT_DRAFT_CONFLICT';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Draf depot bentrok dengan perubahan lain yang baru saja masuk; muat ulang halaman.');
+  }
+}
+
+/** A CRM draft always becomes a franchise (WARALABA) depot. */
+export class DraftNotFranchiseError extends DomainError {
+  readonly code = 'DEPOT_DRAFT_NOT_FRANCHISE';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('Draf dari CRM calon mitra selalu menjadi depot waralaba (WARALABA).');
+  }
+}
+
 /** Two writers on one rejected draft kept colliding: nobody is wrong, the caller may retry. */
 export class DraftBusyError extends DomainError {
   readonly code = 'DRAFT_BUSY';

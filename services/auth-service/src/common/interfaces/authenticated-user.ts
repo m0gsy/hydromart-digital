@@ -19,4 +19,8 @@ export interface AuthenticatedUser {
    * for every caller, so a depot-locked role sending `?depotId=` was always refused.
    */
   depotId?: string | null;
+  /** HD-21: how the caller was admitted when it is not a staff session: an AI-web person or a machine account. */
+  via?: 'ai' | 'machine';
+  /** A machine account's closed capability list. */
+  scopes?: readonly string[];
 }

@@ -6,7 +6,7 @@ import { FileText } from '@phosphor-icons/react';
 import { HqPageHeader } from '@/components/hq/page-header';
 import { Badge, Button, Card, ErrorState, ListFooter, Skeleton } from '@/components/ui';
 import { api } from '@/lib/api';
-import type { DepotDraft, DepotDraftStatus } from '@/lib/depot-drafts';
+import type { DepotDraftListItem, DepotDraftStatus } from '@/lib/depot-drafts';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { usePagedList } from '@/lib/use-paged-list';
@@ -23,7 +23,7 @@ const PAGE_SIZE = 50;
 export default function HqDepotDraftsPage() {
   const { t } = useT();
   const router = useRouter();
-  const queue = usePagedList<DepotDraft>((page) =>
+  const queue = usePagedList<DepotDraftListItem>((page) =>
     api.get(endpoints.depotDrafts.list({ page, limit: PAGE_SIZE }), true),
   );
 
@@ -54,9 +54,14 @@ export default function HqDepotDraftsPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{d.proposedName}</span>
                   <Badge tone={TONE[d.status]}>{t(`hq.depotDrafts.status.${d.status}`)}</Badge>
+                  {/* A draft nobody has decided keeps the calon mitra's name and phone: its age is what surfaces it. */}
+                  <Badge tone={d.status === 'DRAFT' && d.ageDays >= 7 ? 'danger' : 'neutral'}>
+                    {t('hq.depotDrafts.age', { n: d.ageDays })}
+                  </Badge>
                 </div>
                 <p className="mt-0.5 text-xs text-muted">
-                  {d.city}, {d.province} · {t('hq.depotDrafts.createdOn', { d: d.createdAt.slice(0, 10) })}
+                  {d.city}, {d.province} · {t('hq.depotDrafts.createdOn', { d: d.createdAt.slice(0, 10) })} ·{' '}
+                  {t('hq.depotDrafts.checklistCount', { n: d.checklist.verified, total: d.checklist.total })}
                 </p>
               </div>
               <Button variant="secondary" onClick={() => router.push(`/hq/depot-drafts/detail?id=${d.id}`)}>

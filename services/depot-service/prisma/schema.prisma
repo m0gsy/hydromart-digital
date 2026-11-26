@@ -1443,7 +1443,8 @@ model DepotDraft {
   prospectusVersionLabel String
   prospectusReceipt      String
   checklist              Json
-  requestHash            String           @db.VarChar(64)
+  /// The replay key; NULL once HQ has decided (the hash covered the owner's name and phone).
+  requestHash            String?          @db.VarChar(64)
   suggestionId           String           @db.Uuid
   status                 DepotDraftStatus @default(DRAFT)
   decisionNote           String?

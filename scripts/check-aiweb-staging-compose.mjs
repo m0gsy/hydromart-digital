@@ -122,7 +122,7 @@ if (host && !new RegExp(`^${host.replaceAll('.', '\\.')} \\{`, 'm').test(site)) 
 // password: each must go to the fake hydromart AND sit outside the basic-auth wall, or the
 // Ringkasan, the league and the depot page render without data (seen 25 Nov 2026).
 const matcher = (name) => (new RegExp(`^\\s*@${name} (?:not )?path (.+)$`, 'm').exec(site)?.[1] ?? '').split(/\s+/);
-for (const path of ['/auth/api/v1/auth/jwks', '/auth/api/v1/auth/handoff/token', '/dashboard/api/v1/ai/read/*', '/dashboard/api/v1/dashboard/pending-approvals', '/depot/api/v1/ai/crm/access', '/depot/api/v1/ai/drafts/depots/from-crm', '/depot/api/v1/ai/drafts/depots/from-crm/*']) {
+for (const path of ['/auth/api/v1/auth/jwks', '/auth/api/v1/auth/handoff/token', '/dashboard/api/v1/ai/read/*', '/dashboard/api/v1/dashboard/pending-approvals', '/depot/api/v1/ai/crm/access', '/depot/api/v1/ai/drafts/depots/from-crm', '/depot/api/v1/ai/drafts/depots/from-crm/*', '/depot/api/v1/ai/crm/legacy-applications', '/auth/api/v1/ai/crm/pic-candidates']) {
   if (!matcher('mock').includes(path)) bad(`${siteFile}: ${path} is not routed to the fake hydromart (@mock)`);
   if (!matcher('gated').includes(path)) bad(`${siteFile}: ${path} is behind the staging password (@gated), but the app calls it server-side without one`);
 }

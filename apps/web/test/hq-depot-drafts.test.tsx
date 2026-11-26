@@ -75,6 +75,7 @@ const draft = (over: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
+  sessionStorage.clear();
   auth.role = 'HEAD_OFFICE';
   formProps.current = null;
 });
@@ -90,9 +91,24 @@ describe('earliestSigning', () => {
 
 describe('/hq/depot-drafts', () => {
   it('lists the drafts with their status and opens one', async () => {
-    get.mockResolvedValue({ items: [draft(), draft({ id: 'draft-2', proposedName: 'Depot Lain', status: 'REJECTED' })], total: 2, page: 1, limit: 50 });
+    const item = (over: Record<string, unknown>) => ({
+      id: 'draft-1',
+      proposedName: 'Depot Contoh',
+      city: 'Bekasi',
+      province: 'Jawa Barat',
+      status: 'DRAFT',
+      checklist: { verified: 3, total: 4 },
+      createdAt: '2026-11-20T03:00:00.000Z',
+      decidedAt: null,
+      ageDays: 9,
+      ...over,
+    });
+    get.mockResolvedValue({ items: [item({}), item({ id: 'draft-2', proposedName: 'Depot Lain', status: 'REJECTED', ageDays: 2 })], total: 2, page: 1, limit: 50 });
     render(<HqDepotDraftsPage />);
     expect(await screen.findByText('Depot Contoh')).toBeTruthy();
+    // The age of each draft is on the row, so a stale one is seen.
+    expect(screen.getByText('hq.depotDrafts.age|{"n":9}')).toBeTruthy();
+    expect(screen.getByText('hq.depotDrafts.age|{"n":2}')).toBeTruthy();
     expect(screen.getByText('Depot Lain')).toBeTruthy();
     expect(screen.getByText('hq.depotDrafts.status.REJECTED')).toBeTruthy();
     expect(get).toHaveBeenCalledWith('/depots/api/v1/depot-drafts?page=1&limit=50', true);
@@ -167,6 +183,43 @@ describe('/hq/depot-drafts/detail', () => {
     });
     // The invite is not offered a second time.
     expect((screen.getByText('hq.depotDrafts.detail.activate').closest('button') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('keeps the invited owner for this draft across a reload: no second invite, the form opens straight away', async () => {
+    get.mockResolvedValue(draft());
+    post.mockResolvedValue({ id: 'owner-9' });
+    const first = render(<HqDepotDraftDetailPage />);
+    await userEvent.click(await screen.findByText('hq.depotDrafts.detail.activate'));
+    await waitFor(() => expect(screen.getByTestId('depot-form')).toBeTruthy());
+    expect(sessionStorage.getItem('hq.depotDraft.owner.draft-1')).toBe('owner-9');
+    first.unmount();
+    render(<HqDepotDraftDetailPage />);
+    await waitFor(() => expect(screen.getByTestId('depot-form')).toBeTruthy());
+    expect(formProps.current?.initial).toMatchObject({ owners: [{ ownerId: 'owner-9' }] });
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejecting after an invite says the owner account stays; the kept id is forgotten once rejected', async () => {
+    get.mockResolvedValue(draft());
+    post.mockResolvedValue({ id: 'owner-9' });
+    render(<HqDepotDraftDetailPage />);
+    await userEvent.click(await screen.findByText('hq.depotDrafts.detail.activate'));
+    await waitFor(() => expect(screen.getByTestId('depot-form')).toBeTruthy());
+    askReason.mockResolvedValueOnce('batal');
+    await userEvent.click(screen.getByText('hq.depotDrafts.detail.reject'));
+    await waitFor(() => expect(post).toHaveBeenLastCalledWith('/depots/api/v1/depot-drafts/draft-1/reject', { note: 'batal' }, true));
+    expect(askReason.mock.calls[0]![0].message).toContain('hq.depotDrafts.detail.rejectAfterInvite');
+    expect(sessionStorage.getItem('hq.depotDraft.owner.draft-1')).toBeNull();
+  });
+
+  it('without an invite the reject prompt does not mention an owner account', async () => {
+    get.mockResolvedValue(draft());
+    post.mockResolvedValue({});
+    render(<HqDepotDraftDetailPage />);
+    askReason.mockResolvedValueOnce('batal');
+    await userEvent.click(await screen.findByText('hq.depotDrafts.detail.reject'));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(askReason.mock.calls[0]![0].message).not.toContain('rejectAfterInvite');
   });
 
   it('opens no form when the invite fails, and says why', async () => {

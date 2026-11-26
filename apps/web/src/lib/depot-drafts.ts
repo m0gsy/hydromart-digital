@@ -6,6 +6,19 @@ export type ChecklistState = 'NOT_STARTED' | 'SUBMITTED' | 'VERIFIED' | 'REJECTE
 export const DRAFT_CHECKLIST = ['ktpNpwp', 'locationProof', 'capitalDeposit', 'fieldSurvey'] as const;
 export type DraftChecklistKey = (typeof DRAFT_CHECKLIST)[number];
 
+/** One row of HQ's list: no owner phone and nothing internal. Open drafts come oldest first. */
+export interface DepotDraftListItem {
+  id: string;
+  proposedName: string;
+  city: string;
+  province: string;
+  status: DepotDraftStatus;
+  checklist: { verified: number; total: number };
+  createdAt: string;
+  decidedAt: string | null;
+  ageDays: number;
+}
+
 export interface DepotDraft {
   id: string;
   prospectId: string;

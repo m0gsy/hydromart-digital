@@ -339,6 +339,34 @@ export class AccountService {
   }
 
   /**
+   * HD-21 section 6: the ACTIVE staff accounts holding any of these roles, as id and name only
+   * (no phone, no email), sorted by name, at most `max`. Accounts with no name are left out: a
+   * picker row nobody can read is no use. Roles are bounded like `staffIdsByRoles`.
+   */
+  async staffNamesByRoles(roles: readonly string[], max: number): Promise<{ id: string; fullName: string }[]> {
+    const known = new Set<string>(Object.values(Role));
+    const people = new Map<string, string>();
+    for (const role of new Set(roles)) {
+      if ((!known.has(role) && !isCustomRoleKey(role)) || role === Role.CUSTOMER) continue;
+      let seen = 0;
+      for (let page = 1; ; page += 1) {
+        const { items, total } = await this.customers.listStaff(page, 100, role as Role);
+        seen += items.length;
+        for (const c of items) {
+          const name = c.fullName?.trim();
+          if (c.status === CustomerStatus.ACTIVE && name) people.set(c.id, name);
+        }
+        if (items.length === 0 || seen >= total) break;
+        if (seen >= MAX_DRIVERS) throw new DriverRosterTooLargeError(MAX_DRIVERS);
+      }
+    }
+    return [...people]
+      .map(([id, fullName]) => ({ id, fullName }))
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, 'id') || a.id.localeCompare(b.id))
+      .slice(0, max);
+  }
+
+  /**
    * F8. The account ids of the ACTIVE staff at one depot — the people an operational alert
    * about that depot is for.
    *

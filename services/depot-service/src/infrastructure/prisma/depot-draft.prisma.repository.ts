@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { DepotChecklist, depotOnboarded, DepotDraftRecord } from '../../domain/depot-draft';
-import { DuplicateDepotCodeError } from '../../domain/errors';
+import { DepotDraftConflictError, DuplicateDepotCodeError } from '../../domain/errors';
 import { CreateDepotData } from '../../application/ports/depot.repository';
 import {
   DepotDraftRepository,
@@ -15,8 +15,8 @@ type Row = Awaited<ReturnType<PrismaService['depotDraft']['findUniqueOrThrow']>>
 
 const toRecord = (r: Row): DepotDraftRecord => ({ ...r, checklist: r.checklist as unknown as DepotChecklist });
 
-/** UU PDP: the owner's name and phone are not kept past the decision. */
-const CLEARED = { ownerFullName: null, ownerPhoneE164: null } as const;
+/** UU PDP: the owner's name and phone are not kept past the decision, nor the replay hash that covered them. */
+const CLEARED = { ownerFullName: null, ownerPhoneE164: null, requestHash: null } as const;
 
 const columns = ({ checklist, ...rest }: NewDepotDraft) => ({
   ...rest,
@@ -50,19 +50,43 @@ export class DepotDraftPrismaRepository implements DepotDraftRepository {
   }
 
   async list({ page, limit, status }: ListDepotDraftsFilter): Promise<{ items: DepotDraftRecord[]; total: number }> {
-    const where = status ? { status } : {};
-    // DRAFT first, then the decided ones; newest first within each. A status sorts by its position
-    // in the enum (DRAFT, ACTIVATED, REJECTED), which puts DRAFT first without a second query.
-    const [rows, total] = await this.prisma.$transaction([
-      this.prisma.depotDraft.findMany({
-        where,
-        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }, { id: 'asc' }],
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.depotDraft.count({ where }),
+    const skip = (page - 1) * limit;
+    if (status) {
+      // One status: DRAFT oldest first (the stale ones surface), a decided one newest first.
+      const where = { status };
+      const [rows, total] = await this.prisma.$transaction([
+        this.prisma.depotDraft.findMany({
+          where,
+          orderBy: [{ createdAt: status === 'DRAFT' ? 'asc' : 'desc' }, { id: 'asc' }],
+          skip,
+          take: limit,
+        }),
+        this.prisma.depotDraft.count({ where }),
+      ]);
+      return { items: rows.map(toRecord), total };
+    }
+    // Everything: the open drafts first, oldest first, then the decided ones, newest first. Two
+    // orderings cannot share one ORDER BY, so the page window is cut across the two lists.
+    const [open, decided] = await this.prisma.$transaction([
+      this.prisma.depotDraft.count({ where: { status: 'DRAFT' } }),
+      this.prisma.depotDraft.count({ where: { status: { not: 'DRAFT' } } }),
     ]);
-    return { items: rows.map(toRecord), total };
+    const fromOpen = Math.max(0, Math.min(limit, open - skip));
+    const [first, rest] = await this.prisma.$transaction([
+      this.prisma.depotDraft.findMany({
+        where: { status: 'DRAFT' },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        skip: Math.min(skip, open),
+        take: fromOpen,
+      }),
+      this.prisma.depotDraft.findMany({
+        where: { status: { not: 'DRAFT' } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        skip: Math.max(0, skip - open),
+        take: limit - fromOpen,
+      }),
+    ]);
+    return { items: [...first, ...rest].map(toRecord), total: open + decided };
   }
 
   async findById(id: string): Promise<DepotDraftRecord | null> {
@@ -116,8 +140,12 @@ export class DepotDraftPrismaRepository implements DepotDraftRepository {
       })
       .catch((e: unknown) => {
         if (e instanceof DraftTakenError) return null;
-        if ((e as { code?: string })?.code === 'P2002' && String((e as { meta?: { target?: unknown } }).meta?.target ?? '').includes('code')) {
-          throw new DuplicateDepotCodeError();
+        if ((e as { code?: string })?.code === 'P2002') {
+          // Only the unique index on depots.code is "that code is taken"; any other clash (an owner
+          // row, the draft's own depotId) is a conflict with a concurrent write, never a raw 500.
+          const target = (e as { meta?: { target?: unknown } }).meta?.target;
+          const onCode = Array.isArray(target) ? target.length === 1 && target[0] === 'code' : target === 'depots_code_key';
+          throw onCode ? new DuplicateDepotCodeError() : new DepotDraftConflictError();
         }
         throw e;
       });

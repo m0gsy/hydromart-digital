@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { DepotDraftService } from '../../src/application/services/depot-draft.service';
 import { CreateDepotData } from '../../src/application/ports/depot.repository';
 import { depotOnboarded, depotOnboardedEventId, DepotDraftRecord } from '../../src/domain/depot-draft';
-import { DuplicateDepotCodeError } from '../../src/domain/errors';
+import { DepotDraftConflictError, DuplicateDepotCodeError } from '../../src/domain/errors';
 import { DepotDraftPrismaRepository } from '../../src/infrastructure/prisma/depot-draft.prisma.repository';
 import type { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 
@@ -74,7 +74,7 @@ describe('depot.onboarded (domain)', () => {
 });
 
 describe('DepotDraftService HQ actions', () => {
-  const body = { code: 'BKS-01', name: 'Depot Contoh' } as unknown as CreateDepotData;
+  const body = { code: 'BKS-01', name: 'Depot Contoh', ownershipType: 'WARALABA' } as unknown as CreateDepotData;
   const make = () => {
     const drafts = {
       list: jest.fn(async () => ({ items: [draft()], total: 41 })),
@@ -89,9 +89,30 @@ describe('DepotDraftService HQ actions', () => {
     return { drafts, depots, depotService, relay, service };
   };
 
-  it('lists a page with its total, and reads one (404 when unknown)', async () => {
+  it('lists a page of trimmed items with their age, and reads one without its hash (404 when unknown)', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-30T03:00:00Z'));
     const { service, drafts } = make();
-    await expect(service.list({ page: 2, limit: 20 })).resolves.toMatchObject({ total: 41, page: 2, limit: 20, totalPages: 3 });
+    const page = await service.list({ page: 2, limit: 20 });
+    expect(page).toMatchObject({ total: 41, page: 2, limit: 20, totalPages: 3 });
+    expect(page.items[0]).toEqual({
+      id: DRAFT,
+      proposedName: 'Depot Contoh',
+      city: 'Bekasi',
+      province: 'Jawa Barat',
+      status: 'DRAFT',
+      checklist: { verified: 4, total: 4 },
+      createdAt: AT,
+      decidedAt: null,
+      ageDays: 4,
+    });
+    // Nothing personal and nothing internal in a list item.
+    expect(JSON.stringify(page.items[0])).not.toMatch(/Budi|\+62|requestHash|suggestionId|createdBy/);
+    drafts.list.mockResolvedValueOnce({ items: [draft({ status: 'REJECTED', decidedAt: new Date('2026-11-28T03:00:00Z') })], total: 1 });
+    expect((await service.list({ page: 1, limit: 5 })).items[0]!.ageDays).toBe(2);
+    jest.useRealTimers();
+    const view = await service.view(DRAFT);
+    expect(view).toMatchObject({ id: DRAFT, ownerFullName: 'Budi Santoso' });
+    expect(view).not.toHaveProperty('requestHash');
     await expect(service.get(DRAFT)).resolves.toMatchObject({ id: DRAFT });
     drafts.findById.mockResolvedValueOnce(null);
     await expect(service.get(DRAFT)).rejects.toMatchObject({ code: 'DEPOT_DRAFT_NOT_FOUND', status: 404 });
@@ -119,6 +140,13 @@ describe('DepotDraftService HQ actions', () => {
     expect(depots.findById).toHaveBeenCalledWith(DEPOT, false);
     // The flush is called after the commit.
     expect(drafts.activate.mock.invocationCallOrder[0]).toBeLessThan(relay.flush.mock.invocationCallOrder[0]!);
+  });
+
+  it('refuses to activate a non-franchise depot (400) before anything is checked or written', async () => {
+    const { service, drafts, depotService } = make();
+    await expect(service.activate(DRAFT, { ...body, ownershipType: 'HKP' } as never, HQ)).rejects.toMatchObject({ code: 'DEPOT_DRAFT_NOT_FRANCHISE', status: 400 });
+    expect(depotService.prepareCreate).not.toHaveBeenCalled();
+    expect(drafts.activate).not.toHaveBeenCalled();
   });
 
   it('a validation failure (owner required, duplicate code, schedule) stops before anything is written', async () => {
@@ -159,7 +187,7 @@ describe('DepotDraftService HQ actions', () => {
  * A tiny database whose `$transaction` rolls back every write when the callback throws, so the
  * test proves what the repository puts INSIDE the one transaction, not only what it calls.
  */
-function fakeDb(opts: { failOutbox?: boolean; takenByOther?: boolean; dupCode?: boolean } = {}) {
+function fakeDb(opts: { failOutbox?: boolean; takenByOther?: boolean; dupCode?: boolean | string[] | string } = {}) {
   const state = {
     depots: [] as Record<string, unknown>[],
     drafts: [draft()] as DepotDraftRecord[],
@@ -178,7 +206,7 @@ function fakeDb(opts: { failOutbox?: boolean; takenByOther?: boolean; dupCode?: 
     },
     depot: {
       create: async ({ data }: { data: Record<string, unknown> }) => {
-        if (opts.dupCode) throw Object.assign(new Error('unique'), { code: 'P2002', meta: { target: ['code'] } });
+        if (opts.dupCode) throw Object.assign(new Error('unique'), { code: 'P2002', meta: { target: opts.dupCode === true ? ['code'] : opts.dupCode } });
         const row = { id: DEPOT, ...data };
         state.depots.push(row);
         return row;
@@ -214,7 +242,7 @@ describe('DepotDraftPrismaRepository.activate (one transaction)', () => {
     const done = await repo.activate(DRAFT, data, HQ, AT);
     expect(done).toMatchObject({ depotId: DEPOT, depotCode: 'BKS-01' });
     expect(state.depots[0]).toMatchObject({ crmProspectId: PROSPECT, franchiseApplicationId: LEGACY });
-    expect(state.drafts[0]).toMatchObject({ status: 'ACTIVATED', depotId: DEPOT, decidedBy: HQ, decidedAt: AT, ownerFullName: null, ownerPhoneE164: null });
+    expect(state.drafts[0]).toMatchObject({ status: 'ACTIVATED', depotId: DEPOT, decidedBy: HQ, decidedAt: AT, ownerFullName: null, ownerPhoneE164: null, requestHash: null });
     expect(state.outbox).toHaveLength(1);
     expect(state.outbox[0]).toMatchObject({ event: 'depot.onboarded', eventId: `depot.onboarded:${DEPOT}` });
     expect(JSON.stringify(state.outbox[0])).not.toMatch(/Budi|\+6281234567890/);
@@ -241,8 +269,16 @@ describe('DepotDraftPrismaRepository.activate (one transaction)', () => {
     await expect(gone.repo.activate(DRAFT, data, HQ, AT)).resolves.toBeNull();
   });
 
-  it('maps a taken depot code to DuplicateDepotCodeError, and rethrows another unique clash', async () => {
+  it('maps only the depot code clash to DuplicateDepotCodeError; any other unique clash is a 409 conflict, never a raw error', async () => {
     await expect(fakeDb({ dupCode: true }).repo.activate(DRAFT, data, HQ, AT)).rejects.toBeInstanceOf(DuplicateDepotCodeError);
+    await expect(fakeDb({ dupCode: 'depots_code_key' }).repo.activate(DRAFT, data, HQ, AT)).rejects.toBeInstanceOf(DuplicateDepotCodeError);
+    for (const target of [['depotId'], ['code', 'ownerId'], 'depot_owners_pkey', []]) {
+      const db = fakeDb({ dupCode: target });
+      const err = await db.repo.activate(DRAFT, data, HQ, AT).catch((e) => e);
+      expect(err).toBeInstanceOf(DepotDraftConflictError);
+      expect(err).toMatchObject({ code: 'DEPOT_DRAFT_CONFLICT', status: 409 });
+      expect(db.state.depots).toHaveLength(0);
+    }
   });
 
   it('writes a depot with no owner and no drawn area (company depot)', async () => {
@@ -254,7 +290,7 @@ describe('DepotDraftPrismaRepository.activate (one transaction)', () => {
 });
 
 describe('DepotDraftPrismaRepository list and reject', () => {
-  it('lists DRAFT first, newest first, paged, with the count; filters by status', async () => {
+  it('one status: DRAFT oldest first, a decided one newest first, paged, with the count', async () => {
     const findMany = jest.fn().mockResolvedValue([draft()]);
     const count = jest.fn().mockResolvedValue(1);
     const repo = new DepotDraftPrismaRepository({
@@ -262,14 +298,29 @@ describe('DepotDraftPrismaRepository list and reject', () => {
       depotDraft: { findMany, count },
     } as unknown as PrismaService);
     await expect(repo.list({ page: 3, limit: 10, status: 'REJECTED' })).resolves.toMatchObject({ total: 1 });
-    expect(findMany).toHaveBeenCalledWith({
-      where: { status: 'REJECTED' },
-      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }, { id: 'asc' }],
-      skip: 20,
-      take: 10,
-    });
-    await repo.list({ page: 1, limit: 5 });
-    expect(findMany.mock.calls[1][0].where).toEqual({});
+    expect(findMany).toHaveBeenCalledWith({ where: { status: 'REJECTED' }, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], skip: 20, take: 10 });
+    await repo.list({ page: 1, limit: 5, status: 'DRAFT' });
+    expect(findMany.mock.calls[1][0].orderBy).toEqual([{ createdAt: 'asc' }, { id: 'asc' }]);
+  });
+
+  it('everything: the open drafts oldest first, then the decided ones newest first, the page cut across both', async () => {
+    const open = ['o1', 'o2', 'o3'];
+    const decided = ['d1', 'd2', 'd3', 'd4'];
+    const findMany = jest.fn(async ({ where, skip, take }: { where: { status: unknown }; skip: number; take: number }) =>
+      (where.status === 'DRAFT' ? open : decided).slice(skip, skip + take).map((id) => draft({ id })),
+    );
+    const count = jest.fn(async ({ where }: { where: { status: unknown } }) => (where.status === 'DRAFT' ? open.length : decided.length));
+    const repo = new DepotDraftPrismaRepository({
+      $transaction: async (qs: Promise<unknown>[]) => Promise.all(qs),
+      depotDraft: { findMany, count },
+    } as unknown as PrismaService);
+    const ids = async (page: number, limit: number) => (await repo.list({ page, limit })).items.map((i) => i.id);
+    expect(await ids(1, 2)).toEqual(['o1', 'o2']);
+    expect(await ids(2, 2)).toEqual(['o3', 'd1']);
+    expect(await ids(3, 2)).toEqual(['d2', 'd3']);
+    expect(await ids(4, 2)).toEqual(['d4']);
+    expect(await ids(9, 2)).toEqual([]);
+    await expect(repo.list({ page: 1, limit: 2 })).resolves.toMatchObject({ total: 7 });
   });
 
   it('rejects only a DRAFT row and clears the owner fields; null when it is not', async () => {
@@ -279,11 +330,46 @@ describe('DepotDraftPrismaRepository list and reject', () => {
     await expect(repo.reject(DRAFT, 'n', HQ, AT)).resolves.toMatchObject({ status: 'REJECTED' });
     expect(updateMany).toHaveBeenCalledWith({
       where: { id: DRAFT, status: 'DRAFT' },
-      data: { status: 'REJECTED', decisionNote: 'n', decidedBy: HQ, decidedAt: AT, ownerFullName: null, ownerPhoneE164: null },
+      data: { status: 'REJECTED', decisionNote: 'n', decidedBy: HQ, decidedAt: AT, ownerFullName: null, ownerPhoneE164: null, requestHash: null },
     });
     await expect(repo.reject(DRAFT, 'n', HQ, AT)).resolves.toBeNull();
     await expect(repo.findById(DRAFT)).resolves.toMatchObject({ id: DRAFT });
     findUnique.mockResolvedValueOnce(null);
     await expect(repo.findById(DRAFT)).resolves.toBeNull();
+  });
+});
+
+describe('DepotDraftController audit of an activation', () => {
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  it('writes only the draft id, the depot id and the depot code, never the depot body', async () => {
+    const sent: Record<string, unknown>[] = [];
+    global.fetch = jest.fn(async (_u: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body));
+      return { ok: true, status: 201 } as never;
+    }) as never;
+    const { DepotDraftController } = await import('../../src/modules/depot-draft.controller');
+    const drafts = { activate: jest.fn(async () => ({ id: DEPOT, code: 'BKS-01' })) };
+    const config = { authServiceUrl: 'http://auth.test', internalServiceKey: 'k'.repeat(32) };
+    const controller = new DepotDraftController(drafts as never, config as never);
+    const dto = {
+      code: 'BKS-01',
+      name: 'Depot',
+      ownershipType: 'WARALABA',
+      address: 'Jl. Rahasia 1',
+      contactPhone: '+6281200000009',
+      paymentBankAccountNumber: '1234567890',
+      deliveryFee: 1,
+      lat: 1,
+      lng: 2,
+    };
+    await controller.activate(DRAFT, dto as never, { sub: HQ } as never);
+    expect(sent).toHaveLength(1);
+    expect(JSON.stringify(sent[0])).toContain('depot.draft.activated');
+    expect(JSON.stringify(sent[0])).not.toMatch(/Rahasia|\+62812|1234567890/);
+    expect(sent[0]).toMatchObject({ metadata: { draftId: DRAFT, depotId: DEPOT, depotCode: 'BKS-01' } });
   });
 });

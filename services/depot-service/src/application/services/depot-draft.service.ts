@@ -11,11 +11,13 @@ import {
   DepotDraftNotOpenError,
   DepotNotFoundError,
   DraftBusyError,
+  DraftNotFranchiseError,
   DraftConflictError,
   InvalidDraftDatesError,
 } from '../../domain/errors';
 import {
   checkDraft,
+  CHECKLIST_ITEMS,
   DepotDraftContent,
   DepotDraftRecord,
   depotOnboardedEventId,
@@ -49,6 +51,18 @@ export function requestHashOf(prospectId: string, c: DepotDraftContent): string 
     c.checklist.fieldSurvey,
   ]);
   return createHash('sha256').update(canonical).digest('hex');
+}
+
+export interface DepotDraftListItem {
+  id: string;
+  proposedName: string;
+  city: string;
+  province: string;
+  status: DepotDraftRecord['status'];
+  checklist: { verified: number; total: number };
+  createdAt: Date;
+  decidedAt: Date | null;
+  ageDays: number;
 }
 
 export interface DepotDraftStatusView {
@@ -117,10 +131,39 @@ export class DepotDraftService {
     };
   }
 
-  /** HQ's queue: DRAFT first, newest first. */
-  async list(filter: { page: number; limit: number; status?: DepotDraftStatus }): Promise<Page<DepotDraftRecord>> {
+  /**
+   * HQ's queue: open drafts first and oldest first, then the decided ones. A trimmed item: no owner
+   * phone, no hash, no suggestion id, no author. The age is whole days since the draft was made (or
+   * until the decision, for a decided one).
+   */
+  async list(filter: { page: number; limit: number; status?: DepotDraftStatus }): Promise<Page<DepotDraftListItem>> {
     const { items, total } = await this.drafts.list(filter);
-    return buildPage(items, total, filter.page, filter.limit);
+    return buildPage(
+      items.map((d) => ({
+        id: d.id,
+        proposedName: d.proposedName,
+        city: d.city,
+        province: d.province,
+        status: d.status,
+        checklist: {
+          verified: CHECKLIST_ITEMS.filter((k) => d.checklist[k] === 'VERIFIED').length,
+          total: CHECKLIST_ITEMS.length,
+        },
+        createdAt: d.createdAt,
+        decidedAt: d.decidedAt,
+        ageDays: Math.max(0, Math.floor(((d.decidedAt ?? new Date()).getTime() - d.createdAt.getTime()) / 86_400_000)),
+      })),
+      total,
+      filter.page,
+      filter.limit,
+    );
+  }
+
+  /** One draft for HQ's detail: everything but the replay hash. */
+  async view(id: string): Promise<Omit<DepotDraftRecord, 'requestHash'>> {
+    const row: Partial<DepotDraftRecord> = { ...(await this.get(id)) };
+    delete row.requestHash;
+    return row as Omit<DepotDraftRecord, 'requestHash'>;
   }
 
   async get(id: string): Promise<DepotDraftRecord> {
@@ -145,6 +188,7 @@ export class DepotDraftService {
   async activate(id: string, input: CreateDepotData, actorId: string): Promise<DepotRecord> {
     const draft = await this.get(id);
     if (draft.status !== 'DRAFT') throw new DepotDraftNotOpenError();
+    if (input.ownershipType !== 'WARALABA') throw new DraftNotFranchiseError();
     const data = await this.depotService.prepareCreate(input);
     const done = await this.drafts.activate(id, data, actorId, new Date());
     if (!done) throw new DepotDraftNotOpenError();

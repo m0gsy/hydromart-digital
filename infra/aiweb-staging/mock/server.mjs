@@ -17,6 +17,7 @@
 //   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers|targets   the read API: made-up numbers
 //                                       derived from the date; a depot-bound person sees one depot
 //   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
+//   GET  /depot/api/v1/ai/crm/legacy-applications , /auth/api/v1/ai/crm/pic-candidates   fake applicants and PIC candidates (HD-21)
 //   GET  /depot/api/v1/ai/crm/access , POST|GET /depot/api/v1/ai/drafts/depots/from-crm[/:prospectId]
 //                                       the CRM calon mitra's access read and depot draft (HD-21a)
 //   POST /alert                         the AI web's alarm webhook
@@ -541,6 +542,28 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     return [200, { full: true, settings: true, legalEntities: [{ id: '00000000-0000-4000-8000-000000000001', name: 'PT Contoh Waralaba' }] }];
   }
 
+  // Obviously fake people, the same on every run: the shapes of drafts.openapi.json, nothing real.
+  const LEGACY_SAMPLE = [
+    { id: '00000000-0000-4000-8000-0000000000f1', stage: 'PENDING', applicantName: 'Calon Contoh Satu', applicantPhoneE164: '+6281200000001', city: 'Bekasi', province: 'Jawa Barat', proposedName: 'Depot Contoh Satu', investmentAmountIdr: 150000000, firstSource: 'contoh-ig', privacyConsentVersion: '2026-11-24', submittedAt: '2026-11-01T03:00:00.000Z' },
+    { id: '00000000-0000-4000-8000-0000000000f2', stage: 'SURVEY', applicantName: 'Calon Contoh Dua', applicantPhoneE164: '+6281200000002', city: 'Depok', province: 'Jawa Barat', proposedName: null, investmentAmountIdr: 300000000, firstSource: null, privacyConsentVersion: null, submittedAt: '2026-11-05T03:00:00.000Z' },
+  ];
+  const PIC_SAMPLE = [
+    { id: '00000000-0000-4000-8000-000000000011', fullName: 'Contoh Marketing Satu' },
+    { id: '00000000-0000-4000-8000-000000000012', fullName: 'Contoh Marketing Dua' },
+  ];
+
+  function crmLegacy(req) {
+    const who = crmPerson(req);
+    if (who.fail) return who.fail;
+    return [200, { applications: LEGACY_SAMPLE }];
+  }
+
+  function crmPics(req) {
+    const who = crmPerson(req);
+    if (who.fail) return who.fail;
+    return [200, { people: PIC_SAMPLE }];
+  }
+
   const str = (v, min, max) => typeof v === 'string' && v.trim().length >= min && v.trim().length <= max;
   function crmDraftValid(b) {
     if (!b || typeof b !== 'object' || Array.isArray(b)) return false;
@@ -828,6 +851,14 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (req.method === 'GET' && path === '/dashboard/api/v1/dashboard/pending-approvals') {
         const [status, body] = pendingApprovals(req);
+        return send(res, status, body);
+      }
+      if (req.method === 'GET' && path === '/depot/api/v1/ai/crm/legacy-applications') {
+        const [status, body] = crmLegacy(req);
+        return send(res, status, body);
+      }
+      if (req.method === 'GET' && path === '/auth/api/v1/ai/crm/pic-candidates') {
+        const [status, body] = crmPics(req);
         return send(res, status, body);
       }
       if (req.method === 'GET' && path === '/depot/api/v1/ai/crm/access') {

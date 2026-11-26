@@ -946,3 +946,45 @@ test('CRM calon mitra: access, depot draft with the D1 re-check, replay and stat
     await mock.close();
   }
 });
+
+test('CRM calon mitra: the legacy applications and the PIC candidates hold the contract (HD-21 sections 5 and 6)', async () => {
+  const mock = await boot();
+  const legacyPath = '/depot/api/v1/ai/crm/legacy-applications';
+  const picPath = '/auth/api/v1/ai/crm/pic-candidates';
+  try {
+    for (const path of [legacyPath, picPath]) assert.ok(drafts.paths[path], `${path} is in drafts.openapi.json`);
+    const sales = await tokenOf(mock, user('MARKETING'));
+    const legacy = await (await get(mock, legacyPath, sales)).json();
+    const l = drafts.components.schemas.LegacyApplication;
+    assert.equal(legacy.applications.length, 2);
+    assert.deepEqual(legacy.applications.map((a) => a.stage), ['PENDING', 'SURVEY']);
+    for (const a of legacy.applications) {
+      for (const f of l.required) assert.ok(a[f] !== undefined, `application has ${f}`);
+      assert.ok(l.properties.stage.enum.includes(a.stage));
+      assert.match(a.applicantPhoneE164, new RegExp(l.properties.applicantPhoneE164.pattern));
+      assert.deepEqual(Object.keys(a).sort(), [...l.required].sort());
+    }
+    assert.equal(legacy.applications[0].applicantName, 'Calon Contoh Satu');
+    assert.equal(legacy.applications[0].applicantPhoneE164, '+6281200000001');
+    assert.ok(legacy.applications[0].submittedAt < legacy.applications[1].submittedAt, 'oldest first');
+
+    const pics = await (await get(mock, picPath, sales)).json();
+    const pl = drafts.components.schemas.PicCandidates.properties.people;
+    assert.equal(pics.people.length, 2);
+    for (const p of pics.people) {
+      assert.deepEqual(Object.keys(p).sort(), [...pl.items.required].sort());
+      assert.match(p.id, /^[0-9a-f-]{36}$/);
+    }
+    assert.ok(pics.people.length <= pl.maxItems);
+
+    // Same refusals as the other CRM routes.
+    for (const path of [legacyPath, picPath]) {
+      assert.equal((await get(mock, path)).status, 401);
+      assert.equal((await get(mock, path, await tokenOf(mock, user('SUPERVISOR')))).status, 403);
+      assert.equal((await get(mock, path, await machineToken(mock))).status, 403);
+      assert.equal((await fetch(`${mock.base}${path}`, { method: 'POST', headers: { authorization: `Bearer ${sales}` } })).status, 404);
+    }
+  } finally {
+    await mock.close();
+  }
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Check, DotsThree, X } from '@phosphor-icons/react';
@@ -36,7 +36,25 @@ export default function HqDepotDraftDetailPage() {
   const { customer } = useAuth();
   const [busy, setBusy] = useState(false);
   // The invited owner's account id, kept so a failed save of the form never invites twice.
-  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [ownerId, setOwnerIdState] = useState<string | null>(null);
+  // Kept per draft in this tab, so a reload (or a failed save) finds the invite already made. The
+  // server returns the same account for the same phone, so even a lost key never makes a second one.
+  const storeKey = `hq.depotDraft.owner.${id}`;
+  useEffect(() => {
+    try {
+      setOwnerIdState(sessionStorage.getItem(storeKey));
+    } catch {
+      /* storage blocked: the invite is simply asked again */
+    }
+  }, [storeKey]);
+  const setOwnerId = (value: string) => {
+    setOwnerIdState(value);
+    try {
+      sessionStorage.setItem(storeKey, value);
+    } catch {
+      /* not kept; still used for this render */
+    }
+  };
 
   const detail = useAsync<DepotDraft>(() => api.get(endpoints.depotDrafts.detail(id), true), [id]);
 
@@ -72,7 +90,10 @@ export default function HqDepotDraftDetailPage() {
   const reject = async () => {
     const note = await askReason({
       title: t('hq.depotDrafts.detail.rejectTitle'),
-      message: t('hq.depotDrafts.detail.rejectMessage'),
+      // After an invite, the owner account stays: say so before the person decides.
+      message: ownerId
+        ? `${t('hq.depotDrafts.detail.rejectMessage')} ${t('hq.depotDrafts.detail.rejectAfterInvite')}`
+        : t('hq.depotDrafts.detail.rejectMessage'),
       label: t('hq.depotDrafts.detail.rejectLabel'),
       placeholder: t('hq.depotDrafts.detail.rejectHint'),
       confirmLabel: t('hq.depotDrafts.detail.rejectConfirm'),
@@ -82,6 +103,11 @@ export default function HqDepotDraftDetailPage() {
     if (!note) return;
     await guarded(async () => {
       await api.post(endpoints.depotDrafts.reject(draft.id), { note }, true);
+      try {
+        sessionStorage.removeItem(storeKey);
+      } catch {
+        /* nothing to forget */
+      }
       toast(t('hq.depotDrafts.detail.rejected'), 'info');
       router.push('/hq/depot-drafts');
     }, t('hq.depotDrafts.detail.actionError'));

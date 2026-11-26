@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS "depot_drafts" (
   "prospectusVersionLabel" TEXT             NOT NULL,
   "prospectusReceipt"      TEXT             NOT NULL,
   "checklist"              JSONB            NOT NULL,
-  "requestHash"            VARCHAR(64)      NOT NULL,
+  "requestHash"            VARCHAR(64),
   "suggestionId"           UUID             NOT NULL,
   "status"                 "DepotDraftStatus" NOT NULL DEFAULT 'DRAFT',
   "decisionNote"           TEXT,

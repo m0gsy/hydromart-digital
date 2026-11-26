@@ -31,6 +31,7 @@ import {
 } from '@hydromart/platform';
 
 import { DepotDraftService, DepotDraftStatusView } from '../application/services/depot-draft.service';
+import { FranchiseApplicationService, LegacyApplicationView } from '../application/services/franchise-application.service';
 import { LegalEntityService } from '../application/services/legal-entity.service';
 import { PriceOverrideService } from '../application/services/price-override.service';
 import { PurchaseOrderService } from '../application/services/purchase-order.service';
@@ -171,9 +172,9 @@ export class AiDraftController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ draftId: string; status: 'DRAFT'; createdAt: Date }> {
     const id = suggestionId(header);
-    const { owner, checklist, ...rest } = dto;
+    const { owner, checklist, prospectId: rawProspectId, legacyApplicationId, ...rest } = dto;
     // One spelling of an id, before the request hash: an upper-case retry is the same prospect.
-    const prospectId = dto.prospectId.toLowerCase();
+    const prospectId = rawProspectId.toLowerCase();
     if (id !== prospectId) {
       throw new BadRequestException('X-AI-Suggestion-Id must equal the prospectId of the body.');
     }
@@ -181,7 +182,7 @@ export class AiDraftController {
       prospectId,
       {
         ...rest,
-        legacyApplicationId: dto.legacyApplicationId?.toLowerCase() ?? null,
+        legacyApplicationId: legacyApplicationId?.toLowerCase() ?? null,
         ownerFullName: owner.fullName,
         ownerPhoneE164: owner.phoneE164,
         checklist: { ...checklist },
@@ -211,7 +212,10 @@ export class AiDraftController {
 @UseGuards(AiTokenOnlyGuard)
 @Controller({ path: 'ai/crm', version: '1' })
 export class AiCrmController {
-  constructor(private readonly entities: LegalEntityService) {}
+  constructor(
+    private readonly entities: LegalEntityService,
+    private readonly applications: FranchiseApplicationService,
+  ) {}
 
   @ApiOkResponse({ type: CrmAccessResponseDto })
   @ExternalAccess('ai')
@@ -227,5 +231,19 @@ export class AiCrmController {
       settings: can('prospectSettings', user.role, depots),
       legalEntities: await this.entities.accessibleTo(user.role),
     };
+  }
+
+  /**
+   * HD-21 section 5 (D10): the open /waralaba applications for the CRM's one-time import. Needs
+   * prospectSettings. Read only; the hydromart copies are deleted later by a reviewed one-shot
+   * through the pipeline, never by the AI token.
+   */
+  @ApiOkResponse({ description: '`{ applications: [...] }`: PENDING, DOC_VERIFICATION and SURVEY only, oldest first.' })
+  @ExternalAccess('ai')
+  @Can('prospectSettings')
+  @Get('legacy-applications')
+  @ApiOperation({ summary: 'AI web CRM: the open franchise applications to import as prospects (HD-21)' })
+  legacyApplications(): Promise<{ applications: LegacyApplicationView[] }> {
+    return this.applications.openForCrm();
   }
 }

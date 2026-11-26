@@ -74,7 +74,7 @@ export interface DepotDraftRecord extends Omit<DepotDraftContent, 'ownerFullName
   ownerPhoneE164: string | null;
   id: string;
   prospectId: string;
-  requestHash: string;
+  requestHash: string | null;
   suggestionId: string;
   status: DepotDraftStatus;
   decisionNote: string | null;
