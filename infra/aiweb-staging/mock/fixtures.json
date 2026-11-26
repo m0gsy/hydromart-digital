@@ -147,6 +147,12 @@
       "depotId": null
     },
     {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "name": "Staging Sales Lead",
+      "role": "SALES_LEAD",
+      "depotId": null
+    },
+    {
       "id": "00000000-0000-4000-8000-000000000020",
       "name": "Staging Keuangan (belum pasang autentikator)",
       "role": "FINANCE",
