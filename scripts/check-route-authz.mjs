@@ -72,7 +72,9 @@ const DELIBERATE = /route-authz:/;
 /* HD-2: the routes an ES256 (AI web / machine account) token may reach. */
 const EXTERNAL = /@ExternalAccess\(/;
 const CAN = /@Can\(/;
-const AUDITED = /AuditMutationsInterceptor/;
+const MACHINE_CAN = /@MachineCan[(]/;
+const EXTERNAL_CALLERS = /@ExternalAccess[(][^)]*[)]/;
+const AUDITED =/AuditMutationsInterceptor/;
 
 function controllers(dir, out = []) {
   for (const entry of readdirSync(dir)) {
@@ -185,6 +187,12 @@ for (const service of readdirSync('services')) {
         const at = `${file}:${src.slice(0, m.index).split('\n').length}  ${m[1].toUpperCase()} '${m[2] ?? ''}'`;
         if (!CAN.test(block) && !CAN.test(ownerBlock)) {
           externalFindings.push(`${at}: @ExternalAccess without @Can(<capability>)`);
+        }
+        // AI-31: a route shared by people and machines must name the capability a machine needs;
+        // without @MachineCan the guard would judge the machine by the person's capability.
+        const callers = (block.match(EXTERNAL_CALLERS) ?? ownerBlock.match(EXTERNAL_CALLERS) ?? [''])[0];
+        if (/'ai'/.test(callers) && /'machine'/.test(callers) && !MACHINE_CAN.test(block) && !MACHINE_CAN.test(ownerBlock)) {
+          externalFindings.push(`${at}: lists both 'ai' and 'machine' in @ExternalAccess without @MachineCan(<capability>)`);
         }
         if (m[1] !== 'Get' && !AUDITED.test(block) && !AUDITED.test(ownerBlock)) {
           externalFindings.push(`${at}: writes for an external caller without AuditMutationsInterceptor`);

@@ -7,6 +7,7 @@ import { can, isRoleDisabled, type Capability } from '@hydromart/access';
 import { AuthenticatedUser } from '../http/authenticated-user';
 import { isDepotLocked } from './depot-scope';
 import { DepotScopeGuard } from './depot-scope.guard';
+import { EXTERNAL_ACCESS_KEY, type ExternalCaller } from './external-access';
 import { CAPABILITY_KEY, IS_PUBLIC_KEY, MACHINE_CAPABILITY_KEY, ROLES_KEY, SELF_SCOPED_KEY } from './decorators';
 
 /**
@@ -49,7 +50,14 @@ export class RolesGuard implements CanActivate {
       | undefined;
     if (caller?.via === 'machine') {
       // AI-31: a route shared with people may name the capability its machine callers need.
-      const needed = capability && (machineCapability ?? capability);
+      // LOW-1: a route open to people too (lists 'ai') and naming no @MachineCan fails closed for a
+      // machine: it is never judged by the person's capability. A machine-only route keeps @Can.
+      const callers = this.reflector.getAllAndOverride<ExternalCaller[] | undefined>(EXTERNAL_ACCESS_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]);
+      const sharedWithPeople = callers?.includes('ai') ?? false;
+      const needed = capability && (machineCapability ?? (sharedWithPeople ? undefined : capability));
       if (!needed || !(caller.scopes ?? []).includes(needed)) {
         throw new ForbiddenException('You do not have permission to perform this action.');
       }
@@ -114,6 +122,9 @@ export class RolesGuard implements CanActivate {
     const handlerCapability = this.reflector.get<Capability | undefined>(CAPABILITY_KEY, handler);
     const handlerRoles = this.reflector.get<readonly string[] | undefined>(ROLES_KEY, handler);
     const handlerSelfScoped = this.reflector.get<boolean | undefined>(SELF_SCOPED_KEY, handler);
+    // LOW-2: the machine capability is read from the handler when the handler decides, from the class
+    // otherwise. A class-level @MachineCan beside a handler-level @Can is ignored ON PURPOSE: the
+    // handler's own rule wins outright, and with no handler @MachineCan a shared route fails closed.
     if (handlerCapability || (handlerRoles && handlerRoles.length > 0) || handlerSelfScoped) {
       return {
         capability: handlerCapability,

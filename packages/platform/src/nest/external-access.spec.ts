@@ -499,6 +499,15 @@ describe('RolesGuard with a machine account (HD-2)', () => {
     expect(() => check(cls, machine(['aiReadAgent']))).toThrow(ForbiddenException);
   });
 
+  it('fails closed for a machine on a route shared with people that names no @MachineCan', () => {
+    const shared = { [CAPABILITY_KEY]: 'aiRead', [EXTERNAL_ACCESS_KEY]: ['ai', 'machine'] };
+    expect(() => check(shared, machine(['aiRead']))).toThrow(ForbiddenException);
+    expect(() => check(shared, machine(['aiReadAgent']))).toThrow(ForbiddenException);
+    // a machine-only route keeps judging by @Can, and a named @MachineCan still admits
+    expect(check({ [CAPABILITY_KEY]: 'aiRead', [EXTERNAL_ACCESS_KEY]: ['machine'] }, machine(['aiRead']))).toBe(true);
+    expect(check({ ...shared, [MACHINE_CAPABILITY_KEY]: 'aiReadAgent' }, machine(['aiReadAgent']))).toBe(true);
+  });
+
   it('leaves a person acting through the AI web to the ordinary rules', () => {
     const person = { user: { sub: 'u', role: 'SUPER_ADMIN', phone: null, via: 'ai' } };
     expect(check({ [CAPABILITY_KEY]: 'franchiseRead' }, person)).toBe(true);

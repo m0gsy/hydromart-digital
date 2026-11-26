@@ -919,6 +919,26 @@ fi
 rm -rf "$BOX/.deploy" "$BOX/.git"
 secrets
 why="$(both_ok 1 1)" && [ "$RC" = 0 ] && ok "  ...and made on the deploy after the release holds it" || bad "with the capability back: $why $OUT"
+# One id for both accounts would let one's scopes overwrite the other's: refused, nothing written.
+cp "$BOX/.env" "$W/good-app.env"
+sed -i "s/^AIWEB_APP_MACHINE_ID=.*/AIWEB_APP_MACHINE_ID=$(val AIWEB_N8N_MACHINE_ID)/" "$BOX/.env"
+cp "$BOX/.env" "$W/before"
+secrets
+if [ "$RC" != 0 ] && cmp -s "$BOX/.env" "$W/before" && printf '%s' "$OUT" | grep -qF 'is the id another machine account already uses'; then
+  ok "the AI web account on n8n's id: refused, nothing written, exit $RC"
+else
+  bad "equal ids: exit $RC, .env $(cmp -s "$BOX/.env" "$W/before" && echo unchanged || echo CHANGED): $OUT"
+fi
+cp "$W/good-app.env" "$BOX/.env"
+# The kill switch runs even when the release lacks aiReadAgent (a rollback): the entry must still leave.
+printf '%s\n' "$CAPS" > "$BOX/packages/access/src/index.ts"
+sed -i 's/^AIWEB_APP_MACHINE_SECRET=.*/AIWEB_APP_MACHINE_SECRET=/' "$BOX/.env"
+secrets
+why="$(both_ok 1 0)" && [ "$RC" = 0 ] && grep -qx 'AIWEB_APP_MACHINE_SECRET=' "$BOX/.env" &&
+  ok "a blank secret on a release without aiReadAgent: the entry still leaves MACHINE_ACCOUNTS, n8n's and the other stay" ||
+  bad "kill switch without the capability: rc=$RC $why: $(val MACHINE_ACCOUNTS)"
+printf '%s\n' "$CAPS_APP" > "$BOX/packages/access/src/index.ts"
+cp "$W/good-app.env" "$BOX/.env"
 # Nothing is written when MACHINE_ACCOUNTS cannot be read: not the AI web's keys either.
 sed -i "s/^MACHINE_ACCOUNTS=.*/MACHINE_ACCOUNTS='not json'/" "$BOX/.env"
 sed -i '/^AIWEB_APP_MACHINE_SECRET=/d' "$BOX/.env"

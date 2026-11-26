@@ -14,7 +14,9 @@ import { DashboardConfigService } from '../config/dashboard-config.service';
 
 const REFUSED = 'The audit trail is unavailable, so this read was not answered.';
 /** What a read asks, as it is written to the trail: short plain values only. */
-const ASKED = ['metric', 'period', 'date', 'from', 'to', 'split'] as const;
+const ASKED = ['period', 'date', 'from', 'to', 'split'] as const;
+/** A metric id such as P-01 or U-02; anything else is written as "invalid", never the caller's own string. */
+const METRIC_ID = /^[A-Z]-?[0-9]{2}$/;
 
 /**
  * AI-31: every read by a machine account (the AI web's own, no person behind it) is written to the
@@ -34,6 +36,8 @@ export class MachineReadAuditInterceptor implements NestInterceptor {
     const query = (req.query ?? {}) as Record<string, unknown>;
     const asked: Record<string, string> = {};
     for (const key of ASKED) if (typeof query[key] === 'string') asked[key] = (query[key] as string).slice(0, 40);
+    const metric = typeof query.metric === 'string' && METRIC_ID.test(query.metric) ? query.metric : 'invalid';
+    asked.metric = metric;
     return from(
       recordAuditEventOrThrow(
         { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey },

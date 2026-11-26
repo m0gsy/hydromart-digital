@@ -216,6 +216,31 @@ TS
 expect 0 'an @ExternalAccess read with @Can passes' <<'TS'
 @Controller({ path: 'things', version: '1' })
 export class ThingController {
+  @ExternalAccess('ai')
+  @Can('thingRead')
+  @Get('list')
+  list(): Promise<void> {
+    return this.things.list();
+  }
+}
+TS
+
+expect 0 'a route open to both ai and machine with @MachineCan passes' <<'TS'
+@Controller({ path: 'things', version: '1' })
+export class ThingController {
+  @ExternalAccess('ai', 'machine')
+  @Can('thingRead')
+  @MachineCan('thingAgent')
+  @Get('list')
+  list(): Promise<void> {
+    return this.things.list();
+  }
+}
+TS
+
+expect 1 'a route open to both ai and machine without @MachineCan fails' <<'TS'
+@Controller({ path: 'things', version: '1' })
+export class ThingController {
   @ExternalAccess('ai', 'machine')
   @Can('thingRead')
   @Get('list')

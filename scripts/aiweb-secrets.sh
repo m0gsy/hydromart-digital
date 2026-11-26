@@ -226,7 +226,19 @@ machine_account() {
   local P="$1" NAME="$2" NEED="$3" SCOPE="$4" id secret not_after mode left day capable scopes_csv rc accounts s
   shift 4
   local OPTIONAL_SCOPES=("$@") scopes=()
-  if [ "$NEED" = skippable ] && ! scope_capable "$SCOPE"; then
+  # Two accounts on one id would let one's scopes overwrite the other's (entries are told apart by id):
+  # an id already in .env that another account holds refuses the run, nothing written.
+  local have_id
+  have_id="$(value ${P}_MACHINE_ID)"
+  if [ -n "$have_id" ] && [[ " $SEEN_IDS " == *" $have_id "* ]]; then
+    echo "aiweb-secrets: !! ${P}_MACHINE_ID is the id another machine account already uses; each account needs its own; nothing written" >&2
+    exit 1
+  fi
+  # The kill switch always runs: a present, blank secret removes the entries even when this release
+  # lacks the capability (nothing is added then, so nothing can refuse).
+  local blank=0
+  if ! absent ${P}_MACHINE_SECRET && [ -z "$(value ${P}_MACHINE_SECRET | tr -d '[:space:]')" ]; then blank=1; fi
+  if [ "$NEED" = skippable ] && [ "$blank" = 0 ] && ! scope_capable "$SCOPE"; then
     echo "aiweb-secrets: $why_not yet; the $NAME machine account is made on a later deploy"
     return 0
   fi
@@ -236,6 +248,7 @@ if absent ${P}_MACHINE_ID; then
 else
   id="$(value ${P}_MACHINE_ID)"
 fi
+SEEN_IDS+=" $id"
 secret="$(value ${P}_MACHINE_SECRET)"
 not_after="$(value ${P}_MACHINE_NOT_AFTER)"
 if absent ${P}_MACHINE_SECRET; then
@@ -377,6 +390,7 @@ esac
 # n8n's, then the AI web app's own (hydromart-digital's agents read the AI read API with it,
 # AI-31): a second account, read-only, one scope. n8n's secret is never handed on, the id is its own.
 MA_CUR="$(value MACHINE_ACCOUNTS)"
+SEEN_IDS=''
 MA_NEW=''
 MA_SET=0
 machine_account AIWEB_N8N n8n required franchiseApplicationNotify \

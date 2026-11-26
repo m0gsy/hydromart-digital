@@ -46,6 +46,19 @@ describe('MachineReadAuditInterceptor', () => {
     expect(calls[0].body.metadata).not.toHaveProperty('date');
   });
 
+  it('writes only a well-formed metric id, "invalid" for any other caller string', async () => {
+    const bodies: Array<{ target?: string; metadata: { metric: string } }> = [];
+    global.fetch = jest.fn(async (_u: string, init: { body: string }) => {
+      bodies.push(JSON.parse(init.body));
+      return { ok: true, status: 201 } as never;
+    }) as never;
+    for (const metric of ['U-05', '<script>alert(1)</script>', 'x'.repeat(30), undefined]) {
+      await firstValueFrom(new MachineReadAuditInterceptor(config).intercept(ctx({ user: { sub: 'm', via: 'machine' }, query: { metric } }), { handle: () => of(1) }));
+    }
+    expect(bodies.map((b) => b.metadata.metric)).toEqual(['U-05', 'invalid', 'invalid', 'invalid']);
+    expect(bodies.map((b) => b.target)).toEqual(['U-05', 'invalid', 'invalid', 'invalid']);
+  });
+
   it('answers 503 and reads nothing when the row cannot be stored', async () => {
     global.fetch = jest.fn(async () => ({ ok: false, status: 500 }) as never) as never;
     const run = jest.fn(() => of('answer'));
