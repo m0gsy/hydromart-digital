@@ -444,6 +444,15 @@ loopback only.
   should call it once a day at 07:30 WIB; hydromart tells the depot's Kepala, the supervisors over it and HQ Operasional
   of each item due by days or by water volume, once and then every 3 days while it stays due. crm needs
   `DEPOT_SERVICE_URL` (already set); depot-service needs `ORDER_SERVICE_URL` (already set) to read the meter volume.
+- **Partner royalty bills** (HD-23): a further capability, `partnerBillGenerate`, for n8n's monthly draft run
+  (`POST payout/api/v1/external/partner-bills/generate`, body `{"month":"YYYY-MM"}` of a closed month; it answers counts only:
+  `made`, `existing`, `skippedZero`, `unassigned`, `commissionRows`). `aiweb-secrets.sh` adds it to n8n's scopes like the
+  others. Run it from the 8th. Finance approves each draft on `/hq/partner-bills` (one click sends it); approval is refused
+  with 409 `BANK_ACCOUNT_MISSING` until the franchisor's official account is entered on `/hq/legal-entities`. The amount is
+  HQ's commission (the `COMMISSION` ledger rows, metric W-05); with no commission scheme set `commissionRows` is 0 and
+  nothing is billed. Franchise ledger balances are no longer paid out (409 `PAYOUT_BY_PARTNER_BILL`). payout-service needs
+  `DEPOT_SERVICE_URL`, `CRM_SERVICE_URL` and `AUTH_SERVICE_URL` (all already set); migrations: depot-service
+  `20261129100000_legal_entity_bank_account`, payout-service `20261129110000_partner_bills`.
   A 503 means the due items, the meter volume, a recipient list or a recipient could not be read: rerun the same
   body the SAME WIB day (an unreadable meter is an error, never "nothing due").
   Each person is told per item: the depot's Kepala and the supervisors over it get one digest per depot listing its due
