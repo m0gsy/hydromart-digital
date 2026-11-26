@@ -9,6 +9,7 @@ export const IS_PUBLIC_KEY = 'isPublic';
 export const ROLES_KEY = 'roles';
 export const CAPABILITY_KEY = 'capability';
 export const SELF_SCOPED_KEY = 'selfScoped';
+export const MACHINE_CAPABILITY_KEY = 'machineCapability';
 
 /** Marks a route public, bypassing the global JWT guard. */
 export const Public = (): MethodDecorator & ClassDecorator => SetMetadata(IS_PUBLIC_KEY, true);
@@ -34,6 +35,15 @@ export const Roles = (...roles: (Role | string)[]): MethodDecorator & ClassDecor
  */
 export const Can = (capability: Capability): MethodDecorator & ClassDecorator =>
   SetMetadata(CAPABILITY_KEY, capability);
+
+/**
+ * AI-31: on a route that is open to both a person and a machine account (`@ExternalAccess('ai',
+ * 'machine')`), the capability a MACHINE token must list in its scopes, in place of the one
+ * `@Can` names for people. A person is still judged by `@Can` alone, and a machine by this alone:
+ * a machine token that lists the person's capability gets nothing from it. Needs `@Can` beside it.
+ */
+export const MachineCan = (capability: Capability): MethodDecorator & ClassDecorator =>
+  SetMetadata(MACHINE_CAPABILITY_KEY, capability);
 
 /**
  * PLAT-1: declares that a route needs no role/capability check — either because it takes

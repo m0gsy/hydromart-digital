@@ -21,7 +21,7 @@ import { firstValueFrom, of, throwError } from 'rxjs';
 import { clientTracker, perClientThrottle } from '../http/per-client-throttle';
 import { AuditMutationsInterceptor, type AuditMutationSink } from './audit-mutations.interceptor';
 import type { AuditEvent } from './audit-trail';
-import { CAPABILITY_KEY, ROLES_KEY, SELF_SCOPED_KEY } from './decorators';
+import { CAPABILITY_KEY, MACHINE_CAPABILITY_KEY, ROLES_KEY, SELF_SCOPED_KEY } from './decorators';
 import {
   EXTERNAL_ACCESS_KEY,
   ExternalAccess,
@@ -486,6 +486,17 @@ describe('RolesGuard with a machine account (HD-2)', () => {
     expect(() => check({ [SELF_SCOPED_KEY]: true }, machine(['franchiseRead']))).toThrow(
       ForbiddenException,
     );
+  });
+
+  it('judges a machine by @MachineCan when the route names one, a person still by @Can', () => {
+    const route = { [CAPABILITY_KEY]: 'aiRead', [MACHINE_CAPABILITY_KEY]: 'aiReadAgent' };
+    expect(check(route, machine(['aiReadAgent']))).toBe(true);
+    // The person's capability buys a machine nothing on such a route.
+    expect(() => check(route, machine(['aiRead']))).toThrow(ForbiddenException);
+    expect(check(route, { user: { sub: 'u', role: 'SUPER_ADMIN', phone: null, via: 'ai' } })).toBe(true);
+    // Read from the class when the handler names neither, as @Can is.
+    const cls = { [MACHINE_CAPABILITY_KEY]: 'aiReadAgent' };
+    expect(() => check(cls, machine(['aiReadAgent']))).toThrow(ForbiddenException);
   });
 
   it('leaves a person acting through the AI web to the ordinary rules', () => {

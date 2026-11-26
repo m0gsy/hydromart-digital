@@ -234,6 +234,7 @@ export const dashC = {
       aiTeamManage: 'Nyalakan agen AI, ubah plafon, setujui playbook',
       aiTeamStop: 'Hentikan agen AI',
       aiAgentNotify: 'Picu pemberitahuan agen AI (akun mesin n8n)',
+      aiReadAgent: 'Baca angka keuangan semua depot untuk agen AI (akun mesin web AI)',
       voucherRequestDecide: 'Putuskan permintaan voucher',
       fraudReview: 'Tinjau indikasi fraud',
       refundIssue: 'Ajukan refund',

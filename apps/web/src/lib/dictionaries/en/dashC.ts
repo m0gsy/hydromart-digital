@@ -229,6 +229,7 @@ export const dashC = {
       aiTeamManage: 'Switch AI agents on, change their caps, approve playbooks',
       aiTeamStop: 'Stop an AI agent',
       aiAgentNotify: 'Raise the AI agent notices (n8n machine account)',
+      aiReadAgent: 'Read the money figures of every depot for the AI agents (AI web machine account)',
       voucherRequestDecide: 'Decide voucher requests',
       fraudReview: 'Review fraud flags',
       refundIssue: 'Raise a refund',

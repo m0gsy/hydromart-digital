@@ -345,6 +345,7 @@ export const hq = {
       aiTeamManage: 'Nyalakan agen AI, ubah plafon, setujui playbook',
       aiTeamStop: 'Hentikan agen AI',
       aiAgentNotify: 'Picu pemberitahuan agen AI (akun mesin n8n)',
+      aiReadAgent: 'Baca angka keuangan semua depot untuk agen AI (akun mesin web AI)',
       voucherRequestDecide: 'Putuskan permintaan voucher',
       fraudReview: 'Tinjau tanda kecurangan',
       refundIssue: 'Ajukan refund',

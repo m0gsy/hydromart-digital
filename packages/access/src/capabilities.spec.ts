@@ -293,6 +293,12 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).not.toContain('aiTeamStop');
   });
 
+  it('leaves the money read of the AI web machine account to the machine alone', () => {
+    expect(CAPABILITIES.aiReadAgent).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE']) expect(can('aiReadAgent', role)).toBe(false);
+    expect(CUSTOM_FORBIDDEN).toContain('aiReadAgent');
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);

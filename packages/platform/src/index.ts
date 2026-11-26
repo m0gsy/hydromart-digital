@@ -101,6 +101,8 @@ export {
   ROLES_KEY,
   CAPABILITY_KEY,
   SELF_SCOPED_KEY,
+  MachineCan,
+  MACHINE_CAPABILITY_KEY,
 } from './nest/decorators';
 export { assertCapability } from './nest/capability';
 export {

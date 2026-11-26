@@ -645,6 +645,13 @@ export const CAPABILITIES = {
    */
   aiAgentNotify: ['SUPER_ADMIN'],
   /*
+   * dashboard-service (AI-31) - read the money family of the AI read API (U-02, U-04, U-05, P-01)
+   * across EVERY depot, on a schedule with nobody signed in. Held only by the AI web's own machine
+   * account (AIWEB_APP_MACHINE_*, scripts/aiweb-secrets.sh) through its token's scopes, read-only,
+   * and its only scope: no people metrics, no other family. Also in CUSTOM_FORBIDDEN.
+   */
+  aiReadAgent: ['SUPER_ADMIN'],
+  /*
    * depot-service (HD-15B) - write the checklist templates a supervisor visit starts from. Head
    * office and directors only; the network has one template list. Not in CUSTOM_FORBIDDEN: an
    * ordinary capability with no depot fence.
@@ -1178,6 +1185,7 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'salesReportNotify',
   // AI-29/AI-31: the n8n machine account's, same reasoning; and who may switch agents on or change their caps.
   'aiAgentNotify',
+  'aiReadAgent',
   'aiTeamManage',
   'staffAdmin',
   'staffDelete',
