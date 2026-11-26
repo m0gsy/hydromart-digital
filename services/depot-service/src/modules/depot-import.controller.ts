@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   Can,
@@ -31,5 +31,17 @@ export class DepotImportController {
   ): Promise<ImportSummary> {
     if (dto.mode === 'upsert') assertCapability(user, 'depotAdmin');
     return this.imports.import(dto.mode, dto.rows, user);
+  }
+
+  // The same file shape the import reads (area-D14). `depotAdmin`, like upsert: the rows
+  // carry bank accounts, which the read-only directory roles do not get.
+  @ApiBearerAuth()
+  @Can('depotAdmin')
+  @Get('export')
+  @ApiOperation({ summary: 'Every depot as import rows, to download and re-import' })
+  export(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ rows: Record<string, unknown>[]; total: number }> {
+    return this.imports.export(user);
   }
 }

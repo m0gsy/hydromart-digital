@@ -5,6 +5,7 @@ import {
   ImportRowOutcome,
   ImportSummary,
   recordAuditEvent,
+  recordAuditEventOrThrow,
   runImport,
 } from '@hydromart/platform';
 
@@ -41,6 +42,9 @@ const REQUIRED_ON_CREATE = [
   ['lng', 'lng'],
   ['deliveryFee', 'ongkir'],
 ] as const;
+
+/** The import takes 500 rows a file; so does the export. */
+const DEPOT_EXPORT_MAX = 500;
 
 const blank = (v: unknown): boolean => v === undefined || v === null || v === '';
 
@@ -130,6 +134,68 @@ export class DepotImportService {
       DepotImportService.logger,
     );
     return summary;
+  }
+
+  /**
+   * The depots as import rows (area-D14): the same fields `import` reads, so the file made
+   * from them re-imports as a no-op upsert. It carries bank accounts, so the audit entry is
+   * written BEFORE anything leaves and a missing trail refuses the export.
+   * Same ceiling as the import; `total` tells the screen when a network outgrew one file.
+   */
+  async export(
+    user: AuthenticatedUser,
+  ): Promise<{ rows: Record<string, unknown>[]; total: number }> {
+    const items: DepotRecord[] = [];
+    let total = 0;
+    for (let page = 1; items.length < DEPOT_EXPORT_MAX; page += 1) {
+      const res = await this.repo.search({ page, limit: 100, activeOnly: false });
+      total = res.total;
+      items.push(...res.items);
+      if (res.items.length === 0 || items.length >= total) break;
+    }
+    const picked = items.sort((a, b) => a.code.localeCompare(b.code)).slice(0, DEPOT_EXPORT_MAX);
+    await this.settings.cache.ensureFresh();
+    const byDepot = new Map<string, Record<string, string>>();
+    for (const r of this.settings.cache.depotRows()) {
+      if (!r.depotId) continue;
+      byDepot.set(r.depotId, { ...byDepot.get(r.depotId), [r.key]: r.value });
+    }
+    await recordAuditEventOrThrow(
+      {
+        authServiceUrl: process.env.AUTH_SERVICE_URL ?? '',
+        internalServiceKey: process.env.INTERNAL_SERVICE_KEY ?? '',
+      },
+      {
+        action: 'depot.export',
+        actorId: user.sub,
+        target: `${picked.length} depot`,
+        metadata: { count: picked.length, total },
+      },
+    );
+    const rows = picked.map((d) => ({
+      code: d.code,
+      name: d.name,
+      ownershipType: d.ownershipType,
+      ownerId: d.ownerId,
+      address: d.address,
+      city: d.city,
+      province: d.province,
+      lat: d.lat,
+      lng: d.lng,
+      serviceRadiusKm: d.serviceRadiusKm,
+      deliveryFee: d.deliveryFee,
+      minOrderAmount: d.minOrderAmount,
+      contactPhone: d.contactPhone,
+      paymentBankName: d.paymentBankName,
+      paymentBankAccountNumber: d.paymentBankAccountNumber,
+      paymentBankAccountHolder: d.paymentBankAccountHolder,
+      paymentQrisImageUrl: d.paymentQrisImageUrl,
+      operatingHours: d.operatingHours,
+      holidays: d.holidays,
+      serviceArea: d.serviceArea ?? null,
+      settings: byDepot.get(d.id) ?? {},
+    }));
+    return { rows, total };
   }
 
   /** Throws, with a message naming the cell, on the first thing wrong with the row. */
@@ -237,7 +303,12 @@ export class DepotImportService {
     };
     const created = await this.depots.create(data);
     await this.writeSettings(created, settings, code, user);
-    await this.auditRow('created', created, [...Object.keys(fields), ...settings.map(([k]) => `setting:${k}`)], user);
+    await this.auditRow(
+      'created',
+      created,
+      [...Object.keys(fields), ...settings.map(([k]) => `setting:${k}`)],
+      user,
+    );
     return { status: 'created', id: created.id };
   }
 
@@ -261,7 +332,12 @@ export class DepotImportService {
       depot = await this.depots.update(current.id, fields, current.updatedAt.toISOString(), true);
     }
     await this.writeSettings(depot, settings, current.code, user);
-    await this.auditRow('updated', depot, [...Object.keys(fields), ...settings.map(([k]) => `setting:${k}`)], user);
+    await this.auditRow(
+      'updated',
+      depot,
+      [...Object.keys(fields), ...settings.map(([k]) => `setting:${k}`)],
+      user,
+    );
     return { status: 'updated', id: depot.id };
   }
 

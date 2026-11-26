@@ -16,11 +16,18 @@ import {
   LinkButton,
   Skeleton,
 } from '@/components/ui';
+import { useToast } from '@/components/toast';
+import { api } from '@/lib/api';
 import { fetchAllDepots } from '@/lib/all-depots';
+import { DEPOT_IMPORT_COLUMNS } from '@/lib/depot-import-columns';
+import { depotExportCells } from '@/lib/depot-export';
+import { endpoints } from '@/lib/endpoints';
+import { todayWib } from '@/lib/wib';
+import { downloadXlsx } from '@/lib/xlsx';
 import type { DepotForm as DepotFormValues } from '@/lib/depots';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
-import { canManageDepotLifecycle } from '@/lib/roles';
+import { can, canManageDepotLifecycle } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { DepotAdmin } from '@/lib/types';
 
@@ -34,6 +41,10 @@ export default function HqDepotsPage() {
   // Opening a depot is `depotLifecycle`: head office and the director read the directory but
   // a FINANCE-style reader must not be offered a button the server will refuse.
   const canOnboard = canManageDepotLifecycle(customer?.role);
+  // Export is `depotAdmin` on the server: the file carries bank accounts.
+  const canExport = can('depotAdmin', customer?.role);
+  const { toast } = useToast();
+  const [exporting, setExporting] = useState(false);
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
@@ -82,6 +93,26 @@ export default function HqDepotsPage() {
     );
   }, [list.data, query]);
 
+  async function exportDepots() {
+    setExporting(true);
+    try {
+      const { rows, total } = await api.get<{ rows: Record<string, unknown>[]; total: number }>(
+        endpoints.depots.exportRows,
+        true,
+      );
+      await downloadXlsx(
+        `depot-${todayWib()}.xlsx`,
+        DEPOT_IMPORT_COLUMNS.map((c) => c.key),
+        rows.map((r) => depotExportCells(r)),
+        'depot',
+      );
+      if (total > rows.length) toast(t('hq.depots.exportTrimmed', { n: rows.length }), 'error');
+    } catch {
+      toast(t('hq.depots.exportError'), 'error');
+    }
+    setExporting(false);
+  }
+
   function closeForm() {
     setCreating(false);
     setPrefill(undefined);
@@ -100,6 +131,11 @@ export default function HqDepotsPage() {
               <LinkButton href="/hq/depots/import" variant="secondary">
                 {t('hq.depots.import')}
               </LinkButton>
+            )}
+            {!creating && canExport && (
+              <Button variant="secondary" onClick={exportDepots} loading={exporting}>
+                {t('hq.depots.export')}
+              </Button>
             )}
             {!creating && canOnboard && (
               <Button onClick={() => setCreating(true)}>＋ {t('hq.depots.onboard')}</Button>

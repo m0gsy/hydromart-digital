@@ -9,6 +9,8 @@
  * Parsing and validating an area from user input stays in depot-service
  * (`domain/service-area.ts`) because only the import writes one.
  */
+import { haversineKm } from './geo';
+
 export interface LatLng {
   lat: number;
   lng: number;
@@ -48,6 +50,45 @@ function inRing(point: LatLng, ring: LatLng[]): boolean {
 /** Is the point inside any ring (boundary included)? An empty area contains nothing. */
 export function pointInServiceArea(point: LatLng, area: ServiceArea): boolean {
   return area.some((ring) => inRing(point, ring));
+}
+
+/** What decides whether a depot serves a point: where it is, its radius, its drawn area. */
+export interface ServingDepot {
+  id: string;
+  lat: number;
+  lng: number;
+  serviceRadiusKm: number | null;
+  serviceArea?: ServiceArea | null;
+}
+
+/**
+ * The one rule: a depot serves a point inside its drawn area when it has one, otherwise
+ * within its radius. A depot that cannot be placed (garbage coordinate) or has neither a
+ * usable area nor a finite radius serves nobody: NaN comparisons are false, so without this
+ * one bad row would "serve" every address on earth.
+ */
+export function depotServes(point: LatLng, depot: ServingDepot): boolean {
+  const distance = haversineKm(point.lat, point.lng, depot.lat, depot.lng);
+  if (!Number.isFinite(distance)) return false;
+  if (depot.serviceArea?.length) return pointInServiceArea(point, depot.serviceArea);
+  return Number.isFinite(depot.serviceRadiusKm) && distance <= (depot.serviceRadiusKm as number);
+}
+
+/** The nearest depot that serves the point (ties by id), or null. Checkout, CRM and prospects use this. */
+export function servingDepot<T extends ServingDepot>(point: LatLng, depots: T[]): T | null {
+  let best: { depot: T; distance: number } | null = null;
+  for (const depot of depots) {
+    if (!depotServes(point, depot)) continue;
+    const distance = haversineKm(point.lat, point.lng, depot.lat, depot.lng);
+    if (
+      !best ||
+      distance < best.distance ||
+      (distance === best.distance && depot.id < best.depot.id)
+    ) {
+      best = { depot, distance };
+    }
+  }
+  return best?.depot ?? null;
 }
 
 /**

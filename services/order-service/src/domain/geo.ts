@@ -1,4 +1,4 @@
-import { haversineKm, pointInServiceArea, type ServiceArea } from '@hydromart/platform';
+import { haversineKm, servingDepot, type ServiceArea } from '@hydromart/platform';
 
 import { DepotLocation } from '../application/ports/depot-directory.port';
 
@@ -19,36 +19,9 @@ export function selectNearestDepot(
   lng: number,
   depots: DepotLocation[],
 ): DepotLocation | null {
-  let best: { depot: DepotLocation; distance: number } | null = null;
-  for (const depot of depots) {
-    // A depot row with a missing/garbage coordinate or radius yields NaN, and every
-    // NaN comparison is false — so `distance > radius` would NOT skip it and `!best`
-    // would elect it, silently making one bad row swallow every address on earth.
-    // Skip such rows outright: an unroutable depot is never a candidate.
-    const area = depot.serviceArea;
-    if (!area?.length && !Number.isFinite(depot.serviceRadiusKm)) {
-      continue;
-    }
-    const distance = haversineKm(lat, lng, depot.lat, depot.lng);
-    // The distance ranks the candidates, so it must be a number even when an area decides.
-    if (!Number.isFinite(distance)) {
-      continue;
-    }
-    const serves = area?.length
-      ? pointInServiceArea({ lat, lng }, area)
-      : distance <= depot.serviceRadiusKm;
-    if (!serves) {
-      continue;
-    }
-    if (
-      !best ||
-      distance < best.distance ||
-      (distance === best.distance && depot.id < best.depot.id)
-    ) {
-      best = { depot, distance };
-    }
-  }
-  return best?.depot ?? null;
+  // One rule shared with depot-service and customer-service; it also skips rows whose
+  // coordinate or radius is garbage, which would otherwise swallow every address.
+  return servingDepot({ lat, lng }, depots);
 }
 
 /** A change to one depot, as the reroute preview applies it (absent = unchanged). */

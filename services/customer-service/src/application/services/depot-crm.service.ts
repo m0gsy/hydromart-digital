@@ -14,7 +14,7 @@ import {
   assertDepotAccess,
   assertFresh,
   haversineKm,
-  pointInServiceArea,
+  depotServes,
   recordAuditEvent,
 } from '@hydromart/platform';
 
@@ -173,9 +173,7 @@ function servedBy(
   distanceKm: number | null,
 ): boolean | null {
   if (geo === null || lat === null || lng === null || distanceKm === null) return null;
-  return geo.serviceArea?.length
-    ? pointInServiceArea({ lat, lng }, geo.serviceArea)
-    : distanceKm <= geo.serviceRadiusKm;
+  return depotServes({ lat, lng }, { id: '', ...geo });
 }
 
 @Injectable()
@@ -458,7 +456,11 @@ export class DepotCrmService {
     after?: string,
     limit: number = DIRECTORY_PAGE_MAX,
   ): Promise<string[]> {
-    return this.crm.findIdsByDepotPage(depotId, after, Math.min(Math.max(limit, 1), DIRECTORY_PAGE_MAX));
+    return this.crm.findIdsByDepotPage(
+      depotId,
+      after,
+      Math.min(Math.max(limit, 1), DIRECTORY_PAGE_MAX),
+    );
   }
 
   /**

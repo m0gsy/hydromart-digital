@@ -32,7 +32,10 @@ export {
 } from './domain/geo';
 export {
   pointInServiceArea,
+  depotServes,
+  servingDepot,
   readServiceArea,
+  type ServingDepot,
   cross as areaCross,
   within as areaWithin,
   type LatLng,
