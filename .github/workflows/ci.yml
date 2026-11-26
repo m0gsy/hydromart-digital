@@ -787,6 +787,11 @@ jobs:
       - name: Go-live report and test-data reset behave on the real schema
         run: bash scripts/go-live-tools.test.sh
 
+      # D10: the one-off delete of the migrated /waralaba applications, run against the real depot
+      # schema. Skips, saying so, without Docker.
+      - name: Purge-applications refuses what it must and deletes only the batch
+        run: bash scripts/purge-applications.test.sh
+
       # `@Roles(...)` may name a fixed set (self-service, the courier app, a cron sweep,
       # the franchise portal) and never a policy. PR-7 moved 39 policy decorators into
       # `@hydromart/access`; this stops the next one being written back as a role tuple

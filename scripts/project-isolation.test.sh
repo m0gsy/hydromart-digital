@@ -38,7 +38,7 @@ LABEL="com.docker.compose.project=hydromart"
 
 # ------------------------------------------------------------------------ static checks
 for f in scripts/check-config-drift.sh scripts/docker-gc.sh scripts/ask-the-box.sh \
-  scripts/go-live-report.sh scripts/reset-test-data.sh; do
+  scripts/go-live-report.sh scripts/reset-test-data.sh scripts/purge-applications.sh; do
   grep -q "com.docker.compose.project=\(\$PROJECT\|hydromart\)" "$f" ||
     bad "$f does not name the project label $LABEL"
 done
@@ -218,7 +218,7 @@ else
 fi
 
 # The Postgres readers: they must exec into hydromart-postgres, never the other one.
-for s in go-live-report reset-test-data; do
+for s in go-live-report reset-test-data purge-applications; do
   run "$W/containers" "$W/$s.log" bash "scripts/$s.sh" >/dev/null
   if grep -q '^exec .*hydromart-ai-' "$W/$s.log"; then
     bad "$s.sh ran a command in another project's container: $(grep -m1 '^exec .*hydromart-ai-' "$W/$s.log")"
