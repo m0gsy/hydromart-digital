@@ -56,6 +56,14 @@ for (const [path, value] of strings(doc, '')) {
   if (value.includes('ALERT_WEBHOOK_URL') && path !== 'services.aiweb.environment.ALERT_WEBHOOK_URL') {
     bad(`${path} reads ALERT_WEBHOOK_URL: only services.aiweb.environment.ALERT_WEBHOOK_URL may`);
   }
+  // AI-31: the AI web app's own machine account reaches the app alone, and n8n's reaches n8n's setup
+  // alone: neither account's id or secret may be handed to the other's container.
+  if (value.includes('AIWEB_APP_MACHINE') && !/^services[.]aiweb[.]environment[.]HYDROMART_MACHINE_(ID|SECRET)$/.test(path)) {
+    bad(`${path} reads AIWEB_APP_MACHINE_*: only services.aiweb.environment.HYDROMART_MACHINE_ID and _SECRET may`);
+  }
+  if (value.includes('AIWEB_N8N_MACHINE') && !path.startsWith('services.n8n-setup.environment.')) {
+    bad(`${path} reads AIWEB_N8N_MACHINE_*: n8n's machine account goes to services.n8n-setup alone, never to the AI web`);
+  }
 }
 
 // Networks: `edge` comes from outside (hydromart's Caddy creates it); every other network is
@@ -177,6 +185,11 @@ if (setup) {
   if ((joinedBy['n8n-setup'] ?? []).join(',') !== 'private') bad('services.n8n-setup must join private, and nothing else');
   if (n8n && setup.image !== n8n.image) bad('services.n8n-setup must run the image n8n runs: one release, set up by its own copy of git');
   if (JSON.stringify(setup.profiles) !== '["n8n-setup"]') bad('services.n8n-setup must sit behind its own profile, so `up` never starts it');
+}
+// AI-31: the app's own machine account (a blank value is its kill switch, so ${KEY:-} is the form).
+const appEnv = doc.services?.aiweb?.environment ?? {};
+for (const [key, from] of [['HYDROMART_MACHINE_ID', 'AIWEB_APP_MACHINE_ID'], ['HYDROMART_MACHINE_SECRET', 'AIWEB_APP_MACHINE_SECRET']]) {
+  if (!fromEnv(appEnv[key], from)) bad(`services.aiweb.environment.${key} must be \${${from}:-}, got ${appEnv[key]}`);
 }
 if (onEgress.join(',') !== 'n8n') bad(`only n8n may join egress, the one network with a way off the box, found: ${onEgress.join(', ') || 'none'}`);
 

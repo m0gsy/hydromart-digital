@@ -580,6 +580,46 @@ hide the other:
   uses, and removes the rest of that project's images. It leaves them all alone when the compose
   file pins no digest, and skips them (until next week) while a deploy holds the stack lock.
 
+#### The AI web's own machine account (AI-31)
+
+The AI web's agents (the first: Keuangan's daily cash-anomaly scan) read hydromart's AI read API on a
+schedule with nobody signed in. They use ONE machine account of the AI web app, separate from n8n's
+(never n8n's id, secret or token), read-only, with the single capability `aiReadAgent` (SUPER_ADMIN
+only and in `CUSTOM_FORBIDDEN`: it exists for this account alone).
+
+- **What it may read.** `GET dashboard/api/v1/ai/read/money`, the same route a person's AI token uses
+  (contracts/ai-v1/read.openapi.json), for the whole network (every depot and legal entity, no role to
+  narrow by), and only the metrics P-01, U-02, U-04 and U-05 (403 for any other). Every other route of
+  the read API, and every other family (people, HR, stock), answers 403 to it. `split=depot` on U-02,
+  U-04 and U-05 answers per depot, each row with its `depotId` and depot `code` (P-01's split keeps its `depotId` only). Every machine
+  read is written to the audit trail first (actor = the account id); if the trail cannot be written the
+  answer is 503 and nothing is read.
+- **How the app gets in.** `scripts/aiweb-secrets.sh` makes and rotates `AIWEB_APP_MACHINE_ID`,
+  `AIWEB_APP_MACHINE_SECRET` and `AIWEB_APP_MACHINE_NOT_AFTER` by exactly n8n's rules (made when the
+  line is absent; a new secret from 30 days before its day, valid until today + 89 days UTC;
+  `MACHINE_ACCOUNTS` keeps this id's entries that are still valid beside the new one, every other
+  account's entries as they were; nothing written when the value does not parse). The scope is written
+  only while this tree AND the last good release hold `aiReadAgent`: on the first deploy after the
+  capability ships the line `... has no capability aiReadAgent yet; the aiweb machine account is made
+  on a later deploy` is normal and the deploy goes on. The compose file hands the id and the secret to
+  the `aiweb` service ONLY, as `HYDROMART_MACHINE_ID` and `HYDROMART_MACHINE_SECRET` (never to n8n or
+  n8n-setup; check-aiweb-compose.mjs refuses any other reader, and refuses n8n's keys in the app). The
+  app trades them at `POST /auth/api/v1/auth/machine/token` (body `{ "accountId", "secret" }`, a 15-minute
+  ES256 token, aud `hydromart-machine`, scopes `["aiReadAgent"]`), caches the token until it expires and
+  calls the money route with it.
+- **Rotation reaches the running app.** The value of `HYDROMART_MACHINE_SECRET` is part of the
+  `aiweb` service's configuration, so the deploy's `up -d` (step 8 of scripts/aiweb-deploy.sh)
+  recreates the app container when the secret changes. The old secret stays valid in
+  `MACHINE_ACCOUNTS` until it lapses (its own day), which covers the window between auth-service's
+  converge and the app's recreate: the same dual-entry rule as n8n's.
+- **Kill switch.** Keep `AIWEB_APP_MACHINE_SECRET` and blank it (deploy mode env-set, then deploy): its
+  entries leave `MACHINE_ACCOUNTS` (auth refuses the account from the converge), the line stays blank
+  and the app gets no secret, so the scheduled reads stop; n8n and everything else are untouched. Back
+  on: delete the line on the box (or set any word with `AIWEB_APP_MACHINE_NOT_AFTER` blank) and deploy.
+- **Staging.** The staging AI web keeps NO machine account: its hydromart is the mock, so the agents'
+  scheduled reads are off there (infra/aiweb-staging/docker-compose.yml and
+  scripts/aiweb-staging-secrets.sh are unchanged).
+
 #### The host's ssh, closed to the AI web
 
 The owner's decision of 24 November 2026: the box's ssh (TCP 22) answers nothing that comes from
