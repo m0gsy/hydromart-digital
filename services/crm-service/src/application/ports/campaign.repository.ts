@@ -84,8 +84,12 @@ export interface CampaignRepository {
    * to real customers (B-17). False = somebody else already claimed it.
    */
   markSending(id: string): Promise<boolean>;
-  /** Campaigns still mid-broadcast, oldest first, for the sweep to continue. */
-  findSending(limit: number, now: Date): Promise<CampaignRecord[]>;
+  /**
+   * Campaigns still mid-broadcast, oldest first, for the sweep to continue. HD-14: `exceptDepotIds` leaves
+   * out the campaigns of depots on a quality hold IN THE QUERY, so a few held ones cannot fill the
+   * sweep's small batch and starve everyone else (network-wide campaigns, depotId null, always stay).
+   */
+  findSending(limit: number, now: Date, exceptDepotIds?: readonly string[]): Promise<CampaignRecord[]>;
   /**
    * Claim up to `limit` PENDING recipients of one campaign by moving them to SENDING, and
    * return only the rows this call actually moved. The claim is the WHERE clause: a

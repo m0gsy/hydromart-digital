@@ -195,6 +195,7 @@ export const dashC = {
       depotQualityHoldStart: 'Quality hold: start',
       depotQualityHoldEnd: 'Quality hold: end',
       depotCompliance: 'Lab tests and permits',
+      qualityHoldOrders: 'Quality hold: orders held back',
       depotTargets: 'Depot targets',
       depotWholesale: 'Wholesale / B2B pricing',
       depotSubscriptions: 'Depot subscriptions',

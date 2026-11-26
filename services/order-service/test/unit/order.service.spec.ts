@@ -4983,6 +4983,13 @@ describe('OrderService', () => {
    * everything accepts again. A retest alone is depot-service's business (it never ends a hold).
    */
   describe('quality hold drill (HD-14)', () => {
+    // A hold must bite at once in these walks; the cache has its own test below.
+    beforeEach(() => {
+      OrderService.heldCacheMs = 0;
+    });
+    afterEach(() => {
+      OrderService.heldCacheMs = 5_000;
+    });
     const hq = { sub: 'hq-1', role: 'HEAD_OFFICE' as never, phone: '08', depotId: null } as never;
     const otherDepot = { ...homeDepot, id: 'depot-other', lat: -7.5, lng: 108.2 };
     const hold = (on: boolean) => {
@@ -5064,6 +5071,32 @@ describe('OrderService', () => {
       // a courier on the road is not stopped by a directory blip
       await expect(service.updateStatus(placed.id, OrderStatus.DRIVER_ASSIGNED, 'staff')).resolves.toBeDefined();
       await expect(service.heldOrders(undefined)).rejects.toBeInstanceOf(DepotUnavailableError);
+    });
+
+    it('reuses the held-depot ids for a few seconds instead of downloading the directory on every call, and never caches an outage', async () => {
+      OrderService.heldCacheMs = 5_000;
+      hold(false);
+      await addToCart(20000, 1);
+      const placed = await service.checkout(customer, { deliveryAddress: address });
+      await service.updateStatus(placed.id, OrderStatus.CONFIRMED, 'staff');
+      await service.updateStatus(placed.id, OrderStatus.PREPARING, 'staff');
+      const spy = jest.spyOn(depots, 'listActiveDepots');
+      await sellAtCounter();
+      await sellAtCounter();
+      await service.updateStatus(placed.id, OrderStatus.DRIVER_ASSIGNED, 'staff');
+      expect(spy).toHaveBeenCalledTimes(1);
+      // a cached "not held" still lets sales through; a fresh service instance (or 5 s on) sees the hold
+      jest.useFakeTimers().setSystemTime(Date.now() + 6_000);
+      hold(true);
+      await expect(sellAtCounter()).rejects.toBeInstanceOf(DepotOnHoldError);
+      jest.useRealTimers();
+      // an unreadable directory is retried at once, not remembered
+      OrderService.heldCacheMs = 0;
+      depots.unreachable = true;
+      await expect(sellAtCounter()).rejects.toBeInstanceOf(DepotUnavailableError);
+      depots.unreachable = false;
+      hold(false);
+      await expect(sellAtCounter()).resolves.toBeDefined();
     });
 
     it('neither pickup nor start can happen for a held depot, but delivery of what is out finishes', async () => {

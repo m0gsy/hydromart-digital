@@ -3,7 +3,11 @@ import { Injectable } from '@nestjs/common';
 import { HeldDepotsPort } from '../../application/ports/held-depots.port';
 import { PromoConfigService } from '../../config/promo-config.service';
 
-/** depot-service's public browse: every active depot with its `qualityHold` flag. Throws on any failure. */
+/**
+ * depot-service's PUBLIC browse: every active depot with its `qualityHold` flag. Deliberately the public
+ * route and no internal key: the flag (the fact and the day, never why) is already on the anonymous
+ * depot list that customers' checkout reads, so this adds no exposure and needs no secret. Throws on any failure.
+ */
 @Injectable()
 export class HeldDepotsHttpAdapter implements HeldDepotsPort {
   private static readonly TIMEOUT_MS = 8_000;

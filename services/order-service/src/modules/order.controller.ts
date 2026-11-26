@@ -501,7 +501,7 @@ export class OrderController {
    */
   @ApiOkResponse({ type: OrderResponseDto, isArray: true })
   @Get('manage/held')
-  @Can('orderFulfilment')
+  @Can('qualityHoldOrders')
   @ApiOperation({ summary: 'Staff: orders held back by a depot quality hold ("tertahan")' })
   held(@CurrentUser() user: AuthenticatedUser, @Query('depotId') depotId?: string): Promise<OrderRecord[]> {
     return this.orders.heldOrders(depotScopeIds(user, depotId));

@@ -128,9 +128,10 @@ export class InMemoryCampaignRepository implements CampaignRepository {
     return true;
   }
 
-  async findSending(limit: number, now: Date): Promise<CampaignRecord[]> {
+  async findSending(limit: number, now: Date, exceptDepotIds: readonly string[] = []): Promise<CampaignRecord[]> {
     return this.campaigns
       .filter((c) => c.status === CampaignStatus.SENDING)
+      .filter((c) => !c.depotId || !exceptDepotIds.includes(c.depotId))
       .filter((c) => c.scheduledFor === null || c.scheduledFor <= now)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
       .slice(0, limit)

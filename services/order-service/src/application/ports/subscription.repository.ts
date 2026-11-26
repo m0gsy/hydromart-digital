@@ -67,7 +67,8 @@ export interface SubscriptionRepository {
    * advance, so they are re-read every tick and eventually fill the batch. That is D2b's
    * job — the failure counter that stops asking.
    */
-  findDue(now: Date, limit?: number): Promise<SubscriptionRecord[]>;
+  /** Oldest due first; `offset` pages past plans the sweep chose to leave out (HD-14: held depots). */
+  findDue(now: Date, limit?: number, offset?: number): Promise<SubscriptionRecord[]>;
   /** The pin of every ACTIVE plan that has one: what the sweep routes by (reroute preview). */
   listActivePins(): Promise<{ lat: number; lng: number }[]>;
   /** The pins of the plans named, whatever their status; unknown ids are left out. */
@@ -149,3 +150,6 @@ export interface SubscriptionRepository {
   /** Network aggregate of ACTIVE subscriptions for the HQ console (18c). */
   networkSummary(): Promise<SubscriptionNetworkSummary>;
 }
+
+/** Plans one due sweep reads at a time (and places at most). */
+export const DUE_SWEEP_BATCH = 100;

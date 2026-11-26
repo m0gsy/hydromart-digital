@@ -412,24 +412,29 @@ export class CampaignService {
      * What CAN still fail is a recipient with no account to deliver to; that is handled
      * per recipient below rather than by refusing the whole sweep.
      */
-    const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP, now);
-    // HD-14: a depot's campaign waits while its depot is held (its recipients stay PENDING and go on
-    // after the hold); a network-wide one skips the customers of held depots. With no way to read the
-    // holds nothing is sent this tick: the next tick tries again.
-    let held: ReadonlySet<string> = new Set();
+    // HD-14: a depot's campaign waits while its depot is held (its recipients stay PENDING and go on after
+    // the hold); a network-wide one skips the customers of held depots. The held depots are read FIRST and
+    // left out of the query, so a few held campaigns cannot fill the small batch and starve the rest. With
+    // no way to read the holds nothing is sent this tick (the next tick tries again), unless nothing waits.
+    let held: ReadonlySet<string>;
+    try {
+      held = await this.holds.heldDepotIds();
+    } catch (e) {
+      this.logger.warn(`broadcast sweep waits: quality holds unreadable: ${(e as Error).message}`);
+      const waiting = (await this.repo.findSending(1, now)).length > 0;
+      return { campaigns: 0, sent: 0, failed: 0, completed: 0, skipped: 0, held: 0, ok: !waiting };
+    }
+    const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP, now, [...held]);
     const heldCustomers = new Set<string>();
-    if (campaigns.length > 0) {
+    if (held.size > 0 && campaigns.some((c) => !c.depotId)) {
       try {
-        held = await this.holds.heldDepotIds();
         // ponytail: "customers of a held depot" = those who ordered there (the activity segment); a customer
         // of two depots is skipped while either is held. Per tick, only while some depot is held.
-        if (held.size > 0 && campaigns.some((c) => !c.depotId)) {
-          for (const depotId of held) {
-            for (const id of await this.activity.customersIn({ depotId })) heldCustomers.add(id);
-          }
+        for (const depotId of held) {
+          for (const id of await this.activity.customersIn({ depotId })) heldCustomers.add(id);
         }
       } catch (e) {
-        this.logger.warn(`broadcast sweep waits: quality holds unreadable: ${(e as Error).message}`);
+        this.logger.warn(`broadcast sweep waits: held depots' customers unreadable: ${(e as Error).message}`);
         return { campaigns: 0, sent: 0, failed: 0, completed: 0, skipped: 0, held: 0, ok: false };
       }
     }
@@ -444,7 +449,6 @@ export class CampaignService {
     };
 
     for (const campaign of campaigns) {
-      if (campaign.depotId && held.has(campaign.depotId)) continue;
       result.campaigns += 1;
       const batch = await this.repo.claimRecipients(campaign.id, CampaignService.BATCH);
       // CRM-03: one recipient is a preference read, an inbox write and a push - three round trips

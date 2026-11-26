@@ -66,7 +66,23 @@ export class CustomerOutreachPrismaRepository implements CustomerOutreachReposit
       where: { status: 'ACTIVE', nextDeliveryAt: { gte: from, lt: to } },
       orderBy: { nextDeliveryAt: 'asc' },
       take: limit,
-      select: { id: true, customerId: true, productName: true, quantity: true, nextDeliveryAt: true, latitude: true, longitude: true },
+      select: {
+        id: true,
+        customerId: true,
+        productName: true,
+        quantity: true,
+        nextDeliveryAt: true,
+        addressId: true,
+        recipientName: true,
+        phone: true,
+        addressLine: true,
+        city: true,
+        province: true,
+        postalCode: true,
+        latitude: true,
+        longitude: true,
+        notes: true,
+      },
     });
   }
 

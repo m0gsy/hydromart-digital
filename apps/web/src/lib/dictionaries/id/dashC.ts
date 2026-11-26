@@ -200,6 +200,7 @@ export const dashC = {
       depotQualityHoldStart: 'Quality hold: mulai',
       depotQualityHoldEnd: 'Quality hold: akhiri',
       depotCompliance: 'Uji lab dan izin',
+      qualityHoldOrders: 'Quality hold: pesanan tertahan',
       depotTargets: 'Target depot',
       depotWholesale: 'Harga grosir / B2B',
       depotSubscriptions: 'Langganan depot',

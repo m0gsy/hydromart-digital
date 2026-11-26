@@ -304,6 +304,39 @@ describe('SubscriptionService', () => {
   // HD-14: a depot on a quality hold is a pause for the plan, never a failed cycle.
   describe('HD-14 · a depot on quality hold', () => {
     const due = new Date('2026-07-02T00:00:00Z');
+    it('treats a hold that began between the directory read and the placement as a skip too', async () => {
+      const p = seedProduct();
+      const sub = await service.create(customer, { productId: p.id, quantity: 1, frequency: 'WEEKLY', firstDeliveryAt: new Date('2026-07-01T00:00:00Z'), address });
+      const real = depots.listActiveDepots.bind(depots);
+      let reads = 0;
+      jest.spyOn(depots, 'listActiveDepots').mockImplementation(async () => {
+        reads += 1;
+        const list = await real();
+        return reads === 1 ? list : list!.map((d) => ({ ...d, onHold: true }));
+      });
+      expect(await service.processDue(due)).toEqual({ placed: 0, failed: 0, ok: true });
+      expect(subs.rows.find((r) => r.id === sub.id)).toMatchObject({ status: 'ACTIVE', failureCount: 0 });
+      expect(orders.rows).toHaveLength(0);
+    });
+
+    it('does not let a pile of held plans starve a healthy depot: more than a batch of held plans, one healthy one behind them', async () => {
+      const healthy = { ...homeDepot, id: 'depot-healthy', lat: -7.5, lng: 108.2 };
+      depots.depots = [{ ...homeDepot, onHold: true }, healthy];
+      const p = seedProduct();
+      const plan = (at: string, where: typeof address) =>
+        service.create(customer, { productId: p.id, quantity: 1, frequency: 'WEEKLY', firstDeliveryAt: new Date(at), address: where });
+      for (let i = 0; i < 101; i += 1) await plan('2026-07-01T00:00:00Z', address);
+      const far = await plan('2026-07-01T12:00:00Z', { ...address, latitude: -7.5, longitude: 108.2 });
+      const out = await service.processDue(due);
+      expect(out).toEqual({ placed: 1, failed: 0, ok: true });
+      expect(orders.rows).toHaveLength(1);
+      expect(orders.rows[0].depotId).toBe('depot-healthy');
+      expect(subs.rows.find((r) => r.id === far.id)!.nextDeliveryAt.getTime()).toBeGreaterThan(due.getTime());
+      // The held ones are untouched: still ACTIVE, still due, nothing failed.
+      const held = subs.rows.filter((r) => r.id !== far.id);
+      expect(held.every((r) => r.status === 'ACTIVE' && r.nextDeliveryAt.getTime() <= due.getTime())).toBe(true);
+    });
+
     it('skips the cycle: no failure counted, no pause, no text, the date stays, and it delivers once the hold ends', async () => {
       const p = seedProduct();
       const sub = await service.create(customer, {

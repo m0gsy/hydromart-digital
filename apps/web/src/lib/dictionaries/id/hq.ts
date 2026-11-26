@@ -304,6 +304,7 @@ export const hq = {
       depotQualityHoldStart: 'Quality hold: mulai',
       depotQualityHoldEnd: 'Quality hold: akhiri',
       depotCompliance: 'Uji lab dan izin',
+      qualityHoldOrders: 'Quality hold: pesanan tertahan',
       depotTargets: 'Target depot',
       depotWholesale: 'Grosir / B2B',
       depotSubscriptions: 'Langganan depot',

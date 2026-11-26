@@ -100,7 +100,7 @@ function HeldBody() {
 function Gate() {
   const { t } = useT();
   const { customer } = useAuth();
-  if (!can('orderFulfilment', customer?.role)) {
+  if (!can('qualityHoldOrders', customer?.role)) {
     return (
       <CenterState title={t('dashB.quality.gateTitle')} icon={<Lock size={40} weight="fill" />}>
         {t('dashB.quality.gateBody')}

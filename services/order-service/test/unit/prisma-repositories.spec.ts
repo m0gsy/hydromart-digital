@@ -199,9 +199,17 @@ describe('SubscriptionPrismaRepository', () => {
     await repo.findDue(now);
     expect(model.findMany).toHaveBeenCalledWith({
       where: { status: 'ACTIVE', nextDeliveryAt: { lte: now } },
-      orderBy: { nextDeliveryAt: 'asc' },
+      // id breaks ties so paging past held plans (offset) never repeats or skips a row
+      orderBy: [{ nextDeliveryAt: 'asc' }, { id: 'asc' }],
+      skip: 0,
       take: 100,
     });
+  });
+
+  it('pages past plans the sweep left out (offset)', async () => {
+    model.findMany.mockResolvedValue([]);
+    await repo.findDue(new Date('2026-08-21T00:00:00Z'), 100, 200);
+    expect(model.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 200, take: 100 }));
   });
 
   it('lets the caller shrink the due batch', async () => {

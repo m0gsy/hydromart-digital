@@ -3441,9 +3441,9 @@ export class OrderService {
    * A depot absent from the active list has no hold to speak of (its own checks refuse it).
    */
   private async assertDepotSelling(depotId: string): Promise<void> {
-    const depots = await this.depotDirectory.listActiveDepots();
-    if (depots === null) throw new DepotUnavailableError();
-    if (depots.find((d) => d.id === depotId)?.onHold) throw new DepotOnHoldError();
+    const held = await this.heldDepotIdSet();
+    if (held === null) throw new DepotUnavailableError();
+    if (held.has(depotId)) throw new DepotOnHoldError();
   }
 
   /**
@@ -3451,12 +3451,33 @@ export class OrderService {
    * a sale: a courier on the road must not be stuck by a directory blip, and no new sale is let in.
    */
   private async depotIsHeld(depotId: string): Promise<boolean> {
-    const depots = await this.depotDirectory.listActiveDepots();
-    if (depots === null) {
+    const held = await this.heldDepotIdSet();
+    if (held === null) {
       this.logger.warn(`Quality hold of ${depotId} not checked: depot directory unreachable`);
       return false;
     }
-    return depots.find((d) => d.id === depotId)?.onHold === true;
+    return held.has(depotId);
+  }
+
+  /** How long the held-depot ids are reused by courier steps and counter calls (ms). A hold waits at most this long to bite there; checkout reads the depot fresh. */
+  static heldCacheMs = 5_000;
+  private heldCache: { at: number; ids: ReadonlySet<string> } | null = null;
+
+  /**
+   * The ids of depots on a quality hold, or null when the directory cannot be read (never cached, so an
+   * outage is retried at once). Only the ids are kept: every courier step and counter call used to
+   * download every directory page just to read one flag.
+   */
+  private async heldDepotIdSet(): Promise<ReadonlySet<string> | null> {
+    const now = Date.now();
+    const age = this.heldCache ? now - this.heldCache.at : -1;
+    // A clock that stepped back makes the age negative: refetch rather than trust it.
+    if (this.heldCache && age >= 0 && age < OrderService.heldCacheMs) return this.heldCache.ids;
+    const depots = await this.depotDirectory.listActiveDepots();
+    if (depots === null) return null;
+    const ids = new Set(depots.filter((d) => d.onHold).map((d) => d.id));
+    this.heldCache = { at: now, ids };
+    return ids;
   }
 
   /**

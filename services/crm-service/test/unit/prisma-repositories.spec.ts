@@ -206,12 +206,29 @@ describe('CampaignPrismaRepository', () => {
     expect(campaign.findMany).toHaveBeenCalledWith({
       where: {
         status: 'SENDING',
-        OR: [{ scheduledFor: null }, { scheduledFor: { lte: now } }],
+        AND: [{ OR: [{ scheduledFor: null }, { scheduledFor: { lte: now } }] }],
       },
       orderBy: { createdAt: 'asc' },
       take: 5,
     });
     expect(out[0].recipients).toEqual([]);
+  });
+
+  it('findSending leaves out held depots IN THE QUERY and keeps network-wide campaigns (NULL depot)', async () => {
+    campaign.findMany.mockResolvedValue([]);
+    const now = new Date('2026-08-13T12:00:00.000Z');
+    await repo.findSending(5, now, ['d-held']);
+    expect(campaign.findMany).toHaveBeenLastCalledWith({
+      where: {
+        status: 'SENDING',
+        AND: [
+          { OR: [{ scheduledFor: null }, { scheduledFor: { lte: now } }] },
+          { OR: [{ depotId: null }, { depotId: { notIn: ['d-held'] } }] },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 5,
+    });
   });
 
   it('claimRecipients moves PENDING rows then reads back only what it moved', async () => {

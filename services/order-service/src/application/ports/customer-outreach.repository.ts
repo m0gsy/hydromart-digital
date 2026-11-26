@@ -19,9 +19,21 @@ export interface DueSubscriptionRow {
   productName: string;
   quantity: number;
   nextDeliveryAt: Date;
-  /** Where it delivers, to tell which depot (and so which quality hold) it falls under. */
+  /** The saved address it follows, if any. */
+  addressId: string | null;
+  /**
+   * The plan's own address snapshot. Read only to tell which depot (and so which quality hold) the plan
+   * would be delivered to, by the same rule as the sweep; never returned to the caller.
+   */
+  recipientName: string;
+  phone: string;
+  addressLine: string;
+  city: string;
+  province: string | null;
+  postalCode: string | null;
   latitude: number | null;
   longitude: number | null;
+  notes: string | null;
 }
 
 export interface UnpaidCandidateRow {

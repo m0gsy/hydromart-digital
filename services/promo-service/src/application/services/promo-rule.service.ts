@@ -176,11 +176,13 @@ export class PromoRuleService {
       Object.entries(patch).filter(([, v]) => v !== undefined),
     );
     this.validate({ ...current, ...definedPatch });
-    // Only what switches a rule ON for a depot is refused; edits and switching OFF stay open.
+    // Only a REAL change to "live at a held depot" is refused: switching a rule on that was off, or moving
+    // it to another depot. The web form sends depotId on every save, so an unchanged depotId (and an
+    // already-active rule) must stay editable during a hold; so does switching off.
     const merged = { ...current, ...definedPatch } as PromoRuleRecord;
-    if (merged.active && (patch.active === true || patch.depotId !== undefined)) {
-      await this.assertDepotNotHeld(merged.depotId);
-    }
+    const switchedOn = patch.active === true && !current.active;
+    const moved = patch.depotId !== undefined && patch.depotId !== current.depotId;
+    if (merged.active && (switchedOn || moved)) await this.assertDepotNotHeld(merged.depotId);
     return this.repo.update(id, patch, current.updatedAt);
   }
 

@@ -9,7 +9,8 @@ import {
   CustomerOutreachRepository,
   StatusOrderRow,
 } from '../ports/customer-outreach.repository';
-import { selectNearestDepot } from '../../domain/geo';
+import { addressToDeliver, routedDepot } from '../../domain/subscription-address';
+import { CustomerDirectoryPort } from '../ports/customer-directory.port';
 import { DepotDirectoryPort, DepotLocation } from '../ports/depot-directory.port';
 import { AccountByPhonePort, PaymentsOfOrdersPort } from '../ports/outreach-lookups.port';
 
@@ -46,6 +47,7 @@ export class CustomerOutreachService {
     @Inject(ORDER_TOKENS.AccountByPhone) private readonly accounts: AccountByPhonePort,
     @Inject(ORDER_TOKENS.PaymentsOfOrders) private readonly payments: PaymentsOfOrdersPort,
     @Inject(ORDER_TOKENS.DepotDirectory) private readonly depots: DepotDirectoryPort,
+    @Inject(ORDER_TOKENS.CustomerDirectory) private readonly customers: CustomerDirectoryPort,
     private readonly config: OrderConfigService,
   ) {}
 
@@ -100,16 +102,47 @@ export class CustomerOutreachService {
    */
   async subscriptionsDue(from: Date, to: Date) {
     const rows = await this.repo.subscriptionsDueBetween(from, to, SUBSCRIPTION_CAP + 1);
+    // Nothing due: nothing to hold back, and a depot-service blip must not turn an empty answer into a 503.
+    if (rows.length === 0) return this.capped('subscriptions due', [], SUBSCRIPTION_CAP);
     const { held, depots } = await this.heldDepots();
-    const kept = held.size === 0
-      ? rows
-      : rows.filter((r) => {
-          if (r.latitude === null || r.longitude === null) return true;
-          const depot = selectNearestDepot(r.latitude, r.longitude, depots);
-          return !(depot && held.has(depot.id));
-        });
+    let kept = rows;
+    if (held.size > 0) {
+      // The depot is the one the sweep would deliver to: the plan's address, or the saved address it
+      // follows when the same depot still serves it (addressToDeliver is the sweep's own rule).
+      const saved = new Map(
+        await Promise.all(
+          rows
+            .filter((r) => r.addressId)
+            .map(async (r) => [r.id, await this.customers.addressById(r.customerId, r.addressId!)] as const),
+        ),
+      );
+      kept = rows.filter((r) => {
+        const snapshot = {
+          recipientName: r.recipientName,
+          phone: r.phone,
+          addressLine: r.addressLine,
+          city: r.city,
+          province: r.province,
+          postalCode: r.postalCode,
+          latitude: r.latitude,
+          longitude: r.longitude,
+          notes: r.notes,
+        };
+        const where = routedDepot(addressToDeliver(!!r.addressId, snapshot, saved.get(r.id) ?? null, depots), depots);
+        return !(where && held.has(where.id));
+      });
+    }
     const { items, truncated } = this.capped('subscriptions due', kept, SUBSCRIPTION_CAP);
-    return { items: items.map(({ latitude: _la, longitude: _lo, ...rest }) => rest), truncated };
+    return {
+      items: items.map((r) => ({
+        id: r.id,
+        customerId: r.customerId,
+        productName: r.productName,
+        quantity: r.quantity,
+        nextDeliveryAt: r.nextDeliveryAt,
+      })),
+      truncated,
+    };
   }
 
   /** HD-14: the active depots and the ids of those on a quality hold; throws 503 when the directory cannot be read. */
@@ -135,7 +168,9 @@ export class CustomerOutreachService {
     // says so and the next tick (10 minutes on) takes the rest.
     const { items: kept, truncated } = this.capped('unpaid orders', created, CANDIDATE_CAP);
     const payments = await this.payments.latestByOrder(kept.map((o) => o.id));
-    // HD-14: nobody is reminded to pay for an order of a depot on a quality hold.
+    // HD-14: nobody is reminded to pay for an order of a depot on a quality hold. With no candidate there is
+    // nothing to hold back, and an unreadable depot-service must not turn an empty answer into a 503.
+    if (kept.length === 0) return { truncated, items: [] };
     const { held } = await this.heldDepots();
     return {
       truncated,

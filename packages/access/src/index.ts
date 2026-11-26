@@ -632,6 +632,9 @@ export const CAPABILITIES = {
   depotQualityHoldStart: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
   depotQualityHoldEnd: ['HEAD_OFFICE', 'SUPER_ADMIN'],
   depotCompliance: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // HD-14: the "tertahan" list: accepted orders a hold holds back (own depot for a Kepala). Reading it is its
+  // own right; cancelling one stays the ordinary staff status path (orderFulfilment). Grantable to a custom role.
+  qualityHoldOrders: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
   complianceDueNotify: ['SUPER_ADMIN'],
   /*
    * depot-service (HD-15B) - write the checklist templates a supervisor visit starts from. Head

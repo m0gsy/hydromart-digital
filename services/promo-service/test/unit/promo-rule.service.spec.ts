@@ -1144,6 +1144,18 @@ describe('PromoRuleService and quality hold (HD-14)', () => {
     expect((await service.update(rule.id, { active: true }, await seen(rule.id))).active).toBe(true);
   });
 
+  it('lets an ACTIVE rule at a held depot be edited (the web form resends depotId on every save)', async () => {
+    held.clear();
+    const rule = await service.create(baseInput({ depotId: HELD }));
+    held.add(HELD);
+    const seen = (await service.findById(rule.id)).updatedAt.toISOString();
+    const edited = await service.update(rule.id, { name: 'Teks baru', depotId: HELD, active: true }, seen);
+    expect(edited.name).toBe('Teks baru');
+    // and a rule already active is not "switched on" by saving it again
+    const again = await service.update(rule.id, { active: true }, (await service.findById(rule.id)).updatedAt.toISOString());
+    expect(again.active).toBe(true);
+  });
+
   it('does not ask when there is no depot to check, and refuses when the holds cannot be read', async () => {
     readable = false;
     await expect(service.create(baseInput({ depotId: null }))).resolves.toBeDefined();

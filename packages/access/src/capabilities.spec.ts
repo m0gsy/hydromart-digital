@@ -283,6 +283,10 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('complianceDueNotify');
     expect(CUSTOM_FORBIDDEN).toContain('depotQualityHoldEnd');
     expect(CUSTOM_FORBIDDEN).not.toContain('depotQualityHoldStart');
+    // the held-orders list is its own right, grantable, and not the court that ends a hold
+    expect(CAPABILITIES.qualityHoldOrders).toEqual(['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+    expect(can('qualityHoldOrders', 'MANAGER')).toBe(false);
+    expect(CUSTOM_FORBIDDEN).not.toContain('qualityHoldOrders');
   });
 
   it('lets FINANCE read names and orders without gaining any write beside them', () => {

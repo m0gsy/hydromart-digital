@@ -39,6 +39,7 @@ const build = (
     payments?: () => Promise<Map<string, OrderPaymentRow>>;
     contacts?: () => Promise<{ id: string; name: string }[] | null>;
     active?: () => Promise<unknown[] | null>;
+    saved?: (customerId: string, addressId: string) => Promise<unknown | null>;
     abandon?: number;
   } = {},
 ) => {
@@ -57,8 +58,9 @@ const build = (
     listActiveDepots: jest.fn(over.active ?? (async () => [])),
   };
   const config = { abandonMinutes: over.abandon ?? 60 } as unknown as OrderConfigService;
-  const service = new CustomerOutreachService(repo, accounts, payments, depots as never, config);
-  return { service, repo, accounts, payments, depots };
+  const customers = { addressById: jest.fn(over.saved ?? (async () => null)) };
+  const service = new CustomerOutreachService(repo, accounts, payments, depots as never, customers as never, config);
+  return { service, repo, accounts, payments, depots, customers };
 };
 
 describe('CustomerOutreachService.statusByPhone (HD-18)', () => {
@@ -314,7 +316,11 @@ describe('reminders skip a depot on quality hold (HD-14)', () => {
   // Two depots a few km apart; the plan near d-held routes to it.
   const depot = (id: string, lat: number, onHold: boolean) => ({ id, lat, lng: 106.8, serviceRadiusKm: 10, deliveryFee: 0, minOrderAmount: null, onHold });
   const active = async () => [depot('d-held', -6.2, true), depot('d-ok', -6.5, false)];
-  const sub = (id: string, lat: number | null) => ({ id, customerId: 'c', productName: 'Galon', quantity: 1, nextDeliveryAt: NOW, latitude: lat, longitude: lat === null ? null : 106.8 });
+  const sub = (id: string, lat: number | null, over: Record<string, unknown> = {}) => ({
+    id, customerId: 'c', productName: 'Galon', quantity: 1, nextDeliveryAt: NOW, addressId: null,
+    recipientName: 'A', phone: '08', addressLine: 'Jl', city: 'X', province: null, postalCode: null, notes: null,
+    latitude: lat, longitude: lat === null ? null : 106.8, ...over,
+  });
 
   it('drops the subscription reminders of a held depot, keeps the others and a plan with no pin', async () => {
     const { service } = build({
@@ -342,8 +348,35 @@ describe('reminders skip a depot on quality hold (HD-14)', () => {
     expect((await service.unpaidOrders(NOW)).items.map((i) => i.orderId)).toEqual(['k', 'n']);
   });
 
-  it('answers 503 rather than guess when the depots cannot be read', async () => {
+  it('judges a plan by the address the sweep would deliver to: the saved address it follows, when the same depot still serves it', async () => {
+    // The snapshot is at the OK depot, the saved address moved a little (same depot): not held.
+    const moved = { recipientName: 'A', phone: '08', addressLine: 'Baru', city: 'X', province: null, postalCode: null, notes: null, latitude: -6.51, longitude: 106.8 };
+    const a = build({ active, saved: async () => moved, repo: { subscriptionsDueBetween: jest.fn().mockResolvedValue([sub('follow', -6.5, { addressId: 'ad1' })]) } });
+    expect((await a.service.subscriptionsDue(NOW, NOW)).items.map((i) => i.id)).toEqual(['follow']);
+    expect(a.customers.addressById).toHaveBeenCalledWith('c', 'ad1');
+    // A saved address in ANOTHER depot's area is not followed (the sweep keeps the snapshot), so the
+    // plan stays judged by its snapshot: at the held depot, left out.
+    const far = { ...moved, latitude: -6.2 };
+    const b = build({ active, saved: async () => far, repo: { subscriptionsDueBetween: jest.fn().mockResolvedValue([sub('held-snap', -6.2, { addressId: 'ad2' })]) } });
+    expect((await b.service.subscriptionsDue(NOW, NOW)).items).toEqual([]);
+    const c = build({ active, saved: async () => ({ ...moved, latitude: -6.2 }), repo: { subscriptionsDueBetween: jest.fn().mockResolvedValue([sub('would-move', -6.5, { addressId: 'ad3' })]) } });
+    // snapshot at the OK depot, saved at the held depot: the sweep does not follow across depots, stays OK.
+    expect((await c.service.subscriptionsDue(NOW, NOW)).items.map((i) => i.id)).toEqual(['would-move']);
+  });
+
+  it('an empty answer stays an empty answer when depot-service is down', async () => {
     const { service } = build({ active: async () => null });
+    await expect(service.subscriptionsDue(NOW, NOW)).resolves.toEqual({ items: [], truncated: false });
+    await expect(service.unpaidOrders(NOW)).resolves.toEqual({ items: [], truncated: false });
+  });
+
+  it('answers 503 rather than guess when the depots cannot be read', async () => {
+    const o = (id: string) => ({ id, customerId: 'c', orderNumber: id, total: 1, depotId: null });
+    const { service } = build({
+      active: async () => null,
+      repo: { subscriptionsDueBetween: jest.fn().mockResolvedValue([sub('a', -6.5)]), createdOrdersBetween: jest.fn().mockResolvedValue([o('a')]) },
+      payments: async () => new Map([['a', { orderId: 'a', method: 'QRIS', status: 'PENDING' } as OrderPaymentRow]]),
+    });
     await expect(service.subscriptionsDue(NOW, NOW)).rejects.toThrow('could not be read');
     await expect(service.unpaidOrders(NOW)).rejects.toThrow('could not be read');
   });

@@ -87,6 +87,20 @@ describe('campaigns and quality hold (HD-14)', () => {
     expect((await service.processSending()).sent).toBe(2);
   });
 
+  it('does not let held campaigns fill the sweep batch: five held ones older than a healthy one, which is still sent', async () => {
+    seedDirectory();
+    for (let i = 0; i < 5; i += 1) {
+      const held = await service.createForDepot('staff', D1, `Held ${i}`, 'Hi');
+      await service.send(held.id);
+    }
+    const ok = await service.createForDepot('staff', D2, 'Healthy', 'Hi');
+    await service.send(ok.id);
+    holds.held.add(D1);
+    const out = await service.processSending();
+    expect(out).toMatchObject({ campaigns: 1, sent: 2 });
+    expect((await service.get(ok.id)).status).toBe(CampaignStatus.SENT);
+  });
+
   it('a network-wide send skips the customers of a held depot and reaches the rest', async () => {
     const wide = await service.create('hq', 'Semua', 'Hi', people);
     await service.send(wide.id);

@@ -412,7 +412,7 @@ export const GROUPS: RailGroup[] = [
       {
         href: '/dashboard/held',
         labelKey: 'held',
-        show: (r) => can('depotQualityHoldStart', r),
+        show: (r) => can('qualityHoldOrders', r),
       },
       // HD-14: quality hold, lab tests and permits.
       {

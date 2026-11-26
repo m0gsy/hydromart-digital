@@ -164,14 +164,18 @@ export class CampaignPrismaRepository implements CampaignRepository {
     return count === 1;
   }
 
-  async findSending(limit: number, now: Date): Promise<CampaignRecord[]> {
+  async findSending(limit: number, now: Date, exceptDepotIds: readonly string[] = []): Promise<CampaignRecord[]> {
     const rows = await this.prisma.campaign.findMany({
       // A scheduled campaign is claimed the moment staff press the button — it is SENDING
       // straight away — but it is not DUE until its time. The sweep is the only place that
       // distinction lives, so a campaign for tomorrow simply is not picked up today.
       where: {
         status: PrismaCampaignStatus.SENDING,
-        OR: [{ scheduledFor: null }, { scheduledFor: { lte: now } }],
+        AND: [
+          { OR: [{ scheduledFor: null }, { scheduledFor: { lte: now } }] },
+          // NOT IN alone would drop the NULL rows (network-wide campaigns): name them.
+          ...(exceptDepotIds.length > 0 ? [{ OR: [{ depotId: null }, { depotId: { notIn: [...exceptDepotIds] } }] }] : []),
+        ],
       },
       orderBy: { createdAt: 'asc' },
       take: limit,
