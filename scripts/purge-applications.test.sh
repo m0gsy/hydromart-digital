@@ -167,7 +167,7 @@ FLIP="$T/flip.sh"
 printf '#!/usr/bin/env bash\ndocker exec "%s" psql -qU hydromart -d hydromart_depot -c "update franchise_applications set stage = '"'"'APPROVED'"'"' where id = '"'"'%s'"'"'"\n' "$PG" "$B" >"$FLIP"
 OUT="$(PURGE_BACKUP_CMD="bash $FLIP" exec_)"
 RC=$?
-[ "$RC" != 0 ] && grep -qF 'rolled back' <<<"$OUT" && [ "$(state)" = "$BEFORE" ] &&
+[ "$RC" != 0 ] && grep -qF 'application(s), expected' <<<"$OUT" && [ "$(state)" = "$BEFORE" ] &&
   ok "an application approved mid-run rolls the whole delete back" || bad "the in-transaction guard failed (exit $RC, rows $(state)): $OUT"
 q hydromart_depot "update franchise_applications set stage = 'SURVEY' where id = '$B'" >/dev/null
 
