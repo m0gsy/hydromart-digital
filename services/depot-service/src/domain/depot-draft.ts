@@ -68,7 +68,10 @@ export interface DepotDraftContent {
   checklist: DepotChecklist;
 }
 
-export interface DepotDraftRecord extends DepotDraftContent {
+/** A stored draft. The owner's name and phone are personal data and are NULL once HQ has decided. */
+export interface DepotDraftRecord extends Omit<DepotDraftContent, 'ownerFullName' | 'ownerPhoneE164'> {
+  ownerFullName: string | null;
+  ownerPhoneE164: string | null;
   id: string;
   prospectId: string;
   requestHash: string;
@@ -81,4 +84,38 @@ export interface DepotDraftRecord extends DepotDraftContent {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** HD-21b (D3): the event HQ's activation of a draft raises (contracts/ai-v1/events.openapi.json). */
+export const DEPOT_ONBOARDED = 'depot.onboarded';
+
+/** The idempotency key admin-service and the receiver dedupe on: one depot, one event, whatever the retries. */
+export function depotOnboardedEventId(depotId: string): string {
+  return `${DEPOT_ONBOARDED}:${depotId}`;
+}
+
+/**
+ * The outbox row for an activated draft. Ids and the depot code only: no owner name or phone, no
+ * address, no prospectus data. The AI web already holds the prospect; it needs to know which depot
+ * the prospect became.
+ */
+export function depotOnboarded(d: {
+  depotId: string;
+  depotCode: string;
+  prospectId: string;
+  legacyApplicationId: string | null;
+  occurredAt: Date;
+}): { event: string; eventId: string; payload: Record<string, unknown>; occurredAt: Date } {
+  return {
+    event: DEPOT_ONBOARDED,
+    eventId: depotOnboardedEventId(d.depotId),
+    payload: {
+      depotId: d.depotId,
+      depotCode: d.depotCode,
+      prospectId: d.prospectId,
+      legacyApplicationId: d.legacyApplicationId,
+      occurredAt: d.occurredAt.toISOString(),
+    },
+    occurredAt: d.occurredAt,
+  };
 }

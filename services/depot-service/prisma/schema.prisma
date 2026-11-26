@@ -1434,8 +1434,9 @@ model DepotDraft {
   proposedName           String
   city                   String
   province               String
-  ownerFullName          String
-  ownerPhoneE164         String
+  /// Personal data of the calon mitra: cleared (NULL) the moment HQ decides (UU PDP).
+  ownerFullName          String?
+  ownerPhoneE164         String?
   prospectusHandedOn     String           @db.VarChar(10)
   agreementSignedOn      String           @db.VarChar(10)
   prospectusSha256       String           @db.VarChar(64)

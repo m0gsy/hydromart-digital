@@ -131,6 +131,7 @@ import { GallonLedgerPrismaRepository } from '../infrastructure/prisma/gallon-le
 import { FranchiseApplicationController } from './franchise-application.controller';
 import { EventOutboxController } from './event-outbox.controller';
 import { AiCrmController, AiDraftController } from './ai-draft.controller';
+import { DepotDraftController } from './depot-draft.controller';
 import { DepotAuditSink } from '../infrastructure/http/audit.sink';
 import { DepotPriceOverrideController, PriceOverrideController } from './price-override.controller';
 import { IncidentController } from './incident.controller';
@@ -333,6 +334,7 @@ const providers: Provider[] = [
     DepotPriceOverrideController,
     AiDraftController,
     AiCrmController,
+    DepotDraftController,
     PriceOverrideController,
     IncidentController,
     ApprovalController,

@@ -49,7 +49,7 @@ import { StoragePort } from '../application/ports/storage.port';
 import { DepotService } from '../application/services/depot.service';
 import { HierarchyService } from '../application/services/hierarchy.service';
 import { DepotConfigService } from '../config/depot-config.service';
-import { DepotRecord } from '../application/ports/depot.repository';
+import { CreateDepotData, DepotRecord } from '../application/ports/depot.repository';
 import { Page } from '../application/pagination';
 import {
   BrowseDepotsQueryDto,
@@ -440,29 +440,7 @@ export class DepotController {
     @Body() dto: CreateDepotDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<DepotRecord> {
-    const created = await this.depots.create({
-      code: dto.code,
-      name: dto.name,
-      ownershipType: dto.ownershipType,
-      address: dto.address,
-      city: dto.city,
-      province: dto.province,
-      lat: dto.lat,
-      lng: dto.lng,
-      serviceRadiusKm: dto.serviceRadiusKm ?? 5,
-      deliveryFee: dto.deliveryFee,
-      minOrderAmount: dto.minOrderAmount ?? null,
-      ownerId: dto.ownerId ?? null,
-      owners: dto.owners,
-      contactPhone: dto.contactPhone ?? null,
-      paymentBankName: dto.paymentBankName ?? null,
-      paymentBankAccountNumber: dto.paymentBankAccountNumber ?? null,
-      paymentBankAccountHolder: dto.paymentBankAccountHolder ?? null,
-      paymentQrisImageUrl: dto.paymentQrisImageUrl ?? null,
-      operatingHours: dto.operatingHours ?? {},
-      holidays: dto.holidays ?? [],
-      serviceArea: toServiceArea(dto.serviceArea) ?? null,
-    });
+    const created = await this.depots.create(toCreateDepotData(dto));
     await this.audit('depot.create', user, created.code, {
       depotId: created.id,
       ownershipType: created.ownershipType,
@@ -657,4 +635,31 @@ function toServiceArea(value: unknown[] | null | undefined): ServiceArea | null 
   const parsed = parseServiceArea(value);
   if (!parsed.ok) throw new BadRequestException(`serviceArea: ${parsed.error}`);
   return parsed.value;
+}
+
+/** The depot a create body describes, with the defaults a plain create applies. Shared with HD-21b's activation. */
+export function toCreateDepotData(dto: CreateDepotDto): CreateDepotData {
+  return {
+    code: dto.code,
+    name: dto.name,
+    ownershipType: dto.ownershipType,
+    address: dto.address,
+    city: dto.city,
+    province: dto.province,
+    lat: dto.lat,
+    lng: dto.lng,
+    serviceRadiusKm: dto.serviceRadiusKm ?? 5,
+    deliveryFee: dto.deliveryFee,
+    minOrderAmount: dto.minOrderAmount ?? null,
+    ownerId: dto.ownerId ?? null,
+    owners: dto.owners,
+    contactPhone: dto.contactPhone ?? null,
+    paymentBankName: dto.paymentBankName ?? null,
+    paymentBankAccountNumber: dto.paymentBankAccountNumber ?? null,
+    paymentBankAccountHolder: dto.paymentBankAccountHolder ?? null,
+    paymentQrisImageUrl: dto.paymentQrisImageUrl ?? null,
+    operatingHours: dto.operatingHours ?? {},
+    holidays: dto.holidays ?? [],
+    serviceArea: toServiceArea(dto.serviceArea) ?? null,
+  };
 }

@@ -15,6 +15,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  */
 export const WEBHOOK_EVENTS = [
   'delivery.delivered',
+  'depot.onboarded',
   'franchise.application_submitted',
   'order.created',
   'order.status_changed',

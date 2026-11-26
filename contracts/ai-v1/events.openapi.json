@@ -340,6 +340,89 @@
           }
         }
       }
+    },
+    "depot.onboarded": {
+      "post": {
+        "summary": "HQ turned a calon mitra draft into a depot",
+        "description": "Raised when HQ ACTIVATES a depot draft that the CRM made (POST /depot/api/v1/ai/drafts/depots/from-crm), in the same database transaction that creates the depot. The depot is therefore real when this arrives. One event per depot, ever: the eventId is keyed by the depot, so any retry, replay or producer re-send is the same event. It carries ids and the depot code only, no personal data: prospectId and legacyApplicationId are the CRM's own ids, to be matched in the AI web.",
+        "parameters": [
+          {
+            "name": "X-Hydromart-Event",
+            "in": "header",
+            "required": true,
+            "description": "The event name. NOT signed: a copy of the body field event, for logs only. Route on the verified body.",
+            "schema": {
+              "type": "string",
+              "const": "depot.onboarded"
+            },
+            "example": "depot.onboarded"
+          },
+          {
+            "name": "X-Hydromart-Delivery",
+            "in": "header",
+            "required": true,
+            "description": "The delivery id. NOT signed: a copy of the body field id, for logs only. Read the verified body.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "example": "7d0c8a52-5f5e-4c51-9a4e-2b9e0f6f3a11"
+          },
+          {
+            "name": "X-Hydromart-Timestamp",
+            "in": "header",
+            "required": true,
+            "description": "Unix time in seconds at which THIS attempt was sent. Part of the signed string.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]{10}$"
+            },
+            "example": "1795400100"
+          },
+          {
+            "name": "X-Hydromart-Signature",
+            "in": "header",
+            "required": true,
+            "description": "sha256= followed by the lowercase hex HMAC-SHA256 of \"<X-Hydromart-Timestamp>.<raw body>\", keyed with the endpoint secret.",
+            "schema": {
+              "type": "string",
+              "pattern": "^sha256=[0-9a-f]{64}$"
+            },
+            "example": "sha256=1a7c1beb56aec596c1c7a070be9d842f372fb7343f5b71c3cfaedf8f6c084380"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DepotOnboarded"
+              },
+              "example": {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "event": "depot.onboarded",
+                "occurredAt": "2026-11-27T03:10:00.000Z",
+                "eventId": "depot.onboarded:00000000-0000-4000-8000-000000000003",
+                "data": {
+                  "depotId": "00000000-0000-4000-8000-000000000003",
+                  "depotCode": "BKS-01",
+                  "prospectId": "00000000-0000-4000-8000-0000000000a1",
+                  "legacyApplicationId": null,
+                  "occurredAt": "2026-11-27T03:10:00.000Z"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "2XX": {
+            "description": "Taken (or already taken: a repeated eventId). The delivery is marked DELIVERED."
+          },
+          "default": {
+            "description": "Anything else is retried (see info.description), and DEAD after the 6th failed attempt."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -685,6 +768,78 @@
           },
           "unit": {
             "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DepotOnboarded": {
+        "type": "object",
+        "required": [
+          "id",
+          "event",
+          "occurredAt",
+          "eventId",
+          "data"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The delivery id: one per receiver endpoint, the same on its retries and replays. Not the dedupe key."
+          },
+          "event": {
+            "type": "string",
+            "const": "depot.onboarded"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it happened (UTC)."
+          },
+          "eventId": {
+            "type": "string",
+            "pattern": "^depot.onboarded:[0-9a-f-]{36}$",
+            "description": "depot.onboarded:<depotId>. The same on every retry, replay and producer re-send: the dedupe key."
+          },
+          "data": {
+            "$ref": "#/components/schemas/DepotOnboardedData"
+          }
+        }
+      },
+      "DepotOnboardedData": {
+        "type": "object",
+        "required": [
+          "depotId",
+          "depotCode",
+          "prospectId",
+          "legacyApplicationId",
+          "occurredAt"
+        ],
+        "properties": {
+          "depotId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The new depot."
+          },
+          "depotCode": {
+            "type": "string",
+            "description": "The depot's short code, e.g. BKS-01."
+          },
+          "prospectId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The CRM prospect the depot came from (the prospectId the draft was made with)."
+          },
+          "legacyApplicationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The /waralaba application it came from, when there was one."
           },
           "occurredAt": {
             "type": "string",

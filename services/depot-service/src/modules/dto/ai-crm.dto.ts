@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsIn, IsOptional, IsString, IsUUID, Length, Matches, ValidateNested } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, IsUUID, Length, Matches, Max, Min, ValidateNested } from 'class-validator';
 
 import { CHECKLIST_STATES, ChecklistState } from '../../domain/depot-draft';
 
@@ -128,4 +128,37 @@ export class CrmDepotDraftStatusResponseDto {
   @ApiProperty({ nullable: true, type: String, format: 'uuid' }) depotId!: string | null;
   @ApiProperty({ nullable: true, type: String }) depotCode!: string | null;
   @ApiProperty({ format: 'date-time' }) updatedAt!: string;
+}
+
+/** HD-21b: GET depot-drafts, HQ's queue. */
+export class ListDepotDraftsQueryDto {
+  @ApiPropertyOptional({ default: 1, maximum: 1000 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  page?: number;
+
+  @ApiPropertyOptional({ default: 20, maximum: 100 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+
+  @ApiPropertyOptional({ enum: ['DRAFT', 'ACTIVATED', 'REJECTED'] })
+  @IsOptional()
+  @IsIn(['DRAFT', 'ACTIVATED', 'REJECTED'])
+  status?: 'DRAFT' | 'ACTIVATED' | 'REJECTED';
+}
+
+/** HD-21b: POST depot-drafts/:id/reject. The note is required: the CRM shows it to whoever reopens the draft. */
+export class RejectDepotDraftDto {
+  @ApiProperty({ minLength: 1, maxLength: 500 })
+  @Transform(trim)
+  @IsString()
+  @Length(1, 500)
+  note!: string;
 }

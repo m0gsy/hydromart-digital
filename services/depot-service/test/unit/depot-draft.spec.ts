@@ -140,7 +140,7 @@ describe('DepotDraftService.draftFromCrm', () => {
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-11-26T05:00:00Z'));
     drafts = new FakeDrafts();
-    service = new DepotDraftService(drafts as never, depots as never);
+    service = new DepotDraftService(drafts as never, depots as never, {} as never, { flush: jest.fn() } as never);
   });
   afterEach(() => jest.useRealTimers());
 

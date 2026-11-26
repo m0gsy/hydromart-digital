@@ -838,6 +838,15 @@ export class DraftConflictError extends DomainError {
   }
 }
 
+/** HQ's activate or reject on a draft that is not DRAFT any more (decided already, perhaps a second ago). */
+export class DepotDraftNotOpenError extends DomainError {
+  readonly code = 'DEPOT_DRAFT_NOT_OPEN';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Draf depot ini sudah diputuskan; muat ulang halaman.');
+  }
+}
+
 /** Two writers on one rejected draft kept colliding: nobody is wrong, the caller may retry. */
 export class DraftBusyError extends DomainError {
   readonly code = 'DRAFT_BUSY';

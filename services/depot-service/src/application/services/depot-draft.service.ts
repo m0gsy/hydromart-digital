@@ -8,14 +8,25 @@ import {
   ChecklistIncompleteError,
   CoolingOffNotMetError,
   DepotDraftNotFoundError,
+  DepotDraftNotOpenError,
+  DepotNotFoundError,
   DraftBusyError,
   DraftConflictError,
   InvalidDraftDatesError,
 } from '../../domain/errors';
-import { checkDraft, DepotDraftContent, DepotDraftRecord } from '../../domain/depot-draft';
+import {
+  checkDraft,
+  DepotDraftContent,
+  DepotDraftRecord,
+  depotOnboardedEventId,
+  DepotDraftStatus,
+} from '../../domain/depot-draft';
+import { buildPage, Page } from '../pagination';
 import { DepotDraftRepository, NewDepotDraft } from '../ports/depot-draft.repository';
-import { DepotRepository } from '../ports/depot.repository';
+import { CreateDepotData, DepotRecord, DepotRepository } from '../ports/depot.repository';
 import { DEPOT_TOKENS } from '../tokens';
+import { DepotService } from './depot.service';
+import { EventRelayService } from './event-relay.service';
 
 /** The replay key: the same content hashes the same whatever order a client wrote its keys in. */
 export function requestHashOf(prospectId: string, c: DepotDraftContent): string {
@@ -58,6 +69,8 @@ export class DepotDraftService {
   constructor(
     @Inject(DEPOT_TOKENS.DepotDraftRepository) private readonly drafts: DepotDraftRepository,
     @Inject(DEPOT_TOKENS.DepotRepository) private readonly depots: DepotRepository,
+    private readonly depotService: DepotService,
+    private readonly relay: EventRelayService,
   ) {}
 
   async draftFromCrm(
@@ -102,6 +115,44 @@ export class DepotDraftService {
       depotCode: await this.codeOf(row.depotId),
       updatedAt: row.updatedAt,
     };
+  }
+
+  /** HQ's queue: DRAFT first, newest first. */
+  async list(filter: { page: number; limit: number; status?: DepotDraftStatus }): Promise<Page<DepotDraftRecord>> {
+    const { items, total } = await this.drafts.list(filter);
+    return buildPage(items, total, filter.page, filter.limit);
+  }
+
+  async get(id: string): Promise<DepotDraftRecord> {
+    const row = await this.drafts.findById(id);
+    if (!row) throw new DepotDraftNotFoundError();
+    return row;
+  }
+
+  /** HQ says no. The note is kept; the owner's name and phone are not (UU PDP). */
+  async reject(id: string, note: string, actorId: string): Promise<DepotDraftRecord> {
+    await this.get(id);
+    const done = await this.drafts.reject(id, note.trim(), actorId, new Date());
+    if (!done) throw new DepotDraftNotOpenError();
+    return done;
+  }
+
+  /**
+   * HQ says yes: the depot is created with exactly the checks of a plain depot create, and the
+   * draft, the depot and the depot.onboarded event commit together or not at all. Nothing is sent
+   * from here that the transaction has not already made true: the relay runs after the commit.
+   */
+  async activate(id: string, input: CreateDepotData, actorId: string): Promise<DepotRecord> {
+    const draft = await this.get(id);
+    if (draft.status !== 'DRAFT') throw new DepotDraftNotOpenError();
+    const data = await this.depotService.prepareCreate(input);
+    const done = await this.drafts.activate(id, data, actorId, new Date());
+    if (!done) throw new DepotDraftNotOpenError();
+    // The sweep sends what this could not; flush never rejects, the catch is belt and braces.
+    void this.relay.flush(depotOnboardedEventId(done.depotId)).catch(() => undefined);
+    const depot = await this.depots.findById(done.depotId, false);
+    if (!depot) throw new DepotNotFoundError();
+    return depot;
   }
 
   /** What an existing row means for this call: replay, conflict, onboarded, or reopen. */
