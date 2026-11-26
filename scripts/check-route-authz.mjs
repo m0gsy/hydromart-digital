@@ -74,7 +74,7 @@ const EXTERNAL = /@ExternalAccess\(/;
 const CAN = /@Can\(/;
 const MACHINE_CAN = /@MachineCan[(]/;
 const EXTERNAL_CALLERS = /@ExternalAccess[(][^)]*[)]/;
-const AUDITED =/AuditMutationsInterceptor/;
+const AUDITED = /AuditMutationsInterceptor/;
 
 function controllers(dir, out = []) {
   for (const entry of readdirSync(dir)) {
