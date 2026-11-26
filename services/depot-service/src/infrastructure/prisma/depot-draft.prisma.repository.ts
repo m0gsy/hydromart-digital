@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../prisma/generated/client';
 
 import { DepotChecklist, depotOnboarded, DepotDraftRecord } from '../../domain/depot-draft';
 import { DepotDraftConflictError, DuplicateDepotCodeError } from '../../domain/errors';
