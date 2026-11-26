@@ -13,6 +13,9 @@ import { AiAccessRequestService } from '../application/services/ai-access-reques
 import { ComplianceDueService } from '../application/services/compliance-due.service';
 import { HeldDepotsHttpAdapter } from '../infrastructure/http/held-depots.http.adapter';
 import { ComplianceDueHttpAdapter } from '../infrastructure/http/compliance-due.http.adapter';
+import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
+import { SalesWeeklyService } from '../application/services/sales-weekly.service';
+import { LegalEntityAudienceHttpAdapter } from '../infrastructure/http/legal-entity-audience.http.adapter';
 import { MaintenanceDueService } from '../application/services/maintenance-due.service';
 import { DepotAudienceService } from '../application/services/depot-audience.service';
 import { VisitNoticeService } from '../application/services/visit-notice.service';
@@ -69,6 +72,9 @@ const providers: Provider[] = [
   AiAccessRequestService,
   MaintenanceDueService,
   ComplianceDueService,
+  SalesWeeklyService,
+  AiAgentNoticeService,
+  { provide: CRM_TOKENS.LegalEntityAudience, useClass: LegalEntityAudienceHttpAdapter },
   DepotAudienceService,
   VisitNoticeService,
   { provide: CRM_TOKENS.MaintenanceDue, useClass: MaintenanceDueHttpAdapter },

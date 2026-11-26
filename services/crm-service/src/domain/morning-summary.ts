@@ -21,7 +21,7 @@ const QUEUE_LABEL: Record<string, string> = {
   approvals: 'Persetujuan depot',
 };
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const WIB_OFFSET_MS = 7 * 3_600_000;
 
 /** The date in the business zone (Asia/Jakarta), as YYYY-MM-DD. */

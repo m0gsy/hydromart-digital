@@ -113,3 +113,14 @@ Cloudflare dan registrar domain · siapa di kanal Discord dan siapa yang menerim
 yang mengisi ulang saldo Zenziva (saldo habis = tak ada yang bisa login; `scripts/check-zenziva-balance.sh` memantaunya tiap 6 jam dan memberi tahu Discord di bawah `ZENZIVA_MIN_BALANCE`, default Rp250.000) ·
 lokasi kunci privat `hydromart-env-private.pem` dan salinan keduanya · SOP depot dan staf baru tertulis
 di luar repo · nasib DEMO-01 setelah tinjauan Play selesai · apakah repo memang sengaja publik.
+
+## 7. Menghapus salinan lama pengajuan /waralaba (D10), per batch
+
+Pengajuan lama di hydromart (`franchise_applications`) diimpor ke CRM web AI (`prospects.legacy_application_id`). Setelah impor yang jumlahnya cocok, salinan hydromart batch itu dihapus **sekali** lewat Deploy mode `purge-applications`. Tidak ada rute hapus permanen.
+
+1. Pemilik mengimpor di `/calon-mitra/setelan`; jumlahnya harus cocok.
+2. PR mengganti isi `ops/purge-applications.txt` (satu uuid huruf kecil per baris, 1 sampai 200) dan di-review.
+3. Merge. Actions, Deploy, Run workflow, mode `purge-applications`, `confirm` kosong = **dry run**: menampilkan jumlah disebut vs ditemukan per tahap, id yang tak ditemukan, jumlah yang sudah diimpor, depot yang merujuk. Tidak menulis apa pun, tidak mencetak nama/telepon.
+4. Pemilik memeriksa angkanya, lalu menjalankan lagi dengan `confirm` = `PURGE-APPLICATIONS`. Skrip membuat dump database dulu, lalu menghapus dalam satu transaksi.
+
+Ditolak (tanpa menghapus apa pun): tanpa frasa konfirmasi, id yang tak ada di hydromart (berkas basi), pengajuan `APPROVED` (jejak kertas sebuah depot, tetap di hydromart), id yang belum diimpor ke CRM, depot yang masih merujuk, dan dump yang gagal.

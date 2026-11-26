@@ -76,6 +76,10 @@ export class CrmConfigService {
   get dashboardServiceUrl(): string {
     return this.config.get<string>('DASHBOARD_SERVICE_URL', '').trim().replace(/\/+$/, '');
   }
+  /** AI web origin, for the link in the weekly Sales report email (AI-26). Blank = that notice fails 503. */
+  get aiWebUrl(): string {
+    return this.config.get<string>('AI_WEB_URL', '').trim().replace(/\/+$/, '');
+  }
   get internalServiceKey(): string {
     return this.config.get<string>('INTERNAL_SERVICE_KEY', '').trim();
   }

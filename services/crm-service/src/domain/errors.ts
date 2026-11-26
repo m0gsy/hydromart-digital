@@ -1,5 +1,13 @@
 import { DomainError, HTTP_STATUS } from '@hydromart/platform';
 
+export class BossRoleUnknownError extends DomainError {
+  readonly code = 'BOSS_ROLE_UNKNOWN';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('bossRole is not a role that may read the AI team.');
+  }
+}
+
 export class CampaignNotFoundError extends DomainError {
   readonly code = 'CAMPAIGN_NOT_FOUND';
   readonly status = HTTP_STATUS.NOT_FOUND;

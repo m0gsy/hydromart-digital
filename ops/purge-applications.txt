@@ -1,0 +1,13 @@
+# The batch of old /waralaba applications that the Deploy mode `purge-applications` deletes from
+# hydromart (depot-service table franchise_applications, and their stage events).
+#
+# Every id here MUST already be in the AI web CRM (table prospects, column legacy_application_id),
+# imported in /calon-mitra/setelan with the counts matching. The script checks that and refuses
+# otherwise; it also refuses an APPROVED application (that is the paper trail of a depot) and an
+# application a depot still points at.
+#
+# This file is REPLACED per batch, by a reviewed PR: one lowercase uuid per line, `#` for comments,
+# 1 to 200 ids. Ids are not personal data. There is no other way to name what gets deleted.
+#
+# Batch 1 (26 Nov 2026, read from prod):
+1c102a6b-920c-468e-8801-382242e01158

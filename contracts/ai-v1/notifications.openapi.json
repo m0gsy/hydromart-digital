@@ -583,6 +583,240 @@
         }
       }
     },
+    "/crm/api/v1/notifications/external/sales-weekly-ready": {
+      "post": {
+        "summary": "Tell the people who read a legal entity's calon mitra reports that its weekly Sales report is ready.",
+        "description": "Called by n8n on Monday morning (07:00 WIB) with the Monday of the week that just ended and the legal entities reported. The token's scopes must include salesReportNotify. n8n only TRIGGERS and carries ids: no number, no text, no recipient. The numbers live in the AI web and are shown there after sign-in; hydromart-digital writes the notice itself and links to the report page.\n\nWho is told, per legal entity: every ACTIVE staff account whose role is MARKETING or DIREKTUR, or whose role (built-in or custom, e.g. Sales Lead) holds prospectSettings, AND whose role is granted that legal entity in the AI web (legal_entity_ai_grants). SUPER_ADMIN is not told. An id that is not a legal entity is skipped and counted in unknownEntities.\n\nNotice: event SALES_WEEKLY_REPORT, title 'Laporan Sales mingguan siap', text 'Minggu <d MMM> - <d MMM>: buka laporan calon mitra untuk <legal entity name>.' Channels (owner rule 24 Nov 2026): bell, push and an email (HR email first, else the login email; the email carries the link <AI web>/calon-mitra/laporan?minggu=<weekStart>&be=<legalEntityId>). Each recipient can switch push and email off on /hq/profile ('Laporan Sales mingguan siap'). WhatsApp is not sent yet: the response says whatsapp 'pending', never 'sent'.\n\neventId is sales-weekly:<weekStart>. weekStart must be a Monday and the week that just ended: accepted from the next Monday until that week's own Sunday (Asia/Jakarta), so a late retry works; any other week is refused with 400. Idempotent per (eventId, legal entity, recipient): a retry or replay sends nobody twice. 503 means a read or a recipient failed (or AI_WEB_URL is not configured): retry the same body.\n\nAn entity that is switched off is skipped and counted in inactiveEntities. The route works through the entities one after another (at most 50): allow a long HTTP timeout (for example 120 seconds). A retry after a timeout is safe, because nothing is sent twice.",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "The n8n workflow making the call, recorded in the audit trail as workflow (trimmed, at most 120 characters). Not checked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ai26-sales-weekly"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalesWeeklyReadyTrigger"
+              },
+              "example": {
+                "eventId": "sales-weekly:2026-11-23",
+                "weekStart": "2026-11-23",
+                "legalEntityIds": [
+                  "22222222-2222-4222-8222-222222222222"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Every recipient has the notice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalesWeeklyReadyResult"
+                },
+                "example": {
+                  "weekStart": "2026-11-23",
+                  "legalEntities": 1,
+                  "unknownEntities": 0,
+                  "recipients": 3,
+                  "notified": 3,
+                  "whatsapp": "pending",
+                  "inactiveEntities": 0
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: a field missing, malformed or unknown; eventId that is not sales-weekly:<weekStart> of the same request; a weekStart that is not a Monday or not the week that just ended. Not worth retrying with the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI and machine access was switched off (the published key set is empty): POST /auth/api/v1/auth/machine/token then answers 503. Get a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include salesReportNotify. Not worth retrying until the machine account's scopes change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this machine account. Wait the seconds in Retry-After, then retry with the same body.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call (nothing was sent), or the recipients, or a recipient's queues, could not be read (the recipients reached keep their summary; one none of whose queues could be read gets nothing until the retry). Retry later with the same body; the eventId keeps a retry from sending twice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/api/v1/notifications/external/ai-agent-notice": {
+      "post": {
+        "summary": "Tell the people who run the AI team that an agent flagged something, reached its cap or was stopped.",
+        "description": "Called by n8n when the AI web raises an agent event. The token's scopes must include aiAgentNotify. n8n carries ids and a kind only: no number, no free text. hydromart-digital writes the words (event AI_AGENT_FLAG, AI_AGENT_CAP or AI_AGENT_STOPPED; STOPPED_ALL says 'Semua agen AI dihentikan') and the link <AI web>/tim-ai/<agentId> (<AI web>/tim-ai for STOPPED_ALL).\n\nWho is told: every active account whose role holds aiTeamManage (Direksi and SUPER_ADMIN), plus the active accounts of bossRole when that role holds aiTeamRead; no depot staff. Channels: bell, push and email (HR email first, else login email); each person can switch push and email off on /hq/profile ('Pemberitahuan agen AI'). WhatsApp is not sent yet: the response says whatsapp 'pending', never 'sent'. There is no depotId field: a body carrying one is refused with 403 by the depot-scope guard.\n\n503 means the recipients could not be read or filed, or AI_WEB_URL is not configured: retry the same body.\n\nIdempotent per (kind, agentId, eventId, recipient): reusing an eventId for another kind or agent is a new notice. A bossRole that is not a role holding aiTeamRead is refused with 400 and code BOSS_ROLE_UNKNOWN, so a wrong key is learned, not silently ignored.",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "The n8n workflow making the call, recorded in the audit trail as workflow (trimmed, at most 120 characters). Not checked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ai31-agent-notice"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiAgentNoticeTrigger"
+              },
+              "example": {
+                "eventId": "agent-flag:7c1f0f64",
+                "agentId": "stok-depot",
+                "agentName": "Agen Stok",
+                "kind": "FLAG",
+                "bossRole": "FINANCE"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Every recipient has the notice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiAgentNoticeResult"
+                },
+                "example": {
+                  "recipients": 3,
+                  "notified": 3,
+                  "whatsapp": "pending"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: a field missing, malformed or unknown (agentId must be a lower-case slug, agentName letters, digits and spaces up to 40, eventId up to 120 characters of A-Z a-z 0-9 : . _ -). Not worth retrying with the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI and machine access was switched off (the published key set is empty): POST /auth/api/v1/auth/machine/token then answers 503. Get a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include aiAgentNotify. Not worth retrying until the machine account's scopes change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this machine account. Wait the seconds in Retry-After, then retry with the same body.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call (nothing was sent), or the recipients, or a recipient's queues, could not be read (the recipients reached keep their summary; one none of whose queues could be read gets nothing until the retry). Retry later with the same body; the eventId keeps a retry from sending twice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/crm/api/v1/notifications/external/compliance-due": {
       "post": {
         "summary": "Tell who must know that a depot permit or lab test is due.",
@@ -1044,6 +1278,145 @@
               "pending"
             ],
             "description": "WhatsApp waits for the Meta channel; it is never reported as sent."
+          }
+        }
+      },
+      "SalesWeeklyReadyTrigger": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "weekStart",
+          "legalEntityIds"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "pattern": "^sales-weekly:\\d{4}-\\d{2}-\\d{2}$",
+            "description": "sales-weekly:<weekStart>, the dedupe base.",
+            "example": "sales-weekly:2026-11-23"
+          },
+          "weekStart": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "description": "The Monday (Asia/Jakarta) of the week reported.",
+            "example": "2026-11-23"
+          },
+          "legalEntityIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "SalesWeeklyReadyResult": {
+        "type": "object",
+        "required": [
+          "weekStart",
+          "legalEntities",
+          "unknownEntities",
+          "inactiveEntities",
+          "recipients",
+          "notified",
+          "whatsapp"
+        ],
+        "properties": {
+          "weekStart": {
+            "type": "string"
+          },
+          "legalEntities": {
+            "type": "integer"
+          },
+          "unknownEntities": {
+            "type": "integer",
+            "description": "Ids that are not a legal entity: nothing was sent for them."
+          },
+          "inactiveEntities": {
+            "type": "integer",
+            "description": "Legal entities switched off: nothing was sent for them either."
+          },
+          "recipients": {
+            "type": "integer",
+            "description": "People who may read these entities' reports."
+          },
+          "notified": {
+            "type": "integer",
+            "description": "Of those, how many have the notice."
+          },
+          "whatsapp": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ],
+            "description": "WhatsApp waits for the Meta channel; it is never reported as sent."
+          }
+        }
+      },
+      "AiAgentNoticeTrigger": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "agentId",
+          "agentName",
+          "kind"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9:._-]{1,120}$",
+            "description": "The dedupe key per recipient."
+          },
+          "agentId": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,39}$"
+          },
+          "agentName": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "Letters, digits and spaces."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "FLAG",
+              "CAP_REACHED",
+              "STOPPED",
+              "STOPPED_ALL"
+            ]
+          },
+          "bossRole": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$",
+            "description": "The agent's boss role (built-in or custom role key); told only if it holds aiTeamRead."
+          }
+        }
+      },
+      "AiAgentNoticeResult": {
+        "type": "object",
+        "required": [
+          "recipients",
+          "notified",
+          "whatsapp"
+        ],
+        "properties": {
+          "recipients": {
+            "type": "integer"
+          },
+          "notified": {
+            "type": "integer",
+            "description": "Of those, how many have the notice."
+          },
+          "whatsapp": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ]
           }
         }
       },

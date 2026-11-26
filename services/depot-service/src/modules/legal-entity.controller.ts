@@ -229,12 +229,13 @@ export class LegalEntityController {
   @Public()
   @UseGuards(InternalAuthGuard)
   @Get('internal/:id')
-  @ApiOperation({ summary: 'Internal: name, kind and on/off of one legal entity' })
+  @ApiOperation({ summary: 'Internal: name, kind, on/off and AI-read roles of one legal entity' })
   async internalSummary(
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<Pick<LegalEntity, 'id' | 'name' | 'kind' | 'active'>> {
+  ): Promise<Pick<LegalEntity, 'id' | 'name' | 'kind' | 'active'> & { aiReadRoles: string[] }> {
     const { name, kind, active } = await this.entities.get(id);
-    return { id, name, kind, active };
+    // AI-26: crm-service picks who is told of a weekly report from the roles granted here.
+    return { id, name, kind, active, aiReadRoles: await this.entities.aiReadRolesOf(id) };
   }
 
   /** Fail-open like every depot-service trail: a saved change is not undone because the trail was down. */

@@ -18,6 +18,7 @@
 //                                       derived from the date; a depot-bound person sees one depot
 //   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
 //   GET  /depot/api/v1/ai/crm/legacy-applications , /auth/api/v1/ai/crm/pic-candidates   fake applicants and PIC candidates (HD-21)
+//   GET  /depot/api/v1/ai/team/access   the Tim AI screen's access read (AI-29)
 //   GET  /depot/api/v1/ai/crm/access , POST|GET /depot/api/v1/ai/drafts/depots/from-crm[/:prospectId]
 //                                       the CRM calon mitra's access read and depot draft (HD-21a)
 //   POST /alert                         the AI web's alarm webhook
@@ -542,6 +543,17 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     return [200, { full: true, settings: true, legalEntities: [{ id: '00000000-0000-4000-8000-000000000001', name: 'PT Contoh Waralaba' }] }];
   }
 
+  // AI-29: the Tim AI screen's access read, with the built-in matrix (staging does not model overrides).
+  const TEAM_ROLES = { DIREKTUR: [true, true], SUPER_ADMIN: [true, true], HEAD_OFFICE: [false, true], FINANCE: [false, false], MARKETING: [false, false] };
+  function teamAccess(req) {
+    const auth = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
+    const claims = auth ? readJwt(auth[1]) : null;
+    if (!claims || state.killed || !(claims.exp > now() / 1000)) return refusedToken();
+    const row = TEAM_ROLES[claims.role];
+    if (claims.aud !== 'hydromart-ai' || !row) return [403, errorBody(403, 'FORBIDDEN', 'You do not have permission to perform this action.')];
+    return [200, { read: true, manage: row[0], stop: row[1], role: claims.role }];
+  }
+
   // Obviously fake people, the same on every run: the shapes of drafts.openapi.json, nothing real.
   const LEGACY_SAMPLE = [
     { id: '00000000-0000-4000-8000-0000000000f1', stage: 'PENDING', applicantName: 'Calon Contoh Satu', applicantPhoneE164: '+6281200000001', city: 'Bekasi', province: 'Jawa Barat', proposedName: 'Depot Contoh Satu', investmentAmountIdr: 150000000, firstSource: 'contoh-ig', privacyConsentVersion: '2026-11-24', submittedAt: '2026-11-01T03:00:00.000Z' },
@@ -863,6 +875,10 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (req.method === 'GET' && path === '/depot/api/v1/ai/crm/access') {
         const [status, body] = crmAccess(req);
+        return send(res, status, body);
+      }
+      if (req.method === 'GET' && path === '/depot/api/v1/ai/team/access') {
+        const [status, body] = teamAccess(req);
         return send(res, status, body);
       }
       if (post && path === '/depot/api/v1/ai/drafts/depots/from-crm') {

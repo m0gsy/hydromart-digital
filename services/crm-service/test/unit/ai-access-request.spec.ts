@@ -390,6 +390,8 @@ describe('NotificationExternalController.aiAccessRequested', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
     await controller.aiAccessRequested({
       eventId: EVENT.toUpperCase().replace('AI-ACCESS-REQUEST', 'ai-access-request'),

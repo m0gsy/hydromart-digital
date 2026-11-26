@@ -115,6 +115,14 @@ export class CrmAccessResponseDto {
   @ApiProperty({ type: CrmAccessLegalEntityDto, isArray: true }) legalEntities!: CrmAccessLegalEntityDto[];
 }
 
+/** AI-29: what the signed-in person may do on the AI web's "Tim AI" screen (the agents). */
+export class AiTeamAccessResponseDto {
+  @ApiProperty({ description: 'Holds aiTeamRead: may open the screen.' }) read!: boolean;
+  @ApiProperty({ description: 'Holds aiTeamManage: switch agents on, change caps, approve playbooks.' }) manage!: boolean;
+  @ApiProperty({ description: 'Holds aiTeamStop: stop an agent.' }) stop!: boolean;
+  @ApiProperty({ description: "The person's role key, for the AI web's agent -> boss role rule." }) role!: string;
+}
+
 export class CrmDepotDraftResponseDto {
   @ApiProperty({ format: 'uuid' }) draftId!: string;
   @ApiProperty({ enum: ['DRAFT'] }) status!: string;

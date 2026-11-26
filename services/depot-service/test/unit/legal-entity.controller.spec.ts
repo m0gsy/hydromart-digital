@@ -156,6 +156,7 @@ describe('LegalEntityController', () => {
       name: 'PT Kelola Air',
       kind: 'OPERATOR',
       active: true,
+      aiReadRoles: [],
     });
     await expect(controller.internalSummary(UNKNOWN)).rejects.toBeInstanceOf(LegalEntityNotFoundError);
   });
