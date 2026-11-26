@@ -33,6 +33,12 @@ const BATCH = 500;
 async function main() {
   const db = new PrismaClient({ datasources: { db: { url: process.env.CUSTOMER_DATABASE_URL } } });
   const lookup = new RegionLookup();
+  // Monas lies in Gambir: no code there means the asset did not load, and every row would read
+  // "tanpa kode". Stop instead of reporting that.
+  if (!lookup.codesFor(-6.1754, 106.8272, 'MANUAL', null).kecamatanCode) {
+    console.error('regions.json did not load (no code for Monas); nothing looked up. Run `npm run build` in services/customer-service.');
+    process.exit(1);
+  }
   const n = { looked: 0, kelurahan: 0, kecamatanOnly: 0, none: 0 };
   try {
     let after = '00000000-0000-0000-0000-000000000000';
