@@ -104,11 +104,11 @@ function BillsCard({ summary }: { summary: PayoutSummary }) {
         <Skeleton className="h-16 w-full" />
       ) : bills.error ? (
         <ErrorState message={t('dashB.payout.billsError')} onRetry={bills.reload} />
-      ) : (bills.data ?? []).length === 0 ? (
+      ) : (Array.isArray(bills.data) ? bills.data : []).length === 0 ? (
         <p className="text-sm text-muted">{t('dashB.payout.billsEmpty')}</p>
       ) : (
         <ul className="flex flex-col divide-y divide-[color:var(--border)]">
-          {(bills.data ?? []).map((b) => (
+          {(Array.isArray(bills.data) ? bills.data : []).map((b) => (
             <li key={b.id} className="flex flex-col gap-1 py-3 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <span className="font-semibold">
