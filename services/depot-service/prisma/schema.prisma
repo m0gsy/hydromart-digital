@@ -123,6 +123,9 @@ model Depot {
   monthlyCloses          DepotMonthlyClose[]
   orderDisputes          OrderDispute[]
   maintenanceItems       MaintenanceItem[]
+  qualityHolds           DepotQualityHold[]
+  labTests               DepotLabTest[]
+  permits                DepotPermit[]
   wholesaleTiers         WholesaleTier[]
   subscriptions          Subscription[]
   huddleNotes            HuddleNote[]
@@ -1226,6 +1229,11 @@ model LegalEntity {
   updatedBy String?         @db.Uuid
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
+  /// HD-23: the official account partner bills ask the mitra to pay into. Only the FRANCHISOR
+  /// entity's is ever read; empty until head office enters it.
+  bankName          String?
+  bankAccountNumber String?
+  bankAccountHolder String?
 
   depots    DepotLegalEntity[]
   aiGrants  LegalEntityAiGrant[]
@@ -1463,4 +1471,88 @@ enum DepotDraftStatus {
   DRAFT
   ACTIVATED
   REJECTED
+}
+
+// --- HD-14: quality hold, lab tests, permits --------------------------------------------------
+
+enum QualityHoldStatus {
+  ACTIVE
+  ENDED
+}
+
+enum QualityHoldReason {
+  LAB_FAIL
+  PERMIT
+  COMPLAINT
+  OTHER
+}
+
+enum LabTestKind {
+  FISIK_MIKRO
+  KIMIA
+  ECOLI
+  LENGKAP
+}
+
+enum LabTestResult {
+  PASS
+  FAIL
+}
+
+/// A depot that stops selling. One ACTIVE row per depot (partial unique index in the migration,
+/// raw SQL like the open-shift index). `note` is staff text: it never leaves hydromart (not in the
+/// webhook event, not in anything a customer sees).
+model DepotQualityHold {
+  id          String            @id @default(uuid()) @db.Uuid
+  depotId     String            @db.Uuid
+  depot       Depot             @relation(fields: [depotId], references: [id], onDelete: Restrict)
+  status      QualityHoldStatus @default(ACTIVE)
+  reasonCode  QualityHoldReason
+  note        String?
+  startedBy   String            @db.Uuid
+  startedAt   DateTime          @default(now())
+  endedBy     String?           @db.Uuid
+  endedAt     DateTime?
+  /// The PASS lab test the end rests on.
+  endRetestId String?           @db.Uuid
+  endRetest   DepotLabTest?     @relation(fields: [endRetestId], references: [id], onDelete: Restrict)
+
+  @@index([depotId, startedAt])
+  @@map("depot_quality_holds")
+}
+
+/// One lab report. `takenOn` / `resultOn` are WIB day keys (YYYY-MM-DD text).
+model DepotLabTest {
+  id         String             @id @default(uuid()) @db.Uuid
+  depotId    String             @db.Uuid
+  depot      Depot              @relation(fields: [depotId], references: [id], onDelete: Restrict)
+  kind       LabTestKind
+  takenOn    String             @db.VarChar(10)
+  resultOn   String             @db.VarChar(10)
+  result     LabTestResult
+  labName    String
+  reportNo   String
+  recordedBy String             @db.Uuid
+  /// Who they were when they recorded it (a Kepala may record their own retest; head office's End is the gate).
+  recordedByRole String         @default("")
+  createdAt  DateTime           @default(now())
+  holdsEnded DepotQualityHold[]
+
+  @@index([depotId, takenOn])
+  @@map("depot_lab_tests")
+}
+
+/// One permit (SLHS and the like). `validUntil` is a WIB day key.
+model DepotPermit {
+  id         String   @id @default(uuid()) @db.Uuid
+  depotId    String   @db.Uuid
+  depot      Depot    @relation(fields: [depotId], references: [id], onDelete: Restrict)
+  kind       String
+  number     String
+  validUntil String   @db.VarChar(10)
+  recordedBy String   @db.Uuid
+  createdAt  DateTime @default(now())
+
+  @@index([depotId, validUntil])
+  @@map("depot_permits")
 }

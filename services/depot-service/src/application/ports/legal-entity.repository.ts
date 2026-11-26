@@ -18,6 +18,9 @@ export interface UpdateLegalEntityData {
   name?: string;
   kind?: LegalEntityKind;
   active?: boolean;
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountHolder?: string | null;
   updatedBy: string | null;
 }
 
@@ -55,6 +58,8 @@ export interface LegalEntityRepository {
   /** Every legal entity, by name, with the roles granted on it. */
   list(): Promise<LegalEntityRecord[]>;
   findById(id: string): Promise<LegalEntity | null>;
+  /** HD-23: the active FRANCHISOR entity (the oldest when there are several), or null. */
+  findFranchisor(): Promise<LegalEntity | null>;
   /** The ones of these ids that exist. */
   existingIds(ids: string[]): Promise<string[]>;
   /** HD-6 H5: the kind of each of these entities (an unknown id is simply absent). */

@@ -10,6 +10,7 @@ import {
   FakeBroadcastDelivery,
   FakeCustomerDirectory,
   InMemoryCampaignRepository,
+  FakeHeldDepots,
 } from '../support/fakes';
 
 /** HD-17: the AI campaign draft at the service and controller seams (the HTTP path is in the e2e). */
@@ -32,7 +33,7 @@ describe('CampaignService.draftFromAi', () => {
     delivery = new FakeBroadcastDelivery();
     directory.recipients = [{ customerId: 'c-1', name: 'Andi', phone: '+6281' }];
     activity.customerIds = ['c-1'];
-    service = new CampaignService(repo, delivery, directory, activity);
+    service = new CampaignService(repo, delivery, directory, activity, new FakeHeldDepots());
   });
 
   it('makes a DRAFT marked AI, reads the audience as the depot rules do, and sends nothing', async () => {

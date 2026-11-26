@@ -5,6 +5,7 @@ import {
   InsufficientBalanceError,
   InvalidRevenueAmountError,
   InvalidWithdrawalAmountError,
+  PayoutByPartnerBillError,
   WithdrawalBelowMinimumError,
   WithdrawalNotFoundError,
   WithdrawalNotProcessingError,
@@ -84,6 +85,15 @@ const isUniqueViolation = (error: unknown): boolean =>
 
 @Injectable()
 export class PayoutService {
+  /**
+   * HD-23 (owner decision 2026-11-26, "Tagihan saja"): a franchise owner's ledger balance is
+   * bookkeeping, never paid out. Customers pay the depot's own account and HQ collects its
+   * royalty only through the monthly partner bill, so paying the balance out would net the
+   * commission a second time. Kill-switch for the day finance moves money through the ledger
+   * again; unit tests of the withdrawal mechanics flip it.
+   */
+  static ledgerPayoutOpen = false;
+
   private readonly logger = new Logger(PayoutService.name);
 
   constructor(
@@ -234,6 +244,11 @@ export class PayoutService {
     return { reversed: true };
   }
 
+  /** The one refusal every franchise-ledger payout path shares (HD-23). */
+  static assertLedgerPayoutOpen(): void {
+    if (!PayoutService.ledgerPayoutOpen) throw new PayoutByPartnerBillError();
+  }
+
   /** Current scheme percentage for a depot; 0 when the depot has no scheme yet. */
   private async commissionPctFor(depotId: string | null): Promise<number> {
     if (!depotId) return 0;
@@ -273,6 +288,7 @@ export class PayoutService {
    * summary (signed ledger sum), just network-wide instead of self-scoped.
    */
   async pendingPayouts(): Promise<PendingPayout[]> {
+    if (!PayoutService.ledgerPayoutOpen) return [];
     const owners = await this.ledger.ownersWithBalance();
     const due = nextPayoutDate(new Date(), this.config.businessTimeZone).toISOString();
     return owners.map((o) => ({
@@ -320,6 +336,7 @@ export class PayoutService {
    * `bankAccountRef` is gone from the caller's hands entirely.
    */
   async releaseForOwner(ownerId: string): Promise<WithdrawalRecord> {
+    PayoutService.assertLedgerPayoutOpen();
     const balance = await this.ledger.balanceFor(ownerId);
     return this.requestWithdrawal(ownerId, balance);
   }
@@ -344,6 +361,7 @@ export class PayoutService {
     amount: number,
     idempotencyKey?: string,
   ): Promise<WithdrawalRecord> {
+    PayoutService.assertLedgerPayoutOpen();
     if (!(amount > 0)) throw new InvalidWithdrawalAmountError();
     if (amount < this.config.minWithdrawalIdr) {
       throw new WithdrawalBelowMinimumError(this.config.minWithdrawalIdr);

@@ -32,9 +32,12 @@ import {
 } from '../application/services/legal-entity.service';
 import { AssignedDepot } from '../application/ports/legal-entity.repository';
 import { DepotConfigService } from '../config/depot-config.service';
+import { LegalEntityNotFoundError } from '../domain/errors';
 import {
+  BankAccount,
   DepotLegalEntityHistory,
   LegalEntity,
+  bankAccountOf,
   parseCalendarDay,
 } from '../domain/legal-entity';
 import {
@@ -54,6 +57,16 @@ import {
   SetAiGrantsDto,
   UpdateLegalEntityDto,
 } from './dto/legal-entity.dto';
+
+type LegalEntitySummary = Pick<LegalEntity, 'id' | 'name' | 'kind' | 'active'> & { bankAccount: BankAccount | null; aiReadRoles?: string[] };
+
+const summaryOf = (e: LegalEntity): LegalEntitySummary => ({
+  id: e.id,
+  name: e.name,
+  kind: e.kind,
+  active: e.active,
+  bankAccount: bankAccountOf(e),
+});
 
 /**
  * HD-5 — /hq/legal-entities. Head office enters the legal entities and dates which one each
@@ -200,6 +213,18 @@ export class LegalEntityController {
     return { spans: await this.entities.entityTimeline(query.depotIds, from, to) };
   }
 
+  /** Service-to-service (HD-23, payout-service): the franchisor and its official account; 404 = none entered. */
+  @ApiOkResponse({ type: LegalEntitySummaryResponseDto })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @Get('internal/franchisor')
+  @ApiOperation({ summary: 'Internal: the franchisor legal entity with its official bank account' })
+  async internalFranchisor(): Promise<LegalEntitySummary> {
+    const found = await this.entities.franchisor();
+    if (!found) throw new LegalEntityNotFoundError();
+    return summaryOf(found);
+  }
+
   /** Service-to-service (HD-6 H5): the kind of each of these entities, for the HKP / waralaba split by date. */
   @ApiOkResponse({ type: EntityKindsResponseDto })
   @Public()
@@ -232,10 +257,9 @@ export class LegalEntityController {
   @ApiOperation({ summary: 'Internal: name, kind, on/off and AI-read roles of one legal entity' })
   async internalSummary(
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<Pick<LegalEntity, 'id' | 'name' | 'kind' | 'active'> & { aiReadRoles: string[] }> {
-    const { name, kind, active } = await this.entities.get(id);
+  ): Promise<LegalEntitySummary> {
     // AI-26: crm-service picks who is told of a weekly report from the roles granted here.
-    return { id, name, kind, active, aiReadRoles: await this.entities.aiReadRolesOf(id) };
+    return { ...summaryOf(await this.entities.get(id)), aiReadRoles: await this.entities.aiReadRolesOf(id) };
   }
 
   /** Fail-open like every depot-service trail: a saved change is not undone because the trail was down. */

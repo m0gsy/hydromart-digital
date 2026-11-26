@@ -633,6 +633,15 @@ export class LegalEntityInactiveError extends DomainError {
   }
 }
 
+/** HD-23: only the franchisor's account is ever paid into, so no other kind may carry one. */
+export class LegalEntityBankAccountNotAllowedError extends DomainError {
+  readonly code = 'LEGAL_ENTITY_BANK_ACCOUNT_FRANCHISOR_ONLY';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('Rekening resmi hanya diisi untuk badan hukum pewaralaba (FRANCHISOR).');
+  }
+}
+
 /** A dated change point that is not (any more) there. */
 export class DepotLegalEntityPointNotFoundError extends DomainError {
   readonly code = 'DEPOT_LEGAL_ENTITY_POINT_NOT_FOUND';
@@ -890,5 +899,40 @@ export class DepotDraftNotFoundError extends DomainError {
   readonly status = HTTP_STATUS.NOT_FOUND;
   constructor() {
     super('Draf depot untuk calon mitra ini tidak ditemukan.');
+  }
+}
+
+/* ---------- Quality hold (HD-14) ---------- */
+
+export class QualityHoldAlreadyActiveError extends DomainError {
+  readonly code = 'QUALITY_HOLD_ALREADY_ACTIVE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Depot ini sudah berstatus quality hold.');
+  }
+}
+
+export class QualityHoldNotActiveError extends DomainError {
+  readonly code = 'QUALITY_HOLD_NOT_ACTIVE';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Depot ini tidak sedang quality hold.');
+  }
+}
+
+/** Ending needs a PASS lab test of this depot, taken on or after the day the hold started. */
+export class QualityHoldRetestRequiredError extends DomainError {
+  readonly code = 'QUALITY_HOLD_RETEST_REQUIRED';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Quality hold hanya bisa diakhiri dengan hasil uji lab LULUS depot ini yang diambil pada atau setelah hari hold dimulai.');
+  }
+}
+
+export class LabTestDatesError extends DomainError {
+  readonly code = 'LAB_TEST_DATES_INVALID';
+  readonly status = HTTP_STATUS.UNPROCESSABLE;
+  constructor() {
+    super('Tanggal tidak valid, atau tanggal hasil uji sebelum tanggal pengambilan sampel.');
   }
 }

@@ -182,7 +182,7 @@ fi
 # AI access request, AI-7c; order status per WhatsApp number and customer reminders, HD-18; the maintenance-due sweep, HD-15; the weekly Sales report notice, AI-26; the AI agent notices, AI-31),
 # each added only once a rollback would still boot.
 SCOPE=franchiseApplicationNotify
-OPTIONAL_SCOPES=(morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiAgentNotify)
+OPTIONAL_SCOPES=(morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiAgentNotify partnerBillGenerate)
 if absent AIWEB_N8N_MACHINE_ID; then
   id="$("$node_bin" -e 'process.stdout.write(require("node:crypto").randomUUID())' 2>&1 || true)"
   add AIWEB_N8N_MACHINE_ID "$id"

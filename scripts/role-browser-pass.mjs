@@ -110,7 +110,7 @@ const HQ = R(`
 /hq/campaigns /hq/catalog /hq/churn /hq/compare /hq/content /hq/customers /hq/depots
 /hq/dashboard /hq/exports /hq/flags /hq/forecast /hq/forms/commission /hq/forms/pricing-rule
 /hq/forms/segment /hq/forms/voucher /hq/franchise /hq/fraud /hq/health /hq/hierarchy
-/hq/legal-entities
+/hq/legal-entities /hq/partner-bills /hq/partner-bills/detail
 /hq/incidents /hq/inventory /hq/invoice-template /hq/loyalty /hq/notifications
 /hq/onboarding /hq/orders /hq/payments /hq/pdp /hq/pricing /hq/profile /hq/promo-rules /hq/promotions
 /hq/reconciliation /hq/refunds /hq/reports/export /hq/retention /hq/returns /hq/roster
@@ -137,7 +137,7 @@ const OPS = R(`
 /dashboard/monthly-review /dashboard/notifications /dashboard/onboarding
 /dashboard/operator-settings /dashboard/orders /dashboard/payment-recon
 /dashboard/payments /dashboard/payout /dashboard/pricing /dashboard/pricing/import
-/dashboard/products/manage /dashboard/profile /dashboard/promo-rules /dashboard/promotions
+/dashboard/products/manage /dashboard/profile /dashboard/promo-rules /dashboard/promotions /dashboard/quality /dashboard/held
 /dashboard/purchase-orders /dashboard/purchase-orders/detail
 /dashboard/ratings /dashboard/recommendations /dashboard/redemptions /dashboard/referral
 /dashboard/reports /dashboard/resellers/import /dashboard/returns /dashboard/roles

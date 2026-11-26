@@ -5,6 +5,7 @@ import { Role, assertFresh, isDecisionOnlyPatch } from '@hydromart/platform';
 import {
   DepotLegalEntityPointNotFoundError,
   DepotNotFoundError,
+  LegalEntityBankAccountNotAllowedError,
   LegalEntityInactiveError,
   LegalEntityNotFoundError,
   LegalEntityRoleNotGrantableError,
@@ -50,13 +51,31 @@ export interface LegalEntityPatch {
   name?: string;
   kind?: LegalEntityKind;
   active?: boolean;
+  /** HD-23: '' clears a part. FRANCHISOR only. */
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountHolder?: string;
 }
+
+type BankKey = 'bankName' | 'bankAccountNumber' | 'bankAccountHolder';
+/** What is written: the patch with its bank parts normalised ('' becomes null). */
+type EntityWrite = Omit<LegalEntityPatch, BankKey> & Partial<Record<BankKey, string | null>>;
 
 /** The fields that actually change, before and after; empty when the save changes nothing. */
 export interface LegalEntityChange {
   before: LegalEntity;
   after: LegalEntity | null;
-  changed: Partial<Record<keyof LegalEntityPatch, { from: unknown; to: unknown }>>;
+  changed: Partial<Record<keyof EntityWrite, { from: unknown; to: unknown }>>;
+}
+
+/** '' (or spaces only) clears a bank field; anything else is stored trimmed. */
+function bankPatch(patch: LegalEntityPatch): Partial<Record<BankKey, string | null>> {
+  const out: Partial<Record<BankKey, string | null>> = {};
+  for (const key of ['bankName', 'bankAccountNumber', 'bankAccountHolder'] as const) {
+    const value = patch[key];
+    if (value !== undefined) out[key] = value.trim() || null;
+  }
+  return out;
 }
 
 /** A UUID as Postgres prints it. The DTOs accept either case; text comparisons must not care. */
@@ -120,13 +139,19 @@ export class LegalEntityService {
   ): Promise<LegalEntityChange> {
     const before = await this.get(id);
     if (!isDecisionOnlyPatch(patch)) assertFresh(before.updatedAt, seenUpdatedAt);
-    const next: LegalEntityPatch = {
+    const next: EntityWrite = {
       ...(patch.name !== undefined ? { name: normaliseLegalEntityName(patch.name) } : {}),
       ...(patch.kind !== undefined ? { kind: patch.kind } : {}),
       ...(patch.active !== undefined ? { active: patch.active } : {}),
+      ...bankPatch(patch),
     };
+    // The account lives on the franchisor only: refuse writing one onto any other kind.
+    const writesBank = Object.values(bankPatch(patch)).some((v) => v !== null);
+    if (writesBank && (next.kind ?? before.kind) !== 'FRANCHISOR') {
+      throw new LegalEntityBankAccountNotAllowedError();
+    }
     const changed: LegalEntityChange['changed'] = {};
-    for (const key of Object.keys(next) as (keyof LegalEntityPatch)[]) {
+    for (const key of Object.keys(next) as (keyof EntityWrite)[]) {
       if (next[key] !== before[key]) changed[key] = { from: before[key], to: next[key] };
     }
     if (Object.keys(changed).length === 0) return { before, after: null, changed };
@@ -240,6 +265,11 @@ export class LegalEntityService {
     // ponytail: the whole (small) entity list is read, as accessibleTo does; a per-entity query if it grows.
     const found = (await this.entities.list()).find((e) => lowerId(e.id) === lowerId(id));
     return found ? found.aiReadRoles : [];
+  }
+
+  /** HD-23: the franchisor entity (name and official account); null when none is entered. */
+  franchisor(): Promise<LegalEntity | null> {
+    return this.entities.findFranchisor();
   }
 
   async get(id: string): Promise<LegalEntity> {

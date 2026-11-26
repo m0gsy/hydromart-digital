@@ -157,6 +157,18 @@ export class OrderNotClaimableError extends DomainError {
  * order-service returns once the order has left the status the claim was built on — lands
  * here.
  */
+/**
+ * HD-14: the depot of this order is on a quality hold, so nobody is assigned to it and nobody takes
+ * it out. Neutral text: no reason (owner decision, 26 Nov 2026). Raised from order-service's 409.
+ */
+export class DepotOnHoldError extends DomainError {
+  readonly code = 'DELIVERY_DEPOT_ON_HOLD';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Depot ini sedang tidak melayani sementara.');
+  }
+}
+
 export class OrderAlreadyClaimedError extends DomainError {
   readonly code = 'DELIVERY_ORDER_ALREADY_CLAIMED';
   readonly status = HTTP_STATUS.CONFLICT;

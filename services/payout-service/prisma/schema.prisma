@@ -328,3 +328,62 @@ model ServiceSetting {
   @@index([scope, depotId])
   @@map("service_settings")
 }
+
+/// HD-23: a partner bill's life. Always a DRAFT first; Finance's one click (approve) sends it.
+enum PartnerBillStatus {
+  DRAFT
+  /// Approved and being sent: the notice may not have gone out yet. Approve can be retried; void is refused.
+  SENDING
+  SENT
+  VOID
+}
+
+/// HD-23: the monthly royalty bill for one FRANCHISEE legal entity. The amount is HQ's commission
+/// (the COMMISSION ledger rows, metric W-05) over the closed WIB month; customers pay the depot's
+/// own account, so this bill is the only way HQ collects it. One live bill per entity and month: a
+/// partial unique index on (legalEntityId, month) where status <> 'VOID' (in the migration; Prisma
+/// cannot express it), so a rerun cannot double-bill and a voided month can be made again.
+model PartnerBill {
+  id              String            @id @default(uuid()) @db.Uuid
+  legalEntityId   String            @db.Uuid
+  /// The entity's name when the draft was made, so a bill keeps reading the same after a rename.
+  legalEntityName String
+  /// 'YYYY-MM' in the business time zone.
+  month           String
+  status          PartnerBillStatus @default(DRAFT)
+  /// Whole rupiah.
+  totalIdr        Decimal           @db.Decimal(14, 0)
+  createdAt       DateTime          @default(now())
+  approvedBy      String?           @db.Uuid
+  approvedAt      DateTime?
+  sentAt          DateTime?
+  voidReason      String?
+  /// Where to pay, as it stood when the bill was sent (the franchisor's official account).
+  bankName        String?
+  bankAccountNumber String?
+  bankAccountHolder String?
+  /// The franchise-owner accounts it was sent to; an owner lists the bills that name them.
+  recipientIds    String[]          @db.Uuid
+
+  lines           PartnerBillLine[]
+
+  @@index([month, status])
+  @@map("partner_bills")
+}
+
+/// One depot's share of a bill. `basis` says what the number is made of (ledger rows, reversals,
+/// the days it covers), so a line can be explained without reading the ledger.
+model PartnerBillLine {
+  id        String      @id @default(uuid()) @db.Uuid
+  billId    String      @db.Uuid
+  depotId   String      @db.Uuid
+  label     String
+  /// Whole rupiah; negative on a month whose reversals exceeded its commission.
+  amountIdr Decimal     @db.Decimal(14, 0)
+  basis     Json
+
+  bill      PartnerBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@index([billId])
+  @@map("partner_bill_lines")
+}

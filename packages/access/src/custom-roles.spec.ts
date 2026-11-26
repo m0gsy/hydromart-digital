@@ -51,6 +51,13 @@ describe('custom roles', () => {
     }
   });
 
+  it('never lets a custom role end a quality hold, but may start one (HD-14)', () => {
+    loadCustomRoles([{ key: 'C_kasir', name: 'Kasir', scope: 'GLOBAL' }]);
+    loadOverrides({ depotQualityHoldEnd: ['C_kasir'], depotQualityHoldStart: ['C_kasir'] });
+    expect(can('depotQualityHoldEnd', 'C_kasir')).toBe(false);
+    expect(can('depotQualityHoldStart', 'C_kasir')).toBe(true);
+  });
+
   it('scope: built-in is undefined, unknown/archived custom is LOCKED, loaded custom is its own', () => {
     expect(customRoleScope('MANAGER')).toBeUndefined();
     expect(customRoleScope(null)).toBeUndefined();

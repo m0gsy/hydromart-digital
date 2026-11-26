@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { prepareRows } from '@/components/csv-import';
 import { areaCell, hhmmCell, holidaysCell, plainDigitsCell } from '@/lib/depot-import-cells';
 import { DEPOT_IMPORT_COLUMNS } from '@/lib/depot-import-columns';
+import { depotExportCells } from '@/lib/depot-export';
 
 const fails = (fn: () => unknown, text: string) => expect(fn).toThrow(text);
 
@@ -184,5 +185,95 @@ describe('the depot import sheet', () => {
         'approvalAutoPassIdr',
       ]),
     );
+  });
+});
+
+describe('depot export', () => {
+  // What the server's export route sends: the shape of one import row, nulls for empty fields.
+  const server = {
+    code: 'JKT-01',
+    name: 'Depot Cikini',
+    ownershipType: 'HKP',
+    ownerId: null,
+    address: 'Jl. Cikini Raya No. 1',
+    city: 'Jakarta Pusat',
+    province: 'DKI Jakarta',
+    lat: -6.1944,
+    lng: 106.8412,
+    serviceRadiusKm: 8,
+    deliveryFee: 5000,
+    minOrderAmount: null,
+    contactPhone: '+6281234567890', // as stored: the import normalises 08� to +62�
+    paymentBankName: null,
+    paymentBankAccountNumber: '1234567890',
+    paymentBankAccountHolder: null,
+    paymentQrisImageUrl: null,
+    operatingHours: {
+      mon: { open: '08:00', close: '20:00', breakStart: '12:00', breakEnd: '13:00' },
+      sun: { open: '09:00', close: '15:00' },
+    },
+    holidays: [{ date: '2026-08-17', label: 'Hari: Kemerdekaan' }, { date: '2026-12-25' }],
+    serviceArea: [
+      [
+        { lat: -6.2, lng: 106.8 },
+        { lat: -6.2, lng: 107.0 },
+        { lat: -6.0, lng: 107.0 },
+      ],
+      [
+        { lat: -6.5, lng: 106.5 },
+        { lat: -6.5, lng: 106.6 },
+        { lat: -6.4, lng: 106.6 },
+      ],
+    ],
+    settings: { gallonDepositIdr: '25000' },
+  };
+
+  it('goes back through the import wizard as the same row', () => {
+    const headers = DEPOT_IMPORT_COLUMNS.map((c) => c.key);
+    const cells = depotExportCells(server);
+    expect(cells).toHaveLength(headers.length);
+    // A sheet reads every cell back as text.
+    const record = Object.fromEntries(headers.map((h, i) => [h, String(cells[i] ?? '')]));
+    const [row] = prepareRows([record], DEPOT_IMPORT_COLUMNS);
+    const { settings, ...rest } = server;
+    expect(row).not.toHaveProperty('error');
+    expect(row?.payload).toEqual({
+      ...Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== null)),
+      settings: { gallonDepositIdr: 25000 },
+    });
+    expect(settings).toBeDefined();
+  });
+
+  it('writes blank cells for empty values', () => {
+    const cells = depotExportCells({
+      code: 'A',
+      serviceArea: null,
+      holidays: [],
+      operatingHours: {},
+    });
+    expect(cells[0]).toBe('A');
+    expect(cells.slice(1).every((c) => c === '')).toBe(true);
+  });
+});
+
+describe('depotExportCells edges', () => {
+  const idx = (key: string) => DEPOT_IMPORT_COLUMNS.findIndex((c) => c.key === key);
+  it('writes holidays without a label, empty lists as blank, undefined as blank', () => {
+    const cells = depotExportCells({
+      code: 'A',
+      holidays: [{ date: '2026-12-25' }, { date: '2026-08-17', label: 'x' }],
+      serviceArea: [],
+      operatingHours: { mon: { open: '08:00' } },
+      name: undefined,
+    });
+    expect(cells[idx('hariLibur')]).toBe('2026-12-25|2026-08-17:x');
+    expect(cells[idx('areaLayanan')]).toBe('');
+    expect(cells[idx('senBuka')]).toBe('08:00');
+    expect(cells[idx('selBuka')]).toBe('');
+    expect(cells[idx('name')]).toBe('');
+  });
+  it('falls back to the column key when it has no field', () => {
+    const cols = [{ key: 'code' }, { key: 'x', field: 'a.b' }] as never;
+    expect(depotExportCells({ code: 'Z', a: { b: 1 } }, cols)).toEqual(['Z', 1]);
   });
 });

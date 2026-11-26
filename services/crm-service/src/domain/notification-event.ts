@@ -81,6 +81,11 @@ export enum NotificationEvent {
   // Operasional), raised by POST notifications/external/maintenance-due. Tokens: {{depot}},
   // {{items}} (the due items with the reason each; for HQ the count per depot).
   MAINTENANCE_DUE = 'MAINTENANCE_DUE',
+  // HD-14: a depot permit is within 30 days of expiry (or expired) / a required lab test is overdue.
+  // Same audience and shape as MAINTENANCE_DUE, raised by POST notifications/external/compliance-due.
+  // Tokens: {{depot}}, {{items}}, {{depotId}} (the tap).
+  PERMIT_DUE = 'PERMIT_DUE',
+  LAB_TEST_DUE = 'LAB_TEST_DUE',
   // AI-26: the weekly Sales report of one legal entity is ready in the AI web. One row per person who
   // may read that entity's calon mitra CRM, raised by POST notifications/external/sales-weekly-ready.
   // Tokens: {{week}} ("23 Nov - 29 Nov"), {{entity}}, {{link}} (the AI web page, the AI web page).
@@ -97,6 +102,12 @@ export enum NotificationEvent {
   // {{visitId}} / {{depotId}} (the tap).
   VISIT_FINDING = 'VISIT_FINDING',
   FOLLOW_UP_OVERDUE = 'FOLLOW_UP_OVERDUE',
+  // HD-23: the monthly royalty bill, sent to each franchise owner whose depots it covers. Raised by
+  // POST notifications/internal/partner-bill from payout-service when Finance approves it. Tokens:
+  // {{month}}, {{entity}}, {{total}}, {{bank}}, {{number}}, {{holder}}.
+  PARTNER_BILL = 'PARTNER_BILL',
+  // HD-23: a sent bill was withdrawn; the owners it went to are told why. Tokens: {{month}}, {{reason}}.
+  PARTNER_BILL_VOID = 'PARTNER_BILL_VOID',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -272,10 +283,18 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.AI_AGENT_STOPPED]: '{{who}} dihentikan. Buka Tim AI untuk detail. {{link}}',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Perawatan jatuh tempo di {{depot}}: {{items}}. Buka menu Perawatan untuk menjadwalkan servis.',
+  [NotificationEvent.PERMIT_DUE]:
+    'Izin depot {{depot}} perlu diperbarui: {{items}}. Buka menu Uji lab dan izin untuk mencatat izin yang baru.',
+  [NotificationEvent.LAB_TEST_DUE]:
+    'Uji lab depot {{depot}} jatuh tempo: {{items}}. Lakukan ujinya dan catat hasilnya di menu Uji lab dan izin.',
   [NotificationEvent.VISIT_FINDING]:
     'Kunjungan supervisor ke {{depot}} menemukan: {{items}}. Buka kunjungan untuk melihat dan menindaklanjutinya.',
   [NotificationEvent.FOLLOW_UP_OVERDUE]:
     'Tindak lanjut kunjungan di {{depot}} terlambat: {{items}}. Buka menu Kunjungan untuk menyelesaikannya.',
+  [NotificationEvent.PARTNER_BILL]:
+    'Tagihan royalti {{month}} untuk {{entity}}: {{total}}. Transfer ke {{bank}} {{number}} a.n. {{holder}}. Rincian di aplikasi.',
+  [NotificationEvent.PARTNER_BILL_VOID]:
+    'Tagihan royalti {{month}} dibatalkan: {{reason}}. Tagihan pengganti akan dikirim bila ada.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Halo {{name}}, pembayaran pesanan {{orderNumber}} belum berhasil ({{reason}}). Silakan bayar ulang dari aplikasi.',
   [NotificationEvent.PAYMENT_REMINDER]:
@@ -395,6 +414,8 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_ACCESS_REQUESTED,
   // HD-15: addressed to one account (also in PERSONAL_OPS_EVENTS); the depot is in the text.
   NotificationEvent.MAINTENANCE_DUE,
+  NotificationEvent.PERMIT_DUE,
+  NotificationEvent.LAB_TEST_DUE,
   // AI-26: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
   NotificationEvent.SALES_WEEKLY_REPORT,
   // AI-31: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
@@ -404,6 +425,9 @@ export const OPS_EVENTS: NotificationEvent[] = [
   // HD-15B: the same, addressed to one account (also in PERSONAL_OPS_EVENTS); the depot is in the text.
   NotificationEvent.VISIT_FINDING,
   NotificationEvent.FOLLOW_UP_OVERDUE,
+  // HD-23: addressed to one franchise owner's account (also in PERSONAL_OPS_EVENTS), no depot.
+  NotificationEvent.PARTNER_BILL,
+  NotificationEvent.PARTNER_BILL_VOID,
   NotificationEvent.STOCK_LOW,
   NotificationEvent.STOCK_UNTRACKED,
   NotificationEvent.METER_VARIANCE,
@@ -491,6 +515,9 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.AI_ACCESS_REQUESTED]: 'aiAccessRequest',
   // HD-15: its own switch on /hq/profile, push and email, both defaulting on.
   [NotificationEvent.MAINTENANCE_DUE]: 'maintenanceDue',
+  // HD-14: the same switch: depot upkeep reminders.
+  [NotificationEvent.PERMIT_DUE]: 'maintenanceDue',
+  [NotificationEvent.LAB_TEST_DUE]: 'maintenanceDue',
   // AI-26: its own switch on /hq/profile, push and email, both defaulting on.
   [NotificationEvent.SALES_WEEKLY_REPORT]: 'salesWeekly',
   // AI-31: one switch for the three agent notices on /hq/profile, push and email, default on.
@@ -500,6 +527,10 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   // HD-15B: one switch for both visit notices (depot lists and /hq/profile), push and email, default on.
   [NotificationEvent.VISIT_FINDING]: 'visitFinding',
   [NotificationEvent.FOLLOW_UP_OVERDUE]: 'visitFinding',
+  // HD-23: a money notice an owner must not miss, so it rides the approval switch (default on)
+  // rather than a new one; there is no way to read a bill that was switched off, so it stays on.
+  [NotificationEvent.PARTNER_BILL]: 'approval',
+  [NotificationEvent.PARTNER_BILL_VOID]: 'approval',
   [NotificationEvent.DEPOT_SALES_UPDATE]: 'dailySummary',
 };
 
@@ -544,6 +575,8 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_ACCESS_REQUESTED,
   // HD-15: one recipient's own row (the same text goes to each of them, but each has their own).
   NotificationEvent.MAINTENANCE_DUE,
+  NotificationEvent.PERMIT_DUE,
+  NotificationEvent.LAB_TEST_DUE,
   // AI-26: each recipient's own row.
   NotificationEvent.SALES_WEEKLY_REPORT,
   // AI-31: each recipient's own row.
@@ -553,6 +586,9 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   // HD-15B: each recipient's own row.
   NotificationEvent.VISIT_FINDING,
   NotificationEvent.FOLLOW_UP_OVERDUE,
+  // HD-23: one owner's own row.
+  NotificationEvent.PARTNER_BILL,
+  NotificationEvent.PARTNER_BILL_VOID,
 ];
 
 // English. Same tokens, same order, same meaning — including the operational ones, which go
@@ -594,10 +630,18 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
   [NotificationEvent.AI_AGENT_STOPPED]: '{{who}} was stopped. Open Tim AI for details. {{link}}',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Maintenance is due at {{depot}}: {{items}}. Open Maintenance to schedule the service.',
+  [NotificationEvent.PERMIT_DUE]:
+    'Permits at {{depot}} need renewing: {{items}}. Open Lab tests and permits to record the new permit.',
+  [NotificationEvent.LAB_TEST_DUE]:
+    'Lab tests at {{depot}} are due: {{items}}. Take the test and record the result under Lab tests and permits.',
   [NotificationEvent.VISIT_FINDING]:
     'A supervisor visit to {{depot}} found: {{items}}. Open the visit to review and follow up.',
   [NotificationEvent.FOLLOW_UP_OVERDUE]:
     'Visit follow-ups at {{depot}} are overdue: {{items}}. Open Visits to close them.',
+  [NotificationEvent.PARTNER_BILL]:
+    'Royalty bill {{month}} for {{entity}}: {{total}}. Transfer to {{bank}} {{number}} in the name of {{holder}}. Details in the app.',
+  [NotificationEvent.PARTNER_BILL_VOID]:
+    'Royalty bill {{month}} was withdrawn: {{reason}}. A replacement bill will be sent if there is one.',
   [NotificationEvent.PAYMENT_FAILED]:
     'Hi {{name}}, the payment for order {{orderNumber}} did not go through ({{reason}}). Please pay again from the app.',
   [NotificationEvent.PAYMENT_REMINDER]:

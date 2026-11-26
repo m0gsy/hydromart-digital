@@ -10,12 +10,16 @@ import { CampaignService } from '../application/services/campaign.service';
 import { SavedSegmentService } from '../application/services/saved-segment.service';
 import { NotificationService } from '../application/services/notification.service';
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
+import { ComplianceDueService } from '../application/services/compliance-due.service';
+import { HeldDepotsHttpAdapter } from '../infrastructure/http/held-depots.http.adapter';
+import { ComplianceDueHttpAdapter } from '../infrastructure/http/compliance-due.http.adapter';
 import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
 import { SalesWeeklyService } from '../application/services/sales-weekly.service';
 import { LegalEntityAudienceHttpAdapter } from '../infrastructure/http/legal-entity-audience.http.adapter';
 import { MaintenanceDueService } from '../application/services/maintenance-due.service';
 import { DepotAudienceService } from '../application/services/depot-audience.service';
 import { VisitNoticeService } from '../application/services/visit-notice.service';
+import { PartnerBillNoticeService } from '../application/services/partner-bill-notice.service';
 import { MaintenanceDueHttpAdapter } from '../infrastructure/http/maintenance-due.http.adapter';
 import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { CustomerReminderService } from '../application/services/customer-reminder.service';
@@ -53,6 +57,7 @@ import { CampaignController } from './campaign.controller';
 import { SavedSegmentController } from './saved-segment.controller';
 import { NotificationController } from './notification.controller';
 import { VisitNoticeController } from './visit-notice.controller';
+import { PartnerBillNoticeController } from './partner-bill-notice.controller';
 import { NotificationExternalController } from './notification-external.controller';
 import { BroadcastController } from './broadcast.controller';
 import { PushController } from './push.controller';
@@ -68,12 +73,16 @@ const providers: Provider[] = [
   MorningSummaryService,
   AiAccessRequestService,
   MaintenanceDueService,
+  ComplianceDueService,
   SalesWeeklyService,
   AiAgentNoticeService,
   { provide: CRM_TOKENS.LegalEntityAudience, useClass: LegalEntityAudienceHttpAdapter },
   DepotAudienceService,
   VisitNoticeService,
+  PartnerBillNoticeService,
   { provide: CRM_TOKENS.MaintenanceDue, useClass: MaintenanceDueHttpAdapter },
+  { provide: CRM_TOKENS.ComplianceDue, useClass: ComplianceDueHttpAdapter },
+  { provide: CRM_TOKENS.HeldDepots, useClass: HeldDepotsHttpAdapter },
   BroadcastService,
   PushService,
   { provide: CRM_TOKENS.CampaignRepository, useClass: CampaignPrismaRepository },
@@ -118,6 +127,7 @@ const providers: Provider[] = [
     SavedSegmentController,
     NotificationController,
     VisitNoticeController,
+    PartnerBillNoticeController,
     NotificationExternalController,
     BroadcastController,
     PushController,

@@ -19,11 +19,12 @@ const ADDED: Record<string, string[]> = {
   // salesImportAdmin (managers and franchise owners had none; head office had only an export-screen button).
   DIREKTUR: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits'],
   FRANCHISE_OWNER: ['salesImport /dashboard/sales-import'],
-  HEAD_OFFICE: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits'],
+  HEAD_OFFICE: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits', 'quality /dashboard/quality', 'held /dashboard/held'],
   MANAGER: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits'],
-  SUPER_ADMIN: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits'],
+  SUPER_ADMIN: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits', 'quality /dashboard/quality', 'held /dashboard/held'],
   // and the head of depot's /dashboard (their operator home) is a row with the page's gate.
-  KEPALA_DEPOT: ['operations /dashboard', 'visits /dashboard/visits'],
+  // HD-14: quality hold, lab tests and permits; the orders a hold holds back.
+  KEPALA_DEPOT: ['operations /dashboard', 'visits /dashboard/visits', 'quality /dashboard/quality', 'held /dashboard/held'],
   // HD-15B PR-5: supervisor visits, a door for every holder of visitRead.
   ASSISTANT_SUPERVISOR: ['visits /dashboard/visits'],
   SUPERVISOR: ['visits /dashboard/visits'],

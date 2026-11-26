@@ -455,14 +455,7 @@ export default function HqDepotDetailPage() {
                           Rp {balance.availableBalance.toLocaleString('id-ID')}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs uppercase tracking-wide text-white/60">
-                          {t('hq.depotDetail.payout.nextDate')}
-                        </p>
-                        <p className="text-sm font-semibold">
-                          {new Date(balance.nextPayoutDate).toLocaleDateString('id-ID')}
-                        </p>
-                      </div>
+                      <p className="max-w-xs text-sm text-white/80">{t('hq.depotDetail.payout.byBill')}</p>
                     </div>
                   ) : (
                     <p className="text-sm text-white/70">{t('hq.depotDetail.payout.unavailable')}</p>

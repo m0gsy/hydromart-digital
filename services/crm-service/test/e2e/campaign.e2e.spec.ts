@@ -60,6 +60,8 @@ describe('Campaign HTTP flows (e2e)', () => {
         CampaignModule,
       ],
     })
+      .overrideProvider(CRM_TOKENS.HeldDepots)
+      .useValue({ heldDepotIds: async () => new Set<string>() })
       .overrideProvider(PrismaService)
       .useValue(prismaStub)
       .overrideProvider(CRM_TOKENS.CampaignRepository)

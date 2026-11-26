@@ -157,8 +157,76 @@ describe('LegalEntityController', () => {
       kind: 'OPERATOR',
       active: true,
       aiReadRoles: [],
+      bankAccount: null,
     });
     await expect(controller.internalSummary(UNKNOWN)).rejects.toBeInstanceOf(LegalEntityNotFoundError);
+  });
+});
+
+describe('LegalEntityController official account (HD-23)', () => {
+  const build = () => {
+    const depots = new InMemoryDepotRepository();
+    const repo = new InMemoryLegalEntityRepository(() => depots.rows);
+    const config = { authServiceUrl: 'http://auth:3001', internalServiceKey: 'k' } as DepotConfigService;
+    global.fetch = jest.fn().mockResolvedValue({ ok: true }) as never;
+    return new LegalEntityController(new LegalEntityService(repo, depots), config);
+  };
+
+  it('serves the franchisor with its account only once all three parts are entered, 404 before any franchisor', async () => {
+    const controller = build();
+    await expect(controller.internalFranchisor()).rejects.toBeInstanceOf(LegalEntityNotFoundError);
+    const pt = await controller.create({ name: 'PT Indowater', kind: 'FRANCHISOR' }, user);
+    expect(await controller.internalFranchisor()).toMatchObject({ id: pt.id, bankAccount: null });
+    // Each save reads the version the previous one left, like the screen does.
+    const seen = async () => (await controller.directory()).entities.find((e) => e.id === pt.id)!.updatedAt.toISOString();
+    await controller.update(pt.id, { bankName: 'BCA', bankAccountNumber: '1234567890', seenUpdatedAt: await seen() }, user);
+    expect((await controller.internalFranchisor()).bankAccount).toBeNull();
+    await controller.update(pt.id, { bankAccountHolder: 'PT Indowater', seenUpdatedAt: await seen() }, user);
+    expect((await controller.internalFranchisor()).bankAccount).toEqual({
+      bankName: 'BCA',
+      bankAccountNumber: '1234567890',
+      bankAccountHolder: 'PT Indowater',
+    });
+    // An empty string clears a part.
+    await controller.update(pt.id, { bankName: ' ', seenUpdatedAt: await seen() }, user);
+    expect((await controller.internalFranchisor()).bankAccount).toBeNull();
+  });
+
+  it('audits an account edit with the values before and after', async () => {
+    const controller = build();
+    const sent = (global.fetch as jest.Mock).mock.calls;
+    const pt = await controller.create({ name: 'PT Indowater', kind: 'FRANCHISOR' }, user);
+    const seen = async () => (await controller.directory()).entities.find((e) => e.id === pt.id)!.updatedAt.toISOString();
+    await controller.update(pt.id, { bankName: 'BCA', bankAccountNumber: '1234567890', seenUpdatedAt: await seen() }, user);
+    await controller.update(pt.id, { bankAccountNumber: '9876543210', seenUpdatedAt: await seen() }, user);
+    const updates = sent
+      .map((c) => JSON.parse((c[1] as { body: string }).body))
+      .filter((e: { action: string }) => e.action === 'legal_entity.update');
+    expect(updates).toHaveLength(2);
+    expect(updates[0].metadata.changed).toMatchObject({
+      bankName: { from: null, to: 'BCA' },
+      bankAccountNumber: { from: null, to: '1234567890' },
+    });
+    expect(updates[1].metadata.changed).toEqual({ bankAccountNumber: { from: '1234567890', to: '9876543210' } });
+  });
+
+  it('refuses an account on any entity that is not the franchisor', async () => {
+    const controller = build();
+    const kelola = await controller.create({ name: 'PT Kelola', kind: 'OPERATOR' }, user);
+    await expect(controller.update(kelola.id, { bankName: 'BCA', seenUpdatedAt: kelola.updatedAt.toISOString() }, user)).rejects.toMatchObject({
+      code: 'LEGAL_ENTITY_BANK_ACCOUNT_FRANCHISOR_ONLY',
+    });
+    // Clearing is always allowed.
+    await expect(controller.update(kelola.id, { bankName: '', seenUpdatedAt: kelola.updatedAt.toISOString() }, user)).resolves.toBeDefined();
+  });
+
+  it('validates the account number as 5 to 25 digits', async () => {
+    const check = async (n: string) =>
+      (await validate(plainToInstance(UpdateLegalEntityDto, { bankAccountNumber: n }))).length;
+    expect(await check('1234567890')).toBe(0);
+    expect(await check('')).toBe(0);
+    expect(await check('12ab')).toBeGreaterThan(0);
+    expect(await check('123')).toBeGreaterThan(0);
   });
 });
 

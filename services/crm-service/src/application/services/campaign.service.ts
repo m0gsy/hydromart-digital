@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import { DraftSource } from '../../domain/draft-source';
 import { CampaignStatus, canCancel, canSend } from '../../domain/campaign-status';
@@ -15,6 +15,7 @@ import {
   NoRecipientsError,
   RecipientOptedOutError,
   ScheduledInPastError,
+  CampaignDepotOnHoldError,
 } from '../../domain/errors';
 import { Page, buildPage } from '../pagination';
 import {
@@ -32,6 +33,7 @@ import {
   SegmentFilter,
 } from '../ports/customer-directory.port';
 import { BroadcastDeliveryPort } from '../ports/broadcast-delivery.port';
+import { HeldDepotsPort } from '../ports/held-depots.port';
 import { CRM_TOKENS } from '../tokens';
 
 /**
@@ -114,7 +116,18 @@ export class CampaignService {
     @Inject(CRM_TOKENS.BroadcastDelivery) private readonly delivery: BroadcastDeliveryPort,
     @Inject(CRM_TOKENS.CustomerDirectory) private readonly directory: CustomerDirectoryPort,
     @Inject(CRM_TOKENS.ActivitySegment) private readonly activity: ActivitySegmentPort,
+    @Inject(CRM_TOKENS.HeldDepots) private readonly holds: HeldDepotsPort,
   ) {}
+
+  /** HD-14: the depots on a quality hold, read fresh. Fails closed: unreadable is a 503, never "none held". */
+  private async heldDepots(): Promise<ReadonlySet<string>> {
+    try {
+      return await this.holds.heldDepotIds();
+    } catch (e) {
+      this.logger.warn(`quality holds unreadable: ${(e as Error).message}`);
+      throw new ServiceUnavailableException('Status depot tidak bisa dibaca; coba lagi sebentar.');
+    }
+  }
 
   async create(
     createdBy: string,
@@ -214,6 +227,8 @@ export class CampaignService {
     ai: Pick<CreateCampaignData, 'source' | 'aiSuggestionId' | 'aiReason' | 'aiRequestHash'> = {},
   ): Promise<CampaignRecord> {
     this.assertNotPast(scheduledFor);
+    // HD-14: a depot on a quality hold makes no campaign (staff and AI drafts alike).
+    if ((await this.heldDepots()).has(depotId)) throw new CampaignDepotOnHoldError();
     const { city, ...activityConditions } = { ...segment, depotId };
     const inSegment = new Set(await this.activity.customersIn(activityConditions));
     const resolved = await this.directory.resolveSegmentAsService({ city });
@@ -223,7 +238,7 @@ export class CampaignService {
 
     const deduped = [...new Map(list.map((r) => [r.phone, r])).values()];
     if (deduped.length === 0) throw new NoRecipientsError();
-    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor, ...ai });
+    return this.repo.create({ createdBy, name, messageTemplate, recipients: deduped, scheduledFor, depotId, ...ai });
   }
 
   /**
@@ -363,6 +378,8 @@ export class CampaignService {
     const campaign = await this.repo.findById(id);
     if (!campaign) throw new CampaignNotFoundError();
     if (!canSend(campaign.status)) throw new CampaignNotDraftError();
+    // HD-14: pressing Kirim is re-checked: a draft made before the hold must not go out during it.
+    if (campaign.depotId && (await this.heldDepots()).has(campaign.depotId)) throw new CampaignDepotOnHoldError();
 
     // canSend() above is courtesy — this is the guard. A read-then-write pair is not one.
     if (!(await this.repo.markSending(id))) throw new CampaignNotDraftError();
@@ -395,7 +412,32 @@ export class CampaignService {
      * What CAN still fail is a recipient with no account to deliver to; that is handled
      * per recipient below rather than by refusing the whole sweep.
      */
-    const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP, now);
+    // HD-14: a depot's campaign waits while its depot is held (its recipients stay PENDING and go on after
+    // the hold); a network-wide one skips the customers of held depots. The held depots are read FIRST and
+    // left out of the query, so a few held campaigns cannot fill the small batch and starve the rest. With
+    // no way to read the holds nothing is sent this tick (the next tick tries again), unless nothing waits.
+    let held: ReadonlySet<string>;
+    try {
+      held = await this.holds.heldDepotIds();
+    } catch (e) {
+      this.logger.warn(`broadcast sweep waits: quality holds unreadable: ${(e as Error).message}`);
+      const waiting = (await this.repo.findSending(1, now)).length > 0;
+      return { campaigns: 0, sent: 0, failed: 0, completed: 0, skipped: 0, held: 0, ok: !waiting };
+    }
+    const campaigns = await this.repo.findSending(CampaignService.MAX_CAMPAIGNS_PER_SWEEP, now, [...held]);
+    const heldCustomers = new Set<string>();
+    if (held.size > 0 && campaigns.some((c) => !c.depotId)) {
+      try {
+        // ponytail: "customers of a held depot" = those who ordered there (the activity segment); a customer
+        // of two depots is skipped while either is held. Per tick, only while some depot is held.
+        for (const depotId of held) {
+          for (const id of await this.activity.customersIn({ depotId })) heldCustomers.add(id);
+        }
+      } catch (e) {
+        this.logger.warn(`broadcast sweep waits: held depots' customers unreadable: ${(e as Error).message}`);
+        return { campaigns: 0, sent: 0, failed: 0, completed: 0, skipped: 0, held: 0, ok: false };
+      }
+    }
     const result: CampaignSweepResult = {
       campaigns: 0,
       sent: 0,
@@ -431,6 +473,11 @@ export class CampaignService {
             'nomor ini belum punya akun Hydromart atau menolak pesan promosi — tidak ada inbox tujuan',
             null,
           );
+          return;
+        }
+        if (!campaign.depotId && heldCustomers.has(recipient.customerId)) {
+          result.skipped += 1;
+          await this.repo.recordRecipientResult(recipient.id, RecipientStatus.SKIPPED, 'depot pelanggan ini sedang tidak melayani', null);
           return;
         }
         try {

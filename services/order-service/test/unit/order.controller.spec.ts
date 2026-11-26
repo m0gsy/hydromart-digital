@@ -49,6 +49,7 @@ function makeService(): Mocked {
     listForCustomer: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
     countOpenForCustomer: jest.fn().mockResolvedValue(2),
     listAll: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
+    heldOrders: jest.fn().mockResolvedValue([{ id: 'h1' }]),
     getAny: jest.fn().mockResolvedValue({ id: 'o1', depotId: 'd1', total: 42000 }),
     assignDepot: jest.fn().mockResolvedValue({ id: 'order-1', depotId: 'depot-a' }),
     rerouteDepot: jest.fn().mockResolvedValue({ id: 'order-1', depotId: 'depot-b' }),
@@ -198,6 +199,13 @@ describe('OrderController', () => {
     expect(service.walkInSale.mock.calls.at(-1)![1].counterNote).toBe('bayar sisanya besok');
     await controller.walkIn(staff, { ...base, counterNote: '   ' } as never, 'Bearer t');
     expect(service.walkInSale.mock.calls.at(-1)![1].counterNote).toBeNull();
+  });
+
+  it('held: lists the orders a quality hold is holding, inside the depot scope of the caller (HD-14)', async () => {
+    await expect(controller.held(admin, 'd1')).resolves.toEqual([{ id: 'h1' }]);
+    expect(service.heldOrders).toHaveBeenCalledWith(['d1']);
+    await controller.held(admin);
+    expect(service.heldOrders).toHaveBeenLastCalledWith(undefined);
   });
 
   it('walk-in: gives the note back to the cashier who rang it up', async () => {

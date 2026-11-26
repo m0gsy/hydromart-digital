@@ -25,6 +25,7 @@ import {
   DriverBusyError,
   DriverNotOnShiftError,
   InvalidDeliveryTransitionError,
+  DepotOnHoldError,
   NoShowNotEligibleError,
   NotAssignedDriverError,
   OrderCoordinationError,
@@ -178,6 +179,17 @@ describe('DeliveryService', () => {
   });
 
   afterEach(() => jest.useRealTimers());
+
+  // HD-14: order-service refuses the courier steps of a depot on a quality hold; the courier hears a
+  // neutral sentence, not "already taken", and nothing is written.
+  it('answers a hold refusal with the neutral hold error, on assign and on pickup', async () => {
+    orders.failNext = Object.assign(new Error('409'), { refused: true, onHold: true });
+    await expect(assign()).rejects.toBeInstanceOf(DepotOnHoldError);
+    const d = await assign();
+    orders.failNext = Object.assign(new Error('409'), { refused: true, onHold: true });
+    await expect(service.pickup(driver, d.id, AUTH)).rejects.toBeInstanceOf(DepotOnHoldError);
+    expect((await repo.findById(d.id))?.status).toBe(DeliveryStatus.ASSIGNED);
+  });
 
   const assign = (driverId = driver, orderId = randomUUID()) =>
     service.assign(

@@ -93,6 +93,8 @@ export const depot = {
     create: '/depots/api/v1/depots',
     // Bulk create/update from the HQ spreadsheet wizard (body: { mode, rows }).
     import: '/depots/api/v1/depots/import',
+    // GET: every depot as import rows (depotAdmin; audited server side).
+    exportRows: '/depots/api/v1/depots/import/export',
     // PATCH to update; DELETE to deactivate. GET on this path returns the PUBLIC projection
     // only — no bank details, no ownerId.
     detail: (id: string) => `/depots/api/v1/depots/${id}`,
@@ -236,6 +238,14 @@ export const depot = {
       `/depots/api/v1/maintenance-items?depotId=${encodeURIComponent(depotId)}`,
     create: '/depots/api/v1/maintenance-items',
     serviced: (id: string) => `/depots/api/v1/maintenance-items/${id}/serviced`,
+  },
+
+  // HD-14: quality hold, lab tests and permits of one depot.
+  quality: {
+    hold: (depotId: string) => `/depots/api/v1/depots/${depotId}/quality-hold`,
+    endHold: (depotId: string) => `/depots/api/v1/depots/${depotId}/quality-hold/end`,
+    labTests: (depotId: string) => `/depots/api/v1/depots/${depotId}/lab-tests`,
+    permits: (depotId: string) => `/depots/api/v1/depots/${depotId}/permits`,
   },
 
   // Depot procurement — suppliers + purchase orders (depot-service, design 7a/9d/11b).

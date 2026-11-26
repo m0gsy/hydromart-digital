@@ -302,6 +302,8 @@ describe('DepotPrismaRepository', () => {
       where: { effectiveTo: null },
       orderBy: [{ isPrimary: 'desc' }, { ownerId: 'asc' }],
     },
+    // HD-14: the quality hold is read with the depot.
+    qualityHolds: { where: { status: 'ACTIVE' }, select: { startedAt: true }, take: 1 },
   };
   const repo = new DepotPrismaRepository(prisma);
   const row = {
@@ -448,6 +450,16 @@ describe('DepotPrismaRepository', () => {
       where: { id: 'depot-1' },
       include: INCLUDE,
     });
+  });
+
+  it('carries the quality hold flag (the day it began, never why), not held when there is no active row', async () => {
+    const startedAt = new Date('2026-11-27T03:00:00.000Z');
+    model.findFirst.mockResolvedValue({ ...row, qualityHolds: [{ startedAt }] });
+    expect((await repo.findById('depot-1', false))?.qualityHold).toEqual({ active: true, since: startedAt.toISOString() });
+    model.findFirst.mockResolvedValue({ ...row, qualityHolds: [] });
+    expect((await repo.findById('depot-1', false))?.qualityHold).toEqual({ active: false, since: null });
+    model.findFirst.mockResolvedValue({ ...row });
+    expect((await repo.findById('depot-1', false))?.qualityHold).toEqual({ active: false, since: null });
   });
 
   it('findById applies the active filter when activeOnly', async () => {

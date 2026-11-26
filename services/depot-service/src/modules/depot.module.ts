@@ -26,6 +26,10 @@ import { AI_QUEUES_REPOSITORY } from '../application/ports/ai-queues.repository'
 import { AiQueuesPrismaRepository } from '../infrastructure/prisma/ai-queues.prisma.repository';
 import { AiQueuesController } from './ai-queues.controller';
 import { MaintenanceInternalController } from './maintenance-internal.controller';
+import { ComplianceInternalController } from './compliance-internal.controller';
+import { QualityHoldController } from './quality-hold.controller';
+import { QualityHoldService } from '../application/services/quality-hold.service';
+import { QualityHoldPrismaRepository } from '../infrastructure/prisma/quality-hold.prisma.repository';
 import { PricingService } from '../application/services/pricing.service';
 import { GallonReturnService } from '../application/services/gallon-return.service';
 import { GallonIssueService } from '../application/services/gallon-issue.service';
@@ -220,6 +224,7 @@ const providers: Provider[] = [
   // CA-2-39: resolving a dispute as REFUND queues the refund. Fails CLOSED — see the port.
   { provide: DEPOT_TOKENS.DisputeRefund, useClass: DisputeRefundHttpAdapter },
   MaintenanceService,
+  QualityHoldService,
   WholesaleTierService,
   SubscriptionService,
   HuddleService,
@@ -272,6 +277,7 @@ const providers: Provider[] = [
   { provide: COURIER_COD_PORT, useClass: CourierCodHttpAdapter },
   { provide: DEPOT_TOKENS.DisputeRepository, useClass: DisputePrismaRepository },
   { provide: DEPOT_TOKENS.MaintenanceRepository, useClass: MaintenancePrismaRepository },
+  { provide: DEPOT_TOKENS.QualityHoldRepository, useClass: QualityHoldPrismaRepository },
   { provide: DEPOT_TOKENS.WholesaleTierRepository, useClass: WholesaleTierPrismaRepository },
   { provide: DEPOT_TOKENS.SubscriptionRepository, useClass: SubscriptionPrismaRepository },
   { provide: DEPOT_TOKENS.OrderSubscriptionPort, useClass: OrderSubscriptionHttpAdapter },
@@ -346,6 +352,8 @@ const providers: Provider[] = [
     AiStockController,
     AiQueuesController,
     MaintenanceInternalController,
+    ComplianceInternalController,
+    QualityHoldController,
     RosterController,
     DepotTargetController,
     DepotFixedCostController,

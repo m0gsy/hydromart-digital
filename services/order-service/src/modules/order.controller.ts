@@ -493,6 +493,20 @@ export class OrderController {
   }
 
   // Static `manage` routes are declared before `:id` so they are not captured by it.
+  /**
+   * HD-14: accepted online orders of depots on a quality hold that have not left for delivery.
+   * The Kepala depot (own depot), head office and the superuser decide each one: cancel through
+   * PATCH :id/status (note "quality hold", the ordinary cancel + refund) or leave it for after
+   * the hold. Declared before the `:id` routes.
+   */
+  @ApiOkResponse({ type: OrderResponseDto, isArray: true })
+  @Get('manage/held')
+  @Can('qualityHoldOrders')
+  @ApiOperation({ summary: 'Staff: orders held back by a depot quality hold ("tertahan")' })
+  held(@CurrentUser() user: AuthenticatedUser, @Query('depotId') depotId?: string): Promise<OrderRecord[]> {
+    return this.orders.heldOrders(depotScopeIds(user, depotId));
+  }
+
   @ApiOkResponse({ type: PagedOrderResponseDto })
   @Get('manage')
   @Can('orderManageRead')

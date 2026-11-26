@@ -73,6 +73,11 @@ export class PayoutConfigService {
     return this.config.get<string>('DELIVERY_SERVICE_URL', '').replace(/\/+$/, '');
   }
 
+  /** HD-23: depot-service, which knows which legal entity held a depot on each day and the official account. */
+  get depotServiceUrl(): string {
+    return this.config.get<string>('DEPOT_SERVICE_URL', '').replace(/\/+$/, '');
+  }
+
   /** Flow 6b: crm, which sends a waiting claim to the accounts that may decide it. */
   get crmServiceUrl(): string {
     return this.config.get<string>('CRM_SERVICE_URL', '').replace(/\/+$/, '');
