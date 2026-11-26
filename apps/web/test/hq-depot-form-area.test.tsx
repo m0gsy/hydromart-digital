@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const { patch, post } = vi.hoisted(() => ({ patch: vi.fn(), post: vi.fn() }));
 
 vi.mock('@/lib/api', () => ({
-  api: { patch, post },
+  api: { patch, post, get: vi.fn(async () => ({ items: [], total: 0 })), getCached: vi.fn(async () => ({ items: [], total: 0 })) },
   ApiError: class ApiError extends Error {},
 }));
 vi.mock('@/components/hq/owner-select', () => ({ OwnerSelect: () => null }));
@@ -150,5 +150,36 @@ describe('the drawn service area in the HQ depot form', () => {
     save(/Buat depot/);
     await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
     expect(post.mock.calls[1]![1].serviceArea).toHaveLength(1);
+  });
+});
+
+describe('activating a CRM depot draft (HD-21b)', () => {
+  it('posts a new depot to the route it was given, not to the plain create', async () => {
+    render(
+      <LocaleProvider>
+        <DepotForm
+          depot={null}
+          submitTo="/depots/api/v1/depot-drafts/draft-1/activate"
+          initial={{
+            code: 'BKS-01',
+            name: 'Depot Contoh',
+            ownershipType: 'WARALABA',
+            owners: [{ ownerId: 'owner-9', sharePct: '100', isPrimary: true }],
+            address: 'Jl. Contoh 1',
+            city: 'Bekasi',
+            province: 'Jawa Barat',
+            lat: '-6.2',
+            lng: '107',
+            deliveryFee: '5000',
+          }}
+          onDone={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </LocaleProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Buat depot|Simpan|Onboard/i }));
+    await waitFor(() => expect(post).toHaveBeenCalled());
+    expect(post.mock.calls[0]![0]).toBe('/depots/api/v1/depot-drafts/draft-1/activate');
+    expect(post.mock.calls[0]![1]).toMatchObject({ code: 'BKS-01', ownershipType: 'WARALABA' });
   });
 });

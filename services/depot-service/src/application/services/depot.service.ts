@@ -144,6 +144,14 @@ export class DepotService {
   }
 
   async create(input: CreateDepotData): Promise<DepotRecord> {
+    return this.depots.create(await this.prepareCreate(input));
+  }
+
+  /**
+   * Every check a new depot goes through, and the data exactly as it will be stored. Split from
+   * `create` so HD-21b's activation can write the same depot inside its own transaction.
+   */
+  async prepareCreate(input: CreateDepotData): Promise<CreateDepotData> {
     const data = this.checkedSchedule(input);
     // `owners` wins; the legacy single `ownerId` means one owner taking 100%.
     const given: DepotOwnerShare[] = data.owners ?? (data.ownerId ? soleOwner(data.ownerId) : []);
@@ -158,7 +166,7 @@ export class DepotService {
     if (await this.depots.findByCode(data.code)) {
       throw new DuplicateDepotCodeError();
     }
-    return this.depots.create({ ...data, owners, ownerId: primaryOwnerId(owners) });
+    return { ...data, owners, ownerId: primaryOwnerId(owners) };
   }
 
   /**

@@ -97,6 +97,7 @@ export const HQ_ICONS: Record<string, Icon> = {
   '/hq/staff': UserGear,
   '/hr': UsersThree,
   '/hq/applications': FileText,
+  '/hq/depot-drafts': FileText,
   '/hq/franchise': Buildings,
   '/hq/payments': Wallet,
   '/hq/pricing': Tag,

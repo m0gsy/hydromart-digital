@@ -66,6 +66,8 @@ export interface ApplicationSummary {
 export const MAX_SUMMARY_APPLICATIONS = 20000;
 
 export interface FranchiseApplicationRepository {
+  /** HD-21: the undecided applications (PENDING, DOC_VERIFICATION, SURVEY), oldest first, at most `limit`. */
+  listOpen(limit: number): Promise<FranchiseApplicationRecord[]>;
   create(data: CreateFranchiseApplicationData): Promise<FranchiseApplicationRecord>;
   /** Queue read: oldest-first by submittedAt (highest SLA age first). */
   list(

@@ -50,6 +50,12 @@ class InMemoryApplicationRepository implements FranchiseApplicationRepository {
     const start = (filter.page - 1) * filter.limit;
     return { items: all.slice(start, start + filter.limit), total: all.length };
   }
+  async listOpen(limit: number) {
+    return this.rows
+      .filter((r) => ['PENDING', 'DOC_VERIFICATION', 'SURVEY'].includes(r.stage))
+      .sort((a, b) => a.submittedAt.getTime() - b.submittedAt.getTime())
+      .slice(0, limit);
+  }
   async findById(id: string) {
     return this.rows.find((r) => r.id === id) ?? null;
   }

@@ -130,7 +130,8 @@ import { GallonLedgerController } from './gallon-ledger.controller';
 import { GallonLedgerPrismaRepository } from '../infrastructure/prisma/gallon-ledger.prisma.repository';
 import { FranchiseApplicationController } from './franchise-application.controller';
 import { EventOutboxController } from './event-outbox.controller';
-import { AiDraftController } from './ai-draft.controller';
+import { AiCrmController, AiDraftController } from './ai-draft.controller';
+import { DepotDraftController } from './depot-draft.controller';
 import { DepotAuditSink } from '../infrastructure/http/audit.sink';
 import { DepotPriceOverrideController, PriceOverrideController } from './price-override.controller';
 import { IncidentController } from './incident.controller';
@@ -160,6 +161,8 @@ import { VisitService } from '../application/services/visit.service';
 import { VisitPrismaRepository } from '../infrastructure/prisma/visit.prisma.repository';
 import { visitPhotoStorageFor } from '../infrastructure/storage/visit-storage.factory';
 import { VisitTemplateService } from '../application/services/visit-template.service';
+import { DepotDraftService } from '../application/services/depot-draft.service';
+import { DepotDraftPrismaRepository } from '../infrastructure/prisma/depot-draft.prisma.repository';
 import { VisitTemplatePrismaRepository } from '../infrastructure/prisma/visit-template.prisma.repository';
 import { SopLookupHttpAdapter } from '../infrastructure/http/sop-lookup.http.adapter';
 import { HandoverController } from './handover.controller';
@@ -221,6 +224,7 @@ const providers: Provider[] = [
   SubscriptionService,
   HuddleService,
   VisitTemplateService,
+  DepotDraftService,
   VisitService,
   HandoverService,
   OperationalReportService,
@@ -275,6 +279,7 @@ const providers: Provider[] = [
   { provide: DEPOT_TOKENS.MeterVolume, useClass: MeterVolumeHttpAdapter },
   { provide: DEPOT_TOKENS.HuddleRepository, useClass: HuddlePrismaRepository },
   { provide: DEPOT_TOKENS.VisitTemplateRepository, useClass: VisitTemplatePrismaRepository },
+  { provide: DEPOT_TOKENS.DepotDraftRepository, useClass: DepotDraftPrismaRepository },
   { provide: DEPOT_TOKENS.SopLookup, useClass: SopLookupHttpAdapter },
   { provide: DEPOT_TOKENS.VisitRepository, useClass: VisitPrismaRepository },
   {
@@ -328,6 +333,8 @@ const providers: Provider[] = [
     EventOutboxController,
     DepotPriceOverrideController,
     AiDraftController,
+    AiCrmController,
+    DepotDraftController,
     PriceOverrideController,
     IncidentController,
     ApprovalController,

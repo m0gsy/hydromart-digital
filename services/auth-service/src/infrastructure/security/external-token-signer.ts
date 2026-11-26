@@ -1,4 +1,4 @@
-import { sign, type KeyObject } from 'node:crypto';
+import { createPublicKey, sign, type KeyObject } from 'node:crypto';
 
 import { Injectable } from '@nestjs/common';
 import { EXTERNAL_TOKEN_ALGORITHM, TOKEN_ISSUER } from '@hydromart/platform';
@@ -30,6 +30,7 @@ export class ExternalTokenSigner {
   private readonly key: KeyObject | null;
   private readonly kid: string | null;
   private readonly keys: PublicJwk[];
+  private readonly verifying = new Map<string, KeyObject>();
 
   constructor(config: AuthConfigService) {
     const { signing, previous } = config.externalTokenKeys;
@@ -37,14 +38,27 @@ export class ExternalTokenSigner {
     const current = this.key ? publicJwk(this.key) : null;
     this.kid = current?.kid ?? null;
     this.keys = current ? [current] : [];
+    if (this.key && current) this.verifying.set(current.kid, createPublicKey(this.key));
     if (current && previous) {
       const old = publicJwk(parseSigningKey(previous));
-      if (old.kid !== current.kid) this.keys.push(old);
+      if (old.kid !== current.kid) {
+        this.keys.push(old);
+        this.verifying.set(old.kid, createPublicKey(parseSigningKey(previous)));
+      }
     }
   }
 
   get enabled(): boolean {
     return this.key !== null;
+  }
+
+  /**
+   * The public keys that verify a token this service signed, by `kid`: what it publishes at
+   * /auth/jwks, held in memory so verifying its own token never means calling itself. Empty
+   * while switched off, so the kill switch holds here too.
+   */
+  verificationKeys(): ReadonlyMap<string, KeyObject> {
+    return this.verifying;
   }
 
   jwks(): { keys: PublicJwk[] } {

@@ -21,7 +21,7 @@ staging-ai.hydromart-digital.com {
 	import hsts
 	header X-Robots-Tag "noindex, nofollow"
 
-	@gated not path /auth/api/v1/auth/jwks /auth/api/v1/auth/handoff/token /dashboard/api/v1/ai/read/* /dashboard/api/v1/dashboard/pending-approvals /api/internal /api/internal/*
+	@gated not path /auth/api/v1/auth/jwks /auth/api/v1/auth/handoff/token /dashboard/api/v1/ai/read/* /dashboard/api/v1/dashboard/pending-approvals /depot/api/v1/ai/crm/access /depot/api/v1/ai/drafts/depots/from-crm /depot/api/v1/ai/drafts/depots/from-crm/* /depot/api/v1/ai/crm/legacy-applications /auth/api/v1/ai/crm/pic-candidates /api/internal /api/internal/*
 	basic_auth @gated {
 		# Relative to this file: sites/ is one level below infra/caddy/.
 		import ../staging-auth/*.caddy
@@ -41,10 +41,10 @@ staging-ai.hydromart-digital.com {
 
 	# The fake hydromart: its hand-over page and console (behind the wall), and the calls the
 	# staging app makes server-side to its HYDROMART_API_URL (this same site): the two sign-in
-	# calls, the AI read API and the pending approvals. Those carry no staging password, so they
+	# calls, the AI read API, the pending approvals and the CRM calon mitra's access read and depot draft. Those carry no staging password, so they
 	# are outside the wall above; the fake answers them only with a bearer signed by its own key.
 	# Everything else is the staging app.
-	@mock path /ai/masuk /ai/masuk/* /_mock /_mock/* /auth/api/v1/auth/jwks /auth/api/v1/auth/handoff/token /dashboard/api/v1/ai/read/* /dashboard/api/v1/dashboard/pending-approvals
+	@mock path /ai/masuk /ai/masuk/* /_mock /_mock/* /auth/api/v1/auth/jwks /auth/api/v1/auth/handoff/token /dashboard/api/v1/ai/read/* /dashboard/api/v1/dashboard/pending-approvals /depot/api/v1/ai/crm/access /depot/api/v1/ai/drafts/depots/from-crm /depot/api/v1/ai/drafts/depots/from-crm/* /depot/api/v1/ai/crm/legacy-applications /auth/api/v1/ai/crm/pic-candidates
 	handle @mock {
 		reverse_proxy hydromart-mock:9911
 	}

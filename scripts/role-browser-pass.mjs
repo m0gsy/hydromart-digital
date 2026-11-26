@@ -106,7 +106,7 @@ async function ensureCustomer(phone) {
 const R = (list) => list.trim().split(/\s+/);
 
 const HQ = R(`
-/hq /hq/access /hq/analytics /hq/api-keys /hq/applications /hq/audit /hq/broadcast
+/hq /hq/access /hq/analytics /hq/api-keys /hq/applications /hq/depot-drafts /hq/audit /hq/broadcast
 /hq/campaigns /hq/catalog /hq/churn /hq/compare /hq/content /hq/customers /hq/depots
 /hq/dashboard /hq/exports /hq/flags /hq/forecast /hq/forms/commission /hq/forms/pricing-rule
 /hq/forms/segment /hq/forms/voucher /hq/franchise /hq/fraud /hq/health /hq/hierarchy
@@ -117,7 +117,7 @@ const HQ = R(`
 /hq/scheduled-reports /hq/scorecard /hq/search /hq/security /hq/sitemap /hq/sla-policy
 /hq/staff /hq/staff/import /hq/depots/import /hq/catalog/import /hq/catalog/import-categories /hq/subscriptions /hq/tax /hq/tickets /hq/vouchers
 /hq/webhooks /hq/wizard /hq/access/landing
-/hq/access/detail /hq/applications/detail /hq/depots/detail /hq/forecast-models
+/hq/access/detail /hq/applications/detail /hq/depot-drafts/detail /hq/depots/detail /hq/forecast-models
 /hq/orders/detail /hq/pnl /hq/pnl/legal-entities /hq/depot-costs /hq/depot-costs/import /hq/policy-changes /hq/sop /hq/sop/detail /hq/visit-templates
 `);
 
@@ -247,6 +247,7 @@ const ID_SOURCE = {
   '/hq/depots/detail': '/hq/inventory',
   '/hq/orders/detail': '/hq/orders',
   '/hq/applications/detail': '/hq/applications',
+  '/hq/depot-drafts/detail': '/hq/depot-drafts',
   '/hq/sop/detail': '/hq/sop',
 };
 

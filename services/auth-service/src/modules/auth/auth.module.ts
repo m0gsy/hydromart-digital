@@ -72,6 +72,7 @@ import { AuditController } from './audit.controller';
 import { AuthController } from './auth.controller';
 import { AvatarController } from './avatar.controller';
 import { InternalAccountController } from './internal.controller';
+import { AiCrmController } from './ai-crm.controller';
 import { ExternalAccessController } from './external-access.controller';
 import { ExternalAccessService } from '../../application/services/external-access.service';
 import { ExternalTokenSigner } from '../../infrastructure/security/external-token-signer';
@@ -193,6 +194,7 @@ const globalGuards: Provider[] = [
     ConsentController,
     AccessController,
     ExternalAccessController,
+    AiCrmController,
     TotpController,
   ],
   providers: [

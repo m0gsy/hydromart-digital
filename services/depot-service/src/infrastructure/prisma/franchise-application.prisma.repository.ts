@@ -6,6 +6,7 @@ import { Prisma } from '../../../prisma/generated/client';
 import {
   Checklist,
   FranchiseAppStage,
+  OPEN_STAGES,
   franchiseApplicationSubmitted,
   franchiseApplicationSubmittedEventId,
 } from '../../domain/franchise-application';
@@ -183,6 +184,15 @@ export class FranchiseApplicationPrismaRepository implements FranchiseApplicatio
       }
       return count;
     });
+  }
+
+  async listOpen(limit: number): Promise<FranchiseApplicationRecord[]> {
+    const rows = await this.prisma.franchiseApplication.findMany({
+      where: { stage: { in: [...OPEN_STAGES] } },
+      orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map((r) => this.toRecord(r));
   }
 
   async summary(from: Date, to: Date): Promise<ApplicationSummary> {

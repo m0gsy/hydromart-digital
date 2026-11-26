@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { INestApplication, VersioningType } from '@nestjs/common';
+import { CAPABILITIES, loadCustomRoles, loadDepotOverrides, loadOverrides, loadRoleSettings } from '@hydromart/access';
 import { ConfigModule } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
@@ -22,6 +23,7 @@ import {
 
 import { DEPOT_TOKENS } from '../../src/application/tokens';
 import { envValidationSchema } from '../../src/config/env.validation';
+import { DepotDraftRecord } from '../../src/domain/depot-draft';
 import { PriceOverrideProposalRecord } from '../../src/domain/price-override-proposal';
 import { PrismaService } from '../../src/infrastructure/prisma/prisma.service';
 import { DepotModule } from '../../src/modules/depot.module';
@@ -101,6 +103,78 @@ class ProposalStore {
   }
 }
 
+const ENTITY = '00000000-0000-4000-8000-000000000001';
+let auditIngestUp = true;
+
+/** Two open /waralaba applications, the way the repository reads them (oldest first). */
+const legacyRows = [
+  { id: '00000000-0000-4000-8000-0000000000f1', applicantName: 'Calon Contoh Satu', applicantPhone: '081200000001', proposedName: 'Depot Satu', city: 'Bekasi', province: 'Jawa Barat', investmentAmount: 100_000_000, stage: 'PENDING', firstSource: null, privacyConsentVersion: '2026-11-24', submittedAt: new Date('2026-11-01T03:00:00Z'), lat: -6.2, lng: 107 },
+  { id: '00000000-0000-4000-8000-0000000000f2', applicantName: 'Calon Contoh Dua', applicantPhone: 'bukan nomor', proposedName: 'Depot Dua', city: 'Depok', province: 'Jawa Barat', investmentAmount: 200_000_000, stage: 'SURVEY', firstSource: 'ig', privacyConsentVersion: null, submittedAt: new Date('2026-11-05T03:00:00Z'), lat: -6.3, lng: 106.8 },
+];
+
+/** Just the depot-draft store the CRM routes touch: one row per prospect. */
+class DraftStore {
+  rows: DepotDraftRecord[] = [];
+  depots: InMemoryDepotRepository | null = null;
+  async list({ page, limit }: { page: number; limit: number }) {
+    const order = { DRAFT: 0, ACTIVATED: 1, REJECTED: 2 } as Record<string, number>;
+    const items = [...this.rows].sort(
+      (a, b) => (a.status === 'DRAFT' ? 0 : 1) - (b.status === 'DRAFT' ? 0 : 1) || (a.status === 'DRAFT' ? 1 : -1) * (a.createdAt.getTime() - b.createdAt.getTime()) || order[a.status]! - order[b.status]!,
+    );
+    return { items: items.slice((page - 1) * limit, page * limit), total: items.length };
+  }
+  async findById(id: string) {
+    return this.rows.find((r) => r.id === id) ?? null;
+  }
+  async reject(id: string, note: string, by: string, at: Date) {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || row.status !== 'DRAFT') return null;
+    Object.assign(row, { status: 'REJECTED', decisionNote: note, decidedBy: by, decidedAt: at, ownerFullName: null, ownerPhoneE164: null, requestHash: null });
+    return row;
+  }
+  async activate(id: string, data: Record<string, unknown>, by: string, at: Date) {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || row.status !== 'DRAFT') return null;
+    const depot = await this.depots!.create(data as never);
+    Object.assign(row, { status: 'ACTIVATED', depotId: depot.id, decidedBy: by, decidedAt: at, ownerFullName: null, ownerPhoneE164: null });
+    return { draft: row, depotId: depot.id, depotCode: depot.code };
+  }
+  async findByProspectId(id: string) {
+    return this.rows.find((r) => r.prospectId === id) ?? null;
+  }
+  async create(data: Record<string, unknown>) {
+    const now = new Date();
+    const row = {
+      id: randomUUID(),
+      status: 'DRAFT',
+      decisionNote: null,
+      decidedBy: null,
+      decidedAt: null,
+      depotId: null,
+      createdAt: now,
+      updatedAt: now,
+      ...data,
+    } as unknown as DepotDraftRecord;
+    this.rows.push(row);
+    return row;
+  }
+  /** Like the repository: only a REJECTED row reopens; the prospect and createdAt stay. */
+  async reopen(id: string, data: Record<string, unknown>) {
+    const row = this.rows.find((r) => r.id === id);
+    if (!row || row.status !== 'REJECTED') return null;
+    const content = { ...data };
+    delete content.prospectId;
+    Object.assign(row, content, { status: 'DRAFT', decisionNote: null, decidedBy: null, decidedAt: null, updatedAt: new Date() });
+    return row;
+  }
+}
+
+/** The HD-5 matrix as the AI web sees it: the custom Sales role may act for one entity. */
+const legalEntities = {
+  list: async () => [{ id: ENTITY, name: 'PT Contoh Waralaba', active: true }],
+  grantedEntityIds: async (role: string) => (role === 'C_SALES' ? [ENTITY] : []),
+};
+
 describe('AI drafts (HD-17 part A, e2e)', () => {
   let app: INestApplication;
   let depotId: string;
@@ -108,6 +182,8 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
   let supplierId: string;
   let proposals: ProposalStore;
   let orders: InMemoryPurchaseOrderRepository;
+  let crmDrafts: DraftStore;
+  const depotRepo = new InMemoryDepotRepository();
   let staff: (role: Role, depot?: string | null) => string;
   const trail: AuditEvent[] = [];
   let failTrail = false;
@@ -147,15 +223,19 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
     process.env.DEPOT_DATABASE_URL = 'postgresql://u:p@localhost:5432/db?schema=public';
     process.env.JWT_ACCESS_SECRET = SECRET;
     resetExternalKeyStores();
-    jest
-      .spyOn(global, 'fetch')
-      .mockImplementation(async (url) =>
-        String(url) === `${AUTH_URL}/api/v1/auth/jwks`
-          ? ({ ok: true, json: async () => ({ keys: [JWK] }) } as unknown as Response)
-          : ({ ok: false, status: 404, json: async () => ({}) } as unknown as Response),
-      );
+    jest.spyOn(global, 'fetch').mockImplementation(async (url) => {
+      const u = String(url);
+      if (u === `${AUTH_URL}/api/v1/auth/jwks`) return { ok: true, json: async () => ({ keys: [JWK] }) } as unknown as Response;
+      // The audit ingest of auth-service: answers ok, unless a test switches it off.
+      if (u === `${AUTH_URL}/api/v1/auth/audit/internal`) {
+        return (auditIngestUp ? { ok: true, status: 201 } : { ok: false, status: 503 }) as unknown as Response;
+      }
+      return { ok: false, status: 404, json: async () => ({}) } as unknown as Response;
+    });
     proposals = new ProposalStore();
     orders = new InMemoryPurchaseOrderRepository();
+    crmDrafts = new DraftStore();
+    crmDrafts.depots = depotRepo;
     const moduleRef = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({
@@ -170,6 +250,7 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
               DEPOT_DATABASE_URL: 'postgresql://u:p@localhost:5432/db?schema=public',
               JWT_ACCESS_SECRET: SECRET,
               AUTH_SERVICE_URL: AUTH_URL,
+              INTERNAL_SERVICE_KEY: 'internal-key-for-the-e2e-0123456789',
               CORS_ALLOWED_ORIGINS: 'http://localhost:3000',
               RATE_LIMIT_TTL_SECONDS: 60,
               RATE_LIMIT_MAX: 100,
@@ -182,13 +263,19 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       .overrideProvider(PrismaService)
       .useValue({ onModuleInit: jest.fn(), onModuleDestroy: jest.fn() })
       .overrideProvider(DEPOT_TOKENS.DepotRepository)
-      .useValue(new InMemoryDepotRepository())
+      .useValue(depotRepo)
       .overrideProvider(DEPOT_TOKENS.InventoryRepository)
       .useValue(new InMemoryInventoryRepository())
       .overrideProvider(DEPOT_TOKENS.PriceOverrideProposalRepository)
       .useValue(proposals)
       .overrideProvider(DEPOT_TOKENS.PurchaseOrderRepository)
       .useValue(orders)
+      .overrideProvider(DEPOT_TOKENS.DepotDraftRepository)
+      .useValue(crmDrafts)
+      .overrideProvider(DEPOT_TOKENS.FranchiseApplicationRepository)
+      .useValue({ listOpen: async () => legacyRows })
+      .overrideProvider(DEPOT_TOKENS.LegalEntityRepository)
+      .useValue(legalEntities)
       .overrideProvider(DEPOT_TOKENS.SupplierRepository)
       .useValue(new InMemorySupplierRepository())
       .overrideProvider(AUDIT_MUTATION_SINK)
@@ -392,6 +479,300 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       failTrail = true;
       await post(PO, manager(), poBody()).expect(503);
       expect(orders.rows).toHaveLength(0);
+    });
+  });
+
+  describe('CRM calon mitra (HD-21a)', () => {
+    const FROM_CRM = '/api/v1/ai/drafts/depots/from-crm';
+    const ACCESS = '/api/v1/ai/crm/access';
+    const PROSPECT = '00000000-0000-4000-8000-0000000000a1';
+    const crm = () => aiToken('MARKETING', null);
+    const crmBody = () => ({
+      prospectId: PROSPECT,
+      legacyApplicationId: null,
+      proposedName: 'Depot Contoh',
+      city: 'Bekasi',
+      province: 'Jawa Barat',
+      owner: { fullName: 'Budi Santoso', phoneE164: '+6281234567890' },
+      prospectusHandedOn: '2026-10-01',
+      prospectusSha256: 'a'.repeat(64),
+      prospectusVersionLabel: 'v1',
+      prospectusReceipt: 'Tanda terima 1',
+      agreementSignedOn: '2026-11-01',
+      checklist: { ktpNpwp: 'VERIFIED', locationProof: 'VERIFIED', capitalDeposit: 'VERIFIED', fieldSurvey: 'VERIFIED' },
+    });
+    const get = (url: string, token: string | null) => {
+      const req = request(app.getHttpServer()).get(url);
+      return token ? req.set('Authorization', `Bearer ${token}`) : req;
+    };
+
+    beforeEach(() => {
+      crmDrafts.rows.length = 0;
+    });
+    afterEach(() => {
+      auditIngestUp = true;
+      loadOverrides({});
+      loadCustomRoles([]);
+      loadDepotOverrides([]);
+      loadRoleSettings([]);
+    });
+
+    it('drafts a depot (201), replays (200), refuses another body (409), and sends nothing else', async () => {
+      const first = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(201);
+      expect(first.body).toMatchObject({ status: 'DRAFT' });
+      expect(first.body.draftId).toEqual(expect.any(String));
+      expect(trail[0]).toMatchObject({
+        action: 'ai.drafts.depots.from-crm.created.requested',
+        actorId: PERSON,
+        metadata: { via: 'ai', suggestionId: PROSPECT },
+      });
+      const again = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(200);
+      expect(again.body.draftId).toBe(first.body.draftId);
+      const clash = await post(FROM_CRM, crm(), { ...crmBody(), city: 'Depok' }, PROSPECT).expect(409);
+      expect(clash.body.code).toBe('DRAFT_CONFLICT');
+      expect(crmDrafts.rows).toHaveLength(1);
+      const status = await get(`${FROM_CRM}/${PROSPECT}`, crm()).expect(200);
+      expect(status.body).toMatchObject({ draftId: first.body.draftId, status: 'DRAFT', depotId: null, depotCode: null });
+    });
+
+    it('legacy applications: needs prospectSettings (SUPER_ADMIN or a granted custom role), read only, contract fields', async () => {
+      const LEGACY = '/api/v1/ai/crm/legacy-applications';
+      const res = await get(LEGACY, aiToken('SUPER_ADMIN', null)).expect(200);
+      expect(res.body.applications).toHaveLength(2);
+      expect(res.body.truncated).toBe(false);
+      expect(res.body.applications[0]).toMatchObject({ stage: 'PENDING', applicantPhoneE164: '+6281200000001', investmentAmountIdr: 100_000_000 });
+      expect(res.body.applications[1]).toMatchObject({ stage: 'SURVEY', applicantPhoneE164: null });
+      expect(JSON.stringify(res.body)).not.toMatch(/"lat"|"lng"|checklist/);
+      // Fail closed: when the read cannot be recorded, no application leaves.
+      auditIngestUp = false;
+      const refused = await get(LEGACY, aiToken('SUPER_ADMIN', null)).expect(503);
+      expect(refused.body).not.toHaveProperty("applications");
+      expect(JSON.stringify(refused.body)).not.toMatch(/Calon Contoh|applicantName/);
+      auditIngestUp = true;
+      await get(LEGACY, crm()).expect(403);
+      await get(LEGACY, aiToken('HEAD_OFFICE', null)).expect(403);
+      await get(LEGACY, staff(Role.SUPER_ADMIN)).expect(403);
+      await get(LEGACY, null).expect(401);
+      loadCustomRoles([{ key: 'C_LEAD', name: 'Sales Lead', scope: 'GLOBAL' }]);
+      loadOverrides({ prospectSettings: ['SUPER_ADMIN', 'C_LEAD'] });
+      expect((await get(LEGACY, aiToken('C_LEAD', null)).expect(200)).body.applications).toHaveLength(2);
+      // The AI token has no way to delete or change them: only GET exists on this path.
+      await request(app.getHttpServer()).delete(`${LEGACY}/${legacyRows[0]!.id}`).set('Authorization', `Bearer ${aiToken('SUPER_ADMIN', null)}`).expect(404);
+      await request(app.getHttpServer()).post(LEGACY).set('Authorization', `Bearer ${aiToken('SUPER_ADMIN', null)}`).send({}).expect(404);
+    });
+
+    it('treats an upper-case prospect id as the same prospect (replay), and the header must equal it', async () => {
+      const upper = { ...crmBody(), prospectId: PROSPECT.toUpperCase() };
+      const first = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(201);
+      const again = await post(FROM_CRM, crm(), upper, PROSPECT.toUpperCase()).expect(200);
+      expect(again.body.draftId).toBe(first.body.draftId);
+      expect(crmDrafts.rows).toHaveLength(1);
+      expect(crmDrafts.rows[0]!.prospectId).toBe(PROSPECT);
+      const other = '00000000-0000-4000-8000-0000000000a9';
+      const mismatch = await post(FROM_CRM, crm(), crmBody(), other).expect(400);
+      expect(mismatch.body.message).toContain('prospectId');
+      expect(crmDrafts.rows).toHaveLength(1);
+    });
+
+    it('stores both ids in lower case, whatever case the CRM wrote them in', async () => {
+      const legacy = '00000000-0000-4000-8000-0000000000EE';
+      await post(FROM_CRM, crm(), { ...crmBody(), prospectId: PROSPECT.toUpperCase(), legacyApplicationId: legacy }, PROSPECT).expect(201);
+      expect(crmDrafts.rows[0]).toMatchObject({ prospectId: PROSPECT, legacyApplicationId: legacy.toLowerCase() });
+    });
+
+    it('reopens a REJECTED draft for the new caller and keeps the first createdAt', async () => {
+      const first = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(201);
+      const row = crmDrafts.rows[0]!;
+      Object.assign(row, { status: 'REJECTED', decisionNote: 'kurang dokumen' });
+      const reopened = await post(FROM_CRM, crm(), { ...crmBody(), city: 'Depok' }, PROSPECT).expect(201);
+      expect(reopened.body).toMatchObject({ draftId: first.body.draftId, status: 'DRAFT' });
+      expect(reopened.body.createdAt).toBe(first.body.createdAt);
+      expect(crmDrafts.rows).toHaveLength(1);
+      expect(row).toMatchObject({ status: 'DRAFT', city: 'Depok', decisionNote: null, createdBy: PERSON });
+    });
+
+    it('re-checks D1: 422 with items / earliestOn, 400 for a future signing, nothing stored', async () => {
+      const lacking = await post(
+        FROM_CRM,
+        crm(),
+        { ...crmBody(), checklist: { ...crmBody().checklist, fieldSurvey: 'SUBMITTED' } },
+        PROSPECT,
+      ).expect(422);
+      expect(lacking.body).toMatchObject({ code: 'CHECKLIST_INCOMPLETE', items: ['fieldSurvey'] });
+      const early = await post(FROM_CRM, crm(), { ...crmBody(), agreementSignedOn: '2026-10-14' }, PROSPECT).expect(422);
+      expect(early.body).toMatchObject({ code: 'COOLING_OFF_NOT_MET', earliestOn: '2026-10-15' });
+      await post(FROM_CRM, crm(), { ...crmBody(), agreementSignedOn: '2099-01-01' }, PROSPECT).expect(400);
+      await post(FROM_CRM, crm(), { ...crmBody(), prospectusSha256: 'zz' }, PROSPECT).expect(400);
+      await post(FROM_CRM, crm(), crmBody(), null).expect(400);
+      expect(crmDrafts.rows).toHaveLength(0);
+    });
+
+    it('answers ALREADY_ONBOARDED with depotId and depotCode once the draft is a depot', async () => {
+      await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(201);
+      Object.assign(crmDrafts.rows[0]!, { status: 'ACTIVATED', depotId });
+      const res = await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(409);
+      expect(res.body).toMatchObject({ code: 'ALREADY_ONBOARDED', depotId, depotCode: 'AID-01' });
+    });
+
+    it('is 404 for a prospect with no draft', async () => {
+      await get(`${FROM_CRM}/${PROSPECT}`, crm()).expect(404);
+      await get(`${FROM_CRM}/not-a-uuid`, crm()).expect(400);
+    });
+
+    it('refuses the AI token without prospectCrm, a staff token, a machine token and no token', async () => {
+      await post(FROM_CRM, aiToken('HEAD_OFFICE', null), crmBody(), PROSPECT).expect(403);
+      await post(FROM_CRM, aiToken('MANAGER', depotId), crmBody(), PROSPECT).expect(403);
+      await get(`${FROM_CRM}/${PROSPECT}`, aiToken('HEAD_OFFICE', null)).expect(403);
+      await post(FROM_CRM, staff(Role.SUPER_ADMIN), crmBody(), PROSPECT).expect(403);
+      await post(FROM_CRM, machineToken(), crmBody(), PROSPECT).expect(403);
+      await post(FROM_CRM, null, crmBody(), PROSPECT).expect(401);
+      await get(`${FROM_CRM}/${PROSPECT}`, staff(Role.SUPER_ADMIN)).expect(403);
+      expect(crmDrafts.rows).toHaveLength(0);
+    });
+
+    it('access: summary for HEAD_OFFICE, full for MARKETING, everything for SUPER_ADMIN, 403 below', async () => {
+      const read = async (token: string) => (await get(ACCESS, token).expect(200)).body;
+      expect(await read(aiToken('HEAD_OFFICE', null))).toEqual({ full: false, settings: false, legalEntities: [] });
+      expect(await read(crm())).toEqual({ full: true, settings: false, legalEntities: [] });
+      expect(await read(aiToken('SUPER_ADMIN', null))).toEqual({
+        full: true,
+        settings: true,
+        legalEntities: [{ id: ENTITY, name: 'PT Contoh Waralaba' }],
+      });
+      await get(ACCESS, aiToken('MANAGER', depotId)).expect(403);
+      await get(ACCESS, staff(Role.SUPER_ADMIN)).expect(403);
+      await get(ACCESS, null).expect(401);
+    });
+
+    it('access follows the RUNTIME matrix: a custom role granted by override, with its legal entities', async () => {
+      const sales = aiToken('C_SALES', null);
+      await get(ACCESS, sales).expect(403);
+      loadCustomRoles([{ key: 'C_SALES', name: 'Sales', scope: 'GLOBAL' }]);
+      loadOverrides({ prospectRead: [...CAPABILITIES.prospectRead, 'C_SALES'], prospectCrm: [...CAPABILITIES.prospectCrm, 'C_SALES'] });
+      expect((await get(ACCESS, sales).expect(200)).body).toEqual({ full: true, settings: false, legalEntities: [{ id: ENTITY, name: 'PT Contoh Waralaba' }] });
+      loadOverrides({ prospectRead: [...CAPABILITIES.prospectRead, 'C_SALES'], prospectSettings: ['SUPER_ADMIN', 'C_SALES'] });
+      expect((await get(ACCESS, sales).expect(200)).body).toMatchObject({ full: false, settings: true });
+      await post(FROM_CRM, sales, crmBody(), PROSPECT).expect(403);
+    });
+
+    it('access judges a depot-locked role at its own depot: a per-depot grant shows, a deny hides', async () => {
+      const mgr = aiToken('KEPALA_DEPOT', depotId);
+      await get(ACCESS, mgr).expect(403);
+      loadOverrides({ prospectRead: [...CAPABILITIES.prospectRead, 'KEPALA_DEPOT'] });
+      expect((await get(ACCESS, mgr).expect(200)).body).toMatchObject({ full: false, settings: false });
+      loadDepotOverrides([{ capability: 'prospectCrm', roleKey: 'KEPALA_DEPOT', depotId, effect: 'GRANT' }]);
+      expect((await get(ACCESS, mgr).expect(200)).body).toMatchObject({ full: true, settings: false });
+      // Another depot's grant does nothing here.
+      loadDepotOverrides([{ capability: 'prospectCrm', roleKey: 'KEPALA_DEPOT', depotId: otherDepotId, effect: 'GRANT' }]);
+      expect((await get(ACCESS, mgr).expect(200)).body).toMatchObject({ full: false });
+      // A deny at the person's depot beats the global list.
+      loadOverrides({ prospectRead: [...CAPABILITIES.prospectRead, 'KEPALA_DEPOT'], prospectCrm: [...CAPABILITIES.prospectCrm, 'KEPALA_DEPOT'] });
+      expect((await get(ACCESS, mgr).expect(200)).body).toMatchObject({ full: true });
+      loadDepotOverrides([{ capability: 'prospectCrm', roleKey: 'KEPALA_DEPOT', depotId, effect: 'DENY' }]);
+      expect((await get(ACCESS, mgr).expect(200)).body).toMatchObject({ full: false });
+    });
+
+    it('a disabled built-in role holds nothing: 403 on access and on the draft', async () => {
+      loadRoleSettings([{ roleKey: 'MARKETING', disabled: true }]);
+      await get(ACCESS, crm()).expect(403);
+      await post(FROM_CRM, crm(), crmBody(), PROSPECT).expect(403);
+    });
+  });
+
+  describe('HQ depot drafts (HD-21b)', () => {
+    const BASE = '/api/v1/depot-drafts';
+    const row = (over: Partial<DepotDraftRecord> = {}): DepotDraftRecord =>
+      ({
+        id: randomUUID(),
+        prospectId: randomUUID(),
+        legacyApplicationId: null,
+        proposedName: 'Depot Contoh',
+        city: 'Bekasi',
+        province: 'Jawa Barat',
+        ownerFullName: 'Budi Santoso',
+        ownerPhoneE164: '+6281234567890',
+        status: 'DRAFT',
+        requestHash: 'h'.repeat(64),
+        checklist: { ktpNpwp: 'VERIFIED', locationProof: 'VERIFIED', capitalDeposit: 'SUBMITTED', fieldSurvey: 'VERIFIED' },
+        decidedAt: null,
+        suggestionId: randomUUID(),
+        createdBy: randomUUID(),
+        decisionNote: null,
+        depotId: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...over,
+      }) as unknown as DepotDraftRecord;
+    const as = (token: string) => ({ Authorization: `Bearer ${token}` });
+    const createBody = (code: string) => ({
+      ...depotBody,
+      code,
+      name: 'Depot Dari Calon Mitra',
+      ownershipType: 'WARALABA',
+      owners: [{ ownerId: randomUUID(), sharePct: 100, isPrimary: true }],
+    });
+
+    beforeEach(() => {
+      crmDrafts.rows.length = 0;
+    });
+
+    it('lets HEAD_OFFICE and DIREKTUR list, read, reject and activate; DRAFT comes first', async () => {
+      const a = row({ status: 'REJECTED' });
+      const old = row({ createdAt: new Date(Date.now() - 5 * 86_400_000) });
+      const b = row();
+      crmDrafts.rows.push(a, b, old);
+      for (const role of [Role.HEAD_OFFICE, Role.DIREKTUR]) {
+        const list = await request(app.getHttpServer()).get(BASE).set(as(staff(role))).expect(200);
+        // Open drafts first and the oldest of them first; the decided one last.
+        expect(list.body.items.map((i: { id: string }) => i.id)).toEqual([old.id, b.id, a.id]);
+        expect(list.body.items[0]).toMatchObject({ proposedName: 'Depot Contoh', status: 'DRAFT', ageDays: 5, checklist: { verified: 3, total: 4 } });
+        // A list item carries nothing personal and nothing internal.
+        expect(Object.keys(list.body.items[0]).sort()).toEqual(['ageDays', 'checklist', 'city', 'createdAt', 'decidedAt', 'id', 'proposedName', 'province', 'status']);
+      }
+      const one = await request(app.getHttpServer()).get(`${BASE}/${b.id}`).set(as(staff(Role.DIREKTUR))).expect(200);
+      expect(one.body).toMatchObject({ id: b.id, ownerFullName: 'Budi Santoso' });
+      expect(one.body).not.toHaveProperty('requestHash');
+      await request(app.getHttpServer()).get(`${BASE}/${randomUUID()}`).set(as(staff(Role.HEAD_OFFICE))).expect(404);
+      await request(app.getHttpServer()).post(`${BASE}/${b.id}/reject`).set(as(staff(Role.DIREKTUR))).send({}).expect(400);
+      const rejected = await request(app.getHttpServer()).post(`${BASE}/${b.id}/reject`).set(as(staff(Role.DIREKTUR))).send({ note: 'kurang dokumen' }).expect(200);
+      expect(rejected.body).toMatchObject({ status: 'REJECTED', decisionNote: 'kurang dokumen', ownerFullName: null, ownerPhoneE164: null });
+      expect(rejected.body).not.toHaveProperty('requestHash');
+      await request(app.getHttpServer()).post(`${BASE}/${b.id}/reject`).set(as(staff(Role.DIREKTUR))).send({ note: 'lagi' }).expect(409);
+      const c = row();
+      crmDrafts.rows.push(c);
+      const made = await request(app.getHttpServer()).post(`${BASE}/${c.id}/activate`).set(as(staff(Role.HEAD_OFFICE))).send(createBody('CRM-01')).expect(201);
+      expect(made.body).toMatchObject({ code: 'CRM-01' });
+      expect(c).toMatchObject({ status: 'ACTIVATED', depotId: made.body.id, ownerFullName: null });
+      await request(app.getHttpServer()).post(`${BASE}/${c.id}/activate`).set(as(staff(Role.HEAD_OFFICE))).send(createBody('CRM-02')).expect(409);
+      // Same checks as a plain create: a taken code, and a franchise depot with no owner.
+      const d = row();
+      crmDrafts.rows.push(d);
+      const taken = await request(app.getHttpServer()).post(`${BASE}/${d.id}/activate`).set(as(staff(Role.HEAD_OFFICE))).send(createBody('CRM-01')).expect(409);
+      expect(taken.body.code).toBe('DEPOT_CODE_TAKEN');
+      const hkp = await request(app.getHttpServer()).post(`${BASE}/${d.id}/activate`).set(as(staff(Role.HEAD_OFFICE))).send({ ...createBody('CRM-04'), ownershipType: 'HKP', owners: undefined });
+      expect(hkp.status).toBe(400);
+      expect(hkp.body.code).toBe('DEPOT_DRAFT_NOT_FRANCHISE');
+      const noOwner = await request(app.getHttpServer()).post(`${BASE}/${d.id}/activate`).set(as(staff(Role.HEAD_OFFICE))).send({ ...createBody('CRM-03'), owners: undefined });
+      expect(noOwner.status).toBe(400);
+      expect(d.status).toBe('DRAFT');
+    });
+
+    it('refuses everyone without franchiseApplications, and the AI token of any person', async () => {
+      const d = row();
+      crmDrafts.rows.push(d);
+      for (const role of [Role.MANAGER, Role.MARKETING, Role.FINANCE]) {
+        await request(app.getHttpServer()).get(BASE).set(as(staff(role, role === Role.MANAGER ? depotId : null))).expect(403);
+      }
+      await request(app.getHttpServer()).get(BASE).expect(401);
+      for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN', 'MARKETING']) {
+        const t = aiToken(role, null);
+        await request(app.getHttpServer()).get(BASE).set(as(t)).expect(403);
+        await request(app.getHttpServer()).get(`${BASE}/${d.id}`).set(as(t)).expect(403);
+        await request(app.getHttpServer()).post(`${BASE}/${d.id}/reject`).set(as(t)).send({ note: 'x' }).expect(403);
+        await request(app.getHttpServer()).post(`${BASE}/${d.id}/activate`).set(as(t)).send(createBody('CRM-09')).expect(403);
+      }
+      await request(app.getHttpServer()).post(`${BASE}/${d.id}/reject`).set(as(machineToken())).send({ note: 'x' }).expect(403);
+      expect(d.status).toBe('DRAFT');
     });
   });
 

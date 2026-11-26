@@ -3,7 +3,7 @@
   "info": {
     "title": "hydromart-digital drafts the AI web may make (depot-service, crm-service)",
     "version": "1.0.0",
-    "description": "HD-17. The closed list of writes the AI web's token may make: in depot-service a price proposal (status PENDING) and a purchase order (status DRAFT), in crm-service an in-app/push campaign (status DRAFT, nothing sent). Nothing here decides anything: HQ approves or rejects the price proposal in /hq/pricing, a staff member reviews the purchase order and presses Kirim, and a staff member with the campaign permission reviews the campaign and presses Kirim, exactly as for a draft a person made. Approval, rejection, import, send, receive and every other write answer 403 to the AI token.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. hydromart-digital applies that person's own role and depots exactly as on the staff create route: price proposals need the depotAdmin capability (a depot manager) at that depot, purchase orders the procurement capability at that depot, campaigns the depotCampaign capability at that depot; otherwise 403. A machine token or a staff session token is refused with 403.\n\nAudit: every call is written to the audit trail BEFORE it runs, with the X-AI-Suggestion-Id (suggestionId), and is refused with 503 when it cannot be written.\n\nRate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a key you do not know; removing or renaming one is a new contract version."
+    "description": "HD-17. The closed list of writes the AI web's token may make: in depot-service a price proposal (status PENDING) and a purchase order (status DRAFT), in crm-service an in-app/push campaign (status DRAFT, nothing sent). Nothing here decides anything: HQ approves or rejects the price proposal in /hq/pricing, a staff member reviews the purchase order and presses Kirim, and a staff member with the campaign permission reviews the campaign and presses Kirim, exactly as for a draft a person made. Approval, rejection, import, send, receive and every other write answer 403 to the AI token.\n\nAuthentication: the person's own AI-web token from POST /auth/api/v1/auth/handoff/token (auth.openapi.json): ES256, aud hydromart-ai, 15 minutes. hydromart-digital applies that person's own role and depots exactly as on the staff create route: price proposals need the depotAdmin capability (a depot manager) at that depot, purchase orders the procurement capability at that depot, campaigns the depotCampaign capability at that depot; otherwise 403. A machine token or a staff session token is refused with 403.\n\nAudit: every call is written to the audit trail BEFORE it runs, with the X-AI-Suggestion-Id (suggestionId), and is refused with 503 when it cannot be written.\n\nRate limit: counted per account (the token's sub), at the edge and again in the service; a 429 carries Retry-After.\n\nCompatibility: a field may be added within version 1, so ignore a key you do not know; removing or renaming one is a new contract version.\n\nHD-21 (CRM calon mitra): the routes under /depot/api/v1/ai/crm and /depot/api/v1/ai/drafts/depots/from-crm are the draft and the access read the AI web's CRM uses in depot-service. The draft is not an approval either: HQ activates it as a depot in hydromart-digital.\n\nHD-21 also reads: GET /depot/api/v1/ai/crm/legacy-applications (the open franchise applications) and GET /auth/api/v1/ai/crm/pic-candidates (staff who may be a PIC)."
   },
   "servers": [
     {
@@ -429,6 +429,424 @@
           }
         }
       }
+    },
+    "/depot/api/v1/ai/drafts/depots/from-crm": {
+      "post": {
+        "summary": "Draft a depot from a calon mitra (HD-21).",
+        "description": "Records what HQ will activate as a depot, one draft per prospectId. Needs the prospectCrm capability (built in: MARKETING, SUPER_ADMIN; a custom role such as Sales when the owner grants it in the Akses screen). hydromart-digital RE-CHECKS the owner decision D1 whatever the CRM already checked: all four checklist items VERIFIED, agreementSignedOn at least 14 calendar days after prospectusHandedOn, agreementSignedOn not after today (WIB), prospectusHandedOn not after agreementSignedOn. All dates are WIB calendar days (YYYY-MM-DD). Nothing is sent to the owner and no depot is created here: HQ activates the draft in a later step.\n\nOne row per prospectId: no draft yet makes one (201); the same body again, while it is still DRAFT, answers it unchanged (200); a different body while DRAFT is a 409 DRAFT_CONFLICT; a REJECTED draft is reopened as DRAFT with the new content (201); an ACTIVATED one is a 409 ALREADY_ONBOARDED carrying depotId and depotCode.\n\nUUIDs are compared and stored in lower case, so an upper-case prospectId is the same prospect. A reopened draft keeps `createdAt` as the FIRST creation and takes the new caller as its author.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-AI-Suggestion-Id",
+            "in": "header",
+            "required": true,
+            "description": "The CRM sends the prospect id as its value (a UUID), and it MUST equal body.prospectId (compared case-insensitively): a different value is a 400. Written to the audit trail with the call, which keeps every suggestion id. The idempotency key of this route is the prospectId in the body.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "Optional label for the audit trail (the workflow that made the call).",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrmDepotDraft"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The draft was made, or a REJECTED one was reopened (createdAt stays the first creation).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmDepotDraftCreated"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The same prospect with exactly this body already has a DRAFT; it is returned unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmDepotDraftCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: X-AI-Suggestion-Id missing, not a UUID, or not equal to body.prospectId; the body failed validation; or INVALID_DRAFT_DATES: agreementSignedOn is after today (WIB), or prospectusHandedOn is after agreementSignedOn.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, a staff session token, or a person whose role lacks prospectCrm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "DRAFT_CONFLICT: a pending draft of this prospect has different content; or ALREADY_ONBOARDED: the prospect is already a depot (the body carries depotId and depotCode).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "CHECKLIST_INCOMPLETE: the body carries items, the checklist keys that are not VERIFIED; or COOLING_OFF_NOT_MET: the body carries earliestOn (YYYY-MM-DD), the first day the agreement may be signed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DRAFT_BUSY: two callers kept reopening the same rejected draft; nothing is wrong with the request, retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/depot/api/v1/ai/drafts/depots/from-crm/{prospectId}": {
+      "get": {
+        "summary": "Where the depot draft of a calon mitra stands (HD-21).",
+        "description": "Needs prospectCrm. depotId and depotCode are set once HQ has activated the draft.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "prospectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmDepotDraftStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: prospectId is not a UUID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, a staff session token, or a person whose role lacks prospectCrm.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "DEPOT_DRAFT_NOT_FOUND: this prospect has no depot draft.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/depot/api/v1/ai/crm/access": {
+      "get": {
+        "summary": "What the signed-in person may do in the CRM calon mitra (HD-21).",
+        "description": "Needs prospectRead (built in: MARKETING, DIREKTUR, HEAD_OFFICE, SUPER_ADMIN, plus any custom role the owner grants it). full and settings are evaluated against the matrix in force now, custom-role overrides included, not the compiled defaults. legalEntities are the active legal entities the person may act for under the role x legal-entity matrix of the AI read API (no grant = none; SUPER_ADMIN = every active entity).",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The person's access.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmAccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: the person lacks prospectRead (the AI web shows its no-access notice), or the token is a machine or staff session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/depot/api/v1/ai/crm/legacy-applications": {
+      "get": {
+        "summary": "The open franchise applications, for the CRM's one-time import (HD-21).",
+        "description": "Needs prospectSettings. Only the open stages (PENDING, DOC_VERIFICATION, SURVEY), never APPROVED or REJECTED, oldest first. Exactly the fields below: no GPS pin, no checklist, no projected revenue. Read only: there is no AI-token route that changes or deletes an application; the hydromart copies are removed later by a reviewed one-shot after a dry run and a separate owner confirmation. The AI web maps investmentAmountIdr to a capital RANGE at import and never stores the amount. At most 2000 applications are answered (the oldest); truncated says when there were more. Every call is written to the audit trail with the count and the truncated flag, never the content.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The open applications.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegacyApplications"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, a staff session token, or a person whose role lacks prospectSettings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/api/v1/ai/crm/pic-candidates": {
+      "get": {
+        "summary": "Who the CRM may name as a PIC: active staff who hold prospectCrm (HD-21).",
+        "description": "auth-service. Needs prospectRead. The active staff accounts whose role holds prospectCrm in the matrix in force now (built-in defaults, SUPER_ADMIN's overrides, custom roles), sorted by name, at most 500. Names only: no phone, no email. An account with no name is left out.",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The people.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PicCandidates"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, a staff session token, or a person whose role lacks prospectRead.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -789,7 +1207,7 @@
           },
           "code": {
             "type": "string",
-            "description": "BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, AI_SUGGESTION_REUSED, CAMPAIGN_NO_RECIPIENTS, CAMPAIGN_SCHEDULED_IN_PAST, CAMPAIGN_SEGMENT_UNAVAILABLE, RATE_LIMITED or SERVICE_UNAVAILABLE."
+            "description": "BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, AI_SUGGESTION_REUSED, DRAFT_CONFLICT, DRAFT_BUSY, ALREADY_ONBOARDED, CHECKLIST_INCOMPLETE, COOLING_OFF_NOT_MET, INVALID_DRAFT_DATES, DEPOT_DRAFT_NOT_FOUND, CAMPAIGN_NO_RECIPIENTS, CAMPAIGN_SCHEDULED_IN_PAST, CAMPAIGN_SEGMENT_UNAVAILABLE, RATE_LIMITED or SERVICE_UNAVAILABLE."
           },
           "message": {
             "oneOf": [
@@ -804,6 +1222,26 @@
               }
             ],
             "description": "For people reading logs. Route on statusCode and code."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "CHECKLIST_INCOMPLETE only: the checklist keys that are not VERIFIED."
+          },
+          "earliestOn": {
+            "type": "string",
+            "description": "COOLING_OFF_NOT_MET only: YYYY-MM-DD."
+          },
+          "depotId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ALREADY_ONBOARDED only."
+          },
+          "depotCode": {
+            "type": "string",
+            "description": "ALREADY_ONBOARDED only."
           }
         }
       },
@@ -980,6 +1418,374 @@
               "null"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "CrmDepotDraft": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prospectId",
+          "proposedName",
+          "city",
+          "province",
+          "owner",
+          "prospectusHandedOn",
+          "prospectusSha256",
+          "prospectusVersionLabel",
+          "prospectusReceipt",
+          "agreementSignedOn",
+          "checklist"
+        ],
+        "properties": {
+          "prospectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "legacyApplicationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "proposedName": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 80
+          },
+          "city": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "province": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "owner": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fullName",
+              "phoneE164"
+            ],
+            "properties": {
+              "fullName": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 120
+              },
+              "phoneE164": {
+                "type": "string",
+                "pattern": "^[+]62[0-9]{8,13}$"
+              }
+            }
+          },
+          "prospectusHandedOn": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "description": "A WIB calendar day, YYYY-MM-DD."
+          },
+          "prospectusSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "prospectusVersionLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "prospectusReceipt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "agreementSignedOn": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+            "description": "A WIB calendar day, YYYY-MM-DD."
+          },
+          "checklist": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ktpNpwp",
+              "locationProof",
+              "capitalDeposit",
+              "fieldSurvey"
+            ],
+            "properties": {
+              "ktpNpwp": {
+                "type": "string",
+                "enum": [
+                  "NOT_STARTED",
+                  "SUBMITTED",
+                  "VERIFIED",
+                  "REJECTED"
+                ]
+              },
+              "locationProof": {
+                "type": "string",
+                "enum": [
+                  "NOT_STARTED",
+                  "SUBMITTED",
+                  "VERIFIED",
+                  "REJECTED"
+                ]
+              },
+              "capitalDeposit": {
+                "type": "string",
+                "enum": [
+                  "NOT_STARTED",
+                  "SUBMITTED",
+                  "VERIFIED",
+                  "REJECTED"
+                ]
+              },
+              "fieldSurvey": {
+                "type": "string",
+                "enum": [
+                  "NOT_STARTED",
+                  "SUBMITTED",
+                  "VERIFIED",
+                  "REJECTED"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "CrmDepotDraftCreated": {
+        "type": "object",
+        "required": [
+          "draftId",
+          "status",
+          "createdAt"
+        ],
+        "properties": {
+          "draftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The FIRST creation of the draft; a reopen does not change it."
+          }
+        }
+      },
+      "CrmDepotDraftStatus": {
+        "type": "object",
+        "required": [
+          "draftId",
+          "status",
+          "decisionNote",
+          "depotId",
+          "depotCode",
+          "updatedAt"
+        ],
+        "properties": {
+          "draftId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "ACTIVATED",
+              "REJECTED"
+            ]
+          },
+          "decisionNote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "depotId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "depotCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CrmAccess": {
+        "type": "object",
+        "required": [
+          "full",
+          "settings",
+          "legalEntities"
+        ],
+        "properties": {
+          "full": {
+            "type": "boolean",
+            "description": "Holds prospectCrm: names, phones, every write, and calling from-crm."
+          },
+          "settings": {
+            "type": "boolean",
+            "description": "Holds prospectSettings: Hot/Warm thresholds and the legacy-application import."
+          },
+          "legalEntities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "name": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "LegacyApplications": {
+        "type": "object",
+        "required": [
+          "applications",
+          "truncated"
+        ],
+        "properties": {
+          "applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LegacyApplication"
+            }
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when more than 2000 open applications exist: the 2000 oldest are answered and the rest are not."
+          }
+        }
+      },
+      "LegacyApplication": {
+        "type": "object",
+        "required": [
+          "id",
+          "stage",
+          "applicantName",
+          "applicantPhoneE164",
+          "city",
+          "province",
+          "proposedName",
+          "investmentAmountIdr",
+          "firstSource",
+          "privacyConsentVersion",
+          "submittedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "DOC_VERIFICATION",
+              "SURVEY"
+            ]
+          },
+          "applicantName": {
+            "type": "string"
+          },
+          "applicantPhoneE164": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[+]62[0-9]{8,13}$",
+            "description": "Null when the number the applicant typed cannot be read as an Indonesian number."
+          },
+          "city": {
+            "type": "string"
+          },
+          "province": {
+            "type": "string"
+          },
+          "proposedName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "investmentAmountIdr": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "firstSource": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privacyConsentVersion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PicCandidates": {
+        "type": "object",
+        "required": [
+          "people"
+        ],
+        "properties": {
+          "people": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "fullName"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fullName": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }

@@ -81,6 +81,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/hierarchy', labelKey: 'hierarchy', cap: 'hierarchyAdmin' },
       { href: '/hq/legal-entities', labelKey: 'legalEntities', cap: 'legalEntityAdmin' },
       { href: '/hq/applications', labelKey: 'applications', cap: 'franchiseApplications' },
+      { href: '/hq/depot-drafts', labelKey: 'depotDrafts', cap: 'franchiseApplications' },
       { href: '/hq/onboarding', labelKey: 'onboarding', cap: 'depotDirectory' },
     ],
   },

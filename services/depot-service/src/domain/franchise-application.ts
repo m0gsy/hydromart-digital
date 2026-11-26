@@ -56,6 +56,20 @@ export const PRIVACY_POLICY_VERSION = '2026-11-24';
  */
 export const SOURCE_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
+/** The stages the CRM import reads: an application nobody has decided (HD-21 section 5). */
+export const OPEN_STAGES = [FranchiseAppStage.PENDING, FranchiseAppStage.DOC_VERIFICATION, FranchiseAppStage.SURVEY] as const;
+
+/**
+ * A phone as the /waralaba form stored it (08..., 628..., +628..., with spaces or dashes) in E.164
+ * (+62...), or null when it cannot be read as an Indonesian mobile or landline number.
+ */
+export function toE164(raw: string): string | null {
+  const digits = raw.replace(/[^0-9]/g, '');
+  const national = digits.startsWith('62') ? digits.slice(2) : digits.startsWith('0') ? digits.slice(1) : null;
+  if (national === null || national.startsWith('0')) return null;
+  return national.length >= 8 && national.length <= 13 ? `+62${national}` : null;
+}
+
 /** HD-7: the event a new application raises (contracts/ai-v1/events.openapi.json). */
 export const FRANCHISE_APPLICATION_SUBMITTED = 'franchise.application_submitted';
 

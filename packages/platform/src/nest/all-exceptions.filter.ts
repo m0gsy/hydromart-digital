@@ -12,6 +12,7 @@ import { DomainError } from '../domain/domain-error';
 import { alertServerError } from './error-alerter';
 
 interface ErrorBody {
+  [extra: string]: unknown;
   statusCode: number;
   code: string;
   message: string | string[];
@@ -73,6 +74,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     if (exception instanceof DomainError) {
       return {
+        ...exception.details,
         statusCode: exception.status,
         code: exception.code,
         message: exception.message,

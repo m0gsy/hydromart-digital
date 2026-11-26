@@ -8,6 +8,21 @@
 // `endpoints` is still one object, assembled in ./index.ts.
 
 export const depot = {
+  // HD-21b — the depot drafts the AI web's CRM made (depot-service, franchiseApplications).
+  depotDrafts: {
+    list: (q: { page?: number; limit?: number; status?: string } = {}) => {
+      const p = new URLSearchParams();
+      if (q.page) p.set('page', String(q.page));
+      if (q.limit) p.set('limit', String(q.limit));
+      if (q.status) p.set('status', q.status);
+      const qs = p.toString();
+      return `/depots/api/v1/depot-drafts${qs ? `?${qs}` : ''}`;
+    },
+    detail: (id: string) => `/depots/api/v1/depot-drafts/${id}`,
+    reject: (id: string) => `/depots/api/v1/depot-drafts/${id}/reject`,
+    // The same body as a plain depot create; the depot, the draft and the event commit together.
+    activate: (id: string) => `/depots/api/v1/depot-drafts/${id}/activate`,
+  },
   // HD-15B — supervisor visit checklist templates (depot-service). HQ reads `manage` and writes
   // with visitTemplateManage; the gateway segment is `visit-templates`.
   visitTemplates: {

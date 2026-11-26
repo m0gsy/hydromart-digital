@@ -633,6 +633,14 @@ export const CAPABILITIES = {
    * does not visit (owner default, the matrix is editable).
    */
   visitConduct: ['ASSISTANT_SUPERVISOR', 'SUPERVISOR', 'SUPER_ADMIN'],
+  // depot-service (HD-21) - the CRM for prospective partners ("calon mitra") lives in the AI web.
+  // prospectRead: enter it at all; holding only this shows aggregates, no names or phones.
+  // Sales and Sales Lead are CUSTOM roles the owner grants these by matrix override (D12).
+  prospectRead: ['MARKETING', 'DIREKTUR', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // HD-21 - full CRM: phone numbers, every write, and drafting a depot from a prospect.
+  prospectCrm: ['MARKETING', 'SUPER_ADMIN'],
+  // HD-21 - Hot/Warm thresholds and the legacy-application import. The owner grants it to Sales Lead.
+  prospectSettings: ['SUPER_ADMIN'],
   /*
    * depot-service (HD-15B PR-4) - read visits and findings: the per-depot supervisor view, a
    * visit's detail with its photo links. Depot-scoped like every depot read (a Kepala sees only

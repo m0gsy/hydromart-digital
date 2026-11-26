@@ -16,6 +16,7 @@ import {
   FranchiseAppStage,
   franchiseApplicationSubmittedEventId,
   isTerminalStage,
+  toE164,
 } from '../../domain/franchise-application';
 import { buildPage, Page } from '../pagination';
 import { DepotRepository } from '../ports/depot.repository';
@@ -29,6 +30,22 @@ import {
 import { DepotConfigService } from '../../config/depot-config.service';
 import { DEPOT_TOKENS } from '../tokens';
 import { EventRelayService } from './event-relay.service';
+
+export const LEGACY_EXPORT_CAP = 2000;
+
+export interface LegacyApplicationView {
+  id: string;
+  stage: 'PENDING' | 'DOC_VERIFICATION' | 'SURVEY';
+  applicantName: string;
+  applicantPhoneE164: string | null;
+  city: string;
+  province: string;
+  proposedName: string | null;
+  investmentAmountIdr: number | null;
+  firstSource: string | null;
+  privacyConsentVersion: string | null;
+  submittedAt: string;
+}
 
 /** Onboard-form prefill returned on approval (WARALABA depot from the proposed fields). */
 export interface ProposedDepot {
@@ -84,6 +101,36 @@ export class FranchiseApplicationService {
     // The catch is belt and braces: an unhandled rejection is fatal to this process.
     void this.relay.flush(franchiseApplicationSubmittedEventId(created.id)).catch(() => undefined);
     return created;
+  }
+
+  /**
+   * HD-21 section 5: the open applications for the CRM's one-time import, exactly the fields it asks
+   * for and no more (no GPS pin, no checklist, no projected revenue). Read only: nothing is deleted
+   * here, and there is no AI-token delete route.
+   */
+  async openForCrm(): Promise<{ applications: LegacyApplicationView[]; truncated: boolean }> {
+    // `stage` is the ONLY lifecycle flag of franchise_applications: there is no soft-delete,
+    // withdrawn or archived column, so "open" is exactly PENDING, DOC_VERIFICATION and SURVEY (a row
+    // that was deleted is simply absent). One more row than the cap is read to tell "exactly the cap"
+    // from "more than the cap", and the answer says so rather than silently dropping the rest.
+    const rows = await this.applications.listOpen(LEGACY_EXPORT_CAP + 1);
+    const truncated = rows.length > LEGACY_EXPORT_CAP;
+    return {
+      truncated,
+      applications: rows.slice(0, LEGACY_EXPORT_CAP).map((a) => ({
+        id: a.id,
+        stage: a.stage as 'PENDING' | 'DOC_VERIFICATION' | 'SURVEY',
+        applicantName: a.applicantName,
+        applicantPhoneE164: toE164(a.applicantPhone),
+        city: a.city,
+        province: a.province,
+        proposedName: a.proposedName || null,
+        investmentAmountIdr: Number.isFinite(a.investmentAmount) ? a.investmentAmount : null,
+        firstSource: a.firstSource,
+        privacyConsentVersion: a.privacyConsentVersion,
+        submittedAt: a.submittedAt.toISOString(),
+      })),
+    };
   }
 
   async list(filter: ListApplicationsFilter): Promise<Page<FranchiseApplicationRecord>> {

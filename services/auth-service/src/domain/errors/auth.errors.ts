@@ -336,6 +336,14 @@ export class DataExportApprovalExpiredError extends DomainError {
  * Only reachable network-wide (HQ with no depot filter); one depot's courier list is two
  * orders of magnitude below the limit.
  */
+export class PicRosterTooLargeError extends DomainError {
+  readonly code = 'AUTH_PIC_ROSTER_TOO_LARGE';
+  readonly status = HTTP.UNPROCESSABLE;
+  constructor(max: number) {
+    super(`Daftar staf yang boleh jadi PIC melebihi ${max} baris.`);
+  }
+}
+
 export class DriverRosterTooLargeError extends DomainError {
   readonly code = 'AUTH_DRIVER_ROSTER_TOO_LARGE';
   readonly status = HTTP.UNPROCESSABLE;

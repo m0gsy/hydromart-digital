@@ -17,6 +17,9 @@
 //   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers|targets   the read API: made-up numbers
 //                                       derived from the date; a depot-bound person sees one depot
 //   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
+//   GET  /depot/api/v1/ai/crm/legacy-applications , /auth/api/v1/ai/crm/pic-candidates   fake applicants and PIC candidates (HD-21)
+//   GET  /depot/api/v1/ai/crm/access , POST|GET /depot/api/v1/ai/drafts/depots/from-crm[/:prospectId]
+//                                       the CRM calon mitra's access read and depot draft (HD-21a)
 //   POST /alert                         the AI web's alarm webhook
 //   GET  /health                        for the container's health check
 //   GET  /_mock/ , /_mock/calls         what arrived; kill switch, signed event, reset
@@ -183,6 +186,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     fails: new Map(), // user id -> { n, lockedUntil }
     notified: new Map(), // lower-case eventId -> notification id
     accessAsks: new Map(), // lower-case ai-access-requested eventId -> { requester, at }
+    crmDrafts: new Map(), // lower-case prospectId -> the depot draft (HD-21a)
     calls: fresh(),
     lastEvent: null,
   };
@@ -513,6 +517,127 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     ] }];
   }
 
+  // ------------------------------------------------------------------ CRM calon mitra (HD-21a)
+  // Staging does not model the capability matrix: any person who may enter the CRM (the four
+  // roles that hold prospectRead built in) is answered full and settings, and may draft. The
+  // D1 checks and the one-row-per-prospect rules are the real ones (drafts.openapi.json).
+  const CRM_ROLES = new Set(['MARKETING', 'DIREKTUR', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+  const CHECKLIST_KEYS = ['ktpNpwp', 'locationProof', 'capitalDeposit', 'fieldSurvey'];
+  const CHECKLIST_STATES = new Set(['NOT_STARTED', 'SUBMITTED', 'VERIFIED', 'REJECTED']);
+  const CRM_KEYS = ['prospectId', 'legacyApplicationId', 'proposedName', 'city', 'province', 'owner', 'prospectusHandedOn', 'prospectusSha256', 'prospectusVersionLabel', 'prospectusReceipt', 'agreementSignedOn', 'checklist'];
+
+  function crmPerson(req) {
+    const auth = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
+    const claims = auth ? readJwt(auth[1]) : null;
+    if (!claims || state.killed || !(claims.exp > now() / 1000)) return { fail: refusedToken() };
+    if (claims.aud !== 'hydromart-ai' || !CRM_ROLES.has(claims.role)) {
+      return { fail: [403, errorBody(403, 'FORBIDDEN', 'You do not have permission to perform this action.')] };
+    }
+    return { claims };
+  }
+
+  function crmAccess(req) {
+    const who = crmPerson(req);
+    if (who.fail) return who.fail;
+    return [200, { full: true, settings: true, legalEntities: [{ id: '00000000-0000-4000-8000-000000000001', name: 'PT Contoh Waralaba' }] }];
+  }
+
+  // Obviously fake people, the same on every run: the shapes of drafts.openapi.json, nothing real.
+  const LEGACY_SAMPLE = [
+    { id: '00000000-0000-4000-8000-0000000000f1', stage: 'PENDING', applicantName: 'Calon Contoh Satu', applicantPhoneE164: '+6281200000001', city: 'Bekasi', province: 'Jawa Barat', proposedName: 'Depot Contoh Satu', investmentAmountIdr: 150000000, firstSource: 'contoh-ig', privacyConsentVersion: '2026-11-24', submittedAt: '2026-11-01T03:00:00.000Z' },
+    { id: '00000000-0000-4000-8000-0000000000f2', stage: 'SURVEY', applicantName: 'Calon Contoh Dua', applicantPhoneE164: '+6281200000002', city: 'Depok', province: 'Jawa Barat', proposedName: null, investmentAmountIdr: 300000000, firstSource: null, privacyConsentVersion: null, submittedAt: '2026-11-05T03:00:00.000Z' },
+  ];
+  const PIC_SAMPLE = [
+    { id: '00000000-0000-4000-8000-000000000011', fullName: 'Contoh Marketing Satu' },
+    { id: '00000000-0000-4000-8000-000000000012', fullName: 'Contoh Marketing Dua' },
+  ];
+
+  function crmLegacy(req) {
+    const who = crmPerson(req);
+    if (who.fail) return who.fail;
+    return [200, { applications: LEGACY_SAMPLE, truncated: false }];
+  }
+
+  function crmPics(req) {
+    const who = crmPerson(req);
+    if (who.fail) return who.fail;
+    return [200, { people: PIC_SAMPLE }];
+  }
+
+  const str = (v, min, max) => typeof v === 'string' && v.trim().length >= min && v.trim().length <= max;
+  function crmDraftValid(b) {
+    if (!b || typeof b !== 'object' || Array.isArray(b)) return false;
+    if (Object.keys(b).some((k) => !CRM_KEYS.includes(k))) return false;
+    const o = b.owner;
+    const c = b.checklist;
+    return (
+      RX.uuid.test(b.prospectId ?? '') &&
+      (b.legacyApplicationId === undefined || b.legacyApplicationId === null || RX.uuid.test(b.legacyApplicationId)) &&
+      str(b.proposedName, 3, 80) && str(b.city, 1, 120) && str(b.province, 1, 120) &&
+      o && typeof o === 'object' && Object.keys(o).sort().join() === 'fullName,phoneE164' &&
+      str(o.fullName, 2, 120) && /^[+]62[0-9]{8,13}$/.test(o.phoneE164 ?? '') &&
+      typeof b.prospectusHandedOn === 'string' && validDay(b.prospectusHandedOn) &&
+      typeof b.agreementSignedOn === 'string' && validDay(b.agreementSignedOn) &&
+      /^[0-9a-f]{64}$/.test(b.prospectusSha256 ?? '') &&
+      str(b.prospectusVersionLabel, 1, 40) && str(b.prospectusReceipt, 1, 200) &&
+      c && typeof c === 'object' && Object.keys(c).sort().join() === [...CHECKLIST_KEYS].sort().join() &&
+      CHECKLIST_KEYS.every((k) => CHECKLIST_STATES.has(c[k]))
+    );
+  }
+
+  function crmDraft(req, body) {
+    const who = crmPerson(req);
+    if (who.fail) return who.fail;
+    if (!RX.uuid.test(req.headers['x-ai-suggestion-id'] ?? '')) return [400, errorBody(400, 'BAD_REQUEST', 'X-AI-Suggestion-Id must be a UUID.')];
+    if (!crmDraftValid(body)) return [400, errorBody(400, 'BAD_REQUEST', ['The draft is not what the contract asks for'])];
+    // The header carries the prospect id, in either case.
+    if (req.headers['x-ai-suggestion-id'].toLowerCase() !== body.prospectId.toLowerCase()) {
+      return [400, errorBody(400, 'BAD_REQUEST', 'X-AI-Suggestion-Id must equal the prospectId of the body.')];
+    }
+    // The D1 re-check, in the real order: dates (400), checklist (422), cooling-off (422).
+    const handed = dayNo(body.prospectusHandedOn);
+    const signed = dayNo(body.agreementSignedOn);
+    if (signed > dayNo(todayWib())) return [400, errorBody(400, 'INVALID_DRAFT_DATES', 'agreementSignedOn is in the future.')];
+    if (handed > signed) return [400, errorBody(400, 'INVALID_DRAFT_DATES', 'prospectusHandedOn is after agreementSignedOn.')];
+    const items = CHECKLIST_KEYS.filter((k) => body.checklist[k] !== 'VERIFIED');
+    if (items.length) return [422, { ...errorBody(422, 'CHECKLIST_INCOMPLETE', 'Not every checklist item is VERIFIED.'), items }];
+    if (signed < handed + 14) {
+      return [422, { ...errorBody(422, 'COOLING_OFF_NOT_MET', 'The agreement may not be signed yet.'), earliestOn: isoOf(handed + 14) }];
+    }
+    const key = body.prospectId.toLowerCase();
+    // The same canonical flattening as depot-service's requestHashOf: fixed field order, nested keys in order, ids lower-cased.
+    const flat = [
+      key, body.legacyApplicationId?.toLowerCase() ?? null, body.proposedName, body.city, body.province,
+      body.owner.fullName, body.owner.phoneE164, body.prospectusHandedOn, body.agreementSignedOn,
+      body.prospectusSha256, body.prospectusVersionLabel, body.prospectusReceipt,
+      ...CHECKLIST_KEYS.map((k) => body.checklist[k]),
+    ];
+    const hash = createHash('sha256').update(JSON.stringify(flat)).digest('hex');
+    const existing = state.crmDrafts.get(key);
+    if (existing) {
+      if (existing.status === 'ACTIVATED') return [409, { ...errorBody(409, 'ALREADY_ONBOARDED', 'Already a depot.'), depotId: existing.depotId, depotCode: existing.depotCode }];
+      if (existing.status === 'DRAFT') {
+        if (existing.hash !== hash) return [409, errorBody(409, 'DRAFT_CONFLICT', 'A pending draft has different content.')];
+        return [200, { draftId: existing.id, status: 'DRAFT', createdAt: existing.createdAt }];
+      }
+      Object.assign(existing, { status: 'DRAFT', hash, decisionNote: null, updatedAt: new Date(now()).toISOString() });
+      return [201, { draftId: existing.id, status: 'DRAFT', createdAt: existing.createdAt }];
+    }
+    const at = new Date(now()).toISOString();
+    const row = { id: randomUUID(), status: 'DRAFT', hash, decisionNote: null, depotId: null, depotCode: null, createdAt: at, updatedAt: at };
+    setBounded(state.crmDrafts, key, row);
+    return [201, { draftId: row.id, status: 'DRAFT', createdAt: at }];
+  }
+
+  function crmDraftStatus(req, prospectId) {
+    const who = crmPerson(req);
+    if (who.fail) return who.fail;
+    if (!RX.uuid.test(prospectId)) return [400, errorBody(400, 'BAD_REQUEST', 'prospectId must be a UUID.')];
+    const row = state.crmDrafts.get(prospectId.toLowerCase());
+    if (!row) return [404, errorBody(404, 'DEPOT_DRAFT_NOT_FOUND', 'No depot draft for this prospect.')];
+    return [200, { draftId: row.id, status: row.status, decisionNote: row.decisionNote, depotId: row.depotId, depotCode: row.depotCode, updatedAt: row.updatedAt }];
+  }
+
   function notification(req, body) {
     if (!machineAllowed(req, 'franchiseApplicationNotify')) return refusedToken();
     const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
@@ -728,6 +853,26 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
         const [status, body] = pendingApprovals(req);
         return send(res, status, body);
       }
+      if (req.method === 'GET' && path === '/depot/api/v1/ai/crm/legacy-applications') {
+        const [status, body] = crmLegacy(req);
+        return send(res, status, body);
+      }
+      if (req.method === 'GET' && path === '/auth/api/v1/ai/crm/pic-candidates') {
+        const [status, body] = crmPics(req);
+        return send(res, status, body);
+      }
+      if (req.method === 'GET' && path === '/depot/api/v1/ai/crm/access') {
+        const [status, body] = crmAccess(req);
+        return send(res, status, body);
+      }
+      if (post && path === '/depot/api/v1/ai/drafts/depots/from-crm') {
+        const [status, body] = crmDraft(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (req.method === 'GET' && path.startsWith('/depot/api/v1/ai/drafts/depots/from-crm/')) {
+        const [status, body] = crmDraftStatus(req, path.slice('/depot/api/v1/ai/drafts/depots/from-crm/'.length));
+        return send(res, status, body);
+      }
       if (post && path === '/alert') {
         const alert = parseJson(raw);
         keep(state.calls.alerts, { size: raw.length, keys: alert && typeof alert === 'object' ? Object.keys(alert).slice(0, 5) : [] });
@@ -769,6 +914,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
         state.fails.clear();
         state.notified.clear();
         state.accessAsks.clear();
+        state.crmDrafts.clear();
         state.calls = fresh();
         state.lastEvent = null;
         res.writeHead(303, { location: '/_mock/' });

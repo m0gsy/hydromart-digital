@@ -42,12 +42,15 @@ function formFromDepot(d: DepotAdmin): DepotForm {
 export function DepotForm({
   depot,
   initial,
+  submitTo,
   onDone,
   onCancel,
 }: {
   depot: DepotAdmin | null;
   // Prefill for a new depot (e.g. an approved franchise application). Ignored when editing.
   initial?: Partial<DepotForm>;
+  // Where a NEW depot is posted instead of the plain create (HD-21b: activating a CRM draft).
+  submitTo?: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
@@ -105,7 +108,7 @@ export function DepotForm({
           { ...parsed.value, seenUpdatedAt: depot.updatedAt },
           true,
         );
-      else await api.post(endpoints.depots.create, parsed.value, true);
+      else await api.post(submitTo ?? endpoints.depots.create, parsed.value, true);
       onDone();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hq.depots.form.saveError'));

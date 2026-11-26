@@ -45,6 +45,7 @@ export const DYNAMIC_PARENTS = [
   '/driver/deliveries',
   '/dashboard/visits',
   '/hq/applications',
+  '/hq/depot-drafts',
   '/hr/me/payroll',
   '/hr/employees',
   '/hr/payroll',
