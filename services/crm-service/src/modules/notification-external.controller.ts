@@ -17,6 +17,9 @@ import { MaintenanceDueService } from '../application/services/maintenance-due.s
 import { MorningSummaryService } from '../application/services/morning-summary.service';
 import { NotificationService } from '../application/services/notification.service';
 import { oneLine } from '../domain/ai-access-request';
+import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
+import { SalesWeeklyService } from '../application/services/sales-weekly.service';
+import { weekRefusal } from '../domain/sales-weekly';
 import { wibDate } from '../domain/morning-summary';
 import { NotificationEvent } from '../domain/notification-event';
 import {
@@ -31,7 +34,12 @@ import {
   MORNING_SUMMARY_PREFIX,
   MorningSummaryDto,
   MorningSummaryResultDto,
+  AiAgentNoticeDto,
+  AiAgentNoticeResultDto,
   NotificationIdDto,
+  SALES_WEEKLY_PREFIX,
+  SalesWeeklyReadyDto,
+  SalesWeeklyReadyResultDto,
 } from './dto/notification.dto';
 
 /*
@@ -55,6 +63,8 @@ export class NotificationExternalController {
     private readonly aiAccessRequests: AiAccessRequestService,
     private readonly customerReminders: CustomerReminderService,
     private readonly maintenanceDue: MaintenanceDueService,
+    private readonly salesWeekly: SalesWeeklyService,
+    private readonly aiAgentNotices: AiAgentNoticeService,
   ) {}
 
   /*
@@ -188,5 +198,44 @@ export class NotificationExternalController {
       throw new BadRequestException('date must be today in Asia/Jakarta');
     }
     return this.maintenanceDue.run(dto.date);
+  }
+
+  /*
+   * AI-26: n8n's Monday trigger for the weekly Sales report. Ids only: the numbers stay in the AI
+   * web, which shows them after sign-in. hydromart tells, per legal entity, the people who may read
+   * that entity's calon mitra CRM (MARKETING, DIREKTUR, or any role holding prospectSettings, and
+   * granted the entity in the AI web). eventId is sales-weekly:<weekStart>; the week must be the one
+   * that just ended (accepted until its own Sunday, so a late retry works).
+   */
+  @ExternalAccess('machine')
+  @Can('salesReportNotify')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('sales-weekly-ready')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'n8n: tell the calon mitra report readers that the weekly Sales report is ready (AI-26)' })
+  @ApiOkResponse({ type: SalesWeeklyReadyResultDto })
+  async salesWeeklyReady(@Body() dto: SalesWeeklyReadyDto): Promise<SalesWeeklyReadyResultDto> {
+    if (dto.eventId !== SALES_WEEKLY_PREFIX + dto.weekStart) {
+      throw new BadRequestException(`eventId must be ${SALES_WEEKLY_PREFIX}<weekStart>`);
+    }
+    const refusal = weekRefusal(dto.weekStart, new Date());
+    if (refusal) throw new BadRequestException(refusal);
+    return this.salesWeekly.run(dto.eventId, dto.weekStart, dto.legalEntityIds);
+  }
+
+  /*
+   * AI-31: n8n relays an event of one AI agent (flag, cap reached, stopped, all stopped). Ids and a
+   * kind only; hydromart writes the words and picks the recipients: everyone who manages the AI team
+   * plus the agent's boss role, when that role may read it. eventId is the dedupe key per person.
+   */
+  @ExternalAccess('machine')
+  @Can('aiAgentNotify')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('ai-agent-notice')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'n8n: tell who runs the AI team that an agent flagged, hit its cap or was stopped (AI-31)' })
+  @ApiOkResponse({ type: AiAgentNoticeResultDto })
+  aiAgentNotice(@Body() dto: AiAgentNoticeDto): Promise<AiAgentNoticeResultDto> {
+    return this.aiAgentNotices.run(dto);
   }
 }

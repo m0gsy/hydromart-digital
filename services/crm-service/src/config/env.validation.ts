@@ -22,6 +22,8 @@ export const envValidationSchema = Joi.object({
   ADMIN_SERVICE_URL: Joi.string().allow('').default(''),
   // AI-9: dashboard-service, for the morning summary's approval queues. Blank = the summary fails 503.
   DASHBOARD_SERVICE_URL: Joi.string().allow('').default(''),
+  // AI-26: the AI web origin (https://ai...), for the link in the weekly Sales report email. Blank = that notice fails 503.
+  AI_WEB_URL: Joi.string().allow('').default(''),
   // HD-18: loyalty-service, for the point lots about to expire. Blank = that reminder fails 503.
   LOYALTY_SERVICE_URL: Joi.string().allow('').default(''),
   // Optional: order-service base URL for the ACTIVITY half of a segment (lapsed/new/

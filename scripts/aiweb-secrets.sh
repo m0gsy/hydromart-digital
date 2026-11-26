@@ -11,6 +11,7 @@
 #                            only while hydromart_auth holds no sealed secret at all (below)
 #   AI_WEB_RETURN_URL        auth-service: AI_WEB_URL from infra/aiweb/docker-compose.yml plus
 #                            /masuk/callback (not a secret; made here so the two cannot differ)
+#   AI_WEB_URL               crm-service: that same origin, for the link in the weekly Sales report email (AI-26)
 #
 # AI-5, n8n's (infra/aiweb/docker-compose.yml, services n8n and n8n-setup):
 #
@@ -164,13 +165,24 @@ if absent AI_WEB_RETURN_URL; then
   esac
 fi
 
+if absent AI_WEB_URL; then
+  origin="$(sed -n 's/^ *AI_WEB_URL: *//p' infra/aiweb/docker-compose.yml | head -1 | tr -d "\"' \r")"
+  case "$origin" in
+    https://*[!/]) add AI_WEB_URL "$origin" ;;
+    *)
+      echo "aiweb-secrets: infra/aiweb/docker-compose.yml has no https AI_WEB_URL origin; nothing written" >&2
+      exit 1
+      ;;
+  esac
+fi
+
 # ------------------------------------------------------------- n8n's machine account (AI-5)
 # What n8n's token carries: the base capability (hydromart-digital's crm route for a new
 # franchise application, PR #1042), required, and the optional ones (the morning summary, AI-9; the
-# AI access request, AI-7c; order status per WhatsApp number and customer reminders, HD-18; the maintenance-due sweep, HD-15),
+# AI access request, AI-7c; order status per WhatsApp number and customer reminders, HD-18; the maintenance-due sweep, HD-15; the weekly Sales report notice, AI-26; the AI agent notices, AI-31),
 # each added only once a rollback would still boot.
 SCOPE=franchiseApplicationNotify
-OPTIONAL_SCOPES=(morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify)
+OPTIONAL_SCOPES=(morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiAgentNotify)
 if absent AIWEB_N8N_MACHINE_ID; then
   id="$("$node_bin" -e 'process.stdout.write(require("node:crypto").randomUUID())' 2>&1 || true)"
   add AIWEB_N8N_MACHINE_ID "$id"

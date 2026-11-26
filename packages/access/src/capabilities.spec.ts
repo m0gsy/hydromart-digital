@@ -271,6 +271,28 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('maintenanceDueNotify');
   });
 
+  // AI-26: n8n only triggers the weekly Sales report notice; no human role raises it.
+  it('leaves the weekly Sales report notice to the machine account', () => {
+    expect(CAPABILITIES.salesReportNotify).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING', 'MANAGER']) {
+      expect(can('salesReportNotify', role)).toBe(false);
+    }
+    expect(CUSTOM_FORBIDDEN).toContain('salesReportNotify');
+  });
+
+  // AI-29/AI-31: Direksi and SUPER_ADMIN manage the AI team; boss roles and head office may only stop.
+  it('splits the AI team into read, manage (Direksi) and stop, and leaves the agent notice to the machine', () => {
+    expect(CAPABILITIES.aiTeamManage).toEqual(['DIREKTUR', 'SUPER_ADMIN']);
+    expect(can('aiTeamManage', 'HEAD_OFFICE')).toBe(false);
+    expect(can('aiTeamStop', 'HEAD_OFFICE')).toBe(true);
+    expect(can('aiTeamRead', 'FINANCE')).toBe(true);
+    expect(can('aiTeamStop', 'FINANCE')).toBe(false);
+    expect(CAPABILITIES.aiAgentNotify).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING']) expect(can('aiAgentNotify', role)).toBe(false);
+    expect(CUSTOM_FORBIDDEN).toEqual(expect.arrayContaining(['aiAgentNotify', 'aiTeamManage']));
+    expect(CUSTOM_FORBIDDEN).not.toContain('aiTeamStop');
+  });
+
   it('lets FINANCE read names and orders without gaining any write beside them', () => {
     expect(can('staffDirectoryFinance', 'FINANCE')).toBe(true);
     expect(can('driverRosterRead', 'FINANCE')).toBe(true);

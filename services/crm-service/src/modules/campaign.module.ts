@@ -10,6 +10,9 @@ import { CampaignService } from '../application/services/campaign.service';
 import { SavedSegmentService } from '../application/services/saved-segment.service';
 import { NotificationService } from '../application/services/notification.service';
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
+import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
+import { SalesWeeklyService } from '../application/services/sales-weekly.service';
+import { LegalEntityAudienceHttpAdapter } from '../infrastructure/http/legal-entity-audience.http.adapter';
 import { MaintenanceDueService } from '../application/services/maintenance-due.service';
 import { DepotAudienceService } from '../application/services/depot-audience.service';
 import { VisitNoticeService } from '../application/services/visit-notice.service';
@@ -65,6 +68,9 @@ const providers: Provider[] = [
   MorningSummaryService,
   AiAccessRequestService,
   MaintenanceDueService,
+  SalesWeeklyService,
+  AiAgentNoticeService,
+  { provide: CRM_TOKENS.LegalEntityAudience, useClass: LegalEntityAudienceHttpAdapter },
   DepotAudienceService,
   VisitNoticeService,
   { provide: CRM_TOKENS.MaintenanceDue, useClass: MaintenanceDueHttpAdapter },

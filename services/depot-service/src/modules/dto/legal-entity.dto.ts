@@ -235,6 +235,8 @@ export class LegalEntitySummaryResponseDto {
   kind!: string;
   @ApiProperty()
   active!: boolean;
+  @ApiProperty({ type: [String], description: 'Role keys granted to read this entity in the AI web (never SUPER_ADMIN).' })
+  aiReadRoles!: string[];
 }
 
 /** HD-6: which legal entity these depots belonged to over a period (calendar days, inclusive). */

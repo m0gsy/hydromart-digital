@@ -598,6 +598,8 @@ services:
       DASHBOARD_SERVICE_URL: http://dashboard:3008
       # HD-18: the customer reminders ask loyalty-service which point lots are about to lapse.
       LOYALTY_SERVICE_URL: http://loyalty:3009
+      # AI-26: the weekly Sales report email links to this AI web origin. Blank = that notice fails 503.
+      AI_WEB_URL: ${AI_WEB_URL:-}
       CRM_DATABASE_URL: postgresql://hydromart:${POSTGRES_PASSWORD}@postgres:5432/hydromart_crm?schema=public&connection_limit=${DB_POOL:-5}&pool_timeout=10
       CUSTOMER_SERVICE_URL: http://customer:3002
       # The ACTIVITY half of a broadcast segment (lapsed / new / frequent / ordered-at-depot)

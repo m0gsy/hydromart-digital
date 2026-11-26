@@ -43,6 +43,7 @@ import { PriceOverrideProposalRecord } from '../domain/price-override-proposal';
 import { PurchaseOrder } from '../domain/purchase-order';
 import { AiPriceOverrideDraftDto, AiPurchaseOrderDraftDto } from './dto/ai-draft.dto';
 import {
+  AiTeamAccessResponseDto,
   CrmAccessResponseDto,
   CrmDepotDraftDto,
   CrmDepotDraftResponseDto,
@@ -271,5 +272,31 @@ export class AiCrmController {
       throw new ServiceUnavailableException('Jejak audit tidak bisa ditulis; data tidak dikirim. Coba lagi.');
     }
     return result;
+  }
+}
+
+/**
+ * AI-29: what the signed-in person may do on the AI web's "Tim AI" screen, evaluated with the
+ * RUNTIME matrix like the CRM's access read (custom roles and per-depot grants included). Needs
+ * aiTeamRead; manage and stop are answered for the buttons. The agent -> boss role rule is the AI web's.
+ */
+@ApiTags('AI drafts')
+@ApiBearerAuth()
+@UseGuards(AiTokenOnlyGuard)
+@Controller({ path: 'ai/team', version: '1' })
+export class AiTeamController {
+  @ApiOkResponse({ type: AiTeamAccessResponseDto })
+  @ExternalAccess('ai')
+  @Can('aiTeamRead')
+  @Get('access')
+  @ApiOperation({ summary: 'AI web Tim AI: read / manage / stop access of the caller (AI-29)' })
+  access(@CurrentUser() user: AuthenticatedUser): AiTeamAccessResponseDto {
+    const depots = isDepotLocked(user.role) && user.depotId ? [user.depotId] : undefined;
+    return {
+      read: can('aiTeamRead', user.role, depots),
+      manage: can('aiTeamManage', user.role, depots),
+      stop: can('aiTeamStop', user.role, depots),
+      role: user.role,
+    };
   }
 }

@@ -29,6 +29,22 @@ export const STAFF_EMAIL_TEMPLATES: Partial<Record<NotificationEvent, StaffEmail
     subject: 'Perawatan jatuh tempo di {{depot}}',
     body: 'Perawatan jatuh tempo di {{depot}}: {{items}}. Buka tautan di bawah untuk menjadwalkan servis.',
   },
+  [NotificationEvent.SALES_WEEKLY_REPORT]: {
+    subject: 'Laporan Sales mingguan siap',
+    body: 'Minggu {{week}}: laporan calon mitra untuk {{entity}} sudah siap. Buka {{link}} (masuk dulu dengan akun hydromart Anda).',
+  },
+  [NotificationEvent.AI_AGENT_FLAG]: {
+    subject: 'Agen AI menandai kejanggalan baru',
+    body: '{{who}} menandai kejanggalan baru. Buka {{link}} (masuk dulu dengan akun hydromart Anda) untuk detailnya.',
+  },
+  [NotificationEvent.AI_AGENT_CAP]: {
+    subject: 'Agen AI berhenti: plafon tercapai',
+    body: '{{who}} berhenti: plafon bulan ini tercapai. Buka {{link}} (masuk dulu dengan akun hydromart Anda) untuk detailnya.',
+  },
+  [NotificationEvent.AI_AGENT_STOPPED]: {
+    subject: 'Agen AI dihentikan',
+    body: '{{who}} dihentikan. Buka {{link}} (masuk dulu dengan akun hydromart Anda) untuk detailnya.',
+  },
   [NotificationEvent.VISIT_FINDING]: {
     subject: 'Temuan kunjungan supervisor di {{depot}}',
     body: 'Kunjungan supervisor ke {{depot}} menemukan: {{items}}. Buka tautan di bawah untuk melihat dan menindaklanjutinya.',

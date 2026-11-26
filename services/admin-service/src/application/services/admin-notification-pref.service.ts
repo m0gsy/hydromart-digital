@@ -20,6 +20,10 @@ export const HQ_EVENT_IDS = [
   'newFranchiseApp',
   'morningSummary',
   'aiAccessRequest',
+  // AI-26: the weekly Sales report is ready (for the AI web's calon mitra CRM).
+  'salesWeekly',
+  // AI-31: an AI agent flagged something, reached its cap or was stopped.
+  'aiAgent',
   'payoutPending',
   'systemIncident',
   'dailyDigest',
@@ -44,7 +48,7 @@ export const NOTIFICATION_EVENT_IDS = [...HQ_EVENT_IDS, ...DEPOT_EVENT_IDS] as c
  * toggle with a push behind it, "Lamaran waralaba baru" (AI-5: n8n raises that notification).
  * The other HQ toggles are kept on /hq/profile but nothing pushes for them yet.
  */
-export const PUSH_TOGGLE_IDS = [...DEPOT_EVENT_IDS, 'newFranchiseApp', 'morningSummary', 'aiAccessRequest'] as const;
+export const PUSH_TOGGLE_IDS = [...DEPOT_EVENT_IDS, 'newFranchiseApp', 'morningSummary', 'aiAccessRequest', 'salesWeekly', 'aiAgent'] as const;
 
 /**
  * Which list an account gets. There is no HQ-only scope on purpose: every role holding
@@ -60,6 +64,10 @@ const HQ_DEFAULTS: NotificationChannelPref[] = [
   { id: 'morningSummary', push: true, email: true, wa: false },
   // AI-7c: someone asks for AI web access; WhatsApp is pending until Meta is ready.
   { id: 'aiAccessRequest', push: true, email: true, wa: false },
+  // AI-26: the weekly Sales report is ready; WhatsApp is pending until Meta is ready.
+  { id: 'salesWeekly', push: true, email: true, wa: false },
+  // AI-31: AI agent notices; WhatsApp is pending until Meta is ready.
+  { id: 'aiAgent', push: true, email: true, wa: false },
   { id: 'payoutPending', push: true, email: true, wa: true },
   { id: 'systemIncident', push: true, email: true, wa: true },
   { id: 'dailyDigest', push: false, email: true, wa: false },
