@@ -147,14 +147,15 @@ $AI_OK || refuse "the AI web database cannot be read, so the import cannot be pr
 echo
 echo "Taking a database dump first, this cannot be undone any other way..."
 # PURGE_BACKUP_CMD exists so the self-test can stand in for the dump; production never sets it.
-if ! ${PURGE_BACKUP_CMD:-bash scripts/backup-db.sh}; then
+# backup-db.sh defaults to hydromart-postgres: hand it the container we delete from.
+if ! PG_CONTAINER="$PG" PG_USER="$PG_USER" ${PURGE_BACKUP_CMD:-bash scripts/backup-db.sh}; then
   refuse "the backup failed, so there would be no way back."
 fi
 
 # ONE transaction. The stage events have no foreign key on purpose (their table says why: the
 # counts must outlive the application), so this delete is deliberate: the CRM now holds the funnel
 # for these ids. It rolls back unless exactly the found rows go.
-if ! OUT="$(hm -1 2>&1 <<SQL
+if ! OUT="$(hm -1 -f - 2>&1 <<SQL
 DO \$\$
 DECLARE ev int; ap int;
 BEGIN

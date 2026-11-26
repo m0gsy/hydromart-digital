@@ -35,9 +35,15 @@ grep -q '@@map("franchise_applications")' "$SCHEMA" && grep -q '@@map("franchise
 grep -q '^  stage .*FranchiseAppStage' "$SCHEMA" && ok "franchise_applications.stage exists" || bad "franchise_applications.stage is gone"
 
 # It must not reach for a standing route: nothing but the one file names the ids.
-grep -vE '^\s*#' scripts/purge-applications.sh | grep -qiE 'truncate|drop (table|database)|delete from franchise_applications *;' &&
-  bad "the script contains a TRUNCATE/DROP or an unfiltered delete" ||
-  ok "the script only deletes rows named by id"
+# Every DELETE must be filtered by the validated id array (the heredoc one included); no TRUNCATE or DROP.
+CODE="$(grep -vE '^[[:space:]]*#' scripts/purge-applications.sh)"
+if grep -qiE 'truncate|drop (table|database)' <<<"$CODE"; then
+  bad "the script contains a TRUNCATE or DROP"
+elif [ "$(grep -ciE 'delete from' <<<"$CODE")" -lt 2 ] || grep -iE 'delete from' <<<"$CODE" | grep -qvF 'ANY($ARR)'; then
+  bad "a DELETE in the script lacks a WHERE on the validated id array"
+else
+  ok "every DELETE is filtered by the validated id array"
+fi
 # The committed batch file itself must pass the script's own parser.
 bash -c '
   grep -vE "^\s*(#|$)" ops/purge-applications.txt | grep -qvE "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" && exit 1
@@ -121,28 +127,49 @@ printf '%s' "$OUT" | grep -q 'named: 3' && printf '%s' "$OUT" | grep -q 'found: 
   printf '%s' "$OUT" | grep -q "$M" && printf '%s' "$OUT" | grep -q 'stage events: 4' && printf '%s' "$OUT" | grep -q 'imported in the AI web: 2' &&
   ok "the dry run reports named, found per stage, missing ids, events and imported" || bad "the dry run report is wrong: $OUT"
 
-# refusals
+# refusals: each must exit 1, leave every row alone AND say the expected reason, so a case cannot
+# pass for the wrong one.
+refused() { # <label> <reason substring> <output> <exit code>
+  [ "$4" = 1 ] && grep -qF -- "!! refusing: " <<<"$3" && grep -qF -- "$2" <<<"$3" && [ "$(state)" = "$BEFORE" ] &&
+    ok "$1" || bad "$1 (wanted exit 1 + '$2', rows unchanged; exit $4): $3"
+}
 batch "$A" "$B"
-run --execute >/dev/null
-[ "$?" = 1 ] && [ "$(state)" = "$BEFORE" ] && ok "--execute without the phrase refuses" || bad "--execute must need CONFIRM"
+OUT="$(run --execute)"
+refused "--execute without the phrase refuses" "set CONFIRM=PURGE-APPLICATIONS" "$OUT" "$?"
 batch "$A" "$B" "$M"
-exec_ >/dev/null
-[ "$?" = 1 ] && [ "$(state)" = "$BEFORE" ] && ok "a named id hydromart does not hold (stale file) refuses" || bad "a stale file must refuse"
+OUT="$(exec_)"
+refused "a named id hydromart does not hold (stale file) refuses" "the file is stale" "$OUT" "$?"
 batch "$A" "$C"
 OUT="$(exec_)"
-[ "$?" = 1 ] && printf '%s' "$OUT" | grep -q APPROVED && [ "$(state)" = "$BEFORE" ] && ok "an APPROVED application refuses" || bad "APPROVED must be refused: $OUT"
+refused "an APPROVED application refuses" "are APPROVED" "$OUT" "$?"
 batch "$A" "$D"
 OUT="$(exec_)"
-[ "$?" = 1 ] && printf '%s' "$OUT" | grep -q 'not in the AI web' && [ "$(state)" = "$BEFORE" ] && ok "an application not imported in the AI web refuses" || bad "a not-imported id must be refused: $OUT"
-q hydromart_depot "insert into depots (id,code,name,\"ownershipType\",address,city,province,lat,lng,\"deliveryFee\",\"updatedAt\",\"franchiseApplicationId\") values ('99999999-0000-4000-8000-000000000009','D-REF','d','WARALABA','a','c','p',0,0,0,now(),'$B')" >/dev/null
+refused "an application not imported in the AI web refuses" "not in the AI web CRM yet" "$OUT" "$?"
 batch "$A" "$B"
+OUT="$(AIWEB_DB_CONTAINER= exec_)"
+refused "no AI web container refuses" "the AI web database cannot be read" "$OUT" "$?"
+OUT="$(AIWEB_PG_DB=postgres exec_)"
+refused "an AI web database without a prospects table refuses" "the AI web database cannot be read" "$OUT" "$?"
+q ai "alter table prospects rename column legacy_application_id to legacy_app" >/dev/null
 OUT="$(exec_)"
-[ "$?" = 1 ] && printf '%s' "$OUT" | grep -q 'depot' && [ "$(state)" = "$BEFORE" ] && ok "an application a depot references refuses" || bad "a depot reference must be refused: $OUT"
+refused "an AI web prospects table without the column refuses" "the AI web database cannot be read" "$OUT" "$?"
+q ai "alter table prospects rename column legacy_app to legacy_application_id" >/dev/null
+q hydromart_depot "insert into depots (id,code,name,\"ownershipType\",address,city,province,lat,lng,\"deliveryFee\",\"updatedAt\",\"franchiseApplicationId\") values ('99999999-0000-4000-8000-000000000009','D-REF','d','WARALABA','a','c','p',0,0,0,now(),'$B')" >/dev/null
+OUT="$(exec_)"
+refused "an application a depot references refuses" "depot(s) still reference" "$OUT" "$?"
 q hydromart_depot "delete from depots where code='D-REF'" >/dev/null
+OUT="$(PURGE_BACKUP_CMD=false exec_)"
+refused "a failed backup refuses and deletes nothing" "the backup failed" "$OUT" "$?"
 
-batch "$A" "$B"
-PURGE_BACKUP_CMD=false exec_ >/dev/null
-[ "$?" = 1 ] && [ "$(state)" = "$BEFORE" ] && ok "a failed backup refuses and deletes nothing" || bad "a failed backup must stop the delete"
+# The in-transaction guard: an application turns APPROVED between the checks and the delete (here,
+# during the "dump"). The delete must roll back whole, stage events included.
+FLIP="$T/flip.sh"
+printf '#!/usr/bin/env bash\ndocker exec "%s" psql -qU hydromart -d hydromart_depot -c "update franchise_applications set stage = '"'"'APPROVED'"'"' where id = '"'"'%s'"'"'"\n' "$PG" "$B" >"$FLIP"
+OUT="$(PURGE_BACKUP_CMD="bash $FLIP" exec_)"
+RC=$?
+[ "$RC" != 0 ] && grep -qF 'rolled back' <<<"$OUT" && [ "$(state)" = "$BEFORE" ] &&
+  ok "an application approved mid-run rolls the whole delete back" || bad "the in-transaction guard failed (exit $RC, rows $(state)): $OUT"
+q hydromart_depot "update franchise_applications set stage = 'SURVEY' where id = '$B'" >/dev/null
 
 # happy path
 OUT="$(exec_)"

@@ -475,7 +475,7 @@ jobs:
             fi
             if [ "${{ github.event.inputs.mode }}" = "purge-applications" ]; then
               git fetch --quiet origin main
-              git checkout origin/main -- scripts/purge-applications.sh ops/purge-applications.txt scripts/backup-db.sh scripts/lib/deploy-common.sh scripts/lib/backup-report.sh scripts/lib/backup-dir.sh
+              git checkout origin/main -- scripts/purge-applications.sh ops/purge-applications.txt scripts/backup-db.sh scripts/lib/deploy-common.sh scripts/lib/backup-report.sh scripts/lib/backup-dir.sh infra/aiweb/docker-compose.yml
             fi
             if [ "${{ github.event.inputs.mode }}" = "restore-rehearsal" ]; then
               git fetch --quiet origin main
