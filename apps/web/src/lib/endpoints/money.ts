@@ -87,6 +87,22 @@ export const money = {
     reject: (id: string) => `/payments/api/v1/payments/${id}/refund/reject`,
   },
 
+  // HD-23: the monthly royalty bill per franchisee legal entity (payout-service).
+  partnerBills: {
+    list: (q: { month?: string; legalEntityId?: string; status?: string } = {}) => {
+      const p = new URLSearchParams();
+      for (const [k, v] of Object.entries(q)) if (v) p.set(k, v);
+      const qs = p.toString();
+      return `/payout/api/v1/partner-bills${qs ? `?${qs}` : ''}`;
+    },
+    // The bills sent to the signed-in franchise owner, read-only.
+    mine: '/payout/api/v1/partner-bills/mine',
+    detail: (id: string) => `/payout/api/v1/partner-bills/${id}`,
+    generate: '/payout/api/v1/partner-bills/generate',
+    approve: (id: string) => `/payout/api/v1/partner-bills/${id}/approve`,
+    void: (id: string) => `/payout/api/v1/partner-bills/${id}/void`,
+  },
+
   // Franchise payout: commission ledger, balance & withdrawals (FRANCHISE_OWNER).
   payout: {
     summary: '/payout/api/v1/payout/summary',

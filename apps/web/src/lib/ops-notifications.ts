@@ -69,6 +69,8 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   AI_AGENT_STOPPED: 'orders',
   VISIT_FINDING: 'stock',
   FOLLOW_UP_OVERDUE: 'stock',
+  // HD-23: a bill to pay is a money matter, filed with the approvals.
+  PARTNER_BILL: 'orders',
   COURIER_DELIVERY_ASSIGNED: 'courier',
   DELIVERY_SLA_BREACHED: 'courier',
   STOCK_LOW: 'stock',

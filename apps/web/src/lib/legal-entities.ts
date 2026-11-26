@@ -11,6 +11,10 @@ export interface LegalEntity {
   kind: LegalEntityKind;
   active: boolean;
   updatedAt: string;
+  /** HD-23: the official account partner bills ask a mitra to pay into (franchisor only). */
+  bankName?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountHolder?: string | null;
   /** Roles that may read this entity's data in the AI web. */
   aiReadRoles: string[];
 }

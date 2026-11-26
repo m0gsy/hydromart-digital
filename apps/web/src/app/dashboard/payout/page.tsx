@@ -1,13 +1,10 @@
 'use client';
 
-import { useRef, useState } from 'react';
 import {
   ArrowDownLeft,
-  ArrowLineDown,
   ArrowUpRight,
   Bank,
   Buildings,
-  CheckCircle,
   Lock,
   Wallet,
 } from '@phosphor-icons/react';
@@ -19,24 +16,21 @@ import {
   Card,
   CenterState,
   ErrorState,
-  Field,
-  Input,
   Money,
   Skeleton,
 } from '@/components/ui';
-import { PayoutAccountCard, useVerifiedPayoutAccount } from '@/components/payout-account';
-import { api, ApiError } from '@/lib/api';
+import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { type PartnerBill, monthName } from '@/lib/partner-bills';
 import { canViewPayout } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type {
   LedgerEntry,
   LedgerEntryType,
   PayoutSummary,
-  Withdrawal,
 } from '@/lib/types';
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -88,157 +82,61 @@ function LedgerRow({ entry }: { entry: LedgerEntry }) {
   );
 }
 
-const QUICK = [2_000_000, 5_000_000];
-
-/** Balance + withdrawal request card (design 9d). Posts, then shows a success receipt. */
-function BalanceCard({
-  summary,
-  onWithdrawn,
-}: {
-  summary: PayoutSummary;
-  onWithdrawn: () => void;
-}) {
-  const { t } = useT();
-  const [amount, setAmount] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<Withdrawal | null>(null);
-  // One key per cash-out ATTEMPT, kept across retries and cleared once it lands: a double tap or a
-  // retry whose answer was lost must not withdraw twice.
-  const attemptKey = useRef('');
-
-  const balance = summary.availableBalance;
-
-  /*
-   * PYO-3 (owner decision 2026-09-17): the destination is the owner's own registered account,
-   * verified by head office — not the DEPOT's payment settings, which are where customers
-   * send money TO, and not a string travelling with the withdrawal.
-   */
-  const payoutAccount = useVerifiedPayoutAccount();
-
-  async function withdraw() {
-    const value = Number(amount);
-    if (!Number.isFinite(value) || value <= 0) {
-      setError(t('dashB.payout.invalidAmount'));
-      return;
-    }
-    // Fail CLOSED: a withdrawal with no verified destination is worse than a refused one.
-    if (!payoutAccount.verified) {
-      // Was a hardcoded, untranslated string that named no screen: "atur dulu di Pengaturan
-      // pembayaran". A refusal that does not say WHERE is a refusal the reader cannot act on,
-      // and the setting lives behind a capability (`depotAdmin` = MANAGER / SUPER_ADMIN) that
-      // a franchise owner reading this message may not even hold.
-      setError(t('opsFix.payoutAccount.needVerified'));
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      if (!attemptKey.current) attemptKey.current = crypto.randomUUID();
-      const w = await api.post<Withdrawal>(
-        endpoints.payout.withdrawals,
-        { amount: Math.round(value) },
-        true,
-        { 'Idempotency-Key': attemptKey.current },
-      );
-      attemptKey.current = '';
-      setDone(w);
-      onWithdrawn();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('dashB.payout.withdrawError'));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (done) {
-    return (
-      <Card className="flex flex-col items-center gap-3 p-7 text-center">
-        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-[color:var(--success-bg)]">
-          <CheckCircle size={40} weight="fill" className="text-[color:var(--success)]" />
-        </span>
-        <h2 className="text-xl font-extrabold tracking-tight">
-          {t('dashB.payout.withdrawalProcessed')}
-        </h2>
-        <p className="text-sm text-muted">
-          <Money amount={done.amount} className="font-bold text-[color:var(--text)]" />{' '}
-          {t('dashB.payout.sentTo', { ref: done.bankAccountRef })}
-        </p>
-        <div className="mt-1 w-full rounded-xl border border-app p-3 text-left text-xs">
-          <div className="flex items-center justify-between py-0.5">
-            <span className="text-muted">{t('dashB.payout.ref')}</span>
-            <span className="font-mono font-semibold">{done.reference}</span>
-          </div>
-          <div className="flex items-center justify-between py-0.5">
-            <span className="text-muted">{t('dashB.payout.status')}</span>
-            <span className="font-semibold text-[color:var(--success)]">{t('dashB.payout.processed')}</span>
-          </div>
-        </div>
-      </Card>
-    );
-  }
-
+/**
+ * HD-23 (owner decision 2026-11-26, "Tagihan saja"): customers pay the depot's own account, so HQ
+ * collects its royalty only through the monthly bill and the ledger balance is bookkeeping, never
+ * a purse. There is no withdraw button; this says why, and lists the bills sent to the owner.
+ */
+function BillsCard({ summary }: { summary: PayoutSummary }) {
+  const { t, locale } = useT();
+  const bills = useAsync<PartnerBill[]>(() => api.get(endpoints.partnerBills.mine, true));
   return (
     <Card className="flex flex-col gap-3 p-5">
       <div className="rounded-2xl bg-gradient-to-br from-[#0b4d57] to-[#0c97ac] p-4 text-white">
-        <p className="text-xs text-white/80">{t('dashB.payout.availableBalance')}</p>
+        <p className="text-xs text-white/80">{t('dashB.payout.ledgerBalance')}</p>
         <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums">
-          {formatIDR(balance)}
+          {formatIDR(summary.availableBalance)}
         </p>
-        <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2.5">
-          <Bank size={18} weight="fill" className="text-[#8fe3ee]" />
-          <div className="leading-tight">
-            {/* PYO-3: the owner's own verified account. The card below is where it is
-                registered and where its verification status is read. */}
-            <p className="text-xs font-extrabold">
-              {payoutAccount.verified
-                ? t('opsFix.payoutAccount.verified')
-                : t('opsFix.payoutAccount.pending')}
-            </p>
-            <p className="text-[10.5px] text-white/70">{t('dashB.payout.registeredAccount')}</p>
-          </div>
-        </div>
+        <p className="mt-2 text-xs text-white/80">{t('dashB.payout.byBill')}</p>
       </div>
-
-      <Field label={t('dashB.payout.amountLabel')} htmlFor="wd-amount">
-        <Input
-          id="wd-amount"
-          inputMode="numeric"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder={String(balance)}
-        />
-      </Field>
-      <div className="flex gap-2">
-        {QUICK.filter((q) => q <= balance).map((q) => (
-          <button
-            key={q}
-            type="button"
-            onClick={() => setAmount(String(q))}
-            className="flex-1 rounded-lg border border-app py-2 text-xs font-bold text-muted hover:bg-brand-50"
-          >
-            {formatIDR(q)}
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => setAmount(String(balance))}
-          className="flex-1 rounded-lg border border-brand-600 bg-brand-50 py-2 inline-flex min-h-11 items-center text-xs font-bold text-brand-800"
-        >
-          {t('dashB.payout.all')}
-        </button>
-      </div>
-      {error && (
-        <p className="text-sm font-medium text-[color:var(--danger)]" role="alert">
-          {error}
-        </p>
+      <h2 className="font-semibold">{t('dashB.payout.billsTitle')}</h2>
+      {bills.loading ? (
+        <Skeleton className="h-16 w-full" />
+      ) : bills.error ? (
+        <ErrorState message={t('dashB.payout.billsError')} onRetry={bills.reload} />
+      ) : (bills.data ?? []).length === 0 ? (
+        <p className="text-sm text-muted">{t('dashB.payout.billsEmpty')}</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-[color:var(--border)]">
+          {(bills.data ?? []).map((b) => (
+            <li key={b.id} className="flex flex-col gap-1 py-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold">
+                  {monthName(b.month, locale)} · {b.legalEntityName}
+                </span>
+                <Money amount={b.totalIdr} className="font-bold tabular-nums" />
+              </div>
+              {b.bank && (
+                <p className="text-xs text-muted">
+                  {t('dashB.payout.billBank', {
+                    bank: b.bank.bankName,
+                    number: b.bank.bankAccountNumber,
+                    holder: b.bank.bankAccountHolder,
+                  })}
+                </p>
+              )}
+              <ul className="text-xs text-muted">
+                {(b.lines ?? []).map((l) => (
+                  <li key={l.id} className="flex justify-between gap-3">
+                    <span className="truncate">{l.label}</span>
+                    <span className="tabular-nums">{formatIDR(l.amountIdr)}</span>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
       )}
-      <Button onClick={withdraw} loading={busy} disabled={balance <= 0 || !payoutAccount.verified}>
-        <ArrowLineDown size={17} weight="fill" />
-        {t('dashB.payout.withdraw')}
-      </Button>
-      {/* PYO-3: where the owner registers the account this balance is paid to. */}
-      <PayoutAccountCard onChange={payoutAccount.reload} />
     </Card>
   );
 }
@@ -249,17 +147,10 @@ function PayoutBody() {
     api.get(endpoints.payout.summary, true),
   );
 
-  // First load only. `onWithdrawn` calls reload(), which flips `loading` back to true; swapping
-  // the whole body for a skeleton on that refetch unmounted BalanceCard and threw away its
-  // `done` receipt, so "Pencairan diproses" never appeared — the data is kept while it refetches.
+  // First load only: a refetch keeps the data on screen.
   if (loading && !data) return <Skeleton className="h-96 w-full" />;
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
   if (!data) return null;
-
-  const nextPayout = new Date(data.nextPayoutDate).toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'short',
-  });
 
   return (
     <div className="flex flex-col gap-5">
@@ -270,11 +161,10 @@ function PayoutBody() {
       </div>
       <p className="text-sm text-muted">{t('dashB.payout.subtitle')}</p>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label={t('dashB.payout.availableBalance')} value={formatIDR(data.availableBalance)} />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Stat label={t('dashB.payout.ledgerBalance')} value={formatIDR(data.availableBalance)} />
         <Stat label={t('dashB.payout.monthRevenue')} value={formatIDR(data.monthRevenue)} />
         <Stat label={t('dashB.payout.hqCommission')} value={formatIDR(data.monthCommission)} />
-        <Stat label={t('dashB.payout.nextPayout')} value={nextPayout} />
       </div>
 
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -291,7 +181,7 @@ function PayoutBody() {
           )}
         </Card>
         <div className="flex flex-col gap-4">
-          <BalanceCard summary={data} onWithdrawn={reload} />
+          <BillsCard summary={data} />
           {/* The summary already carried the last withdrawals; the page never drew them, so a
               request vanished from the screen the moment the form closed. */}
           {data.recentWithdrawals.length > 0 && (

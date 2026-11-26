@@ -47,6 +47,7 @@ export const notifications = {
     AI_AGENT_STOPPED: 'Agen AI dihentikan',
     VISIT_FINDING: 'Temuan kunjungan supervisor',
     FOLLOW_UP_OVERDUE: 'Tindak lanjut kunjungan terlambat',
+    PARTNER_BILL: 'Tagihan royalti bulanan',
     AI_ACCESS_REQUESTED: 'Permintaan akses AI web',
     SUBSCRIPTION_TOMORROW: 'Langganan diantar besok',
     POINTS_EXPIRING: 'Poin segera hangus',

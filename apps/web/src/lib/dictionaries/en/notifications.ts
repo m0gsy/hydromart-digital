@@ -44,6 +44,7 @@ export const notifications = {
     AI_AGENT_STOPPED: 'AI agent stopped',
     VISIT_FINDING: 'Supervisor visit findings',
     FOLLOW_UP_OVERDUE: 'Visit follow-up overdue',
+    PARTNER_BILL: 'Monthly royalty bill',
     AI_ACCESS_REQUESTED: 'AI web access request',
     SUBSCRIPTION_TOMORROW: 'Subscription delivery tomorrow',
     POINTS_EXPIRING: 'Points about to expire',
