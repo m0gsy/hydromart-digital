@@ -109,3 +109,17 @@ export class ReadScopeService {
     return { ids: all.map((d) => d.id), network: all };
   }
 }
+
+/**
+ * Whether the caller reads every depot and every legal entity (a machine account does): the only callers
+ * that may also be answered about what belongs to no depot (R-02, the prospect opportunity bucket).
+ */
+export async function readsNetwork(grants: AiReadSourcesPort, user: AuthenticatedUser): Promise<boolean> {
+  if (user.via === 'machine') return true;
+  try {
+    if (depotScopeIds(user) !== undefined) return false;
+  } catch {
+    return false;
+  }
+  return (await grants.aiGrants(user.role))?.all === true;
+}

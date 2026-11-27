@@ -36,6 +36,9 @@ import { AiReadCustomerController } from './ai-read-customer.controller';
 import { AiReadAreaController } from './ai-read-area.controller';
 import { AreaMetricsService } from '../application/ai-read/area-metrics';
 import { AiAreaSourcesHttpAdapter } from '../infrastructure/http/ai-area-sources.http.adapter';
+import { AiReadProspectController } from './ai-read-prospect.controller';
+import { ProspectMetricsService } from '../application/ai-read/prospect-metrics';
+import { AiProspectSourcesHttpAdapter } from '../infrastructure/http/ai-prospect-sources.http.adapter';
 import { CumulativeScopeService } from '../application/ai-read/cumulative-scope.service';
 import { CustomerMetricsService } from '../application/ai-read/customer-metrics';
 import { DeliveryMetricsService } from '../application/ai-read/delivery-metrics';
@@ -64,6 +67,8 @@ const providers: Provider[] = [
   { provide: DASHBOARD_TOKENS.AiCustomerSources, useClass: AiCustomerSourcesHttpAdapter },
   { provide: DASHBOARD_TOKENS.AiAreaSources, useClass: AiAreaSourcesHttpAdapter },
   AreaMetricsService,
+  { provide: DASHBOARD_TOKENS.AiProspectSources, useClass: AiProspectSourcesHttpAdapter },
+  ProspectMetricsService,
   CumulativeScopeService,
   CustomerMetricsService,
   DeliveryMetricsService,
@@ -94,6 +99,7 @@ const providers: Provider[] = [
     AiReadStockController,
     AiReadCustomerController,
     AiReadAreaController,
+    AiReadProspectController,
     PendingApprovalsInternalController,
   ],
   providers,
