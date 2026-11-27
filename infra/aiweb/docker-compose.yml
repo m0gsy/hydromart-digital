@@ -145,13 +145,14 @@ services:
       # blank, the app refuses every LLM call. Not the vendor's usual name on purpose: a tool on
       # the box that reads ANTHROPIC_API_KEY never bills this account. Staging gets no key.
       LLM_ANTHROPIC_API_KEY: ${AIWEB_LLM_ANTHROPIC_API_KEY:-}
-      # Every purpose on Claude Sonnet 5.5: the owner asked for the option that keeps the quality
-      # good (27 Nov 2026). The plan's estimate for all use at full team size is about Rp1,1 jt a
-      # month, under the Rp1,5 jt team cap; the caps refuse a call past them, they never overspend.
+      # Mixed routing (owner, 27 Nov 2026): Tanya AI (`ask`), which a person reads at once, on
+      # Claude Sonnet 5.5; every other purpose (the agents' scheduled reports and drafts, `*`) on
+      # Claude Haiku 5.5, about 20x cheaper per token (src/lib/llm/prices.ts). The spend caps
+      # (Rp1,5 jt team, Rp375.000 per agent) refuse a call past them, they never overspend.
       # A purpose moves to another model by PR here. No vendor receives personal data until the
       # owner approves one (a DPA, the transfer register and a DPIA). The rupiah rate is rounded UP
       # from the plan's 16.500, so the spend caps (Tim AI) trip early rather than late.
-      LLM_ROUTES: "*=anthropic:claude-sonnet-5-5"
+      LLM_ROUTES: "ask=anthropic:claude-sonnet-5-5,*=anthropic:claude-haiku-5-5"
       LLM_PERSONAL_DATA_VENDORS: ""
       LLM_USD_IDR: "17000"
     networks:
