@@ -55,8 +55,17 @@ groups:
       - alert: HighErrorRate
         # 5xx share of traffic per service over 5m. 0/0 is NaN (never > 0.05), so a
         # quiet service can't false-fire — the threshold self-guards divide-by-zero.
+        #
+        # Not counted: the 503 an enrolment gets while the face engine is down. That is hr refusing
+        # by design, and the outage has its own messages: hr-service's one webhook message when NEO
+        # first fails, and ServiceDegraded{reason="face-engine"} below, which resolves when NEO
+        # answers again. Counted, it paged CRITICAL on and off for 40 minutes on 2026-11-27 (33
+        # refused enrolments, one outage). A 500 on those routes, or a 503 on any other, still counts.
         expr: |
-          sum by (service) (rate(http_request_duration_seconds_count{status=~"5.."}[5m]))
+          sum by (service) (
+            rate(http_request_duration_seconds_count{status=~"5.."}[5m])
+              unless rate(http_request_duration_seconds_count{status="503", route=~"/api/v1/attendance/me/face/enroll|/api/v1/employees/:id/face/enroll"}[5m])
+          )
             / sum by (service) (rate(http_request_duration_seconds_count[5m]))
             > 0.05
         for: 5m
@@ -74,9 +83,9 @@ groups:
         # enforce, then the frame upload), so 1-2 s is their normal, not a slow service. HR
         # traffic is thin enough that a few check-ins in a quiet five minutes ARE the p95:
         # 2026-11-17 16:46 WIB this paged for ten minutes while every other hr route answered
-        # in under 0.1 s. NEO failing outright still pages: an enroll answers 503, which
-        # HighErrorRate counts, and since 2026-11-18 a punch is held PENDING instead and
-        # hr-service sends one webhook message when the engine first fails.
+        # in under 0.1 s. NEO failing outright has its own messages: hr-service sends one
+        # webhook message when the engine first fails (punches are held PENDING since
+        # 2026-11-18), and ServiceDegraded{reason="face-engine"} lasts until it answers again.
         expr: |
           histogram_quantile(
             0.95,
@@ -105,15 +114,24 @@ groups:
         # (packages/platform reportDegraded -> hydromart_degraded). Nothing else would notice.
         # region-asset: customer-service could not read regions.json, so new addresses are saved
         # WITHOUT kecamatan/kelurahan codes (silently, only a log line).
+        # face-engine: hr-service's NEO face engine stopped answering (owner, 2026-11-27: one message
+        # when it goes down, one when it is back). Raised and cleared by NeoFaceProvider, so this one
+        # RESOLVES by itself; it replaces the per-enrolment pages and HighErrorRate for that outage.
         expr: max by (service, reason) (hydromart_degraded{job="hydromart"}) > 0
         for: 5m
         labels: { severity: warning }
         annotations:
           summary: '{{ $labels.service }} is degraded: {{ $labels.reason }}'
           description: >-
-            {{ $labels.service }} reports {{ $labels.reason }} for 5m. For region-asset: addresses are
+            {{ $labels.service }} reports {{ $labels.reason }} for 5m.
+            {{- if eq $labels.reason "face-engine" }} NEO (BiznetGio face recognition) is not
+            answering: check-ins and check-outs are held PENDING for HR and enrolment is refused. Check
+            the NEO account (quota) and BiznetGio; there is nothing to deploy. This resolves by itself
+            when NEO answers again.
+            {{- else if eq $labels.reason "region-asset" }} For region-asset: addresses are
             being saved without kecamatan/kelurahan codes. Check dist/src/infrastructure/geo/regions.json
             in the customer image, fix it, redeploy, then run the Deploy mode backfill-address-regions.
+            {{- end }}
 
       - alert: EventLoopLagHigh
         # Node event-loop lag: the process is up and scraping but stalling on CPU or

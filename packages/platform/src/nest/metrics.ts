@@ -63,10 +63,11 @@ function templateOf(path: string): string {
  * Route label is bounded — see routeLabel() below for why that needs two mechanisms.
  */
 /*
- * A service that keeps running but has lost something it needs (an asset that did not load) says so
- * here, and ops/alert-rules.yml ServiceDegraded pages on it. `reason` is a code constant, never
- * user input, so the label stays bounded. Module-level because the registry is built in
- * enableMetrics, which runs before any request can report; the gauge joins it there.
+ * A service that keeps running but has lost something it needs (an asset that did not load, an
+ * engine that stopped answering) says so here, and ops/alert-rules.yml ServiceDegraded pages on it;
+ * `reportDegraded(reason, false)` once it has it back resolves that alert. `reason` is a code
+ * constant, never user input, so the label stays bounded. Module-level because the registry is
+ * built in enableMetrics, which runs before any request can report; the gauge joins it there.
  */
 const degraded = new Gauge({
   name: 'hydromart_degraded',
@@ -75,8 +76,8 @@ const degraded = new Gauge({
   registers: [],
 });
 
-export function reportDegraded(reason: string): void {
-  degraded.set({ reason }, 1);
+export function reportDegraded(reason: string, degradedNow = true): void {
+  degraded.set({ reason }, degradedNow ? 1 : 0);
 }
 
 export function enableMetrics(app: INestApplication, serviceName: string): void {

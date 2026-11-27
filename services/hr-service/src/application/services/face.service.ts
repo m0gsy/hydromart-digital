@@ -13,13 +13,28 @@ import { HrConfigService } from '../../config/hr-config.service';
 import { bestMatch } from '../../domain/face-math';
 import { storeFrame } from '../../infrastructure/storage/upload-frame';
 import { hrStorageKey } from '../storage-key';
-import { FACE_VERIFIER, FaceReplaceFailedError, FaceVerifier } from '../ports/face-verifier.port';
+import {
+  FACE_VERIFIER,
+  FaceEngineUnavailableError,
+  FaceReplaceFailedError,
+  FaceVerifier,
+} from '../ports/face-verifier.port';
 import {
   FACE_EMBEDDING_REPOSITORY,
   FaceEmbeddingRepository,
 } from '../ports/face-embedding.repository';
 import { STORAGE_PORT, StoragePort } from '../ports/storage.port';
 import { EmployeeService } from './employee.service';
+
+/**
+ * What the employee reads when the engine cannot take an enrolment (owner, 2026-11-27). The engine's
+ * own wording ("Face engine (NEO) gagal: enroll-face: ...") reached the app, and the next tap that
+ * morning was "Tarik persetujuan & hapus data wajah", five times: it fixes nothing and leaves the
+ * employee with no face on file. Served from here, so the installed app shows it without a release.
+ */
+export const ENGINE_DOWN_ENROLL_MESSAGE =
+  'Sistem pengenal wajah sedang gangguan, bukan masalah wajah Anda. Absen tetap tercatat untuk ' +
+  'diperiksa HR. Coba daftar wajah lagi nanti, dan jangan hapus data wajah Anda.';
 
 @Injectable()
 export class FaceService {
@@ -167,13 +182,17 @@ export class FaceService {
         userName: employee.fullName,
       });
     } catch (err) {
-      if (!(err instanceof FaceReplaceFailedError)) throw err;
-      // The engine dropped the old face and did not take the new one. The enrolment HR holds
-      // would now fail every punch with a face that is gone: retired, so the app asks again.
-      await this.repo
-        .deactivateForEmployee(employee.id)
-        .catch((e: unknown) => this.logger.warn(`Enrolment of ${employee.id} not retired: ${String(e)}`));
-      throw err.refusal;
+      if (err instanceof FaceReplaceFailedError) {
+        // The engine dropped the old face and did not take the new one. The enrolment HR holds
+        // would now fail every punch with a face that is gone: retired, so the app asks again.
+        await this.repo
+          .deactivateForEmployee(employee.id)
+          .catch((e: unknown) => this.logger.warn(`Enrolment of ${employee.id} not retired: ${String(e)}`));
+      }
+      const refusal = err instanceof FaceReplaceFailedError ? err.refusal : err;
+      if (!(refusal instanceof FaceEngineUnavailableError)) throw refusal;
+      this.logger.warn(`Enrolment of ${employee.id} refused, face engine down: ${refusal.message}`);
+      throw new FaceEngineUnavailableError(ENGINE_DOWN_ENROLL_MESSAGE);
     }
     const { vector, quality } = enrolled;
 

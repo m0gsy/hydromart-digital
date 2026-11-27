@@ -149,6 +149,16 @@ describe('ShadowFaceVerifier (FACE_FALLBACK=shadow)', () => {
     expect(p.remove).toHaveBeenCalledWith({ userId: 'e1', userName: 'B' });
     expect(new ShadowFaceVerifier(primary({ remove: undefined }), { embed: jest.fn() }).remove).toBeUndefined();
   });
+
+  // Attendance reads it to hold a punch with no face on file while NEO is down (2026-11-27).
+  it("says NEO is down when NEO does, and has no such state when NEO has none", () => {
+    let down = true;
+    const v = new ShadowFaceVerifier(primary({ isDown: () => down }), { embed: jest.fn() }, logger());
+    expect(v.isDown!()).toBe(true);
+    down = false;
+    expect(v.isDown!()).toBe(false);
+    expect(new ShadowFaceVerifier(primary(), { embed: jest.fn() }, logger()).isDown).toBeUndefined();
+  });
 });
 
 describe('FaceTemplateBackfill', () => {

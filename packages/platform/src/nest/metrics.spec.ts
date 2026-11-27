@@ -199,4 +199,18 @@ describe('reportDegraded', () => {
       'hydromart_degraded{reason="region-asset",service="customer-service"} 1',
     );
   });
+
+  it('shows 0 once the service reports it has the thing back, which resolves ServiceDegraded', async () => {
+    const { app, routes } = fakeApp();
+    enableMetrics(app, 'hr-service');
+    reportDegraded('face-engine');
+    reportDegraded('face-engine', false);
+
+    const end = jest.fn();
+    await routes.get('/metrics')!({} as Request, { set: jest.fn(), end } as unknown as Response);
+
+    expect(end.mock.calls[0][0] as string).toContain(
+      'hydromart_degraded{reason="face-engine",service="hr-service"} 0',
+    );
+  });
 });

@@ -3,7 +3,7 @@ import * as http from 'node:http';
 import * as https from 'node:https';
 
 import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import { alertServerError } from '@hydromart/platform';
+import { alertServerError, reportDegraded } from '@hydromart/platform';
 
 import { HrConfigService } from '../../config/hr-config.service';
 import {
@@ -36,6 +36,14 @@ const NEO_DOWN_AFTER = 3;
  * has to enrol again and a punch HR has to rule on; many at once means NEO lost its gallery.
  */
 const UNKNOWN_NOTICE_MS = 60 * 60_000;
+/** ops/alert-rules.yml ServiceDegraded: raised when NEO counts as down, cleared when it answers. */
+const DEGRADED_REASON = 'face-engine';
+/**
+ * While NEO counts as down and no punch asks it, how long until it is asked anyway. Only a call can
+ * end an outage, so without this one at night the degraded alert would not resolve, and a punch with
+ * no enrolment would be held for HR, until the morning's first punch (review of 2026-11-27).
+ */
+const NEO_IDLE_PROBE_MS = 5 * 60_000;
 
 interface NeoPayload {
   status?: string | number;
@@ -83,8 +91,29 @@ export class NeoFaceProvider implements FaceVerifier {
   /** When ops were last told NEO holds no face for someone, and how many since. */
   private unknownNoticeAt = 0;
   private unknownSince = 0;
+  /** The next idle probe while NEO counts as down (see NEO_IDLE_PROBE_MS). */
+  private idleProbe: NodeJS.Timeout | null = null;
 
   constructor(private readonly config: HrConfigService) {}
+
+  /** NEO counts as down: from the call that proved it until one answers again. */
+  isDown(): boolean {
+    return this.downUntil !== 0;
+  }
+
+  /**
+   * Ask NEO once more in NEO_IDLE_PROBE_MS, unless a call proves it down again first (which moves
+   * this) or one answers (which cancels it). The gallery's own create call: answered "already
+   * exists" when NEO works, so it changes nothing; `post` clears the outage or re-arms it.
+   */
+  private probeWhenIdle(): void {
+    if (this.idleProbe) clearTimeout(this.idleProbe);
+    this.idleProbe = setTimeout(() => {
+      this.idleProbe = null;
+      void this.request('POST', 'create-facegallery', { facegallery_id: this.gallery }).catch(() => undefined);
+    }, NEO_IDLE_PROBE_MS);
+    this.idleProbe.unref();
+  }
 
   async enroll(images: Buffer[], identity?: FaceIdentity): Promise<FaceEmbeddingResult> {
     if (images.length === 0) throw new Error('enroll: no frames');
@@ -403,7 +432,9 @@ export class NeoFaceProvider implements FaceVerifier {
     if (now || this.unanswered >= NEO_DOWN_AFTER) {
       const wasUp = this.downUntil === 0;
       this.downUntil = Date.now() + NEO_RETRY_MS;
+      this.probeWhenIdle();
       if (wasUp) {
+        reportDegraded(DEGRADED_REASON);
         alertServerError({
           method: 'POST',
           path: '/api/v1/attendance (face engine NEO)',
@@ -422,6 +453,9 @@ export class NeoFaceProvider implements FaceVerifier {
     this.unanswered = 0;
     if (this.downUntil === 0) return;
     this.downUntil = 0;
+    if (this.idleProbe) clearTimeout(this.idleProbe);
+    this.idleProbe = null;
+    reportDegraded(DEGRADED_REASON, false); // ServiceDegraded resolves: the "NEO is back" message
     this.logger.log('NEO answering again; punches are verified as usual');
   }
 }

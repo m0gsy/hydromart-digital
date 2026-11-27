@@ -3,9 +3,13 @@ import { AuthenticatedUser } from '@hydromart/platform';
 
 import { FaceEmbedding } from '../../prisma/generated/client';
 import { HrConfigService } from '../../src/config/hr-config.service';
-import { FaceService } from '../../src/application/services/face.service';
+import { ENGINE_DOWN_ENROLL_MESSAGE, FaceService } from '../../src/application/services/face.service';
 import { EmployeeService } from '../../src/application/services/employee.service';
-import { FaceReplaceFailedError, FaceVerifier } from '../../src/application/ports/face-verifier.port';
+import {
+  FaceEngineUnavailableError,
+  FaceReplaceFailedError,
+  FaceVerifier,
+} from '../../src/application/ports/face-verifier.port';
 import {
   FaceEmbeddingRepository,
   OwnedVector,
@@ -160,6 +164,40 @@ describe('FaceService.enroll', () => {
     const svc = new FaceService(failing, repo, fakeEmployees(new Date()).service, config);
     await expect(svc.enroll(user, 'e1', [Buffer.from('a')], null)).rejects.toThrow('Wajah tidak terdeteksi');
     expect(repo.deactivated).toEqual([]);
+  });
+
+  // 2026-11-27: the engine's own wording reached the app, and five employees then deleted their
+  // face data, which fixed nothing and left them with no face on file.
+  it('an engine that cannot take the enrolment is told to the employee in plain words, still a 503', async () => {
+    const down = new FaceEngineUnavailableError('Face engine (NEO) gagal: enroll-face: HTTP 503');
+    const failing: FaceVerifier = {
+      enroll: async () => {
+        throw down;
+      },
+      verify: async () => ({ score: 1, matched: true }),
+    };
+    const repo = new FakeFaceRepo();
+    const svc = new FaceService(failing, repo, fakeEmployees(new Date()).service, config);
+
+    const err = await svc.enrollSelf(user, [Buffer.from('a')]).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(FaceEngineUnavailableError);
+    expect((err as Error).message).toBe(ENGINE_DOWN_ENROLL_MESSAGE);
+    expect(ENGINE_DOWN_ENROLL_MESSAGE).toMatch(/jangan hapus data wajah/);
+    expect(repo.deactivated).toEqual([]); // nothing was deleted, nothing retired
+  });
+
+  it('the same words when the engine went down between dropping the old face and taking the new one', async () => {
+    const failing: FaceVerifier = {
+      enroll: async () => {
+        throw new FaceReplaceFailedError(new FaceEngineUnavailableError('enroll-face: HTTP 503'));
+      },
+      verify: async () => ({ score: 1, matched: true }),
+    };
+    const repo = new FakeFaceRepo();
+    const svc = new FaceService(failing, repo, fakeEmployees(new Date()).service, config);
+    await expect(svc.enroll(user, 'e1', [Buffer.from('a')], null)).rejects.toThrow(ENGINE_DOWN_ENROLL_MESSAGE);
+    expect(repo.deactivated).toEqual(['e1']);
   });
 });
 

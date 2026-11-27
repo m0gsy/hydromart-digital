@@ -43,6 +43,18 @@ function isNumberOutOfRange(exception: unknown): boolean {
   );
 }
 
+/**
+ * A 5xx whose cause is already reported ONCE somewhere else, so paging on every request would only
+ * repeat it: hr's face engine being down (NeoFaceProvider sends one message when it goes down, and
+ * ServiceDegraded face-engine follows it until it answers again). 2026-11-27: 33 refused enrolments
+ * in 40 minutes were 33 "Unhandled error" logs, the Discord messages and the Sentry events of one
+ * outage. The caller still gets the status and the message; the log keeps one line, no stack.
+ * Duck-typed: the marker lives on a service's own error class.
+ */
+function reportedElsewhere(exception: unknown): boolean {
+  return (exception as { reportedElsewhere?: unknown } | null)?.reportedElsewhere === true;
+}
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -53,7 +65,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const body = this.toErrorBody(exception, request.url);
 
-    if (body.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    if (body.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR && reportedElsewhere(exception)) {
+      this.logger.warn(
+        `${request.method} ${request.url} answered ${body.statusCode}: ${String((exception as Error).message)}`,
+      );
+    } else if (body.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
         `Unhandled error on ${request.method} ${request.url}: ${String(
           (exception as Error)?.stack ?? exception,

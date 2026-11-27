@@ -6,8 +6,15 @@ export const FACE_VERIFIER = Symbol('FACE_VERIFIER');
  * The engine could not be ASKED: quota spent, provider down, a timeout. Nothing the employee
  * sent causes it, and no misconfiguration does either (those stay a plain 503 that pages).
  * Attendance holds such a punch PENDING for HR instead of refusing it (owner, 2026-11-18).
+ *
+ * Not paged per request (owner, 2026-11-27): the provider tells ops once when the engine goes down
+ * and ServiceDegraded face-engine follows it until it answers again; a call or two that go
+ * unanswered are not an outage and page nowhere, as for a check-in. The platform's
+ * AllExceptionsFilter reads `reportedElsewhere`.
  */
-export class FaceEngineUnavailableError extends ServiceUnavailableException {}
+export class FaceEngineUnavailableError extends ServiceUnavailableException {
+  readonly reportedElsewhere = true;
+}
 
 /**
  * The engine answered, and holds no face for this employee, though HR has an active enrolment
@@ -97,4 +104,10 @@ export interface FaceVerifier {
    * daily upkeep checks it against HR). Engines with no remote gallery leave it undefined.
    */
   listEnrolled?(): Promise<string[]>;
+  /**
+   * True while the engine counts as down (a remote gallery that stopped answering): nobody can
+   * enrol until it answers. Attendance then holds the punch of someone with no enrolment PENDING
+   * for HR instead of refusing it (owner, 2026-11-27). Engines that cannot be down leave it out.
+   */
+  isDown?(): boolean;
 }

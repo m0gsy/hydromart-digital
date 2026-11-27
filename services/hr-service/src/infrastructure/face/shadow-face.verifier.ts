@@ -30,6 +30,7 @@ export class ShadowFaceVerifier implements FaceVerifier {
   private busy = false;
   readonly remove?: (identity: FaceIdentity) => Promise<void>;
   readonly listEnrolled?: () => Promise<string[]>;
+  readonly isDown?: () => boolean;
 
   constructor(
     private readonly neo: FaceVerifier,
@@ -43,6 +44,7 @@ export class ShadowFaceVerifier implements FaceVerifier {
   ) {
     if (neo.remove) this.remove = (identity) => neo.remove!(identity);
     if (neo.listEnrolled) this.listEnrolled = () => neo.listEnrolled!();
+    if (neo.isDown) this.isDown = () => neo.isDown!();
   }
 
   enroll(images: Buffer[], identity?: FaceIdentity): Promise<FaceEmbeddingResult> {
