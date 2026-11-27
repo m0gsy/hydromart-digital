@@ -103,4 +103,12 @@ for b in .env.bak-*; do
 done
 echo 'ok: .env and its backups stay 0600'
 
+# ---------------------------------------------------------------- no trailing newline
+# Appending to a .env whose last line has no newline glued the new key onto it.
+printf 'A=1\nLAST=keep' > .env
+run 'NEWKEY=v' || fail 'an add to a .env without a trailing newline was refused'
+grep -qxF 'LAST=keep' .env || fail 'the last line lost its value when a key was appended'
+grep -qxF 'NEWKEY=v' .env || fail 'the appended key was glued onto the last line'
+echo 'ok: a key appended after a last line without a newline stays its own line'
+
 echo 'env-set: all checks passed'
