@@ -15,6 +15,7 @@ import { DepotCrmService } from '../application/services/depot-crm.service';
 import { FavoriteService } from '../application/services/favorite.service';
 import { ResellerService } from '../application/services/reseller.service';
 import { CustomerImportService } from '../application/services/customer-import.service';
+import { UnservedDemandPrismaRepository } from '../infrastructure/prisma/unserved-demand.prisma.repository';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { AddressPrismaRepository } from '../infrastructure/prisma/address.prisma.repository';
 import { FavoritePrismaRepository } from '../infrastructure/prisma/favorite.prisma.repository';
@@ -74,6 +75,7 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.IdentityPort, useClass: IdentityHttpAdapter },
   { provide: CUSTOMER_TOKENS.ResellerNotification, useClass: ResellerNotificationHttpAdapter },
   { provide: CUSTOMER_TOKENS.PdpRepository, useClass: PdpPrismaRepository },
+  { provide: CUSTOMER_TOKENS.UnservedDemandRepository, useClass: UnservedDemandPrismaRepository },
   {
     provide: CUSTOMER_TOKENS.Storage,
     useFactory: (config: CustomerConfigService) =>

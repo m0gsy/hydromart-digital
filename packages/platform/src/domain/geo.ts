@@ -95,3 +95,21 @@ export function withinGeofence(
   const distanceM = haversineMeters(g.lat as number, g.lng as number, lat, lng);
   return { ok: distanceM <= g.radiusM, distanceM: Math.round(distanceM) };
 }
+
+/**
+ * HD-20b: a 1 km grid cell, the coarsest place an unserved-demand row may keep (and the size of
+ * a Meta pin+radius target). ponytail: a plain degree grid, 0.009 deg = ~1.0 km north-south and
+ * 0.98-1.0 km east-west across Indonesia (6N to 11S); not for high latitudes, where cells narrow.
+ */
+const GRID_DEG = 0.009;
+
+/** The cell a point falls in, as `<floor(lat/0.009)>:<floor(lng/0.009)>`. */
+export function gridCell1km(lat: number, lng: number): string {
+  return `${Math.floor(lat / GRID_DEG)}:${Math.floor(lng / GRID_DEG)}`;
+}
+
+/** The centre of a cell made by `gridCell1km`. */
+export function gridCellCenter(cell: string): { lat: number; lng: number } {
+  const [i, j] = cell.split(':').map(Number) as [number, number];
+  return { lat: (i + 0.5) * GRID_DEG, lng: (j + 0.5) * GRID_DEG };
+}

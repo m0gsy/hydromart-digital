@@ -17,6 +17,16 @@
 # 3.5.8-r0 or later.
 CVE-2026-14456
 
+# linux-pam directory traversal in pam_namespace (HIGH). Debian published
+# 1.5.2-6+deb12u3; the base it reached us through is face-service's
+# node:22.23.4-bookworm-slim (1.5.2-6+deb12u2), which upstream has not rebuilt yet —
+# first seen by this gate on 2026-11-27. Not reachable here: the bug needs a PAM
+# session (login, su, sshd with pam_namespace), and the face-service container runs
+# `node dist/src/main.js` as the unprivileged `app` user with no login, su or sshd.
+# Delete this line once node:22.x-bookworm-slim ships libpam 1.5.2-6+deb12u3 or later
+# (re-scan the tag), or when face-service moves to the alpine base.
+CVE-2025-6020
+
 # Language packages are NOT scanned here (--pkg-types os). Everything trivy reported
 # in that class lives in npm's OWN bundle inside the base image
 # (/usr/local/lib/node_modules/npm) — brace-expansion, cross-spawn, glob, tar. That is
