@@ -288,7 +288,9 @@ function worse(current, next) {
      * The label is matched, not a row number: the table grows.
      */
     const docLines = doc.split('\n');
-    const header = docLines.findIndex((l) => l.startsWith('|') && /dirotasi|rotated/i.test(l));
+    // The header's own words, not any cell saying "dirotasi": a schedule row such as
+    // "JANGAN PERNAH dirotasi" must not be taken for the ledger's header.
+    const header = docLines.findIndex((l) => l.startsWith('|') && /terakhir dirotasi|last rotated/i.test(l));
     let row = null;
     for (let i = header + 1; header >= 0 && i < docLines.length; i += 1) {
       if (!docLines[i].startsWith('|')) break; // end of that table

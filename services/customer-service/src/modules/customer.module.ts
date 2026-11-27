@@ -15,6 +15,10 @@ import { DepotCrmService } from '../application/services/depot-crm.service';
 import { FavoriteService } from '../application/services/favorite.service';
 import { ResellerService } from '../application/services/reseller.service';
 import { CustomerImportService } from '../application/services/customer-import.service';
+import { B2bProspectIntakeService } from '../application/services/b2b-prospect-intake.service';
+import { B2bProspectService } from '../application/services/b2b-prospect.service';
+import { B2bProspectPrismaRepository } from '../infrastructure/prisma/b2b-prospect.prisma.repository';
+import { StaffRosterHttpAdapter } from '../infrastructure/http/staff-roster.http.adapter';
 import { UnservedDemandPrismaRepository } from '../infrastructure/prisma/unserved-demand.prisma.repository';
 import { PrismaService } from '../infrastructure/prisma/prisma.service';
 import { AddressPrismaRepository } from '../infrastructure/prisma/address.prisma.repository';
@@ -42,6 +46,7 @@ import { DepotCrmController } from './depot-crm.controller';
 import { FavoriteController } from './favorite.controller';
 import { ResellerSelfController } from './reseller-self.controller';
 import { ResellerController } from './reseller.controller';
+import { B2bProspectController } from './b2b-prospect.controller';
 import { InternalController } from './internal.controller';
 import { InternalRegionsController } from './internal-regions.controller';
 
@@ -57,6 +62,8 @@ const providers: Provider[] = [
   FavoriteService,
   ResellerService,
   CustomerImportService,
+  B2bProspectService,
+  B2bProspectIntakeService,
   { provide: CUSTOMER_TOKENS.ProfileRepository, useClass: ProfilePrismaRepository },
   { provide: CUSTOMER_TOKENS.AddressRepository, useClass: AddressPrismaRepository },
   {
@@ -77,6 +84,8 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.ResellerNotification, useClass: ResellerNotificationHttpAdapter },
   { provide: CUSTOMER_TOKENS.PdpRepository, useClass: PdpPrismaRepository },
   { provide: CUSTOMER_TOKENS.UnservedDemandRepository, useClass: UnservedDemandPrismaRepository },
+  { provide: CUSTOMER_TOKENS.B2bProspectRepository, useClass: B2bProspectPrismaRepository },
+  { provide: CUSTOMER_TOKENS.StaffRoster, useClass: StaffRosterHttpAdapter },
   {
     provide: CUSTOMER_TOKENS.Storage,
     useFactory: (config: CustomerConfigService) =>
@@ -100,6 +109,7 @@ const providers: Provider[] = [
     FavoriteController,
     ResellerSelfController,
     ResellerController,
+    B2bProspectController,
     InternalController,
     InternalRegionsController,
   ],

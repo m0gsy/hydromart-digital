@@ -3,6 +3,7 @@ import { LoyaltyRewardHttpAdapter } from '../../src/infrastructure/http/loyalty-
 import { OrderCrmHttpAdapter } from '../../src/infrastructure/http/order-crm.http.adapter';
 import { ProductCatalogHttpAdapter } from '../../src/infrastructure/http/product-catalog.http.adapter';
 import { IdentityHttpAdapter } from '../../src/infrastructure/http/identity.http.adapter';
+import { StaffRosterHttpAdapter } from '../../src/infrastructure/http/staff-roster.http.adapter';
 import { ResellerNotificationHttpAdapter } from '../../src/infrastructure/http/reseller-notification.http.adapter';
 
 // Exercises the REAL HTTP adapter code (URL building, x-internal-key header, config
@@ -291,12 +292,13 @@ describe('IdentityHttpAdapter.preRegisterCustomer', () => {
 
   it('throws when the call itself fails, Error or not', async () => {
     fetchMock.mockRejectedValue(new Error('ETIMEDOUT'));
+    // the cause is logged, never put in the message a caller (an import row) is shown
     await expect(new IdentityHttpAdapter(config).preRegisterCustomer('0812')).rejects.toThrow(
-      /ETIMEDOUT/,
+      /^Gagal menghubungi auth-service$/,
     );
     fetchMock.mockRejectedValue('boom');
     await expect(new IdentityHttpAdapter(config).preRegisterCustomer('0812')).rejects.toThrow(
-      /unknown/,
+      /^Gagal menghubungi auth-service$/,
     );
   });
 
@@ -508,5 +510,66 @@ describe('ResellerNotificationHttpAdapter (K4.2)', () => {
     await expect(
       new ResellerNotificationHttpAdapter(config(), identity('62811')).priceChanged(notice),
     ).resolves.toBe(false);
+  });
+});
+
+describe('IdentityHttpAdapter.customerIdByPhone (B2B prospect intake)', () => {
+  const cfg = () => makeConfig({ authServiceUrl: 'http://auth:3001/', internalServiceKey: KEY });
+
+  it('asks auth-service read-only with the internal key and returns the customer id', async () => {
+    fetchMock.mockResolvedValue(res({ json: { customerId: 'c-1' } }));
+    expect(await new IdentityHttpAdapter(cfg()).customerIdByPhone('+6281200000001')).toBe('c-1');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://auth:3001/api/v1/auth/internal/customers/by-phone',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'x-internal-key': KEY }),
+        body: JSON.stringify({ phone: '+6281200000001' }),
+      }),
+    );
+  });
+
+  it('answers null for a number nobody owns', async () => {
+    fetchMock.mockResolvedValue(res({ json: { customerId: null } }));
+    expect(await new IdentityHttpAdapter(cfg()).customerIdByPhone('+6281')).toBeNull();
+    fetchMock.mockResolvedValue(res({ json: {} }));
+    expect(await new IdentityHttpAdapter(cfg()).customerIdByPhone('+6281')).toBeNull();
+  });
+
+  it('fails HARD: unconfigured, unreachable and non-2xx are an outage, never "not a customer"', async () => {
+    await expect(new IdentityHttpAdapter(makeConfig({ authServiceUrl: '', internalServiceKey: KEY })).customerIdByPhone('+62')).rejects.toThrow('belum diset');
+    await expect(new IdentityHttpAdapter(makeConfig({ authServiceUrl: 'http://a', internalServiceKey: '' })).customerIdByPhone('+62')).rejects.toThrow('belum diset');
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
+    await expect(new IdentityHttpAdapter(cfg()).customerIdByPhone('+62')).rejects.toThrow(/^Gagal menghubungi auth-service$/);
+    fetchMock.mockRejectedValue('weird');
+    await expect(new IdentityHttpAdapter(cfg()).customerIdByPhone('+62')).rejects.toThrow(/^Gagal menghubungi auth-service$/);
+    fetchMock.mockResolvedValue(res({ ok: false, status: 502 }));
+    await expect(new IdentityHttpAdapter(cfg()).customerIdByPhone('+62')).rejects.toThrow('502');
+  });
+});
+
+describe('StaffRosterHttpAdapter', () => {
+  const cfg = () => makeConfig({ authServiceUrl: 'http://auth:3001', internalServiceKey: KEY });
+
+  it('reads the active staff ids of one depot', async () => {
+    fetchMock.mockResolvedValue(res({ json: { ids: ['s1', 's2'] } }));
+    expect(await new StaffRosterHttpAdapter(cfg()).staffIdsForDepot('d1')).toEqual(['s1', 's2']);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://auth:3001/api/v1/auth/internal/staff/depot/d1',
+      expect.objectContaining({ headers: { 'x-internal-key': KEY } }),
+    );
+    fetchMock.mockResolvedValue(res({ json: {} }));
+    expect(await new StaffRosterHttpAdapter(cfg()).staffIdsForDepot('d1')).toEqual([]);
+  });
+
+  it('fails HARD when it cannot ask or is not answered', async () => {
+    await expect(new StaffRosterHttpAdapter(makeConfig({ authServiceUrl: '', internalServiceKey: KEY })).staffIdsForDepot('d1')).rejects.toThrow('belum diset');
+    fetchMock.mockRejectedValue(new Error('down'));
+    await expect(new StaffRosterHttpAdapter(cfg()).staffIdsForDepot('d1')).rejects.toThrow(/^Gagal menghubungi auth-service$/);
+    fetchMock.mockRejectedValue(42);
+    await expect(new StaffRosterHttpAdapter(cfg()).staffIdsForDepot('d1')).rejects.toThrow(/^Gagal menghubungi auth-service$/);
+    fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
+    await expect(new StaffRosterHttpAdapter(cfg()).staffIdsForDepot('d1')).rejects.toThrow('500');
   });
 });

@@ -78,4 +78,7 @@ export const envValidationSchema = Joi.object({
   // K4.2 agen price-change notice. Blank = the change still applies and is still audited;
   // only the message to the agen is dropped, which is the fail-open half of that feature.
   CRM_SERVICE_URL: Joi.string().uri().allow('').default(''),
+  // AREA-1: HMAC key of the B2B do-not-contact list. Required: a blank key would hash every entry the
+  // same way and the list could be rebuilt by anyone. NEVER ROTATE: every stored hash would stop matching.
+  PROSPECT_DNC_HMAC_KEY: requiredSecret(32),
 });

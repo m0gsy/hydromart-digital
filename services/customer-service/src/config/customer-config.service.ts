@@ -55,6 +55,11 @@ export class CustomerConfigService {
     return this.config.get<string>('AUTH_SERVICE_URL', '').trim();
   }
 
+  /** HMAC key of the B2B do-not-contact list (never rotate: stored hashes would stop matching). */
+  get prospectDncHmacKey(): string {
+    return this.config.getOrThrow<string>('PROSPECT_DNC_HMAC_KEY');
+  }
+
   get orderServiceUrl(): string {
     return this.config.get<string>('ORDER_SERVICE_URL', '').trim();
   }

@@ -95,6 +95,9 @@ while IFS= read -r line; do
       chmod "$(stat -c %a .env)" .env.tmp-$STAMP && mv .env.tmp-$STAMP .env
     CHANGED="$CHANGED $key"
   else
+    # A hand-edited .env may end without a newline: appending would glue this key onto the last
+    # line, so neither key would read and the run would still say "added".
+    if [ -s .env ] && [ -n "$(tail -c1 .env)" ]; then printf '\n' >> .env; fi
     printf '%s\n' "$line" >> .env
     ADDED="$ADDED $key"
   fi

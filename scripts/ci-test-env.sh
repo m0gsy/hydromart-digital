@@ -26,6 +26,7 @@ JWT_ACCESS_SECRET=ci-jwt-access-secret-that-is-long-enough-0123456789
 JWT_REFRESH_SECRET=ci-jwt-refresh-secret-that-is-long-enough-0123456789
 OTP_PEPPER=ci-otp-pepper-value
 PAYMENT_WEBHOOK_SECRET=ci-payment-webhook-secret-16plus
+PROSPECT_DNC_HMAC_KEY=ci-prospect-dnc-hmac-key-that-is-32plus-chars
 SMS_API_BASE_URL=https://sms.example.com
 SMS_API_TOKEN=ci-sms-token
 AUTH_SERVICE_URL=https://auth.example.com

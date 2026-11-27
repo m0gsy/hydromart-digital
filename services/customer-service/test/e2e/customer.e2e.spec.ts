@@ -47,6 +47,7 @@ describe('Customer HTTP flows (e2e)', () => {
               MAX_ADDRESSES_PER_CUSTOMER: 20,
               LOYALTY_SERVICE_URL: 'http://loyalty.test',
               BIRTHDAY_REWARD_POINTS: 250,
+              PROSPECT_DNC_HMAC_KEY: 'test-prospect-dnc-hmac-key-32-chars-long',
               INTERNAL_SERVICE_KEY: INTERNAL_KEY,
             }),
           ],

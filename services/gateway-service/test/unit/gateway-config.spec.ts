@@ -160,6 +160,7 @@ describe('GatewayConfigService', () => {
     const map = new GatewayConfigService(makeConfig(BASE)).upstreams();
     expect(map.auth).toBe('http://auth:1'); // trailing slash stripped
     expect(map.customers).toBe('http://customer:1');
+    expect(map['b2b-prospects']).toBe('http://customer:1');
     // depot-service is reused across several public segments
     // the AI web's contract (contracts/ai-v1) uses the singular /depot segment
     expect(map.depot).toBe('http://depot:1');

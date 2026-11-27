@@ -54,6 +54,12 @@
 # unserved_demand_monthKey_idx (customer-service, 2026-11-27, HD-20b) sits on a table its own migration creates:
 # built by that migration, not here, and the build is instant.
 #
+# b2b_prospects_phoneE164_key, b2b_prospects_source_sourceId_key, b2b_prospects_nameKey_idx,
+# b2b_prospects_ownerDepotId_status_idx, b2b_prospects_assignedToId_status_idx, b2b_prospects_kecamatanCode_category_idx,
+# b2b_prospects_lastActivityAt_idx, b2b_prospects_latitude_longitude_idx, b2b_prospect_visits_prospectId_visitedAt_idx and
+# b2b_do_not_contact_kind_keyHash_key (customer-service, 2026-11-28, AREA-1a) sit on four tables its own migration creates:
+# built by that migration, not here, and the build is instant.
+#
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh
 # database — CI, a new environment — the migration builds it itself, where locking an
@@ -79,6 +85,13 @@ CONTAINER="${PG_CONTAINER:-hydromart-postgres}"
 PG_USER="${PG_USER:-hydromart}"
 CHECK_ONLY=0
 [ "${1:-}" = "--check" ] && CHECK_ONLY=1
+
+# A deploy runs the PREVIOUS release's deploy.sh, so its own call to this is not there yet on the first
+# release that needs the key; a migrating deploy runs this script from the NEW tree, before any container
+# is recreated. Idempotent, and never prints the value.
+if [ "$CHECK_ONLY" -eq 0 ]; then
+  bash "$(dirname "$0")/ensure-prospect-key.sh" || exit 2
+fi
 
 ok() { echo "  ✅ $1"; }
 no() { echo "  ❌ $1"; }

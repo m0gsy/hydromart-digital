@@ -63,6 +63,10 @@ describe('CustomerConfigService', () => {
     expect(makeConfig({ STORAGE_DRIVER: 'nonsense' }).storageDriver).toBe('local');
   });
 
+  it('prospectDncHmacKey is required config, read as given', () => {
+    expect(makeConfig({}, { PROSPECT_DNC_HMAC_KEY: 'k'.repeat(32) }).prospectDncHmacKey).toBe('k'.repeat(32));
+  });
+
   it('nodeEnv falls back to the "development" default when unset', () => {
     expect(makeConfig({}).nodeEnv).toBe('development');
   });
@@ -128,6 +132,7 @@ describe('envValidationSchema', () => {
   const valid = {
     CUSTOMER_DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
     JWT_ACCESS_SECRET: 'x'.repeat(32),
+    PROSPECT_DNC_HMAC_KEY: 'k'.repeat(32),
   };
 
   it('accepts a minimal valid env and applies defaults', () => {
@@ -136,6 +141,13 @@ describe('envValidationSchema', () => {
     expect(value.NODE_ENV).toBe('development');
     expect(value.CUSTOMER_SERVICE_PORT).toBe(3002);
     expect(value.MAX_ADDRESSES_PER_CUSTOMER).toBe(20);
+  });
+
+  it('requires the do-not-contact HMAC key, at least 32 characters (AREA-1)', () => {
+    const without = { ...valid, PROSPECT_DNC_HMAC_KEY: undefined };
+    expect(envValidationSchema.validate(without).error).toBeDefined();
+    expect(envValidationSchema.validate({ ...valid, PROSPECT_DNC_HMAC_KEY: 'short' }).error).toBeDefined();
+    expect(envValidationSchema.validate({ ...valid, NODE_ENV: 'production', DEPOT_SERVICE_URL: 'http://d', PROSPECT_DNC_HMAC_KEY: 'change-me-'.repeat(4) }).error).toBeDefined();
   });
 
   it('rejects a missing database url', () => {

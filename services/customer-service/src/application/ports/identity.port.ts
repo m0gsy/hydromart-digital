@@ -33,4 +33,11 @@ export interface IdentityPort {
    * audience, where a silently missing batch is customers silently not messaged.
    */
   getAccountOwners(ids: string[]): Promise<Map<string, CustomerIdentity>>;
+
+  /**
+   * The customer account behind a mobile number, or null. Read-only: it never creates one. Fails
+   * HARD: "auth-service did not answer" must not read as "not a customer" (B2B prospect intake).
+   * A staff phone is a customer row too, so it answers non-null as well.
+   */
+  customerIdByPhone(phone: string): Promise<string | null>;
 }

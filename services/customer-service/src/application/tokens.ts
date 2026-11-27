@@ -16,6 +16,8 @@ export const CUSTOMER_TOKENS = {
   ResellerNotification: Symbol('ResellerNotification'),
   IdentityPort: Symbol('IdentityPort'),
   UnservedDemandRepository: Symbol('UnservedDemandRepository'),
+  B2bProspectRepository: Symbol('B2bProspectRepository'),
+  StaffRoster: Symbol('StaffRoster'),
   PdpRepository: Symbol('PdpRepository'),
   Storage: Symbol('Storage'),
 } as const;
