@@ -57,7 +57,7 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
       { key: 'C_sales', name: 'Sales Depot', scope: 'LOCKED' },
       { key: 'C_exporter', name: 'Exporter', scope: 'LOCKED' },
     ]);
-    loadOverrides({ b2bProspectWork: ['C_sales'], b2bProspectExport: ['C_exporter'] });
+    loadOverrides({ b2bProspectWork: ['C_sales', 'KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN'], b2bProspectExport: ['C_exporter', 'DIREKTUR'] });
   });
   afterAll(() => {
     loadOverrides({});
@@ -363,7 +363,30 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
       seed();
       const spy = jest.spyOn(repo, 'exportVisits');
       await exportSvc().export(kepalaA, {});
-      expect(spy).toHaveBeenCalledWith([expect.any(String)], EXPORT_VISITS_MAX);
+      expect(spy).toHaveBeenCalledWith([expect.any(String)], EXPORT_VISITS_MAX + 1);
+    });
+
+    it('says visitsTruncated when more than EXPORT_VISITS_MAX visits exist, and returns exactly the cap', async () => {
+      const a = seed();
+      const at = new Date('2026-11-20T03:00:00Z');
+      for (let i = 0; i < EXPORT_VISITS_MAX + 1; i++) repo.exportVisitRows.push({ prospectId: a.id, visitorId: 'v', visitedAt: at, outcome: 'NOT_THERE', distanceM: 1 });
+      const res = await exportSvc().export(kepalaA, {});
+      expect(res.visitsTruncated).toBe(true);
+      expect(res.visits).toHaveLength(EXPORT_VISITS_MAX);
+      repo.exportVisitRows.length = 0;
+      expect((await exportSvc().export(kepalaA, {})).visitsTruncated).toBe(false);
+    });
+
+    it('a read-only exporter (no b2bProspectWork, e.g. Direktur) gets no phone and no contact name; Work holders do; both are audited', async () => {
+            const direktur = as({ sub: 'd-1', role: Role.DIREKTUR, depotId: null });
+      seed({ phoneE164: '+6281200000001', contactName: 'Pak Budi', assignedToId: 'd-1' });
+      const read = await exportSvc().export(direktur, {});
+      expect(JSON.stringify(read)).not.toMatch(/\+62|Budi/);
+      expect(read.rows[0]).toMatchObject({ phone: null, contactName: null });
+      for (const who of [kepalaA, marketing]) {
+        expect((await exportSvc().export(who, {})).rows[0]).toMatchObject({ phone: '+6281200000001', contactName: 'Pak Budi' });
+      }
+      expect(auditBodies().map((b) => b.actorId)).toEqual(['d-1', 'kepala-a', 'm-1']);
     });
 
     it('FAIL-CLOSED: when the audit entry fails, no visits leave either', async () => {

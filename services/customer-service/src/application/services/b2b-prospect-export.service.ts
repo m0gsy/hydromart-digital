@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional, ServiceUnavailableException } from '@nestjs/common';
 
+import { can } from '@hydromart/access';
 import { AuthenticatedUser, depotScopeIds, recordAuditEventOrThrow } from '@hydromart/platform';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
@@ -76,7 +77,7 @@ export class B2bProspectExportService {
   async export(
     user: AuthenticatedUser,
     q: ExportFilters,
-  ): Promise<{ rows: ExportRow[]; truncated: boolean; rowCount: number; visits: ExportVisitRow[] }> {
+  ): Promise<{ rows: ExportRow[]; truncated: boolean; rowCount: number; visits: ExportVisitRow[]; visitsTruncated: boolean }> {
     // Validates a named depot against the caller's own and defaults an unnamed one to theirs: a Kepala is
     // locked to their depot, a network role may name any (or none = all, including the map).
     const depotIds = depotScopeIds(user, q.depotId);
@@ -92,10 +93,14 @@ export class B2bProspectExportService {
       take: EXPORT_MAX + 1,
     });
     const truncated = found.length > EXPORT_MAX;
-    const rows = found.slice(0, EXPORT_MAX).map((r) => this.toRow(r));
+    // Phone and contact name are for roles that work prospects; a read-only exporter (Direktur) gets none.
+    const contact = can('b2bProspectWork', user.role, depotIds);
+    const rows = found.slice(0, EXPORT_MAX).map((r) => this.toRow(r, contact));
 
     const indexOf = new Map(rows.map((r, i) => [r.id, i]));
-    const visits = (await this.repo.exportVisits([...indexOf.keys()], EXPORT_VISITS_MAX)).map((v) => ({
+    const foundVisits = await this.repo.exportVisits([...indexOf.keys()], EXPORT_VISITS_MAX + 1);
+    const visitsTruncated = foundVisits.length > EXPORT_VISITS_MAX;
+    const visits = foundVisits.slice(0, EXPORT_VISITS_MAX).map((v) => ({
       rowIndex: indexOf.get(v.prospectId) as number,
       visitorId: v.visitorId,
       visitedAt: v.visitedAt.toISOString(),
@@ -128,17 +133,17 @@ export class B2bProspectExportService {
       this.logger.error(`B2B prospect export refused: the audit entry was not recorded (${(error as Error).name})`);
       throw new ServiceUnavailableException('Ekspor dibatalkan: catatan audit gagal');
     }
-    return { rows, truncated, rowCount: rows.length, visits };
+    return { rows, truncated, rowCount: rows.length, visits, visitsTruncated };
   }
 
-  private toRow(r: ProspectRecord): ExportRow {
+  private toRow(r: ProspectRecord, contact: boolean): ExportRow {
     const name = (code: string | null) => (code ? (this.regions?.nameOf(code) ?? null) : null);
     return {
       id: r.id,
       name: neutralise(r.name) as string,
       category: r.category,
-      phone: r.phoneE164, // a number starts with "+": the one text column left alone on purpose
-      contactName: neutralise(r.contactName),
+      phone: contact ? r.phoneE164 : null, // a number starts with "+": the one text column left alone on purpose
+      contactName: contact ? neutralise(r.contactName) : null,
       address: neutralise(r.address),
       latitude: r.latitude,
       longitude: r.longitude,
