@@ -9,6 +9,9 @@ export interface DepotGeo {
   serviceArea?: ServiceArea | null;
 }
 
+/** An active depot, as much of it as "does it serve this pin" needs. */
+export type ActiveDepot = DepotGeo & { id: string };
+
 /**
  * What depot-service knows about a depot beyond its gallon ledger, for the depot CRM
  * screens (S2). Kept apart from `DepotLedgerPort` because that one answers about money
@@ -21,6 +24,8 @@ export interface DepotGeo {
 export interface DepotProfilePort {
   /** Location + service radius. Null when depot-service is unreachable or the depot is gone. */
   geo(depotId: string): Promise<DepotGeo | null>;
+  /** Every active depot (all pages). Null when depot-service fails: "no depots" is not "unreachable". */
+  listActive(): Promise<ActiveDepot[] | null>;
   /**
    * Customer ids holding an ACTIVE subscription at this depot. Only rows linked to an
    * account: a subscription typed in as a free-text name is one nobody linked, not one

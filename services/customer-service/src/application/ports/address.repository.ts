@@ -20,6 +20,8 @@ export interface AddressRecord {
   kecamatanCode?: string | null;
   kelurahanCode?: string | null;
   regionSource?: string | null;
+  /** HD-20b: month (YYYY-MM, WIB) an unserved-demand row was last recorded for this pin. */
+  unservedMonth?: string | null;
   notes: string | null;
   isPrimary: boolean;
   createdAt: Date;

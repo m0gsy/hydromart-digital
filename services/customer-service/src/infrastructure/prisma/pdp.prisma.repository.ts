@@ -61,6 +61,7 @@ export class PdpPrismaRepository implements PdpRepository {
           kecamatanCode: null,
           kelurahanCode: null,
           regionSource: null,
+          unservedMonth: null,
         },
       }),
       this.prisma.savedPaymentMethod.deleteMany({ where: { customerId } }),

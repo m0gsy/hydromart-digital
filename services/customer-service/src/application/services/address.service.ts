@@ -1,4 +1,5 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { gridCell1km, haversineKm, localMonthKey, servingDepot } from '@hydromart/platform';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
 import { AddressNotFoundError, AddressPinInvalidError } from '../../domain/errors';
@@ -9,6 +10,8 @@ import {
   UpdateAddressData,
   PinSource,
 } from '../ports/address.repository';
+import { DepotProfilePort } from '../ports/depot-profile.port';
+import { UnservedDemandRepository } from '../ports/unserved-demand.repository';
 import { NO_REGION, RegionCodes } from '../../domain/region-codes';
 import { RegionLookup } from '../../infrastructure/geo/region-lookup';
 import { CUSTOMER_TOKENS } from '../tokens';
@@ -60,13 +63,28 @@ function pinQualityFor(
   return { pinSource: source ?? null, pinAccuracyM: source === 'GPS' ? (accuracy ?? null) : null };
 }
 
+/** How far the nearest active depot is, in the bands HD-20c reports. */
+export function distanceBand(km: number): string {
+  if (km <= 1) return '0-1';
+  if (km <= 3) return '1-3';
+  if (km <= 5) return '3-5';
+  return km <= 10 ? '5-10' : '>10';
+}
+
 @Injectable()
 export class AddressService {
+  private readonly logger = new Logger(AddressService.name);
+
   constructor(
     @Inject(CUSTOMER_TOKENS.AddressRepository) private readonly addresses: AddressRepository,
     private readonly config: CustomerConfigService,
     // Optional and last: without it no region codes are written, as before HD-20a.
     @Optional() private readonly regions?: RegionLookup,
+    // HD-20b: both needed to record an unserved pin; without either nothing is recorded.
+    @Optional()
+    @Inject(CUSTOMER_TOKENS.UnservedDemandRepository)
+    private readonly unserved?: UnservedDemandRepository,
+    @Optional() @Inject(CUSTOMER_TOKENS.DepotProfilePort) private readonly depots?: DepotProfilePort,
   ) {}
 
   /**
@@ -95,6 +113,7 @@ export class AddressService {
 
   async create(customerId: string, input: CreateAddressInput): Promise<AddressRecord> {
     assertPin(input.latitude, input.longitude);
+    const region = this.regionFor(input.latitude, input.longitude, input.pinSource, input.pinAccuracyM);
     const data: Omit<CreateAddressData, 'isPrimary'> = {
       customerId,
       label: input.label,
@@ -108,17 +127,19 @@ export class AddressService {
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
       ...pinQualityFor(input.latitude, input.pinSource, input.pinAccuracyM),
-      ...this.regionFor(input.latitude, input.longitude, input.pinSource, input.pinAccuracyM),
+      ...region,
       notes: input.notes ?? null,
     };
 
     // The cap, the primary decision and the insert are one step per customer: counted
     // separately, two requests both saw room under the cap, and two "add as primary" both won.
-    return this.addresses.createWithinLimit(
+    const created = await this.addresses.createWithinLimit(
       data,
       input.isPrimary === true,
       this.config.maxAddresses,
     );
+    void this.noteUnserved(created, region, null);
+    return created;
   }
 
   async update(customerId: string, id: string, patch: UpdateAddressData): Promise<AddressRecord> {
@@ -128,6 +149,7 @@ export class AddressService {
     // The quality belongs to the pin: a moved pin takes what was sent with it (or nothing);
     // an edit that re-sends the same pin (the /addresses form always does) keeps it — unless
     // the stored pin's quality was never known (saved before it was kept) and is now told.
+    let region: RegionCodes | undefined;
     const moved =
       patch.latitude !== undefined &&
       (patch.latitude !== current.latitude || patch.longitude !== current.longitude);
@@ -135,12 +157,51 @@ export class AddressService {
       patch.latitude !== undefined && current.pinSource == null && patch.pinSource !== undefined;
     if (moved || told) {
       Object.assign(data, pinQualityFor(patch.latitude, patch.pinSource, patch.pinAccuracyM));
-      Object.assign(data, this.regionFor(patch.latitude, patch.longitude, patch.pinSource, patch.pinAccuracyM));
+      region = this.regionFor(patch.latitude, patch.longitude, patch.pinSource, patch.pinAccuracyM);
+      Object.assign(data, region);
+      // Cleared with the codes (no pin, or too coarse a pin to be evidence of demand there).
+      if (!region.kecamatanCode) data.unservedMonth = null;
     } else {
       delete data.pinAccuracyM;
       delete data.pinSource;
     }
-    return this.addresses.update(customerId, id, data);
+    const updated = await this.addresses.update(customerId, id, data);
+    if (region) void this.noteUnserved(updated, region, current.unservedMonth ?? null);
+    return updated;
+  }
+
+  /**
+   * HD-20b: a pin outside every active depot's area is one anonymous `unserved_demand` row, at
+   * most one per address per month: a pin moved to another unserved spot in the same month is
+   * NOT recorded again, and that is intended. After the address write, never awaited by the save, and any
+   * failure is a warn naming no coordinate and no id. Depot list unreadable = record nothing.
+   */
+  private async noteUnserved(
+    address: AddressRecord,
+    region: RegionCodes,
+    lastMonth: string | null,
+  ): Promise<void> {
+    const { latitude: lat, longitude: lng } = address;
+    if (!this.unserved || !this.depots || !region.kecamatanCode || lat == null || lng == null) return;
+    try {
+      const month = localMonthKey(new Date());
+      if (lastMonth === month) return;
+      const depots = await this.depots.listActive();
+      if (!depots?.length || servingDepot({ lat, lng }, depots)) return;
+      const nearest = Math.min(...depots.map((d) => haversineKm(lat, lng, d.lat, d.lng)));
+      await this.unserved.record(
+        {
+          monthKey: month,
+          kecamatanCode: region.kecamatanCode,
+          kelurahanCode: region.kelurahanCode,
+          gridCell: gridCell1km(lat, lng),
+          distanceBand: distanceBand(nearest),
+        },
+        { customerId: address.customerId, addressId: address.id, latitude: lat, longitude: lng },
+      );
+    } catch (error) {
+      this.logger.warn(`Unserved demand not recorded (${(error as Error).name})`);
+    }
   }
 
   /** The region codes that belong to this pin; all null for no pin or a pin too coarse to be sure. */
