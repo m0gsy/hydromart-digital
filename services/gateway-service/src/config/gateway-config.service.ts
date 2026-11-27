@@ -16,6 +16,11 @@ const SEGMENT_ENV: Record<string, string> = {
   payments: 'PAYMENT_SERVICE_URL',
   deliveries: 'DELIVERY_SERVICE_URL',
   depots: 'DEPOT_SERVICE_URL',
+  // The AI web's routes in depot-service (contracts/ai-v1: /depot/api/v1/ai/crm/*,
+  // /ai/team/access, /ai/drafts/*) are published under the singular segment. Without it every
+  // one of them answered 404 in production (27 Nov 2026: the calon mitra CRM, Tim AI and the
+  // legacy import all read "Aplikasi Ops tidak menjawab"). Same upstream, no new env var.
+  depot: 'DEPOT_SERVICE_URL',
   // Depot operational incidents inbox (depot-service, design 6b/13b). Its own public
   // segment; reuses the depot-service upstream (no new env var).
   incidents: 'DEPOT_SERVICE_URL',
