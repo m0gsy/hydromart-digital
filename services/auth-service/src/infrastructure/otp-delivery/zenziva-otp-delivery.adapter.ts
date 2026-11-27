@@ -139,7 +139,13 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
     return phone.startsWith('+62') ? `0${phone.slice(3)}` : phone;
   }
 
-  /** Per-purpose copy. Kept well under Zenziva's 400-character ceiling. */
+  /**
+   * Per-purpose copy. Kept well under Zenziva's 400-character ceiling.
+   *
+   * The login copy also stays within 160 characters, one SMS. Zenziva bills per 160-character
+   * segment, and at 163 characters every login was charged as two SMS. Login is the message
+   * sent most often, so it is the one worth keeping short.
+   */
   private static compose(message: OtpMessage): string {
     const minutes = Math.max(1, Math.floor(message.ttlSeconds / 60));
     if (message.purpose === OtpPurpose.LOGIN) {
@@ -148,7 +154,7 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
         '',
         `Masukkan kode OTP ${message.code} untuk melanjutkan login.`,
         '',
-        `Kode berlaku selama ${minutes} menit. Abaikan pesan ini jika Anda tidak melakukan permintaan login.`,
+        `Kode berlaku ${minutes} menit. Abaikan pesan ini jika Anda tidak melakukan permintaan login.`,
       ].join('\n');
     }
     if (message.purpose === OtpPurpose.TOTP_ENROLMENT) {

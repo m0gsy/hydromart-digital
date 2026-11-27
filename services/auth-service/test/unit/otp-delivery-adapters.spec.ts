@@ -153,7 +153,19 @@ describe('OTP delivery adapters', () => {
       const text = sentForm(fetchMock).get('message') ?? '';
       expect(text).toContain('Kode Login HYDROMART');
       expect(text).toContain('Masukkan kode OTP 123456 untuk melanjutkan login.');
-      expect(text.length).toBeLessThanOrEqual(400);
+      expect(text).toContain('Kode berlaku 5 menit.');
+    });
+
+    // Zenziva bills per 160-character segment; at 163 characters every login cost two SMS.
+    // Checked at a two-digit TTL too, the longest the minutes text gets.
+    it.each([300, 900])('keeps the login copy to one SMS (ttl %ss)', async (ttlSeconds) => {
+      const fetchMock = mockZenziva({ status: '1' });
+      await new ZenzivaOtpDeliveryAdapter(config).send({
+        ...message,
+        purpose: OtpPurpose.LOGIN,
+        ttlSeconds,
+      });
+      expect((sentForm(fetchMock).get('message') ?? '').length).toBeLessThanOrEqual(160);
     });
 
     // HD-4: the owner of the number learns an authenticator is being set up on their account.
