@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
 
-async function run({ bucket, mode, anonGet }) {
+async function run({ bucket, mode, anonGet, delStatus = 204 }) {
   const calls = [];
   const objects = new Map();
   const srv = createServer((req, res) => {
@@ -29,6 +29,10 @@ async function run({ bucket, mode, anonGet }) {
       if (req.method === 'GET') {
         if (!signed) return res.writeHead(anonGet).end(anonGet === 200 ? objects.get(u.pathname) : undefined);
         return res.writeHead(200).end(objects.get(u.pathname));
+      }
+      if (req.method === 'DELETE') {
+        objects.delete(u.pathname);
+        return res.writeHead(delStatus).end();
       }
       res.writeHead(200).end();
     });
@@ -76,4 +80,9 @@ assert.ok(r.calls.length === 0, 'refused before any S3 call');
 r = await run({ bucket: 'hydromart-products', mode: 'public', anonGet: 200 });
 assert.equal(r.code, 0, r.out);
 assert.ok(putPolicy(r) && !delPolicy(r), 'public: put, never delete');
+// the probe is deleted after the proof; a refused delete only warns
+assert.ok(r.calls.some((x) => x.startsWith('DELETE /hydromart-products/probe/')), 'probe deleted');
+r = await run({ bucket: 'hydromart-pod', mode: 'private', anonGet: 403, delStatus: 403 });
+assert.equal(r.code, 0, r.out);
+assert.match(r.out, /could not delete probe object/);
 console.log('verify-object-storage tests passed');

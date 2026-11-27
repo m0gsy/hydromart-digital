@@ -42,6 +42,7 @@ import {
   PutBucketPolicyCommand,
   DeleteBucketPolicyCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 
 import { EVIDENCE_PREFIXES, applyRules, evidenceRules } from './lib/s3-lifecycle.mjs';
@@ -235,6 +236,14 @@ async function main() {
     process.exit(1);
   }
   console.log(`✓ anonymous LIST ${publicBase} -> ${listRes.status}, the index stays private`);
+  // 5) Clean up the probe. Best effort: the proof above is already decided, so a failed delete
+  // (e.g. a key without delete rights) is one warning and never changes the exit code.
+  try {
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    console.log(`✓ probe object ${bucket}/${key} deleted`);
+  } catch (e) {
+    console.warn(`! could not delete probe object ${bucket}/${key} (${e.name}); remove it by hand`);
+  }
   console.log('\nStorage READY. Set STORAGE_DRIVER=s3 with these values in the service env.');
 }
 
