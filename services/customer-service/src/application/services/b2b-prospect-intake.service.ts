@@ -28,7 +28,8 @@ import {
 } from '../../domain/b2b-prospect';
 import { dncHash, matchDuplicate, normaliseName, placeKeys, DuplicateKind } from '../../domain/b2b-prospect-keys';
 import { NO_REGION } from '../../domain/region-codes';
-import { ProspectInvalidError, ProspectRefusedError } from '../../domain/errors';
+import { ProspectInvalidError, ProspectNotFoundError, ProspectRefusedError } from '../../domain/errors';
+import { reachOf } from '../../domain/prospect-reach';
 import { RegionLookup } from '../../infrastructure/geo/region-lookup';
 import { B2bProspectRepository, DncKeys } from '../ports/b2b-prospect.repository';
 import { auditProspect } from './b2b-prospect-audit';
@@ -240,7 +241,14 @@ export class B2bProspectIntakeService {
       }
       throw new ProspectRefusedError(decision.reason, decision.message);
     }
-    const made = await this.repo.createGuarded(decision.data, decision.dnc);
+    // A caller that works prospects but does not manage them (Sales Depot) may only add a row that
+    // lands in its own depot, and gets it assigned: it shows up in "Milik saya". Same 404 as a row out of reach.
+    const workOnly = reachOf(user).assignedOnly;
+    if (workOnly && (!decision.data.ownerDepotId || !depotScopeIds(user)?.includes(decision.data.ownerDepotId))) {
+      throw new ProspectNotFoundError();
+    }
+    const data = workOnly ? { ...decision.data, assignedToId: user.sub, assignedAt: new Date() } : decision.data;
+    const made = await this.repo.createGuarded(data, decision.dnc);
     if (!made.ok) {
       if (!network) throw new ProspectRefusedError('DUPLICATE', GENERIC_REFUSAL);
       throw new ProspectRefusedError(made.reason, made.reason === 'DUPLICATE' ? RACE_TEXT : DNC_TEXT);

@@ -123,7 +123,8 @@ export type NewProspect = Pick<
   | 'batchId'
   | 'note'
   | 'createdById'
->;
+> &
+  Partial<Pick<ProspectRecord, 'assignedToId' | 'assignedAt'>>;
 
 /** What a duplicate match compares (also what the in-file dry-run seen-set holds). */
 export interface DuplicateProbe {
