@@ -127,6 +127,7 @@ const DYNAMIC_PARENTS = [
   '/dashboard/purchase-orders',
   '/dashboard/approvals',
   '/dashboard/customers',
+  '/dashboard/prospects',
   '/m/manager/approvals',
   '/driver/deliveries',
   '/dashboard/visits',
@@ -144,7 +145,7 @@ const DYNAMIC_PARENTS = [
   '/hq/sop',
   '/orders',
 ];
-const NOT_AN_ID = ['detail', 'new', 'import', 'settings'];
+const NOT_AN_ID = ['detail', 'new', 'import', 'settings', 'map'];
 // Flow 6a: deep-link.ts WEB_TWINS. This file only runs in a browser, so the twin always applies.
 const WEB_TWINS = [['/m/manager/approvals', '/dashboard/approvals']];
 

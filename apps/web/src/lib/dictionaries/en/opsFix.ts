@@ -1,6 +1,10 @@
 // Depot-operator design-fidelity fixes (batch AB) — English mirror of id/opsFix.ts.
 // NO `as const` — values must widen to string so both locales share one key shape.
+import { prospects } from './prospects';
+
 export const opsFix = {
+  // AREA-2a: the B2B prospect screens.
+  prospects,
   // Flow PR-4: the decision inbox on the approvals screens.
   // Review of flow PR-2a: the account behind an order's recipient, as its own link.
   entityLinks: { customerAccount: 'Open customer account' },

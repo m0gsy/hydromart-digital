@@ -41,6 +41,7 @@ export const DYNAMIC_PARENTS = [
   '/dashboard/purchase-orders',
   '/dashboard/approvals',
   '/dashboard/customers',
+  '/dashboard/prospects',
   '/m/manager/approvals',
   '/driver/deliveries',
   '/dashboard/visits',
@@ -65,7 +66,7 @@ export const DYNAMIC_PARENTS = [
  * Exported for K5.5: `public/sw.js` has to apply the same rewrite and cannot import a TS
  * module, so `sw-deep-link-parity.test.ts` reads both lists and fails if they disagree.
  */
-export const NOT_AN_ID = new Set(['detail', 'new', 'import', 'settings']);
+export const NOT_AN_ID = new Set(['detail', 'new', 'import', 'settings', 'map']);
 
 /**
  * Routes this binary does not carry, written by `scripts/build-mobile.mjs` from the very

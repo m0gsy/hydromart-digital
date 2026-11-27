@@ -17,14 +17,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const ADDED: Record<string, string[]> = {
   // Owner decision 2026-11-20: the sales-history import gets a door for every holder of
   // salesImportAdmin (managers and franchise owners had none; head office had only an export-screen button).
-  DIREKTUR: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits'],
+  DIREKTUR: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits', 'prospects /dashboard/prospects'],
   FRANCHISE_OWNER: ['salesImport /dashboard/sales-import'],
-  HEAD_OFFICE: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits', 'quality /dashboard/quality', 'held /dashboard/held'],
+  HEAD_OFFICE: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits', 'quality /dashboard/quality', 'held /dashboard/held', 'prospects /dashboard/prospects'],
   MANAGER: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits'],
-  SUPER_ADMIN: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits', 'quality /dashboard/quality', 'held /dashboard/held'],
+  SUPER_ADMIN: ['salesImport /dashboard/sales-import', 'visits /dashboard/visits', 'quality /dashboard/quality', 'held /dashboard/held', 'prospects /dashboard/prospects'],
+  // AREA-2a: B2B prospects, a row for every holder of b2bProspectRead or b2bProspectWork.
+  MARKETING: ['prospects /dashboard/prospects'],
   // and the head of depot's /dashboard (their operator home) is a row with the page's gate.
   // HD-14: quality hold, lab tests and permits; the orders a hold holds back.
-  KEPALA_DEPOT: ['operations /dashboard', 'visits /dashboard/visits', 'quality /dashboard/quality', 'held /dashboard/held'],
+  KEPALA_DEPOT: ['operations /dashboard', 'visits /dashboard/visits', 'quality /dashboard/quality', 'held /dashboard/held', 'prospects /dashboard/prospects'],
   // HD-15B PR-5: supervisor visits, a door for every holder of visitRead.
   ASSISTANT_SUPERVISOR: ['visits /dashboard/visits'],
   SUPERVISOR: ['visits /dashboard/visits'],

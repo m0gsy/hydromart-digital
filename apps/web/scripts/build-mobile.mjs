@@ -83,7 +83,8 @@ const TARGETS = {
   customer: () => ['hq', 'hr', 'dashboard', 'driver', 'm', 'resellers'],
   // Staff get every console they can actually reach. `/hq` is head-office, desktop-first,
   // and not in release 1 for either binary.
-  ops: () => ['hq', ...HR_CONSOLE_ONLY()],
+  // `dashboard/prospects/map` is the desktop SVG plot; the phone gets the list, detail and coverage.
+  ops: () => ['hq', 'dashboard/prospects/map', ...HR_CONSOLE_ONLY()],
 };
 
 /**
@@ -134,8 +135,11 @@ const SURFACES = {
       'hr/me/sop',
       'hr/me/sop/detail',
       'hr/me/payroll/detail',
+      // AREA-2a: B2B prospects (the list with Milik saya, and one prospect).
+      'dashboard/prospects',
+      'dashboard/prospects/detail',
     ],
-    withholds: ['hq', 'hr/payroll', 'hr/employees'],
+    withholds: ['hq', 'hr/payroll', 'hr/employees', 'dashboard/prospects/map'],
   },
 };
 

@@ -59,10 +59,11 @@ export const depot = {
   },
   depots: {
     // Public browse (active only), paginated → { items, ... }.
-    browse: (q: { page?: number; limit?: number } = {}) => {
+    browse: (q: { page?: number; limit?: number; includeArea?: boolean } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
       if (q.limit) p.set('limit', String(q.limit));
+      if (q.includeArea) p.set('includeArea', 'true');
       const qs = p.toString();
       return `/depots/api/v1/depots${qs ? `?${qs}` : ''}`;
     },
