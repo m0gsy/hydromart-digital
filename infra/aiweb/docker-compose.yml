@@ -14,7 +14,7 @@
 # applied stays applied, so every AI web migration must be expand/contract (the release before it
 # must still run on the new schema).
 #
-# Pinned now: hydromart-ai 667cebd (AI-26 #21, the weekly Sales report of the calon mitra CRM; AI-29/AI-31 #22, the agent team: registry, caps, switches with boss locks, playbooks, weekly targets and the Keuangan agent with its own read-only machine account; images of main CI run 45846506199); before it, 951fe29 (AI-13, the calon mitra CRM: #18 schema, legal-entity row security, screens, editable lead score; #20 draft depot at hydromart, the depot.onboarded handler and the import of old /waralaba applications); before it, hydromart-ai d5b791f on its main (#16 the n8n customer reminders 17.00, 10.00 and every
+# Pinned now: hydromart-ai b871bcf (AI-12a #23, the depot quality-hold state, the hold notice to staff and the daily permit and lab-test reminder; AI-12b #24, the approval inbox with due times, in-app escalation every 30 minutes and the quality-hold rule check; images of main CI run 45943139441); before it, 667cebd (AI-26 #21, the weekly Sales report of the calon mitra CRM; AI-29/AI-31 #22, the agent team: registry, caps, switches with boss locks, playbooks, weekly targets and the Keuangan agent with its own read-only machine account; images of main CI run 45846506199); before it, 951fe29 (AI-13, the calon mitra CRM: #18 schema, legal-entity row security, screens, editable lead score; #20 draft depot at hydromart, the depot.onboarded handler and the import of old /waralaba applications); before it, hydromart-ai d5b791f on its main (#16 the n8n customer reminders 17.00, 10.00 and every
 # 10 minutes, and the 07.30 maintenance sweep; #17 the league ranks a depot with a monthly target on
 # its pace against it; before them, as of bd6de7e: AI-5 #8, #9/#10: n8n keeps a failed run about 72
 # hours for the editor; #11 the three-channel lint; #12 AI-8's guarded LLM adapter, no key, nothing
@@ -86,7 +86,7 @@ services:
   # One shot, before every app start: `prisma migrate deploy` as ai_owner, the role that owns
   # database ai. A profile keeps it out of `up`; scripts/aiweb-deploy.sh runs it with `run --rm`.
   migrate:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:4be48850b6a21786b3e7071b5c6f6f22025e459ac88073b1dad34838a6079ad0
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:cad7771b176ab3e23b48af0f57836d5cad5a9295e1ea2581b70cdbd50e22dd84
     profiles: ["migrate"]
     logging: *logging
     mem_limit: 512m
@@ -101,7 +101,7 @@ services:
       db: { condition: service_healthy }
 
   aiweb:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:ee7f93850a75dde2e48c824c52558f208a47be4e51d6e507e19265836b894b0a
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:4836a0d68524bbbf2edf7d65ef500d35b34d1e3dc6f00205c375bdf9946e2351
     restart: unless-stopped
     logging: *logging
     mem_limit: 512m
@@ -159,7 +159,7 @@ services:
   # only its database, its encryption key and the editor's address. Every hardening setting is
   # the image's: check-aiweb-compose.mjs refuses any other environment key here.
   n8n:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:aabae07f802c56f49dcb1057ca68dbab6cb8d3746184a22eec2d711e2b64d4b5
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:190b0c2be3199d4afb4209198932c683d0f3435877f576740a662af171862aed
     restart: unless-stopped
     logging: *logging
     mem_limit: 1g
@@ -204,7 +204,7 @@ services:
   # n8n/bin/setup.mjs puts what git holds into n8n's database, the credentials from the three
   # N8N_SETUP_* values below, then the workflows, published. A profile keeps it out of `up`.
   n8n-setup:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:aabae07f802c56f49dcb1057ca68dbab6cb8d3746184a22eec2d711e2b64d4b5
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:190b0c2be3199d4afb4209198932c683d0f3435877f576740a662af171862aed
     profiles: ["n8n-setup"]
     logging: *logging
     mem_limit: 1g
