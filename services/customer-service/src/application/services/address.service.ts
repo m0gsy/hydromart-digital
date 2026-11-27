@@ -172,7 +172,8 @@ export class AddressService {
 
   /**
    * HD-20b: a pin outside every active depot's area is one anonymous `unserved_demand` row, at
-   * most one per address per month. After the address write, never awaited by the save, and any
+   * most one per address per month: a pin moved to another unserved spot in the same month is
+   * NOT recorded again, and that is intended. After the address write, never awaited by the save, and any
    * failure is a warn naming no coordinate and no id. Depot list unreadable = record nothing.
    */
   private async noteUnserved(
@@ -188,14 +189,16 @@ export class AddressService {
       const depots = await this.depots.listActive();
       if (!depots?.length || servingDepot({ lat, lng }, depots)) return;
       const nearest = Math.min(...depots.map((d) => haversineKm(lat, lng, d.lat, d.lng)));
-      await this.unserved.record({
-        monthKey: month,
-        kecamatanCode: region.kecamatanCode,
-        kelurahanCode: region.kelurahanCode,
-        gridCell: gridCell1km(lat, lng),
-        distanceBand: distanceBand(nearest),
-      });
-      await this.addresses.update(address.customerId, address.id, { unservedMonth: month });
+      await this.unserved.record(
+        {
+          monthKey: month,
+          kecamatanCode: region.kecamatanCode,
+          kelurahanCode: region.kelurahanCode,
+          gridCell: gridCell1km(lat, lng),
+          distanceBand: distanceBand(nearest),
+        },
+        { customerId: address.customerId, addressId: address.id, latitude: lat, longitude: lng },
+      );
     } catch (error) {
       this.logger.warn(`Unserved demand not recorded (${(error as Error).name})`);
     }

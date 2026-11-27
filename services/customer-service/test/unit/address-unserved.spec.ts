@@ -32,7 +32,11 @@ describe('AddressService unserved demand (HD-20b)', () => {
 
   const make = (depots: unknown) => {
     repo = new InMemoryAddressRepository();
-    record = jest.fn().mockResolvedValue(undefined);
+    // What the real repository does on success: the marker lands on the address.
+    record = jest.fn(async (row: { monthKey: string }, m: { customerId: string; addressId: string }) => {
+      await repo.update(m.customerId, m.addressId, { unservedMonth: row.monthKey });
+      return true;
+    });
     listActive = jest.fn().mockResolvedValue(depots);
     return new AddressService(repo, buildTestConfig(), lookup, { record }, { listActive } as never);
   };
@@ -41,13 +45,16 @@ describe('AddressService unserved demand (HD-20b)', () => {
     const svc = make([far]);
     const a = await svc.create('c', { ...input('A'), ...placed });
     await flush();
-    expect(record).toHaveBeenCalledWith({
-      monthKey: month(),
-      kecamatanCode: '320101',
-      kelurahanCode: '3201010001',
-      gridCell: gridCell1km(-6.5, 6),
-      distanceBand: '>10',
-    });
+    expect(record).toHaveBeenCalledWith(
+      {
+        monthKey: month(),
+        kecamatanCode: '320101',
+        kelurahanCode: '3201010001',
+        gridCell: gridCell1km(-6.5, 6),
+        distanceBand: '>10',
+      },
+      { customerId: 'c', addressId: a.id, latitude: -6.5, longitude: 6 },
+    );
     expect((await repo.findByIdForCustomer('c', a.id))?.unservedMonth).toBe(month());
   });
 

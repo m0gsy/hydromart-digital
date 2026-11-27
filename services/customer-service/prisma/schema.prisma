@@ -108,7 +108,9 @@ model Address {
 /// HD-20b: a pin saved outside every active depot's service area, anonymous on purpose.
 /// NO customer id, NO address id, NO coordinates (the 1 km cell is the finest place kept) and
 /// NO createdAt/updatedAt: a timestamp could be joined back to the address row it came from.
-/// Holds no personal data. HD-20c reads it (threshold, suppression, closed months).
+/// Holds no personal data. Never exposed raw (no route, no export): HD-20c reads it and masks every
+/// count under 3 before anything leaves the service. A row can only be re-linked to a person through
+/// the address's own stored pin, and only while that address exists.
 model UnservedDemand {
   id            String  @id @default(uuid()) @db.Uuid
   /// YYYY-MM in WIB, from localMonthKey.
