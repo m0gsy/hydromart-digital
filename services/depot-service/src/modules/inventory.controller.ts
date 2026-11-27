@@ -103,6 +103,7 @@ export class DepotInventoryController {
         sellPrice: dto.sellPrice ?? null,
       },
       user.sub,
+      user,
     );
   }
 
@@ -128,6 +129,7 @@ export class DepotInventoryController {
         sellPrice: row.sellPrice ?? null,
       })),
       user.sub,
+      user,
     );
   }
 
