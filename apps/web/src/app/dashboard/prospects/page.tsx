@@ -187,7 +187,12 @@ function Body() {
             )}
             <div className="sm:col-span-2">
               <Field label={t('opsFix.prospects.filters.search')} htmlFor="prospect-f-q">
-                <Input id="prospect-f-q" maxLength={120} value={draft} onChange={(e) => setDraft(e.target.value)} />
+                <div className="flex gap-2">
+                  <Input id="prospect-f-q" maxLength={120} value={draft} onChange={(e) => setDraft(e.target.value)} />
+                  <Button type="submit" variant="secondary">
+                    {t('opsFix.prospects.filters.apply')}
+                  </Button>
+                </div>
               </Field>
             </div>
           </form>

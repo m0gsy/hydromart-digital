@@ -18,6 +18,7 @@ export const prospects = {
     search: 'Cari nama usaha (bukan nomor telepon)',
     depot: 'Depot',
     allDepots: 'Semua depot',
+    apply: 'Cari',
   },
   cols: {
     name: 'Usaha',

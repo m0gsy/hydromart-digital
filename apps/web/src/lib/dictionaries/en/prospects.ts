@@ -17,6 +17,7 @@ export const prospects = {
     search: 'Search business name (not a phone number)',
     depot: 'Depot',
     allDepots: 'All depots',
+    apply: 'Search',
   },
   cols: {
     name: 'Business',
