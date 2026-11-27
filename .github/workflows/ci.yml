@@ -792,6 +792,10 @@ jobs:
       - name: Purge-applications refuses what it must and deletes only the batch
         run: bash scripts/purge-applications.test.sh
 
+      # HD-20a: the address-region backfill Deploy mode (fake docker, no daemon needed).
+      - name: Backfill-address-regions dry-runs by default and refuses --execute without the phrase
+        run: bash scripts/backfill-address-regions.test.sh
+
       # `@Roles(...)` may name a fixed set (self-service, the courier app, a cron sweep,
       # the franchise portal) and never a policy. PR-7 moved 39 policy decorators into
       # `@hydromart/access`; this stops the next one being written back as a role tuple

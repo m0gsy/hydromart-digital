@@ -124,3 +124,7 @@ Pengajuan lama di hydromart (`franchise_applications`) diimpor ke CRM web AI (`p
 4. Pemilik memeriksa angkanya, lalu menjalankan lagi dengan `confirm` = `PURGE-APPLICATIONS`. Skrip membuat dump database dulu, lalu menghapus dalam satu transaksi.
 
 Ditolak (tanpa menghapus apa pun): tanpa frasa konfirmasi, id yang tak ada di hydromart (berkas basi), pengajuan `APPROVED` (jejak kertas sebuah depot, tetap di hydromart), id yang belum diimpor ke CRM, depot yang masih merujuk, dan dump yang gagal.
+
+## 8. Mengisi kode kecamatan/kelurahan alamat lama (HD-20a)
+
+Alamat berpin yang disimpan sebelum HD-20a belum punya kode wilayah. Isi lewat Deploy mode `backfill-address-regions`: `confirm` kosong = **dry run** (menghitung, tidak menulis), lalu ulangi dengan `confirm` = `BACKFILL-ADDRESS-REGIONS`. Skrip menjalankan kontainer sekali pakai dari image customer-service yang sedang hidup (bukan `docker exec`, supaya layanan hidup tidak kena batas memori) dan hanya mengisi kolom yang masih kosong, jadi tanpa dump dan aman diulang. Angka dry run: berapa alamat dapat kecamatan + kelurahan, hanya kecamatan, dan tanpa kode (di luar DKI/Jabar/Banten atau pin terlalu kasar).
