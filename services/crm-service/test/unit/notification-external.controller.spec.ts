@@ -4,7 +4,7 @@ import { validate } from 'class-validator';
 
 import { NotificationService } from '../../src/application/services/notification.service';
 import { NotificationEvent } from '../../src/domain/notification-event';
-import { FranchiseApplicationSubmittedDto } from '../../src/modules/dto/notification.dto';
+import { AiLeadNoticeDto, FranchiseApplicationSubmittedDto } from '../../src/modules/dto/notification.dto';
 import { NotificationExternalController } from '../../src/modules/notification-external.controller';
 
 /*
@@ -24,7 +24,7 @@ const body = (over: Partial<FranchiseApplicationSubmittedDto> = {}): FranchiseAp
 
 function build() {
   const notify = jest.fn(async () => ({ id: 'row-1' }));
-  const controller = new NotificationExternalController({ notify } as unknown as NotificationService, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+  const controller = new NotificationExternalController({ notify } as unknown as NotificationService, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
   return { controller, notify };
 }
 
@@ -118,5 +118,49 @@ describe('FranchiseApplicationSubmittedDto', () => {
     expect(await errors({ ...body(), province: 'x'.repeat(101) })).toEqual(['province']);
     expect(await errors({ ...body(), city: 7 })).toEqual(['city']);
     expect(await errors({ eventId: body().eventId, applicationId: APP })).toEqual(['city', 'province']);
+  });
+});
+
+describe('NotificationExternalController.aiLeadNotice', () => {
+  const PROSPECT = '7c1f0f64-0b6e-4f4e-9d6a-2f3f7c9a1b11';
+  const dto = (over: Record<string, unknown> = {}) =>
+    ({ eventId: `ai-lead:${PROSPECT}`, kind: 'NEW', prospectId: PROSPECT, legalEntityId: APP, city: 'Bekasi', province: 'Jawa Barat', ...over }) as never;
+  const make = () => {
+    const run = jest.fn(async () => ({ skipped: false, recipients: 1, notified: 1, whatsapp: 'pending' as const }));
+    const n = {} as never;
+    return { run, controller: new NotificationExternalController(n, n, n, n, n, n, n, n, { run } as never, n) };
+  };
+
+  it('hands a lead whose eventId matches its kind to the service', async () => {
+    const { controller, run } = make();
+    await controller.aiLeadNotice(dto());
+    await controller.aiLeadNotice(dto({ kind: 'REMIND', eventId: `ai-lead-overdue:${PROSPECT}:REMIND` }));
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses an eventId that is not its kind and prospect', async () => {
+    const { controller, run } = make();
+    await expect(controller.aiLeadNotice(dto({ eventId: 'ai-lead:other' }))).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.aiLeadNotice(dto({ kind: 'ESCALATE' }))).rejects.toBeInstanceOf(BadRequestException);
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe('AiLeadNoticeDto', () => {
+  const ok = { eventId: 'ai-lead:x', kind: 'NEW', prospectId: '7C1F0F64-0B6E-4F4E-9D6A-2F3F7C9A1B11', legalEntityId: APP, city: 'Bekasi', province: 'Jawa Barat' };
+  const check = async (over: Record<string, unknown>) => validate(plainToInstance(AiLeadNoticeDto, { ...ok, ...over }));
+
+  it('lower-cases ids and accepts a PIC', async () => {
+    const dto = plainToInstance(AiLeadNoticeDto, { ...ok, picAccountId: APP.toUpperCase() });
+    expect(await validate(dto)).toEqual([]);
+    expect(dto.prospectId).toBe(dto.prospectId.toLowerCase());
+    expect(dto.picAccountId).toBe(APP);
+  });
+
+  it('refuses a link as a place, an unknown kind and a stray id', async () => {
+    expect((await check({ city: 'www.example.com' })).length).toBe(1);
+    expect((await check({ province: '' })).length).toBeGreaterThan(0);
+    expect((await check({ kind: 'NOPE' })).length).toBe(1);
+    expect((await check({ legalEntityId: 'x' })).length).toBe(1);
   });
 });

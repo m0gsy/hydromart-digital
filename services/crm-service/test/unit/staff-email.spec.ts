@@ -16,7 +16,7 @@ import { STAFF_EMAIL_TEMPLATES } from '../../src/domain/staff-email';
  * kind with neither fails here.
  */
 // AI-9 and AI-7c: the morning summary and the AI access request are raised by their services, which the same controller calls.
-const EXTERNAL = ['modules/notification-external.controller.ts', 'application/services/morning-summary.service.ts', 'application/services/ai-access-request.service.ts', 'application/services/maintenance-due.service.ts', 'application/services/quality-hold-notice.service.ts']
+const EXTERNAL = ['modules/notification-external.controller.ts', 'application/services/morning-summary.service.ts', 'application/services/ai-access-request.service.ts', 'application/services/maintenance-due.service.ts', 'application/services/quality-hold-notice.service.ts', 'application/services/ai-lead-notice.service.ts']
   .map((file) => readFileSync(join(__dirname, '../../src', file), 'utf8'))
   .join(' ');
 const RAISED = [

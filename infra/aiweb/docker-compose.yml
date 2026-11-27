@@ -161,6 +161,16 @@ services:
       LLM_ROUTES: "ask=anthropic:claude-sonnet-5-5,*=anthropic:claude-haiku-5-5"
       LLM_PERSONAL_DATA_VENDORS: ""
       LLM_USD_IDR: "17000"
+      # AI-14 (hydromart-ai README, "Formulir publik"): the public calon mitra form at /daftar-mitra.
+      # Blank LEAD_FORM_LEGAL_ENTITY_ID (the franchisor entity the lead belongs to) keeps the form
+      # CLOSED (503); the owner sets it with ENV_SET_BLOCK after confirming the consent wording.
+      # LEAD_FORM_SECRET signs the page's form token (made by scripts/aiweb-secrets.sh, like
+      # AIWEB_N8N_TOKEN); LEAD_FORM_WA_NUMBER is Sales' public number for the thank-you button;
+      # LEAD_FORM_ORIGINS lists extra origins allowed to post (comma separated, blank = same origin only).
+      LEAD_FORM_LEGAL_ENTITY_ID: ${AIWEB_LEAD_FORM_LEGAL_ENTITY_ID:-}
+      LEAD_FORM_SECRET: ${AIWEB_LEAD_FORM_SECRET:-}
+      LEAD_FORM_WA_NUMBER: ${AIWEB_LEAD_FORM_WA_NUMBER:-}
+      LEAD_FORM_ORIGINS: ${AIWEB_LEAD_FORM_ORIGINS:-}
     networks:
       - edge
       - private

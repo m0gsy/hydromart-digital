@@ -237,6 +237,7 @@ export const dashC = {
       complianceDueNotify: 'Trigger the permit and lab-test reminder (n8n machine account)',
       qualityHoldNotify: 'Tell staff a quality hold began or ended (n8n machine account)',
       salesReportNotify: 'Trigger the weekly Sales report notice (n8n machine account)',
+      aiLeadNotify: 'Trigger the form lead notice for Sales (n8n machine account)',
       aiTeamRead: 'Open the AI team screen',
       aiTeamManage: 'Switch AI agents on, change their caps, approve playbooks',
       aiTeamStop: 'Stop an AI agent',

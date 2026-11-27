@@ -140,7 +140,7 @@ describe('ComplianceDueHttpAdapter', () => {
 
 describe('NotificationExternalController.complianceDueRun', () => {
   const run = jest.fn(async () => ({ date: DATE }));
-  const controller = new NotificationExternalController({} as never, {} as never, {} as never, {} as never, {} as never, { run } as never, {} as never, {} as never, {} as never);
+  const controller = new NotificationExternalController({} as never, {} as never, {} as never, {} as never, {} as never, { run } as never, {} as never, {} as never, {} as never, {} as never);
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-11-26T00:30:00.000Z'));
     run.mockClear();

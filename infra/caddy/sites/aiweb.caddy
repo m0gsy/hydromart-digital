@@ -33,5 +33,11 @@ ai.hydromart-digital.com {
 		max_size 64KB
 	}
 
+	# AI-14: the public calon mitra form (POST /api/public/leads) reads 8 KB; nothing bigger is
+	# read past 16 KB, before the app sees it.
+	request_body /api/public/* {
+		max_size 16KB
+	}
+
 	reverse_proxy aiweb:3000
 }

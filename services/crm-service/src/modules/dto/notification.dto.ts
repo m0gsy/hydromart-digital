@@ -22,6 +22,7 @@ import {
 } from 'class-validator';
 
 import { AI_AGENT_NOTICE_KINDS, AiAgentNoticeKind } from '../../domain/ai-agent-notice';
+import { AI_LEAD_NOTICE_KINDS, AiLeadNoticeKind } from '../../domain/ai-lead-notice';
 import { CUSTOMER_REMINDER_KINDS, CustomerReminderKind } from '../../domain/customer-reminder';
 import { NotificationEvent } from '../../domain/notification-event';
 import { QUALITY_HOLD_STATUSES, QualityHoldStatus } from '../../domain/quality-hold-notice';
@@ -487,6 +488,61 @@ export class AiAgentNoticeDto {
 
 export class AiAgentNoticeResultDto {
   @ApiProperty({ description: 'People who manage the AI team, plus the boss role holders that may read it.' })
+  recipients!: number;
+  @ApiProperty({ description: 'Of those, how many have the notice (a retry files none twice).' })
+  notified!: number;
+  @ApiProperty({ enum: ['pending'] })
+  whatsapp!: 'pending';
+}
+
+const lowerCase = ({ value }: { value: unknown }): unknown => (typeof value === 'string' ? value.toLowerCase() : value);
+
+/** AI-14: n8n relays a public form lead of the AI web: ids and place names. No name, phone or amount ever passes. */
+export class AiLeadNoticeDto {
+  @ApiProperty({ example: 'ai-lead:7c1f0f64-0b6e-4f4e-9d6a-2f3f7c9a1b11' })
+  @IsString()
+  @Matches(/^[A-Za-z0-9:._-]{1,120}$/, { message: 'eventId: 1 to 120 characters of A-Z a-z 0-9 : . _ -' })
+  eventId!: string;
+
+  @ApiProperty({ enum: AI_LEAD_NOTICE_KINDS })
+  @IsIn(AI_LEAD_NOTICE_KINDS)
+  kind!: AiLeadNoticeKind;
+
+  @ApiProperty({ format: 'uuid' })
+  @Transform(lowerCase)
+  @IsUUID()
+  prospectId!: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @Transform(lowerCase)
+  @IsUUID()
+  legalEntityId!: string;
+
+  @ApiProperty({ example: 'Bekasi', maxLength: 80 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  @Matches(PLACE_NAME_PATTERN, { message: 'city: place-name characters only' })
+  city!: string;
+
+  @ApiProperty({ example: 'Jawa Barat', maxLength: 80 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  @Matches(PLACE_NAME_PATTERN, { message: 'province: place-name characters only' })
+  province!: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'The Sales person who took the lead: a REMIND goes to them alone.' })
+  @IsOptional()
+  @Transform(lowerCase)
+  @IsUUID()
+  picAccountId?: string;
+}
+
+export class AiLeadNoticeResultDto {
+  @ApiProperty({ description: 'True when the legal entity is unknown or switched off: nothing was sent, do not retry.' })
+  skipped!: boolean;
+  @ApiProperty({ description: 'People the notice is for.' })
   recipients!: number;
   @ApiProperty({ description: 'Of those, how many have the notice (a retry files none twice).' })
   notified!: number;

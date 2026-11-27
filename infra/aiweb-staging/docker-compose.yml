@@ -106,6 +106,11 @@ services:
       N8N_TOKEN: ${STAGING_N8N_TOKEN:?set by scripts/aiweb-staging-secrets.sh}
       # The mock takes the alarms: nothing of staging posts to the channel production's alerts use.
       ALERT_WEBHOOK_URL: http://hydromart-mock:9911/alert
+      # AI-14: the public form stays closed on staging until these are set (blank legal entity = 503).
+      LEAD_FORM_LEGAL_ENTITY_ID: ${STAGING_LEAD_FORM_LEGAL_ENTITY_ID:-}
+      LEAD_FORM_SECRET: ${STAGING_LEAD_FORM_SECRET:-}
+      LEAD_FORM_WA_NUMBER: ${STAGING_LEAD_FORM_WA_NUMBER:-}
+      LEAD_FORM_ORIGINS: ${STAGING_LEAD_FORM_ORIGINS:-}
     networks:
       edge-staging: {}
       private:

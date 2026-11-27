@@ -20,6 +20,7 @@
 #                                like every key here, so never again once it exists: a new one
 #                                opens none of what n8n sealed with the old one
 #   AIWEB_N8N_TOKEN              between the AI web and n8n, both ways
+#   AIWEB_LEAD_FORM_SECRET       AI-14: signs the public calon mitra form's token (hex, made once)
 #   AIWEB_N8N_MACHINE_ID         n8n's machine account at auth-service (a UUID, the token subject)
 #   AIWEB_N8N_MACHINE_SECRET     its secret, and AIWEB_N8N_MACHINE_NOT_AFTER the day it stops
 #   MACHINE_ACCOUNTS             auth-service: this script keeps n8n's entries in it, and only those
@@ -89,7 +90,7 @@ add() {
 }
 
 for key in AIWEB_POSTGRES_PASSWORD AIWEB_DB_OWNER_PASSWORD AIWEB_DB_APP_PASSWORD \
-  AIWEB_N8N_DB_PASSWORD AIWEB_N8N_ENCRYPTION_KEY AIWEB_N8N_TOKEN; do
+  AIWEB_N8N_DB_PASSWORD AIWEB_N8N_ENCRYPTION_KEY AIWEB_N8N_TOKEN AIWEB_LEAD_FORM_SECRET; do
   # Hex, so a password needs no escaping inside a DATABASE_URL.
   if absent "$key"; then add "$key" "$(openssl rand -hex 32)"; fi
 done
@@ -394,7 +395,7 @@ SEEN_IDS=''
 MA_NEW=''
 MA_SET=0
 machine_account AIWEB_N8N n8n required franchiseApplicationNotify \
-  morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiAgentNotify partnerBillGenerate complianceDueNotify qualityHoldNotify
+  morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiLeadNotify aiAgentNotify partnerBillGenerate complianceDueNotify qualityHoldNotify
 machine_account AIWEB_APP aiweb skippable aiReadAgent
 if [ "$MA_SET" = 1 ]; then add MACHINE_ACCOUNTS "$MA_NEW"; fi
 

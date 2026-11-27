@@ -19,6 +19,7 @@ import { MorningSummaryService } from '../application/services/morning-summary.s
 import { NotificationService } from '../application/services/notification.service';
 import { oneLine } from '../domain/ai-access-request';
 import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
+import { AiLeadNoticeService } from '../application/services/ai-lead-notice.service';
 import { QualityHoldNoticeService } from '../application/services/quality-hold-notice.service';
 import { SalesWeeklyService } from '../application/services/sales-weekly.service';
 import { weekRefusal } from '../domain/sales-weekly';
@@ -40,6 +41,8 @@ import {
   MorningSummaryResultDto,
   AiAgentNoticeDto,
   AiAgentNoticeResultDto,
+  AiLeadNoticeDto,
+  AiLeadNoticeResultDto,
   NotificationIdDto,
   QualityHoldNoticeDto,
   QualityHoldNoticeResultDto,
@@ -72,6 +75,7 @@ export class NotificationExternalController {
     private readonly complianceDue: ComplianceDueService,
     private readonly salesWeekly: SalesWeeklyService,
     private readonly aiAgentNotices: AiAgentNoticeService,
+    private readonly aiLeadNotices: AiLeadNoticeService,
     private readonly qualityHold: QualityHoldNoticeService,
   ) {}
 
@@ -281,5 +285,24 @@ export class NotificationExternalController {
   @ApiOkResponse({ type: AiAgentNoticeResultDto })
   aiAgentNotice(@Body() dto: AiAgentNoticeDto): Promise<AiAgentNoticeResultDto> {
     return this.aiAgentNotices.run(dto);
+  }
+
+  /*
+   * AI-14: n8n relays a public form lead of the AI web (NEW) or an unmet SLA (REMIND after 2 working
+   * hours, ESCALATE after 4). Ids and place names only: no name, no phone. hydromart picks the
+   * recipients (Sales; Sales Lead and Direksi for ESCALATE) and writes the words. eventId is the
+   * AI web's own: ai-lead:<prospectId> or ai-lead-overdue:<prospectId>:<REMIND|ESCALATE>.
+   */
+  @ExternalAccess('machine')
+  @Can('aiLeadNotify')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('ai-lead-notice')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'n8n: tell Sales that a calon mitra filled the public form, or that nobody called in time (AI-14)' })
+  @ApiOkResponse({ type: AiLeadNoticeResultDto })
+  async aiLeadNotice(@Body() dto: AiLeadNoticeDto): Promise<AiLeadNoticeResultDto> {
+    const expected = dto.kind === 'NEW' ? `ai-lead:${dto.prospectId}` : `ai-lead-overdue:${dto.prospectId}:${dto.kind}`;
+    if (dto.eventId !== expected) throw new BadRequestException(`eventId must be ${expected}`);
+    return this.aiLeadNotices.run(dto);
   }
 }

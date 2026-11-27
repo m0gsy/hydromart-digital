@@ -18,6 +18,7 @@
 //   POST /crm/api/v1/notifications/external/quality-hold   n8n's relay of a depot quality hold event (HD-14)
 //   POST /crm/api/v1/notifications/external/sales-weekly-ready   n8n's Monday weekly Sales report trigger (AI-26)
 //   POST /crm/api/v1/notifications/external/ai-agent-notice   n8n's relay of an AI agent event (AI-31)
+//   POST /crm/api/v1/notifications/external/ai-lead-notice   n8n's relay of a public form lead or its SLA reminder (AI-14)
 //   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers|targets   the read API: made-up numbers
 //                                       derived from the date; a depot-bound person sees one depot
 //   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
@@ -156,9 +157,10 @@ const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 
 const ACCESS_KEYS = new Set(['eventId', 'requesterAccountId', 'legalEntityIds', 'group']);
 const MACHINE_SCOPES = [
   'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
-  'salesReportNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify',
+  'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify',
 ];
 export const AGENT_NOTICE_KINDS = ['FLAG', 'CAP_REACHED', 'STOPPED', 'STOPPED_ALL'];
+export const LEAD_NOTICE_KINDS = ['NEW', 'REMIND', 'ESCALATE'];
 export const REMINDER_KINDS = ['SUBSCRIPTION_TOMORROW', 'POINTS_EXPIRING', 'UNPAID_ORDER'];
 const ACCESS_PER_REQUESTER = 3;
 const ACCESS_PER_HOUR = 30;
@@ -451,6 +453,27 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       eventId: b.eventId, city: null, province: null,
     });
     return [200, { recipients: 0, notified: 0, whatsapp: 'pending' }];
+  }
+
+  // AI-14's relay of a public form lead (AiLeadNoticeTrigger): ids and place names. Nobody to tell in staging.
+  function aiLeadNotice(req, body) {
+    if (!machineAllowed(req, 'aiLeadNotify')) return refusedToken();
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const place = (v) => typeof v === 'string' && v.length >= 1 && v.length <= 80 && /^(?=.*\p{L})(?!.*\.[\p{L}\p{M}]{2})[\p{L}\p{M} .,'’()-]+$/u.test(v);
+    const valid =
+      Object.keys(b).every((k) => ['eventId', 'kind', 'prospectId', 'legalEntityId', 'city', 'province', 'picAccountId'].includes(k)) &&
+      LEAD_NOTICE_KINDS.includes(b.kind) &&
+      typeof b.prospectId === 'string' && RX.uuid.test(b.prospectId) &&
+      typeof b.legalEntityId === 'string' && RX.uuid.test(b.legalEntityId) &&
+      (b.picAccountId === undefined || (typeof b.picAccountId === 'string' && RX.uuid.test(b.picAccountId))) &&
+      place(b.city) && place(b.province) &&
+      b.eventId === (b.kind === 'NEW' ? `ai-lead:${b.prospectId.toLowerCase()}` : `ai-lead-overdue:${b.prospectId.toLowerCase()}:${b.kind}`);
+    if (!valid) return [400, errorBody(400, 'VALIDATION_ERROR', ['The notification is not what the contract asks for'])];
+    keep(state.calls.notifications, {
+      workflow: String(req.headers['x-workflow'] ?? '').slice(0, 120) || null,
+      eventId: b.eventId, city: b.city, province: b.province,
+    });
+    return [200, { skipped: false, recipients: 0, notified: 0, whatsapp: 'pending' }];
   }
 
   // "Minta akses": ids only (contract AiAccessRequestedNotify). A requester that is a fixture person
@@ -920,6 +943,10 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (post && path === '/crm/api/v1/notifications/external/ai-agent-notice') {
         const [status, body] = aiAgentNotice(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (post && path === '/crm/api/v1/notifications/external/ai-lead-notice') {
+        const [status, body] = aiLeadNotice(req, parseJson(raw));
         return send(res, status, body);
       }
       if (post && path === '/crm/api/v1/notifications/external/ai-access-requested') {
