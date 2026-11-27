@@ -3,7 +3,7 @@ import { BadRequestException, ForbiddenException, Logger, ServiceUnavailableExce
 import { loadCustomRoles, loadOverrides } from '@hydromart/access';
 import { AuthenticatedUser, Role, haversineMeters } from '@hydromart/platform';
 
-import { B2bProspectExportService, EXPORT_MAX } from '../../src/application/services/b2b-prospect-export.service';
+import { B2bProspectExportService, EXPORT_MAX, EXPORT_VISITS_MAX } from '../../src/application/services/b2b-prospect-export.service';
 import { B2bProspectMaintenanceService } from '../../src/application/services/b2b-prospect-maintenance.service';
 import { B2bProspectVisitService, REFUSAL_APPROXIMATE } from '../../src/application/services/b2b-prospect-visit.service';
 import { B2bProspectService } from '../../src/application/services/b2b-prospect.service';
@@ -308,7 +308,7 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
       expect(order).toEqual(['audit', 'rows']);
       const [audit] = auditBodies();
       expect(audit).toMatchObject({ action: 'b2b.prospect.export', actorId: 'kepala-a', target: 'b2b-prospects:depot-a' });
-      expect(audit.metadata).toEqual({ rowCount: 1, truncated: false, sources: { OSM: 1 }, status: 'NEW', category: 'KOS', kecamatanCode: '3173010', assigned: 'none' });
+      expect(audit.metadata).toEqual({ rowCount: 1, visitCount: 0, truncated: false, sources: { OSM: 1 }, status: 'NEW', category: 'KOS', kecamatanCode: '3173010', assigned: 'none' });
       expect(JSON.stringify(audit)).not.toMatch(/\+62|Rahasia/);
       expect(res.rowCount).toBe(1);
     });
@@ -343,6 +343,34 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
       expect(res.truncated).toBe(true);
       expect(res.rows).toHaveLength(EXPORT_MAX);
       expect(auditBodies()[0].metadata).toMatchObject({ rowCount: EXPORT_MAX, truncated: true });
+    });
+
+    it('returns the visits of the exported rows by row index, with no pin, note or prospect id, and counts them in the audit', async () => {
+      const a = seed({ ownerDepotId: 'depot-a' });
+      const other = seed({ ownerDepotId: 'depot-b' });
+      const at = new Date('2026-11-20T03:00:00Z');
+      repo.exportVisitRows.push(
+        { prospectId: a.id, visitorId: 'v-1', visitedAt: at, outcome: 'NOT_THERE', distanceM: 40 },
+        { prospectId: other.id, visitorId: 'v-2', visitedAt: at, outcome: 'REFUSED', distanceM: 10 },
+      );
+      const res = await exportSvc().export(kepalaA, {});
+      expect(res.visits).toEqual([{ rowIndex: 0, visitorId: 'v-1', visitedAt: '2026-11-20T03:00:00.000Z', outcome: 'NOT_THERE', distanceM: 40 }]);
+      expect(JSON.stringify(res.visits)).not.toMatch(/latitude|longitude|note|prospectId/);
+      expect(auditBodies()[0].metadata.visitCount).toBe(1);
+    });
+
+    it('asks the repository for at most EXPORT_VISITS_MAX visits', async () => {
+      seed();
+      const spy = jest.spyOn(repo, 'exportVisits');
+      await exportSvc().export(kepalaA, {});
+      expect(spy).toHaveBeenCalledWith([expect.any(String)], EXPORT_VISITS_MAX);
+    });
+
+    it('FAIL-CLOSED: when the audit entry fails, no visits leave either', async () => {
+      const a = seed();
+      repo.exportVisitRows.push({ prospectId: a.id, visitorId: 'v', visitedAt: new Date(), outcome: 'NOT_THERE', distanceM: 1 });
+      fetchMock.mockResolvedValue({ ok: false, status: 500 });
+      await expect(exportSvc().export(kepalaA, {})).rejects.toThrow(ServiceUnavailableException);
     });
 
     it('neutralises a cell that starts with = + - @ tab or CR, except the phone', async () => {

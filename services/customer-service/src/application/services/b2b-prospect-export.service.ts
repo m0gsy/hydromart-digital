@@ -11,6 +11,17 @@ import { CUSTOMER_TOKENS } from '../tokens';
 
 /** One call never returns more than this many rows; `truncated` says so. */
 export const EXPORT_MAX = 5000;
+/** The visits sheet is capped too (5000 prospects x a few visits each). */
+export const EXPORT_VISITS_MAX = 20000;
+
+/** A visit of an exported prospect: `rowIndex` points into `rows`; no pin, no note, no prospect id. */
+export interface ExportVisitRow {
+  rowIndex: number;
+  visitorId: string;
+  visitedAt: string;
+  outcome: string;
+  distanceM: number;
+}
 
 export interface ExportFilters {
   depotId?: string;
@@ -65,7 +76,7 @@ export class B2bProspectExportService {
   async export(
     user: AuthenticatedUser,
     q: ExportFilters,
-  ): Promise<{ rows: ExportRow[]; truncated: boolean; rowCount: number }> {
+  ): Promise<{ rows: ExportRow[]; truncated: boolean; rowCount: number; visits: ExportVisitRow[] }> {
     // Validates a named depot against the caller's own and defaults an unnamed one to theirs: a Kepala is
     // locked to their depot, a network role may name any (or none = all, including the map).
     const depotIds = depotScopeIds(user, q.depotId);
@@ -83,6 +94,15 @@ export class B2bProspectExportService {
     const truncated = found.length > EXPORT_MAX;
     const rows = found.slice(0, EXPORT_MAX).map((r) => this.toRow(r));
 
+    const indexOf = new Map(rows.map((r, i) => [r.id, i]));
+    const visits = (await this.repo.exportVisits([...indexOf.keys()], EXPORT_VISITS_MAX)).map((v) => ({
+      rowIndex: indexOf.get(v.prospectId) as number,
+      visitorId: v.visitorId,
+      visitedAt: v.visitedAt.toISOString(),
+      outcome: v.outcome,
+      distanceM: v.distanceM,
+    }));
+
     const sources: Record<string, number> = {};
     for (const r of rows) sources[r.source] = (sources[r.source] ?? 0) + 1;
     try {
@@ -94,6 +114,7 @@ export class B2bProspectExportService {
           target: `b2b-prospects:${depotIds ? depotIds.join(',') : 'network'}`,
           metadata: {
             rowCount: rows.length,
+            visitCount: visits.length,
             truncated,
             sources,
             status: q.status ?? null,
@@ -107,7 +128,7 @@ export class B2bProspectExportService {
       this.logger.error(`B2B prospect export refused: the audit entry was not recorded (${(error as Error).name})`);
       throw new ServiceUnavailableException('Ekspor dibatalkan: catatan audit gagal');
     }
-    return { rows, truncated, rowCount: rows.length };
+    return { rows, truncated, rowCount: rows.length, visits };
   }
 
   private toRow(r: ProspectRecord): ExportRow {
