@@ -72,6 +72,7 @@ describe('DepotInventoryController.import', () => {
         },
       ],
       'staff-1',
+      { sub: 'staff-1' },
     );
   });
 });

@@ -196,15 +196,41 @@ export class InventoryService {
     depotId: string,
     rows: readonly CreateLineInput[],
     actorId: string,
+    user?: AuthenticatedUser,
   ): Promise<ImportSummary> {
     return runImport(
       rows,
-      async (row) => ({ status: 'created', id: (await this.createLine(depotId, row, actorId)).id }),
+      async (row) => ({
+        status: 'created',
+        id: (await this.createLine(depotId, row, actorId, user)).id,
+      }),
       (err) => err instanceof DuplicateInventoryLineError,
     );
   }
 
-  async createLine(depotId: string, input: CreateLineInput, actorId: string): Promise<ItemView> {
+  /**
+   * DEP-25 (owner decision 2026-11-09): an HQ-owned (HKP) depot's price changes go through the
+   * HQ proposal queue, exactly like its pricing rules. Waralaba depots price independently by
+   * design. A call with no user is an internal one and is not asked.
+   */
+  private async assertDirectPrice(
+    depotId: string,
+    user: AuthenticatedUser | undefined,
+    refusal: string,
+  ): Promise<void> {
+    if (!user || can('priceOverrideDecide', user.role)) return;
+    const depot = await this.depots.findById(depotId, false);
+    if (depot?.ownershipType === OwnershipType.HKP) {
+      throw new ForbiddenException(refusal);
+    }
+  }
+
+  async createLine(
+    depotId: string,
+    input: CreateLineInput,
+    actorId: string,
+    user?: AuthenticatedUser,
+  ): Promise<ItemView> {
     if (
       !Number.isInteger(input.quantity) ||
       input.quantity < 0 ||
@@ -217,6 +243,16 @@ export class InventoryService {
     }
     if (!(await this.depots.exists(depotId))) {
       throw new DepotNotFoundError();
+    }
+    // Opening a line WITH a price is a direct price change too. Only updateMeta used to ask, so
+    // a new line (form or CSV import) was the way round DEP-25: on 27 Nov 2026 one opened at an
+    // HKP depot undercut the catalog price at checkout. Same rule, same refusal, before any write.
+    if (input.sellPrice != null) {
+      await this.assertDirectPrice(
+        depotId,
+        user,
+        'Harga jual depot milik HQ diajukan lewat usulan harga ke HQ, bukan langsung. Simpan baris tanpa harga jual; harga katalog berlaku sampai usulan disetujui.',
+      );
     }
     let productId = input.productId ?? null;
     let { label, unit } = input;
@@ -363,16 +399,12 @@ export class InventoryService {
     user?: AuthenticatedUser,
   ): Promise<ItemView> {
     const item = await this.require(itemId, user);
-    // DEP-25 (owner decision 2026-11-09): an HQ-owned (HKP) depot's price changes go through the
-    // HQ proposal queue, exactly like its pricing rules. Waralaba depots price independently by
-    // design. A call with no user is an internal one and is not asked.
-    if (patch.sellPrice !== undefined && user && !can('priceOverrideDecide', user.role)) {
-      const depot = await this.depots.findById(item.depotId, false);
-      if (depot?.ownershipType === OwnershipType.HKP) {
-        throw new ForbiddenException(
-          'Harga jual depot milik HQ diubah lewat usulan harga ke HQ, bukan langsung.',
-        );
-      }
+    if (patch.sellPrice !== undefined) {
+      await this.assertDirectPrice(
+        item.depotId,
+        user,
+        'Harga jual depot milik HQ diubah lewat usulan harga ke HQ, bukan langsung.',
+      );
     }
     const updated = await this.inventory.update(itemId, patch);
     return this.toView(updated);

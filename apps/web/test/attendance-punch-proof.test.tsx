@@ -43,6 +43,10 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/components/hr/employee-select', () => ({
   EmployeeSelect: () => <div />,
 }));
+// Each row names its depot (27 Nov 2026) from the console's depot list.
+vi.mock('@/lib/depot-context', () => ({
+  useDepot: () => ({ depots: [{ id: 'd1', code: 'D1', name: 'Depot Satu' }], ready: true, error: null }),
+}));
 
 import AttendancePage from '@/app/hr/attendance/page';
 import { ConfirmProvider } from '@/components/confirm';

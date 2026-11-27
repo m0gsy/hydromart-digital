@@ -59,9 +59,10 @@ const AUTH = 'Bearer token';
 const TOMORROW = new Date(Date.now() + 86_400_000);
 const DAY_AFTER = new Date(Date.now() + 2 * 86_400_000);
 const PROOF = {
-  // Shaped like a real stored proof: the storage key is the `pod/...` tail of the URL.
-  photoUrl: 'https://cdn/pod/x.jpg',
-  signatureUrl: 'https://cdn/pod/sig.png',
+  // Shaped like a real stored proof in prod: the public base ends in the bucket name, and
+  // that bucket is `hydromart-pod`, so the URL holds "pod/" twice. The key is the last one.
+  photoUrl: 'https://nos.jkt-1.neo.id/hydromart-pod/pod/x.jpg',
+  signatureUrl: 'https://nos.jkt-1.neo.id/hydromart-pod/pod/sig.png',
   // K2.8b: the courier's seal answer. `true` here — these are handovers where one was given.
   sealIntact: true,
   recipientName: 'Budi',
@@ -1203,7 +1204,32 @@ describe('DeliveryService', () => {
 
     // H-22: deleting the row alone left the photo — someone's doorstep, often with them in
     // frame — sitting in the bucket after the record that was supposed to be erased.
-    expect(storage.remove).toHaveBeenCalledWith(storageKeyFromUrl(PROOF.photoUrl));
+    // Literal keys, not `storageKeyFromUrl(PROOF.photoUrl)`: an expectation computed by the
+    // function under test agreed with it when it cut `pod/pod/x.jpg` out of a prod URL.
+    expect(storage.remove).toHaveBeenCalledWith('pod/x.jpg');
+    expect(storage.remove).toHaveBeenCalledWith('pod/sig.png');
+  });
+
+  /*
+   * 27 Nov 2026: every receipt, PoD and incident link in prod answered NoSuchKey. The prod
+   * public base is `https://nos.jkt-1.neo.id/hydromart-pod`, and the key was cut at the FIRST
+   * "pod/" — the end of the bucket name — so `pod/pod/<uuid>.jpg` was signed while the object
+   * sat at `pod/<uuid>.jpg`.
+   */
+  it.each([
+    [
+      'prod: the bucket name ends in "pod"',
+      'https://nos.jkt-1.neo.id/hydromart-pod/pod/5e3c99ab-ac37-4f4a-82d4-ec0b06e5f676.jpg',
+      'pod/5e3c99ab-ac37-4f4a-82d4-ec0b06e5f676.jpg',
+    ],
+    ['a bucket literally named "pod"', 'https://s3.example/pod/pod/a.png', 'pod/a.png'],
+    ['the local-disk adapter', 'http://localhost:3006/uploads/pod/b.webp', 'pod/b.webp'],
+    ['a plain CDN base', 'https://cdn/pod/x.jpg', 'pod/x.jpg'],
+    ['a bare key', 'pod/c.jpg', 'pod/c.jpg'],
+    ['no pod/ segment (pre-upload legacy)', 'https://cdn/legacy.jpg', null],
+    ['a "pod" that is only part of a name', 'https://cdn/hydromart-pod/legacy.jpg', null],
+  ])('storageKeyFromUrl: %s', (_case, url, key) => {
+    expect(storageKeyFromUrl(url)).toBe(key);
   });
 
   // A proof URL that predates the current storage layout has no `pod/` segment to key on.
@@ -1602,6 +1628,12 @@ describe('DeliveryService', () => {
       const out = await service.signedPhotoUrl('https://cdn/pod/x.jpg');
       expect(out).toBe('https://signed/pod/x.jpg?X-Amz-Expires=900');
       expect(storage.signedUrl).toHaveBeenCalledWith('pod/x.jpg', 15 * 60);
+    });
+
+    it('signs the object key, not the bucket, for a prod receipt URL (hydromart-pod)', async () => {
+      const id = '5e3c99ab-ac37-4f4a-82d4-ec0b06e5f676';
+      await service.signedPhotoUrl(`https://nos.jkt-1.neo.id/hydromart-pod/pod/${id}.jpg`);
+      expect(storage.signedUrl).toHaveBeenCalledWith(`pod/${id}.jpg`, 15 * 60);
     });
 
     // Null, never a broken image: nothing to sign, nothing that can be signed, or no

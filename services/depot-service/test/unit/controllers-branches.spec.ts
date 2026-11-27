@@ -2199,6 +2199,7 @@ describe('Inventory controllers', () => {
       DEPOT,
       expect.objectContaining({ productId: null, quantity: 0, minimumStock: 0, sellPrice: null }),
       'user-1',
+      user,
     );
     await depotC.create(
       DEPOT,
@@ -2217,6 +2218,7 @@ describe('Inventory controllers', () => {
       DEPOT,
       expect.objectContaining({ productId: 'p', quantity: 5, sellPrice: 100 }),
       'user-1',
+      user,
     );
   });
 
