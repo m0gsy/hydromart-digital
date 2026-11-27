@@ -167,7 +167,7 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
     const svc = () => makeProspects();
 
     it('verifies a named customer account and links it; wrong status is 409', async () => {
-      const p = seed({ status: 'INTERESTED', assignedToId: 'sales-1' });
+      const p = seed({ status: 'INTERESTED', assignedToId: 'sales-1', phoneE164: null });
       identity.getAccountOwners.mockResolvedValue(new Map([['cust-1', { fullName: 'A', phone: null }]]));
       const res = await svc().convert(sales, p.id, 'cust-1');
       expect(res).toMatchObject({ status: 'CONVERTED', customerId: 'cust-1' });
