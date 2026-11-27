@@ -19,7 +19,8 @@ const PT_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const NOW = new Date('2026-11-25T03:00:00.000Z'); // 10:00 WIB, 25 Nov
 const NOVEMBER = { period: 'month', date: '2026-11-10' };
 
-const user = { sub: 'u1', role: 'SUPER_ADMIN', depotId: null } as unknown as AuthenticatedUser;
+const userOf = (role: string): AuthenticatedUser => ({ sub: 'u1', role, depotId: null }) as unknown as AuthenticatedUser;
+const user = userOf('SUPER_ADMIN');
 const span = (depotId: string, from: string, to: string, legalEntityId: string | null = PT_A) => ({ depotId, legalEntityId, from, to });
 const scopeOf = (spans: ReadScope['spans']): ReadScope => ({
   spans,
@@ -47,7 +48,7 @@ function build(scope: ReadScope = WHOLE, summary?: jest.Mock) {
   const scopes = { resolve: jest.fn(async () => scope) } as unknown as ReadScopeService;
   const service = new VisitMetricsService(scopes, sources as unknown as AiVisitSourcesPort);
   const ask = (id: string, query: Record<string, string> = NOVEMBER, now: Date = NOW) => service.answer(id, user, query, now);
-  return { sources, scopes, ask };
+  return { sources, scopes, service, ask };
 }
 
 describe('VisitMetricsService', () => {
@@ -55,6 +56,19 @@ describe('VisitMetricsService', () => {
     expect(VISIT_METRIC_IDS).toEqual(['V-01', 'V-02', 'V-03', 'V-04']);
     await expect(build().ask('V-09')).rejects.toBeInstanceOf(NotFoundException);
     await expect(build().ask('toString')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('holds visits back from roles that may not read them, and answers the ones that may', async () => {
+    for (const role of ['FINANCE', 'HR', 'MARKETING', 'STAFF_DEPOT']) {
+      const b = build();
+      const out = await b.service.answer('V-01', userOf(role), NOVEMBER, NOW);
+      expect(out).toMatchObject({ status: 'ditahan', value: null });
+      expect(out.reason).toContain('kunjungan');
+      expect(b.sources.summary).not.toHaveBeenCalled();
+    }
+    for (const role of ['KEPALA_DEPOT', 'SUPERVISOR']) {
+      expect(await build().service.answer('V-01', userOf(role), NOVEMBER, NOW)).toMatchObject({ status: 'ok' });
+    }
   });
 
   it('V-01 / V-04: adds the counts over every stretch, per depot with split, asking in WIB instants', async () => {

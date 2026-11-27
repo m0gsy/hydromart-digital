@@ -386,6 +386,12 @@ describe('HrMetricsService: H-07 turnover', () => {
     expect((await h7(build(ended))).reason).toContain('hari terakhir');
   });
 
+  it('does not count a leaver without an exit date (hr-service only counts exit days), and says so in the label', async () => {
+    const out = await h7(withTurnover((ids) => ids.map((d) => turn(d, { exits: 0 }))));
+    expect(out.label).toContain('tanpa tanggal keluar tidak dihitung');
+    expect(out.value).toBe(0);
+  });
+
   it('refuses a period that is not one whole month', async () => {
     const b = withTurnover((ids) => ids.map((d) => turn(d)));
     await expect(h7(b, { from: '2026-11-05', to: '2026-11-20' })).rejects.toBeInstanceOf(BadRequestException);

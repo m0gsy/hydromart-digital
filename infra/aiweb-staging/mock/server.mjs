@@ -558,7 +558,6 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     const date = q.get('date') ?? todayWib();
     if (!READ_UNITS.has(unit) || !validDay(date)) return bad('period must be day, week, month or year, and date a real day');
     const { depots } = who;
-    if (group === 'visits' && !VISIT_ROLES.has(who.role)) return [403, errorBody(403, 'FORBIDDEN', 'This role may not read the visits group.')];
     if (group === 'scope') {
       if (q.get('split')) return bad('scope cannot be split');
       return [200, envelope(depots, unit, date, {
@@ -573,6 +572,10 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     const split = q.get('split');
     if (EXTRA.has(`${group}:${metric}`)) {
       if (split !== null && (split !== 'depot' || !SPLITTABLE.has(metric))) return bad('this metric cannot be split like that');
+      // As the real route: a role that may not read visits gets the held envelope, not a 403.
+      if (group === 'visits' && !VISIT_ROLES.has(who.role)) {
+        return [200, envelope(depots, unit, date, { metricId: metric, unit: READ.visits[metric], value: null, status: 'ditahan', reason: 'Data kunjungan hanya untuk peran yang boleh membaca kunjungan supervisor.' })];
+      }
       return extraRoute(group, metric, depots, unit, date, split !== null, bad);
     }
     if (split !== null && (split !== 'depot' || group === 'customers')) return bad('this metric cannot be split like that');

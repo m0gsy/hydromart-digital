@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { can } from '@hydromart/access';
 import { AuthenticatedUser } from '@hydromart/platform';
 
 import { InstantRange } from '../ports/ai-money-sources.port';
@@ -56,6 +57,8 @@ export class VisitMetricsService {
       parsePeriod(query, now);
     }
     const c = await openGroup(this.scopes, VISIT_METRICS, 'kunjungan', metricId, user, asked, now);
+    // aiRead is the door to the API, not to this group: visits are for the roles that may read visits at all.
+    if (!can('visitRead', user.role, c.scope.echo.depotIds)) return c.held('Data kunjungan hanya untuk peran yang boleh membaca kunjungan supervisor.');
     if (c.scope.spans.length === 0) return c.none(NO_SCOPE);
     switch (metricId as VisitMetricId) {
       case 'V-01':

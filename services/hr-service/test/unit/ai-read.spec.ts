@@ -316,6 +316,14 @@ describe('AiReadPrismaRepository.turnover (H-07)', () => {
     expect(where.OR).toEqual([{ exitDate: { gte: new Date('2026-11-01T00:00:00Z') } }, { exitDate: null, status: 'ACTIVE' }]);
   });
 
+  it('does not count a RESIGNED employee without an exit date as an exit', async () => {
+    const { prisma, repo } = setup();
+    // the query keeps only ACTIVE people with no exit day, so such a leaver never reaches the count
+    prisma.employee.findMany.mockResolvedValue([e(D1, '2025-01-01', null)]);
+    expect(await repo.turnover([D1], '2026-11')).toEqual([{ depotId: D1, exits: 0, startHeadcount: 1, endHeadcount: 1 }]);
+    expect(prisma.employee.findMany.mock.calls[0][0].where.OR).toContainEqual({ exitDate: null, status: 'ACTIVE' });
+  });
+
   it('refuses more people than it will walk', async () => {
     const { prisma, repo } = setup();
     prisma.employee.findMany.mockResolvedValue(new Array(MAX_AI_READ_GROUPS + 1).fill(e(D1, '2025-01-01', null)));

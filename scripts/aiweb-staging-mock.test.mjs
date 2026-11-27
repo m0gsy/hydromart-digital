@@ -865,7 +865,15 @@ test('the read API: visits, H-01, H-02, H-07 and the extra money metrics hold th
     assert.deepEqual(v3.value.byDepot.map((r) => r.depotId), FAKE_DEPOTS);
     assert.equal(v3.value.overdue, v3.value.byDepot.reduce((a, r) => a + r.overdue, 0));
     // a role outside the visits group is refused; a depot-bound supervisor sees its own depot
-    assert.equal((await get(mock, `${READ_PATH}/visits?metric=V-01`, await tokenOf(mock, user('FINANCE')))).status, 403);
+    for (const role of ['FINANCE', 'HR', 'MARKETING', 'STAFF_DEPOT']) {
+      const res = await get(mock, `${READ_PATH}/visits?metric=V-01`, await tokenOf(mock, user(role)));
+      assert.equal(res.status, 200);
+      const held = await res.json();
+      assertEnvelope(held, 'visits', 'V-01');
+      assert.equal(held.status, 'ditahan');
+      assert.equal(held.value, null);
+      assert.ok(held.reason);
+    }
     const mine = await (await get(mock, `${READ_PATH}/visits?metric=V-03&split=depot`, await tokenOf(mock, user('SUPERVISOR')))).json();
     assert.equal(mine.value.byDepot.length, 1);
     // H-01 holds the depot of 2 and a neighbour; H-07 a plain percent, held for a group of 2

@@ -188,7 +188,7 @@ export class HrMetricsService {
     if (average === 0) return env.none('Tidak ada karyawan pada bulan ini, jadi turnover tidak bisa dihitung.');
     return env.ok(
       Math.round((exits / average) * 1000) / 10,
-      'turnover satu bulan penuh = karyawan yang tanggal keluarnya jatuh di bulan itu dibagi rata-rata karyawan di awal dan di akhir bulan, dalam persen satu desimal; menurut depot asal karyawan; hanya total, tidak per depot; angka yang bertumpu pada kurang dari 3 karyawan tidak diberikan',
+      'turnover satu bulan penuh = karyawan yang tanggal keluarnya jatuh di bulan itu dibagi rata-rata karyawan di awal dan di akhir bulan, dalam persen satu desimal; menurut depot asal karyawan (karyawan keluar tanpa tanggal keluar tidak dihitung); hanya total, tidak per depot; angka yang bertumpu pada kurang dari 3 karyawan tidak diberikan',
     );
   }
 

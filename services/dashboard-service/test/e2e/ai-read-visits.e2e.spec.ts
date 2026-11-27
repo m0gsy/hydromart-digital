@@ -143,10 +143,9 @@ describe('GET ai/read/visits (AI-21)', () => {
     expect(asked[0].searchParams.get('depotIds')).toBe(`${D1},${D2}`);
     expect(asked[0].searchParams.get('from')).toBe('2026-10-31T17:00:00.000Z');
     asked.length = 0;
-    const own = await get(aiToken('FINANCE'), 'V-04', `${MONTH}&split=depot`).expect(200);
-    expect(own.body.value).toEqual({ total: 1, byDepot: [{ depotId: D2, value: 1 }] });
-    expect(own.body.scope.legalEntityIds).toEqual([PT_B]);
-    expect(asked.map((u) => u.searchParams.get('depotIds'))).toEqual([D2]);
+    const fin = await get(aiToken('FINANCE'), 'V-04', `${MONTH}&split=depot`).expect(200);
+    expect(fin.body).toMatchObject({ status: 'ditahan', value: null });
+    expect(asked).toHaveLength(0);
   });
 
   it('answers the point metrics for today, per depot', async () => {
