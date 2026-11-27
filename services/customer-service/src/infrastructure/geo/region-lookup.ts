@@ -48,6 +48,7 @@ export class RegionLookup {
   private failed = false;
   private readonly byParent = new Map<string, RegionFeature[]>();
   private readonly byCode = new Map<string, RegionFeature>();
+  private readonly names = new Map<string, string>();
   private indexed = false;
 
   // The token is never provided in the app (the file is read on first use); tests pass an asset.
@@ -64,8 +65,12 @@ export class RegionLookup {
       ) as RegionAsset;
       if (!this.indexed) {
         this.indexed = true;
-        for (const f of this.asset.adm3) this.byCode.set(f.c, f);
+        for (const f of this.asset.adm3) {
+          this.byCode.set(f.c, f);
+          this.names.set(f.c, f.n);
+        }
         for (const f of this.asset.adm4) {
+          this.names.set(f.c, f.n);
           const list = this.byParent.get(f.p!) ?? [];
           list.push(f);
           this.byParent.set(f.p!, list);
@@ -101,6 +106,12 @@ export class RegionLookup {
     const kel = asset.adm4.find((f) => inFeature(point, f));
     const parent = kel && this.byCode.get(kel.p!);
     return kel && parent ? { kecamatan: named(parent), kelurahan: named(kel) } : null;
+  }
+
+  /** The BPS name of a kecamatan or kelurahan code; null when the code or the asset is unknown. */
+  nameOf(code: string): string | null {
+    this.load();
+    return this.names.get(code) ?? null;
   }
 
   /** The codes an address row stores for this pin, honouring how trustworthy the pin is. */

@@ -43,6 +43,7 @@ import { FavoriteController } from './favorite.controller';
 import { ResellerSelfController } from './reseller-self.controller';
 import { ResellerController } from './reseller.controller';
 import { InternalController } from './internal.controller';
+import { InternalRegionsController } from './internal-regions.controller';
 
 const providers: Provider[] = [
   PrismaService,
@@ -100,6 +101,7 @@ const providers: Provider[] = [
     ResellerSelfController,
     ResellerController,
     InternalController,
+    InternalRegionsController,
   ],
   providers,
   exports: [PrismaService, CustomerConfigService],
