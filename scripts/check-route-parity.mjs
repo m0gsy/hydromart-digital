@@ -42,6 +42,10 @@ const splitPath = (p) =>
     .filter(Boolean)
     .map((s) => (s.startsWith(':') ? ':' : s));
 
+// Ceiling: a client `:` segment also matches a STATIC route segment, so a builder such as
+// `detail: /b2b-prospects/${id}` (normalised `/b2b-prospects/:`) counts as a caller of every
+// single-segment static route under it (import, export, recompute-owners). Left as is on purpose:
+// tightening it would surface unrelated orphans repo-wide.
 const matches = (route, wanted) =>
   route.length === wanted.length &&
   route.every((seg, i) => seg === ':' || wanted[i] === ':' || seg === wanted[i]);

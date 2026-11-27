@@ -6,9 +6,10 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, auth, qs, FakeApiError } = vi.hoisted(() => ({
+const { get, auth, qs, served, FakeApiError } = vi.hoisted(() => ({
   get: vi.fn(),
-  auth: { role: 'KEPALA_DEPOT' },
+  served: { map: true },
+  auth: { role: 'KEPALA_DEPOT', depot: null as string | null },
   qs: {} as Record<string, string>,
   FakeApiError: class extends Error {
     constructor(
@@ -29,8 +30,9 @@ vi.mock('@/lib/locale-context', () => ({
   }),
 }));
 vi.mock('@/lib/auth-context', () => ({
-  useAuth: () => ({ customer: { id: 'u-1', role: auth.role }, ready: true }),
+  useAuth: () => ({ customer: { id: 'u-1', role: auth.role, assignedDepotId: auth.depot }, ready: true }),
 }));
+vi.mock('@/lib/deep-link', () => ({ isServedHere: () => served.map }));
 vi.mock('@/lib/depot-context', () => ({
   useDepot: () => ({ depots: [{ id: 'dep-a', code: 'BKS', name: 'Bekasi' }], selectedId: null }),
 }));
@@ -97,6 +99,8 @@ const page = (items: unknown[], nextCursor: string | null = null) => ({ items, n
 
 beforeEach(() => {
   auth.role = 'KEPALA_DEPOT';
+  auth.depot = null;
+  served.map = true;
   loadSessionCapabilities(null, null);
   for (const k of Object.keys(qs)) delete qs[k];
   get.mockReset();
@@ -162,6 +166,45 @@ describe('prospect list', () => {
     expect(screen.getByText('opsFix.prospects.tabs.opportunity')).toBeTruthy();
     expect(screen.getByText('opsFix.prospects.noDepot', { selector: 'dd' })).toBeTruthy();
     expect(screen.getByText('opsFix.prospects.opportunityNote')).toBeTruthy();
+  });
+
+  it('hides the map link where the route is pruned (Ops binary)', async () => {
+    served.map = false;
+    serve({ list: page([row()]), assignees: [], opportunity: new FakeApiError(403, 'no') });
+    render(<ProspectsPage />);
+    await screen.findByText('Kos Mawar');
+    expect(screen.queryByText('opsFix.prospects.mapOpen')).toBeNull();
+    cleanup();
+    served.map = true;
+    serve({ list: page([row()]), assignees: [], opportunity: new FakeApiError(403, 'no') });
+    render(<ProspectsPage />);
+    expect(await screen.findByText('opsFix.prospects.mapOpen')).toBeTruthy();
+  });
+
+  it('never probes the opportunity map for a depot-bound account', async () => {
+    auth.depot = 'dep-a';
+    serve({ list: page([row()]), assignees: [] });
+    render(<ProspectsPage />);
+    await screen.findByText('Kos Mawar');
+    expect(calls('scope=map')).toHaveLength(0);
+  });
+
+  it('ignores a hand-typed tab the role lacks and makes no call the role would be refused', async () => {
+    auth.role = 'DIREKTUR';
+    qs.tab = 'mine';
+    serve({ list: page([row()]), opportunity: page([]) });
+    render(<ProspectsPage />);
+    await screen.findByText('Kos Mawar');
+    expect(calls('/mine')).toHaveLength(0);
+    cleanup();
+    auth.role = 'C_sales';
+    loadSessionCapabilities('C_sales', ['b2bProspectWork']);
+    qs.tab = 'coverage';
+    get.mockClear();
+    serve({ mine: page([row()]) });
+    render(<ProspectsPage />);
+    await screen.findByText('Kos Mawar');
+    expect(calls('/coverage')).toHaveLength(0);
   });
 
   it('shows the gate card when the capability disappears mid-session (403)', async () => {

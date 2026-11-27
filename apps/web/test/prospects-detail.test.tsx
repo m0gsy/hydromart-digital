@@ -134,6 +134,13 @@ describe('prospect detail', () => {
     expect(await screen.findByText('opsFix.prospects.detail.notFound')).toBeTruthy();
   });
 
+  it('shows the gate card when the capability is lost mid-session (403)', async () => {
+    load(new FakeApiError(403, 'x'));
+    render(<ProspectDetailPage />);
+    expect(await screen.findByText('opsFix.prospects.gateTitle')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'common.retry' })).toBeNull();
+  });
+
   it('offers a retry on a server error', async () => {
     load(new FakeApiError(500, 'x'));
     render(<ProspectDetailPage />);

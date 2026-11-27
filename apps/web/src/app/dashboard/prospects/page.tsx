@@ -18,6 +18,7 @@ import { labelKey, PROSPECT_CATEGORIES } from '@/lib/prospect-labels';
 import { PROSPECT_STATUSES } from '@/lib/prospect-status';
 import { can, canViewProspects } from '@/lib/roles';
 import type { ProspectAssignee, ProspectDetail, ProspectRow } from '@/lib/types';
+import { isServedHere } from '@/lib/deep-link';
 import { useQueryState } from '@/lib/use-query-param';
 
 type Tab = 'all' | 'mine' | 'opportunity' | 'coverage';
@@ -43,13 +44,12 @@ function Body() {
   const [q, setQ] = useQueryState('q');
   const [draft, setDraft] = useState(q);
 
-  // A Work-only role lands on "Milik saya" and sees no other tab.
-  const tab: Tab = (tabParam as Tab) || (read ? 'all' : 'mine');
-
   // The opportunity tab exists only for network roles: the server answers 403 to a depot role.
+  // A depot-bound account (assignedDepotId) never probes, so a Kepala logs no 403 per page load.
+  const networkWide = read && !customer?.assignedDepotId;
   const [canSeeOpportunity, setCanSeeOpportunity] = useState(false);
   useEffect(() => {
-    if (!read) return;
+    if (!networkWide) return;
     let alive = true;
     api
       .get(endpoints.prospects.list({ scope: 'map', limit: 1 }), true)
@@ -58,7 +58,21 @@ function Body() {
     return () => {
       alive = false;
     };
-  }, [read]);
+  }, [networkWide]);
+
+  const tabs = [
+    ...(read ? [{ value: 'all' as const, label: t('opsFix.prospects.tabs.all') }] : []),
+    ...(work ? [{ value: 'mine' as const, label: t('opsFix.prospects.tabs.mine') }] : []),
+    ...(canSeeOpportunity ? [{ value: 'opportunity' as const, label: t('opsFix.prospects.tabs.opportunity') }] : []),
+    ...(read ? [{ value: 'coverage' as const, label: t('opsFix.prospects.tabs.coverage') }] : []),
+  ];
+  // A Work-only role lands on "Milik saya"; a hand-typed ?tab the role lacks falls back to its first tab,
+  // so no call is made that the role would be refused. The opportunity tab waits for its probe.
+  const tab: Tab = tabs.some((x) => x.value === tabParam)
+    ? (tabParam as Tab)
+    : tabParam === 'opportunity' && networkWide
+      ? 'all'
+      : ((tabs[0]?.value ?? 'mine') as Tab);
 
   const listTab = tab === 'all' || tab === 'mine' || tab === 'opportunity';
   const common = { status, category, kecamatanCode: kecamatan, q, limit: PAGE };
@@ -109,12 +123,6 @@ function Body() {
     return t('opsFix.prospects.otherStaff');
   };
 
-  const tabs = [
-    ...(read ? [{ value: 'all' as const, label: t('opsFix.prospects.tabs.all') }] : []),
-    ...(work ? [{ value: 'mine' as const, label: t('opsFix.prospects.tabs.mine') }] : []),
-    ...(read && canSeeOpportunity ? [{ value: 'opportunity' as const, label: t('opsFix.prospects.tabs.opportunity') }] : []),
-    ...(read ? [{ value: 'coverage' as const, label: t('opsFix.prospects.tabs.coverage') }] : []),
-  ];
 
   if (pages.status === 403) {
     return (
@@ -128,7 +136,7 @@ function Body() {
     <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold">{t('opsFix.prospects.title')}</h1>
-        {read && (
+        {read && isServedHere('/dashboard/prospects/map') && (
           <Link href="/dashboard/prospects/map" className="text-sm font-semibold text-brand-700">
             {t('opsFix.prospects.mapOpen')}
           </Link>

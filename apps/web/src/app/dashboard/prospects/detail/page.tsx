@@ -153,6 +153,13 @@ function Body() {
       <CenterState title={t('opsFix.prospects.detail.notFound')}>{t('opsFix.prospects.detail.notFoundBody')}</CenterState>
     );
   }
+  if (failure?.status === 403) {
+    return (
+      <CenterState title={t('opsFix.prospects.gateTitle')} icon={<Lock size={40} weight="fill" />}>
+        {t('opsFix.prospects.gateBody')}
+      </CenterState>
+    );
+  }
   if (failure) return <ErrorState message={t('opsFix.prospects.detail.loadFailed')} onRetry={load} />;
   if (loading && !row) return <Skeleton className="m-4 h-64" />;
   if (!row) return null;

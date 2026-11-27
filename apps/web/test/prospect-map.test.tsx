@@ -6,8 +6,9 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, auth, FakeApiError } = vi.hoisted(() => ({
+const { get, auth, sel, FakeApiError } = vi.hoisted(() => ({
   get: vi.fn(),
+  sel: { id: null as string | null },
   auth: { role: 'HEAD_OFFICE' },
   FakeApiError: class extends Error {
     constructor(
@@ -36,7 +37,7 @@ vi.mock('@/lib/depot-context', () => ({
       { id: 'dep-a', code: 'BKS', name: 'Bekasi' },
       { id: 'dep-b', code: 'DPK', name: 'Depok' },
     ],
-    selectedId: null,
+    selectedId: sel.id,
   }),
 }));
 vi.mock('@/components/require-auth', () => ({
@@ -105,6 +106,7 @@ const prospectCalls = () => get.mock.calls.map(([u]) => String(u)).filter((u) =>
 
 beforeEach(() => {
   auth.role = 'HEAD_OFFICE';
+  sel.id = null;
   loadSessionCapabilities(null, null);
   get.mockReset();
 });
@@ -125,14 +127,21 @@ describe('prospect map', () => {
 
   it('draws no dot for a row the responses did not carry (assigned-only role: no extra data source)', async () => {
     auth.role = 'KEPALA_DEPOT';
+    sel.id = 'dep-a';
     serve({ list: [row('p1', { assignedToId: 'u-1' })], opportunity: new FakeApiError(403, 'no') });
     render(<ProspectMapPage />);
     await screen.findByRole('img', { name: 'opsFix.prospects.map.label' });
     expect(screen.getAllByTestId('prospect-dot')).toHaveLength(1);
     // the only prospect call is the list itself: no mine, no map scope, no assignees
     expect(prospectCalls()).toHaveLength(1);
-    expect(prospectCalls()[0]).toContain('limit=100');
-    expect(prospectCalls()[0]).not.toContain('scope=map');
+    const url = prospectCalls()[0] as string;
+    expect(url).toContain('limit=100');
+    expect(url).not.toContain('scope=map');
+    expect(url).not.toContain('/mine');
+    expect(url).not.toContain('assigned');
+    expect(url).toContain('depotId=dep-a');
+    // and the dots drawn are exactly the rows returned
+    expect(screen.getAllByTestId('prospect-dot')).toHaveLength(1);
   });
 
   it('fetches opportunity rows only when asked, shows them hollow, and hides the toggle after a 403', async () => {
