@@ -91,6 +91,10 @@ refuses extrasvc "doc.services.other = {image: 'x@sha256:00000000000000000000000
 refuses poolreq "$S.environment.ANTHROPIC_API_KEY_2 = '\${AIWEB_LLM_ANTHROPIC_API_KEY:?x}'" 'must be exactly' "a required (:?) fallback key"
 refuses poolname "$S.environment.TELEGRAM_BOT_TOKEN = '\${AIWEB_LLM_ANTHROPIC_API_KEY:-}'" 'may only feed ANTHROPIC_API_KEY_2' "the AI web key under another env name"
 refuses poolonce "$S.environment.ANTHROPIC_API_KEY_3 = '\${AIWEB_LLM_ANTHROPIC_API_KEY:-}'" 'read 2 times' "the AI web key read twice"
+refuses poolcmd "$S.command = ['gateway', 'run', '\${AIWEB_LLM_ANTHROPIC_API_KEY:-}']" 'read outside' "the AI web key outside the environment (command)"
+refuses poolsvc "doc.services.other = {image: 'x@sha256:0000000000000000000000000000000000000000000000000000000000000000', environment: {ANTHROPIC_API_KEY_2: '\${AIWEB_LLM_ANTHROPIC_API_KEY:-}'}}" 'exactly one service' "the AI web key read by a second service"
+mutant poolabsent "delete $S.environment.ANTHROPIC_API_KEY_2" && node scripts/check-hermes-compose.mjs "$W/poolabsent.yml" >/dev/null 2>&1 &&
+  ok "the fallback key left out entirely still passes" || bad "the fallback key left out entirely is refused"
 refuses aiwebother "$S.environment.ANTHROPIC_API_KEY_2 = '\${AIWEB_LLM_OPENAI_API_KEY:-}'" 'only HERMES_* keys' "another AIWEB_* interpolation"
 refuses pgother "$S.environment.ANTHROPIC_API_KEY_2 = '\${POSTGRES_PASSWORD:-}'" 'only HERMES_* keys' "a POSTGRES_* interpolation"
 node scripts/check-hermes-compose.mjs infra/hermes/docker-compose.yml 2>&1 | grep -q 'ANTHROPIC_API_KEY_2' &&
