@@ -1,4 +1,4 @@
-import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import { ForbiddenException, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import { loadCustomRoles, loadOverrides } from '@hydromart/access';
 import { AuthenticatedUser, Role, haversineMeters } from '@hydromart/platform';
@@ -140,7 +140,7 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
 
     it('never writes a coordinate or a phone into a log line on refusal', async () => {
       const p = seed({ assignedToId: 'sales-1' });
-      const warn = jest.spyOn(require('@nestjs/common').Logger.prototype, 'warn').mockImplementation(() => undefined);
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
       await visitSvc().visit(sales, p.id, { ...good, latitude: PIN.latitude + 0.01 }).catch(() => undefined);
       const line = String(warn.mock.calls[0]![0]);
       expect(line).toMatch(/visitor sales-1, prospect .*, \d+ m, radius 200 m, accuracy 12 m/);
@@ -407,7 +407,7 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
     });
 
     it('logs counts only', async () => {
-      const log = jest.spyOn(require('@nestjs/common').Logger.prototype, 'log').mockImplementation(() => undefined);
+      const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
       seed({ lastActivityAt: at('2025-01-01T00:00:00Z'), name: 'Kos Rahasia' });
       await maint().purge(cutoff);
       expect(String(log.mock.calls[0]![0])).toBe('B2B prospect retention: 1 deleted, 0 anonymised');
