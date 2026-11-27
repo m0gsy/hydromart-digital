@@ -17,7 +17,7 @@
 # never pinned here first). Staging has no backup: its data is made up and `staging-reset` (the
 # Deploy workflow's mode) starts it again from nothing.
 #
-# Pinned now: hydromart-ai 0a7e766 (AREA-4 market data: the monthly upload at /data-pasar/unggah, the table at /data-pasar and the assumptions at /data-pasar/asumsi, migration 20261127190000_area4_market_data, #29; images of main CI run 46003441654); before it, decf2d2 (AI-LLM2 two Anthropic keys, the primary chosen by SUPER_ADMIN at /tim-ai/kunci-llm, one retry on the other when credit runs out, #27; AREA-T2 the open-data prospect tool part 2, #28; the no-legal-entity note copy, #26; images of main CI run 45969268560); before it, b871bcf (AI-12b the approval inbox: /inbox for every approval waiting on the signed-in person, due times, in-app escalation every 30 minutes and the quality-hold rule check, #24; images of main CI run 45943139441); before it, a5ba94f (AI-12a the depot quality-hold state, the hold notice and the daily permit and lab-test reminder, #23); before it, 667cebd (AI-26 the weekly Sales report for the calon mitra CRM, #21; AI-29/AI-31 the agent team: registry, caps, switches, the Keuangan agent, #22); before it, 951fe29 (AI-13, the calon mitra CRM: #18 schema, legal-entity row security, screens, editable lead score; #20 draft depot at hydromart, the depot.onboarded handler and the import of old /waralaba applications); before it, d5b791f (the league ranks a depot with a monthly target on its pace against it, #17; on 8fbe25c: n8n: customer reminders 17.00, 10.00 and every 10 minutes, the 07.30 maintenance sweep, record-only readers for order and stock events; on bd6de7e's read screens), ahead of production (CI run 45846506199).
+# Pinned now: hydromart-ai 5e4632b (AREA-5 #30, the Halaman Wilayah at /wilayah with the corrected potential formula and the Excel sheets 06-10 at /wilayah/unduh; no migration; images of main CI run 46050530717); before it, 0a7e766 (AREA-4 market data: the monthly upload at /data-pasar/unggah, the table at /data-pasar and the assumptions at /data-pasar/asumsi, migration 20261127190000_area4_market_data, #29; images of main CI run 46003441654); before it, decf2d2 (AI-LLM2 two Anthropic keys, the primary chosen by SUPER_ADMIN at /tim-ai/kunci-llm, one retry on the other when credit runs out, #27; AREA-T2 the open-data prospect tool part 2, #28; the no-legal-entity note copy, #26; images of main CI run 45969268560); before it, b871bcf (AI-12b the approval inbox: /inbox for every approval waiting on the signed-in person, due times, in-app escalation every 30 minutes and the quality-hold rule check, #24; images of main CI run 45943139441); before it, a5ba94f (AI-12a the depot quality-hold state, the hold notice and the daily permit and lab-test reminder, #23); before it, 667cebd (AI-26 the weekly Sales report for the calon mitra CRM, #21; AI-29/AI-31 the agent team: registry, caps, switches, the Keuangan agent, #22); before it, 951fe29 (AI-13, the calon mitra CRM: #18 schema, legal-entity row security, screens, editable lead score; #20 draft depot at hydromart, the depot.onboarded handler and the import of old /waralaba applications); before it, d5b791f (the league ranks a depot with a monthly target on its pace against it, #17; on 8fbe25c: n8n: customer reminders 17.00, 10.00 and every 10 minutes, the 07.30 maintenance sweep, record-only readers for order and stock events; on bd6de7e's read screens), ahead of production (CI run 45846506199).
 #
 # Isolation, held by scripts/check-aiweb-staging-compose.mjs in CI and proved on the box after every
 # deploy by the probe in scripts/aiweb-staging-deploy.sh:
@@ -70,7 +70,7 @@ services:
 
   # One shot, before every app start: `prisma migrate deploy` as ai_owner.
   migrate:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:7e40b36f1c3099928db7ebbf296732d6c73e63dc5d3099502701be9da376e3d5
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:e6b0628e5905416a2fc005f3b4a68a526954f71853debb03826a6c0f7e9d343b
     profiles: ["migrate"]
     logging: *logging
     mem_limit: 384m
@@ -87,7 +87,7 @@ services:
   # The service is not called `aiweb`: Caddy reaches it by this name over `edge-staging`. Its
   # alias `aiweb` exists on `private` only, where n8n's workflows and the mock name it.
   staging-aiweb:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:91e3bb34cf9f58c639c58a9bcbe40392f5318bddf4f442317758f6bf475ea358
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:7c63b63614321195e461bf0db9c09087a8661b07da6368d87e313c77aa950fe5
     restart: unless-stopped
     logging: *logging
     mem_limit: 384m
@@ -124,7 +124,7 @@ services:
   # The fake hydromart (infra/aiweb-staging/mock/server.mjs), on the app image: node is there and
   # nothing else is needed. The file is mounted read-only from this checkout.
   hydromart-mock:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:91e3bb34cf9f58c639c58a9bcbe40392f5318bddf4f442317758f6bf475ea358
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:7c63b63614321195e461bf0db9c09087a8661b07da6368d87e313c77aa950fe5
     restart: unless-stopped
     logging: *logging
     mem_limit: 64m
@@ -158,7 +158,7 @@ services:
   # n8n-rewrite.mjs (below) points the copy staging imports at the mock, and the image's
   # N8N_SSRF_ALLOWED_HOSTNAMES is widened by exactly the mock's name.
   n8n:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:ec2182696a20918d13290e5de3454965fa998946119145fc8ab1a1b28a070b90
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:01cf552f5ce141f7375e2ded558985f98d02e814895b34034753517a7d5f1c9d
     restart: unless-stopped
     logging: *logging
     mem_limit: 700m
@@ -199,7 +199,7 @@ services:
   # One shot, in every deploy while n8n is stopped: n8n-rewrite.mjs makes the copy of the image's
   # n8n/ with hydromart's address replaced by the mock's, then setup.mjs imports THAT.
   n8n-setup:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:ec2182696a20918d13290e5de3454965fa998946119145fc8ab1a1b28a070b90
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:01cf552f5ce141f7375e2ded558985f98d02e814895b34034753517a7d5f1c9d
     profiles: ["n8n-setup"]
     logging: *logging
     mem_limit: 700m
