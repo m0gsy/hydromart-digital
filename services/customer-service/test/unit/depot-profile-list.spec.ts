@@ -1,0 +1,65 @@
+import { DepotProfileHttpAdapter } from '../../src/infrastructure/http/depot-profile.http.adapter';
+import { UnservedDemandPrismaRepository } from '../../src/infrastructure/prisma/unserved-demand.prisma.repository';
+import { buildTestConfig } from '../support/fakes';
+
+const originalFetch = globalThis.fetch;
+afterEach(() => {
+  (globalThis as { fetch: unknown }).fetch = originalFetch;
+  jest.restoreAllMocks();
+});
+const setFetch = (impl: unknown) => {
+  (globalThis as { fetch: unknown }).fetch = impl;
+};
+
+describe('DepotProfileHttpAdapter.listActive (HD-20b)', () => {
+  const configured = buildTestConfig({ DEPOT_SERVICE_URL: 'http://depot:3007' });
+  const page = (items: unknown[], totalPages: number) => ({
+    ok: true,
+    json: async () => ({ items, totalPages }),
+  });
+
+  it('walks every page and keeps the depots that can be placed', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce(page([{ id: 'a', lat: 1, lng: 2, serviceRadiusKm: 3 }, { id: 'x' }], 2))
+      .mockResolvedValueOnce(page([{ id: 'b', lat: 4, lng: 5 }], 2));
+    setFetch(fetchMock);
+    await expect(new DepotProfileHttpAdapter(configured).listActive()).resolves.toEqual([
+      { id: 'a', lat: 1, lng: 2, serviceRadiusKm: 3, serviceArea: null },
+      { id: 'b', lat: 4, lng: 5, serviceRadiusKm: 0, serviceArea: null },
+    ]);
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      'http://depot:3007/api/v1/depots?limit=100&page=2&includeArea=true',
+    );
+  });
+
+  it('stops after one page without totalPages, and reads a body without items as none', async () => {
+    setFetch(jest.fn().mockResolvedValue({ ok: true, json: async () => ({}) }));
+    await expect(new DepotProfileHttpAdapter(configured).listActive()).resolves.toEqual([]);
+  });
+
+  it('is null when one page fails or depot-service is not configured', async () => {
+    const adapter = new DepotProfileHttpAdapter(configured);
+    jest
+      .spyOn((adapter as unknown as { logger: { warn: () => void } }).logger, 'warn')
+      .mockImplementation(() => undefined);
+    setFetch(jest.fn().mockResolvedValueOnce(page([], 2)).mockResolvedValueOnce({ ok: false, status: 500 }));
+    await expect(adapter.listActive()).resolves.toBeNull();
+    await expect(new DepotProfileHttpAdapter(buildTestConfig({})).listActive()).resolves.toBeNull();
+  });
+});
+
+describe('UnservedDemandPrismaRepository', () => {
+  it('inserts exactly the row it is given', async () => {
+    const create = jest.fn().mockResolvedValue({});
+    const row = {
+      monthKey: '2026-11',
+      kecamatanCode: '1',
+      kelurahanCode: null,
+      gridCell: '1:2',
+      distanceBand: '1-3',
+    };
+    await new UnservedDemandPrismaRepository({ unservedDemand: { create } } as never).record(row);
+    expect(create).toHaveBeenCalledWith({ data: row });
+  });
+});

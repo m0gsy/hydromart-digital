@@ -65,6 +65,7 @@ describe('PdpPrismaRepository (UU PDP tahap 1)', () => {
         kecamatanCode: null,
         kelurahanCode: null,
         regionSource: null,
+        unservedMonth: null,
       },
     });
     expect(address.findMany).not.toHaveBeenCalled();
