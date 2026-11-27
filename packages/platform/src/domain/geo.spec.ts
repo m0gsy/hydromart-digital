@@ -1,6 +1,8 @@
 import {
   APPROXIMATE_ACCURACY_M,
   geofenceEnabled,
+  gridCell1km,
+  gridCellCenter,
   haversineKm,
   haversineMeters,
   isApproximateFix,
@@ -124,5 +126,27 @@ describe('withinGeofence', () => {
       ok: true,
       distanceM: null,
     });
+  });
+});
+
+describe('gridCell1km', () => {
+  it('names the cell of a point, negative coordinates floor away from zero', () => {
+    expect(gridCell1km(-6.1754, 106.8272)).toBe('-687:11869');
+    expect(gridCell1km(1, 1)).toBe('111:111');
+  });
+  it('two points about 1 km apart land in different cells, nearby points in the same one', () => {
+    expect(gridCell1km(-6.1754, 106.8272)).toBe(gridCell1km(-6.1756, 106.8274));
+    expect(gridCell1km(-6.1754, 106.8272)).not.toBe(gridCell1km(-6.1754, 106.8372));
+  });
+  it('a point exactly on a cell edge belongs to the cell that starts there', () => {
+    expect(gridCell1km(0.009 * 3, 0)).toBe('3:0');
+    expect(gridCell1km(-0.0001, -0.0001)).toBe('-1:-1');
+  });
+  it('the centre of a cell is in that cell, about 0.5 km from its edges', () => {
+    for (const cell of ['-687:11869', '3:0', '-1:-1']) {
+      const c = gridCellCenter(cell);
+      expect(gridCell1km(c.lat, c.lng)).toBe(cell);
+    }
+    expect(gridCellCenter('0:0')).toEqual({ lat: 0.0045, lng: 0.0045 });
   });
 });
