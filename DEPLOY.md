@@ -254,17 +254,13 @@ network, never this project's default one. A release that changes anything under
 serving and raises an alert.
 
 
-### Supervisor visit photos (HD-15B) — no owner step
+### Supervisor visit photos (HD-15B) — one owner step
 
-Owner decision 27 Nov 2026: finding photos share the PoD bucket. With `VISIT_STORAGE_S3_BUCKET`,
-`VISIT_STORAGE_S3_ACCESS_KEY_ID` and `VISIT_STORAGE_S3_SECRET_ACCESS_KEY` left blank in `.env`, compose
-hands depot-service the `DELIVERY_STORAGE_S3_*` values, so the photos land in the PRIVATE `hydromart-pod`
-under `visits/<visitId>/` and are read through signed links only. The bucket's lifecycle rule expires
-`pod/*` only, so visit photos are not swept with PoD photos. Trade-off accepted: depot-service holds a
-key that can also write the PoD photos.
-
-To split them later: create a private bucket and a key scoped to it, set all three `VISIT_STORAGE_S3_*`
-in `.env`, redeploy depot (the deploy's anonymous-listing probe covers the new bucket).
+Finding photos need their own PRIVATE bucket and key; until then the photo upload answers 503 and every
+other visit route works. Owner, once: (1) create a private bucket (e.g. `hydromart-visits`) on the same
+object storage and a key that can read/write only it; (2) set `VISIT_STORAGE_S3_BUCKET`,
+`VISIT_STORAGE_S3_ACCESS_KEY_ID` and `VISIT_STORAGE_S3_SECRET_ACCESS_KEY` in `.env`; (3) redeploy depot.
+Keep it private (the deploy's anonymous-listing probe covers it) and do not reuse the delivery key.
 
 ---
 

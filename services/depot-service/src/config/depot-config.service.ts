@@ -140,16 +140,15 @@ export class DepotConfigService {
     };
   }
   /**
-   * Private bucket for finding photos (HD-15B): the shared endpoint and region, objects under the
-   * `visits/` prefix. In prod compose hands over the PoD bucket and key when VISIT_STORAGE_S3_* are
-   * blank (owner, 27 Nov 2026), so this reads whatever the environment names.
+   * Private bucket for finding photos (HD-15B): the shared endpoint and region, a bucket and key of
+   * their own (never another service's credentials), objects under the `visits/` prefix.
    */
   get visitS3(): VisitS3Settings | null {
     const bucket = this.config.get<string>('VISIT_STORAGE_S3_BUCKET', '');
     const accessKeyId = this.config.get<string>('VISIT_STORAGE_S3_ACCESS_KEY_ID', '');
     const secretAccessKey = this.config.get<string>('VISIT_STORAGE_S3_SECRET_ACCESS_KEY', '');
-    // Optional on purpose: a deployment with no bucket named answers 503 on photo upload and everything
-    // else about visits works.
+    // Optional on purpose: until the owner makes a dedicated bucket and key, photo upload answers 503
+    // and everything else about visits works.
     if (!bucket || !accessKeyId || !secretAccessKey) return null;
     return {
       endpoint: this.config.getOrThrow<string>('STORAGE_S3_ENDPOINT'),
