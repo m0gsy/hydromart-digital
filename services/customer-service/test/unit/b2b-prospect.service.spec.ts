@@ -312,7 +312,10 @@ describe('B2bProspectService', () => {
       const res = await svc.suppress(sales, { phone: '0812-0000-0001', reason: 'WRONG_NUMBER' });
       expect(res).toEqual({ entries: 1, prospects: 1 });
       expect(repo.rows.get(p.id)).toMatchObject({
-        status: 'DO_NOT_CONTACT', phoneE164: null, contactName: null, note: null, address: null, assignedToId: null, name: 'Kos Melati', latitude: -6.2,
+        status: 'DO_NOT_CONTACT', phoneE164: null, contactName: null, note: null, address: null, assignedToId: null,
+        name: '(dihapus: jangan hubungi)', nameKey: '', latitude: 0, longitude: 0, sourceId: null,
+        // kept: what coverage needs and no unique index or hash depends on
+        category: 'KOS', gridCell: '-689:11866', ownerDepotId: 'depot-a',
       });
       expect(repo.rows.get(keep.id)!.status).toBe('NEW');
       expect(repo.dnc.has(`PHONE:${dncHash(SECRET, 'PHONE', '+6281200000001')}`)).toBe(true);
@@ -411,6 +414,65 @@ describe('B2bProspectService', () => {
       );
       expect(fields.length).toBeGreaterThan(8);
       expect(fields.join(',')).not.toMatch(/name|phone|address|contact|note/i);
+    });
+  });
+
+  describe('global do-not-contact, reach and audit (review fixes)', () => {
+    const auditBodies = () => fetchMock.mock.calls.filter(([u]) => String(u).includes('/audit/internal')).map(([, i]) => JSON.parse(i.body));
+
+    it('wipes matches in EVERY depot but counts only the ones inside the caller reach', async () => {
+      const mine = seed({ ownerDepotId: 'depot-a' });
+      const theirs = seed({ ownerDepotId: 'depot-b' });
+      const onMap = seed({ ownerDepotId: null });
+      const res = await svc.suppress(kepalaA, { phone: '0812-0000-0001', reason: 'LEGAL' });
+      expect(res.prospects).toBe(1);
+      for (const p of [mine, theirs, onMap]) expect(repo.rows.get(p.id)!.status).toBe('DO_NOT_CONTACT');
+      // a network role sees the whole count
+      const a = seed({ ownerDepotId: 'depot-a' });
+      const b = seed({ ownerDepotId: 'depot-b', phoneE164: '+6281200000009' });
+      expect((await svc.suppress(marketing, { phone: '0812-0000-0009', reason: 'LEGAL' })).prospects).toBe(1);
+      expect(a.status).toBe('NEW');
+      expect(repo.rows.get(b.id)!.status).toBe('DO_NOT_CONTACT');
+    });
+
+    it('does not move the retention clock for assign, an owner change or do-not-contact, but does for a status change', async () => {
+      const old = new Date('2026-01-01T00:00:00Z');
+      const p = seed({ lastActivityAt: old });
+      await svc.assign(kepalaA, p.id, 'sales-1');
+      expect(repo.rows.get(p.id)!.lastActivityAt).toEqual(old);
+      await svc.setOwnerDepot(hq, p.id, { depotId: 'depot-b', reason: 'abc' });
+      expect(repo.rows.get(p.id)!.lastActivityAt).toEqual(old);
+      const q = seed({ lastActivityAt: old, ownerDepotId: 'depot-b' });
+      await svc.suppressProspect(kepalaB, q.id, 'OTHER');
+      expect(repo.rows.get(q.id)!.lastActivityAt).toEqual(old);
+      const r = seed({ lastActivityAt: old });
+      await svc.setStatus(kepalaA, r.id, { status: 'CONTACTED', seenUpdatedAt: r.updatedAt.toISOString() });
+      expect(repo.rows.get(r.id)!.lastActivityAt.getTime()).toBeGreaterThan(old.getTime());
+    });
+
+    it('audits status, assign, suppress and suppressProspect with ids, codes and counts only', async () => {
+      const p = seed({ name: 'Kos Rahasia', address: 'Jl. Rahasia', phoneE164: '+6281255555555' });
+      await svc.setStatus(kepalaA, p.id, { status: 'CONTACTED', seenUpdatedAt: p.updatedAt.toISOString() });
+      await svc.assign(kepalaA, p.id, 'sales-1');
+      await svc.suppress(kepalaA, { phone: '0812-9999-9999', name: 'Kos Rahasia', latitude: -6.2, longitude: 106.8, reason: 'LEGAL' });
+      const q = seed({ phoneE164: '+6281266666666' });
+      await svc.suppressProspect(kepalaA, q.id, 'OTHER');
+      const bodies = auditBodies();
+      expect(bodies.map((b) => b.action)).toEqual([
+        'b2b.prospect.status', 'b2b.prospect.assign', 'b2b.prospect.suppress', 'b2b.prospect.suppress.prospect',
+      ]);
+      expect(bodies[0].metadata).toEqual({ prospectId: p.id, from: 'NEW', to: 'CONTACTED' });
+      expect(bodies[2].metadata).toMatchObject({ reason: 'LEGAL', entries: 2, byPhone: true, byPlace: true });
+      const text = JSON.stringify(bodies);
+      expect(text).not.toMatch(/Rahasia|\+62|-6\.2|106\.8/);
+      expect(bodies.every((b) => b.actorId === 'kepala-a')).toBe(true);
+    });
+
+    it('list rows for a Read-only caller carry hasPhone and never a phone, contact name or note', async () => {
+      seed();
+      const row = (await svc.list(marketing, {})).items[0]!;
+      expect(row.hasPhone).toBe(true);
+      for (const k of ['phoneE164', 'contactName', 'note', 'nameKey', 'licence', 'customerId']) expect(row).not.toHaveProperty(k);
     });
   });
 });

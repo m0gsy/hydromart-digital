@@ -86,6 +86,13 @@ PG_USER="${PG_USER:-hydromart}"
 CHECK_ONLY=0
 [ "${1:-}" = "--check" ] && CHECK_ONLY=1
 
+# A deploy runs the PREVIOUS release's deploy.sh, so its own call to this is not there yet on the first
+# release that needs the key; a migrating deploy runs this script from the NEW tree, before any container
+# is recreated. Idempotent, and never prints the value.
+if [ "$CHECK_ONLY" -eq 0 ]; then
+  bash "$(dirname "$0")/ensure-prospect-key.sh" || exit 2
+fi
+
 ok() { echo "  ✅ $1"; }
 no() { echo "  ❌ $1"; }
 

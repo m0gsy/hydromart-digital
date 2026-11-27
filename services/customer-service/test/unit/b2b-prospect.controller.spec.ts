@@ -25,7 +25,8 @@ const ROUTES: Record<string, string> = {
   get: 'b2bProspectWork',
   create: 'b2bProspectManage',
   import: 'b2bProspectImport',
-  suppress: 'b2bProspectWork',
+  // a person's objection is global and wipes rows in every depot, so it is a manager's route, not a salesperson's
+  suppress: 'b2bProspectManage',
   setStatus: 'b2bProspectWork',
   assign: 'b2bProspectManage',
   setOwnerDepot: 'b2bProspectReassign',
@@ -69,7 +70,7 @@ describe('B2bProspectController', () => {
   it('keeps every Sales capability away from list, coverage, export-class and reassign routes', () => {
     // Sales Depot = Work only: it must not reach the Read-class routes or any other class.
     const workOnly = Object.entries(ROUTES).filter(([, cap]) => cap === 'b2bProspectWork').map(([r]) => r);
-    expect(workOnly.sort()).toEqual(['get', 'mine', 'setStatus', 'suppress', 'suppressProspect']);
+    expect(workOnly.sort()).toEqual(['get', 'mine', 'setStatus', 'suppressProspect']);
     expect(CAPABILITIES.b2bProspectWork).not.toContain('DIREKTUR');
     expect(can('b2bProspectRead', 'STAFF_DEPOT')).toBe(false);
   });

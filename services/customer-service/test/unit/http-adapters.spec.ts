@@ -292,12 +292,13 @@ describe('IdentityHttpAdapter.preRegisterCustomer', () => {
 
   it('throws when the call itself fails, Error or not', async () => {
     fetchMock.mockRejectedValue(new Error('ETIMEDOUT'));
+    // the cause is logged, never put in the message a caller (an import row) is shown
     await expect(new IdentityHttpAdapter(config).preRegisterCustomer('0812')).rejects.toThrow(
-      /ETIMEDOUT/,
+      /^Gagal menghubungi auth-service$/,
     );
     fetchMock.mockRejectedValue('boom');
     await expect(new IdentityHttpAdapter(config).preRegisterCustomer('0812')).rejects.toThrow(
-      /unknown/,
+      /^Gagal menghubungi auth-service$/,
     );
   });
 
@@ -540,9 +541,9 @@ describe('IdentityHttpAdapter.customerIdByPhone (B2B prospect intake)', () => {
     await expect(new IdentityHttpAdapter(makeConfig({ authServiceUrl: 'http://a', internalServiceKey: '' })).customerIdByPhone('+62')).rejects.toThrow('belum diset');
     expect(fetchMock).not.toHaveBeenCalled();
     fetchMock.mockRejectedValue(new Error('ECONNREFUSED'));
-    await expect(new IdentityHttpAdapter(cfg()).customerIdByPhone('+62')).rejects.toThrow('ECONNREFUSED');
+    await expect(new IdentityHttpAdapter(cfg()).customerIdByPhone('+62')).rejects.toThrow(/^Gagal menghubungi auth-service$/);
     fetchMock.mockRejectedValue('weird');
-    await expect(new IdentityHttpAdapter(cfg()).customerIdByPhone('+62')).rejects.toThrow('unknown');
+    await expect(new IdentityHttpAdapter(cfg()).customerIdByPhone('+62')).rejects.toThrow(/^Gagal menghubungi auth-service$/);
     fetchMock.mockResolvedValue(res({ ok: false, status: 502 }));
     await expect(new IdentityHttpAdapter(cfg()).customerIdByPhone('+62')).rejects.toThrow('502');
   });
@@ -565,9 +566,9 @@ describe('StaffRosterHttpAdapter', () => {
   it('fails HARD when it cannot ask or is not answered', async () => {
     await expect(new StaffRosterHttpAdapter(makeConfig({ authServiceUrl: '', internalServiceKey: KEY })).staffIdsForDepot('d1')).rejects.toThrow('belum diset');
     fetchMock.mockRejectedValue(new Error('down'));
-    await expect(new StaffRosterHttpAdapter(cfg()).staffIdsForDepot('d1')).rejects.toThrow('down');
+    await expect(new StaffRosterHttpAdapter(cfg()).staffIdsForDepot('d1')).rejects.toThrow(/^Gagal menghubungi auth-service$/);
     fetchMock.mockRejectedValue(42);
-    await expect(new StaffRosterHttpAdapter(cfg()).staffIdsForDepot('d1')).rejects.toThrow('unknown');
+    await expect(new StaffRosterHttpAdapter(cfg()).staffIdsForDepot('d1')).rejects.toThrow(/^Gagal menghubungi auth-service$/);
     fetchMock.mockResolvedValue(res({ ok: false, status: 500 }));
     await expect(new StaffRosterHttpAdapter(cfg()).staffIdsForDepot('d1')).rejects.toThrow('500');
   });

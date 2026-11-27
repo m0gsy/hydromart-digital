@@ -19,6 +19,12 @@ type Db = Prisma.TransactionClient;
 /** Half-side of the box searched for a same-name neighbour, degrees (~220 m, over the 150 m rule). */
 const BOX_DEG = 0.002;
 
+/** Interactive transactions wait for the global write lock behind other writers: say how long, not the 5 s default. */
+const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const;
+
+/** What a do-not-contact row keeps in place of the business name. */
+export const DNC_NAME_PLACEHOLDER = '(dihapus: jangan hubungi)';
+
 const PROBE_SELECT = {
   source: true,
   sourceId: true,
@@ -128,7 +134,7 @@ export class B2bProspectPrismaRepository implements B2bProspectRepository {
         }
         const prospect = await tx.b2bProspect.create({ data: { ...data, lastActivityAt: new Date() } });
         return { ok: true, prospect } as const;
-      });
+      }, TX_OPTIONS);
     } catch (error) {
       // The unique indexes are the backstop of the lock: losing that race is a duplicate, not a 500.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -162,8 +168,7 @@ export class B2bProspectPrismaRepository implements B2bProspectRepository {
     entries: { kind: 'PHONE' | 'PLACE'; keyHash: string }[],
     reason: Prisma.B2bDoNotContactCreateManyInput['reason'],
     addedById: string,
-    now: Date,
-  ): Promise<number> {
+  ): Promise<{ id: string; ownerDepotId: string | null }[]> {
     const or: Prisma.B2bProspectWhereInput[] = [];
     if (match.id) or.push({ id: match.id });
     if (match.phoneE164) or.push({ phoneE164: match.phoneE164 });
@@ -171,15 +176,31 @@ export class B2bProspectPrismaRepository implements B2bProspectRepository {
       or.push({ nameKey: match.nameKey, gridCell: { in: [...match.cells] } });
     }
     return this.prisma.$transaction(async (tx) => {
+      // The same lock a create takes: a create that passed its do-not-contact check cannot land
+      // between the entry and the wipe.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('b2b_prospect_write'))`;
       await tx.b2bDoNotContact.createMany({
         data: entries.map((e) => ({ ...e, reason, addedById })),
         skipDuplicates: true,
       });
-      if (or.length === 0) return 0;
-      const { count } = await tx.b2bProspect.updateMany({
+      if (or.length === 0) return [];
+      const rows = await tx.b2bProspect.findMany({
         where: { OR: or, status: { notIn: ['CONVERTED', 'DO_NOT_CONTACT'] } },
+        select: { id: true, ownerDepotId: true },
+      });
+      if (rows.length === 0) return [];
+      const ids = rows.map((r) => r.id);
+      // Not lastActivityAt: suppressing is not activity (the retention clock keeps running).
+      await tx.b2bProspect.updateMany({
+        where: { id: { in: ids } },
         data: {
           status: 'DO_NOT_CONTACT',
+          name: DNC_NAME_PLACEHOLDER,
+          nameKey: '',
+          latitude: 0,
+          longitude: 0,
+          sourceId: null,
+          sourceDataset: null,
           phoneE164: null,
           contactName: null,
           note: null,
@@ -187,11 +208,14 @@ export class B2bProspectPrismaRepository implements B2bProspectRepository {
           lostReason: null,
           assignedToId: null,
           assignedAt: null,
-          lastActivityAt: now,
         },
       });
-      return count;
-    });
+      await tx.b2bProspectVisit.updateMany({
+        where: { prospectId: { in: ids } },
+        data: { latitude: 0, longitude: 0, note: null },
+      });
+      return rows;
+    }, TX_OPTIONS);
   }
 
   async createBatch(data: Parameters<B2bProspectRepository['createBatch']>[0]): Promise<void> {

@@ -29,6 +29,7 @@ import {
 } from '../../domain/errors';
 import { Reach, inReach, reachOf } from '../../domain/prospect-reach';
 import { B2bProspectRepository, VisitRecord } from '../ports/b2b-prospect.repository';
+import { auditProspect } from './b2b-prospect-audit';
 import { DepotProfilePort } from '../ports/depot-profile.port';
 import { IdentityPort } from '../ports/identity.port';
 import { StaffRosterPort } from '../ports/staff-roster.port';
@@ -152,6 +153,15 @@ export class B2bProspectService {
     private readonly config: CustomerConfigService,
   ) {}
 
+  private audit(
+    action: string,
+    user: AuthenticatedUser,
+    target: string,
+    metadata: Parameters<typeof auditProspect>[2]['metadata'],
+  ): Promise<void> {
+    return auditProspect(this.config, this.logger, { action, actorId: user.sub, target: `b2b-prospect:${target}`, metadata });
+  }
+
   /**
    * The row, or a 404 that does not say whether it exists: outside the depot reach, assigned to
    * somebody else (for a role that works but does not manage), or on the opportunity map.
@@ -252,6 +262,7 @@ export class B2bProspectService {
       new Date(input.seenUpdatedAt),
     );
     if (!updated) throw new ProspectStaleError();
+    await this.audit('b2b.prospect.status', user, id, { prospectId: id, from: row.status, to });
     return toDetail(updated);
   }
 
@@ -266,13 +277,12 @@ export class B2bProspectService {
         throw new ProspectInvalidError('Penerima tugas bukan staf aktif di depot pemilik prospek');
       }
     }
-    const now = new Date();
     const updated = await this.repo.update(id, {
       assignedToId: assigneeId,
-      assignedAt: assigneeId ? now : null,
-      lastActivityAt: now,
+      assignedAt: assigneeId ? new Date() : null,
     });
     if (!updated) throw new ProspectNotFoundError();
+    await this.audit('b2b.prospect.assign', user, id, { prospectId: id, assigneeId });
     return toDetail(updated);
   }
 
@@ -302,7 +312,6 @@ export class B2bProspectService {
       ownerSource: 'HQ',
       // An assignee belongs to the old depot's roster.
       ...(changed && { assignedToId: null, assignedAt: null }),
-      lastActivityAt: new Date(),
     });
     if (!updated) throw new ProspectNotFoundError();
     await recordAuditEvent(
@@ -341,14 +350,24 @@ export class B2bProspectService {
         ? [{ kind: 'PLACE' as const, keyHash: dncHash(secret, 'PLACE', `${nameKey}|${cell}`) }]
         : []),
     ];
-    const prospects = await this.repo.suppress(
+    // The objection is a person's, so it applies to every depot and every matching row is wiped; the
+    // caller is only told how many of them were inside its own reach.
+    const wiped = await this.repo.suppress(
       { phoneE164: phone?.e164, nameKey: cell ? nameKey : undefined, cells: cell ? neighbourCells(cell) : undefined },
       entries,
       input.reason,
       user.sub,
-      new Date(),
     );
-    return { entries: entries.length, prospects };
+    await this.audit('b2b.prospect.suppress', user, 'free-form', {
+      reason: input.reason,
+      entries: entries.length,
+      prospects: wiped.length,
+      byPhone: phone !== null,
+      byPlace: cell !== null && nameKey !== '',
+    });
+    const reach = depotScopeIds(user);
+    const mine = reach ? wiped.filter((r) => r.ownerDepotId !== null && reach.includes(r.ownerDepotId)) : wiped;
+    return { entries: entries.length, prospects: mine.length };
   }
 
   /** One prospect refused or asked to be left alone: terminal, and nothing that could reach them is kept. */
@@ -364,8 +383,8 @@ export class B2bProspectService {
       ],
       reason,
       user.sub,
-      new Date(),
     );
+    await this.audit('b2b.prospect.suppress.prospect', user, id, { prospectId: id, reason });
     return toDetail((await this.repo.findById(id)) as ProspectRecord);
   }
 

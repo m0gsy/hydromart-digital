@@ -110,9 +110,9 @@ export class B2bProspectController {
 
   @Post('do-not-contact')
   @HttpCode(200)
-  @Can('b2bProspectWork')
+  @Can('b2bProspectManage')
   @ApiOkResponse({ type: SuppressResultResponseDto })
-  @ApiOperation({ summary: 'Put a phone, or a business name at a pin, on the permanent do-not-contact list' })
+  @ApiOperation({ summary: 'Put a phone, or a business name at a pin, on the permanent do-not-contact list (global; the count answered is inside your reach)' })
   suppress(@CurrentUser() user: AuthenticatedUser, @Body() dto: SuppressDto) {
     return this.prospects.suppress(user, dto);
   }

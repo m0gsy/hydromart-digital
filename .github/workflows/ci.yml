@@ -165,6 +165,10 @@ jobs:
       - name: Production env writer self-check
         run: bash scripts/env-set.test.sh
 
+      # The box step that creates PROSPECT_DNC_HMAC_KEY: absent or blank is made, a value is never touched.
+      - name: Prospect key box step self-check
+        run: bash scripts/ensure-prospect-key.test.sh
+
       # An unparseable workflow fails in the quietest way GitHub has: the run appears, is
       # marked failed, has ZERO jobs, and Actions lists the workflow by its PATH instead of
       # its name. Nothing says "invalid YAML" anywhere a person looks first — three red

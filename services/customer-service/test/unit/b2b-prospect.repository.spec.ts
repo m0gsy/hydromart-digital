@@ -17,8 +17,8 @@ describe('B2bProspectPrismaRepository', () => {
   };
   const dnc = { count: jest.fn(), createMany: jest.fn() };
   const batch = { create: jest.fn(), aggregate: jest.fn() };
-  const visit = { findMany: jest.fn() };
-  const tx = { b2bProspect: p, b2bDoNotContact: dnc, $executeRaw: jest.fn() };
+  const visit = { findMany: jest.fn(), updateMany: jest.fn() };
+  const tx = { b2bProspect: p, b2bDoNotContact: dnc, b2bProspectVisit: visit, $executeRaw: jest.fn() };
   const prisma = {
     ...tx,
     b2bImportBatch: batch,
@@ -118,6 +118,7 @@ describe('B2bProspectPrismaRepository', () => {
       p.create.mockResolvedValue(row);
       expect(await repo.createGuarded(data as never, keys)).toEqual({ ok: true, prospect: row });
       expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+      expect(prisma.$transaction).toHaveBeenLastCalledWith(expect.any(Function), { maxWait: 10_000, timeout: 20_000 });
       expect(p.create).toHaveBeenCalledWith({ data: { ...data, lastActivityAt: expect.any(Date) } });
     });
 
@@ -156,7 +157,6 @@ describe('B2bProspectPrismaRepository', () => {
   });
 
   describe('do-not-contact writes', () => {
-    const now = new Date('2026-11-27T00:00:00Z');
     const entries = [{ kind: 'PHONE' as const, keyHash: 'h' }];
 
     it('adds entries idempotently', async () => {
@@ -164,27 +164,42 @@ describe('B2bProspectPrismaRepository', () => {
       expect(dnc.createMany).toHaveBeenCalledWith({ data: [{ kind: 'PHONE', keyHash: 'h', reason: 'LEGAL', addedById: 'u1' }], skipDuplicates: true });
     });
 
-    it('suppresses in one transaction: the entries, then the live matches wiped but for name and pin', async () => {
-      p.updateMany.mockResolvedValue({ count: 2 });
-      expect(await repo.suppress({ id: 'x', phoneE164: '+62', nameKey: 'k', cells: ['1:1'] }, entries, 'OTHER', 'u1', now)).toBe(2);
+    it('suppresses in one transaction under the write lock: entries, then every live match wiped of anything identifying', async () => {
+      p.findMany.mockResolvedValue([{ id: 'x', ownerDepotId: 'd1' }, { id: 'y', ownerDepotId: null }]);
+      const out = await repo.suppress({ id: 'x', phoneE164: '+62', nameKey: 'k', cells: ['1:1'] }, entries, 'OTHER', 'u1');
+      expect(out).toEqual([{ id: 'x', ownerDepotId: 'd1' }, { id: 'y', ownerDepotId: null }]);
+      expect(prisma.$transaction).toHaveBeenLastCalledWith(expect.any(Function), { maxWait: 10_000, timeout: 20_000 });
+      // the lock is the FIRST statement, before the entries
+      expect(tx.$executeRaw.mock.invocationCallOrder[0]).toBeLessThan(dnc.createMany.mock.invocationCallOrder[0]!);
       expect(dnc.createMany).toHaveBeenCalledTimes(1);
+      expect(p.findMany).toHaveBeenCalledWith({
+        where: {
+          OR: [{ id: 'x' }, { phoneE164: '+62' }, { nameKey: 'k', gridCell: { in: ['1:1'] } }],
+          status: { notIn: ['CONVERTED', 'DO_NOT_CONTACT'] },
+        },
+        select: { id: true, ownerDepotId: true },
+      });
       const arg = p.updateMany.mock.calls[0]![0];
-      expect(arg.where).toEqual({
-        OR: [{ id: 'x' }, { phoneE164: '+62' }, { nameKey: 'k', gridCell: { in: ['1:1'] } }],
-        status: { notIn: ['CONVERTED', 'DO_NOT_CONTACT'] },
-      });
+      expect(arg.where).toEqual({ id: { in: ['x', 'y'] } });
       expect(arg.data).toEqual({
-        status: 'DO_NOT_CONTACT', phoneE164: null, contactName: null, note: null, address: null, lostReason: null,
-        assignedToId: null, assignedAt: null, lastActivityAt: now,
+        status: 'DO_NOT_CONTACT', name: '(dihapus: jangan hubungi)', nameKey: '', latitude: 0, longitude: 0, sourceId: null,
+        sourceDataset: null, phoneE164: null, contactName: null, note: null, address: null, lostReason: null,
+        assignedToId: null, assignedAt: null,
       });
-      expect(arg.data).not.toHaveProperty('name');
-      expect(arg.data).not.toHaveProperty('latitude');
+      // kept: category, cell, codes, source, owner depot; and the retention clock is not touched
+      for (const kept of ['category', 'gridCell', 'kecamatanCode', 'source', 'ownerDepotId', 'lastActivityAt']) {
+        expect(arg.data).not.toHaveProperty(kept);
+      }
+      expect(visit.updateMany).toHaveBeenCalledWith({ where: { prospectId: { in: ['x', 'y'] } }, data: { latitude: 0, longitude: 0, note: null } });
     });
 
-    it('writes only the entries when nothing can match', async () => {
-      expect(await repo.suppress({ nameKey: 'k' }, entries, 'OTHER', 'u1', now)).toBe(0);
+    it('writes only the entries when nothing can match or nothing live matched', async () => {
+      expect(await repo.suppress({ nameKey: 'k' }, entries, 'OTHER', 'u1')).toEqual([]);
+      expect(p.findMany).not.toHaveBeenCalled();
+      p.findMany.mockResolvedValue([]);
+      expect(await repo.suppress({ id: 'x' }, entries, 'OTHER', 'u1')).toEqual([]);
       expect(p.updateMany).not.toHaveBeenCalled();
-      expect(dnc.createMany).toHaveBeenCalledTimes(1);
+      expect(dnc.createMany).toHaveBeenCalledTimes(2);
     });
   });
 

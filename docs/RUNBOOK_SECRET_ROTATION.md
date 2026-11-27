@@ -20,7 +20,7 @@ produksi, dan tidak satu pun bisa dikerjakan dari repo.
 | Kredensial OTP (Zenziva)                   | saat penyedia memintanya, atau 180 hari                 | Mengganti ini memutus pendaftaran — lakukan di jam sepi                                                               |
 | `PLAY_SERVICE_ACCOUNT_JSON`                | 365 hari                                                | Google merotasi kuncinya sendiri; yang penting cabut yang lama                                                        |
 | Webhook alert                              | saat ada yang meninggalkan tim                          | Bukan rahasia bernilai tinggi, tapi ia mengirim ke ruang orang                                                        |
-| `PROSPECT_DNC_HMAC_KEY`                    | **JANGAN PERNAH dirotasi**                              | Kunci daftar "jangan dihubungi" prospek B2B. Diganti = semua hash tersimpan tak cocok lagi dan bisnis yang menolak bisa masuk lagi |
+| `PROSPECT_DNC_HMAC_KEY`                    | **JANGAN PERNAH dirotasi**                              | Kunci daftar "jangan dihubungi" prospek B2B. Diganti = semua hash tersimpan tak cocok lagi dan bisnis yang menolak bisa masuk lagi. Dibuat otomatis oleh deploy bila kosong (`scripts/ensure-prospect-key.sh`); ikut tercadangkan bersama `.env` (`scripts/backup-env.sh`) dan **harus dipulihkan bersama `.env`** saat membangun ulang server: kunci yang hilang diam-diam merusak pencocokan daftar |
 
 ## Urutan yang benar untuk tiap rahasia
 

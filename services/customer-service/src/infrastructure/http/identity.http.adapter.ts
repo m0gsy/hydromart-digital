@@ -38,9 +38,9 @@ export class IdentityHttpAdapter implements IdentityPort {
         signal: AbortSignal.timeout(IdentityHttpAdapter.TIMEOUT_MS),
       });
     } catch (err) {
-      throw new ServiceUnavailableException(
-        `Gagal menghubungi auth-service: ${err instanceof Error ? err.message : 'unknown'}`,
-      );
+      // The cause goes to the log, never into the message a caller (and an import row) is shown.
+      this.logger.warn(`auth-service unreachable (${err instanceof Error ? err.name : 'unknown'})`);
+      throw new ServiceUnavailableException('Gagal menghubungi auth-service');
     }
 
     if (!res.ok) {
@@ -68,9 +68,9 @@ export class IdentityHttpAdapter implements IdentityPort {
         signal: AbortSignal.timeout(IdentityHttpAdapter.TIMEOUT_MS),
       });
     } catch (err) {
-      throw new ServiceUnavailableException(
-        `Gagal menghubungi auth-service: ${err instanceof Error ? err.message : 'unknown'}`,
-      );
+      // The cause goes to the log, never into the message a caller (and an import row) is shown.
+      this.logger.warn(`auth-service unreachable (${err instanceof Error ? err.name : 'unknown'})`);
+      throw new ServiceUnavailableException('Gagal menghubungi auth-service');
     }
     if (!res.ok) {
       throw new ServiceUnavailableException(`auth-service tidak bisa memeriksa nomor ini (${res.status})`);

@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import { StaffRosterPort } from '../../application/ports/staff-roster.port';
 import { CustomerConfigService } from '../../config/customer-config.service';
@@ -6,6 +6,7 @@ import { CustomerConfigService } from '../../config/customer-config.service';
 /** auth-service's internal "active staff ids at one depot" route. Fails HARD (see the port). */
 @Injectable()
 export class StaffRosterHttpAdapter implements StaffRosterPort {
+  private readonly logger = new Logger(StaffRosterHttpAdapter.name);
   private static readonly TIMEOUT_MS = 5000;
 
   constructor(private readonly config: CustomerConfigService) {}
@@ -23,9 +24,8 @@ export class StaffRosterHttpAdapter implements StaffRosterPort {
         signal: AbortSignal.timeout(StaffRosterHttpAdapter.TIMEOUT_MS),
       });
     } catch (err) {
-      throw new ServiceUnavailableException(
-        `Gagal menghubungi auth-service: ${err instanceof Error ? err.message : 'unknown'}`,
-      );
+      this.logger.warn(`auth-service unreachable (${err instanceof Error ? err.name : 'unknown'})`);
+      throw new ServiceUnavailableException('Gagal menghubungi auth-service');
     }
     if (!res.ok) {
       throw new ServiceUnavailableException(`auth-service tidak mengirim daftar staf depot (${res.status})`);

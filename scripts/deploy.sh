@@ -838,6 +838,14 @@ fi
 # Written to .deploy/image-cost and read back by the rollback-cost probe below, so the
 # figure an operator reads at 2am is one this machine produced minutes earlier.
 IMAGE_T0="$(date +%s)"
+# Before the first compose call below: customer-service will not boot without its do-not-contact
+# key, and a blank one is never valid. Creates it only when absent or blank; logs the NAME only.
+if ! bash scripts/ensure-prospect-key.sh; then
+  log "!! could not make PROSPECT_DNC_HMAC_KEY in .env; the stack was not touched"
+  git reset --hard "$PREV_SHA"
+  alert "deploy aborted: PROSPECT_DNC_HMAC_KEY could not be created for $NEW_SHA (stack still serving $PREV_SHA)"
+  exit 1
+fi
 # The images compose actually names — 19 of them, and exactly the set a `pull` fetches.
 IMAGE_TOTAL="$(grep -c 'image: ${IMAGE_PREFIX' docker-compose.prod.yml 2>/dev/null || true)"
 IMAGE_TOTAL="${IMAGE_TOTAL:-0}"

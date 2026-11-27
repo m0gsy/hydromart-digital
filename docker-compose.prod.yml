@@ -227,7 +227,9 @@ services:
       LOYALTY_SERVICE_URL: http://loyalty:3009
       PRODUCT_SERVICE_URL: http://product:3003
       # AREA-1: key of the B2B do-not-contact list (HMAC). Never rotate it: see .env.production.example.
-      PROSPECT_DNC_HMAC_KEY: ${PROSPECT_DNC_HMAC_KEY:?set PROSPECT_DNC_HMAC_KEY (min 32 chars, never rotate)}
+      # `:-` and not `:?` on purpose: a missing value must not make EVERY compose command fail (pull, rollback).
+      # scripts/ensure-prospect-key.sh creates it on the box; customer-service itself refuses to boot on a blank one.
+      PROSPECT_DNC_HMAC_KEY: ${PROSPECT_DNC_HMAC_KEY:-}
       # Pre-registers phones during a depot's bulk customer/reseller import.
       AUTH_SERVICE_URL: http://auth:3001
       # J-1: the depot customer directory's order count, last order and segment all come

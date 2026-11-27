@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import { Inject, Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, ServiceUnavailableException } from '@nestjs/common';
 
 import {
   AuthenticatedUser,
   ImportRowResult,
+  depotScopeIds,
   ImportSummary,
   gridCell1km,
   normalizeIdPhone,
@@ -30,6 +31,7 @@ import { NO_REGION } from '../../domain/region-codes';
 import { ProspectInvalidError, ProspectRefusedError } from '../../domain/errors';
 import { RegionLookup } from '../../infrastructure/geo/region-lookup';
 import { B2bProspectRepository, DncKeys } from '../ports/b2b-prospect.repository';
+import { auditProspect } from './b2b-prospect-audit';
 import { ActiveDepot, DepotProfilePort } from '../ports/depot-profile.port';
 import { IdentityPort } from '../ports/identity.port';
 import { CUSTOMER_TOKENS } from '../tokens';
@@ -54,7 +56,7 @@ export interface IntakeRow {
 
 export type Decision =
   | { kind: 'accept'; data: NewProspect; dnc: DncKeys; probe: DuplicateProbe }
-  | { kind: 'refuse'; reason: RefusalReason; message: string }
+  | { kind: 'refuse'; reason: RefusalReason; message: string; dup?: DuplicateKind }
   | { kind: 'fail'; message: string };
 
 interface IntakeContext {
@@ -85,6 +87,13 @@ const REFUSAL_TEXT: Record<DuplicateKind, string> = {
 const DNC_TEXT = 'Nomor atau usaha ini ada di daftar jangan dihubungi';
 const CUSTOMER_TEXT = 'Nomor ini sudah punya akun pelanggan';
 
+/** A row that cannot be judged, with a message that is safe to show (never an upstream error text). */
+class RowFailure extends Error {}
+
+/** What a caller without network reach is told for a number it may not learn anything about. */
+const GENERIC_REFUSAL = 'Nomor ini tidak bisa dipakai untuk prospek baru.';
+const RACE_TEXT = 'Usaha ini baru saja ditambahkan oleh orang lain';
+
 const clean = (s: string | null | undefined): string | null => s?.trim() || null;
 
 /**
@@ -95,6 +104,8 @@ const clean = (s: string | null | undefined): string | null => s?.trim() || null
  */
 @Injectable()
 export class B2bProspectIntakeService {
+  private readonly logger = new Logger(B2bProspectIntakeService.name);
+
   constructor(
     @Inject(CUSTOMER_TOKENS.B2bProspectRepository) private readonly repo: B2bProspectRepository,
     @Inject(CUSTOMER_TOKENS.IdentityPort) private readonly identity: IdentityPort,
@@ -164,7 +175,7 @@ export class B2bProspectIntakeService {
       longitude: lng,
     };
     const known = matchDuplicate([...(await this.repo.findDuplicateCandidates(probe)), ...(ctx.seen ?? [])], probe);
-    if (known) return { kind: 'refuse', reason: 'DUPLICATE', message: REFUSAL_TEXT[known] };
+    if (known) return { kind: 'refuse', reason: 'DUPLICATE', message: REFUSAL_TEXT[known], dup: known };
 
     // 5. Owner depot: the nearest depot that serves the pin, else the opportunity map.
     const depots = await (ctx.depots ??= this.depotProfile.listActive());
@@ -218,11 +229,33 @@ export class B2bProspectIntakeService {
       { batchId: null, createdById: user.sub, allowField: true },
     );
     if (decision.kind === 'fail') throw new ProspectInvalidError(decision.message);
-    if (decision.kind === 'refuse') throw new ProspectRefusedError(decision.reason, decision.message);
+    // A depot-scoped caller must not learn, from the wording, that a number is a customer, on the
+    // do-not-contact list or in another depot's prospects: one generic refusal. Network-wide callers keep the reason.
+    const network = depotScopeIds(user) === undefined;
+    const hidden = (reason: RefusalReason, dup?: DuplicateKind) =>
+      !network && (reason !== 'DUPLICATE' || dup === undefined || dup === 'PHONE');
+    if (decision.kind === 'refuse') {
+      if (hidden(decision.reason, decision.dup) && decision.reason !== 'LICENCE') {
+        throw new ProspectRefusedError('DUPLICATE', GENERIC_REFUSAL);
+      }
+      throw new ProspectRefusedError(decision.reason, decision.message);
+    }
     const made = await this.repo.createGuarded(decision.data, decision.dnc);
     if (!made.ok) {
-      throw new ProspectRefusedError(made.reason, made.reason === 'DUPLICATE' ? REFUSAL_TEXT.NAME_NEAR : DNC_TEXT);
+      if (!network) throw new ProspectRefusedError('DUPLICATE', GENERIC_REFUSAL);
+      throw new ProspectRefusedError(made.reason, made.reason === 'DUPLICATE' ? RACE_TEXT : DNC_TEXT);
     }
+    await auditProspect(this.config, this.logger, {
+      action: 'b2b.prospect.create',
+      actorId: user.sub,
+      target: `b2b-prospect:${made.prospect.id}`,
+      metadata: {
+        prospectId: made.prospect.id,
+        ownerDepotId: made.prospect.ownerDepotId,
+        category: made.prospect.category,
+        source: 'FIELD',
+      },
+    });
     return made.prospect;
   }
 
@@ -249,14 +282,23 @@ export class B2bProspectIntakeService {
     };
 
     const summary = await runImport(input.rows, async (row, index) => {
-      const decision = await this.decide(row, ctx);
-      if (decision.kind === 'fail') throw new Error(decision.message);
+      const decision = await this.decide(row, ctx).catch((error) => {
+        // A row fails with a fixed message unless it is one of ours: an unknown error text could carry
+        // a host or a driver detail. The log names the row index only.
+        if (error instanceof ServiceUnavailableException) throw error;
+        this.logger.warn(`import row ${index + 1} could not be judged (${(error as Error).name})`);
+        throw new Error('Gagal memproses baris');
+      });
+      if (decision.kind === 'fail') throw new RowFailure(decision.message);
       if (decision.kind === 'refuse') return refuse(index, decision.reason, decision.message);
       if (input.dryRun) {
         ctx.seen!.push(decision.probe);
         return { status: 'created' as const };
       }
-      const made = await this.repo.createGuarded(decision.data, decision.dnc);
+      const made = await this.repo.createGuarded(decision.data, decision.dnc).catch((error) => {
+        this.logger.warn(`import row ${index + 1} could not be written (${(error as Error).name})`);
+        throw new Error('Gagal memproses baris');
+      });
       if (!made.ok) {
         return made.reason === 'DUPLICATE'
           ? refuse(index, 'DUPLICATE', REFUSAL_TEXT.NAME_NEAR)
@@ -277,6 +319,19 @@ export class B2bProspectIntakeService {
         failed: summary.failed,
         costIdr: input.costIdr,
         importedById: user.sub,
+      });
+      await auditProspect(this.config, this.logger, {
+        action: 'b2b.prospect.import',
+        actorId: user.sub,
+        target: `b2b-import:${ctx.batchId}`,
+        metadata: {
+          batchId: ctx.batchId,
+          rows: input.rows.length,
+          created: summary.created,
+          refused: summary.skipped,
+          failed: summary.failed,
+          reasons,
+        },
       });
     }
     return {

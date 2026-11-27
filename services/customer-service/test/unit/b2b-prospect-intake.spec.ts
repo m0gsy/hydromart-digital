@@ -319,4 +319,77 @@ describe('B2bProspectIntakeService', () => {
       await expect(svc.createField(user, field)).rejects.toMatchObject({ reason: 'DUPLICATE' });
     });
   });
+
+  describe('review fixes', () => {
+    const fieldRow = { name: 'Bengkel Jaya', category: 'bengkel', lat: -6.5, lng: 6, phone: '0812-0000-0009' };
+    const kepala = { sub: 'kepala-a', role: Role.KEPALA_DEPOT, phone: null, depotId: 'depot-a', depotIds: ['depot-a'] } as unknown as AuthenticatedUser;
+    const bodies = () => (global.fetch as jest.Mock).mock.calls.filter(([u]) => String(u).includes('/audit/internal')).map(([, i]) => JSON.parse(i.body));
+
+    beforeEach(() => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: true }) as never;
+      svc = new B2bProspectIntakeService(
+        repo,
+        identity as never,
+        { listActive } as never,
+        buildTestConfig({ AUTH_SERVICE_URL: 'http://auth.test', INTERNAL_SERVICE_KEY: 'internal-key-01' }),
+        regions,
+      );
+    });
+
+    it('gives a depot-scoped caller ONE generic refusal for a customer, a do-not-contact and a phone duplicate', async () => {
+      const generic = { reason: 'DUPLICATE', message: 'Nomor ini tidak bisa dipakai untuk prospek baru.' };
+      identity.customerIdByPhone.mockResolvedValueOnce('cust-1');
+      await expect(svc.createField(kepala, fieldRow)).rejects.toMatchObject(generic);
+      await repo.addDnc([{ kind: 'PHONE', keyHash: dncHash(SECRET, 'PHONE', '+6281200000009') }]);
+      await expect(svc.createField(kepala, fieldRow)).rejects.toMatchObject(generic);
+      repo.dnc.clear();
+      repo.rows.set('x', prospect({ phoneE164: '+6281200000009', nameKey: 'lain', ownerDepotId: 'depot-z' }));
+      await expect(svc.createField(kepala, fieldRow)).rejects.toMatchObject(generic);
+      jest.spyOn(repo, 'createGuarded').mockResolvedValueOnce({ ok: false, reason: 'DO_NOT_CONTACT' });
+      await expect(svc.createField(kepala, { ...fieldRow, phone: undefined })).rejects.toMatchObject(generic);
+    });
+
+    it('keeps the specific reason for a network-wide caller, and a name-near duplicate for everyone', async () => {
+      identity.customerIdByPhone.mockResolvedValueOnce('cust-1');
+      await expect(svc.createField(user, fieldRow)).rejects.toMatchObject({ reason: 'ALREADY_CUSTOMER' });
+      await repo.addDnc([{ kind: 'PHONE', keyHash: dncHash(SECRET, 'PHONE', '+6281200000009') }]);
+      await expect(svc.createField(user, fieldRow)).rejects.toMatchObject({ reason: 'DO_NOT_CONTACT' });
+      repo.dnc.clear();
+      repo.rows.set('x', prospect({ phoneE164: '+6281200000009', nameKey: 'lain' }));
+      await expect(svc.createField(user, fieldRow)).rejects.toMatchObject({ reason: 'DUPLICATE', message: expect.stringContaining('dipakai prospek lain') });
+      repo.rows.clear();
+      repo.rows.set('y', prospect({ phoneE164: null, nameKey: 'bengkeljaya', latitude: -6.5, longitude: 6 }));
+      const nearMessage = { reason: 'DUPLICATE', message: expect.stringContaining('150 m') };
+      await expect(svc.createField(kepala, { ...fieldRow, phone: undefined })).rejects.toMatchObject(nearMessage);
+      await expect(svc.createField(user, { ...fieldRow, phone: undefined })).rejects.toMatchObject(nearMessage);
+      jest.spyOn(repo, 'createGuarded').mockResolvedValueOnce({ ok: false, reason: 'DUPLICATE' });
+      await expect(svc.createField(user, { ...fieldRow, name: 'Lain', phone: undefined })).rejects.toMatchObject({ message: expect.stringContaining('baru saja') });
+    });
+
+    it('audits create and import commit with ids and counts, never a phone, name or coordinate', async () => {
+      const made = await svc.createField(user, { ...fieldRow, name: 'Salon Rahasia' });
+      await file([row({ name: 'Kos Rahasia', phone: '0812-7777-7777' }), row({ license: 'google', sourceId: 'g' })]);
+      const [create, imp] = bodies();
+      expect(create).toMatchObject({ action: 'b2b.prospect.create', actorId: 'hq-1', metadata: { prospectId: made.id, source: 'FIELD' } });
+      expect(imp).toMatchObject({ action: 'b2b.prospect.import', metadata: { rows: 2, created: 1, refused: 1, failed: 0, reasons: { LICENCE: 1 } } });
+      expect(JSON.stringify(bodies())).not.toMatch(/Rahasia|\+62|-6\.5/);
+    });
+
+    it('does not audit a dry run', async () => {
+      await file([row()], true);
+      expect(bodies()).toHaveLength(0);
+    });
+
+    it('fails a row with a fixed message, not an unknown error text, and keeps our own messages', async () => {
+      jest.spyOn(repo, 'findDuplicateCandidates').mockRejectedValueOnce(new Error('connect ECONNREFUSED 10.0.0.9:5432 secret-host'));
+      const res = await file([row()]);
+      expect(res.results[0]).toMatchObject({ status: 'failed', message: 'Gagal memproses baris' });
+      jest.spyOn(repo, 'createGuarded').mockRejectedValueOnce(new Error('db password=xyz'));
+      const res2 = await file([row({ sourceId: 'z' })]);
+      expect(res2.results[0]).toMatchObject({ status: 'failed', message: 'Gagal memproses baris' });
+      expect(JSON.stringify([res, res2])).not.toMatch(/ECONNREFUSED|password|secret-host/);
+      identity.customerIdByPhone.mockRejectedValueOnce(new ServiceUnavailableException('Gagal menghubungi auth-service'));
+      expect((await file([row({ sourceId: 'q' })])).results[0]!.message).toBe('Gagal menghubungi auth-service');
+    });
+  });
 });

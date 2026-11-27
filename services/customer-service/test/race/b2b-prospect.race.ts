@@ -81,7 +81,7 @@ describeRace('B2B prospect writes on real Postgres', () => {
 
   it('parallel do-not-contact writes of one key leave one entry', async () => {
     const entries = [{ kind: 'PHONE' as const, keyHash: 'h'.repeat(64) }];
-    const res = await race(Array.from({ length: 5 }, () => () => repo.suppress({ phoneE164: '+6281200000001' }, entries, 'OTHER', user.sub, new Date())));
+    const res = await race(Array.from({ length: 5 }, () => () => repo.suppress({ phoneE164: '+6281200000001' }, entries, 'OTHER', user.sub)));
     expect(res.every((r) => r.status === 'fulfilled')).toBe(true);
     expect(await prisma.b2bDoNotContact.count()).toBe(1);
   });

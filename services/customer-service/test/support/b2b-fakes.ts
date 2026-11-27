@@ -99,18 +99,24 @@ export class InMemoryProspectRepository implements B2bProspectRepository {
     entries: { kind: 'PHONE' | 'PLACE'; keyHash: string }[],
     _reason: string,
     _by: string,
-    now: Date,
-  ): Promise<number> {
+  ): Promise<{ id: string; ownerDepotId: string | null }[]> {
     await this.addDnc(entries);
-    let n = 0;
+    const out: { id: string; ownerDepotId: string | null }[] = [];
     for (const r of this.rows.values()) {
       const hit =
         r.id === match.id ||
         (!!match.phoneE164 && r.phoneE164 === match.phoneE164) ||
         (!!match.nameKey && r.nameKey === match.nameKey && !!match.cells?.includes(r.gridCell));
       if (!hit || r.status === 'CONVERTED' || r.status === 'DO_NOT_CONTACT') continue;
+      out.push({ id: r.id, ownerDepotId: r.ownerDepotId });
       Object.assign(r, {
         status: 'DO_NOT_CONTACT',
+        name: '(dihapus: jangan hubungi)',
+        nameKey: '',
+        latitude: 0,
+        longitude: 0,
+        sourceId: null,
+        sourceDataset: null,
         phoneE164: null,
         contactName: null,
         note: null,
@@ -118,11 +124,9 @@ export class InMemoryProspectRepository implements B2bProspectRepository {
         lostReason: null,
         assignedToId: null,
         assignedAt: null,
-        lastActivityAt: now,
       });
-      n += 1;
     }
-    return n;
+    return out;
   }
 
   async createBatch(data: Record<string, unknown> & { id: string }): Promise<void> {

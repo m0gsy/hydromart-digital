@@ -42,7 +42,8 @@ export interface ProspectPatch {
   assignedAt?: Date | null;
   ownerDepotId?: string | null;
   ownerSource?: 'AUTO' | 'HQ';
-  lastActivityAt: Date;
+  /** Only a salesperson's status change moves the retention clock; assign, owner change and do-not-contact do not. */
+  lastActivityAt?: Date;
 }
 
 export interface CoverageRaw {
@@ -80,17 +81,19 @@ export interface B2bProspectRepository {
   /** Idempotent: an entry already on the list is left alone. */
   addDnc(entries: { kind: 'PHONE' | 'PLACE'; keyHash: string }[], reason: B2bDncReason, addedById: string): Promise<void>;
   /**
-   * One transaction: the do-not-contact entries, then every live prospect matching the phone or
-   * the place becomes DO_NOT_CONTACT with phone, contact, note and address wiped (name, pin and
-   * category stay: coverage and duplicate matching need them). Returns how many rows changed.
+   * One transaction, under the same write lock as a create: the do-not-contact entries, then every
+   * live prospect matching the phone or the place becomes DO_NOT_CONTACT with everything that could
+   * identify the business wiped (name, name key, pin, source id, phone, contact, note, address, visit
+   * notes and coordinates). Kept: category, 1 km cell, kecamatan/kelurahan codes, source, owner depot
+   * and status (coverage needs them; none of them identifies anyone). Returns the rows it wiped, ids
+   * and owner depot only, so the caller can count them inside its own reach.
    */
   suppress(
     match: { id?: string; phoneE164?: string | null; nameKey?: string; cells?: readonly string[] },
     entries: { kind: 'PHONE' | 'PLACE'; keyHash: string }[],
     reason: B2bDncReason,
     addedById: string,
-    now: Date,
-  ): Promise<number>;
+  ): Promise<{ id: string; ownerDepotId: string | null }[]>;
 
   createBatch(data: {
     id: string;
