@@ -1,12 +1,13 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 
+import { loadCustomRoles, loadOverrides } from '@hydromart/access';
 import { AuthenticatedUser, Role } from '@hydromart/platform';
 
 import {
   B2bProspectIntakeService,
   IntakeRow,
 } from '../../src/application/services/b2b-prospect-intake.service';
-import { ProspectInvalidError, ProspectRefusedError } from '../../src/domain/errors';
+import { ProspectInvalidError, ProspectNotFoundError, ProspectRefusedError } from '../../src/domain/errors';
 import { dncHash, placeKeys } from '../../src/domain/b2b-prospect-keys';
 import { RegionLookup } from '../../src/infrastructure/geo/region-lookup';
 import { InMemoryProspectRepository, prospect } from '../support/b2b-fakes';
@@ -317,6 +318,78 @@ describe('B2bProspectIntakeService', () => {
       await expect(svc.createField(user, field)).rejects.toMatchObject({ reason: 'DO_NOT_CONTACT' });
       jest.spyOn(repo, 'createGuarded').mockResolvedValueOnce({ ok: false, reason: 'DUPLICATE' });
       await expect(svc.createField(user, field)).rejects.toMatchObject({ reason: 'DUPLICATE' });
+    });
+  });
+
+  describe('field find by a Work-only caller (Sales Depot)', () => {
+    const field = { name: 'Bengkel Jaya', category: 'bengkel', lat: -6.5, lng: 6, phone: '0812-0000-0009' };
+    const sales = (depotIds: string[]) =>
+      ({ sub: 'sales-1', role: 'C_sales', phone: null, depotId: depotIds[0], depotIds }) as unknown as AuthenticatedUser;
+    beforeAll(() => {
+      loadCustomRoles([{ key: 'C_sales', name: 'Sales Depot', scope: 'LOCKED' }]);
+      loadOverrides({ b2bProspectWork: ['C_sales'] });
+    });
+    afterAll(() => {
+      loadOverrides({});
+      loadCustomRoles([]);
+    });
+
+    it('creates a row in its own depot and assigns it to itself', async () => {
+      const made = await svc.createField(sales(['depot-a']), field);
+      expect(made).toMatchObject({ source: 'FIELD', ownerDepotId: 'depot-a', assignedToId: 'sales-1' });
+      expect(made.assignedAt).toBeInstanceOf(Date);
+    });
+
+    it('refuses with the reach 404 when the owner depot is another depot, writing nothing', async () => {
+      await expect(svc.createField(sales(['depot-z']), field)).rejects.toBeInstanceOf(ProspectNotFoundError);
+      expect(repo.rows.size).toBe(0);
+    });
+
+    it('refuses with the same 404 when the pin belongs to no depot', async () => {
+      await expect(svc.createField(sales(['depot-a']), { ...field, lat: -6.9, lng: 7.5 })).rejects.toBeInstanceOf(ProspectNotFoundError);
+    });
+
+    it('answers an out-of-scope pin with the same 404 whatever the phone is (no number oracle)', async () => {
+      const far = { ...field, lat: -6.9, lng: 7.5 };
+      const outsider = sales(['depot-z']);
+      identity.customerIdByPhone.mockResolvedValue('cust-1');
+      await expect(svc.createField(outsider, field)).rejects.toBeInstanceOf(ProspectNotFoundError);
+      identity.customerIdByPhone.mockResolvedValue(null);
+      await repo.addDnc([{ kind: 'PHONE', keyHash: dncHash(SECRET, 'PHONE', '+6281200000009') }]);
+      await expect(svc.createField(outsider, field)).rejects.toBeInstanceOf(ProspectNotFoundError);
+      await expect(svc.createField(sales(['depot-a']), far)).rejects.toBeInstanceOf(ProspectNotFoundError);
+      repo.dnc.clear();
+      repo.rows.set('x', prospect({ phoneE164: '+6281200000009', nameKey: 'lain', ownerDepotId: 'depot-a' }));
+      await expect(svc.createField(outsider, field)).rejects.toBeInstanceOf(ProspectNotFoundError);
+      repo.rows.clear();
+      await expect(svc.createField(outsider, field)).rejects.toBeInstanceOf(ProspectNotFoundError);
+    });
+
+    it('keeps the refusals for an in-scope pin and a known phone', async () => {
+      const own = sales(['depot-a']);
+      identity.customerIdByPhone.mockResolvedValueOnce('cust-1');
+      await expect(svc.createField(own, field)).rejects.toBeInstanceOf(ProspectRefusedError);
+      await repo.addDnc([{ kind: 'PHONE', keyHash: dncHash(SECRET, 'PHONE', '+6281200000009') }]);
+      await expect(svc.createField(own, field)).rejects.toBeInstanceOf(ProspectRefusedError);
+    });
+
+    it('is 503 when depot-service cannot answer, and 422 for an unreadable pin before any depot lookup', async () => {
+      listActive.mockResolvedValueOnce(null);
+      await expect(svc.createField(sales(['depot-a']), field)).rejects.toBeInstanceOf(ServiceUnavailableException);
+      listActive.mockClear();
+      await expect(svc.createField(sales(['depot-a']), { ...field, lat: 0, lng: 0 })).rejects.toBeInstanceOf(ProspectInvalidError);
+      expect(listActive).toHaveBeenCalledTimes(0);
+    });
+
+    it('keeps the four refusals for a Work-only caller too', async () => {
+      await svc.createField(sales(['depot-a']), field);
+      await expect(svc.createField(sales(['depot-a']), field)).rejects.toBeInstanceOf(ProspectRefusedError);
+      await expect(svc.createField(sales(['depot-a']), { ...field, lat: 0, lng: 0 })).rejects.toBeInstanceOf(ProspectInvalidError);
+    });
+
+    it('leaves a Manage holder unassigned and free of the depot rule', async () => {
+      const made = await svc.createField(user, { ...field, lat: -6.9, lng: 7.5, phone: undefined });
+      expect(made).toMatchObject({ ownerDepotId: null, assignedToId: null });
     });
   });
 

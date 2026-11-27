@@ -1,7 +1,6 @@
 {
   "orphans": [
     "GET customer: /profile/directory",
-    "POST customer: /b2b-prospects/:/visits",
     "POST payout: /payout/withdrawals"
   ]
 }

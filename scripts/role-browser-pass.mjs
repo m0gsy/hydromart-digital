@@ -144,7 +144,7 @@ const OPS = R(`
 /dashboard/sales-import /dashboard/search /dashboard/settings /dashboard/settlements /dashboard/shift
 /dashboard/staff /dashboard/subscriptions /dashboard/suppliers /dashboard/targets
 /dashboard/team-performance /dashboard/tracking /dashboard/vouchers /dashboard/visits /dashboard/visits/new /dashboard/visits/detail /dashboard/walk-in
-/dashboard/wastage /dashboard/wholesale /dashboard/prospects /dashboard/prospects/detail
+/dashboard/wastage /dashboard/wholesale /dashboard/prospects /dashboard/prospects/detail /dashboard/prospects/new
 `);
 
 /*

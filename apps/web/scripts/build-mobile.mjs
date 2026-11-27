@@ -139,6 +139,8 @@ const SURFACES = {
       // AREA-2a: B2B prospects (the list with Milik saya, and one prospect).
       'dashboard/prospects',
       'dashboard/prospects/detail',
+      // AREA-2c: field find (GPS pin) and, on the detail page, the GPS check-in.
+      'dashboard/prospects/new',
     ],
     withholds: ['hq', 'hr/payroll', 'hr/employees', 'dashboard/prospects/map', 'dashboard/prospects/import'],
   },

@@ -575,10 +575,11 @@ export function LoadError({ onRetry, className }: { onRetry: () => void; classNa
  * `message` is nullable so a caller passes its state straight in: `<FormError
  * message={error} />` renders nothing when there is nothing to say.
  */
-export function FormError({ message, className }: { message?: string | null; className?: string }) {
+export function FormError({ message, className, id }: { message?: string | null; className?: string; id?: string }) {
   if (!message) return null;
+  // With an id the message can be pointed at (`aria-describedby`) and focused after a failed submit.
   return (
-    <p role="alert" className={cx('text-sm font-medium text-[color:var(--danger)]', className)}>
+    <p id={id} tabIndex={id ? -1 : undefined} role="alert" className={cx('text-sm font-medium text-[color:var(--danger)]', className)}>
       {message}
     </p>
   );

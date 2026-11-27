@@ -111,9 +111,9 @@ export class B2bProspectController {
   }
 
   @Post()
-  @Can('b2bProspectManage')
+  @Can('b2bProspectWork')
   @ApiCreatedResponse({ type: ProspectDetailResponseDto })
-  @ApiOperation({ summary: 'Add a business found in the field (source is always FIELD)' })
+  @ApiOperation({ summary: 'Add a business found in the field (source is always FIELD); a Work-only caller must own the depot and gets the row assigned' })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateProspectDto) {
     const { latitude: lat, longitude: lng, ...rest } = dto;
     return this.intake.createField(user, { ...rest, lat, lng });
