@@ -16,6 +16,7 @@ const ALL = {
   HR_SERVICE_URL: 'http://hr:3018',
   PAYMENT_SERVICE_URL: 'http://payment:3005',
   DEPOT_SERVICE_URL: 'http://depot:3007',
+  CUSTOMER_SERVICE_URL: 'http://customer:3002',
 };
 
 describe('purge executor registry', () => {
@@ -31,6 +32,7 @@ describe('purge executor registry', () => {
         'proof_of_delivery',
         'payment_proof',
         'franchise_applications_rejected',
+        'b2b_prospects',
         'hr_employee_records',
         'hr_attendance_photos',
         'hr_audit_logs',
@@ -66,6 +68,32 @@ describe('purge executor registry', () => {
         body: JSON.stringify({ cutoff: '2025-09-25T00:00:00.000Z' }),
       },
     ]);
+  });
+
+  it('sends b2b_prospects to customer-service, which answers { deleted, anonymised }', async () => {
+    const calls: { url: string; body: string; key: unknown }[] = [];
+    const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation(async (url, init) => {
+      calls.push({ url: String(url), body: String(init?.body), key: (init?.headers as Record<string, string>)['x-internal-key'] });
+      return new Response(JSON.stringify({ deleted: 4, anonymised: 2 }), { status: 200 });
+    });
+    try {
+      const executor = build(ALL).find((e) => e.dataset === 'b2b_prospects');
+      await expect(executor?.purge(new Date('2025-11-27T00:00:00.000Z'))).resolves.toBe(4);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+    expect(calls).toEqual([
+      {
+        url: 'http://customer:3002/api/v1/b2b-prospects/internal/purge',
+        body: JSON.stringify({ cutoff: '2025-11-27T00:00:00.000Z' }),
+        key: 'internal-key',
+      },
+    ]);
+  });
+
+  it('drops b2b_prospects when customer-service is not configured, so it reads UNENFORCED', () => {
+    const withoutCustomer = Object.fromEntries(Object.entries(ALL).filter(([key]) => key !== 'CUSTOMER_SERVICE_URL'));
+    expect(build(withoutCustomer).map((e) => e.dataset)).not.toContain('b2b_prospects');
   });
 
   it('drops a dataset whose owner this environment cannot reach, so it reads UNENFORCED', () => {

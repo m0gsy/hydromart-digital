@@ -62,6 +62,15 @@ const REMOTE_DATASETS = [
     path: '/api/v1/franchise-applications/internal/purge-rejected',
     mode: 'DELETE',
   },
+  // b2b_prospects: businesses a depot could sell to (name, phone, contact, address, exact pin). 12 months without
+  // salesperson activity: unconverted rows are deleted, converted ones are anonymised (kept as counts), a
+  // do-not-contact row 12 months after its wipe. The do-not-contact LIST itself is permanent and never purged.
+  {
+    dataset: 'b2b_prospects',
+    envKey: 'CUSTOMER_SERVICE_URL',
+    path: '/api/v1/b2b-prospects/internal/purge',
+    mode: 'DELETE',
+  },
   // Departed employee records: identity stripped, biometrics/attendance/reviews deleted,
   // payroll kept without an owner. The employee row itself survives on purpose —
   // deleting it would orphan the money records that must last ten years.

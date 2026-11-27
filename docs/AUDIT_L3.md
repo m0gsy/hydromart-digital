@@ -585,6 +585,7 @@ psql -d hydromart_admin -c 'SELECT dataset, "dataClass", "windowDays" FROM reten
 | `audit_logs`             | OPERATIONAL | 734        | ✅ DELETE → auth-service                                 |
 | `hr_employee_records`    | HR          | 1825       | ✅ DELETE → hr-service (anonimisasi)                      |
 | `hr_face_embeddings`     | HR          | 30         | ✅ DELETE → hr-service                                    |
+| `b2b_prospects`          | OPERATIONAL | 365        | ✅ DELETE → customer-service (prospek B2B: hapus; yang sudah jadi pelanggan dianonimkan; daftar jangan-hubungi tidak pernah dihapus) |
 | `log_audit`              | OPERATIONAL | 730        | ❌ **UNENFORCED** — tidak ada eksekutor dengan nama ini    |
 | `notifications_messages` | MARKETING   | 90         | ✅ DELETE → crm-service                                   |
 | `orders_transactions`    | FINANCIAL   | 3650       | — EXEMPT, memang tidak pernah dihapus                     |
