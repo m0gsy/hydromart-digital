@@ -140,15 +140,16 @@ export class DepotConfigService {
     };
   }
   /**
-   * Private bucket for finding photos (HD-15B): the shared endpoint and region, a bucket and key of
-   * their own (never another service's credentials), objects under the `visits/` prefix.
+   * Private bucket for finding photos (HD-15B): the shared endpoint and region, bucket
+   * hydromart-visits, objects under the `visits/` prefix. The key is the delivery account's unless a
+   * dedicated one is set (compose fallback; owner, 27 Nov 2026: NEO keys are per account).
    */
   get visitS3(): VisitS3Settings | null {
     const bucket = this.config.get<string>('VISIT_STORAGE_S3_BUCKET', '');
     const accessKeyId = this.config.get<string>('VISIT_STORAGE_S3_ACCESS_KEY_ID', '');
     const secretAccessKey = this.config.get<string>('VISIT_STORAGE_S3_SECRET_ACCESS_KEY', '');
-    // Optional on purpose: until the owner makes a dedicated bucket and key, photo upload answers 503
-    // and everything else about visits works.
+    // Optional on purpose: until the bucket is named, photo upload answers 503 and everything else
+    // about visits works.
     if (!bucket || !accessKeyId || !secretAccessKey) return null;
     return {
       endpoint: this.config.getOrThrow<string>('STORAGE_S3_ENDPOINT'),

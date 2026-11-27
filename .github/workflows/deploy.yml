@@ -64,6 +64,7 @@ on:
             backup-offsite,
             backup-objects,
             storage-policy,
+            visit-bucket,
             reset-test-data,
             purge-applications,
             backfill-address-regions,
@@ -289,6 +290,10 @@ jobs:
             # BOX and nowhere else — so it is a button here rather than a chore someone
             # remembers. Runs per bucket, and FAILS if the bucket still lists afterwards.
             storage-policy) echo "run=bash scripts/storage-policy.sh" >> "$GITHUB_OUTPUT" ;;
+            # HD-15B: creates the PRIVATE visit-photo bucket with the delivery account's key
+            # (owner, 27 Nov 2026: NEO keys are per account) and FAILS unless an anonymous LIST
+            # and an anonymous object GET are both refused. Idempotent.
+            visit-bucket) echo "run=bash scripts/visit-bucket.sh" >> "$GITHUB_OUTPUT" ;;
             # MEASURED 2026-08-25: the installer schedules SIX jobs and the box's crontab had
             # THREE. check-tls-expiry.sh, check-log-retention.sh and rollback-drill.sh — all
             # added in #323 — had never once run. The installer is idempotent and rewrites the
