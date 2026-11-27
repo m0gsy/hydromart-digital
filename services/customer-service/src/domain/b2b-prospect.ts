@@ -3,34 +3,10 @@
  * calon-mitra (franchise applicant) CRM. Pure types and tables; no I/O.
  */
 
-/** The ids are the AREA-T contract (scripts/area/data/categories.json), upper-cased. */
-export const B2B_CATEGORIES = [
-  'KOS',
-  'SEKOLAH',
-  'PESANTREN',
-  'TEMPAT_IBADAH',
-  'KLINIK',
-  'BENGKEL',
-  'SALON',
-  'KEBUGARAN',
-  'RUMAH_MAKAN',
-  'KANTOR_RUKO',
-  'LAUNDRY',
-  'PENGINAPAN',
-  'PABRIK_GUDANG',
-] as const;
-export type B2bCategory = (typeof B2B_CATEGORIES)[number];
-
-export const B2B_STATUSES = [
-  'NEW',
-  'CONTACTED',
-  'VISITED',
-  'INTERESTED',
-  'CONVERTED',
-  'LOST',
-  'DO_NOT_CONTACT',
-] as const;
-export type B2bProspectStatus = (typeof B2B_STATUSES)[number];
+import type { B2bCategory, B2bProspectStatus } from '@hydromart/access';
+// The constants live in @hydromart/access so the web import screen reads the same arrays.
+export { B2B_CATEGORIES, B2B_STATUSES, IMPORT_COLUMNS } from '@hydromart/access';
+export type { B2bCategory, B2bProspectStatus } from '@hydromart/access';
 
 export type B2bSource = 'OVERTURE' | 'OSM' | 'FOURSQUARE_OS' | 'INTERNAL' | 'FIELD';
 export type B2bOwnerSource = 'AUTO' | 'HQ';
@@ -50,32 +26,6 @@ export type RefusalReason = (typeof REFUSAL_REASONS)[number];
 /** Hard ceiling per import file; AREA-T never writes more than this per part. */
 export const IMPORT_MAX_ROWS = 500;
 
-/**
- * The candidate-file columns, in order: the AREA-T contract (spec-areat.md 3.8). The web import
- * wizard and AREA-T's writer read this same list; a unit test holds its order. Some are
- * informational only (the server recomputes region codes, grid cell and owner depot itself).
- */
-export const IMPORT_COLUMNS = [
-  'name',
-  'category',
-  'address',
-  'phone',
-  'lat',
-  'lng',
-  'kecamatanCode',
-  'kelurahanCode',
-  'gridCell',
-  'ownerDepotCode',
-  'distanceKm',
-  'source',
-  'license',
-  'sourceId',
-  'sourceDataset',
-  'sourceUpdated',
-  'fetchedDate',
-  'categoryConfidence',
-  'alsoIn',
-] as const;
 
 /** The `source` column values an import file may carry. FIELD is the server's, never a file's. */
 export const IMPORT_SOURCES: Readonly<Record<string, B2bSource>> = {
