@@ -34,6 +34,9 @@ export interface ProspectAggregate {
   prospectsVisited?: number;
 }
 
+/** The source holds more cells than one answer carries (the grid level of a wide scope). */
+export const TOO_MANY_CELLS = 'tooMany' as const;
+
 export interface AiProspectSourcesPort {
-  prospectAggregates(query: ProspectQuery, deadline: number): Promise<ProspectAggregate[] | null>;
+  prospectAggregates(query: ProspectQuery, deadline: number): Promise<ProspectAggregate[] | typeof TOO_MANY_CELLS | null>;
 }

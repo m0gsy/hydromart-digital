@@ -41,7 +41,7 @@ const ONE: ReadScope = {
   echo: { depotIds: [D1], legalEntityIds: [PT_A] },
 };
 const NONE: ReadScope = { spans: [], echo: { depotIds: [], legalEntityIds: [] } };
-const ALL: ReadScope = { ...ONE, echo: { depotIds: [D1, D2], legalEntityIds: [PT_A] }, network: DEPOTS };
+const ALL: ReadScope = { spans: [...ONE.spans, { depotId: D2, legalEntityId: PT_A, from: '2026-11-01', to: '2026-11-30' }], echo: { depotIds: [D1, D2], legalEntityIds: [PT_A] }, network: DEPOTS };
 
 const KEC = (n: number) => `32010${String(n).padStart(2, '0')}`; // 7 digits
 const KEL = (kec: number, n: number) => `${KEC(kec)}${String(n).padStart(3, '0')}`;
@@ -112,12 +112,58 @@ describe('scope', () => {
   });
 
   it('too many depots for one read is belum_ada, never a cut', async () => {
-    const many = { ...ONE, echo: { depotIds: Array.from({ length: 101 }, (_, i) => `d${i}`), legalEntityIds: [] } };
+    const ids = Array.from({ length: 101 }, (_, i) => `d${i}`);
+    const many: ReadScope = { spans: ids.map((depotId) => ({ depotId, legalEntityId: PT_A, from: '2026-11-01', to: '2026-11-30' })), echo: { depotIds: ids, legalEntityIds: [] } };
     const { service, sources } = make({ scope: many });
     const a = await service.answer('B-02', KEPALA, Q, CLOSED);
     expect(a.status).toBe('belum_ada');
     expect(a.reason).toMatch(/Terlalu banyak/);
     expect(sources.prospectAggregates).not.toHaveBeenCalled();
+  });
+});
+
+describe('a depot that joined a readable entity mid-month', () => {
+  const span = (depotId: string, from: string, to: string) => ({ depotId, legalEntityId: PT_A, from, to });
+  const scopeOf = (spans: ReadScope['spans']): ReadScope => ({ spans, echo: { depotIds: [...new Set(spans.map((x) => x.depotId))].sort(), legalEntityIds: [PT_A] } });
+  const ids = (m: ReturnType<typeof make>) => (m.sources.prospectAggregates.mock.calls[0][0] as { depotIds: string[] }).depotIds;
+  const MOVED = scopeOf([span(D1, '2026-11-01', '2026-11-30'), span(D2, '2026-11-10', '2026-11-30')]);
+
+  it.each(['B-02', 'B-03'])('%s leaves it out of the month it joined and counts it in the next', async (id) => {
+    const nov = make({ rows: [], scope: MOVED });
+    await nov.service.answer(id, KEPALA, Q, CLOSED);
+    expect(ids(nov)).toEqual([D1]);
+    const dec = make({ rows: [], scope: scopeOf([span(D1, '2026-12-01', '2026-12-31'), span(D2, '2026-12-01', '2026-12-31')]) });
+    await dec.service.answer(id, KEPALA, { month: '2026-12' }, new Date('2027-01-05T03:00:00Z'));
+    expect(ids(dec)).toEqual([D1, D2]);
+  });
+
+  it('adjacent spans that together cover every day of the month count', async () => {
+    const m = make({ rows: [], scope: scopeOf([span(D1, '2026-11-01', '2026-11-14'), span(D1, '2026-11-15', '2026-11-30')]) });
+    await m.service.answer('B-02', KEPALA, Q, CLOSED);
+    expect(ids(m)).toEqual([D1]);
+  });
+
+  it('a gap of one day leaves the depot out, and a caller left with no depot is belum_ada', async () => {
+    const m = make({ rows: [], scope: scopeOf([span(D1, '2026-11-01', '2026-11-14'), span(D1, '2026-11-16', '2026-11-30')]) });
+    const a = await m.service.answer('B-03', KEPALA, Q, CLOSED);
+    expect(a.status).toBe('belum_ada');
+    expect(a.reason).toMatch(/Tidak ada depot/);
+    expect(m.sources.prospectAggregates).not.toHaveBeenCalled();
+  });
+
+  it('B-01 counts it only once it is covered today', async () => {
+    const before = make({ rows: [], scope: MOVED });
+    await before.service.answer('B-01', KEPALA, Q, new Date('2026-11-05T03:00:00Z'));
+    expect(ids(before)).toEqual([D1]);
+    const after = make({ rows: [], scope: MOVED });
+    await after.service.answer('B-01', KEPALA, Q, RUNNING);
+    expect(ids(after)).toEqual([D1, D2]);
+  });
+
+  it('a network reader keeps counting every depot', async () => {
+    const m = make({ rows: [], scope: MOVED });
+    await m.service.answer('B-02', ADMIN, Q, CLOSED);
+    expect(m.sources.prospectAggregates.mock.calls[0][0]).toMatchObject({ depotIds: null });
   });
 });
 
@@ -141,6 +187,23 @@ describe('the month', () => {
     expect(a.unit).toBe('usaha');
     await expect(service.answer('B-01', KEPALA, { month: '2026-10' }, RUNNING)).rejects.toThrow(BadRequestException);
     await expect(service.answer('B-01', KEPALA, Q, CLOSED)).rejects.toThrow(/bulan berjalan/);
+  });
+
+  it('B-01 is the stock of prospects not yet converted: its status keys and label say so', async () => {
+    const six = { NEW: 3, CONTACTED: 3, VISITED: 0, INTERESTED: 0, LOST: 0, DO_NOT_CONTACT: 0 };
+    const a = await make({ rows: [row(KEC(1), 6, { byStatus: six, byCategory: { KOS: 6 }, withPhone: 6, dataAgeDaysMedian: 3 })] }).service.answer('B-01', KEPALA, Q, RUNNING);
+    expect(a.label).toMatch(/belum menjadi pelanggan/);
+    const keys = (cellsOf(a)[0].byStatus as { key: string }[]).map((x) => x.key);
+    expect(keys).toHaveLength(6);
+    expect(keys).not.toContain('CONVERTED');
+  });
+
+  it('a source with more cells than one answer carries is belum_ada', async () => {
+    const m = make({ rows: 'tooMany' as never });
+    const a = await m.service.answer('B-02', KEPALA, { ...Q, level: 'grid' }, CLOSED);
+    expect(a.status).toBe('belum_ada');
+    expect(a.reason).toMatch(/Terlalu banyak sel/);
+    expect(a.value).toBeNull();
   });
 
   it('a metric outside the group is 404', async () => {
@@ -453,6 +516,11 @@ describe('AiProspectSourcesHttpAdapter', () => {
     expect(calls[0].url.pathname).toBe('/api/v1/customers/internal/prospect-aggregates');
     expect(JSON.parse(String(calls[0].init?.body))).toEqual(query);
     expect((calls[0].init?.headers as Record<string, string>)['x-internal-key']).toBe('k');
+  });
+
+  it('a reply flagged tooMany is the too-many-cells marker, not a list', async () => {
+    answer({ cells: [], tooMany: true });
+    await expect(adapter().prospectAggregates(query, FAR)).resolves.toBe('tooMany');
   });
 
   it('sends null for every depot', async () => {

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { AiProspectSourcesPort, ProspectAggregate, ProspectLevel, ProspectQuery } from '../../application/ports/ai-prospect-sources.port';
+import { AiProspectSourcesPort, ProspectAggregate, ProspectLevel, ProspectQuery, TOO_MANY_CELLS } from '../../application/ports/ai-prospect-sources.port';
 import { DashboardConfigService } from '../../config/dashboard-config.service';
 
 const isCount = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 0;
@@ -53,7 +53,7 @@ export class AiProspectSourcesHttpAdapter implements AiProspectSourcesPort {
     }
   }
 
-  async prospectAggregates(query: ProspectQuery, deadline: number): Promise<ProspectAggregate[] | null> {
+  async prospectAggregates(query: ProspectQuery, deadline: number): Promise<ProspectAggregate[] | typeof TOO_MANY_CELLS | null> {
     const base = this.config.customerServiceUrl;
     if (!base) return null;
     const b = await this.call(`${base}/api/v1/customers/internal/prospect-aggregates`, deadline, {
@@ -61,6 +61,7 @@ export class AiProspectSourcesHttpAdapter implements AiProspectSourcesPort {
       depotIds: query.depotIds && [...query.depotIds],
     });
     if (!isObj(b) || !Array.isArray(b.cells)) return null;
+    if (b.tooMany === true) return TOO_MANY_CELLS;
     const out: ProspectAggregate[] = [];
     for (const r of b.cells as unknown[]) {
       if (!isObj(r) || !isCount(r.total)) return null;

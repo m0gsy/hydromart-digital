@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 
 import { AuthenticatedUser, gridCellCenter, localMonthKey } from '@hydromart/platform';
 
-import { AiProspectSourcesPort, ProspectAggregate, ProspectKind, ProspectLevel } from '../ports/ai-prospect-sources.port';
+import { AiProspectSourcesPort, ProspectAggregate, ProspectKind, ProspectLevel, TOO_MANY_CELLS } from '../ports/ai-prospect-sources.port';
 import { AiReadSourcesPort } from '../ports/ai-read-sources.port';
 import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
 import { DASHBOARD_TOKENS } from '../tokens';
@@ -10,7 +10,7 @@ import { holdMore, kecamatanOf } from './area-metrics';
 import { AnswerEnvelope } from './envelope';
 import { DOWN, GroupMetricMeta, MAX_READ_DEPOTS, NO_SCOPE, SMALL_GROUP_REASON, TOO_MANY, openGroup, settledFrom } from './group-context';
 import { COMPLEMENT_FLAG, MaskedCell, suppressSmallGroups } from './masking';
-import { ReadScopeService, readsNetwork } from './scope.service';
+import { ReadScope, ReadScopeService, covers, readsNetwork } from './scope.service';
 
 /**
  * AREA-3: the B2B prospect map (businesses a depot could sell gallons to), counted per depot, kecamatan,
@@ -48,6 +48,7 @@ const NO_KELURAHAN = 'Kelurahan tidak diketahui';
 const OPPORTUNITY = 'di luar area depot';
 export const PROSPECT_OPEN_REASON =
   'angka konversi dan kunjungan hanya dijawab untuk bulan yang sudah ditutup, mulai tanggal 1 bulan berikutnya; angka bulan yang masih berjalan berubah dari hari ke hari dan bisa dikurangkan menjadi satu usaha.';
+export const TOO_MANY_CELLS_REASON = 'Terlalu banyak sel untuk dihitung sekaligus dalam satu jawaban; pakai tingkat yang lebih besar (kecamatan atau depot) atau persempit cakupan.';
 export const NOT_CURRENT_MONTH = 'B-01 hanya untuk bulan berjalan: angka ini keadaan saat ini';
 
 export interface ProspectAnswerQuery {
@@ -66,6 +67,12 @@ interface Cell {
   /** What the masking counts: the cell's total. */
   people: number;
   src: ProspectAggregate;
+}
+
+/** The depots a scoped caller may be answered about: a depot counts only when its granted spans cover the whole fact period. */
+function readableDepots(scope: ReadScope, id: ProspectMetricId, today: string, month: string, lastDay: number): string[] {
+  const days = id === 'B-01' ? [today] : Array.from({ length: lastDay }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`);
+  return scope.echo.depotIds.filter((d) => days.every((day) => covers(scope, d, day)));
 }
 
 /** Codes in order; a cell with no code sorts after the others of its kecamatan, the nameless one last. */
@@ -141,10 +148,13 @@ export class ProspectMetricsService {
     if (!network && c.scope.spans.length === 0) return c.none(NO_SCOPE);
     // B-02 and B-03: closed from day 1 of the next month (settledFrom is the 8th: the 1st is the same month key).
     if (id !== 'B-01' && c.today < settledFrom(c.period.to).replace(/-08$/, '-01')) return c.held(PROSPECT_OPEN_REASON);
-    const depotIds = network ? null : c.scope.echo.depotIds;
+    // Never the echo's depot ids as they stand: a depot that moved legal entity mid-month is readable only from its span's first day.
+    const depotIds = network ? null : readableDepots(c.scope, id, c.today, query.month, Number(c.period.to.slice(8)));
+    if (depotIds && depotIds.length === 0) return c.none(NO_SCOPE);
     if (depotIds && depotIds.length > MAX_READ_DEPOTS) return c.none(TOO_MANY);
     const rows = await this.sources.prospectAggregates({ kind: KIND[id], level, month: query.month, depotIds, opportunity: network }, deadline);
     if (!rows) return c.none(DOWN);
+    if (rows === TOO_MANY_CELLS) return c.none(TOO_MANY_CELLS_REASON);
     const names = level === 'depot' ? new Map((c.scope.network ?? (await this.depots.allDepots('')) ?? []).map((d) => [d.id, d.name])) : new Map<string, string>();
     const list = rows.map((r): Cell => this.cell(r, level, names)).sort(byId);
     const everyone = list.reduce((n, x) => n + x.people, 0);
@@ -173,7 +183,7 @@ export class ProspectMetricsService {
 }
 
 const LABELS: Record<ProspectMetricId, string> = {
-  'B-01': 'keadaan saat ini (jumlah usaha yang tercatat, bukan riwayat bulan lalu), dengan rincian kategori dan status, berapa yang punya telepon, dan umur data (median, hari)',
+  'B-01': 'keadaan saat ini (jumlah usaha yang belum menjadi pelanggan, bukan riwayat bulan lalu; yang sudah menjadi pelanggan hanya dihitung per bulan di B-02), dengan rincian kategori dan status, berapa yang punya telepon, dan umur data (median, hari)',
   'B-02': 'usaha yang menjadi pelanggan pada bulan itu (menurut tanggal jadi pelanggan), dengan rincian kategori',
   'B-03': 'kunjungan lapangan yang diterima pada bulan itu, berapa usaha berbeda yang dikunjungi, dengan rincian hasil kunjungan',
 };
