@@ -1,7 +1,13 @@
 import { Logger } from '@nestjs/common';
+import { reportDegraded } from '@hydromart/platform';
 
 import { regionCodesFor, regionLevels } from '../../src/domain/region-codes';
 import { RegionAsset, RegionLookup } from '../../src/infrastructure/geo/region-lookup';
+
+jest.mock('@hydromart/platform', () => ({
+  ...jest.requireActual('@hydromart/platform'),
+  reportDegraded: jest.fn(),
+}));
 
 // Flat [lng, lat, ...] square ring.
 const sq = (w: number, s: number, e: number, n: number) => [w, s, e, s, e, n, w, n, w, s];
@@ -118,6 +124,7 @@ describe('RegionLookup with an unreadable asset', () => {
     expect(bad.codesFor(1, 1, 'MANUAL', null).regionSource).toBeNull();
     expect(read).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledTimes(1);
+    expect(reportDegraded).toHaveBeenCalledWith('region-asset');
     read.mockRestore();
     log.mockRestore();
   });

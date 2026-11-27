@@ -100,6 +100,21 @@ groups:
           summary: '{{ $labels.service }} exporter is down'
           description: 'Prometheus cannot scrape the {{ $labels.service }} exporter — the alerts that depend on it are blind.'
 
+      - alert: ServiceDegraded
+        # A service that is up but runs without something it needs reports it itself
+        # (packages/platform reportDegraded -> hydromart_degraded). Nothing else would notice.
+        # region-asset: customer-service could not read regions.json, so new addresses are saved
+        # WITHOUT kecamatan/kelurahan codes (silently, only a log line).
+        expr: max by (service, reason) (hydromart_degraded{job="hydromart"}) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: '{{ $labels.service }} is degraded: {{ $labels.reason }}'
+          description: >-
+            {{ $labels.service }} reports {{ $labels.reason }} for 5m. For region-asset: addresses are
+            being saved without kecamatan/kelurahan codes. Check dist/src/infrastructure/geo/regions.json
+            in the customer image, fix it, redeploy, then run the Deploy mode backfill-address-regions.
+
       - alert: EventLoopLagHigh
         # Node event-loop lag: the process is up and scraping but stalling on CPU or
         # blocking I/O — requests queue behind it. 200ms sustained is unhealthy.

@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
-import { collectDefaultMetrics, Counter, Registry, Histogram } from 'prom-client';
+import { collectDefaultMetrics, Counter, Gauge, Registry, Histogram } from 'prom-client';
 
 import { decodeCursor } from '../domain/keyset';
 import { guardProcess } from './process-guard';
@@ -62,6 +62,23 @@ function templateOf(path: string): string {
  * ponytail: default registry per process is fine — one service = one process.
  * Route label is bounded — see routeLabel() below for why that needs two mechanisms.
  */
+/*
+ * A service that keeps running but has lost something it needs (an asset that did not load) says so
+ * here, and ops/alert-rules.yml ServiceDegraded pages on it. `reason` is a code constant, never
+ * user input, so the label stays bounded. Module-level because the registry is built in
+ * enableMetrics, which runs before any request can report; the gauge joins it there.
+ */
+const degraded = new Gauge({
+  name: 'hydromart_degraded',
+  help: '1 while the service runs without something it needs, by reason',
+  labelNames: ['reason'],
+  registers: [],
+});
+
+export function reportDegraded(reason: string): void {
+  degraded.set({ reason }, 1);
+}
+
 export function enableMetrics(app: INestApplication, serviceName: string): void {
   /*
    * Rides along here, and the reason is not tidiness: all 18 services already call this
@@ -73,6 +90,7 @@ export function enableMetrics(app: INestApplication, serviceName: string): void 
   const registry = new Registry();
   registry.setDefaultLabels({ service: serviceName });
   collectDefaultMetrics({ register: registry });
+  registry.registerMetric(degraded);
 
   const httpDuration = new Histogram({
     name: 'http_request_duration_seconds',

@@ -167,7 +167,7 @@ export { IsNotBefore } from './nest/date-range.validator';
 export { IsWithinDays, MAX_RANGE_DAYS } from './nest/date-range-span.validator';
 export { IsPublicHttpsUrl } from './nest/public-url.validator';
 export { IsIanaTimezone } from './nest/timezone.validator';
-export { enableMetrics } from './nest/metrics';
+export { enableMetrics, reportDegraded } from './nest/metrics';
 export {
   DEFAULT_MAX_ROWS,
   loggedQueryBounds,

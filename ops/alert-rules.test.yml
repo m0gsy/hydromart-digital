@@ -651,3 +651,21 @@ tests:
       - eval_time: 20m
         alertname: PaymentConfirmFailing
         exp_alerts: []
+
+  # --- ServiceDegraded ---------------------------------------------------------------------
+  - interval: 1m
+    name: a service that reports region-asset degraded pages after 5m, and a quiet one does not
+    input_series:
+      - series: 'hydromart_degraded{job="hydromart", service="customer-service", reason="region-asset"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ServiceDegraded
+        exp_alerts:
+          - exp_labels: { severity: warning, service: customer-service, reason: region-asset }
+            exp_annotations:
+              summary: 'customer-service is degraded: region-asset'
+              description: 'customer-service reports region-asset for 5m. For region-asset: addresses are being saved without kecamatan/kelurahan codes. Check dist/src/infrastructure/geo/regions.json in the customer image, fix it, redeploy, then run the Deploy mode backfill-address-regions.'
+      - eval_time: 2m
+        alertname: ServiceDegraded
+        exp_alerts: []
