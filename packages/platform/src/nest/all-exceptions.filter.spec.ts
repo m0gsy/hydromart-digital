@@ -1,7 +1,14 @@
-import { ArgumentsHost, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 
 import { DomainError, HTTP_STATUS } from '../domain/domain-error';
 import { AllExceptionsFilter } from './all-exceptions.filter';
+import * as alerter from './error-alerter';
 
 class OutOfStockError extends DomainError {
   readonly code = 'OUT_OF_STOCK';
@@ -118,6 +125,30 @@ describe('AllExceptionsFilter', () => {
     expect(body()).toMatchObject({ statusCode: 500, code: 'INTERNAL_ERROR' });
     expect(JSON.stringify(body())).not.toContain('ECONNREFUSED');
     expect(filter['logger'].error).toHaveBeenCalled();
+  });
+
+  // 2026-11-27: every enrolment hr refused while NEO was down paged on its own.
+  it('a 5xx reported once elsewhere keeps its status and message but is neither paged nor stack-logged', () => {
+    const alert = jest.spyOn(alerter, 'alertServerError').mockImplementation(() => undefined);
+    const warn = jest.spyOn(filter['logger'], 'warn').mockImplementation(() => undefined);
+    const { host, status, body } = hostFor('/api/v1/attendance/me/face/enroll');
+    const down = Object.assign(new ServiceUnavailableException('NEO sedang gangguan'), {
+      reportedElsewhere: true,
+    });
+
+    filter.catch(down, host);
+
+    expect(status).toHaveBeenCalledWith(503);
+    expect(body()).toMatchObject({ statusCode: 503, message: 'NEO sedang gangguan' });
+    expect(alert).not.toHaveBeenCalled();
+    expect(filter['logger'].error).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      'POST /api/v1/attendance/me/face/enroll answered 503: NEO sedang gangguan',
+    );
+
+    // Without the marker the same 503 still pages.
+    filter.catch(new ServiceUnavailableException('NEO_FR_TOKEN belum diset'), hostFor().host);
+    expect(alert).toHaveBeenCalledTimes(1);
   });
 
   it('masks a thrown non-Error too', () => {

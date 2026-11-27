@@ -351,6 +351,40 @@ tests:
         alertname: HighErrorRate
         exp_alerts: []
 
+  - interval: 1m
+    name: enrolments refused while the face engine is down are not a 5xx page (2026-11-27)
+    # Half of hr's traffic is the 503 an enrolment gets while NEO is down: by design, and the
+    # outage has its own messages (ServiceDegraded face-engine). This paged CRITICAL for 40 minutes.
+    input_series:
+      - series: 'http_request_duration_seconds_count{service="hr-service", status="503", route="/api/v1/attendance/me/face/enroll", method="POST"}'
+        values: '0+10x20'
+      - series: 'http_request_duration_seconds_count{service="hr-service", status="503", route="/api/v1/employees/:id/face/enroll", method="POST"}'
+        values: '0+10x20'
+      - series: 'http_request_duration_seconds_count{service="hr-service", status="200", route="/api/v1/attendance/me", method="GET"}'
+        values: '0+20x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighErrorRate
+        exp_alerts: []
+
+  - interval: 1m
+    name: a 500 on the enrolment route, or a 503 anywhere else in hr, still pages
+    input_series:
+      - series: 'http_request_duration_seconds_count{service="hr-service", status="500", route="/api/v1/attendance/me/face/enroll", method="POST"}'
+        values: '0+10x20'
+      - series: 'http_request_duration_seconds_count{service="hr-service", status="503", route="/api/v1/attendance/check-in", method="POST"}'
+        values: '0+10x20'
+      - series: 'http_request_duration_seconds_count{service="hr-service", status="200", route="/api/v1/attendance/me", method="GET"}'
+        values: '0+20x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HighErrorRate
+        exp_alerts:
+          - exp_labels: { severity: critical, service: hr-service }
+            exp_annotations:
+              summary: 'hr-service 5xx rate above 5%'
+              description: 'hr-service is serving 50% 5xx over the last 5m.'
+
   # --- HighLatencyP95 ---------------------------------------------------------------------
   - interval: 1m
     name: every request lands in the slow bucket
@@ -667,5 +701,22 @@ tests:
               summary: 'customer-service is degraded: region-asset'
               description: 'customer-service reports region-asset for 5m. For region-asset: addresses are being saved without kecamatan/kelurahan codes. Check dist/src/infrastructure/geo/regions.json in the customer image, fix it, redeploy, then run the Deploy mode backfill-address-regions.'
       - eval_time: 2m
+        alertname: ServiceDegraded
+        exp_alerts: []
+
+  - interval: 1m
+    name: NEO down raises face-engine after 5m and it resolves once hr clears the gauge (2026-11-27)
+    input_series:
+      - series: 'hydromart_degraded{job="hydromart", service="hr-service", reason="face-engine"}'
+        values: '1x20 0x20'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ServiceDegraded
+        exp_alerts:
+          - exp_labels: { severity: warning, service: hr-service, reason: face-engine }
+            exp_annotations:
+              summary: 'hr-service is degraded: face-engine'
+              description: 'hr-service reports face-engine for 5m. NEO (BiznetGio face recognition) is not answering: check-ins and check-outs are held PENDING for HR and enrolment is refused. Check the NEO account (quota) and BiznetGio; there is nothing to deploy. This resolves by itself when NEO answers again.'
+      - eval_time: 30m
         alertname: ServiceDegraded
         exp_alerts: []

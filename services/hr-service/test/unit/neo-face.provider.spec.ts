@@ -1,5 +1,5 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
-import { alertServerError } from '@hydromart/platform';
+import { alertServerError, reportDegraded } from '@hydromart/platform';
 
 import { HrConfigService } from '../../src/config/hr-config.service';
 import {
@@ -12,6 +12,7 @@ import { NeoFaceProvider } from '../../src/infrastructure/face/neo-face.provider
 jest.mock('@hydromart/platform', () => ({
   ...jest.requireActual('@hydromart/platform'),
   alertServerError: jest.fn(),
+  reportDegraded: jest.fn(),
 }));
 
 const identity = { userId: 'e1', userName: 'Budi' };
@@ -671,6 +672,37 @@ describe('NeoFaceProvider: one alert per outage, from the one place that knows',
     quota = true;
     await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
     expect(alert).toHaveBeenCalledTimes(2);
+  });
+
+  // 2026-11-27: the outage had a first message and no last one. ServiceDegraded face-engine now
+  // fires on the gauge and RESOLVES when NEO answers, which is the "NEO is back" message.
+  it('raises face-engine degraded once when NEO goes down, clears it when NEO answers, and says so', async () => {
+    const degraded = reportDegraded as jest.Mock;
+    degraded.mockClear();
+    let quota = true;
+    mockFetch(() =>
+      quota
+        ? { body: { status: '401', status_message: 'Not authorized: max api hit limit reached!' } }
+        : { body: { status: '200', verified: true, similarity: '90' } },
+    );
+    const neo = new NeoFaceProvider(makeConfig());
+    expect(neo.isDown()).toBe(false);
+
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    jest.advanceTimersByTime(61_000);
+    await expect(neo.verify(Buffer.from('p'), [], identity)).rejects.toBeInstanceOf(FaceEngineUnavailableError);
+    expect(neo.isDown()).toBe(true);
+    expect(degraded.mock.calls).toEqual([['face-engine']]); // once per outage, not per probe
+
+    jest.advanceTimersByTime(61_000);
+    quota = false;
+    expect((await neo.verify(Buffer.from('p'), [], identity)).matched).toBe(true);
+    expect(neo.isDown()).toBe(false);
+    expect(degraded.mock.calls).toEqual([['face-engine'], ['face-engine', false]]);
+  });
+
+  it('the refusals it answers with are not paged per request: the outage has its own messages', () => {
+    expect(new FaceEngineUnavailableError('x').reportedElsewhere).toBe(true);
   });
 });
 

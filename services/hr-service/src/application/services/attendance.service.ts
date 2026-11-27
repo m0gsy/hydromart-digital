@@ -965,6 +965,13 @@ export class AttendanceService {
   private async assertFace(employee: Employee, punch: FacePunch): Promise<number | null> {
     const enrolled = await this.faces.listActiveByEmployee(employee.id);
     if (enrolled.length === 0) {
+      // Owner, 2026-11-27: while the engine is down nobody can enrol, so this refusal left the day of
+      // anyone with no face on file unrecorded (five withdrew theirs that morning after an enrolment
+      // failed). Held for HR from the frame instead, like every punch the engine cannot judge.
+      if (this.verifier.isDown?.()) {
+        this.logger.warn(`Face engine down, employee ${employee.id} not enrolled: punch held PENDING for HR`);
+        return null;
+      }
       throw new BadRequestException('Wajah belum di-enroll');
     }
     /*

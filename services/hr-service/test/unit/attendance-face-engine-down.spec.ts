@@ -70,14 +70,18 @@ function make() {
     listAdjustments: async () => trail,
   } as unknown as AttendanceRepository;
   const verify = jest.fn<Promise<FaceVerifyResult>, unknown[]>();
+  let engine: 'up' | 'down' | 'no-state' = 'up';
   const verifier: FaceVerifier = {
     enroll: async () => ({ vector: [], quality: 1 }),
     verify: (...args: unknown[]) => verify(...args),
+    isDown: () => engine === 'down',
   };
   const retired: string[] = [];
   let retireFails = false;
+  let enrolledFaces = 1;
   const faces = {
-    listActiveByEmployee: async () => [{ vector: [] } as unknown as FaceEmbedding],
+    listActiveByEmployee: async () =>
+      Array.from({ length: enrolledFaces }, () => ({ vector: [] }) as unknown as FaceEmbedding),
     deactivateForEmployee: async (employeeId: string) => {
       if (retireFails) throw new Error('db down');
       retired.push(employeeId);
@@ -138,7 +142,14 @@ function make() {
   const retireBroken = () => {
     retireFails = true;
   };
-  return { svc, verify, created, checkOuts, statuses, reasons, removed, retired, retireBroken, day, storageFails, hrRuled, hrCorrected, bucketDown, deviceClockNoted };
+  const noFaceOnFile = () => {
+    enrolledFaces = 0;
+  };
+  const engineIs = (state: typeof engine) => {
+    engine = state;
+    if (state === 'no-state') delete verifier.isDown;
+  };
+  return { svc, verify, created, checkOuts, statuses, reasons, removed, retired, retireBroken, day, storageFails, hrRuled, hrCorrected, bucketDown, deviceClockNoted, noFaceOnFile, engineIs };
 }
 
 const alert = alertServerError as jest.Mock;
@@ -232,6 +243,51 @@ describe('check-in while the face engine cannot be asked', () => {
     day({ status: 'PENDING', checkInScore: null, checkInPhotoUrl: 'hr/attendance/f.jpg' });
     await svc.decide(user, 'a1', 'APPROVE');
     expect(reasons).toEqual(['Wajah belum diverifikasi: APPROVE']);
+  });
+});
+
+/*
+ * 2026-11-27: NEO answered 503 from 07:38 WIB. Enrolling was impossible, so anyone with no face on
+ * file (new staff, and five who withdrew theirs after a failed enrolment) met "belum di-enroll" and
+ * could not record the day at all. Owner: while the engine is down, held for HR like everyone else.
+ */
+describe('a punch with no face on file while the engine is down', () => {
+  it('is held PENDING for HR from the submitted frame, the engine never asked', async () => {
+    const { svc, verify, created, noFaceOnFile, engineIs } = make();
+    noFaceOnFile();
+    engineIs('down');
+
+    const row = await svc.checkIn(user, punch, AT);
+
+    expect(row.status).toBe('PENDING');
+    expect(created[0]).toMatchObject({ checkInScore: null, checkInPhotoUrl: 'hr/attendance/submitted.jpg' });
+    expect(verify).not.toHaveBeenCalled();
+    expect(alert).not.toHaveBeenCalled();
+  });
+
+  it('the same at check-out: the whole day goes in front of HR', async () => {
+    const { svc, statuses, day, noFaceOnFile, engineIs } = make();
+    day({});
+    noFaceOnFile();
+    engineIs('down');
+    const row = await svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
+    expect(statuses).toEqual([['a1', 'PENDING']]);
+    expect(row.status).toBe('PENDING');
+  });
+
+  it('with the engine up it is still refused: enrol first', async () => {
+    const { svc, created, noFaceOnFile } = make();
+    noFaceOnFile();
+    await expect(svc.checkIn(user, punch, AT)).rejects.toThrow('Wajah belum di-enroll');
+    expect(created).toHaveLength(0);
+  });
+
+  it('an engine that cannot be down (the local drivers) keeps the refusal', async () => {
+    const { svc, created, noFaceOnFile, engineIs } = make();
+    noFaceOnFile();
+    engineIs('no-state');
+    await expect(svc.checkIn(user, punch, AT)).rejects.toBeInstanceOf(BadRequestException);
+    expect(created).toHaveLength(0);
   });
 });
 

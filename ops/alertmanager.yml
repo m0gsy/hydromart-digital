@@ -55,7 +55,10 @@ receivers:
         # localhost:9093 — right for an SSH tunnel, useless in a group chat. That is a
         # deliberate default: a wrong-but-plausible public URL would be worse.
         title_link: '{{ template "__alertmanagerURL" . }}'
-        title: '{{ .CommonLabels.severity | toUpper }}: {{ .CommonAnnotations.summary }}'
+        # A resolved notice used to read exactly like the page it ends ("CRITICAL: hr-service 5xx rate
+        # above 5%", 2026-11-27): in a pasted or read-aloud channel only Discord's colour bar told
+        # them apart. It says RESOLVED now.
+        title: '{{ if eq .Status "resolved" }}RESOLVED{{ else }}{{ .CommonLabels.severity | toUpper }}{{ end }}: {{ .CommonAnnotations.summary }}'
         text: >-
           {{ range .Alerts }}{{ .Annotations.description }}
           {{ end }}

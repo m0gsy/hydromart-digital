@@ -82,6 +82,22 @@ curl -s http://127.0.0.1:9090/api/v1/query --data-urlencode \
 Rute wajah hr (`attendance/check-in`, `check-out`, `me/face`, enroll) tidak ikut dihitung: semuanya menunggu
 API wajah NEO, dan 1–2 detik memang normalnya.
 
+`HighErrorRate` juga tidak menghitung 503 dari rute daftar wajah (`me/face/enroll`, `employees/:id/face/enroll`):
+saat NEO mati itu penolakan yang disengaja, dan gangguannya punya alert sendiri,
+[ServiceDegraded](#servicedegraded) `face-engine`. 500 di rute itu, atau 503 di rute lain, tetap dihitung.
+
+## ServiceDegraded
+
+Service hidup, tapi berjalan tanpa sesuatu yang dibutuhkannya; label `reason` menyebut apa.
+
+- **`face-engine`** (hr-service): API wajah NEO (BiznetGio) tidak menjawab. Absen masuk/pulang tetap tercatat
+  PENDING untuk diputus HR, juga absen karyawan yang belum punya data wajah; daftar wajah ditolak dengan pesan
+  "Sistem pengenal wajah sedang gangguan". Tidak ada yang perlu di-deploy: cek kuota/akun NEO di portal
+  BiznetGio atau hubungi dukungan BiznetGio. hr-service mengirim satu pesan saat NEO mulai gagal; alert ini
+  RESOLVED sendiri begitu NEO menjawab lagi. Setelah itu minta karyawan yang tadi gagal daftar wajah (atau
+  menghapus data wajahnya) mendaftar lagi. Pesan per percobaan sengaja tidak dikirim (27 Nov 2026).
+- **`region-asset`** (customer-service): `regions.json` tidak terbaca; langkahnya ada di deskripsi alert.
+
 ## Postgres
 
 `PostgresDown`, `PostgresConnectionsNearMax`, `PostgresDeadlocks`.

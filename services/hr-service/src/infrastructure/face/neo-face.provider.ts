@@ -3,7 +3,7 @@ import * as http from 'node:http';
 import * as https from 'node:https';
 
 import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import { alertServerError } from '@hydromart/platform';
+import { alertServerError, reportDegraded } from '@hydromart/platform';
 
 import { HrConfigService } from '../../config/hr-config.service';
 import {
@@ -36,6 +36,8 @@ const NEO_DOWN_AFTER = 3;
  * has to enrol again and a punch HR has to rule on; many at once means NEO lost its gallery.
  */
 const UNKNOWN_NOTICE_MS = 60 * 60_000;
+/** ops/alert-rules.yml ServiceDegraded: raised when NEO counts as down, cleared when it answers. */
+const DEGRADED_REASON = 'face-engine';
 
 interface NeoPayload {
   status?: string | number;
@@ -85,6 +87,11 @@ export class NeoFaceProvider implements FaceVerifier {
   private unknownSince = 0;
 
   constructor(private readonly config: HrConfigService) {}
+
+  /** NEO counts as down: from the call that proved it until one answers again. */
+  isDown(): boolean {
+    return this.downUntil !== 0;
+  }
 
   async enroll(images: Buffer[], identity?: FaceIdentity): Promise<FaceEmbeddingResult> {
     if (images.length === 0) throw new Error('enroll: no frames');
@@ -404,6 +411,7 @@ export class NeoFaceProvider implements FaceVerifier {
       const wasUp = this.downUntil === 0;
       this.downUntil = Date.now() + NEO_RETRY_MS;
       if (wasUp) {
+        reportDegraded(DEGRADED_REASON);
         alertServerError({
           method: 'POST',
           path: '/api/v1/attendance (face engine NEO)',
@@ -422,6 +430,7 @@ export class NeoFaceProvider implements FaceVerifier {
     this.unanswered = 0;
     if (this.downUntil === 0) return;
     this.downUntil = 0;
+    reportDegraded(DEGRADED_REASON, false); // ServiceDegraded resolves: the "NEO is back" message
     this.logger.log('NEO answering again; punches are verified as usual');
   }
 }
