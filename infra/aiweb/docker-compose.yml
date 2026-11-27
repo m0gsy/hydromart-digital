@@ -140,6 +140,20 @@ services:
       # it, and never n8n's (check-aiweb-compose.mjs). Absent until the release holds aiReadAgent: blank = no agent reads.
       HYDROMART_MACHINE_ID: ${AIWEB_APP_MACHINE_ID:-}
       HYDROMART_MACHINE_SECRET: ${AIWEB_APP_MACHINE_SECRET:-}
+      # AI-8 (hydromart-ai README, "LLM (AI-8)"). Vendor: Anthropic (owner, 27 Nov 2026). The key
+      # is the owner's, from a paid account (ENV_SET_BLOCK, deploy mode env-set, then deploy);
+      # blank, the app refuses every LLM call. Not the vendor's usual name on purpose: a tool on
+      # the box that reads ANTHROPIC_API_KEY never bills this account. Staging gets no key.
+      LLM_ANTHROPIC_API_KEY: ${AIWEB_LLM_ANTHROPIC_API_KEY:-}
+      # Every purpose on Claude Sonnet 5.5: the owner asked for the option that keeps the quality
+      # good (27 Nov 2026). The plan's estimate for all use at full team size is about Rp1,1 jt a
+      # month, under the Rp1,5 jt team cap; the caps refuse a call past them, they never overspend.
+      # A purpose moves to another model by PR here. No vendor receives personal data until the
+      # owner approves one (a DPA, the transfer register and a DPIA). The rupiah rate is rounded UP
+      # from the plan's 16.500, so the spend caps (Tim AI) trip early rather than late.
+      LLM_ROUTES: "*=anthropic:claude-sonnet-5-5"
+      LLM_PERSONAL_DATA_VENDORS: ""
+      LLM_USD_IDR: "17000"
     networks:
       - edge
       - private
