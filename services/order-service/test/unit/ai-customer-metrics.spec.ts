@@ -206,15 +206,16 @@ describe('HD-20c area points', () => {
         { k: 1, lat: -6.3, lng: 106.9, orders: 3, galon: 0 },
         { k: 0, lat: -6.21, lng: 106.81, orders: 1, galon: 2 },
       ],
-      unlocated: { customers: 0, orders: 0, galon: 0 },
     });
     expect(JSON.stringify(r)).not.toContain(C1);
   });
 
-  it('puts orders without a pin in the unlocated block, counting each customer once', async () => {
-    const r = await make([row(C1, null, null, 2n, 1n), row(C1, -6.2, null, 1n, 1n), row(C2, null, null, 1n, 0n)]).areaPoints([span(D1)], 10);
-    expect(r?.points).toEqual([]);
-    expect(r?.unlocated).toEqual({ customers: 2, orders: 4, galon: 2 });
+  it('keeps an order with no pin as a null pin of the same customer number', async () => {
+    const r = await make([row(C1, -6.2, 106.8), row(C1, null, null, 2n, 1n)]).areaPoints([span(D1)], 10);
+    expect(r?.points).toEqual([
+      { k: 0, lat: -6.2, lng: 106.8, orders: 1, galon: 2 },
+      { k: 0, lat: null, lng: null, orders: 2, galon: 1 },
+    ]);
   });
 
   it('answers null past the limit, and the service turns that into 422', async () => {

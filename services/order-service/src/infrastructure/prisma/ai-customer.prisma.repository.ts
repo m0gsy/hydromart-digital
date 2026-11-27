@@ -70,7 +70,8 @@ export class AiCustomerPrismaRepository implements AiCustomerRepository {
 
   /**
    * HD-20c: the pins of the counted, named orders of the spans (the same COUNTS and NAMED as the customer
-   * metrics), one row per customer per distinct pin. The customer id is turned into a small number `k`
+   * metrics), one row per customer per distinct pin
+   * (an order with no pin is a row with a null pin, so a customer with and without pins is still one k). The customer id is turned into a small number `k`
    * here and never leaves; the pin is the order's own delivery snapshot.
    */
   async areaPoints(spans: readonly AiSpan[], limit: number): Promise<AreaPoints | null> {
@@ -96,20 +97,11 @@ export class AiCustomerPrismaRepository implements AiCustomerRepository {
     `);
     if (rows.length > limit) return null;
     const keys = new Map<string, number>();
-    const noPin = new Set<string>();
-    const out: AreaPoints = { points: [], unlocated: { customers: 0, orders: 0, galon: 0 } };
-    for (const r of rows) {
-      if (r.latitude === null || r.longitude === null) {
-        noPin.add(r.customerId);
-        out.unlocated.orders += n(r.orders);
-        out.unlocated.galon += n(r.galon);
-        continue;
-      }
+    const points = rows.map((r) => {
       if (!keys.has(r.customerId)) keys.set(r.customerId, keys.size);
-      out.points.push({ k: keys.get(r.customerId) as number, lat: r.latitude, lng: r.longitude, orders: n(r.orders), galon: n(r.galon) });
-    }
-    out.unlocated.customers = noPin.size;
-    return out;
+      return { k: keys.get(r.customerId) as number, lat: r.latitude, lng: r.longitude, orders: n(r.orders), galon: n(r.galon) };
+    });
+    return { points };
   }
 
   async customerWindow(spans: readonly AiSpan[], periodFrom: Date): Promise<CustomerWindowStats> {

@@ -58,19 +58,20 @@ export interface RefillSplitStats {
   notAsked: number;
 }
 
-/** HD-20c: one distinct customer's counted orders at one distinct pin. `k` is a small number WITHIN one answer, never an id. */
+/**
+ * HD-20c: one distinct customer's counted orders at one distinct pin (lat and lng null = no pin). `k` is a
+ * small number WITHIN one answer, never an id: the same customer has the same k on every entry.
+ */
 export interface AreaPoint {
   k: number;
-  lat: number;
-  lng: number;
+  lat: number | null;
+  lng: number | null;
   orders: number;
   galon: number;
 }
 
 export interface AreaPoints {
   points: AreaPoint[];
-  /** Counted orders that have no pin, and the distinct customers and gallons behind them. */
-  unlocated: { customers: number; orders: number; galon: number };
 }
 
 export interface AiCustomerRepository {

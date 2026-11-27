@@ -32,7 +32,7 @@ export class AiCustomerMetricsController {
     return this.metrics.customers(toSpans(body.spans), new Date(body.periodFrom));
   }
 
-  @ApiOkResponse({ description: 'points: k (a number within this answer, never an id), lat, lng, orders, galon, one per customer per pin; unlocated: customers, orders, galon without a pin. 422 past the cap.' })
+  @ApiOkResponse({ description: 'points: k (a number within this answer, never an id), lat, lng, orders, galon, one per customer per pin (lat and lng null = no pin). 422 past the cap.' })
   @Public()
   @UseGuards(InternalAuthGuard)
   @ApiSecurity('internal-key')
