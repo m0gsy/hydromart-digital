@@ -254,13 +254,16 @@ network, never this project's default one. A release that changes anything under
 serving and raises an alert.
 
 
-### Supervisor visit photos (HD-15B) — one owner step
+### Supervisor visit photos (HD-15B)
 
-Finding photos need their own PRIVATE bucket and key; until then the photo upload answers 503 and every
-other visit route works. Owner, once: (1) create a private bucket (e.g. `hydromart-visits`) on the same
-object storage and a key that can read/write only it; (2) set `VISIT_STORAGE_S3_BUCKET`,
-`VISIT_STORAGE_S3_ACCESS_KEY_ID` and `VISIT_STORAGE_S3_SECRET_ACCESS_KEY` in `.env`; (3) redeploy depot.
-Keep it private (the deploy's anonymous-listing probe covers it) and do not reuse the delivery key.
+Finding photos live in a PRIVATE bucket, `hydromart-visits`; while `VISIT_STORAGE_S3_BUCKET` is blank the
+photo upload answers 503 and every other visit route works. NEO keys belong to an account, not a bucket,
+and the owner chose (27 Nov 2026) to reuse the delivery account's key rather than open a new account, so
+the bucket's privacy is the whole protection. Once: (1) Deploy mode `visit-bucket` creates it and fails
+unless an anonymous LIST and an anonymous object GET are both refused; (2) `ENV_SET_BLOCK` with
+`VISIT_STORAGE_S3_BUCKET=hydromart-visits`, then Deploy mode `env-set` for depot. Leave the two
+`VISIT_STORAGE_S3_*_KEY*` values blank: compose falls back to delivery's; a dedicated key, if one is ever
+made, goes there and wins. The deploy's anonymous-listing probe covers the bucket from then on.
 
 ---
 
