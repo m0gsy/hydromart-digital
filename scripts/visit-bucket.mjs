@@ -8,7 +8,8 @@
 //
 //   . ./scripts/load-env.sh && node scripts/visit-bucket.mjs     (Deploy mode `visit-bucket`)
 //
-// Exit 0 = private and writable, 1 = not proven private (or the create failed), 2 = .env incomplete.
+// Exit 0 = private and writable, 1 = not proven private (or the create failed), 2 = refused (another
+// service's bucket) or .env incomplete.
 import {
   CreateBucketCommand,
   DeleteBucketPolicyCommand,
