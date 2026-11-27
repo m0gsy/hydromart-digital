@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { PreciseLocationNotice } from '@/components/hr/precise-location-notice';
 import { useToast } from '@/components/toast';
@@ -35,13 +35,19 @@ export function VisitPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // A failed check-in moves focus to its message, so a screen reader hears why.
+  useEffect(() => {
+    if (error) document.getElementById('prospect-visit-error')?.focus();
+  }, [error]);
+
   async function checkIn() {
     setBusy(true);
     setError(null);
     try {
       const { coords } = await currentPosition({ precise: true });
       // The server needs the fix's accuracy to apply its "Perkiraan" rule: no figure, no check-in.
-      if (!Number.isFinite(coords.accuracy) || coords.accuracy < 0) throw new GeoError('unavailable');
+      if (!Number.isFinite(coords.accuracy) || coords.accuracy < 0)
+        throw new GeoError('unavailable');
       const res = await api.post<ProspectVisitResult>(
         endpoints.prospects.visit(row.id),
         {
@@ -61,7 +67,8 @@ export function VisitPanel({
       else if (e instanceof ApiError && e.status === 409) {
         setError(t('opsFix.prospectsField.visit.changed'));
         onStale();
-      } else if (e instanceof ApiError) setError(e.message || t('opsFix.prospectsField.visit.failed'));
+      } else if (e instanceof ApiError)
+        setError(e.message || t('opsFix.prospectsField.visit.failed'));
       else setError(t('opsFix.prospectsField.visit.networkFailed'));
     } finally {
       setBusy(false);
@@ -74,7 +81,14 @@ export function VisitPanel({
       <PreciseLocationNotice />
       <p className="text-xs text-muted">{t('opsFix.prospectsField.visit.hint')}</p>
       <Field label={t('opsFix.prospectsField.visit.outcome')} htmlFor="prospect-visit-outcome">
-        <select id="prospect-visit-outcome" className={SELECT} value={outcome} onChange={(e) => setOutcome(e.target.value)}>
+        <select
+          id="prospect-visit-outcome"
+          className={SELECT}
+          value={outcome}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? 'prospect-visit-error' : undefined}
+          onChange={(e) => setOutcome(e.target.value)}
+        >
           {PROSPECT_OUTCOMES.map((o) => (
             <option key={o} value={o}>
               {t(labelKey('outcome', o))}
@@ -83,9 +97,14 @@ export function VisitPanel({
         </select>
       </Field>
       <Field label={t('opsFix.prospectsField.visit.note')} htmlFor="prospect-visit-note">
-        <Input id="prospect-visit-note" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
+        <Input
+          id="prospect-visit-note"
+          maxLength={500}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+        />
       </Field>
-      <FormError message={error} />
+      <FormError id="prospect-visit-error" message={error} />
       <Button className="w-full sm:w-auto" loading={busy} onClick={checkIn}>
         {busy ? t('opsFix.prospectsField.visit.locating') : t('opsFix.prospectsField.visit.begin')}
       </Button>

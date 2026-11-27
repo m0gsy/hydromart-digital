@@ -6,8 +6,10 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { get, auth, qs, served, FakeApiError } = vi.hoisted(() => ({
+const { get, post, ask, auth, qs, served, FakeApiError } = vi.hoisted(() => ({
   get: vi.fn(),
+  post: vi.fn(),
+  ask: vi.fn(),
   served: { map: true },
   auth: { role: 'KEPALA_DEPOT', depot: null as string | null },
   qs: {} as Record<string, string>,
@@ -22,7 +24,7 @@ const { get, auth, qs, served, FakeApiError } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/lib/api', () => ({ api: { get, getCached: get }, ApiError: FakeApiError }));
+vi.mock('@/lib/api', () => ({ api: { get, getCached: get, post }, ApiError: FakeApiError }));
 vi.mock('@/lib/locale-context', () => ({
   useT: () => ({
     t: (k: string, vars?: Record<string, unknown>) => (vars ? `${k}|${JSON.stringify(vars)}` : k),
@@ -36,7 +38,7 @@ vi.mock('@/lib/deep-link', () => ({ isServedHere: () => served.map }));
 vi.mock('@/lib/depot-context', () => ({
   useDepot: () => ({ depots: [{ id: 'dep-a', code: 'BKS', name: 'Bekasi' }], selectedId: null }),
 }));
-vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: vi.fn(), askReason: vi.fn() }) })); // AREA-2b: the recompute button asks
+vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: ask, askReason: vi.fn() }) })); // AREA-2b: the recompute button asks
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -105,6 +107,8 @@ beforeEach(() => {
   loadSessionCapabilities(null, null);
   for (const k of Object.keys(qs)) delete qs[k];
   get.mockReset();
+  post.mockReset();
+  ask.mockReset();
 });
 afterEach(cleanup);
 
@@ -367,5 +371,17 @@ describe('AREA-2c header actions', () => {
     expect(screen.queryByRole('link', { name: 'opsFix.prospectsField.addField' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'opsFix.prospectsField.dnc.open' })).toBeNull();
   });
-});
 
+  it('reloads the list after a do-not-contact registration wiped rows', async () => {
+    serve({ list: page([row()]), opportunity: new FakeApiError(403, 'x') });
+    ask.mockResolvedValue(true);
+    post.mockResolvedValue({ entries: 1, prospects: 1 });
+    render(<ProspectsPage />);
+    await userEvent.click(await screen.findByRole('button', { name: 'opsFix.prospectsField.dnc.open' }));
+    await userEvent.type(screen.getByLabelText('opsFix.prospectsField.dnc.phone'), '0812');
+    const before = calls('/b2b-prospects/api/v1/b2b-prospects?').length;
+    await userEvent.click(screen.getByRole('button', { name: 'opsFix.prospectsField.dnc.submit' }));
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(calls('/b2b-prospects/api/v1/b2b-prospects?').length).toBeGreaterThan(before));
+  });
+});

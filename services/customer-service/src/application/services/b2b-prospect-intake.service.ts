@@ -95,6 +95,10 @@ class RowFailure extends Error {}
 const GENERIC_REFUSAL = 'Nomor ini tidak bisa dipakai untuk prospek baru.';
 const RACE_TEXT = 'Usaha ini baru saja ditambahkan oleh orang lain';
 
+/** The same pin test `decide` applies, so an unreadable pin still fails as 422 and never reaches the depot lookup. */
+const validPin = (lat: number, lng: number) =>
+  Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
+
 const clean = (s: string | null | undefined): string | null => s?.trim() || null;
 
 /**
@@ -224,10 +228,23 @@ export class B2bProspectIntakeService {
    * depot, possibly none): a prospect is never forced onto the creator's depot.
    */
   async createField(user: AuthenticatedUser, row: Omit<IntakeRow, 'source' | 'license' | 'sourceId' | 'sourceDataset' | 'sourceUpdated'>): Promise<ProspectRecord> {
+    // A caller that works prospects but does not manage them (Sales Depot) may only add a row that lands
+    // in its own depot. That reach check runs FIRST (404, nothing written) so a known phone cannot be told
+    // from an unknown one by a pin outside the caller's depot: no do-not-contact, customer or duplicate answer leaks.
+    const workOnly = reachOf(user).assignedOnly;
+    const ctx: IntakeContext = { batchId: null, createdById: user.sub, allowField: true };
+    if (workOnly && validPin(row.lat, row.lng)) {
+      const depots = await (ctx.depots = this.depotProfile.listActive());
+      if (!depots) {
+        throw new ServiceUnavailableException('depot-service tidak menjawab: depot pemilik tidak bisa ditentukan');
+      }
+      const owner = servingDepot({ lat: row.lat, lng: row.lng }, depots)?.id;
+      if (!owner || !depotScopeIds(user)?.includes(owner)) throw new ProspectNotFoundError();
+    }
     const decision = await this.decide(
       // The server owns FIELD: whatever source or licence the caller sent is dropped.
       { ...row, source: 'field', license: undefined, sourceId: undefined, sourceDataset: undefined, sourceUpdated: undefined },
-      { batchId: null, createdById: user.sub, allowField: true },
+      ctx,
     );
     if (decision.kind === 'fail') throw new ProspectInvalidError(decision.message);
     // A depot-scoped caller must not learn, from the wording, that a number is a customer, on the
@@ -241,12 +258,7 @@ export class B2bProspectIntakeService {
       }
       throw new ProspectRefusedError(decision.reason, decision.message);
     }
-    // A caller that works prospects but does not manage them (Sales Depot) may only add a row that
-    // lands in its own depot, and gets it assigned: it shows up in "Milik saya". Same 404 as a row out of reach.
-    const workOnly = reachOf(user).assignedOnly;
-    if (workOnly && (!decision.data.ownerDepotId || !depotScopeIds(user)?.includes(decision.data.ownerDepotId))) {
-      throw new ProspectNotFoundError();
-    }
+    // The Sales Depot row is assigned to its creator: it shows up in "Milik saya".
     const data = workOnly ? { ...decision.data, assignedToId: user.sub, assignedAt: new Date() } : decision.data;
     const made = await this.repo.createGuarded(data, decision.dnc);
     if (!made.ok) {

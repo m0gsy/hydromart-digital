@@ -6,9 +6,10 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { post, position, auth, FakeApiError, FakeGeoError } = vi.hoisted(() => ({
+const { post, position, ask, auth, FakeApiError, FakeGeoError } = vi.hoisted(() => ({
   post: vi.fn(),
   position: vi.fn(),
+  ask: vi.fn(),
   auth: { role: 'KEPALA_DEPOT' },
   FakeApiError: class extends Error {
     constructor(
@@ -40,6 +41,7 @@ vi.mock('@/lib/auth-context', () => ({
 vi.mock('@/lib/depot-context', () => ({
   useDepot: () => ({ depots: [{ id: 'dep-a', code: 'BKS', name: 'Bekasi' }], selectedId: null }),
 }));
+vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: ask }) }));
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -61,7 +63,8 @@ async function fillBasics() {
 beforeEach(() => {
   auth.role = 'KEPALA_DEPOT';
   loadSessionCapabilities(null, null);
-  for (const m of [post, position]) m.mockReset();
+  for (const m of [post, position, ask]) m.mockReset();
+  ask.mockResolvedValue(true);
 });
 afterEach(cleanup);
 
@@ -180,7 +183,54 @@ describe('field find', () => {
   });
 });
 
+describe('field find accessibility', () => {
+  it('links the error to the fields and moves focus to it, then to the success card', async () => {
+    render(<NewProspectPage />);
+    await press('field.save');
+    const alert = await screen.findByText('opsFix.prospectsField.field.nameMissing');
+    expect(alert.id).toBe('field-find-error');
+    await waitFor(() => expect(document.activeElement).toBe(alert));
+    expect(label('field.name').getAttribute('aria-invalid')).toBe('true');
+    expect(label('field.name').getAttribute('aria-describedby')).toBe('field-find-error');
+    await fillBasics();
+    await userEvent.type(label('pin.paste'), '-6.2, 106.9');
+    post.mockResolvedValue(made());
+    await press('field.save');
+    const status = await screen.findByText('opsFix.prospectsField.field.ownerDepot|{"depot":"BKS - Bekasi"}');
+    await waitFor(() => expect(status.parentElement).toBe(document.activeElement));
+  });
+});
+
 describe('do-not-contact form', () => {
+  it('asks first, sends nothing on cancel, and tells the list to reload after a success', async () => {
+    ask.mockResolvedValueOnce(false);
+    post.mockResolvedValue({ entries: 1, prospects: 1 });
+    const onDone = vi.fn();
+    render(<DncForm onClose={vi.fn()} onDone={onDone} />);
+    await userEvent.type(label('dnc.phone'), '0812');
+    await press('dnc.submit');
+    await waitFor(() => expect(ask).toHaveBeenCalledTimes(1));
+    expect(ask.mock.calls[0]?.[0]).toMatchObject({ title: 'opsFix.prospectsField.dnc.confirmTitle', tone: 'danger' });
+    expect(post).not.toHaveBeenCalled();
+    expect(onDone).not.toHaveBeenCalled();
+    await press('dnc.submit');
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onDone).toHaveBeenCalledTimes(1));
+    const done = await screen.findByRole('status');
+    await waitFor(() => expect(document.activeElement).toBe(done));
+  });
+
+  it('links its error to the phone field and focuses it', async () => {
+    post.mockRejectedValue(new FakeApiError(403, 'Tidak diizinkan'));
+    render(<DncForm onClose={vi.fn()} />);
+    await userEvent.type(label('dnc.phone'), '0812');
+    await press('dnc.submit');
+    const alert = await screen.findByText('Tidak diizinkan');
+    await waitFor(() => expect(document.activeElement).toBe(alert));
+    expect(label('dnc.phone').getAttribute('aria-describedby')).toBe('dnc-error');
+    expect(label('dnc.phone').getAttribute('aria-invalid')).toBe('true');
+  });
+
   it('registers a phone and says what happened', async () => {
     post.mockResolvedValue({ entries: 1, prospects: 2 });
     render(<DncForm onClose={vi.fn()} />);

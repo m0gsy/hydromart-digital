@@ -156,6 +156,19 @@ describe('prospect check-in', () => {
     expect(toast).not.toHaveBeenCalled();
   });
 
+  it('links the refusal to the outcome field and focuses it', async () => {
+    position.mockResolvedValue(fix(8));
+    post.mockRejectedValue(new FakeApiError(422, 'Lokasi HP masih Perkiraan'));
+    render(<ProspectDetailPage />);
+    await go();
+    const alert = await screen.findByText('Lokasi HP masih Perkiraan');
+    expect(alert.id).toBe('prospect-visit-error');
+    await waitFor(() => expect(document.activeElement).toBe(alert));
+    const outcome = screen.getByLabelText('opsFix.prospectsField.visit.outcome');
+    expect(outcome.getAttribute('aria-describedby')).toBe('prospect-visit-error');
+    expect(outcome.getAttribute('aria-invalid')).toBe('true');
+  });
+
   it('falls back to the generic text when the refusal has no message', async () => {
     position.mockResolvedValue(fix(8));
     post.mockRejectedValue(new FakeApiError(500, ''));

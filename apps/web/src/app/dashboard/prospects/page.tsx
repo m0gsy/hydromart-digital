@@ -184,7 +184,7 @@ function Body() {
           )}
         </div>
       </div>
-      {dncOpen && manage && <DncForm onClose={() => setDncOpen(false)} />}
+      {dncOpen && manage && <DncForm onClose={() => setDncOpen(false)} onDone={pages.reload} />}
       <Segmented value={tab} options={tabs} onChange={(v) => setTab(v)} label={t('opsFix.prospects.title')} />
 
       {tab === 'coverage' ? (

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { useConfirm } from '@/components/confirm';
 import { PinField } from '@/components/prospects/pin-field';
 import { saveError } from '@/components/prospects/save-error';
 import { Button, Card, Field, FormError, Input } from '@/components/ui';
@@ -14,8 +15,10 @@ import type { Pin } from '@/lib/prospect-pin';
 const SELECT = 'surface-elevated w-full rounded-lg border border-app px-3.5 py-2.5 text-sm';
 
 /** The global do-not-contact list (Manage): a phone, or a business name at a pin. Says what it did, never reads the list back. */
-export function DncForm({ onClose }: { onClose: () => void }) {
+export function DncForm({ onClose, onDone }: { onClose: () => void; onDone?: () => void }) {
   const { t } = useT();
+  const { confirm } = useConfirm();
+  const doneRef = useRef<HTMLParagraphElement>(null);
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [pin, setPin] = useState<Pin | null>(null);
@@ -24,8 +27,26 @@ export function DncForm({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ entries: number; prospects: number } | null>(null);
 
+  useEffect(() => {
+    if (error) document.getElementById('dnc-error')?.focus();
+  }, [error]);
+  useEffect(() => {
+    if (done) doneRef.current?.focus();
+  }, [done]);
+
   async function submit() {
-    if (!phone.trim() && !(name.trim() && pin)) return setError(t('opsFix.prospectsField.dnc.needInput'));
+    if (!phone.trim() && !(name.trim() && pin))
+      return setError(t('opsFix.prospectsField.dnc.needInput'));
+    // Irreversible and global: ask first (same copy style as the per-row do-not-contact).
+    if (
+      !(await confirm({
+        title: t('opsFix.prospectsField.dnc.confirmTitle'),
+        message: t('opsFix.prospectsField.dnc.confirmBody'),
+        confirmLabel: t('opsFix.prospectsField.dnc.confirm'),
+        tone: 'danger',
+      }))
+    )
+      return;
     setBusy(true);
     setError(null);
     try {
@@ -38,6 +59,7 @@ export function DncForm({ onClose }: { onClose: () => void }) {
           true,
         ),
       );
+      onDone?.();
     } catch (e) {
       setError(saveError(e, t).message);
     } finally {
@@ -50,20 +72,39 @@ export function DncForm({ onClose }: { onClose: () => void }) {
       <h2 className="text-sm font-semibold">{t('opsFix.prospectsField.dnc.title')}</h2>
       <p className="text-xs text-muted">{t('opsFix.prospectsField.dnc.hint')}</p>
       {done ? (
-        <p className="text-sm" role="status">
+        <p ref={doneRef} tabIndex={-1} className="text-sm outline-none" role="status">
           {t('opsFix.prospectsField.dnc.done', done)}
         </p>
       ) : (
         <>
           <Field label={t('opsFix.prospectsField.dnc.phone')} htmlFor="dnc-phone">
-            <Input id="dnc-phone" type="tel" inputMode="tel" maxLength={40} value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <Input
+              id="dnc-phone"
+              type="tel"
+              inputMode="tel"
+              maxLength={40}
+              value={phone}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'dnc-error' : undefined}
+              onChange={(e) => setPhone(e.target.value)}
+            />
           </Field>
           <Field label={t('opsFix.prospectsField.dnc.name')} htmlFor="dnc-name">
-            <Input id="dnc-name" maxLength={200} value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              id="dnc-name"
+              maxLength={200}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
           </Field>
           {!phone.trim() && <PinField pin={pin} onPin={setPin} />}
           <Field label={t('opsFix.prospectsField.dnc.reason')} htmlFor="dnc-reason">
-            <select id="dnc-reason" className={SELECT} value={reason} onChange={(e) => setReason(e.target.value)}>
+            <select
+              id="dnc-reason"
+              className={SELECT}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            >
               {DNC_REASONS.map((r) => (
                 <option key={r} value={r}>
                   {t(labelKey('dnc', r))}
@@ -71,7 +112,7 @@ export function DncForm({ onClose }: { onClose: () => void }) {
               ))}
             </select>
           </Field>
-          <FormError message={error} />
+          <FormError id="dnc-error" message={error} />
         </>
       )}
       <div className="flex flex-wrap gap-2">

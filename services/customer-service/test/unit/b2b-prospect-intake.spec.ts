@@ -349,6 +349,38 @@ describe('B2bProspectIntakeService', () => {
       await expect(svc.createField(sales(['depot-a']), { ...field, lat: -6.9, lng: 7.5 })).rejects.toBeInstanceOf(ProspectNotFoundError);
     });
 
+    it('answers an out-of-scope pin with the same 404 whatever the phone is (no number oracle)', async () => {
+      const far = { ...field, lat: -6.9, lng: 7.5 };
+      const outsider = sales(['depot-z']);
+      identity.customerIdByPhone.mockResolvedValue('cust-1');
+      await expect(svc.createField(outsider, field)).rejects.toBeInstanceOf(ProspectNotFoundError);
+      identity.customerIdByPhone.mockResolvedValue(null);
+      await repo.addDnc([{ kind: 'PHONE', keyHash: dncHash(SECRET, 'PHONE', '+6281200000009') }]);
+      await expect(svc.createField(outsider, field)).rejects.toBeInstanceOf(ProspectNotFoundError);
+      await expect(svc.createField(sales(['depot-a']), far)).rejects.toBeInstanceOf(ProspectNotFoundError);
+      repo.dnc.clear();
+      repo.rows.set('x', prospect({ phoneE164: '+6281200000009', nameKey: 'lain', ownerDepotId: 'depot-a' }));
+      await expect(svc.createField(outsider, field)).rejects.toBeInstanceOf(ProspectNotFoundError);
+      repo.rows.clear();
+      await expect(svc.createField(outsider, field)).rejects.toBeInstanceOf(ProspectNotFoundError);
+    });
+
+    it('keeps the refusals for an in-scope pin and a known phone', async () => {
+      const own = sales(['depot-a']);
+      identity.customerIdByPhone.mockResolvedValueOnce('cust-1');
+      await expect(svc.createField(own, field)).rejects.toBeInstanceOf(ProspectRefusedError);
+      await repo.addDnc([{ kind: 'PHONE', keyHash: dncHash(SECRET, 'PHONE', '+6281200000009') }]);
+      await expect(svc.createField(own, field)).rejects.toBeInstanceOf(ProspectRefusedError);
+    });
+
+    it('is 503 when depot-service cannot answer, and 422 for an unreadable pin before any depot lookup', async () => {
+      listActive.mockResolvedValueOnce(null);
+      await expect(svc.createField(sales(['depot-a']), field)).rejects.toBeInstanceOf(ServiceUnavailableException);
+      listActive.mockClear();
+      await expect(svc.createField(sales(['depot-a']), { ...field, lat: 0, lng: 0 })).rejects.toBeInstanceOf(ProspectInvalidError);
+      expect(listActive).toHaveBeenCalledTimes(0);
+    });
+
     it('keeps the four refusals for a Work-only caller too', async () => {
       await svc.createField(sales(['depot-a']), field);
       await expect(svc.createField(sales(['depot-a']), field)).rejects.toBeInstanceOf(ProspectRefusedError);
