@@ -47,7 +47,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), purge-applications (DRY RUN unless `confirm` is PURGE-APPLICATIONS: deletes the hydromart copies of the franchise applications named in ops/purge-applications.txt once the AI web CRM holds them), backfill-address-regions (DRY RUN unless `confirm` is BACKFILL-ADDRESS-REGIONS: fills the kecamatan/kelurahan codes of old pinned addresses from a one-off container of the live customer image), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), install-docker-daemon (install ops/docker-daemon.json to /etc/docker/daemon.json and restart the daemon so the log cap applies; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back), restore-rehearsal (restore a few backed-up objects to a SCRATCH prefix in each live bucket, compare byte for byte, clean up; never touches a live key), staging-deploy (deploy just the staging AI web now: after setting, rotating or deleting the STAGING_AI_PASSWORD secret), staging-reset (drop the staging AI web data and deploy it again; `confirm` must be staging)'
+        description: 'hermes (Hermes Agent: pull, firewall, config, start, probe), hermes-stop (take it down, keep its data); deploy (changed), deploy-all (force full), migrate (apply pending DB migrations), rollback, env-inspect (read-only .env diagnosis), env-fix (join a multi-line PEM in .env), env-set (apply the ENV_SET_BLOCK secret to .env + recreate `services`), seed-demo (build the Play reviewer demo depot + account), smoke (drive the customer rewards flow end to end), backup-offsite (copy the newest dump off-box and read it back to prove it arrived), backup-objects (copy the object buckets off-box now, instead of waiting for 03:40), storage-policy (close anonymous bucket listing + prove it), reset-test-data (DRY RUN unless `confirm` is RESET-TEST-DATA: clears the test orders/payments/points before launch), purge-applications (DRY RUN unless `confirm` is PURGE-APPLICATIONS: deletes the hydromart copies of the franchise applications named in ops/purge-applications.txt once the AI web CRM holds them), backfill-address-regions (DRY RUN unless `confirm` is BACKFILL-ADDRESS-REGIONS: fills the kecamatan/kelurahan codes of old pinned addresses from a one-off container of the live customer image), install-node (host Node 20 -> 22 via the NodeSource apt source; check-only unless `confirm` is `install`), install-docker-daemon (install ops/docker-daemon.json to /etc/docker/daemon.json and restart the daemon so the log cap applies; check-only unless `confirm` is `install`), backup-second (copy the dump + evidence bucket to the SECOND provider now and prove it), backup-env (encrypt .env to the committed public certificate, copy it off-box now and read it back), restore-rehearsal (restore a few backed-up objects to a SCRATCH prefix in each live bucket, compare byte for byte, clean up; never touches a live key), staging-deploy (deploy just the staging AI web now: after setting, rotating or deleting the STAGING_AI_PASSWORD secret), staging-reset (drop the staging AI web data and deploy it again; `confirm` must be staging)'
         type: choice
         default: deploy
         options:
@@ -78,6 +78,8 @@ on:
             install-docker-daemon,
             staging-deploy,
             staging-reset,
+            hermes,
+            hermes-stop,
           ]
       sha:
         description: 'rollback target SHA (blank = previous good)'
@@ -397,6 +399,11 @@ jobs:
             # or deleted, which a normal deploy only notices when there is a release to ship).
             staging-deploy) echo "run=env -u STAGING_AI_PASSWORD bash scripts/aiweb-staging-secrets.sh && bash scripts/aiweb-staging-deploy.sh" >> "$GITHUB_OUTPUT" ;;
             staging-reset) echo "run=bash scripts/aiweb-staging-deploy.sh --reset" >> "$GITHUB_OUTPUT" ;;
+            # Hermes Agent, the owner's personal assistant (27 Nov 2026; DEPLOY.md, "Hermes Agent"): its own
+            # compose project, manual only. `hermes` pulls the pinned image, closes its network, places its
+            # config, starts it and proves the isolation; `hermes-stop` takes it down and keeps its data volume.
+            hermes) echo "run=bash scripts/hermes-deploy.sh" >> "$GITHUB_OUTPUT" ;;
+            hermes-stop) echo "run=bash scripts/hermes-deploy.sh --stop" >> "$GITHUB_OUTPUT" ;;
             *)           echo "run=bash scripts/deploy.sh" >> "$GITHUB_OUTPUT" ;;
           esac
 
@@ -489,6 +496,10 @@ jobs:
             if [ "${{ github.event.inputs.mode }}" = "backfill-address-regions" ]; then
               git fetch --quiet origin main
               git checkout origin/main -- scripts/backfill-address-regions.sh scripts/backfill-address-regions.mjs
+            fi
+            if [ "${{ github.event.inputs.mode }}" = "hermes" ] || [ "${{ github.event.inputs.mode }}" = "hermes-stop" ]; then
+              git fetch --quiet origin main
+              git checkout origin/main -- scripts/hermes-deploy.sh scripts/hermes-firewall.sh scripts/hermes-ensure.sh scripts/lib/deploy-common.sh infra/hermes/docker-compose.yml infra/hermes/config.yaml
             fi
             if [ "${{ github.event.inputs.mode }}" = "restore-rehearsal" ]; then
               git fetch --quiet origin main

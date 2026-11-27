@@ -329,6 +329,12 @@ refuses appsetup 'doc.services["n8n-setup"].environment.HYDROMART_MACHINE_ID = "
   "the AI web account's id handed to the n8n setup job"
 refuses appdb 'doc.services.db.environment.ID = "${AIWEB_APP_MACHINE_ID:-}"' 'services.db.environment.ID reads AIWEB_APP_MACHINE_*' \
   "the AI web account's id handed to the database"
+refuses paygn8n 'doc.services.n8n.environment.K = "${HERMES_ANTHROPIC_API_KEY:-}"' 'services.n8n.environment.K reads HERMES_ANTHROPIC_API_KEY' \
+  "the pay-per-use Anthropic key handed to n8n"
+refuses paygreq 'doc.services.aiweb.environment.LLM_ANTHROPIC_API_KEY_PAYG = "${HERMES_ANTHROPIC_API_KEY:?x}"' 'as ${HERMES_ANTHROPIC_API_KEY:-}' \
+  "the pay-per-use key made required, so a box without it could not start the AI web"
+refuses hermesother 'doc.services.aiweb.environment.T = "${HERMES_TELEGRAM_BOT_TOKEN:-}"' 'HERMES_TELEGRAM_BOT_TOKEN' \
+  "another Hermes key read by the AI web"
 refuses appswap 'doc.services.aiweb.environment.HYDROMART_MACHINE_ID = "${AIWEB_APP_MACHINE_SECRET:-}"' 'HYDROMART_MACHINE_ID must be ${AIWEB_APP_MACHINE_ID:-}' \
   "the AI web's id and secret crossed"
 refuses appgone 'delete doc.services.aiweb.environment.HYDROMART_MACHINE_SECRET' 'HYDROMART_MACHINE_SECRET must be ${AIWEB_APP_MACHINE_SECRET:-}' \

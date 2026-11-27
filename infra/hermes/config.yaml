@@ -1,0 +1,50 @@
+# Hermes Agent settings, copied into /opt/data/config.yaml by scripts/hermes-deploy.sh on every deploy
+# (so a change made from chat is undone by the next deploy: change it here by PR to keep it).
+# The owner's PERSONAL assistant: chat, research, drafts, reminders. Never HYDROMART code or servers.
+model:
+  provider: anthropic
+  # Cost first (owner, 27 Nov 2026). The owner can switch models in chat, or by PR here.
+  default: claude-haiku-5-5
+
+# Two Anthropic keys in one pool (compose: ANTHROPIC_API_KEY, then ANTHROPIC_API_KEY_2): the first until it fails
+# with out-of-credit, then the next.
+credential_pool_strategies:
+  anthropic: fill_first
+
+approvals:
+  # Dangerous commands are judged first, then asked about in chat when unsure.
+  mode: smart
+  # Refused even when the owner would approve: nothing here may reach the box's own services,
+  # other hosts, the network around it or the cloud metadata service.
+  deny:
+    - "docker *"
+    - "*docker.sock*"
+    - "ssh *"
+    - "scp *"
+    - "sftp *"
+    - "nmap *"
+    - "masscan *"
+    - "iptables *"
+    - "ip6tables *"
+    - "nft *"
+    - "crontab *"
+    - "* 169.254.*"
+    - "* 10.*"
+    - "* 172.16.*"
+    - "* 172.17.*"
+    - "* 172.18.*"
+    - "* 172.19.*"
+    - "* 172.2?.*"
+    - "* 172.30.*"
+    - "* 172.31.*"
+    - "* 192.168.*"
+    - "* localhost*"
+    - "* 127.*"
+  # Nobody is in chat for an unattended or scheduled run: both refuse what needs approval.
+  unattended_mode: deny
+  cron_mode: deny
+
+agent:
+  # The bundled Chromium costs RAM; the owner can enable it by PR.
+  disabled_toolsets:
+    - browser

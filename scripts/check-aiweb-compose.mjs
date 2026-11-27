@@ -41,9 +41,12 @@ if (typeof doc.name !== 'string' || !/^[a-z0-9][a-z0-9_-]*$/.test(doc.name) || d
 // Values from .env reach this file only as ${AIWEB_*}: none of hydromart's keys can be handed
 // to a container here, whatever .env holds. `$$` is compose's escaped dollar, not a variable.
 // One exception, AI-5: ALERT_WEBHOOK_URL, the channel hydromart's alerts use, where the app posts
-// its own alarms; as the app's ALERT_WEBHOOK_URL and nowhere else (below).
+// its own alarms; as the app's ALERT_WEBHOOK_URL and nowhere else (below). And AI-LLM2 (owner,
+// 27 Nov 2026): HERMES_ANTHROPIC_API_KEY, the pay-per-use key, as the app's
+// LLM_ANTHROPIC_API_KEY_PAYG and nowhere else, in the optional form only.
+const OUTSIDE = new Set(['ALERT_WEBHOOK_URL', 'HERMES_ANTHROPIC_API_KEY']);
 for (const m of text.replace(/\$\$/g, '').matchAll(/\$\{?([A-Za-z_][A-Za-z0-9_]*)/g)) {
-  if (!m[1].startsWith('AIWEB_') && m[1] !== 'ALERT_WEBHOOK_URL') bad(`reads \${${m[1]}} from .env; only AIWEB_* keys may reach the AI web`);
+  if (!m[1].startsWith('AIWEB_') && !OUTSIDE.has(m[1])) bad(`reads \${${m[1]}} from .env; only AIWEB_* keys may reach the AI web`);
 }
 
 const strings = (value, path) =>
@@ -55,6 +58,10 @@ const strings = (value, path) =>
 for (const [path, value] of strings(doc, '')) {
   if (value.includes('ALERT_WEBHOOK_URL') && path !== 'services.aiweb.environment.ALERT_WEBHOOK_URL') {
     bad(`${path} reads ALERT_WEBHOOK_URL: only services.aiweb.environment.ALERT_WEBHOOK_URL may`);
+  }
+  if (value.includes('HERMES_ANTHROPIC_API_KEY') &&
+      (path !== 'services.aiweb.environment.LLM_ANTHROPIC_API_KEY_PAYG' || value !== '${HERMES_ANTHROPIC_API_KEY:-}')) {
+    bad(`${path} reads HERMES_ANTHROPIC_API_KEY: only services.aiweb.environment.LLM_ANTHROPIC_API_KEY_PAYG may, as \${HERMES_ANTHROPIC_API_KEY:-}`);
   }
   // AI-31: the AI web app's own machine account reaches the app alone, and n8n's reaches n8n's setup
   // alone: neither account's id or secret may be handed to the other's container.
@@ -238,5 +245,5 @@ if (problems.length > 0) {
 console.log(
   `AI web compose OK: project ${doc.name}, ${services.length} digest-pinned services, ` +
     `${front} alone on edge, n8n alone on egress, no host port but n8n's editor on 127.0.0.1, ` +
-    'only AIWEB_* from .env (and ALERT_WEBHOOK_URL for the app).',
+    'only AIWEB_* from .env (and ALERT_WEBHOOK_URL + HERMES_ANTHROPIC_API_KEY for the app).',
 );

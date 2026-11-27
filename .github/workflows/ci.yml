@@ -373,6 +373,17 @@ jobs:
       - name: AI web deploy self-check (HD-9)
         run: bash scripts/aiweb.test.sh
 
+      # Hermes Agent (owner decision, 27 Nov 2026): isolated on the production box, its compose policy,
+      # its env keys and its firewall rules held here.
+      - name: Hermes compose policy
+        run: node scripts/check-hermes-compose.mjs
+
+      - name: Every Hermes compose variable is in the env template
+        run: node scripts/check-env-template.mjs infra/hermes/docker-compose.yml
+
+      - name: Hermes self-check
+        run: bash scripts/hermes.test.sh
+
       # D3 staging, part C: the staging copy's compose policy (never on edge, internal networks, only
       # STAGING_* keys, one budget), its env keys documented, a production pin that never ran on
       # staging (a warning only), and its deploy proved against a fake docker, curl and Caddy.
