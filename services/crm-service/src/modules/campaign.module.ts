@@ -11,6 +11,7 @@ import { SavedSegmentService } from '../application/services/saved-segment.servi
 import { NotificationService } from '../application/services/notification.service';
 import { AiAccessRequestService } from '../application/services/ai-access-request.service';
 import { ComplianceDueService } from '../application/services/compliance-due.service';
+import { QualityHoldNoticeService } from '../application/services/quality-hold-notice.service';
 import { HeldDepotsHttpAdapter } from '../infrastructure/http/held-depots.http.adapter';
 import { ComplianceDueHttpAdapter } from '../infrastructure/http/compliance-due.http.adapter';
 import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
@@ -74,6 +75,7 @@ const providers: Provider[] = [
   AiAccessRequestService,
   MaintenanceDueService,
   ComplianceDueService,
+  QualityHoldNoticeService,
   SalesWeeklyService,
   AiAgentNoticeService,
   { provide: CRM_TOKENS.LegalEntityAudience, useClass: LegalEntityAudienceHttpAdapter },

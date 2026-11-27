@@ -120,6 +120,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'customerReminderNotify',
       'maintenanceDueNotify',
       'complianceDueNotify',
+      'qualityHoldNotify',
       'salesReportNotify',
       'aiTeamRead',
       'aiTeamManage',

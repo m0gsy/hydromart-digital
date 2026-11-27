@@ -14,6 +14,8 @@
 //   POST /crm/api/v1/notifications/external/ai-access-requested   n8n's "Minta akses" notification
 //   POST /crm/api/v1/notifications/external/customer-reminders   n8n's customer reminders (HD-18)
 //   POST /crm/api/v1/notifications/external/maintenance-due   n8n's 07.30 WIB maintenance sweep (HD-15)
+//   POST /crm/api/v1/notifications/external/compliance-due   n8n's 07.30 WIB permit and lab-test sweep (HD-14)
+//   POST /crm/api/v1/notifications/external/quality-hold   n8n's relay of a depot quality hold event (HD-14)
 //   POST /crm/api/v1/notifications/external/sales-weekly-ready   n8n's Monday weekly Sales report trigger (AI-26)
 //   POST /crm/api/v1/notifications/external/ai-agent-notice   n8n's relay of an AI agent event (AI-31)
 //   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers|targets   the read API: made-up numbers
@@ -154,7 +156,7 @@ const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 
 const ACCESS_KEYS = new Set(['eventId', 'requesterAccountId', 'legalEntityIds', 'group']);
 const MACHINE_SCOPES = [
   'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
-  'salesReportNotify', 'aiAgentNotify',
+  'salesReportNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify',
 ];
 export const AGENT_NOTICE_KINDS = ['FLAG', 'CAP_REACHED', 'STOPPED', 'STOPPED_ALL'];
 export const REMINDER_KINDS = ['SUBSCRIPTION_TOMORROW', 'POINTS_EXPIRING', 'UNPAID_ORDER'];
@@ -385,6 +387,27 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     trigger(req, body, 'customerReminderNotify', 'date,kind', { candidates: 0, truncated: false, notified: 0, skipped: 0 });
   const maintenanceDue = (req, body) =>
     trigger(req, body, 'maintenanceDueNotify', 'date', { depots: 0, items: 0, notified: 0, remindLater: 0 });
+
+  const complianceDue = (req, body) =>
+    trigger(req, body, 'complianceDueNotify', 'date', { depots: 0, items: 0, notified: 0, remindLater: 0 });
+
+  // HD-14's relay of depot.quality_hold_changed (QualityHoldTrigger). The mock keeps no hold state, so a
+  // well-formed event is "stale" (the depot is not on hold here): 200, nobody told, do not retry.
+  function qualityHold(req, body) {
+    if (!machineAllowed(req, 'qualityHoldNotify')) return refusedToken();
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const valid =
+      Object.keys(b).sort().join(',') === 'changedAt,holdDepotId,status' &&
+      typeof b.holdDepotId === 'string' && RX.uuid.test(b.holdDepotId) &&
+      ['ACTIVE', 'ENDED'].includes(b.status) &&
+      typeof b.changedAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.test(b.changedAt) && !Number.isNaN(Date.parse(b.changedAt));
+    if (!valid) return [400, errorBody(400, 'VALIDATION_ERROR', ['The notification is not what the contract asks for'])];
+    keep(state.calls.notifications, {
+      workflow: String(req.headers['x-workflow'] ?? '').slice(0, 120) || null,
+      eventId: `quality-hold:${b.holdDepotId}:${b.status}:${b.changedAt}`, city: null, province: null,
+    });
+    return [200, { notified: 0, stale: true }];
+  }
 
   // AI-26's Monday trigger: ids only. eventId is sales-weekly:<weekStart>; weekStart a real Monday that is
   // 7 to 13 days back (the week that just ended, accepted until its own Sunday), as the real weekRefusal.
@@ -909,6 +932,14 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (post && path === '/crm/api/v1/notifications/external/maintenance-due') {
         const [status, body] = maintenanceDue(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (post && path === '/crm/api/v1/notifications/external/compliance-due') {
+        const [status, body] = complianceDue(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (post && path === '/crm/api/v1/notifications/external/quality-hold') {
+        const [status, body] = qualityHold(req, parseJson(raw));
         return send(res, status, body);
       }
       if (req.method === 'GET' && path.startsWith('/dashboard/api/v1/ai/read/')) {

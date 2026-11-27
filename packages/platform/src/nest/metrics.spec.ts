@@ -2,7 +2,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 
 import { encodeCursor } from '../domain/keyset';
-import { enableMetrics } from './metrics';
+import { enableMetrics, reportDegraded } from './metrics';
 
 type Handler = (req: Request, res: Response) => Promise<void> | void;
 type Middleware = (req: Request, res: Response, next: NextFunction) => void;
@@ -182,5 +182,21 @@ describe('enableMetrics', () => {
     );
     expect(next).toHaveBeenCalled();
     expect(on).not.toHaveBeenCalled();
+  });
+});
+
+describe('reportDegraded', () => {
+  it('shows hydromart_degraded=1 for the reason on /metrics', async () => {
+    const { app, routes } = fakeApp();
+    enableMetrics(app, 'customer-service');
+    reportDegraded('region-asset');
+    reportDegraded('region-asset');
+
+    const end = jest.fn();
+    await routes.get('/metrics')!({} as Request, { set: jest.fn(), end } as unknown as Response);
+
+    expect(end.mock.calls[0][0] as string).toContain(
+      'hydromart_degraded{reason="region-asset",service="customer-service"} 1',
+    );
   });
 });

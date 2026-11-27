@@ -343,6 +343,7 @@ export const hq = {
       customerReminderNotify: 'Trigger customer reminders: subscription, points, unpaid (n8n machine account)',
       maintenanceDueNotify: 'Trigger the maintenance-due reminder (n8n machine account)',
       complianceDueNotify: 'Trigger the permit and lab-test reminder (n8n machine account)',
+      qualityHoldNotify: 'Tell staff a quality hold began or ended (n8n machine account)',
       salesReportNotify: 'Trigger the weekly Sales report notice (n8n machine account)',
       aiTeamRead: 'Open the AI team screen',
       aiTeamManage: 'Switch AI agents on, change their caps, approve playbooks',

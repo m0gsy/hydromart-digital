@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import { LatLng, pointInServiceArea } from '@hydromart/platform';
+import { LatLng, pointInServiceArea, reportDegraded } from '@hydromart/platform';
 
 import { RegionCodes, RegionHit, RegionRef, regionCodesFor } from '../../domain/region-codes';
 
@@ -79,6 +79,7 @@ export class RegionLookup {
       return this.asset;
     } catch (err) {
       this.failed = true;
+      reportDegraded('region-asset'); // ops/alert-rules.yml ServiceDegraded
       this.asset = null;
       this.logger.error(
         `regions.json unreadable; addresses are saved without region codes: ${String(err)}`,

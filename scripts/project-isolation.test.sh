@@ -38,7 +38,7 @@ LABEL="com.docker.compose.project=hydromart"
 
 # ------------------------------------------------------------------------ static checks
 for f in scripts/check-config-drift.sh scripts/docker-gc.sh scripts/ask-the-box.sh \
-  scripts/go-live-report.sh scripts/reset-test-data.sh scripts/purge-applications.sh; do
+  scripts/go-live-report.sh scripts/reset-test-data.sh scripts/purge-applications.sh scripts/backfill-address-regions.sh; do
   grep -q "com.docker.compose.project=\(\$PROJECT\|hydromart\)" "$f" ||
     bad "$f does not name the project label $LABEL"
 done

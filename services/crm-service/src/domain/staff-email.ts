@@ -37,6 +37,10 @@ export const STAFF_EMAIL_TEMPLATES: Partial<Record<NotificationEvent, StaffEmail
     subject: 'Uji lab jatuh tempo di {{depot}}',
     body: 'Uji lab depot {{depot}} jatuh tempo: {{items}}. Buka tautan di bawah untuk mencatat hasilnya.',
   },
+  [NotificationEvent.QUALITY_HOLD]: {
+    subject: 'Quality hold depot',
+    body: '{{text}} Buka tautan di bawah untuk melihat depotnya.',
+  },
   [NotificationEvent.SALES_WEEKLY_REPORT]: {
     subject: 'Laporan Sales mingguan siap',
     body: 'Minggu {{week}}: laporan calon mitra untuk {{entity}} sudah siap. Buka {{link}} (masuk dulu dengan akun hydromart Anda).',

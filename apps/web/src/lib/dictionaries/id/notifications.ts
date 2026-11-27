@@ -43,6 +43,7 @@ export const notifications = {
     MAINTENANCE_DUE: 'Perawatan alat jatuh tempo',
     PERMIT_DUE: 'Izin depot jatuh tempo',
     LAB_TEST_DUE: 'Uji lab jatuh tempo',
+    QUALITY_HOLD: 'Quality hold depot',
     SALES_WEEKLY_REPORT: 'Laporan Sales mingguan siap',
     AI_AGENT_FLAG: 'Agen AI menandai sesuatu',
     AI_AGENT_CAP: 'Agen AI mencapai plafon',

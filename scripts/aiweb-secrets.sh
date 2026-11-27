@@ -179,7 +179,7 @@ fi
 # ------------------------------------------------------------- n8n's machine account (AI-5)
 # What n8n's token carries: the base capability (hydromart-digital's crm route for a new
 # franchise application, PR #1042), required, and the optional ones (the morning summary, AI-9; the
-# AI access request, AI-7c; order status per WhatsApp number and customer reminders, HD-18; the maintenance-due sweep, HD-15; the weekly Sales report notice, AI-26; the AI agent notices, AI-31),
+# AI access request, AI-7c; order status per WhatsApp number and customer reminders, HD-18; the maintenance-due sweep, HD-15; the weekly Sales report notice, AI-26; the AI agent notices, AI-31; the permit and lab-test sweep and the quality hold notice, HD-14),
 # each added only once a rollback would still boot.
 
 # MACHINE_ACCOUNTS: read as compose hands it to auth-service, rewritten only where n8n's entries
@@ -394,7 +394,7 @@ SEEN_IDS=''
 MA_NEW=''
 MA_SET=0
 machine_account AIWEB_N8N n8n required franchiseApplicationNotify \
-  morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiAgentNotify partnerBillGenerate
+  morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiAgentNotify partnerBillGenerate complianceDueNotify qualityHoldNotify
 machine_account AIWEB_APP aiweb skippable aiReadAgent
 if [ "$MA_SET" = 1 ]; then add MACHINE_ACCOUNTS "$MA_NEW"; fi
 
