@@ -216,7 +216,9 @@ function OwnerAttendanceBody() {
   );
 
   const owned = depots.data ?? [];
-  const nameOf = (id: string) => owned.find((d) => d.id === id)?.name ?? id.slice(0, 8);
+  // Rows here are read by owned depot, so a null depot (staff above any one depot) cannot arrive;
+  // the type still allows it, and "—" is what it would mean.
+  const nameOf = (id: string | null) => (id ? (owned.find((d) => d.id === id)?.name ?? id.slice(0, 8)) : '—');
   const selectCls = 'surface-elevated min-h-11 w-full min-w-0 rounded-lg border border-app px-3 py-2 text-sm';
 
   if (depots.loading) return <Skeleton className="h-64 w-full" />;

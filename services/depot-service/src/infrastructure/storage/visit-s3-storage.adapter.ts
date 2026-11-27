@@ -17,10 +17,10 @@ import {
 } from '../../application/ports/visit-photo-storage.port';
 
 /**
- * Finding photos in the PRIVATE bucket (the one delivery-service keeps PoD photos in, under its own
- * `visits/` prefix: compose maps VISIT_STORAGE_S3_* onto the DELIVERY_STORAGE_S3_* values, so no
- * bucket is created and no secret is added). Nothing is readable without a signed link minted per
- * read; the QRIS adapter next door is for a PUBLIC bucket and is deliberately not reused.
+ * Finding photos in their own PRIVATE bucket (hydromart-visits, made by Deploy mode `visit-bucket`),
+ * under the `visits/` prefix, with the delivery account's key unless a dedicated one is set (compose
+ * fallback; owner, 27 Nov 2026). Nothing is readable without a signed link minted per read; the
+ * QRIS adapter next door is for a PUBLIC bucket and is deliberately not reused.
  */
 @Injectable()
 export class VisitS3StorageAdapter implements VisitPhotoStoragePort {

@@ -1346,6 +1346,8 @@ describe('InventoryService', () => {
         operatingHours: {},
         holidays: [],
       });
+      const owner = { sub: 'w1', role: Role.MANAGER, depotId: waralaba.id } as AuthenticatedUser;
+      // Opening the line with a price is as free as changing it later.
       const line = await inventory.createLine(
         waralaba.id,
         {
@@ -1355,14 +1357,70 @@ describe('InventoryService', () => {
           unit: 'botol',
           quantity: 5,
           minimumStock: 1,
-        } as never,
+          sellPrice: 20000,
+        },
         ACTOR,
+        owner,
       );
-      const owner = { sub: 'w1', role: Role.MANAGER, depotId: waralaba.id } as AuthenticatedUser;
+      expect(line.sellPrice).toBe(20000);
       await inventory.updateMeta(line.id, { sellPrice: 21000 }, owner);
       expect(await inventory.pricesForProducts(waralaba.id, [PRODUCT_ID])).toEqual([
         { productId: PRODUCT_ID, sellPrice: 21000 },
       ]);
+    });
+
+    /*
+     * The other door (27 Nov 2026): only updateMeta asked, so opening a line WITH a price, from
+     * the form or a CSV import, set an HKP depot's price directly and undercut the catalog at
+     * checkout. Same rule now, checked before anything is written.
+     */
+    const kepala = () => ({ sub: 'k1', role: Role.KEPALA_DEPOT, depotId }) as AuthenticatedUser;
+    const pricedLine = (sellPrice: number | null) => ({
+      itemType: InventoryItemType.PRODUK,
+      productId: PRODUCT_ID,
+      label: 'Galon baru',
+      unit: 'botol',
+      quantity: 5,
+      minimumStock: 0,
+      sellPrice,
+    });
+
+    it('refuses a priced new line at an HQ-owned depot before writing it; an unpriced one opens', async () => {
+      await expect(
+        inventory.createLine(depotId, pricedLine(6000), ACTOR, kepala()),
+      ).rejects.toThrow(ForbiddenException);
+      await expect(
+        inventory.createLine(depotId, pricedLine(6000), ACTOR, manager()),
+      ).rejects.toThrow(/usulan harga/i);
+      expect(await inventory.pricesForProducts(depotId, [PRODUCT_ID])).toEqual([]);
+      // Nothing was left behind: the same product still opens (no duplicate), at catalog price.
+      const line = await inventory.createLine(depotId, pricedLine(null), ACTOR, kepala());
+      expect(line.sellPrice).toBeNull();
+      expect(line.quantity).toBe(5);
+    });
+
+    it('lets HQ open a priced line at an HQ-owned depot', async () => {
+      const line = await inventory.createLine(depotId, pricedLine(45000), ACTOR, hq);
+      expect(line.sellPrice).toBe(45000);
+      expect(await inventory.pricesForProducts(depotId, [PRODUCT_ID])).toEqual([
+        { productId: PRODUCT_ID, sellPrice: 45000 },
+      ]);
+    });
+
+    it('fails only the priced row of a CSV import at an HQ-owned depot', async () => {
+      const summary = await inventory.importLines(
+        depotId,
+        [raw(), pricedLine(6000)],
+        ACTOR,
+        kepala(),
+      );
+      expect(summary).toMatchObject({ created: 1, failed: 1 });
+      expect(summary.results[1]).toMatchObject({
+        row: 2,
+        status: 'failed',
+        message: expect.stringMatching(/usulan harga/i),
+      });
+      expect(await inventory.pricesForProducts(depotId, [PRODUCT_ID])).toEqual([]);
     });
   });
 
