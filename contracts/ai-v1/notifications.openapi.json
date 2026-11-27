@@ -1346,7 +1346,8 @@
               "hr",
               "customers",
               "delivery",
-              "gallons"
+              "gallons",
+              "visits"
             ],
             "description": "The data group asked for; said in the text when no legal entity is named."
           }
