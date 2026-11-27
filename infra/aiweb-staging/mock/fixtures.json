@@ -24,6 +24,14 @@
         "T-01": 80000000,
         "T-02": 7000,
         "T-03": 2000
+      },
+      "people": 12,
+      "exits": 2,
+      "visits": {
+        "seed": 0,
+        "lastDays": 3,
+        "open": 3,
+        "overdue": 1
       }
     },
     {
@@ -41,6 +49,14 @@
         "T-01": 90000000,
         "T-02": 10000,
         "T-03": 2600
+      },
+      "people": 9,
+      "exits": 1,
+      "visits": {
+        "seed": 2,
+        "lastDays": 11,
+        "open": 2,
+        "overdue": 2
       }
     },
     {
@@ -58,6 +74,14 @@
         "T-01": 60000000,
         "T-02": 5000,
         "T-03": 1500
+      },
+      "people": 6,
+      "exits": 0,
+      "visits": {
+        "seed": 4,
+        "lastDays": 26,
+        "open": 0,
+        "overdue": 0
       }
     },
     {
@@ -70,6 +94,14 @@
         "P-07": 52,
         "G-01": 190,
         "C-01": 2
+      },
+      "people": 2,
+      "exits": 0,
+      "visits": {
+        "seed": 1,
+        "lastDays": null,
+        "open": 0,
+        "overdue": 0
       }
     }
   ],
@@ -172,5 +204,6 @@
       "depotId": "00000000-0000-4000-9000-000000000001",
       "suspended": true
     }
-  ]
+  ],
+  "_staff": "people = active employees today (STG-04 has 2 on purpose: held back as 'kurang dari 3'), exits = leavers in a closed month (H-07), visits = supervisor visit facts (V-01..V-04): seed spreads visit days, lastDays null = never visited, open and overdue are follow-ups."
 }
