@@ -1,0 +1,69 @@
+# Hermes Agent (Nous Research): the owner's PERSONAL assistant on the production box (owner decision,
+# 27 Nov 2026, replacing the 19 Nov rule "no all-purpose agent on the server"). Chat, research, drafts
+# and reminders over Telegram; it never works on HYDROMART code, data or servers.
+# It is a THIRD compose project beside hydromart and hydromart-ai, started only by scripts/hermes-deploy.sh
+# (Deploy mode `hermes`, manual); a normal deploy never touches it. DEPLOY.md, "Hermes Agent".
+#
+# A RELEASE IS THIS FILE: the image is pinned by digest (the index digest of tag v0.23.4, 27 Nov 2026).
+# To update, change that line in a PR here and press the mode again. The box never follows a tag.
+#
+# Isolation, held by scripts/check-hermes-compose.mjs in CI and proved after every deploy by the probe in
+# scripts/hermes-deploy.sh:
+#   - its own project and its own bridge network `hermes`, which nothing else joins; not internal,
+#     because Telegram and the LLM provider are on the internet; scripts/hermes-firewall.sh closes the
+#     host and every private range to that bridge;
+#   - no published port (Telegram uses long polling, outbound only), no docker socket, no host bind
+#     mount, no hydromart network, no database;
+#   - only HERMES_* keys of .env are interpolated: none of hydromart's secrets can reach it, and the
+#     Anthropic key is its OWN (own billing, own monthly limit), never the AI web's;
+#   - the gateway's wide-open switches (GATEWAY_ALLOW_ALL_USERS, HERMES_YOLO_MODE, the API server, the
+#     dashboard, private URLs) are never set; only the owner's Telegram user id may talk to it.
+# Never two gateway containers on one data volume.
+name: hydromart-hermes
+
+# The same cap as docker-compose.prod.yml and ops/docker-daemon.json (check-compose-logging.mjs).
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 50m
+    max-file: "3"
+
+services:
+  hermes:
+    # nousresearch/hermes-agent v0.23.4 (index digest; the amd64 manifest is 3bc37fd8546e...).
+    image: nousresearch/hermes-agent@sha256:ef0650d523ee1b5ab32c779acabc446d9936869a9932591553688a62bcf0c42f
+    # The foreground gateway: Telegram by long polling.
+    command: ["gateway", "run"]
+    restart: unless-stopped
+    logging: *logging
+    # RAM and CPU capped so a runaway session cannot starve hydromart (box: 16 GB, 8 vCPU).
+    mem_limit: 1536m
+    cpus: 1.0
+    pids_limit: 512
+    # The image starts as root (s6-overlay /init, then docker/stage2-hook.sh), chowns /opt/data and
+    # drops to UID 10000 with s6-setuidgid. So not `user:`; instead every capability is dropped but the
+    # six that path uses: CHOWN + FOWNER (stage2 chown/chmod of the data volume and config.yaml),
+    # DAC_OVERRIDE (root reads and writes hermes-owned 0600 files), SETUID + SETGID (s6-setuidgid),
+    # KILL (s6 signals the dropped process). Nothing else: no NET_RAW, no SYS_ADMIN.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      # Three keys, all the owner's through ENV_SET_BLOCK (deploy mode env-set); the deploy refuses
+      # to start without them (names only in its message).
+      ANTHROPIC_API_KEY: ${HERMES_ANTHROPIC_API_KEY:?set by the owner via ENV_SET_BLOCK}
+      TELEGRAM_BOT_TOKEN: ${HERMES_TELEGRAM_BOT_TOKEN:?set by the owner via ENV_SET_BLOCK}
+      # Comma-separated numeric Telegram user ids; unset, everyone is denied.
+      TELEGRAM_ALLOWED_USERS: ${HERMES_TELEGRAM_ALLOWED_USERS:?set by the owner via ENV_SET_BLOCK}
+    volumes:
+      # Sessions, memories, skills, logs, its .env and config.yaml. config.yaml is copied in by
+      # scripts/hermes-deploy.sh on every deploy (Hermes writes it at runtime, so no read-only mount).
+      - hermes-data:/opt/data
+    networks:
+      - hermes
+
+networks:
+  hermes: {}
+
+volumes:
+  hermes-data:

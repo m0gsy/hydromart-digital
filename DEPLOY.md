@@ -771,6 +771,42 @@ the script, so keep it until staging is off).
 - `scripts/check-caddy-validate.sh` (CI) validates infra/caddy/ with the pinned Caddy image, with
   and without a staging login hash.
 
+### Hermes Agent (owner decision, 27 Nov 2026) — the owner's personal assistant, isolated
+
+What it is: Nous Research's Hermes Agent (`nousresearch/hermes-agent`, pinned by digest, v0.23.4) running 24/7 as a
+THIRD compose project (`hydromart-hermes`, `infra/hermes/docker-compose.yml`) beside hydromart and the AI web. The
+owner talks to it on Telegram (chat, research, drafts, reminders). It never works on HYDROMART code, data or servers.
+This replaces the 19 Nov rule "no all-purpose agent on the server", on the owner's decision of 27 Nov, on the
+condition that it is isolated as below. Default model `claude-haiku-5-5` (cost); the owner can switch models in chat
+(undone by the next deploy) or by PR in `infra/hermes/config.yaml`.
+
+The three keys, in `.env`, set by the owner through ENV_SET_BLOCK (deploy mode `env-set`), documented in
+`.env.production.example`: `HERMES_ANTHROPIC_API_KEY` (its OWN Anthropic key, own billing and monthly limit, never the
+AI web's), `HERMES_TELEGRAM_BOT_TOKEN` (from @BotFather), `HERMES_TELEGRAM_ALLOWED_USERS` (the owner's numeric Telegram
+id, from @userinfobot; comma-separated for more; unset means nobody).
+
+Deploy modes (manual only; a normal deploy never touches Hermes):
+- `hermes`: refuses, naming the missing KEYS, when any of the three is absent from `.env`; pulls the pinned digest;
+  makes the network and runs `scripts/hermes-firewall.sh`; copies `infra/hermes/config.yaml` into the data volume (a
+  copy by a one-off container of the same image, not a mount: Hermes writes that file itself and its init chowns it);
+  starts the gateway; waits (180 s) for `telegram connected` in its log; then probes from inside the container and
+  prints results only: the box's ssh at the network gateway and at the public address and the metadata service
+  169.254.169.254:80 must NOT answer, api.anthropic.com:443 and api.telegram.org:443 MUST.
+- `hermes-stop`: `compose down`; the `hermes-data` volume (sessions, memories, skills) is kept.
+
+What it can reach: the internet (Telegram, the LLM provider, the web). What it cannot: any hydromart database, any
+`.env` value but its own three, the docker socket, a host file, a hydromart or AI web network or container, the box's
+own ports (ssh included) and the provider's private ranges. Held by: no port, no socket, no host mount,
+`cap_drop: ALL` plus only CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL (the image's init chowns the volume and
+drops to UID 10000), `no-new-privileges`, 1536 MB / 1 CPU / 512 pids; `scripts/check-hermes-compose.mjs` in CI;
+`scripts/hermes-firewall.sh` (chains `HERMES-NO-HOST` in INPUT and `HERMES-NO-LAN` in DOCKER-USER; at boot, every 5
+minutes and in every deploy); the approvals deny list and `unattended_mode`/`cron_mode: deny` in its config. Docker's
+embedded DNS keeps working: it answers inside the container's own namespace and never crosses the host chains.
+
+Stop it for good: Deploy mode `hermes-stop`; to remove its data too, `docker volume rm hydromart-hermes_hermes-data` on
+the box. Not built: any hydromart data access for it, WhatsApp, the browser toolset (enable by PR), a backup of
+`hermes-data` (follow-up).
+
 ### Backups + restore drill (host cron)
 
 [`scripts/backup-db.sh`](scripts/backup-db.sh) dumps the whole Postgres cluster

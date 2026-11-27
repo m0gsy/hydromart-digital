@@ -132,6 +132,11 @@ AIWEB_DRILL_LOG=$AIWEB_DRILL_LOG_PATH
 @reboot cd $REPO && bash scripts/aiweb-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1
 */5 * * * * cd $REPO && bash scripts/aiweb-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1
 
+# Hermes Agent's network, closed to the box and to every private range (owner decision 2026-11-27), the same way
+# and for the same reasons. Does nothing while Hermes has never been deployed (no network, nothing to close).
+@reboot cd $REPO && bash scripts/hermes-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1
+*/5 * * * * cd $REPO && bash scripts/hermes-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1
+
 # N13 — TLS expiry. Renewal is automatic, which is exactly why nobody watches it: the
 # failure is not a loud renewal error, it is renewal quietly stopping and every browser
 # refusing the site three weeks later. Weekly is enough for a 21-day window.
