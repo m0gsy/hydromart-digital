@@ -257,6 +257,29 @@ describe('ExpenseClaimService', () => {
     expect(other.status).toBe('APPROVED');
   });
 
+  // The create, approve and reject responses carry the receipt as an expiring link or null, never the stored key.
+  describe('receipt link in the responses', () => {
+    it('create: a signed link for a receipt, null without one; the stored key is never returned', async () => {
+      const receipt = uploaded();
+      const withReceipt = await service.submit(COURIER, input(25000, receipt));
+      expect(withReceipt.receiptUrl).toBe('https://signed');
+      expect(photos.signedUrl).toHaveBeenCalledWith(receipt);
+      expect((await service.submit(COURIER, input(25000, null))).receiptUrl).toBeNull();
+    });
+
+    it('approve and reject: a signed link with a receipt, null without one', async () => {
+      const queued = await service.submit(COURIER, input(200_000));
+      expect((await service.approve(queued.id, REVIEWER)).receiptUrl).toBe('https://signed');
+      const noReceipt = await service.submit(COURIER, input(200_000, null));
+      expect((await service.approve(noReceipt.id, REVIEWER)).receiptUrl).toBeNull();
+
+      const rejectWith = await service.submit(COURIER, input(200_000));
+      expect((await service.reject(rejectWith.id, REVIEWER)).receiptUrl).toBe('https://signed');
+      const rejectWithout = await service.submit(COURIER, input(200_000, null));
+      expect((await service.reject(rejectWithout.id, REVIEWER)).receiptUrl).toBeNull();
+    });
+  });
+
   it('queues a claim with no receipt even when it is under the threshold (M20-15)', async () => {
     const claim = await service.submit(COURIER, input(25000, null));
     expect(claim.status).toBe('PENDING');
