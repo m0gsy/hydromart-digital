@@ -85,4 +85,13 @@ assert.ok(r.calls.some((x) => x.startsWith('DELETE /hydromart-products/probe/'))
 r = await run({ bucket: 'hydromart-pod', mode: 'private', anonGet: 403, delStatus: 403 });
 assert.equal(r.code, 0, r.out);
 assert.match(r.out, /could not delete probe object/);
+// the face bucket: public mode refused before any S3 call, private mode accepted (probe still deleted)
+r = await run({ bucket: 'hydromart-facer', mode: 'public', anonGet: 200 });
+assert.equal(r.code, 1);
+assert.match(r.out, /face-photo bucket|is private/);
+assert.ok(r.calls.length === 0, 'refused before any S3 call');
+r = await run({ bucket: 'hydromart-facer', mode: 'private', anonGet: 403 });
+assert.equal(r.code, 0, r.out);
+assert.ok(delPolicy(r) && !putPolicy(r), 'facer private: delete, never put');
+assert.ok(r.calls.some((x) => x.startsWith('DELETE /hydromart-facer/probe/')), 'facer probe deleted');
 console.log('verify-object-storage tests passed');

@@ -73,16 +73,15 @@ const client = new S3Client({
   },
 });
 
-// F-32: this makes a bucket anonymously readable. The employee face photos live in a bucket
-// that must stay private, and nothing here knew the difference.
-if (/face/i.test(bucket)) {
+// Buckets that are never anonymously readable: only the private mode may run on them.
+const PRIVATE_BUCKETS = ['hydromart-pod', 'hydromart-visits', 'hydromart-facer'];
+const privateMode = process.env.STORAGE_PRIVATE === '1';
+// F-32: public mode makes a bucket anonymously readable. The employee face photos live in a bucket
+// that must stay private; private mode (policy deleted, anonymous GET proven refused) is what it needs.
+if (!privateMode && /face/i.test(bucket)) {
   console.error(`refusing: bucket "${bucket}" looks like the face-photo bucket, which must never be public.`);
   process.exit(1);
 }
-
-// Buckets that are never anonymously readable: only the private mode may run on them.
-const PRIVATE_BUCKETS = ['hydromart-pod', 'hydromart-visits'];
-const privateMode = process.env.STORAGE_PRIVATE === '1';
 if (!privateMode && PRIVATE_BUCKETS.includes(bucket)) {
   console.error(
     `refusing: bucket "${bucket}" is private (presigned links only); run with STORAGE_PRIVATE=1, never public-read.`,

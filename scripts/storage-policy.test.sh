@@ -76,6 +76,7 @@ echo "$out" | grep -q "hydromart-pod STILL OPEN"; check "named the bucket that f
 # hydromart-pod runs in private mode; the public-read buckets do not.
 echo "$out" | grep -q "hydromart-pod at .* private=1"; check "the pod bucket runs in private mode" "$?"
 echo "$out" | grep -q "hydromart-products at .* private=$"; check "the products bucket stays public-read" "$?"
+echo "$out" | grep -q "hydromart-facer at .* private=1"; check "the facer bucket runs in private mode" "$?"
 
 # Each bucket gets ITS OWN service's credentials, not one shared key that never existed.
 echo "$out" | grep -q "hydromart-pod at https://storage.invalid (key=test)"
