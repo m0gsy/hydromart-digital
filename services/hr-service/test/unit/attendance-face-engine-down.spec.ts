@@ -87,9 +87,10 @@ function make() {
       retired.push(employeeId);
     },
   } as unknown as FaceEmbeddingRepository;
+  let faceConsentAt: Date | null = new Date('2026-11-01T00:00:00Z');
   const employees = {
     findByAuthSubjectId: async () =>
-      ({ id: 'e1', depotId: 'd1', status: 'ACTIVE', fullName: 'Budi' }) as Employee,
+      ({ id: 'e1', depotId: 'd1', status: 'ACTIVE', fullName: 'Budi', faceConsentAt }) as Employee,
   } as unknown as EmployeeRepository;
   const config = {
     timeZone: 'Asia/Jakarta',
@@ -149,7 +150,10 @@ function make() {
     engine = state;
     if (state === 'no-state') delete verifier.isDown;
   };
-  return { svc, verify, created, checkOuts, statuses, reasons, removed, retired, retireBroken, day, storageFails, hrRuled, hrCorrected, bucketDown, deviceClockNoted, noFaceOnFile, engineIs };
+  const consentWithdrawn = () => {
+    faceConsentAt = null;
+  };
+  return { svc, verify, created, checkOuts, statuses, reasons, removed, retired, retireBroken, day, storageFails, hrRuled, hrCorrected, bucketDown, deviceClockNoted, noFaceOnFile, engineIs, consentWithdrawn };
 }
 
 const alert = alertServerError as jest.Mock;
@@ -273,6 +277,15 @@ describe('a punch with no face on file while the engine is down', () => {
     const row = await svc.checkOut(user, punch, new Date('2026-11-18T10:00:00Z'));
     expect(statuses).toEqual([['a1', 'PENDING']]);
     expect(row.status).toBe('PENDING');
+  });
+
+  it('not for someone who withdrew the face consent: no frame is taken, HR enters the day by hand', async () => {
+    const { svc, created, noFaceOnFile, engineIs, consentWithdrawn } = make();
+    noFaceOnFile();
+    engineIs('down');
+    consentWithdrawn();
+    await expect(svc.checkIn(user, punch, AT)).rejects.toThrow('Wajah belum di-enroll');
+    expect(created).toHaveLength(0);
   });
 
   it('with the engine up it is still refused: enrol first', async () => {

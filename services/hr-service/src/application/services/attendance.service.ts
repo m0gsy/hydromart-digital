@@ -967,8 +967,11 @@ export class AttendanceService {
     if (enrolled.length === 0) {
       // Owner, 2026-11-27: while the engine is down nobody can enrol, so this refusal left the day of
       // anyone with no face on file unrecorded (five withdrew theirs that morning after an enrolment
-      // failed). Held for HR from the frame instead, like every punch the engine cannot judge.
-      if (this.verifier.isDown?.()) {
+      // failed). Held for HR from the frame instead, like every punch the engine cannot judge, but
+      // only with a face consent on file: someone who withdrew it is not photographed for the
+      // attendance it was given for (UU PDP); HR enters their day by hand. An enrolment attempt
+      // records the consent before the engine is asked, so the employee re-consenting is enough.
+      if (employee.faceConsentAt && this.verifier.isDown?.()) {
         this.logger.warn(`Face engine down, employee ${employee.id} not enrolled: punch held PENDING for HR`);
         return null;
       }
