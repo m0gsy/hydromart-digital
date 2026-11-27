@@ -67,11 +67,17 @@ import { EventPublisherPort } from '../ports/event-publisher.port';
 
 /**
  * The storage key inside a stored proof URL. Both adapters build the URL as
- * `<public base>[/uploads]/pod/<uuid>.<ext>`, so the key starts at the `pod/` segment.
+ * `<public base>[/uploads]/pod/<uuid>.<ext>`, so the key is the LAST path segment together with
+ * the `pod/` segment in front of it.
+ *
+ * Not the first "pod/" in the string: the prod public base is
+ * `https://nos.jkt-1.neo.id/hydromart-pod`, whose bucket name ends in "pod". Cutting there signed
+ * `pod/pod/<uuid>.jpg` while the object sat at `pod/<uuid>.jpg`, so every receipt, PoD and
+ * incident link answered NoSuchKey and the retention sweep deleted keys that did not exist
+ * (27 Nov 2026).
  */
 export function storageKeyFromUrl(url: string): string | null {
-  const at = url.indexOf('pod/');
-  return at === -1 ? null : url.slice(at);
+  return /(?:^|\/)(pod\/[^/]+)$/.exec(url)?.[1] ?? null;
 }
 
 export interface AssignInput {
