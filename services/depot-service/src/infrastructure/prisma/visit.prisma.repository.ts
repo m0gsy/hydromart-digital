@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
 import {
+  AiVisitSummary,
   DepotVisitStat,
   FindingQuery,
   ItemAnswer,
@@ -330,5 +331,34 @@ export class VisitPrismaRepository implements VisitRepository {
       _count: { _all: true },
     });
     return { depots: rows.length, items: rows.reduce((n, r) => n + r._count._all, 0) };
+  }
+
+  async aiSummary(depotIds: readonly string[], from: Date, to: Date, todayKey: string): Promise<AiVisitSummary[]> {
+    const scope = inScope(depotIds);
+    const done = { ...scope, status: VisitStatus.COMPLETED };
+    const [completed, last, findings, open, overdue] = await Promise.all([
+      this.prisma.visit.groupBy({ by: ['depotId'], where: { ...done, completedAt: { gte: from, lt: to } }, _count: { _all: true } }),
+      this.prisma.visit.groupBy({ by: ['depotId'], where: done, _max: { completedAt: true } }),
+      this.prisma.visitItem.groupBy({
+        by: ['depotId'],
+        where: { ...scope, result: VisitItemResult.FINDING, visit: { status: VisitStatus.COMPLETED, checkInAt: { gte: from, lt: to } } },
+        _count: { _all: true },
+      }),
+      this.prisma.visitItem.groupBy({ by: ['depotId'], where: { ...scope, ...OPEN_FINDING }, _count: { _all: true } }),
+      this.prisma.visitItem.groupBy({
+        by: ['depotId'],
+        where: { ...scope, ...OPEN_FINDING, followUpDueOn: { lt: dateOfDayKey(todayKey) } },
+        _count: { _all: true },
+      }),
+    ]);
+    const n = (rows: { depotId: string; _count: { _all: number } }[], id: string) => rows.find((r) => r.depotId === id)?._count._all ?? 0;
+    return depotIds.map((depotId) => ({
+      depotId,
+      completed: n(completed, depotId),
+      findings: n(findings, depotId),
+      lastCompletedAt: last.find((r) => r.depotId === depotId)?._max.completedAt ?? null,
+      followUpsOpen: n(open, depotId),
+      followUpsOverdue: n(overdue, depotId),
+    }));
   }
 }
