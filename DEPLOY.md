@@ -797,6 +797,8 @@ the first key is used until it fails out of credit, then the second. When both a
 key is topped up or the subscription credits renew (it never bills the second key). That AI web key is the only non-`HERMES_*`
 value Hermes can read (`scripts/check-hermes-compose.mjs` refuses any other, and refuses it under any other name). The deploy
 prints `anthropic credential pool: N entries` (a count, never a key) and a note when N is 1 (fallback key not installed).
+N counts the pool's stored rows: after a key is removed from `.env` its row can stay listed until a `hermes auth` action
+prunes it, while Hermes no longer rotates to it (upstream drops an empty env row from rotation).
 
 Deploy modes (manual only; a normal deploy never touches Hermes):
 - `hermes`: refuses, naming the missing KEYS, when any of the three is absent from `.env`; pulls the pinned digest;
