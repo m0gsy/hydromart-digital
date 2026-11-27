@@ -25,11 +25,12 @@ const hq = as({ sub: 'hq-1', role: Role.HEAD_OFFICE, depotId: null });
 
 describe('B2bProspectService', () => {
   let repo: InMemoryProspectRepository;
-  let identity: { customerIdByPhone: jest.Mock };
+  let identity: { customerIdByPhone: jest.Mock; getAccountOwners: jest.Mock };
   let listActive: jest.Mock;
   let roster: { staffIdsForDepot: jest.Mock };
   let svc: B2bProspectService;
   let fetchMock: jest.Mock;
+  let importer: { resolveByPhone: jest.Mock };
 
   beforeAll(() => {
     loadCustomRoles([{ key: 'C_sales', name: 'Sales Depot', scope: 'LOCKED' }]);
@@ -42,7 +43,8 @@ describe('B2bProspectService', () => {
 
   beforeEach(() => {
     repo = new InMemoryProspectRepository();
-    identity = { customerIdByPhone: jest.fn().mockResolvedValue(null) };
+    identity = { customerIdByPhone: jest.fn().mockResolvedValue(null), getAccountOwners: jest.fn() };
+    importer = { resolveByPhone: jest.fn().mockResolvedValue({ customerId: 'new-cust', status: 'created' }) };
     listActive = jest.fn().mockResolvedValue([{ id: 'depot-a' }, { id: 'depot-b' }]);
     roster = { staffIdsForDepot: jest.fn().mockResolvedValue(['sales-1', 'kepala-a']) };
     fetchMock = jest.fn().mockResolvedValue({ ok: true });
@@ -53,6 +55,7 @@ describe('B2bProspectService', () => {
       { listActive } as never,
       roster,
       buildTestConfig({ AUTH_SERVICE_URL: 'http://auth.test', INTERNAL_SERVICE_KEY: 'internal-key-01' }),
+      importer as never,
     );
   });
 

@@ -2,23 +2,27 @@ import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import { CAPABILITIES, can } from '@hydromart/access';
-import { AuthenticatedUser, CAPABILITY_KEY, Role } from '@hydromart/platform';
+import { AuthenticatedUser, CAPABILITY_KEY, InternalAuthGuard, Role } from '@hydromart/platform';
 
 import { B2bProspectController } from '../../src/modules/b2b-prospect.controller';
 import {
   AssignProspectDto,
+  ConvertProspectDto,
   CreateProspectDto,
+  ExportProspectsDto,
   ImportProspectRowDto,
   ImportProspectsDto,
   ProspectListQueryDto,
+  PurgeProspectsDto,
   SetOwnerDepotDto,
   SuppressDto,
+  VisitProspectDto,
 } from '../../src/modules/dto/b2b-prospect.dto';
 
 const user = { sub: 'u1', role: Role.MARKETING, phone: null, depotId: null } as unknown as AuthenticatedUser;
 
 /** Every route of the controller, with the ONE capability it must carry. */
-const ROUTES: Record<string, string> = {
+const ROUTES: Record<string, string | null> = {
   list: 'b2bProspectRead',
   mine: 'b2bProspectWork',
   coverage: 'b2bProspectRead',
@@ -31,6 +35,12 @@ const ROUTES: Record<string, string> = {
   assign: 'b2bProspectManage',
   setOwnerDepot: 'b2bProspectReassign',
   suppressProspect: 'b2bProspectWork',
+  visit: 'b2bProspectWork',
+  convert: 'b2bProspectWork',
+  export: 'b2bProspectExport',
+  recomputeOwners: 'b2bProspectImport',
+  // the nightly retention sweep: the internal key, not a console session, so no capability
+  purge: null,
 };
 
 describe('B2bProspectController', () => {
@@ -44,9 +54,13 @@ describe('B2bProspectController', () => {
     assign: jest.fn(),
     setOwnerDepot: jest.fn(),
     suppressProspect: jest.fn(),
+    convert: jest.fn(),
   };
   const intake = { createField: jest.fn(), importFile: jest.fn() };
-  const c = new B2bProspectController(prospects as never, intake as never);
+  const visits = { visit: jest.fn() };
+  const exporter = { export: jest.fn() };
+  const maintenance = { purge: jest.fn(), recomputeOwners: jest.fn() };
+  const c = new B2bProspectController(prospects as never, intake as never, visits as never, exporter as never, maintenance as never);
   beforeEach(() => jest.clearAllMocks());
 
   it('has @Can on every route, exactly the one capability each is meant to need', () => {
@@ -56,8 +70,10 @@ describe('B2bProspectController', () => {
     );
     expect(routes.sort()).toEqual(Object.keys(ROUTES).sort());
     for (const r of routes) {
-      expect(Reflect.getMetadata(CAPABILITY_KEY, proto[r] as object)).toBe(ROUTES[r]);
+      expect(Reflect.getMetadata(CAPABILITY_KEY, proto[r] as object)).toBe(ROUTES[r] ?? undefined);
     }
+    // the one route without a capability is guarded by the internal key
+    expect(Reflect.getMetadata('__guards__', proto['purge'] as object)).toContain(InternalAuthGuard);
   });
 
   it('keeps the static routes ahead of `:id` and serves under /b2b-prospects v1', () => {
@@ -65,12 +81,18 @@ describe('B2bProspectController', () => {
     const order = Object.getOwnPropertyNames(B2bProspectController.prototype);
     expect(order.indexOf('mine')).toBeLessThan(order.indexOf('get'));
     expect(order.indexOf('coverage')).toBeLessThan(order.indexOf('get'));
+    for (const fixed of ['export', 'recomputeOwners', 'purge']) {
+      expect(order.indexOf(fixed)).toBeLessThan(order.indexOf('setStatus'));
+    }
   });
 
   it('keeps every Sales capability away from list, coverage, export-class and reassign routes', () => {
     // Sales Depot = Work only: it must not reach the Read-class routes or any other class.
     const workOnly = Object.entries(ROUTES).filter(([, cap]) => cap === 'b2bProspectWork').map(([r]) => r);
-    expect(workOnly.sort()).toEqual(['get', 'mine', 'setStatus', 'suppressProspect']);
+    expect(workOnly.sort()).toEqual(['convert', 'get', 'mine', 'setStatus', 'suppressProspect', 'visit']);
+    // export and recompute are never a Work route
+    expect(ROUTES['export']).toBe('b2bProspectExport');
+    expect(CAPABILITIES.b2bProspectExport).not.toContain('C_sales');
     expect(CAPABILITIES.b2bProspectWork).not.toContain('DIREKTUR');
     expect(can('b2bProspectRead', 'STAFF_DEPOT')).toBe(false);
   });
@@ -101,6 +123,24 @@ describe('B2bProspectController', () => {
     expect(await c.setOwnerDepot(user, 'p1', { depotId: null, reason: 'abc' })).toBe('O');
     expect(await c.suppressProspect(user, 'p1', { reason: 'OTHER' })).toBe('SP');
     expect(prospects.suppressProspect).toHaveBeenCalledWith(user, 'p1', 'OTHER');
+  });
+
+  it('delegates visit, convert, export, recompute and purge', async () => {
+    visits.visit.mockResolvedValue('V');
+    prospects.convert.mockResolvedValue('CV');
+    exporter.export.mockResolvedValue('EX');
+    maintenance.recomputeOwners.mockResolvedValue('RC');
+    maintenance.purge.mockResolvedValue({ deleted: 1, anonymised: 2 });
+    const fix = { latitude: -6.2, longitude: 106.8, accuracyM: 9, outcome: 'NOT_THERE' } as never;
+    expect(await c.visit(user, 'p1', fix)).toBe('V');
+    expect(visits.visit).toHaveBeenCalledWith(user, 'p1', fix);
+    expect(await c.convert(user, 'p1', { customerId: 'c1' })).toBe('CV');
+    expect(prospects.convert).toHaveBeenCalledWith(user, 'p1', 'c1');
+    expect(await c.export(user, { status: 'NEW' } as never)).toBe('EX');
+    expect(exporter.export).toHaveBeenCalledWith(user, { status: 'NEW' });
+    expect(await c.recomputeOwners(user)).toBe('RC');
+    expect(await c.purge({ cutoff: '2026-06-01T00:00:00.000Z' })).toEqual({ deleted: 1, anonymised: 2 });
+    expect(maintenance.purge).toHaveBeenCalledWith(new Date('2026-06-01T00:00:00.000Z'));
   });
 
   it('turns the field-find latitude/longitude into the intake pin', async () => {
@@ -178,6 +218,33 @@ describe('b2b-prospect DTOs', () => {
     expect(await errors(SetOwnerDepotDto, { depotId: null, reason: 'abc' })).toEqual([]);
     expect(await errors(SetOwnerDepotDto, { depotId: 'x', reason: 'abc' })).toContain('depotId');
     expect(await errors(SetOwnerDepotDto, { depotId: null, reason: 'ab' })).toContain('reason');
+  });
+
+  it('needs a stated, finite, non-negative accuracy and a known outcome for a check-in', async () => {
+    const ok = { latitude: -6.2, longitude: 106.8, accuracyM: 12, outcome: 'REFUSED' };
+    expect(await errors(VisitProspectDto, ok)).toEqual([]);
+    expect(await errors(VisitProspectDto, { ...ok, note: 'x'.repeat(500) })).toEqual([]);
+    expect(await errors(VisitProspectDto, { ...ok, accuracyM: undefined })).toContain('accuracyM');
+    expect(await errors(VisitProspectDto, { ...ok, accuracyM: -1 })).toContain('accuracyM');
+    expect(await errors(VisitProspectDto, { ...ok, accuracyM: 2 ** 31 })).toContain('accuracyM');
+    expect(await errors(VisitProspectDto, { ...ok, latitude: 95 })).toContain('latitude');
+    expect(await errors(VisitProspectDto, { ...ok, outcome: 'SOLD' })).toContain('outcome');
+    expect(await errors(VisitProspectDto, { ...ok, note: 'x'.repeat(501) })).toContain('note');
+  });
+
+  it('takes an optional customer uuid to convert, the export filters, and an ISO cutoff to purge', async () => {
+    const u = '11111111-1111-4111-8111-111111111111';
+    expect(await errors(ConvertProspectDto, {})).toEqual([]);
+    expect(await errors(ConvertProspectDto, { customerId: u })).toEqual([]);
+    expect(await errors(ConvertProspectDto, { customerId: 'x' })).toContain('customerId');
+    expect(await errors(ExportProspectsDto, {})).toEqual([]);
+    expect(await errors(ExportProspectsDto, { depotId: u, status: 'NEW', category: 'KOS', kecamatanCode: 'K', assigned: 'me' })).toEqual([]);
+    expect(await errors(ExportProspectsDto, { assigned: u })).toEqual([]);
+    expect(await errors(ExportProspectsDto, { assigned: 'nobody' })).toContain('assigned');
+    expect(await errors(ExportProspectsDto, { status: 'GONE' })).toContain('status');
+    expect(await errors(PurgeProspectsDto, { cutoff: '2026-06-01T00:00:00.000Z' })).toEqual([]);
+    expect(await errors(PurgeProspectsDto, { cutoff: 'yesterday' })).toContain('cutoff');
+    expect(await errors(PurgeProspectsDto, {})).toContain('cutoff');
   });
 
   it('takes a do-not-contact reason from the closed list only', async () => {

@@ -2,15 +2,18 @@ import { Injectable } from '@nestjs/common';
 
 import { Prisma } from '../../../prisma/generated/client';
 import {
+  AutoOwned,
   B2bProspectRepository,
   CoverageRaw,
   CreateOutcome,
   DncKeys,
+  ExportQuery,
+  NewVisit,
   ProspectListQuery,
   ProspectPatch,
   VisitRecord,
 } from '../../application/ports/b2b-prospect.repository';
-import { DuplicateProbe, NewProspect, ProspectRecord } from '../../domain/b2b-prospect';
+import { B2bProspectStatus, DuplicateProbe, NewProspect, ProspectRecord } from '../../domain/b2b-prospect';
 import { matchDuplicate } from '../../domain/b2b-prospect-keys';
 import { PrismaService } from './prisma.service';
 
@@ -24,6 +27,40 @@ const TX_OPTIONS = { maxWait: 10_000, timeout: 20_000 } as const;
 
 /** What a do-not-contact row keeps in place of the business name. */
 export const DNC_NAME_PLACEHOLDER = '(dihapus: jangan hubungi)';
+
+/** Rows deleted or anonymised per statement: a long purge must not hold one huge lock. */
+const PURGE_BATCH = 1000;
+
+const VISIT_SELECT = {
+  id: true,
+  visitorId: true,
+  latitude: true,
+  longitude: true,
+  accuracyM: true,
+  distanceM: true,
+  outcome: true,
+  note: true,
+  visitedAt: true,
+} as const;
+
+/** What a retention anonymise leaves of a converted prospect: nothing that names or places the business. */
+const ANONYMISED = {
+  name: DNC_NAME_PLACEHOLDER,
+  nameKey: '',
+  latitude: 0,
+  longitude: 0,
+  sourceId: null,
+  sourceDataset: null,
+  phoneE164: null,
+  contactName: null,
+  address: null,
+  note: null,
+  lostReason: null,
+  licence: null,
+  customerId: null,
+  assignedToId: null,
+  assignedAt: null,
+} as const;
 
 const PROBE_SELECT = {
   source: true,
@@ -94,17 +131,7 @@ export class B2bProspectPrismaRepository implements B2bProspectRepository {
       where: { prospectId },
       orderBy: { visitedAt: 'desc' },
       take,
-      select: {
-        id: true,
-        visitorId: true,
-        latitude: true,
-        longitude: true,
-        accuracyM: true,
-        distanceM: true,
-        outcome: true,
-        note: true,
-        visitedAt: true,
-      },
+      select: VISIT_SELECT,
     });
   }
 
@@ -208,6 +235,7 @@ export class B2bProspectPrismaRepository implements B2bProspectRepository {
           lostReason: null,
           assignedToId: null,
           assignedAt: null,
+          suppressedAt: new Date(),
         },
       });
       await tx.b2bProspectVisit.updateMany({
@@ -216,6 +244,116 @@ export class B2bProspectPrismaRepository implements B2bProspectRepository {
       });
       return rows;
     }, TX_OPTIONS);
+  }
+
+  async recordVisit(
+    id: string,
+    from: B2bProspectStatus,
+    to: B2bProspectStatus,
+    visit: NewVisit,
+    now: Date,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      // The row first: if the purge took it, or somebody moved it, nothing is written (no orphan visit).
+      const { count } = await tx.b2bProspect.updateMany({
+        where: { id, status: from },
+        data: { status: to, lastActivityAt: now },
+      });
+      if (count === 0) return null;
+      const made = await tx.b2bProspectVisit.create({ data: { prospectId: id, ...visit }, select: VISIT_SELECT });
+      const prospect = await tx.b2bProspect.findUniqueOrThrow({ where: { id } });
+      return { prospect, visit: made };
+    });
+  }
+
+  exportRows(q: ExportQuery): Promise<ProspectRecord[]> {
+    return this.prisma.b2bProspect.findMany({
+      where: {
+        // A do-not-contact or anonymised row has nothing left to export; a depot role never sees the map.
+        status: q.status ? q.status : { not: 'DO_NOT_CONTACT' },
+        nameKey: { not: '' },
+        ownerDepotId: q.depotIds ? { in: [...q.depotIds] } : undefined,
+        ...(q.category && { category: q.category }),
+        ...(q.kecamatanCode && { kecamatanCode: q.kecamatanCode }),
+        ...(q.assignedToId && { assignedToId: q.assignedToId }),
+        ...(q.unassigned && { assignedToId: null }),
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: q.take,
+    });
+  }
+
+  autoOwnedAfter(afterId: string | null, take: number): Promise<AutoOwned[]> {
+    return this.prisma.b2bProspect.findMany({
+      where: {
+        ownerSource: 'AUTO',
+        status: { notIn: ['CONVERTED', 'DO_NOT_CONTACT'] },
+        ...(afterId && { id: { gt: afterId } }),
+      },
+      orderBy: { id: 'asc' },
+      take,
+      select: { id: true, latitude: true, longitude: true, ownerDepotId: true },
+    });
+  }
+
+  async moveOwner(id: string, from: string | null, to: string | null): Promise<boolean> {
+    // Guarded on the owner it was read with and on AUTO, so an HQ decision made meanwhile is never overwritten.
+    const { count } = await this.prisma.b2bProspect.updateMany({
+      where: { id, ownerSource: 'AUTO', ownerDepotId: from, status: { notIn: ['CONVERTED', 'DO_NOT_CONTACT'] } },
+      data: { ownerDepotId: to, assignedToId: null, assignedAt: null },
+    });
+    return count > 0;
+  }
+
+  async purge(cutoff: Date): Promise<{ deleted: number; anonymised: number }> {
+    // Every statement re-checks the cutoff on the rows it touches: a visit that lands between the id
+    // read and the write moves lastActivityAt past the cutoff and the row survives, whole.
+    const stale: Prisma.B2bProspectWhereInput = {
+      OR: [
+        { status: { notIn: ['CONVERTED', 'DO_NOT_CONTACT'] }, lastActivityAt: { lt: cutoff } },
+        {
+          status: 'DO_NOT_CONTACT',
+          OR: [{ suppressedAt: { lt: cutoff } }, { suppressedAt: null, lastActivityAt: { lt: cutoff } }],
+        },
+      ],
+    };
+    let deleted = 0;
+    for (;;) {
+      const ids = (
+        await this.prisma.b2bProspect.findMany({ where: stale, select: { id: true }, take: PURGE_BATCH })
+      ).map((r) => r.id);
+      const { count } = await this.prisma.b2bProspect.deleteMany({ where: { id: { in: ids }, ...stale } });
+      deleted += count;
+      if (ids.length < PURGE_BATCH || count === 0) break;
+    }
+
+    // A converted business is a customer-to-be-counted: it keeps category, area codes, 1 km cell, source,
+    // status, converted date and owner depot, and loses everything that names or places it.
+    const converted: Prisma.B2bProspectWhereInput = {
+      status: 'CONVERTED',
+      nameKey: { not: '' },
+      lastActivityAt: { lt: cutoff },
+    };
+    let anonymised = 0;
+    for (;;) {
+      const ids = (
+        await this.prisma.b2bProspect.findMany({ where: converted, select: { id: true }, take: PURGE_BATCH })
+      ).map((r) => r.id);
+      const count = await this.prisma.$transaction(async (tx) => {
+        const done = await tx.b2bProspect.updateMany({ where: { id: { in: ids }, ...converted }, data: ANONYMISED });
+        if (done.count > 0) {
+          await tx.b2bProspectVisit.updateMany({
+            // Only the rows that really were anonymised (one that got a visit meanwhile kept its clock and its visits).
+            where: { prospectId: { in: ids }, prospect: { nameKey: '' } },
+            data: { latitude: 0, longitude: 0, note: null },
+          });
+        }
+        return done.count;
+      }, TX_OPTIONS);
+      anonymised += count;
+      if (ids.length < PURGE_BATCH || count === 0) break;
+    }
+    return { deleted, anonymised };
   }
 
   async createBatch(data: Parameters<B2bProspectRepository['createBatch']>[0]): Promise<void> {

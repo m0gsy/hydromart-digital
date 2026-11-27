@@ -16,6 +16,9 @@ import { FavoriteService } from '../application/services/favorite.service';
 import { ResellerService } from '../application/services/reseller.service';
 import { CustomerImportService } from '../application/services/customer-import.service';
 import { B2bProspectIntakeService } from '../application/services/b2b-prospect-intake.service';
+import { B2bProspectExportService } from '../application/services/b2b-prospect-export.service';
+import { B2bProspectMaintenanceService } from '../application/services/b2b-prospect-maintenance.service';
+import { B2bProspectVisitService } from '../application/services/b2b-prospect-visit.service';
 import { B2bProspectService } from '../application/services/b2b-prospect.service';
 import { B2bProspectPrismaRepository } from '../infrastructure/prisma/b2b-prospect.prisma.repository';
 import { StaffRosterHttpAdapter } from '../infrastructure/http/staff-roster.http.adapter';
@@ -64,6 +67,9 @@ const providers: Provider[] = [
   CustomerImportService,
   B2bProspectService,
   B2bProspectIntakeService,
+  B2bProspectVisitService,
+  B2bProspectExportService,
+  B2bProspectMaintenanceService,
   { provide: CUSTOMER_TOKENS.ProfileRepository, useClass: ProfilePrismaRepository },
   { provide: CUSTOMER_TOKENS.AddressRepository, useClass: AddressPrismaRepository },
   {

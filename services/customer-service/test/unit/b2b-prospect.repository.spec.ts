@@ -13,11 +13,13 @@ describe('B2bProspectPrismaRepository', () => {
     count: jest.fn(),
     create: jest.fn(),
     updateMany: jest.fn(),
+    deleteMany: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
     groupBy: jest.fn(),
   };
   const dnc = { count: jest.fn(), createMany: jest.fn() };
   const batch = { create: jest.fn(), aggregate: jest.fn() };
-  const visit = { findMany: jest.fn(), updateMany: jest.fn() };
+  const visit = { findMany: jest.fn(), updateMany: jest.fn(), create: jest.fn() };
   const tx = { b2bProspect: p, b2bDoNotContact: dnc, b2bProspectVisit: visit, $executeRaw: jest.fn() };
   const prisma = {
     ...tx,
@@ -184,7 +186,7 @@ describe('B2bProspectPrismaRepository', () => {
       expect(arg.data).toEqual({
         status: 'DO_NOT_CONTACT', name: '(dihapus: jangan hubungi)', nameKey: '', latitude: 0, longitude: 0, sourceId: null,
         sourceDataset: null, phoneE164: null, contactName: null, note: null, address: null, lostReason: null,
-        assignedToId: null, assignedAt: null,
+        assignedToId: null, assignedAt: null, suppressedAt: expect.any(Date),
       });
       // kept: category, cell, codes, source, owner depot; and the retention clock is not touched
       for (const kept of ['category', 'gridCell', 'kecamatanCode', 'source', 'ownerDepotId', 'lastActivityAt']) {
@@ -251,6 +253,114 @@ describe('B2bProspectPrismaRepository', () => {
       setup(undefined);
       batch.aggregate.mockResolvedValue({ _sum: { costIdr: null } });
       expect(await repo.coverage({ includeCost: true })).toMatchObject({ thirdPartyCostIdr: 0, age: null });
+    });
+  });
+
+  describe('visit, export, recompute and purge (AREA-1b)', () => {
+    it('records a visit only on the row version it read, and writes the visit after the row (never an orphan)', async () => {
+      p.updateMany.mockResolvedValue({ count: 1 });
+      visit.create.mockResolvedValue({ id: 'v1' });
+      p.findUniqueOrThrow.mockResolvedValue(row);
+      const now = new Date('2026-11-27T03:00:00Z');
+      const input = { visitorId: 'u', latitude: 1, longitude: 2, accuracyM: 5, distanceM: 3, outcome: 'NOT_THERE' as const, note: null };
+      expect(await repo.recordVisit('p1', 'NEW', 'VISITED', input, now)).toEqual({ prospect: row, visit: { id: 'v1' } });
+      expect(p.updateMany).toHaveBeenCalledWith({ where: { id: 'p1', status: 'NEW' }, data: { status: 'VISITED', lastActivityAt: now } });
+      expect(visit.create.mock.calls[0]![0].data).toEqual({ prospectId: 'p1', ...input });
+      expect(p.updateMany.mock.invocationCallOrder[0]).toBeLessThan(visit.create.mock.invocationCallOrder[0]!);
+    });
+
+    it('writes no visit when the row is gone or moved (the purge took it)', async () => {
+      p.updateMany.mockResolvedValue({ count: 0 });
+      expect(await repo.recordVisit('p1', 'NEW', 'VISITED', {} as never, new Date())).toBeNull();
+      expect(visit.create).not.toHaveBeenCalled();
+    });
+
+    it('exports without do-not-contact or anonymised rows, a depot role inside its depots, capped by take', async () => {
+      p.findMany.mockResolvedValue([row]);
+      await repo.exportRows({ depotIds: ['d1'], status: 'NEW', category: 'KOS', kecamatanCode: 'K', assignedToId: 'u', take: 5001 });
+      expect(p.findMany).toHaveBeenCalledWith({
+        where: { status: 'NEW', nameKey: { not: '' }, ownerDepotId: { in: ['d1'] }, category: 'KOS', kecamatanCode: 'K', assignedToId: 'u' },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: 5001,
+      });
+      await repo.exportRows({ unassigned: true, take: 10 });
+      expect(p.findMany).toHaveBeenLastCalledWith({
+        where: { status: { not: 'DO_NOT_CONTACT' }, nameKey: { not: '' }, ownerDepotId: undefined, assignedToId: null },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        take: 10,
+      });
+    });
+
+    it('walks the system-placed rows by id after a cursor, and moves one only if it is still as read', async () => {
+      p.findMany.mockResolvedValue([]);
+      await repo.autoOwnedAfter(null, 500);
+      expect(p.findMany).toHaveBeenLastCalledWith({
+        where: { ownerSource: 'AUTO', status: { notIn: ['CONVERTED', 'DO_NOT_CONTACT'] } },
+        orderBy: { id: 'asc' }, take: 500, select: { id: true, latitude: true, longitude: true, ownerDepotId: true },
+      });
+      await repo.autoOwnedAfter('abc', 5);
+      expect(p.findMany.mock.calls.at(-1)![0].where.id).toEqual({ gt: 'abc' });
+      p.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+      expect(await repo.moveOwner('p1', 'a', null)).toBe(true);
+      expect(p.updateMany).toHaveBeenLastCalledWith({
+        where: { id: 'p1', ownerSource: 'AUTO', ownerDepotId: 'a', status: { notIn: ['CONVERTED', 'DO_NOT_CONTACT'] } },
+        data: { ownerDepotId: null, assignedToId: null, assignedAt: null },
+      });
+      expect(await repo.moveOwner('p1', 'a', 'b')).toBe(false);
+    });
+
+    const ids = (n: number, from = 0) => Array.from({ length: n }, (_, i) => ({ id: `id${from + i}` }));
+
+    it('purge deletes in batches of 1000 until a short batch, re-checking the cutoff on every delete', async () => {
+      const cutoff = new Date('2026-06-01T00:00:00Z');
+      p.findMany.mockResolvedValueOnce(ids(1000)).mockResolvedValueOnce(ids(1000, 1000)).mockResolvedValueOnce(ids(3, 2000)).mockResolvedValue([]);
+      p.deleteMany.mockResolvedValueOnce({ count: 1000 }).mockResolvedValueOnce({ count: 1000 }).mockResolvedValueOnce({ count: 3 });
+      expect(await repo.purge(cutoff)).toEqual({ deleted: 2003, anonymised: 0 });
+      expect(p.findMany.mock.calls[0]![0]).toMatchObject({ select: { id: true }, take: 1000 });
+      const where = p.deleteMany.mock.calls[0]![0].where;
+      expect(where.id).toEqual({ in: ids(1000).map((r) => r.id) });
+      // strictly older than the cutoff, on the activity clock; a do-not-contact row on its own clock
+      expect(where.OR).toEqual([
+        { status: { notIn: ['CONVERTED', 'DO_NOT_CONTACT'] }, lastActivityAt: { lt: cutoff } },
+        { status: 'DO_NOT_CONTACT', OR: [{ suppressedAt: { lt: cutoff } }, { suppressedAt: null, lastActivityAt: { lt: cutoff } }] },
+      ]);
+    });
+
+    it('purge stops when a batch deletes nothing (rows got activity meanwhile), instead of looping', async () => {
+      p.findMany.mockResolvedValue(ids(1000));
+      p.deleteMany.mockResolvedValue({ count: 0 });
+      p.updateMany.mockResolvedValue({ count: 0 });
+      expect(await repo.purge(new Date())).toEqual({ deleted: 0, anonymised: 0 });
+      expect(p.deleteMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('purge anonymises idle converted rows (not yet anonymised) and wipes only their own visits', async () => {
+      const cutoff = new Date('2026-06-01T00:00:00Z');
+      p.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce(ids(2)).mockResolvedValue([]);
+      p.deleteMany.mockResolvedValue({ count: 0 });
+      p.updateMany.mockResolvedValue({ count: 2 });
+      expect(await repo.purge(cutoff)).toEqual({ deleted: 0, anonymised: 2 });
+      expect(p.findMany).toHaveBeenNthCalledWith(2, {
+        where: { status: 'CONVERTED', nameKey: { not: '' }, lastActivityAt: { lt: cutoff } }, select: { id: true }, take: 1000,
+      });
+      const arg = p.updateMany.mock.calls[0]![0];
+      expect(arg.data).toMatchObject({ nameKey: '', latitude: 0, longitude: 0, phoneE164: null, customerId: null, sourceId: null });
+      // the audited keep-list: category, codes, cell, source, status, owner depot, converted date
+      for (const kept of ['category', 'gridCell', 'kecamatanCode', 'kelurahanCode', 'source', 'status', 'ownerDepotId', 'convertedAt', 'lastActivityAt']) {
+        expect(arg.data).not.toHaveProperty(kept);
+      }
+      expect(visit.updateMany).toHaveBeenCalledWith({
+        where: { prospectId: { in: ['id0', 'id1'] }, prospect: { nameKey: '' } },
+        data: { latitude: 0, longitude: 0, note: null },
+      });
+    });
+
+    it('purge anonymises in batches too, and touches no visit when nothing was anonymised', async () => {
+      p.deleteMany.mockResolvedValue({ count: 0 });
+      p.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce(ids(1000)).mockResolvedValueOnce(ids(1000, 1000)).mockResolvedValue([]);
+      p.updateMany.mockResolvedValueOnce({ count: 1000 }).mockResolvedValueOnce({ count: 0 });
+      expect(await repo.purge(new Date())).toEqual({ deleted: 0, anonymised: 1000 });
+      expect(visit.updateMany).toHaveBeenCalledTimes(1);
     });
   });
 });

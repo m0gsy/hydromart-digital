@@ -67,6 +67,11 @@ describe('CustomerConfigService', () => {
     expect(makeConfig({}, { PROSPECT_DNC_HMAC_KEY: 'k'.repeat(32) }).prospectDncHmacKey).toBe('k'.repeat(32));
   });
 
+  it('prospectVisitRadiusM defaults to 200 m (owner decision) and reads an override', () => {
+    expect(makeConfig({}).prospectVisitRadiusM).toBe(200);
+    expect(makeConfig({ PROSPECT_VISIT_RADIUS_M: '350' }).prospectVisitRadiusM).toBe(350);
+  });
+
   it('nodeEnv falls back to the "development" default when unset', () => {
     expect(makeConfig({}).nodeEnv).toBe('development');
   });
@@ -148,6 +153,14 @@ describe('envValidationSchema', () => {
     expect(envValidationSchema.validate(without).error).toBeDefined();
     expect(envValidationSchema.validate({ ...valid, PROSPECT_DNC_HMAC_KEY: 'short' }).error).toBeDefined();
     expect(envValidationSchema.validate({ ...valid, NODE_ENV: 'production', DEPOT_SERVICE_URL: 'http://d', PROSPECT_DNC_HMAC_KEY: 'change-me-'.repeat(4) }).error).toBeDefined();
+  });
+
+  it('takes the visit radius as an optional positive number, default 200, at most 5 km (AREA-1b)', () => {
+    expect(envValidationSchema.validate(valid).value.PROSPECT_VISIT_RADIUS_M).toBe(200);
+    expect(envValidationSchema.validate({ ...valid, PROSPECT_VISIT_RADIUS_M: '150' }).value.PROSPECT_VISIT_RADIUS_M).toBe(150);
+    for (const bad of ['0', '-5', '5001', 'wide']) {
+      expect(envValidationSchema.validate({ ...valid, PROSPECT_VISIT_RADIUS_M: bad }).error).toBeDefined();
+    }
   });
 
   it('rejects a missing database url', () => {

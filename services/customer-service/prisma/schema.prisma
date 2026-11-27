@@ -339,6 +339,7 @@ model B2bProspect {
   note           String?
   /// The retention clock.
   lastActivityAt DateTime
+  suppressedAt   DateTime? // when a do-not-contact wipe emptied the row: its own 12-month purge clock (AREA-1b)
   createdById    String?            @db.Uuid
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt

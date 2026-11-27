@@ -60,6 +60,11 @@ export class CustomerConfigService {
     return this.config.getOrThrow<string>('PROSPECT_DNC_HMAC_KEY');
   }
 
+  /** Metres from a prospect's pin within which a check-in is accepted (owner: 200). */
+  get prospectVisitRadiusM(): number {
+    return Number(this.config.get<string>('PROSPECT_VISIT_RADIUS_M', '200'));
+  }
+
   get orderServiceUrl(): string {
     return this.config.get<string>('ORDER_SERVICE_URL', '').trim();
   }

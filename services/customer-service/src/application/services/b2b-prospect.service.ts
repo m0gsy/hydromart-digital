@@ -34,6 +34,7 @@ import { DepotProfilePort } from '../ports/depot-profile.port';
 import { IdentityPort } from '../ports/identity.port';
 import { StaffRosterPort } from '../ports/staff-roster.port';
 import { CUSTOMER_TOKENS } from '../tokens';
+import { CustomerImportService } from './customer-import.service';
 
 /** A list row: the business, never a person. No phone, contact name or note (Read-only roles see this). */
 export type ProspectListRow = Pick<
@@ -119,7 +120,7 @@ function toListRow(r: ProspectRecord): ProspectListRow {
   };
 }
 
-function toDetail(r: ProspectRecord): ProspectDetail {
+export function toDetail(r: ProspectRecord): ProspectDetail {
   return {
     ...toListRow(r),
     phoneE164: r.phoneE164,
@@ -151,6 +152,7 @@ export class B2bProspectService {
     @Inject(CUSTOMER_TOKENS.DepotProfilePort) private readonly depotProfile: DepotProfilePort,
     @Inject(CUSTOMER_TOKENS.StaffRoster) private readonly roster: StaffRosterPort,
     private readonly config: CustomerConfigService,
+    private readonly importer: CustomerImportService,
   ) {}
 
   private audit(
@@ -166,7 +168,7 @@ export class B2bProspectService {
    * The row, or a 404 that does not say whether it exists: outside the depot reach, assigned to
    * somebody else (for a role that works but does not manage), or on the opportunity map.
    */
-  private async loadReachable(
+  async loadReachable(
     user: AuthenticatedUser,
     id: string,
     opts: { mapIsUnprocessable?: boolean } = {},
@@ -386,6 +388,51 @@ export class B2bProspectService {
     );
     await this.audit('b2b.prospect.suppress.prospect', user, id, { prospectId: id, reason });
     return toDetail((await this.repo.findById(id)) as ProspectRecord);
+  }
+
+  /**
+   * The prospect became a customer: INTERESTED or VISITED only. The account is the one the caller names,
+   * else the one behind the prospect's mobile number, else a PENDING account the owner claims by OTP
+   * (the same staff-made-customer path the bulk import uses). Converting a converted row returns it.
+   */
+  async convert(user: AuthenticatedUser, id: string, customerId?: string): Promise<ProspectDetail> {
+    const { row } = await this.loadReachable(user, id);
+    if (row.status === 'CONVERTED') return toDetail(row);
+    if (row.status !== 'INTERESTED' && row.status !== 'VISITED') {
+      throw new ProspectTransitionError('Hanya prospek yang berminat atau sudah dikunjungi yang bisa dikonversi');
+    }
+    const account = await this.resolveAccount(row, customerId);
+    const now = new Date();
+    const updated = await this.repo.update(
+      id,
+      { status: 'CONVERTED', customerId: account, convertedAt: now, lastActivityAt: now },
+      row.updatedAt,
+    );
+    if (!updated) {
+      // Two converts at once: the loser gets the winner's result, anything else is a stale write.
+      const again = await this.repo.findById(id);
+      if (again?.status === 'CONVERTED') return toDetail(again);
+      throw new ProspectStaleError();
+    }
+    await this.audit('b2b.prospect.converted', user, id, { prospectId: id, customerId: account });
+    return toDetail(updated);
+  }
+
+  private async resolveAccount(row: ProspectRecord, customerId?: string): Promise<string> {
+    if (customerId) {
+      if (!(await this.identity.getAccountOwners([customerId])).has(customerId)) {
+        throw new ProspectInvalidError('Akun pelanggan tidak ditemukan');
+      }
+      return customerId;
+    }
+    const phone = row.phoneE164 ? normalizeIdPhone(row.phoneE164) : null;
+    if (!phone?.mobile) {
+      throw new ProspectInvalidError('Prospek ini tidak punya nomor HP: pilih akun pelanggan yang sudah ada');
+    }
+    const existing = await this.identity.customerIdByPhone(phone.e164);
+    if (existing) return existing;
+    const made = await this.importer.resolveByPhone(phone.e164, row.contactName ?? row.name, row.ownerDepotId as string);
+    return made.customerId;
   }
 
   /** Counts only: no name, phone or address field exists on this response. */

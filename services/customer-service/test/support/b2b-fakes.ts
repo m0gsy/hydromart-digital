@@ -1,15 +1,18 @@
 import { randomUUID } from 'node:crypto';
 
 import {
+  AutoOwned,
   B2bProspectRepository,
   CoverageRaw,
   CreateOutcome,
   DncKeys,
+  ExportQuery,
+  NewVisit,
   ProspectListQuery,
   ProspectPatch,
   VisitRecord,
 } from '../../src/application/ports/b2b-prospect.repository';
-import { DuplicateProbe, NewProspect, ProspectRecord } from '../../src/domain/b2b-prospect';
+import { B2bProspectStatus, DuplicateProbe, NewProspect, ProspectRecord } from '../../src/domain/b2b-prospect';
 import { matchDuplicate } from '../../src/domain/b2b-prospect-keys';
 
 /** In-memory twin of the Prisma repository: same rules, no database. */
@@ -75,6 +78,7 @@ export class InMemoryProspectRepository implements B2bProspectRepository {
       convertedAt: null,
       lostReason: null,
       lastActivityAt: now,
+      suppressedAt: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -124,6 +128,7 @@ export class InMemoryProspectRepository implements B2bProspectRepository {
         lostReason: null,
         assignedToId: null,
         assignedAt: null,
+        suppressedAt: this.stamp(),
       });
     }
     return out;
@@ -135,6 +140,66 @@ export class InMemoryProspectRepository implements B2bProspectRepository {
 
   async coverage(): Promise<CoverageRaw> {
     throw new Error('coverage is exercised against a stub in the service spec');
+  }
+
+  async recordVisit(id: string, from: B2bProspectStatus, to: B2bProspectStatus, visit: NewVisit, now: Date) {
+    const row = this.rows.get(id);
+    if (!row || row.status !== from) return null;
+    const next = { ...row, status: to, lastActivityAt: now, updatedAt: this.stamp() };
+    this.rows.set(id, next);
+    const made: VisitRecord = { id: randomUUID(), visitedAt: now, ...visit };
+    this.visitRows.unshift(made);
+    return { prospect: next, visit: made };
+  }
+
+  async exportRows(q: ExportQuery): Promise<ProspectRecord[]> {
+    return [...this.rows.values()]
+      .filter((r) => (q.status ? r.status === q.status : r.status !== 'DO_NOT_CONTACT') && r.nameKey !== '')
+      .filter((r) => !q.depotIds || (r.ownerDepotId !== null && q.depotIds.includes(r.ownerDepotId)))
+      .filter((r) => !q.category || r.category === q.category)
+      .filter((r) => !q.kecamatanCode || r.kecamatanCode === q.kecamatanCode)
+      .filter((r) => !q.assignedToId || r.assignedToId === q.assignedToId)
+      .filter((r) => !q.unassigned || r.assignedToId === null)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
+      .slice(0, q.take);
+  }
+
+  async autoOwnedAfter(afterId: string | null, take: number): Promise<AutoOwned[]> {
+    return [...this.rows.values()]
+      .filter((r) => r.ownerSource === 'AUTO' && r.status !== 'CONVERTED' && r.status !== 'DO_NOT_CONTACT')
+      .filter((r) => afterId === null || r.id > afterId)
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .slice(0, take)
+      .map(({ id, latitude, longitude, ownerDepotId }) => ({ id, latitude, longitude, ownerDepotId }));
+  }
+
+  async moveOwner(id: string, from: string | null, to: string | null): Promise<boolean> {
+    const row = this.rows.get(id);
+    if (!row || row.ownerSource !== 'AUTO' || row.ownerDepotId !== from) return false;
+    Object.assign(row, { ownerDepotId: to, assignedToId: null, assignedAt: null });
+    return true;
+  }
+
+  /** Same rules as the Prisma purge; the batching itself is asserted against the Prisma mock. */
+  async purge(cutoff: Date): Promise<{ deleted: number; anonymised: number }> {
+    let deleted = 0;
+    let anonymised = 0;
+    for (const r of [...this.rows.values()]) {
+      const idle = r.lastActivityAt < cutoff;
+      const wipedClock = r.suppressedAt ?? r.lastActivityAt;
+      if (r.status === 'DO_NOT_CONTACT' ? wipedClock < cutoff : r.status !== 'CONVERTED' && idle) {
+        this.rows.delete(r.id);
+        deleted += 1;
+      } else if (r.status === 'CONVERTED' && r.nameKey !== '' && idle) {
+        Object.assign(r, {
+          name: '(dihapus: jangan hubungi)', nameKey: '', latitude: 0, longitude: 0, sourceId: null,
+          sourceDataset: null, phoneE164: null, contactName: null, address: null, note: null, lostReason: null,
+          licence: null, customerId: null, assignedToId: null, assignedAt: null,
+        });
+        anonymised += 1;
+      }
+    }
+    return { deleted, anonymised };
   }
 }
 
@@ -170,6 +235,7 @@ export function prospect(over: Partial<ProspectRecord> = {}): ProspectRecord {
     lostReason: null,
     note: 'catatan',
     lastActivityAt: now,
+    suppressedAt: null,
     createdById: null,
     createdAt: now,
     updatedAt: now,
