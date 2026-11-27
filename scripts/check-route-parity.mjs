@@ -63,7 +63,7 @@ function segmentMap() {
     src.indexOf('};', src.indexOf('const SEGMENT_ENV')),
   );
   const map = {};
-  for (const [, segment, env] of block.matchAll(/^\s*'?([a-zA-Z-]+)'?:\s*'([A-Z_]+)'/gm)) {
+  for (const [, segment, env] of block.matchAll(/^\s*'?([a-zA-Z0-9-]+)'?:\s*'([A-Z_]+)'/gm)) {
     map[segment] = `${env.replace(/_SERVICE_URL$/, '').toLowerCase()}-service`;
   }
   return map;
@@ -178,10 +178,10 @@ function clientPaths() {
 
   for (const file of files) {
     const text = readFileSync(file, 'utf8');
-    for (const [, raw] of text.matchAll(/['"`](\/[a-z-]+\/api\/v1\/[^'"`\s]*)/gi)) {
+    for (const [, raw] of text.matchAll(/['"`](\/[a-z0-9-]+\/api\/v1\/[^'"`\s]*)/gi)) {
       found.add(normalise(raw));
     }
-    for (const [, base] of text.matchAll(/['"`](\/[a-z-]+\/api\/v1)['"`]/gi)) {
+    for (const [, base] of text.matchAll(/['"`](\/[a-z0-9-]+\/api\/v1)['"`]/gi)) {
       bases.add(base);
     }
     for (const [, suffix] of text.matchAll(/`\$\{[A-Za-z_$][\w$.]*\}(\/[^`$]+)/g)) {

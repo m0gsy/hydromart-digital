@@ -1,5 +1,6 @@
-// B2B prospects (customer-service, gateway segment `b2b-prospects`).
-const BASE = '/b2b-prospects/api/v1/b2b-prospects';
+// B2B prospects (customer-service, gateway segment `b2b-prospects`). Full path literals on purpose:
+// scripts/check-endpoint-contracts.mjs and check-route-parity.mjs read them to prove every
+// builder has a controller route and every route has a caller.
 
 function qs(q: Record<string, string | number | undefined | null>): string {
   const p = new URLSearchParams();
@@ -22,15 +23,16 @@ export interface ProspectQuery {
 
 export const prospect = {
   prospects: {
-    list: (q: ProspectQuery = {}) => `${BASE}${qs({ ...q })}`,
-    mine: (q: Omit<ProspectQuery, 'scope' | 'depotId' | 'assigned'> = {}) => `${BASE}/mine${qs({ ...q })}`,
-    coverage: (depotId?: string) => `${BASE}/coverage${qs({ depotId })}`,
-    assignees: (depotId: string) => `${BASE}/assignees?depotId=${depotId}`,
-    detail: (id: string) => `${BASE}/${id}`,
-    status: (id: string) => `${BASE}/${id}/status`,
-    assign: (id: string) => `${BASE}/${id}/assign`,
-    ownerDepot: (id: string) => `${BASE}/${id}/owner-depot`,
-    convert: (id: string) => `${BASE}/${id}/convert`,
-    doNotContact: (id: string) => `${BASE}/${id}/do-not-contact`,
+    list: (q: ProspectQuery = {}) => `/b2b-prospects/api/v1/b2b-prospects${qs({ ...q })}`,
+    mine: (q: Omit<ProspectQuery, 'scope' | 'depotId' | 'assigned'> = {}) =>
+      `/b2b-prospects/api/v1/b2b-prospects/mine${qs({ ...q })}`,
+    coverage: (depotId?: string) => `/b2b-prospects/api/v1/b2b-prospects/coverage${qs({ depotId })}`,
+    assignees: (depotId: string) => `/b2b-prospects/api/v1/b2b-prospects/assignees?depotId=${depotId}`,
+    detail: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}`,
+    status: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}/status`,
+    assign: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}/assign`,
+    ownerDepot: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}/owner-depot`,
+    convert: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}/convert`,
+    doNotContact: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}/do-not-contact`,
   },
 } as const;
