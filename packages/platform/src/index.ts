@@ -23,6 +23,8 @@ export {
 export {
   APPROXIMATE_ACCURACY_M,
   geofenceEnabled,
+  gridCell1km,
+  gridCellCenter,
   haversineKm,
   haversineMeters,
   isApproximateFix,

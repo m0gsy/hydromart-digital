@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { readServiceArea } from '@hydromart/platform';
 
 import { CustomerConfigService } from '../../config/customer-config.service';
-import { DepotGeo, DepotProfilePort } from '../../application/ports/depot-profile.port';
+import { ActiveDepot, DepotGeo, DepotProfilePort } from '../../application/ports/depot-profile.port';
 
 /**
  * Reads what depot-service knows about a depot itself: where it is, and who subscribes to it.
@@ -20,6 +20,7 @@ type GeoBody = Partial<Omit<DepotGeo, 'serviceArea'>> & { serviceArea?: unknown 
 @Injectable()
 export class DepotProfileHttpAdapter implements DepotProfilePort {
   private static readonly TIMEOUT_MS = 5000;
+  private static readonly MAX_PAGES = 50;
   private readonly logger = new Logger(DepotProfileHttpAdapter.name);
 
   constructor(private readonly config: CustomerConfigService) {}
@@ -45,6 +46,53 @@ export class DepotProfileHttpAdapter implements DepotProfilePort {
     };
   }
 
+  async listActive(): Promise<ActiveDepot[] | null> {
+    const base = this.config.depotServiceUrl;
+    if (!base) return null;
+    const items: (GeoBody & { id?: string })[] = [];
+    // Same walk as order-service's depot directory: one failing page fails the whole read, and
+    // ONE deadline covers every page (not 5 s each).
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(), DepotProfileHttpAdapter.TIMEOUT_MS);
+    try {
+      let complete = false;
+      for (let page = 1; page <= DepotProfileHttpAdapter.MAX_PAGES; page += 1) {
+      const body = await this.read<{ items?: (GeoBody & { id?: string })[]; totalPages?: number }>(
+        `${base}/api/v1/depots?limit=100&page=${page}&includeArea=true`,
+        {},
+        'active depots',
+        deadline.signal,
+      );
+      if (!body) return null;
+      items.push(...(body.items ?? []));
+      if (typeof body.totalPages !== 'number' || page >= body.totalPages) {
+        complete = true;
+        break;
+      }
+    }
+    // Out of pages with more left: a partial list would make a served pin look unserved.
+    if (!complete) {
+      this.logger.warn('Depot profile unavailable (active depots): more pages than the cap');
+      return null;
+    }
+    return items.flatMap((d) =>
+      typeof d.id === 'string' && typeof d.lat === 'number' && typeof d.lng === 'number'
+        ? [
+            {
+              id: d.id,
+              lat: d.lat,
+              lng: d.lng,
+              serviceRadiusKm: typeof d.serviceRadiusKm === 'number' ? d.serviceRadiusKm : 0,
+              serviceArea: readServiceArea(d.serviceArea),
+            },
+          ]
+        : [],
+    );
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async subscriberIds(depotId: string): Promise<string[] | null> {
     const base = this.config.depotServiceUrl;
     const key = this.config.internalServiceKey;
@@ -63,13 +111,16 @@ export class DepotProfileHttpAdapter implements DepotProfilePort {
     url: string,
     headers: Record<string, string>,
     what: string,
+    signal?: AbortSignal,
   ): Promise<T | null> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), DepotProfileHttpAdapter.TIMEOUT_MS);
+    const timer = signal
+      ? undefined
+      : setTimeout(() => controller.abort(), DepotProfileHttpAdapter.TIMEOUT_MS);
     try {
       const res = await fetch(url, {
         headers: { accept: 'application/json', ...headers },
-        signal: controller.signal,
+        signal: signal ?? controller.signal,
       });
       if (!res.ok) throw new Error(`depot-service responded ${res.status}`);
       return (await res.json()) as T;

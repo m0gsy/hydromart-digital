@@ -51,6 +51,9 @@
 # depot_permits_depotId_validUntil_idx (depot-service, 2026-11-29, HD-14) sit on three tables its own migration creates:
 # built by that migration, not here, and the build is instant.
 #
+# unserved_demand_monthKey_idx (customer-service, 2026-11-27, HD-20b) sits on a table its own migration creates:
+# built by that migration, not here, and the build is instant.
+#
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh
 # database — CI, a new environment — the migration builds it itself, where locking an

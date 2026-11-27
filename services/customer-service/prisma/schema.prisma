@@ -88,6 +88,9 @@ model Address {
   kecamatanCode String?
   kelurahanCode String?
   regionSource  String?
+  // 2026-11-27 (HD-20b): the month (YYYY-MM, WIB) an unserved_demand row was last recorded for this
+  // address's pin; keeps one row per address per month. Cleared with the codes when the pin changes.
+  unservedMonth String?
   // Free-text landmark / patokan the customer adds ("pagar hijau sebelah warung Bu Ani").
   // Optional; flows to the courier via the per-order note at checkout.
   notes         String?
@@ -100,6 +103,27 @@ model Address {
   // migration 20260718141000_one_primary_address (Prisma can't express a partial
   // unique index here). Pairs with the transactional AddressRepository.setPrimaryExclusive.
   @@map("addresses")
+}
+
+/// HD-20b: a pin saved outside every active depot's service area, anonymous on purpose.
+/// NO customer id, NO address id, NO coordinates (the 1 km cell is the finest place kept) and
+/// NO createdAt/updatedAt: a timestamp could be joined back to the address row it came from.
+/// Holds no personal data. Never exposed raw (no route, no export): HD-20c reads it and masks every
+/// count under 3 before anything leaves the service. A row can only be re-linked to a person through
+/// the address's own stored pin, and only while that address exists.
+model UnservedDemand {
+  id            String  @id @default(uuid()) @db.Uuid
+  /// YYYY-MM in WIB, from localMonthKey.
+  monthKey      String
+  kecamatanCode String
+  kelurahanCode String?
+  /// gridCell1km of the pin.
+  gridCell      String
+  /// Distance to the NEAREST active depot: '0-1', '1-3', '3-5', '5-10' or '>10' km.
+  distanceBand  String
+
+  @@index([monthKey])
+  @@map("unserved_demand")
 }
 
 /// A saved, reusable payment instrument (spec 4f Account → Metode pembayaran).
