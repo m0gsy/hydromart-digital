@@ -88,12 +88,31 @@ refuses netinternal "doc.networks.hermes = {internal: true}" 'plain' "an interna
 refuses voldriver "doc.volumes['hermes-data'] = {driver_opts: {type: 'none', device: '/', o: 'bind'}}" 'plain named volume' "a bind-backed volume"
 refuses extrasvc "doc.services.other = {image: 'x@sha256:0000000000000000000000000000000000000000000000000000000000000000'}" 'exactly one service' "a second service"
 
+refuses poolreq "$S.environment.ANTHROPIC_API_KEY_2 = '\${AIWEB_LLM_ANTHROPIC_API_KEY:?x}'" 'must be exactly' "a required (:?) fallback key"
+refuses poolname "$S.environment.TELEGRAM_BOT_TOKEN = '\${AIWEB_LLM_ANTHROPIC_API_KEY:-}'" 'may only feed ANTHROPIC_API_KEY_2' "the AI web key under another env name"
+refuses poolonce "$S.environment.ANTHROPIC_API_KEY_3 = '\${AIWEB_LLM_ANTHROPIC_API_KEY:-}'" 'read 2 times' "the AI web key read twice"
+refuses aiwebother "$S.environment.ANTHROPIC_API_KEY_2 = '\${AIWEB_LLM_OPENAI_API_KEY:-}'" 'only HERMES_* keys' "another AIWEB_* interpolation"
+refuses pgother "$S.environment.ANTHROPIC_API_KEY_2 = '\${POSTGRES_PASSWORD:-}'" 'only HERMES_* keys' "a POSTGRES_* interpolation"
+node scripts/check-hermes-compose.mjs infra/hermes/docker-compose.yml 2>&1 | grep -q 'ANTHROPIC_API_KEY_2' &&
+  ok "the committed file passes with the optional fallback key" || bad "the OK line does not name the fallback key"
+grep -q '^  anthropic: fill_first$' infra/hermes/config.yaml && ok "config.yaml: anthropic pool strategy fill_first" || bad "config.yaml lacks credential_pool_strategies anthropic: fill_first"
+
+echo "pool count line (hermes-deploy.sh --pool-line):"
+out="$(printf 'anthropic (2 credentials):\n  #1  ANTHROPIC_API_KEY api_key id=ab priority=0 env:ANTHROPIC_API_KEY <-\n  #2  ANTHROPIC_API_KEY_2 api_key id=cd priority=1 env:ANTHROPIC_API_KEY_2\n' | bash scripts/hermes-deploy.sh --pool-line)"
+[ "$out" = "anthropic credential pool: 2 entries" ] && ok "two entries: the count only, no note" || bad "two entries: $out"
+out="$(printf 'anthropic (1 credentials):\n  #1  ANTHROPIC_API_KEY api_key id=ab priority=0 env:ANTHROPIC_API_KEY <-\n' | bash scripts/hermes-deploy.sh --pool-line)"
+{ grep -qx 'anthropic credential pool: 1 entries' <<<"$out" && grep -q '^note: 1 entry' <<<"$out" && ! grep -q 'ANTHROPIC_API_KEY \|id=' <<<"$out"; } &&
+  ok "one entry: the count and the note, no key line" || bad "one entry: $out"
+out="$(printf '' | bash scripts/hermes-deploy.sh --pool-line)"
+[ "$out" = "anthropic credential pool: 0 entries" ] && ok "nothing listed: 0 entries" || bad "nothing listed: $out"
+
 echo "allow-list (hermes-deploy.sh --check-env):"
 envcase() { # <value> <expect ok|refused> <label>
   printf 'HERMES_ANTHROPIC_API_KEY=x
 HERMES_TELEGRAM_BOT_TOKEN=y
 HERMES_TELEGRAM_ALLOWED_USERS=%s
 ' "$1" >"$W/env"
+  # (the fallback AI web key is never in this file: the deploy must not require it)
   local out rc
   out="$(HERMES_ENV_FILE="$W/env" bash scripts/hermes-deploy.sh --check-env 2>&1)"
   rc=$?

@@ -781,9 +781,19 @@ condition that it is isolated as below. Default model `claude-haiku-5-5` (cost);
 (undone by the next deploy) or by PR in `infra/hermes/config.yaml`.
 
 The three keys, in `.env`, set by the owner through ENV_SET_BLOCK (deploy mode `env-set`), documented in
-`.env.production.example`: `HERMES_ANTHROPIC_API_KEY` (its OWN Anthropic key, own billing and monthly limit, never the
-AI web's), `HERMES_TELEGRAM_BOT_TOKEN` (from @BotFather), `HERMES_TELEGRAM_ALLOWED_USERS` (the owner's numeric Telegram
+`.env.production.example`: `HERMES_ANTHROPIC_API_KEY` (the pay-per-use Anthropic key of another Console org),
+`HERMES_TELEGRAM_BOT_TOKEN` (from @BotFather), `HERMES_TELEGRAM_ALLOWED_USERS` (the owner's numeric Telegram
 id, from @userinfobot; comma-separated for more, digits and commas only: the deploy refuses anything else; unset means nobody).
+
+Two Anthropic keys, one pool (owner decision, 27 Nov 2026). Hermes holds the pay-per-use `HERMES_ANTHROPIC_API_KEY`
+(`ANTHROPIC_API_KEY`, PRIMARY, required) and, when set, the AI web's `AIWEB_LLM_ANTHROPIC_API_KEY` (`ANTHROPIC_API_KEY_2`,
+FALLBACK, optional: the key of the Console org linked to the Claude Max plan, whose subscription credits run out and are then
+refused by the API, nothing billed). Upstream seeds both into one `anthropic` credential pool at load (the numbered sibling
+`_2`; an empty value is skipped) and `infra/hermes/config.yaml` sets `credential_pool_strategies: {anthropic: fill_first}`:
+the first key is used until it fails out of credit, then the second. When both are out Hermes cannot answer until the pay-per-use
+key is topped up or the subscription credits renew (it never bills the second key). That AI web key is the only non-`HERMES_*`
+value Hermes can read (`scripts/check-hermes-compose.mjs` refuses any other, and refuses it under any other name). The deploy
+prints `anthropic credential pool: N entries` (a count, never a key) and a note when N is 1 (fallback key not installed).
 
 Deploy modes (manual only; a normal deploy never touches Hermes):
 - `hermes`: refuses, naming the missing KEYS, when any of the three is absent from `.env`; pulls the pinned digest;

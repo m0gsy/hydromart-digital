@@ -14,8 +14,11 @@
 #     host and every private range to that bridge;
 #   - no published port (Telegram uses long polling, outbound only), no docker socket, no host bind
 #     mount, no hydromart network, no database;
-#   - only HERMES_* keys of .env are interpolated: none of hydromart's secrets can reach it, and the
-#     Anthropic key is its OWN (own billing, own monthly limit), never the AI web's;
+#   - only HERMES_* keys of .env are interpolated, plus exactly one AI web key (owner decision, 27 Nov 2026):
+#     AIWEB_LLM_ANTHROPIC_API_KEY, as the optional FALLBACK Anthropic key. Hermes holds two Anthropic keys in one
+#     credential pool (config.yaml: fill_first): the pay-per-use HERMES_ANTHROPIC_API_KEY first, the AI web's
+#     subscription-credit key only once the first is out of credit (when its credits run out the API refuses,
+#     nothing is billed). None of hydromart's other secrets can reach it;
 #   - the gateway's wide-open switches (GATEWAY_ALLOW_ALL_USERS, HERMES_YOLO_MODE, the API server, the
 #     dashboard, private URLs) are never set; only the owner's Telegram user id may talk to it.
 # Never two gateway containers on one data volume.
@@ -53,9 +56,11 @@ services:
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL]
     security_opt: ["no-new-privileges:true"]
     environment:
-      # Three keys, all the owner's through ENV_SET_BLOCK (deploy mode env-set); the deploy refuses
-      # to start without them (names only in its message).
+      # Three required keys, all the owner's through ENV_SET_BLOCK (deploy mode env-set); the deploy refuses
+      # to start without them (names only in its message). The pool's second Anthropic key is optional: Hermes
+      # seeds the numbered sibling ANTHROPIC_API_KEY_2 into the same pool, and skips it while empty.
       ANTHROPIC_API_KEY: ${HERMES_ANTHROPIC_API_KEY:?set by the owner via ENV_SET_BLOCK}
+      ANTHROPIC_API_KEY_2: ${AIWEB_LLM_ANTHROPIC_API_KEY:-}
       TELEGRAM_BOT_TOKEN: ${HERMES_TELEGRAM_BOT_TOKEN:?set by the owner via ENV_SET_BLOCK}
       # Comma-separated numeric Telegram user ids; unset, everyone is denied.
       TELEGRAM_ALLOWED_USERS: ${HERMES_TELEGRAM_ALLOWED_USERS:?set by the owner via ENV_SET_BLOCK}

@@ -43,10 +43,15 @@ if (JSON.stringify(doc['x-logging']) !== JSON.stringify({ driver: 'json-file', o
   bad('x-logging must be the repo cap: json-file, max-size 50m, max-file 3');
 }
 
-// Values from .env reach this file only as ${HERMES_*}; `$$` is compose's escaped dollar.
+// Values from .env reach this file only as ${HERMES_*}, plus the one optional AI web key below; `$$` is compose's escaped dollar.
+const AIWEB_KEY = 'AIWEB_LLM_ANTHROPIC_API_KEY';
 for (const m of text.replace(/\$\$/g, '').matchAll(/\$\{?([A-Za-z_][A-Za-z0-9_]*)/g)) {
-  if (!m[1].startsWith('HERMES_')) bad(`reads \${${m[1]}} from .env; only HERMES_* keys may reach Hermes`);
+  if (!m[1].startsWith('HERMES_') && m[1] !== AIWEB_KEY) bad(`reads \${${m[1]}} from .env; only HERMES_* keys may reach Hermes`);
 }
+
+// The AI web key may be read once, and only as the optional fallback Anthropic key (checked in the environment below).
+const aiwebReads = text.replace(/#[^\n]*/g, '').split(AIWEB_KEY).length - 1;
+if (aiwebReads > 1) bad(`${AIWEB_KEY} is read ${aiwebReads} times; it may be read once, as ANTHROPIC_API_KEY_2`);
 
 // Switches that would open it up, anywhere in the file (comments excluded: they explain why they are absent).
 const code = text.replace(/#[^\n]*/g, '');
@@ -79,6 +84,8 @@ const ALLOWED_ENV = {
   TELEGRAM_BOT_TOKEN: 'HERMES_TELEGRAM_BOT_TOKEN',
   TELEGRAM_ALLOWED_USERS: 'HERMES_TELEGRAM_ALLOWED_USERS',
 };
+// The pool's optional second Anthropic key: the AI web's subscription-credit key, empty when unset (owner, 27 Nov 2026).
+const OPTIONAL_ENV = { ANTHROPIC_API_KEY_2: '${' + AIWEB_KEY + ':-}' };
 const required = (value, key) => {
   const v = String(value ?? '');
   return v.startsWith('${' + key + ':?') && v.endsWith('}');
@@ -111,7 +118,13 @@ for (const [name, svc] of services) {
   const env = svc?.environment;
   if (!env || Array.isArray(env)) bad(`${where}.environment must be a map, so each value can be checked`);
   else {
-    for (const key of Object.keys(env)) if (!Object.hasOwn(ALLOWED_ENV, key)) bad(`${where}.environment sets ${key}: only ${Object.keys(ALLOWED_ENV).join(', ')} may be set`);
+    for (const key of Object.keys(env)) {
+      if (!Object.hasOwn(ALLOWED_ENV, key) && !Object.hasOwn(OPTIONAL_ENV, key)) bad(`${where}.environment sets ${key}: only ${[...Object.keys(ALLOWED_ENV), ...Object.keys(OPTIONAL_ENV)].join(', ')} may be set`);
+      else if (!Object.hasOwn(OPTIONAL_ENV, key) && String(env[key]).includes(AIWEB_KEY)) bad(`${where}.environment.${key} reads ${AIWEB_KEY}: that key may only feed ANTHROPIC_API_KEY_2`);
+    }
+    for (const [key, want] of Object.entries(OPTIONAL_ENV)) {
+      if (env[key] !== undefined && env[key] !== want) bad(`${where}.environment.${key} must be exactly ${want} (optional, never \`:?\`), got ${env[key]}`);
+    }
     for (const [key, from] of Object.entries(ALLOWED_ENV)) {
       if (!required(env[key], from)) bad(`${where}.environment.${key} must be \${${from}:?message}, got ${env[key]}`);
     }
@@ -130,4 +143,4 @@ if (problems.length > 0) {
   for (const p of problems) console.error(`  - ${p}`);
   process.exit(1);
 }
-console.log(`Hermes compose OK: project ${doc.name}, 1 digest-pinned service, no port, no socket, no host mount, own plain network, restart "no", caps ${ALLOWED_CAPS.join('+')}, only HERMES_* from .env.`);
+console.log(`Hermes compose OK: project ${doc.name}, 1 digest-pinned service, no port, no socket, no host mount, own plain network, restart "no", caps ${ALLOWED_CAPS.join('+')}, only HERMES_* from .env plus the optional ${AIWEB_KEY} as ANTHROPIC_API_KEY_2.`);

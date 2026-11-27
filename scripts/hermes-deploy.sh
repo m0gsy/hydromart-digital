@@ -6,6 +6,7 @@
 #                                              # start the gateway, wait for Telegram, probe the isolation
 #   bash scripts/hermes-deploy.sh --stop       # compose down; the data volume (sessions, memory) is kept
 #   bash scripts/hermes-deploy.sh --check-env  # only the .env key check (names in the error, never a value)
+#   bash scripts/hermes-deploy.sh --pool-line  # stdin = `hermes auth list anthropic` output; prints the count line (tests)
 #
 # Order, and why:
 #   1. the three HERMES_* keys must be in .env, and the Telegram allow-list must be numeric ids: refuse otherwise,
@@ -20,7 +21,9 @@
 #      replaced by infra/hermes/config.yaml at the next deploy, so what should last is changed by PR;
 #   5. `up -d --force-recreate`, so the new config and image are always the ones running;
 #   6. wait for THIS container's log to say Telegram is connected, then probe from inside the container;
-#   7. only when all of it held, .deploy/hermes.enabled is written: the host (scripts/hermes-ensure.sh, cron) starts
+#   7. prints the size of the anthropic credential pool (a count only): 2 with the AI web's fallback key installed
+#      (ANTHROPIC_API_KEY_2, optional, never required here), 1 without it;
+#   8. only when all of it held, .deploy/hermes.enabled is written: the host (scripts/hermes-ensure.sh, cron) starts
 #      the container at boot and when it dies only while that flag exists. Any failure after step 5 stops the
 #      container and removes the flag (fail closed).
 # Prints names and results only, never a value.
@@ -28,6 +31,15 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 say() { echo "[hermes-deploy] $*"; }
+# The count line from `hermes auth list anthropic` ("anthropic (N credentials):", hermes_cli/auth_commands.py v0.23.4).
+# Prints the count only, never a key, a label or a suffix; nothing listed = 0.
+pool_line() {
+  local n
+  n="$(sed -n 's/^anthropic (\([0-9][0-9]*\) credentials*):.*/\1/p' | head -1)"
+  echo "anthropic credential pool: ${n:-0} entries"
+  [ "${n:-0}" -ne 1 ] || echo "note: 1 entry, the fallback key (AIWEB_LLM_ANTHROPIC_API_KEY) is not installed; Hermes stops answering when the pay-per-use key is out of credit"
+}
+[ "${1:-}" != --pool-line ] || { pool_line; exit 0; }
 FILE=infra/hermes/docker-compose.yml
 PROJECT=hydromart-hermes
 SERVICE=hermes
@@ -178,6 +190,10 @@ say "tools enabled for Telegram (names only):"
 if grep -i browser <<<"$tools" | grep -i enabled | grep -viq disabled; then
   fail_closed "a browser tool is enabled for Telegram: infra/hermes/config.yaml must disable it"
 fi
+
+# The pool as Hermes itself loaded it (the env siblings ANTHROPIC_API_KEY, ANTHROPIC_API_KEY_2 are seeded at load): a count only.
+pool="$(docker exec "$cid" hermes auth list anthropic 2>/dev/null || true)"
+pool_line <<<"$pool" | sed 's/^/[hermes-deploy] /'
 
 mkdir -p .deploy
 : >"$FLAG"

@@ -6,6 +6,11 @@ model:
   # Cost first (owner, 27 Nov 2026). The owner can switch models in chat, or by PR here.
   default: claude-haiku-5-5
 
+# Two Anthropic keys in one pool (compose: ANTHROPIC_API_KEY, then ANTHROPIC_API_KEY_2): the first until it fails
+# with out-of-credit, then the next.
+credential_pool_strategies:
+  anthropic: fill_first
+
 approvals:
   # Dangerous commands are judged first, then asked about in chat when unsure.
   mode: smart
