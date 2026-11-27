@@ -265,6 +265,12 @@ unless an anonymous LIST and an anonymous object GET are both refused; (2) `ENV_
 `VISIT_STORAGE_S3_*_KEY*` values blank: compose falls back to delivery's; a dedicated key, if one is ever
 made, goes there and wins. The deploy's anonymous-listing probe covers the bucket from then on.
 
+`hydromart-pod` (proof-of-delivery photos, signatures, receipts, incident photos) is PRIVATE since 27 Nov 2026: every reader
+uses a presigned link (delivery `GET :id/proof-links`, incident links, payout `POST /proofs/photo-link`). Once after
+merging, run Deploy mode `storage-policy`: for that bucket it deletes the old public-read policy and proves an
+anonymous GET of a probe answers 401/403 (200 fails the run). `hydromart-products` stays public-read (avatars and
+product images render from the public base URL). `verify-object-storage.mjs` refuses public mode on `hydromart-pod`.
+
 ---
 
 ## 7. Operations

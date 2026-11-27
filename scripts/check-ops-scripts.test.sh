@@ -993,6 +993,7 @@ for f in scripts/backfill-favorite-depot.mjs scripts/backfill-order-volume.mjs s
 done
 # F-32
 chk scripts/verify-object-storage.mjs 'face' "verify-object-storage: refuses the face-photo bucket" "verify-object-storage: will open any bucket anonymously, including face photos (F-32)"
+chk scripts/verify-object-storage.mjs 'PRIVATE_BUCKETS' "verify-object-storage: refuses public mode on the private pod bucket" "verify-object-storage: can re-apply public-read to hydromart-pod"
 
 # --- PR-D4: the three owner-decided scripts -------------------------------------------------
 # S1B-50: the parity test mutates a COPY of the tree, never the tracked controller.
