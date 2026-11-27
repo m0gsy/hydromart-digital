@@ -3,7 +3,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { can } from '@hydromart/access';
 import { AuthenticatedUser } from '@hydromart/platform';
 
-import { ATTENDANCE_CELLS, AiOrgSourcesPort, AttendanceCell, PayrollRow } from '../ports/ai-org-sources.port';
+import { ATTENDANCE_CELLS, AiOrgSourcesPort, AttendanceCell, PayrollRow, TurnoverRow } from '../ports/ai-org-sources.port';
 import { DashboardSourcesPort } from '../ports/dashboard-sources.port';
 import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerEnvelope } from './envelope';
@@ -26,7 +26,7 @@ export const HR_METRICS = {
   'H-04': { unit: 'Rp', month: true },
   'H-05': { unit: 'Rp', month: true },
   'H-06': { unit: 'jam' },
-  'H-07': { unit: 'persen' },
+  'H-07': { unit: 'persen', month: true },
 } as const satisfies Record<string, { unit: string; month?: boolean }>;
 export type HrMetricId = keyof typeof HR_METRICS;
 export const HR_METRIC_IDS = Object.keys(HR_METRICS) as HrMetricId[];
@@ -64,10 +64,10 @@ export class HrMetricsService {
     const scope = await this.scopes.resolve(user, period);
     const env = makeEnv(id, meta.unit, period, scope, now);
     if (id === 'H-06') return env.none('Lembur dalam jam dan rupiah belum tercatat terpisah; hari ini hanya ada sebagai teks di baris slip.');
-    if (id === 'H-07') return env.none('Turnover belum dihitung di mana pun; riwayat karyawan keluar per periode belum disimpan.');
     if (scope.spans.length === 0) return env.none('Tidak ada depot yang boleh Anda baca pada periode ini.');
     if (id === 'H-01') return this.headcount(env, now);
     if (id === 'H-02') return this.attendance(env);
+    if (id === 'H-07') return this.turnover(env, now);
     return this.pay(id, user, env, now);
   }
 
@@ -162,6 +162,33 @@ export class HrMetricsService {
     return env.ok(
       { ...value, ...(flaggedAll > 0 ? { flags } : {}), rate },
       'hari kerja menurut tanggal kerja WIB, per bulan atau tahun penuh, untuk bulan yang sudah tutup (dijawab mulai tanggal 8 bulan berikutnya): scheduledDays = hari kerja terjadwal menurut jadwal karyawan (rotasi atau shift, hari libur mingguan depot, tanpa hari libur, hanya selama bekerja; aturan yang sama dengan gaji) di depot tempat bekerja hari itu, atau bila hari itu tanpa catatan di depot penugasan karyawan (Employee.depotId, bukan depot asal; karyawan yang pindah depot: hari tanpa catatan ikut depot penugasan sekarang); hari cuti, absen offline yang belum diputuskan, dan catatan libur pada hari terjadwal tetap dihitung di scheduledDays (hari terjadwal yang tidak hadir dan bukan absen); present = hadir, late = terlambat (semua hari, termasuk hari di luar jadwal), absent = hari terjadwal tanpa absen dan tanpa cuti, absentRecorded = hanya catatan ABSEN eksplisit, leave = cuti, pending = absen offline belum diputuskan HR, unscheduledDays = hari kerja menurut aturan depot penugasan karyawan yang belum punya shift atau rotasi sendiri (tidak ikut tingkat hadir); rate = (hadir + terlambat pada hari terjadwal) / scheduledDays dalam persen, satu desimal; tiap angka yang bertumpu pada kurang dari 3 karyawan berbeda tidak diberikan (null dengan flag); bila salah satu dari present, late, absent, leave, pending ditahan, scheduledDays dan rate ikut ditahan supaya angka itu tidak bisa dihitung balik',
+    );
+  }
+
+  /**
+   * H-07: employees who left in one whole closed month over the average of the opening and closing headcount,
+   * in percent, for the depots readable on the month's last day (home-depot basis, as pay). One month, a total
+   * only (never per depot), and a closed month only from the 8th of the next, since an exit day can be entered
+   * late. A leaver count or headcount of 1 or 2 is held back, never given as a number.
+   */
+  private async turnover(env0: ReadEnv, now: Date): Promise<AnswerEnvelope> {
+    const { period } = env0;
+    if (isOpen(env0)) {
+      return env0.none('Turnover hanya dijawab untuk bulan yang sudah tutup, mulai tanggal 8 bulan berikutnya, supaya tanggal keluar yang terlambat dicatat sudah masuk.');
+    }
+    const ids = readableOn(env0.scope, period.to);
+    if (ids.length === 0) return env0.none('Tidak ada depot yang boleh Anda baca pada hari terakhir bulan ini.');
+    const env = makeEnv('H-07', HR_METRICS['H-07'].unit, period, narrowTo(env0.scope, new Set(ids)), now);
+    const rows = await pooled(ids, (part) => this.sources.turnover(part, period.from.slice(0, 7)));
+    if (!rows) return env.none(DOWN);
+    const sum = (pick: (r: TurnoverRow) => number) => rows.reduce((s, r) => s + pick(r), 0);
+    const [exits, start, end] = [sum((r) => r.exits), sum((r) => r.startHeadcount), sum((r) => r.endHeadcount)];
+    if (small(exits) || small(start) || small(end)) return env.held(`Karyawan di balik angka turnover ${SMALL_GROUP_FLAG}; angkanya tidak diberikan.`);
+    const average = (start + end) / 2;
+    if (average === 0) return env.none('Tidak ada karyawan pada bulan ini, jadi turnover tidak bisa dihitung.');
+    return env.ok(
+      Math.round((exits / average) * 1000) / 10,
+      'turnover satu bulan penuh = karyawan yang tanggal keluarnya jatuh di bulan itu dibagi rata-rata karyawan di awal dan di akhir bulan, dalam persen satu desimal; menurut depot asal karyawan; hanya total, tidak per depot; angka yang bertumpu pada kurang dari 3 karyawan tidak diberikan',
     );
   }
 

@@ -19,4 +19,6 @@ export const DASHBOARD_TOKENS = {
   AiAreaSources: Symbol('AiAreaSources'),
   /** AREA-3: the grouped B2B prospect counts behind the prospects read. */
   AiProspectSources: Symbol('AiProspectSources'),
+  /** AI-21: the supervisor-visit counts behind the visits read. */
+  AiVisitSources: Symbol('AiVisitSources'),
 } as const;

@@ -11,6 +11,7 @@ import {
   KasbonRow,
   PayrollGateRow,
   PayrollRow,
+  TurnoverRow,
 } from '../../application/ports/ai-org-sources.port';
 import { DashboardConfigService } from '../../config/dashboard-config.service';
 
@@ -143,6 +144,15 @@ export class AiOrgSourcesHttpAdapter implements AiOrgSourcesPort {
       `${base}/api/v1/hr-reports/internal/ai/kasbon?${this.q({ depotIds: depotIds.join(','), month })}`,
     );
     return perDepot<KasbonRow>(body, depotIds, ['people', 'remainingIdr']);
+  }
+
+  async turnover(depotIds: readonly string[], month: string): Promise<TurnoverRow[] | null> {
+    const base = this.config.hrServiceUrl;
+    if (!base) return null;
+    const body = await this.get(
+      `${base}/api/v1/hr-reports/internal/ai/turnover?${this.q({ depotIds: depotIds.join(','), month })}`,
+    );
+    return perDepot<TurnoverRow>(body, depotIds, ['exits', 'startHeadcount', 'endHeadcount']);
   }
 
   async depotTargets(depotIds: readonly string[], month: string): Promise<DepotTargetRow[] | null> {

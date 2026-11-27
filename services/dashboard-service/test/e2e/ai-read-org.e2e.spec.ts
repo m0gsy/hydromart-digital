@@ -216,10 +216,11 @@ describe('GET ai/read/franchise and ai/read/hr (HD-6 H5)', () => {
     expect(h2.body.value.flags).toBeUndefined();
   });
 
-  it('answers H-06 and H-07 belum_ada', async () => {
-    for (const metric of ['H-06', 'H-07']) {
-      expect((await get(aiToken('SUPER_ADMIN'), 'hr', metric).expect(200)).body).toMatchObject({ status: 'belum_ada', value: null });
-    }
+  it('answers H-06 belum_ada, and H-07 only for a whole closed month', async () => {
+    expect((await get(aiToken('SUPER_ADMIN'), 'hr', 'H-06').expect(200)).body).toMatchObject({ status: 'belum_ada', value: null });
+    // the running month is not closed yet; a range that is not a whole month is a 400
+    expect((await get(aiToken('SUPER_ADMIN'), 'hr', 'H-07').expect(200)).body).toMatchObject({ status: 'belum_ada', value: null });
+    await get(aiToken('SUPER_ADMIN'), 'hr', 'H-07', 'from=2026-11-05&to=2026-11-20').expect(400);
   });
 
   it('refuses a metric outside the group, an ambiguous period and a month metric asked over a free range', async () => {
@@ -259,7 +260,7 @@ describe('GET ai/read/franchise and ai/read/hr (HD-6 H5)', () => {
       expect(m.rules.length).toBeGreaterThan(20);
     }
     expect(Object.keys(op.responses).sort()).toEqual(['200', '400', '401', '403', '404', '429', '500', '503']);
-    const never = group === 'franchise' ? ['W-04'] : ['H-06', 'H-07'];
+    const never = group === 'franchise' ? ['W-04'] : ['H-06'];
     for (const id of never) expect(op['x-metrics'][id].rules).toContain(group === 'franchise' ? 'Always ditahan' : 'Always belum_ada');
 
     const res = await get(aiToken('SUPER_ADMIN'), group, ids[0]).expect(200);
