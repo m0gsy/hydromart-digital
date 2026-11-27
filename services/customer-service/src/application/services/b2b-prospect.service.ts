@@ -420,8 +420,14 @@ export class B2bProspectService {
 
   private async resolveAccount(row: ProspectRecord, customerId?: string): Promise<string> {
     if (customerId) {
-      if (!(await this.identity.getAccountOwners([customerId])).has(customerId)) {
-        throw new ProspectInvalidError('Akun pelanggan tidak ditemukan');
+      const account = (await this.identity.getAccountOwners([customerId])).get(customerId);
+      if (!account) throw new ProspectInvalidError('Akun pelanggan tidak ditemukan');
+      // A mobile prospect may only be linked to the account holding that same number. Fail closed: an
+      // upstream answer with no phone cannot prove the match, so it is refused. A landline or empty
+      // prospect phone could never belong to a customer account: existence is all that is checked.
+      const own = row.phoneE164 ? normalizeIdPhone(row.phoneE164) : null;
+      if (own?.mobile && normalizeIdPhone(account.phone)?.e164 !== own.e164) {
+        throw new ProspectInvalidError('Nomor HP akun pelanggan tidak sama dengan nomor prospek');
       }
       return customerId;
     }

@@ -185,6 +185,35 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
       expect(repo.rows.get(p.id)!.status).toBe('VISITED');
     });
 
+    describe('a named account must hold the prospect mobile number', () => {
+      const account = (phone: string | null) => identity.getAccountOwners.mockResolvedValue(new Map([['cust-1', { fullName: 'A', phone }]]));
+
+      it('links when the numbers match after normalising (08.. vs +628..)', async () => {
+        const p = seed({ status: 'VISITED', assignedToId: 'sales-1', phoneE164: '+6281200000001' });
+        account('081200000001');
+        expect((await svc().convert(sales, p.id, 'cust-1')).customerId).toBe('cust-1');
+      });
+
+      it('422 on a different number, and nothing is converted', async () => {
+        const p = seed({ status: 'VISITED', assignedToId: 'sales-1', phoneE164: '+6281200000001' });
+        account('+6281299999999');
+        await expect(svc().convert(sales, p.id, 'cust-1')).rejects.toThrow(ProspectInvalidError);
+        expect(repo.rows.get(p.id)!.status).toBe('VISITED');
+      });
+
+      it('422 when auth answers the account without a phone: a match cannot be proven (fail closed)', async () => {
+        const p = seed({ status: 'VISITED', assignedToId: 'sales-1', phoneE164: '+6281200000001' });
+        account(null);
+        await expect(svc().convert(sales, p.id, 'cust-1')).rejects.toThrow(ProspectInvalidError);
+      });
+
+      it('a landline prospect keeps the existence check only', async () => {
+        const p = seed({ status: 'VISITED', assignedToId: 'sales-1', phoneE164: '+62215550123' });
+        account('+6281299999999');
+        expect((await svc().convert(sales, p.id, 'cust-1')).customerId).toBe('cust-1');
+      });
+    });
+
     it('uses the account behind the mobile number when there is one', async () => {
       const p = seed({ status: 'VISITED', assignedToId: 'sales-1', phoneE164: '+6281200000001' });
       identity.customerIdByPhone.mockResolvedValue('cust-by-phone');
