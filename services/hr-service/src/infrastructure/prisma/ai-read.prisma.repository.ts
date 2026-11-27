@@ -11,6 +11,7 @@ import {
   PayrollGateRow,
   MAX_AI_READ_GROUPS,
   PayrollDepotRow,
+  TurnoverDepotRow,
 } from '../../application/ports/ai-read.repository';
 import { HrConfigService } from '../../config/hr-config.service';
 import { DAILY_GALLON_BONUS_LABEL } from '../../domain/daily-sales-bonus';
@@ -316,5 +317,33 @@ export class AiReadPrismaRepository implements AiReadRepository {
       people: cells.get(depotId)!.owing.size,
       remainingIdr: cells.get(depotId)!.remaining,
     }));
+  }
+
+  async turnover(depotIds: readonly string[], month: string): Promise<TurnoverDepotRow[]> {
+    const ids = [...depotIds];
+    const [y, m] = month.split('-').map(Number);
+    const first = new Date(Date.UTC(y, m - 1, 1));
+    const last = new Date(Date.UTC(y, m, 0));
+    // Anyone who could be in the month's numbers: joined by its last day, and not gone before its first day.
+    const rows = await this.prisma.employee.findMany({
+      where: {
+        joinDate: { lte: last },
+        OR: [{ exitDate: { gte: first } }, { exitDate: null, status: 'ACTIVE' }],
+        AND: [{ OR: [{ homeDepotId: { in: ids } }, { homeDepotId: null, depotId: { in: ids } }] }],
+      },
+      select: { depotId: true, homeDepotId: true, joinDate: true, exitDate: true },
+      orderBy: { id: 'asc' },
+      take: MAX_AI_READ_GROUPS + 1,
+    });
+    if (rows.length > MAX_AI_READ_GROUPS) throw new UnprocessableEntityException(TOO_MANY);
+    const cells = new Map<string, TurnoverDepotRow>(ids.map((d) => [d, { depotId: d, exits: 0, startHeadcount: 0, endHeadcount: 0 }]));
+    for (const r of rows) {
+      const cell = cells.get((r.homeDepotId ?? r.depotId) as string);
+      if (!cell) continue;
+      if (r.exitDate && r.exitDate <= last) cell.exits += 1;
+      if (r.joinDate < first) cell.startHeadcount += 1;
+      if (!r.exitDate || r.exitDate > last) cell.endHeadcount += 1;
+    }
+    return ids.map((d) => cells.get(d)!);
   }
 }
