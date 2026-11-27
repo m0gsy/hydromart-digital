@@ -153,6 +153,7 @@ describe('POST notifications/external/quality-hold (HD-14)', () => {
   it('tells the depot management and Marketing, records the call first, and files nothing twice on a retry', async () => {
     depots.known.set(DEPOT, 'Cikini');
     depots.held.add(DEPOT);
+    depots.since.set(DEPOT, AT);
     const res = await post(scoped()).expect(200);
     await settle();
     expect(res.body).toEqual({ notified: 4 });

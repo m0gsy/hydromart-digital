@@ -22,10 +22,10 @@ export class HeldDepotsHttpAdapter implements HeldDepotsPort {
     return held;
   }
 
-  async depotsById(): Promise<ReadonlyMap<string, { name: string; held: boolean }>> {
+  async depotsById(): Promise<ReadonlyMap<string, { name: string; held: boolean; since: string | null }>> {
     const base = this.config.depotServiceUrl;
     if (!base) throw new Error('depot-service URL missing');
-    const depots = new Map<string, { name: string; held: boolean }>();
+    const depots = new Map<string, { name: string; held: boolean; since: string | null }>();
     for (let page = 1; page <= HeldDepotsHttpAdapter.MAX_PAGES; page += 1) {
       const res = await fetch(`${base}/api/v1/depots?limit=${HeldDepotsHttpAdapter.PAGE_LIMIT}&page=${page}`, {
         headers: { accept: 'application/json' },
@@ -34,9 +34,11 @@ export class HeldDepotsHttpAdapter implements HeldDepotsPort {
       if (!res.ok) throw new Error(`depot-service responded ${res.status}`);
       const body = (await res.json()) as { items?: unknown; totalPages?: unknown };
       if (!Array.isArray(body.items)) throw new Error('depot-service answered something malformed');
-      for (const d of body.items as Array<{ id?: unknown; name?: unknown; qualityHold?: { active?: unknown } | null }>) {
+      for (const d of body.items as Array<{ id?: unknown; name?: unknown; qualityHold?: { active?: unknown; since?: unknown } | null }>) {
         if (typeof d.id !== 'string') throw new Error('depot-service answered something malformed');
-        depots.set(d.id, { name: typeof d.name === 'string' ? d.name : '', held: d.qualityHold?.active === true });
+        depots.set(d.id, { name: typeof d.name === 'string' ? d.name : '', held: d.qualityHold?.active === true,
+          since: typeof d.qualityHold?.since === 'string' ? d.qualityHold.since : null,
+        });
       }
       if (typeof body.totalPages !== 'number' || page >= body.totalPages) break;
     }

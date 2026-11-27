@@ -155,10 +155,10 @@ describe('HeldDepotsHttpAdapter', () => {
   });
 
   it('maps every depot by id with its name and hold, for the quality hold notice', async () => {
-    reply({ items: [{ id: 'a', name: 'Cikini', qualityHold: { active: true } }, { id: 'b' }] });
+    reply({ items: [{ id: 'a', name: 'Cikini', qualityHold: { active: true, since: '2026-11-27T03:15:00.000Z' } }, { id: 'b' }] });
     expect([...(await adapter('http://d').depotsById())]).toEqual([
-      ['a', { name: 'Cikini', held: true }],
-      ['b', { name: '', held: false }],
+      ['a', { name: 'Cikini', held: true, since: '2026-11-27T03:15:00.000Z' }],
+      ['b', { name: '', held: false, since: null }],
     ]);
   });
 

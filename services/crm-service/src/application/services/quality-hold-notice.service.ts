@@ -1,6 +1,6 @@
-import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 
-import { QUALITY_HOLD_MARKETING_ROLE, QualityHoldStatus, qualityHoldText } from '../../domain/quality-hold-notice';
+import { ENDED_MAX_AGE_MS, ENDED_MAX_FUTURE_MS, QUALITY_HOLD_MARKETING_ROLE, QualityHoldStatus, qualityHoldText } from '../../domain/quality-hold-notice';
 import { NotificationEvent } from '../../domain/notification-event';
 import { ApproverDirectoryPort } from '../ports/approver-directory.port';
 import { HeldDepotsPort } from '../ports/held-depots.port';
@@ -38,13 +38,28 @@ export class QualityHoldNoticeService {
       throw new ServiceUnavailableException(`The ${what} could not be read; retry`);
     };
     const depot = (await this.depots.depotsById().catch(unreadable('depot directory'))).get(depotId);
-    if (!depot || depot.held !== (status === 'ACTIVE')) return { notified: 0, stale: true };
+    if (!depot) {
+      this.logger.warn(`quality hold notice: depot ${depotId} not in the directory; answered stale`);
+      return { notified: 0, stale: true };
+    }
+    if (depot.held !== (status === 'ACTIVE')) return { notified: 0, stale: true };
+    // changedAt is the caller's word. ACTIVE: the hold's own start, from the directory, is the time shown
+    // and keyed (a replay cannot notify twice). ENDED: no end stamp exists, so the body's time is bounded.
+    let at = changedAt;
+    if (status === 'ACTIVE') {
+      at = depot.since ?? changedAt;
+    } else {
+      const age = Date.now() - new Date(changedAt).getTime();
+      if (age < -ENDED_MAX_FUTURE_MS || age > ENDED_MAX_AGE_MS) {
+        throw new BadRequestException('changedAt of an ENDED event must be within the last 24 hours');
+      }
+    }
 
     const [staff, marketing] = await Promise.all([
       this.audience.everyone(depotId),
       this.marketing(),
     ]).catch(unreadable('recipients'));
-    const text = qualityHoldText(status, depot.name, new Date(changedAt));
+    const text = qualityHoldText(status, depot.name, new Date(at));
     let notified = 0;
     let failed = 0;
     for (const id of new Set([...staff, ...marketing])) {
@@ -56,7 +71,7 @@ export class QualityHoldNoticeService {
           { text, depotId },
           id,
           null,
-          `quality-hold:${depotId}:${status}:${changedAt}:${id}`,
+          `quality-hold:${depotId}:${status}:${at}:${id}`,
         );
         if (created) notified += 1;
       } catch (e) {
