@@ -105,7 +105,8 @@ export interface EmploymentHistory {
 export interface Attendance {
   id: string;
   employeeId: string;
-  depotId: string;
+  /** Copied from the employee at the punch. Null for staff above any single depot (SPV and up). */
+  depotId: string | null;
   workDate: string;
   checkInAt: string | null;
   checkOutAt: string | null;
