@@ -17,7 +17,7 @@
 # never pinned here first). Staging has no backup: its data is made up and `staging-reset` (the
 # Deploy workflow's mode) starts it again from nothing.
 #
-# Pinned now: hydromart-ai 667cebd (AI-26 the weekly Sales report for the calon mitra CRM, #21; AI-29/AI-31 the agent team: registry, caps, switches, the Keuangan agent, #22); before it, 951fe29 (AI-13, the calon mitra CRM: #18 schema, legal-entity row security, screens, editable lead score; #20 draft depot at hydromart, the depot.onboarded handler and the import of old /waralaba applications); before it, d5b791f (the league ranks a depot with a monthly target on its pace against it, #17; on 8fbe25c: n8n: customer reminders 17.00, 10.00 and every 10 minutes, the 07.30 maintenance sweep, record-only readers for order and stock events; on bd6de7e's read screens), ahead of production (CI run 45846506199).
+# Pinned now: hydromart-ai a5ba94f (AI-12a the depot quality-hold state, the hold notice and the daily permit and lab-test reminder, #23); before it, 667cebd (AI-26 the weekly Sales report for the calon mitra CRM, #21; AI-29/AI-31 the agent team: registry, caps, switches, the Keuangan agent, #22); before it, 951fe29 (AI-13, the calon mitra CRM: #18 schema, legal-entity row security, screens, editable lead score; #20 draft depot at hydromart, the depot.onboarded handler and the import of old /waralaba applications); before it, d5b791f (the league ranks a depot with a monthly target on its pace against it, #17; on 8fbe25c: n8n: customer reminders 17.00, 10.00 and every 10 minutes, the 07.30 maintenance sweep, record-only readers for order and stock events; on bd6de7e's read screens), ahead of production (CI run 45846506199).
 #
 # Isolation, held by scripts/check-aiweb-staging-compose.mjs in CI and proved on the box after every
 # deploy by the probe in scripts/aiweb-staging-deploy.sh:
@@ -70,7 +70,7 @@ services:
 
   # One shot, before every app start: `prisma migrate deploy` as ai_owner.
   migrate:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:4be48850b6a21786b3e7071b5c6f6f22025e459ac88073b1dad34838a6079ad0
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:c6d6c02297451e531854d4ef8db39f1b718d28ea04691b0a9d62e7747ace5619
     profiles: ["migrate"]
     logging: *logging
     mem_limit: 384m
@@ -87,7 +87,7 @@ services:
   # The service is not called `aiweb`: Caddy reaches it by this name over `edge-staging`. Its
   # alias `aiweb` exists on `private` only, where n8n's workflows and the mock name it.
   staging-aiweb:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:ee7f93850a75dde2e48c824c52558f208a47be4e51d6e507e19265836b894b0a
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:4bdf058ea3f107ed494f2a05d036af2f8980aabdf84fd13d6034c7e8a03e0329
     restart: unless-stopped
     logging: *logging
     mem_limit: 384m
@@ -124,7 +124,7 @@ services:
   # The fake hydromart (infra/aiweb-staging/mock/server.mjs), on the app image: node is there and
   # nothing else is needed. The file is mounted read-only from this checkout.
   hydromart-mock:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:ee7f93850a75dde2e48c824c52558f208a47be4e51d6e507e19265836b894b0a
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:4bdf058ea3f107ed494f2a05d036af2f8980aabdf84fd13d6034c7e8a03e0329
     restart: unless-stopped
     logging: *logging
     mem_limit: 64m
@@ -158,7 +158,7 @@ services:
   # n8n-rewrite.mjs (below) points the copy staging imports at the mock, and the image's
   # N8N_SSRF_ALLOWED_HOSTNAMES is widened by exactly the mock's name.
   n8n:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:aabae07f802c56f49dcb1057ca68dbab6cb8d3746184a22eec2d711e2b64d4b5
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:74d317eb14f82fc0eda70459b1f01a1b072fc39149481bac9fc6a64c0bd047fa
     restart: unless-stopped
     logging: *logging
     mem_limit: 700m
@@ -199,7 +199,7 @@ services:
   # One shot, in every deploy while n8n is stopped: n8n-rewrite.mjs makes the copy of the image's
   # n8n/ with hydromart's address replaced by the mock's, then setup.mjs imports THAT.
   n8n-setup:
-    image: ghcr.io/m0gsy/hydromart-ai@sha256:aabae07f802c56f49dcb1057ca68dbab6cb8d3746184a22eec2d711e2b64d4b5
+    image: ghcr.io/m0gsy/hydromart-ai@sha256:74d317eb14f82fc0eda70459b1f01a1b072fc39149481bac9fc6a64c0bd047fa
     profiles: ["n8n-setup"]
     logging: *logging
     mem_limit: 700m
