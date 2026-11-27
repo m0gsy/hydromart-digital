@@ -7,7 +7,10 @@
 #   GET https://nos.jkt-1.neo.id/hydromart-products?list-type=2 -> 200   every avatar
 #   GET https://nos.jkt-1.neo.id/hydromart-facer?list-type=2    -> 403   correct
 #
-# Serving an object to whoever holds its URL is the intent. Handing a stranger the INDEX of
+# hydromart-pod is now PRIVATE (27 Nov 2026): every reader uses presigned links, so this run
+# DELETES its public-read policy and proves an anonymous GET is refused. products stays public-read.
+#
+# Serving an object to whoever holds its URL is the intent (products). Handing a stranger the INDEX of
 # every proof-of-delivery photo is not — with the list, the URLs stop being secrets. The same
 # run also brings each bucket's lifecycle up to date (evidence expiry + NoncurrentVersionExpiration
 # — see verify-object-storage.mjs), which is why this is worth re-running whenever the rules change,
@@ -109,7 +112,11 @@ for bucket in $BUCKETS; do
   # Each bucket runs as its OWN process. A loop that ran them in one `&&` chain would stop
   # at the first failure and leave the rest unexamined, which is how a second open bucket
   # hides behind the first one.
-  if STORAGE_S3_ENDPOINT="$endpoint" \
+  # hydromart-pod is PRIVATE (presigned links only): policy deleted, anonymous GET must be 401/403.
+  private=""
+  [ "$bucket" = "hydromart-pod" ] && private=1
+  if STORAGE_PRIVATE="$private" \
+     STORAGE_S3_ENDPOINT="$endpoint" \
      STORAGE_S3_REGION="$region" \
      STORAGE_S3_ACCESS_KEY_ID="$key" \
      STORAGE_S3_SECRET_ACCESS_KEY="$secret" \

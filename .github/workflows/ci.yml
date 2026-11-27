@@ -734,6 +734,11 @@ jobs:
       - name: Storage policy resolves each bucket's OWN service credentials
         run: bash scripts/storage-policy.test.sh
 
+      # verify-object-storage against a fake S3: hydromart-pod private (policy deleted, anonymous GET
+      # must be 401/403), products public-read unchanged, the pod bucket refused in public mode.
+      - name: Object storage verifier proves private vs public buckets
+        run: node scripts/verify-object-storage.test.mjs
+
       # The alarms that live on the box cannot report the box being gone. The external probe
       # and the watchdog's running-but-unhealthy report are exercised against stand-ins for
       # curl and docker compose, so their red paths are proven here rather than at 02:00.

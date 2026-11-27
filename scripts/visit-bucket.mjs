@@ -31,7 +31,7 @@ const accessKeyId = env(`${prefix}_STORAGE_S3_ACCESS_KEY_ID`);
 const secretAccessKey = env(`${prefix}_STORAGE_S3_SECRET_ACCESS_KEY`);
 
 // Before any S3 call: this script clears policies and sets ACLs, so pointed at a live bucket it would
-// strip hydromart-pod's deliberate public-read policy (PoD links) or touch the face bucket. The names
+// touch hydromart-pod (private, presigned links) or the face bucket. The names
 // other services use (from the .env, plus the known ones) are refused outright.
 const taken = new Set(['hydromart-pod', 'hydromart-products', 'hydromart-facer', 'hydromart-avatars']);
 for (const [k, v] of Object.entries(process.env)) {

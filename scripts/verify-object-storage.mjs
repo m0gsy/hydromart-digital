@@ -18,6 +18,11 @@
 // probe file, GETs the returned public URL and checks the bytes round-trip, and finally
 // PROVES that an anonymous client cannot LIST the bucket. Exit 0 = storage is ready.
 //
+// STORAGE_PRIVATE=1 is the mode for a bucket that must NOT serve anonymous reads (PRIVATE_BUCKETS
+// below: hydromart-pod, read through presigned links since 27 Nov 2026). It deletes the bucket
+// policy instead of setting one, reads the probe back with credentials, and PROVES an anonymous GET
+// of it answers 401/403. Public mode on a PRIVATE_BUCKETS name is refused.
+//
 // Why the ACL and the listing proof: measured 2026-08-17 against production, unauthenticated,
 //
 //   GET https://nos.jkt-1.neo.id/hydromart-pod?list-type=2      -> 200   (every PoD photo)
@@ -35,6 +40,8 @@ import {
   PutObjectCommand,
   PutBucketAclCommand,
   PutBucketPolicyCommand,
+  DeleteBucketPolicyCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3';
 
 import { EVIDENCE_PREFIXES, applyRules, evidenceRules } from './lib/s3-lifecycle.mjs';
@@ -72,6 +79,16 @@ if (/face/i.test(bucket)) {
   process.exit(1);
 }
 
+// Buckets that are never anonymously readable: only the private mode may run on them.
+const PRIVATE_BUCKETS = ['hydromart-pod', 'hydromart-visits'];
+const privateMode = process.env.STORAGE_PRIVATE === '1';
+if (!privateMode && PRIVATE_BUCKETS.includes(bucket)) {
+  console.error(
+    `refusing: bucket "${bucket}" is private (presigned links only); run with STORAGE_PRIVATE=1, never public-read.`,
+  );
+  process.exit(1);
+}
+
 const publicReadPolicy = {
   Version: '2012-10-17',
   Statement: [
@@ -85,16 +102,31 @@ const publicReadPolicy = {
 };
 
 async function main() {
-  // 1) Make the bucket serve objects publicly (R2: skip — set public via dashboard).
-  try {
-    await client.send(
-      new PutBucketPolicyCommand({ Bucket: bucket, Policy: JSON.stringify(publicReadPolicy) }),
-    );
-    console.log('✓ public-read bucket policy set');
-  } catch (e) {
-    console.warn(
-      `! could not set bucket policy (${e.name}); set public access in the console instead`,
-    );
+  if (privateMode) {
+    // 1) No bucket policy at all. "No policy" is already the goal, so a bucket that never had one
+    // (NoSuchBucketPolicy / 404) is success; the anonymous GET proof below decides the rest.
+    try {
+      await client.send(new DeleteBucketPolicyCommand({ Bucket: bucket }));
+      console.log('✓ bucket policy deleted (private bucket: no anonymous grant)');
+    } catch (e) {
+      if (e.name === 'NoSuchBucketPolicy' || e.$metadata?.httpStatusCode === 404) {
+        console.log('✓ bucket has no policy');
+      } else {
+        console.warn(`! could not delete bucket policy (${e.name}); the anonymous GET proof decides`);
+      }
+    }
+  } else {
+    // 1) Make the bucket serve objects publicly (R2: skip — set public via dashboard).
+    try {
+      await client.send(
+        new PutBucketPolicyCommand({ Bucket: bucket, Policy: JSON.stringify(publicReadPolicy) }),
+      );
+      console.log('✓ public-read bucket policy set');
+    } catch (e) {
+      console.warn(
+        `! could not set bucket policy (${e.name}); set public access in the console instead`,
+      );
+    }
   }
 
   // 1b) …and take the LISTING back. The policy above grants `s3:GetObject` only; a bucket
@@ -102,7 +134,11 @@ async function main() {
   // is what makes the whole index anonymously readable.
   try {
     await client.send(new PutBucketAclCommand({ Bucket: bucket, ACL: 'private' }));
-    console.log('✓ bucket ACL forced to private (objects stay readable via the policy)');
+    console.log(
+      privateMode
+        ? '✓ bucket ACL forced to private'
+        : '✓ bucket ACL forced to private (objects stay readable via the policy)',
+    );
   } catch (e) {
     console.warn(`! could not set bucket ACL (${e.name}); set it to private in the console`);
   }
@@ -142,8 +178,29 @@ async function main() {
   );
   console.log(`✓ PutObject ${bucket}/${key}`);
 
-  // 3) Fetch it through the public URL exactly as clients will.
   const url = `${publicBase}/${key}`;
+  if (privateMode) {
+    // 3) Private: the credentials read it back, and a stranger is refused. Only 401/403 prove
+    // "private": 404, a 5xx or a network error prove nothing, so they fail as "not proven".
+    const back = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    if (!Buffer.from(await back.Body.transformToByteArray()).equals(body)) {
+      console.error(`✗ credentialed GET ${bucket}/${key} -> bytes differ`);
+      process.exit(1);
+    }
+    console.log(`✓ credentialed GET ${bucket}/${key} -> bytes match`);
+    const anon = await fetch(url);
+    await anon.arrayBuffer();
+    if (anon.status === 200) {
+      console.error(`✗ anonymous GET ${url} -> 200 — the bucket is still publicly readable.`);
+      process.exit(1);
+    }
+    if (anon.status !== 401 && anon.status !== 403) {
+      console.error(`✗ anonymous GET ${url} -> ${anon.status}: private NOT proven (expected 401/403).`);
+      process.exit(1);
+    }
+    console.log(`✓ anonymous GET ${url} -> ${anon.status}, objects need a signed link`);
+  } else {
+  // 3) Fetch it through the public URL exactly as clients will.
   const res = await fetch(url);
   const got = Buffer.from(await res.arrayBuffer());
   if (res.status !== 200) {
@@ -157,6 +214,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`✓ public GET ${url} -> 200, bytes match`);
+  }
   /*
    * 4) The half that "public bucket" quietly costs you: anyone holding an object's URL may
    *    read THAT OBJECT — nobody may read the INDEX. Proved, not assumed, and exactly as a

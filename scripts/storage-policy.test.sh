@@ -47,7 +47,7 @@ EOF
 mkdir -p "$tmp/bin"
 cat > "$tmp/bin/node" <<'EOF'
 #!/usr/bin/env bash
-echo "stub verify for ${STORAGE_S3_BUCKET} at ${STORAGE_S3_ENDPOINT} (key=${STORAGE_S3_ACCESS_KEY_ID})"
+echo "stub verify for ${STORAGE_S3_BUCKET} at ${STORAGE_S3_ENDPOINT} (key=${STORAGE_S3_ACCESS_KEY_ID}) private=${STORAGE_PRIVATE:-}"
 [ "${STORAGE_S3_BUCKET}" = "hydromart-pod" ] && exit 1
 exit 0
 EOF
@@ -72,6 +72,10 @@ echo "$out" | grep -q "stub verify for hydromart-products"; check "kept going pa
 echo "$out" | grep -q "stub verify for hydromart-facer"; check "reached the last bucket too" "$?"
 echo "$out" | grep -q "hydromart-pod STILL OPEN"; check "named the bucket that failed" "$?"
 [ "$status" -ne 0 ]; check "exited non-zero so a job cannot go green over it" "$?"
+
+# hydromart-pod runs in private mode; the public-read buckets do not.
+echo "$out" | grep -q "hydromart-pod at .* private=1"; check "the pod bucket runs in private mode" "$?"
+echo "$out" | grep -q "hydromart-products at .* private=$"; check "the products bucket stays public-read" "$?"
 
 # Each bucket gets ITS OWN service's credentials, not one shared key that never existed.
 echo "$out" | grep -q "hydromart-pod at https://storage.invalid (key=test)"
