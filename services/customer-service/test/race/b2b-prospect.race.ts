@@ -33,6 +33,8 @@ describeRace('B2B prospect writes on real Postgres', () => {
   beforeEach(async () => {
     await prisma.b2bProspect.deleteMany();
     await prisma.b2bDoNotContact.deleteMany();
+    // The import batches too: the dataset-row race above commits 5 files of its own.
+    await prisma.b2bImportBatch.deleteMany();
   });
 
   const field = (over: Partial<IntakeRow> = {}) => ({ name: 'Kos Melati', category: 'kos', lat: -6.5, lng: 6, phone: '0812-0000-0001', ...over });
