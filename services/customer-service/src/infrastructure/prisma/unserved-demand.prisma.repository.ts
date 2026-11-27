@@ -4,6 +4,7 @@ import {
   UnservedDemandRepository,
   UnservedDemandRow,
   UnservedMarker,
+  UnservedSummary,
 } from '../../application/ports/unserved-demand.repository';
 import { PrismaService } from './prisma.service';
 
@@ -13,9 +14,38 @@ class StaleMarker extends Error {}
 export class UnservedDemandPrismaRepository implements UnservedDemandRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  async summarize(monthKey: string): Promise<UnservedSummary> {
+    const where = { monthKey };
+    const [kec, kel, grid, bands] = await Promise.all([
+      this.prisma.unservedDemand.groupBy({ by: ['kecamatanCode'], where, _count: { _all: true }, orderBy: { kecamatanCode: 'asc' } }),
+      this.prisma.unservedDemand.groupBy({ by: ['kecamatanCode', 'kelurahanCode'], where, _count: { _all: true }, orderBy: [{ kecamatanCode: 'asc' }, { kelurahanCode: 'asc' }] }),
+      this.prisma.unservedDemand.groupBy({ by: ['gridCell'], where, _count: { _all: true }, orderBy: { gridCell: 'asc' } }),
+      this.prisma.unservedDemand.groupBy({ by: ['distanceBand'], where, _count: { _all: true }, orderBy: { distanceBand: 'asc' } }),
+    ]);
+    return {
+      kecamatan: kec.map((r) => ({ code: r.kecamatanCode, count: r._count._all })),
+      kelurahan: kel.map((r) => ({ code: r.kelurahanCode, kecamatan: r.kecamatanCode, count: r._count._all })),
+      grid: grid.map((r) => ({ cell: r.gridCell, count: r._count._all })),
+      bands: bands.map((r) => ({ band: r.distanceBand, count: r._count._all })),
+    };
+  }
+
   async record(row: UnservedDemandRow, marker: UnservedMarker): Promise<boolean> {
     try {
       await this.prisma.$transaction(async (tx) => {
+        // Two parallel saves of one customer must not both see "nobody counted yet": serialise them.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`unserved:${marker.customerId}`}, 0))`;
+        // One row is one PERSON per kecamatan per month: when another address of this customer is already
+        // counted this month in the same kecamatan, this one adds nobody.
+        const sameKecamatan = await tx.address.count({
+          where: {
+            customerId: marker.customerId,
+            id: { not: marker.addressId },
+            unservedMonth: row.monthKey,
+            kecamatanCode: row.kecamatanCode,
+          },
+        });
+        if (sameKecamatan > 0) throw new StaleMarker();
         await tx.unservedDemand.create({ data: row });
         const { count } = await tx.address.updateMany({
           where: {

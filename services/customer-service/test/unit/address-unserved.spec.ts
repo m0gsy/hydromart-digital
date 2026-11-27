@@ -38,7 +38,7 @@ describe('AddressService unserved demand (HD-20b)', () => {
       return true;
     });
     listActive = jest.fn().mockResolvedValue(depots);
-    return new AddressService(repo, buildTestConfig(), lookup, { record }, { listActive } as never);
+    return new AddressService(repo, buildTestConfig(), lookup, { record } as never, { listActive } as never);
   };
 
   it('records one anonymous row for a pin no depot serves, and remembers the month on the address', async () => {

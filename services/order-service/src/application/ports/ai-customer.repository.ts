@@ -58,7 +58,25 @@ export interface RefillSplitStats {
   notAsked: number;
 }
 
+/**
+ * HD-20c: one distinct customer's counted orders at one distinct pin (lat and lng null = no pin). `k` is a
+ * small number WITHIN one answer, never an id: the same customer has the same k on every entry.
+ */
+export interface AreaPoint {
+  k: number;
+  lat: number | null;
+  lng: number | null;
+  orders: number;
+  galon: number;
+}
+
+export interface AreaPoints {
+  points: AreaPoint[];
+}
+
 export interface AiCustomerRepository {
+  /** HD-20c: at most `limit` pins; null when there are more (the caller refuses, never cuts). */
+  areaPoints(spans: readonly AiSpan[], limit: number): Promise<AreaPoints | null>;
   customerWindow(spans: readonly AiSpan[], periodFrom: Date): Promise<CustomerWindowStats>;
   customerCohorts(spans: readonly AiSpan[], timeZone: string): Promise<CohortCell[]>;
   ratingStats(spans: readonly AiSpan[]): Promise<RatingStats>;

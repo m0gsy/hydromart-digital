@@ -3,6 +3,7 @@ import { Inject, Injectable, UnprocessableEntityException } from '@nestjs/common
 import {
   AiCustomerRepository,
   AiSpan,
+  AreaPoints,
   CohortCell,
   CustomerSegmentStats,
   CustomerWindowStats,
@@ -15,6 +16,8 @@ import { ORDER_TOKENS } from '../tokens';
 
 /** Most depots one AI read may ask about; past it is 422, never a silent cut. */
 export const MAX_AI_DEPOTS = 100;
+/** HD-20c: most distinct (customer, pin) rows one areas read may carry; past it is 422. */
+export const MAX_AREA_POINTS = 50_000;
 
 /**
  * HD-6 H3: customer, rating and gallon facts for the AI read API, over the spans the caller may
@@ -47,6 +50,13 @@ export class AiCustomerMetricsService {
   customers(spans: readonly AiSpan[], periodFrom: Date): Promise<CustomerWindowStats> {
     this.check(spans);
     return this.repo.customerWindow(spans, periodFrom);
+  }
+
+  async areaPoints(spans: readonly AiSpan[]): Promise<AreaPoints> {
+    this.check(spans);
+    const found = await this.repo.areaPoints(spans, MAX_AREA_POINTS);
+    if (!found) throw new UnprocessableEntityException(`Lebih dari ${MAX_AREA_POINTS} titik pesanan; persempit cakupan.`);
+    return found;
   }
 
   cohorts(spans: readonly AiSpan[]): Promise<CohortCell[]> {

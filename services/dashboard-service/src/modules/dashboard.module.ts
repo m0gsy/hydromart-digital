@@ -33,6 +33,9 @@ import { FranchiseMetricsService } from '../application/ai-read/franchise-metric
 import { HrMetricsService } from '../application/ai-read/hr-metrics';
 import { AiOrgSourcesHttpAdapter } from '../infrastructure/http/ai-org-sources.http.adapter';
 import { AiReadCustomerController } from './ai-read-customer.controller';
+import { AiReadAreaController } from './ai-read-area.controller';
+import { AreaMetricsService } from '../application/ai-read/area-metrics';
+import { AiAreaSourcesHttpAdapter } from '../infrastructure/http/ai-area-sources.http.adapter';
 import { CumulativeScopeService } from '../application/ai-read/cumulative-scope.service';
 import { CustomerMetricsService } from '../application/ai-read/customer-metrics';
 import { DeliveryMetricsService } from '../application/ai-read/delivery-metrics';
@@ -59,6 +62,8 @@ const providers: Provider[] = [
   FranchiseMetricsService,
   HrMetricsService,
   { provide: DASHBOARD_TOKENS.AiCustomerSources, useClass: AiCustomerSourcesHttpAdapter },
+  { provide: DASHBOARD_TOKENS.AiAreaSources, useClass: AiAreaSourcesHttpAdapter },
+  AreaMetricsService,
   CumulativeScopeService,
   CustomerMetricsService,
   DeliveryMetricsService,
@@ -88,6 +93,7 @@ const providers: Provider[] = [
     AiReadController,
     AiReadStockController,
     AiReadCustomerController,
+    AiReadAreaController,
     PendingApprovalsInternalController,
   ],
   providers,

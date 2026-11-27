@@ -95,10 +95,20 @@ describe('UnservedDemandPrismaRepository', () => {
   it('writes the row and the conditional marker in one transaction', async () => {
     const create = jest.fn().mockResolvedValue({});
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
-    const prisma = { unservedDemand: { create }, address: { updateMany } };
+    const count = jest.fn().mockResolvedValue(0);
+    const order: string[] = [];
+    const $executeRaw = jest.fn(async () => void order.push('lock'));
+    count.mockImplementation(async () => (order.push('count'), 0));
+    const prisma = { $executeRaw, unservedDemand: { create }, address: { updateMany, count } };
     const $transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
     const repo = new UnservedDemandPrismaRepository({ $transaction } as never);
     await expect(repo.record(row, marker)).resolves.toBe(true);
+    // the per-customer advisory lock comes before the count, so two parallel saves cannot both see 0
+    expect(order).toEqual(['lock', 'count']);
+    expect(String(($executeRaw.mock.calls[0] as unknown[][])[0].join(''))).toContain('pg_advisory_xact_lock');
+    expect(count).toHaveBeenCalledWith({
+      where: { customerId: 'c1', id: { not: 'a1' }, unservedMonth: '2026-11', kecamatanCode: row.kecamatanCode },
+    });
     expect(create).toHaveBeenCalledWith({ data: row });
     expect(updateMany).toHaveBeenCalledWith({
       where: {
@@ -115,12 +125,23 @@ describe('UnservedDemandPrismaRepository', () => {
 
   it('records nothing (the transaction throws, so the row rolls back) when the marker matches no row', async () => {
     const prisma = {
+      $executeRaw: jest.fn(),
       unservedDemand: { create: jest.fn() },
-      address: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      address: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), count: jest.fn().mockResolvedValue(0) },
     };
     const $transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
     const repo = new UnservedDemandPrismaRepository({ $transaction } as never);
     await expect(repo.record(row, marker)).resolves.toBe(false);
+  });
+
+  it('records nothing when another address of the same customer is already counted this month in the same kecamatan', async () => {
+    const create = jest.fn();
+    const updateMany = jest.fn();
+    const prisma = { $executeRaw: jest.fn(), unservedDemand: { create }, address: { updateMany, count: jest.fn().mockResolvedValue(1) } };
+    const $transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
+    await expect(new UnservedDemandPrismaRepository({ $transaction } as never).record(row, marker)).resolves.toBe(false);
+    expect(create).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it('lets any other failure through', async () => {

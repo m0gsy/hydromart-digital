@@ -4,6 +4,7 @@ import { OrderStatus as DbOrderStatus, Prisma } from '../../../prisma/generated/
 import {
   AiCustomerRepository,
   AiSpan,
+  AreaPoints,
   CohortCell,
   CustomerSegmentStats,
   CustomerWindowStats,
@@ -66,6 +67,45 @@ const n = (v: bigint | number | null | undefined): number => (v === null || v ==
 @Injectable()
 export class AiCustomerPrismaRepository implements AiCustomerRepository {
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * HD-20c: the pins of the counted, named orders of the spans (the same COUNTS and NAMED as the customer
+   * metrics), one row per customer per distinct pin rounded to 4 decimals
+   * (an order with no pin, or half a pin, is a row with a null pin, so a customer with and without pins is still one k). The customer id is turned into a small number `k`
+   * here and never leaves; the pin is the order's own delivery snapshot.
+   */
+  async areaPoints(spans: readonly AiSpan[], limit: number): Promise<AreaPoints | null> {
+    const rows = await this.prisma.$queryRaw<
+      { customerId: string; latitude: number | null; longitude: number | null; orders: bigint; galon: bigint }[]
+    >(Prisma.sql`
+      WITH ${spansCte(spans)},
+      win AS (
+        -- 4 decimals is about 11 m: the precise pin never leaves order-service; a half pin is no pin
+        SELECT o."id", o."customerId",
+               CASE WHEN o."latitude" IS NOT NULL AND o."longitude" IS NOT NULL THEN ROUND(o."latitude"::numeric, 4)::float8 END AS "latitude",
+               CASE WHEN o."latitude" IS NOT NULL AND o."longitude" IS NOT NULL THEN ROUND(o."longitude"::numeric, 4)::float8 END AS "longitude"
+        FROM sp JOIN "orders" o ON ${IN_SPAN}
+        WHERE ${COUNTS} AND ${NAMED}
+      ),
+      gal AS (
+        SELECT i."orderId", SUM(i."quantity") AS "q"
+        FROM "order_items" i WHERE i."isGallon" = true AND i."orderId" IN (SELECT "id" FROM win)
+        GROUP BY i."orderId"
+      )
+      SELECT w."customerId" AS "customerId", w."latitude" AS "latitude", w."longitude" AS "longitude",
+             COUNT(*)::bigint AS "orders", COALESCE(SUM(g."q"), 0)::bigint AS "galon"
+      FROM win w LEFT JOIN gal g ON g."orderId" = w."id"
+      GROUP BY w."customerId", w."latitude", w."longitude"
+      LIMIT ${limit + 1}
+    `);
+    if (rows.length > limit) return null;
+    const keys = new Map<string, number>();
+    const points = rows.map((r) => {
+      if (!keys.has(r.customerId)) keys.set(r.customerId, keys.size);
+      return { k: keys.get(r.customerId) as number, lat: r.latitude, lng: r.longitude, orders: n(r.orders), galon: n(r.galon) };
+    });
+    return { points };
+  }
 
   async customerWindow(spans: readonly AiSpan[], periodFrom: Date): Promise<CustomerWindowStats> {
     const [[head], perDepot] = await Promise.all([

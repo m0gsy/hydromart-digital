@@ -15,4 +15,6 @@ export const DASHBOARD_TOKENS = {
   AiOrgSources: Symbol('AiOrgSources'),
   /** HD-6 H3: the customer, delivery and gallon facts the AI read API reads. */
   AiCustomerSources: Symbol('AiCustomerSources'),
+  /** HD-20c: the pins, regions and unserved demand behind the areas read. */
+  AiAreaSources: Symbol('AiAreaSources'),
 } as const;

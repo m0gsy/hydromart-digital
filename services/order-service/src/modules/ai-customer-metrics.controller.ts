@@ -32,6 +32,17 @@ export class AiCustomerMetricsController {
     return this.metrics.customers(toSpans(body.spans), new Date(body.periodFrom));
   }
 
+  @ApiOkResponse({ description: 'points: k (a number within this answer, never an id), lat, lng, orders, galon, one per customer per pin (lat and lng null = no pin). 422 past the cap.' })
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @Post('area-points')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Delivery pins of the counted orders over spans, anonymous (internal service auth)' })
+  areaPoints(@Body() body: AiSpansDto) {
+    return this.metrics.areaPoints(toSpans(body.spans));
+  }
+
   @ApiOkResponse({ description: 'cells: cohort, monthIndex, customers.' })
   @Public()
   @UseGuards(InternalAuthGuard)
