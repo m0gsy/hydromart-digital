@@ -1,4 +1,4 @@
-import { ForbiddenException, Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import { AuthenticatedUser, depotScopeIds, servingDepot } from '@hydromart/platform';
 
@@ -9,6 +9,8 @@ import { CUSTOMER_TOKENS } from '../tokens';
 import { auditProspect } from './b2b-prospect-audit';
 
 const BATCH = 500;
+/** The retention window is 365 days (admin registry); a cutoff newer than this much is never a real run. */
+export const PURGE_MIN_AGE_DAYS = 360;
 
 /**
  * The two housekeeping jobs: the 12-month retention purge (admin-service's nightly sweep) and the
@@ -26,6 +28,10 @@ export class B2bProspectMaintenanceService {
 
   /** Counts only in the log: nothing here names a business. */
   async purge(cutoff: Date): Promise<{ deleted: number; anonymised: number }> {
+    // A bad caller (or a typo in the key holder's script) must never purge live prospects: exactly 360 days is the newest allowed. NaN fails the comparison, so it is refused too.
+    if (!(cutoff.getTime() <= Date.now() - PURGE_MIN_AGE_DAYS * 86_400_000)) {
+      throw new BadRequestException(`cutoff harus paling baru ${PURGE_MIN_AGE_DAYS} hari yang lalu`);
+    }
     const done = await this.repo.purge(cutoff);
     this.logger.log(`B2B prospect retention: ${done.deleted} deleted, ${done.anonymised} anonymised`);
     return done;

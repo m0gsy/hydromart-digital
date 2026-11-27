@@ -1,4 +1,4 @@
-import { ForbiddenException, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import { loadCustomRoles, loadOverrides } from '@hydromart/access';
 import { AuthenticatedUser, Role, haversineMeters } from '@hydromart/platform';
@@ -354,6 +354,20 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
     const maint = () => new B2bProspectMaintenanceService(repo, { listActive: jest.fn() } as never, config());
     const cutoff = new Date('2026-06-01T00:00:00.000Z');
     const at = (iso: string) => new Date(iso);
+    const NOW = new Date('2027-06-02T00:00:00.000Z');
+    beforeEach(() => jest.useFakeTimers({ now: NOW }));
+    afterEach(() => jest.useRealTimers());
+
+    it('refuses a cutoff newer than 360 days ago, accepts one at or past it, refuses a non-date', async () => {
+      const day = 86_400_000;
+      const m = maint();
+      await expect(m.purge(new Date(NOW.getTime() - 359 * day))).rejects.toThrow(BadRequestException);
+      await expect(m.purge(new Date(NOW.getTime() - 359 * day))).rejects.toThrow(/360 hari/);
+      await expect(m.purge(new Date(NOW.getTime() - 360 * day + 1))).rejects.toThrow(BadRequestException);
+      await expect(m.purge(new Date('nope'))).rejects.toThrow(BadRequestException);
+      expect(await m.purge(new Date(NOW.getTime() - 360 * day))).toEqual({ deleted: 0, anonymised: 0 });
+      expect(await m.purge(new Date(NOW.getTime() - 361 * day))).toEqual({ deleted: 0, anonymised: 0 });
+    });
 
     it('deletes an unconverted row idle for longer than the cutoff, keeps one exactly AT it', async () => {
       const old = seed({ lastActivityAt: at('2026-05-31T23:59:59.999Z') });
