@@ -2522,6 +2522,208 @@
           }
         }
       }
+    },
+    "/dashboard/api/v1/ai/read/areas": {
+      "get": {
+        "summary": "Served (A-01) and unserved (A-02) demand per kecamatan, kelurahan or 1 km cell for ONE whole closed month.",
+        "description": "HD-20c, the areas of the metric dictionary. The metric is the `metric` query parameter, the month is `month` (YYYY-MM) and the cell size is `level` (kecamatan by default); the answer is the AnswerEnvelope with value { level, cells, total } (A-02 also bands and bandsTotal).\n\nCells: kecamatan and kelurahan are BPS codes (`id`) with their name (`label`); a grid cell is its id (`<floor(lat/0.009)>:<floor(lng/0.009)>`, about 1 km) with the centre of the cell (`lat`, `lng`). A cell with id null and label \"tidak diketahui\" holds orders with no delivery pin, or a pin outside every mapped kecamatan or kelurahan. No customer id, address or raw coordinate is ever returned.\n\nPeople: A-01 counts customers, A-02 counts addresses (one row per address whose pin lies outside every depot area, at most once per address per month). A cell of 1 or 2 is not given as a number (customers or addresses null, flag \"kurang dari 3\"), the smallest neighbouring cells are held back with it (flag \"ditahan\") until a held cell cannot be pinned down by subtraction, and a total that would still give a held cell away is null. `orders` and `galon` of an A-01 cell are published only for a cell that is not held back. A customer who ordered into two cells counts in both, so cells of A-01 are not additive; `total` counts each customer once.\n\nMonth: only a CLOSED month is answered, and only from the 8th of the next month (8 January for December), so late cancellations settle first; before that the answer is ditahan. Two answers therefore never overlap.\n\nScope: A-01 counts the orders of the depots, and for the days each depot was readable, in the caller's scope (the same rule as the customer metrics); an order counts when it is not BATAL and not VOID and its customer is named. A-02 belongs to no depot, so only a role that reads every depot and every legal entity (and the AI web's machine account) is answered; any other is ditahan.\n\nSources of truth: order-service (pins), customer-service (regions, unserved demand). A source that cannot answer makes the answer belum_ada (never 0).",
+        "security": [
+          {
+            "aiToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "metric",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "A-01",
+                "A-02"
+              ]
+            },
+            "description": "A metric of the areas group. Any other id is 404; leaving it out is 400."
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "example": "2026-11"
+            },
+            "description": "The WIB calendar month, YYYY-MM."
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "kecamatan",
+                "kelurahan",
+                "grid"
+              ],
+              "default": "kecamatan"
+            },
+            "description": "The size of a cell."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The envelope for the metric.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnswerEnvelope"
+                },
+                "example": {
+                  "metricId": "A-01",
+                  "period": {
+                    "unit": "month",
+                    "from": "2026-11-01",
+                    "to": "2026-11-30",
+                    "timeZone": "Asia/Jakarta",
+                    "fromAt": "2026-10-31T17:00:00.000Z",
+                    "toAt": "2026-11-30T17:00:00.000Z"
+                  },
+                  "scope": {
+                    "depotIds": [
+                      "11111111-1111-4111-8111-111111111111"
+                    ],
+                    "legalEntityIds": [
+                      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+                    ]
+                  },
+                  "value": {
+                    "level": "kecamatan",
+                    "cells": [
+                      {
+                        "id": "3173010",
+                        "label": "Contoh Kecamatan",
+                        "customers": 41,
+                        "orders": 96,
+                        "galon": 180
+                      },
+                      {
+                        "id": "3173020",
+                        "label": "Kecamatan Lain",
+                        "customers": null,
+                        "flag": "kurang dari 3",
+                        "orders": null,
+                        "galon": null
+                      }
+                    ],
+                    "total": 52
+                  },
+                  "status": "ok",
+                  "unit": "orang",
+                  "asOf": "2026-12-08T03:00:00.000Z",
+                  "label": "pelanggan per wilayah: orang dengan paling sedikit satu pesanan bukan BATAL/VOID pada bulan ini, menurut titik antar"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "BAD_REQUEST: month is not YYYY-MM, level is not kecamatan, kelurahan or grid, or metric is missing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. Hand off again for a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a machine token, or a person whose role does not hold aiRead (a franchise owner, by default). Not worth retrying until their role changes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: a metric id that is not in the areas group (A-01, A-02).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this account. Wait the seconds in Retry-After, then retry.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_SERVER_ERROR: the answer was held back because it would have carried personal data (a bug in the metric, not in the request). The message is always \"Jawaban ini tidak bisa dikirim.\"; retrying will not help.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the scope could not be worked out (the depot list or the legal-entity matrix could not be read). Nothing is answered rather than an answer without the narrowing. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-metrics": {
+          "A-01": {
+            "unit": "orang",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "object",
+            "rules": "Served demand: distinct named customers with at least one order (not BATAL, not VOID) created in the month, per cell of the order's delivery pin, plus orders and galon of the cell when it is not held back. Only a closed month is answered, from the 8th of the next month; before that it is ditahan. A cell of 1 or 2 customers is held back with its smallest neighbours."
+          },
+          "A-02": {
+            "unit": "alamat",
+            "wholeMonthOnly": true,
+            "exactlyOneMonth": true,
+            "value": "object",
+            "rules": "Unserved demand: addresses whose pin was saved or moved in the month outside every active depot area, per cell, and per distance band to the nearest depot (0-1, 1-3, 3-5, 5-10, >10 km). Network-wide only: any caller who does not read every depot and legal entity gets ditahan. Only a closed month is answered, from the 8th of the next month. A cell or band of 1 or 2 addresses is held back with its smallest neighbours."
+          }
+        }
+      }
     }
   },
   "components": {
