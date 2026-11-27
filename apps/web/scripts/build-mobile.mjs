@@ -83,8 +83,9 @@ const TARGETS = {
   customer: () => ['hq', 'hr', 'dashboard', 'driver', 'm', 'resellers'],
   // Staff get every console they can actually reach. `/hq` is head-office, desktop-first,
   // and not in release 1 for either binary.
-  // `dashboard/prospects/map` is the desktop SVG plot; the phone gets the list, detail and coverage.
-  ops: () => ['hq', 'dashboard/prospects/map', ...HR_CONSOLE_ONLY()],
+  // `dashboard/prospects/map` is the desktop SVG plot and `.../import` the HQ file import; the phone gets
+  // the list, detail and coverage.
+  ops: () => ['hq', 'dashboard/prospects/map', 'dashboard/prospects/import', ...HR_CONSOLE_ONLY()],
 };
 
 /**
@@ -139,7 +140,7 @@ const SURFACES = {
       'dashboard/prospects',
       'dashboard/prospects/detail',
     ],
-    withholds: ['hq', 'hr/payroll', 'hr/employees', 'dashboard/prospects/map'],
+    withholds: ['hq', 'hr/payroll', 'hr/employees', 'dashboard/prospects/map', 'dashboard/prospects/import'],
   },
 };
 

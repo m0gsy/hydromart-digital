@@ -5,7 +5,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
 
 import { CoverageView } from '@/components/prospects/coverage-view';
+import { ExportButton } from '@/components/prospects/export-button';
 import { ProspectTable } from '@/components/prospects/prospect-table';
+import { RecomputeOwners } from '@/components/prospects/recompute-owners';
 import { useProspectPages } from '@/components/prospects/use-prospect-pages';
 import { RequireAuth } from '@/components/require-auth';
 import { Button, CenterState, ErrorState, Field, Input, Segmented, Skeleton } from '@/components/ui';
@@ -136,11 +138,38 @@ function Body() {
     <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold">{t('opsFix.prospects.title')}</h1>
-        {read && isServedHere('/dashboard/prospects/map') && (
-          <Link href="/dashboard/prospects/map" className="text-sm font-semibold text-brand-700">
-            {t('opsFix.prospects.mapOpen')}
-          </Link>
-        )}
+        <div className="flex flex-wrap items-start gap-3">
+          {read && isServedHere('/dashboard/prospects/map') && (
+            <Link href="/dashboard/prospects/map" className="text-sm font-semibold text-brand-700">
+              {t('opsFix.prospects.mapOpen')}
+            </Link>
+          )}
+          {/* AREA-2b: HQ tools, pruned from the Ops app together with the import page. */}
+          {isServedHere('/dashboard/prospects/import') && (
+            <>
+              {can('b2bProspectImport', role) && (
+                <Link href="/dashboard/prospects/import" className="text-sm font-semibold text-brand-700">
+                  {t('opsFix.prospectsIo.tools.import')}
+                </Link>
+              )}
+              {tab === 'all' && can('b2bProspectExport', role) && (
+                <ExportButton
+                  role={role}
+                  filters={{
+                    depotId: selectedId ?? undefined,
+                    status: status || undefined,
+                    category: category || undefined,
+                    kecamatanCode: kecamatan || undefined,
+                    assigned: manage ? assigned || undefined : undefined,
+                  }}
+                  depotIds={depots.map((d) => d.id)}
+                  depotCode={selectedId ? (depotCodes.get(selectedId) ?? null) : null}
+                />
+              )}
+              {reassign && <RecomputeOwners />}
+            </>
+          )}
+        </div>
       </div>
       <Segmented value={tab} options={tabs} onChange={(v) => setTab(v)} label={t('opsFix.prospects.title')} />
 

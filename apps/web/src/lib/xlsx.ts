@@ -7,7 +7,7 @@
 // Text — which is what stops Excel turning a long number into 8.12E+10 and losing
 // digits for real.
 
-import { downloadBlob, type CsvCell, type CsvRecord } from './csv';
+import { downloadBlob, neutraliseCell, type CsvCell, type CsvRecord } from './csv';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -156,6 +156,48 @@ export async function toXlsxBlob(
     sheet.getColumn(index + 1).width = Math.max(12, header.length + 4);
   });
 
+  return new Blob([await workbook.xlsx.writeBuffer()], { type: XLSX_MIME });
+}
+
+export interface WorkbookSheet {
+  /** Tab name (cut to Excel's 31 characters). */
+  name: string;
+  headers: string[];
+  rows: CsvCell[][];
+  /** Header names whose cells are written verbatim (phone, coordinates): everything else is neutralised. */
+  raw?: readonly string[];
+  /** Header names formatted as Text so Excel keeps leading zeros. */
+  text?: readonly string[];
+  /** One-cell lines under the table (attribution, notes). */
+  footer?: string[];
+}
+
+/**
+ * A multi-sheet .xlsx for an export. Every string cell goes through `neutraliseCell` (a name that
+ * starts with = + - @ is shown, never run) except the `raw` columns; numbers stay numbers; no cell
+ * is ever a formula object.
+ */
+export async function toWorkbookBlob(sheets: readonly WorkbookSheet[]): Promise<Blob> {
+  const ExcelJS = await excel();
+  const workbook = new ExcelJS.Workbook();
+  for (const s of sheets) {
+    const sheet = workbook.addWorksheet(s.name.slice(0, 31));
+    sheet.addRow(s.headers);
+    sheet.getRow(1).font = { bold: true };
+    for (const row of s.rows) {
+      sheet.addRow(
+        row.map((cell, i) =>
+          typeof cell === 'number' || s.raw?.includes(s.headers[i] ?? '') ? (cell ?? '') : neutraliseCell(cell),
+        ),
+      );
+    }
+    for (const line of s.footer ?? []) sheet.addRow([neutraliseCell(line)]);
+    s.headers.forEach((header, index) => {
+      const col = sheet.getColumn(index + 1);
+      col.width = Math.max(12, header.length + 4);
+      if (s.text?.includes(header)) col.numFmt = '@';
+    });
+  }
   return new Blob([await workbook.xlsx.writeBuffer()], { type: XLSX_MIME });
 }
 
