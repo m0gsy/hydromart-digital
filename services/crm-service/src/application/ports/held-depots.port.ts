@@ -4,4 +4,6 @@
  */
 export interface HeldDepotsPort {
   heldDepotIds(): Promise<ReadonlySet<string>>;
+  /** Every active depot by id: its name and whether it is on hold now. THROWS like heldDepotIds. */
+  depotsById(): Promise<ReadonlyMap<string, { name: string; held: boolean }>>;
 }

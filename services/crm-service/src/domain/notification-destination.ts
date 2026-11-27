@@ -215,6 +215,7 @@ export function destinationFor(
     // HD-14: the depot's quality card (lab tests and permits), same console as maintenance.
     case NotificationEvent.PERMIT_DUE:
     case NotificationEvent.LAB_TEST_DUE:
+    case NotificationEvent.QUALITY_HOLD:
       return forDepot('/dashboard/quality', /^[0-9a-f-]{36}$/i.test(vars.depotId ?? '') ? vars.depotId : null);
     // HD-15B: the supervisor view in the Ops APK: the visit itself, or the depot's visit list.
     case NotificationEvent.VISIT_FINDING:

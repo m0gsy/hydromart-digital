@@ -294,7 +294,7 @@ test('n8n: machine token, then the franchise notification, idempotent, validated
     assert.equal(claims.aud, 'hydromart-machine');
     assert.deepEqual(claims.scopes, [
       'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
-      'salesReportNotify', 'aiAgentNotify',
+      'salesReportNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify',
     ]);
 
     const applicationId = randomUUID();
@@ -405,6 +405,42 @@ test('n8n: customer reminders and the maintenance sweep need the machine token, 
       assert.equal((await send(route, human.accessToken, body)).status, 401);
       assert.equal((await send(route, null, body)).status, 401);
     }
+  } finally {
+    await mock.close();
+  }
+});
+
+test('n8n: the compliance sweep and the quality hold relay need their machine scopes and the contract body', async () => {
+  const mock = await boot({}, () => Date.parse('2026-11-25T17:30:00Z'));
+  const send = (route, token, body) =>
+    json('POST', mock.base, `/crm/api/v1/notifications/external/${route}`, body, token ? { authorization: `Bearer ${token}`, 'x-workflow': 'wf' } : {});
+  const s = notifications.components.schemas;
+  try {
+    for (const route of ['compliance-due', 'quality-hold']) {
+      assert.deepEqual(notifications.paths[`/crm/api/v1/notifications/external/${route}`].post.security, [{ machineToken: [] }]);
+    }
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    const due = await send('compliance-due', accessToken, { date: '2026-11-26' });
+    assert.equal(due.status, 200);
+    assert.deepEqual(Object.keys(await due.json()).sort(), [...s.ComplianceDueResult.required].sort());
+    assert.equal((await send('compliance-due', accessToken, { date: '2026-11-25' })).status, 400);
+
+    const event = { holdDepotId: randomUUID(), status: 'ACTIVE', changedAt: '2026-11-27T03:15:00.000Z' };
+    assert.deepEqual(s.QualityHoldTrigger.properties.status.enum, ['ACTIVE', 'ENDED']);
+    assert.deepEqual(Object.keys(s.QualityHoldTrigger.properties).sort(), Object.keys(event).sort());
+    const ok = await send('quality-hold', accessToken, event);
+    assert.equal(ok.status, 200);
+    const body = await ok.json();
+    assert.deepEqual(body, { notified: 0, stale: true });
+    assert.ok(Object.keys(body).every((k) => k in s.QualityHoldResult.properties));
+    for (const bad of [{ ...event, holdDepotId: 'x' }, { ...event, depotId: event.holdDepotId, holdDepotId: undefined }, { ...event, status: 'GONE' }, { ...event, changedAt: 'yesterday' }, { ...event, extra: 1 }, {}]) {
+      assert.equal((await send('quality-hold', accessToken, bad)).status, 400, JSON.stringify(bad));
+    }
+    const p = pkce();
+    const { code } = await pick(mock, user('SUPER_ADMIN'), p);
+    const human = await (await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE })).json();
+    assert.equal((await send('quality-hold', human.accessToken, event)).status, 401);
+    assert.equal((await send('quality-hold', null, event)).status, 401);
   } finally {
     await mock.close();
   }

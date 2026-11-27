@@ -63,6 +63,7 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   MAINTENANCE_DUE: 'stock',
   PERMIT_DUE: 'stock',
   LAB_TEST_DUE: 'stock',
+  QUALITY_HOLD: 'stock',
   // AI-26: the weekly Sales report is a sales matter, like a new franchise application.
   SALES_WEEKLY_REPORT: 'sales',
   // AI-31: an agent needs a person's attention, the same bucket as the access request.

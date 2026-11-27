@@ -444,6 +444,12 @@ loopback only.
   should call it once a day at 07:30 WIB; hydromart tells the depot's Kepala, the supervisors over it and HQ Operasional
   of each item due by days or by water volume, once and then every 3 days while it stays due. crm needs
   `DEPOT_SERVICE_URL` (already set); depot-service needs `ORDER_SERVICE_URL` (already set) to read the meter volume.
+  Two more capabilities ride the same list (HD-14): `complianceDueNotify` (`POST .../external/compliance-due`, the daily
+  permit and lab-test sweep, same body) and `qualityHoldNotify` (`POST .../external/quality-hold`, body
+  `{"holdDepotId","status","changedAt"}` from the `depot.quality_hold_changed` event; the depot id is `holdDepotId`
+  because a body key named `depotId` makes the depot-scope guard refuse a machine token). Without them n8n gets 403.
+  hydromart re-reads the depot's live hold state and answers `{"notified":0,"stale":true}` (200, do not retry) when the
+  event no longer agrees; 503 means retry.
 - **Partner royalty bills** (HD-23): a further capability, `partnerBillGenerate`, for n8n's monthly draft run
   (`POST payout/api/v1/external/partner-bills/generate`, body `{"month":"YYYY-MM"}` of a closed month; it answers counts only:
   `made`, `existing`, `skippedZero`, `unassigned`, `commissionRows`). `aiweb-secrets.sh` adds it to n8n's scopes like the
