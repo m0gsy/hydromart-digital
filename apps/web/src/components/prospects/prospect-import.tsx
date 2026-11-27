@@ -25,6 +25,8 @@ import type { ProspectCoverage } from '@/lib/types';
 import { buildTemplateXlsx, classifyImportFile, parseXlsxRecords, toXlsxBlob } from '@/lib/xlsx';
 
 const PAGE = 50;
+/** A bigger file is refused before it is parsed (the browser would stall on it). */
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
 type Filter = 'all' | 'created' | 'skipped' | 'failed';
 const FILTERS: Filter[] = ['all', 'created', 'skipped', 'failed'];
 
@@ -64,6 +66,7 @@ export function ProspectImport({ onForbidden }: { onForbidden: () => void }) {
     const kind = classifyImportFile(file.name);
     if (kind === 'legacy') return setFileError(t('opsFix.import.legacyFormat'));
     if (kind === 'unsupported') return setFileError(t('opsFix.import.wrongFileType', { name: file.name }));
+    if (file.size > MAX_FILE_BYTES) return setFileError(t('opsFix.prospectsIo.import.fileTooBig'));
     let records: CsvRecord[];
     try {
       records = kind === 'spreadsheet' ? await parseXlsxRecords(file) : parseCsvRecords(await file.text());

@@ -194,6 +194,62 @@ describe('prospect import page', () => {
     expect(download.mock.calls[0]![0]).toBe('opsFix.prospectsIo.import.refusedFile.xlsx');
   });
 
+  it('neutralises a formula in an uploaded name and in a server message quoted back in the refused-rows file', async () => {
+    const evil = '=HYPERLINK("http://evil",A1)';
+    serve({ dry: summary({ results: [{ row: 1, status: 'skipped', reason: 'DUPLICATE', message: evil }] }) });
+    render(<ProspectImportPage />);
+    await pick(csv(`"${evil.replace(/"/g, '""')}",kos,-6.2,106.8,osm,ODbL-1.0`));
+    await userEvent.click(button('opsFix.prospectsIo.import.check'));
+    await screen.findByText('opsFix.prospectsIo.import.checkTitle');
+    await userEvent.click(button('opsFix.prospectsIo.import.downloadRefused'));
+    await waitFor(() => expect(download).toHaveBeenCalledTimes(1));
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await new Promise<ArrayBuffer>((ok) => {
+      const fr = new FileReader();
+      fr.onload = () => ok(fr.result as ArrayBuffer);
+      fr.readAsArrayBuffer(download.mock.calls[0]![1] as Blob);
+    }));
+    const cells: unknown[] = [];
+    wb.worksheets[0]!.getRow(2).eachCell((c) => cells.push(c.value));
+    expect(cells).toContain(`'${evil}`);
+    expect(cells.filter((c) => c === `'${evil}`)).toHaveLength(2); // the name and the quoting message
+    expect(cells.some((c) => typeof c === 'string' && c.startsWith('='))).toBe(false);
+  }, 30_000);
+
+  it('refuses a file over 5 MB before parsing it, with a visible message', async () => {
+    render(<ProspectImportPage />);
+    const big = file(FOUR);
+    Object.defineProperty(big, 'size', { value: 5 * 1024 * 1024 + 1 });
+    const spy = vi.spyOn(big, 'text');
+    await userEvent.upload(input(), big);
+    expect(await screen.findByText('opsFix.prospectsIo.import.fileTooBig')).toBeTruthy();
+    expect(spy).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('a double-click on the commit sends one commit request', async () => {
+    render(<ProspectImportPage />);
+    await pick(FOUR);
+    await userEvent.click(button('opsFix.prospectsIo.import.check'));
+    await screen.findByText('opsFix.prospectsIo.import.checkTitle');
+    await userEvent.dblClick(button('opsFix.prospectsIo.import.commit'));
+    await screen.findByText('opsFix.prospectsIo.import.resultTitle');
+    expect(post.mock.calls.filter(([, b]) => b.dryRun === false)).toHaveLength(1);
+  });
+
+  it.each([
+    [409, 'Sedang ada impor lain yang berjalan'],
+    [413, 'Berkas terlalu besar untuk server'],
+    [422, 'Baris tidak bisa diproses'],
+  ])('a %i on the check shows the server message', async (status, message) => {
+    serve({ dry: new FakeApiError(status, message) });
+    render(<ProspectImportPage />);
+    await pick(FOUR);
+    await userEvent.click(button('opsFix.prospectsIo.import.check'));
+    expect((await screen.findByRole('alert')).textContent).toBe(message);
+  });
+
   it('a 403 swaps the screen for the gate', async () => {
     serve({ dry: new FakeApiError(403, 'Forbidden') });
     render(<ProspectImportPage />);

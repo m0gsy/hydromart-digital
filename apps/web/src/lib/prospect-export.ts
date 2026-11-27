@@ -43,6 +43,8 @@ export interface ExportResponse {
   truncated: boolean;
   rowCount: number;
   visits: ExportVisitDto[];
+  /** The server cut the visits at its cap. */
+  visitsTruncated?: boolean;
 }
 
 export interface ExportDepot {
@@ -59,7 +61,9 @@ export interface ExportInput {
   /** Staff id to name, from the assignees route; an id missing here shows as "Staf" + last 4. */
   names: ReadonlyMap<string, string>;
   /** Marked prospects per depot in scope (from coverage); counts only. */
-  dnc: readonly { depotId: string; count: number }[];
+  dnc: readonly { depotId: string; count: number | null }[];
+  /** How many depots the caller left out of `dnc` (read cap); the sheet says so. */
+  dncCut?: number;
   t: Translate;
 }
 
@@ -71,7 +75,7 @@ export function exportFileName(depotCode: string | null, partial: boolean, t: Tr
   return `prospek-${depotCode ?? t('opsFix.prospectsIo.export.fileNetwork')}${partial ? `-${t('opsFix.prospectsIo.export.filePartial')}` : ''}-${todayWib(at)}.xlsx`;
 }
 
-export function buildExportSheets({ response, depots, names, dnc, t }: ExportInput): WorkbookSheet[] {
+export function buildExportSheets({ response, depots, names, dnc, dncCut = 0, t }: ExportInput): WorkbookSheet[] {
   const x = (k: string, v?: Record<string, string | number>) => t(`opsFix.prospectsIo.export.${k}`, v);
   const depotOf = (id: string | null) => depots.find((d) => d.id === id);
   const depotCode = (id: string | null) => (id ? (depotOf(id)?.code ?? '-') : '-');
@@ -170,6 +174,7 @@ export function buildExportSheets({ response, depots, names, dnc, t }: ExportInp
       t(labelKey('outcome', v.outcome)),
       v.distanceM,
     ]),
+    footer: response.visitsTruncated ? [x('visitsCut', { max: visits.length })] : undefined,
   };
 
   // 4. Tahap per PIC.
@@ -193,8 +198,8 @@ export function buildExportSheets({ response, depots, names, dnc, t }: ExportInp
   const dncSheet: WorkbookSheet = {
     name: x('sheets.dnc'),
     headers: [x('cols.code'), x('cols.depot'), x('cols.count')],
-    rows: dnc.map((d) => [depotCode(d.depotId), depotOf(d.depotId)?.name ?? '', d.count]),
-    footer: [x('dncNote')],
+    rows: dnc.map((d) => [depotCode(d.depotId), depotOf(d.depotId)?.name ?? '', d.count ?? x('unreadable')]),
+    footer: [x('dncNote'), ...(dncCut > 0 ? [x('depotsCut', { max: dnc.length })] : [])],
   };
 
   return [summary, prospects, visitSheet, perPic, dncSheet];

@@ -270,6 +270,27 @@ describe('export', () => {
     await waitFor(() => expect(download).toHaveBeenCalledTimes(1), { timeout: 15_000 });
   });
 
+  it('writes "unreadable" (never 0) for a depot whose coverage read failed', async () => {
+    const base = get.getMockImplementation()!;
+    get.mockImplementation(async (url: string) => {
+      if (url.includes('/coverage?depotId=dep-a')) throw new FakeApiError(500, 'down');
+      return base(url);
+    });
+    render(<ProspectsPage />);
+    await run();
+    await waitFor(() => expect(download).toHaveBeenCalledTimes(1), { timeout: 15_000 });
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await new Promise<ArrayBuffer>((ok) => {
+      const fr = new FileReader();
+      fr.onload = () => ok(fr.result as ArrayBuffer);
+      fr.readAsArrayBuffer(download.mock.calls[0]![1] as Blob);
+    }));
+    const dnc = wb.worksheets[4]!;
+    expect(dnc.getCell(2, 3).value).toBe('opsFix.prospectsIo.export.unreadable');
+    expect(dnc.getCell(3, 3).value).toBe(2);
+  }, 30_000);
+
   it('a role that cannot manage skips the assignees read and still gets its file', async () => {
     auth.role = 'DIREKTUR';
     render(<ProspectsPage />);

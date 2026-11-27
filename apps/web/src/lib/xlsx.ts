@@ -150,7 +150,8 @@ export async function toXlsxBlob(
 
   sheet.addRow(headers);
   sheet.getRow(1).font = { bold: true };
-  for (const row of rows) sheet.addRow(row.map((cell) => cell ?? ''));
+  // A string a user typed can start with = + - @: shown, never run (numbers stay numbers).
+  for (const row of rows) sheet.addRow(row.map((cell) => (typeof cell === 'number' ? cell : neutraliseCell(cell))));
 
   headers.forEach((header, index) => {
     sheet.getColumn(index + 1).width = Math.max(12, header.length + 4);

@@ -126,6 +126,25 @@ describe('prospect workbook', () => {
     expect(sheets[2]!.rows).toEqual([['SD Harapan', 'Staf 9999', '2026-11-27', 'ya', t('opsFix.prospects.outcome.NOT_THERE'), 42]]);
   });
 
+  it('writes "tidak terbaca" for a coverage read that failed, notes depots left out, and notes cut visits', () => {
+    const sheets = buildExportSheets({
+      response: { rows: [row()], truncated: false, rowCount: 1, visits: [{ rowIndex: 0, visitorId: 'v', visitedAt: '2026-11-26T01:00:00.000Z', outcome: 'NOT_THERE', distanceM: 1 }], visitsTruncated: true },
+      depots,
+      names: new Map(),
+      dnc: [
+        { depotId: 'dep-a', count: null },
+        { depotId: 'dep-b', count: 0 },
+      ],
+      dncCut: 12,
+      t,
+    });
+    expect(sheets[4]!.rows.map((r) => r[2])).toEqual(['tidak terbaca', 0]);
+    expect(sheets[4]!.footer).toContain('Hanya 2 depot pertama; ekspor per depot untuk sisanya.');
+    expect(sheets[2]!.footer).toEqual(['Hanya 1 kunjungan pertama; persempit filter.']);
+    expect(build([row()])[4]!.footer).toHaveLength(1);
+    expect(build([row()])[2]!.footer).toBeUndefined();
+  });
+
   it('groups prospects per PIC and stage; unassigned is its own PIC', () => {
     const sheets = build(
       [row(), row({ id: 'p-2' }), row({ id: 'p-3', assignedToId: null }), row({ id: 'p-4', status: 'VISITED' })],

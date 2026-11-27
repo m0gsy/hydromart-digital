@@ -187,6 +187,13 @@ describe('toXlsxBlob', () => {
     expect(sheet.getCell(2, 2).value).toBe('');
   });
 
+  it('neutralises a typed string that starts with = + - @ but leaves numbers (even negative) alone', async () => {
+    const sheet = await load(await toXlsxBlob(['a', 'b', 'c'], [['=HYPERLINK("http://x",A1)', '@SUM(1)', -5]], 'Data'));
+    expect(sheet.getCell(2, 1).value).toBe(`'=HYPERLINK("http://x",A1)`);
+    expect(sheet.getCell(2, 2).value).toBe("'@SUM(1)");
+    expect(sheet.getCell(2, 3).value).toBe(-5);
+  });
+
   it('truncates a sheet name Excel would reject', async () => {
     const sheet = await load(await toXlsxBlob(['a'], [['1']], 'x'.repeat(40)));
     expect(sheet.name).toBe('x'.repeat(31));

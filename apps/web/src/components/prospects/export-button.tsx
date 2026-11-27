@@ -73,13 +73,15 @@ export function ExportButton({
         }
       }
 
-      const dnc: { depotId: string; count: number }[] = [];
-      for (const depotId of (filters.depotId ? [filters.depotId] : depotIds).slice(0, MAX_DEPOTS)) {
+      const dnc: { depotId: string; count: number | null }[] = [];
+      const wanted = filters.depotId ? [filters.depotId] : depotIds;
+      for (const depotId of wanted.slice(0, MAX_DEPOTS)) {
+        // A failed read is "unreadable", never a made-up 0.
         const cov = await api.get<ProspectCoverage>(endpoints.prospects.coverage(depotId), true).catch(() => null);
-        dnc.push({ depotId, count: cov?.byStatus.find((s) => s.status === 'DO_NOT_CONTACT')?.total ?? 0 });
+        dnc.push({ depotId, count: cov ? (cov.byStatus.find((s) => s.status === 'DO_NOT_CONTACT')?.total ?? 0) : null });
       }
 
-      const sheets = buildExportSheets({ response, depots, names, dnc, t });
+      const sheets = buildExportSheets({ response, depots, names, dnc, dncCut: wanted.length - dnc.length, t });
       downloadBlob(exportFileName(depotCode, response.truncated, t), await toWorkbookBlob(sheets));
       if (response.truncated) setNote(t('opsFix.prospectsIo.export.truncated', { max: EXPORT_MAX }));
     } catch (err) {
