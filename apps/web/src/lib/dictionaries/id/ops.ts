@@ -73,6 +73,7 @@ export const ops = {
     staffOnboarding: 'Panduan manajer',
     customers: 'Pelanggan',
     crm: 'CRM & follow-up',
+    prospects: 'Prospek B2B',
     broadcast: 'Pengumuman kurir',
     loyalty: 'Loyalty & poin',
     redemptions: 'Penukaran hadiah',

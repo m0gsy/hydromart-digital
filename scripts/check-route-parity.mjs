@@ -42,6 +42,10 @@ const splitPath = (p) =>
     .filter(Boolean)
     .map((s) => (s.startsWith(':') ? ':' : s));
 
+// Ceiling: a client `:` segment also matches a STATIC route segment, so a builder such as
+// `detail: /b2b-prospects/${id}` (normalised `/b2b-prospects/:`) counts as a caller of every
+// single-segment static route under it (import, export, recompute-owners). Left as is on purpose:
+// tightening it would surface unrelated orphans repo-wide.
 const matches = (route, wanted) =>
   route.length === wanted.length &&
   route.every((seg, i) => seg === ':' || wanted[i] === ':' || seg === wanted[i]);
@@ -63,7 +67,7 @@ function segmentMap() {
     src.indexOf('};', src.indexOf('const SEGMENT_ENV')),
   );
   const map = {};
-  for (const [, segment, env] of block.matchAll(/^\s*'?([a-zA-Z-]+)'?:\s*'([A-Z_]+)'/gm)) {
+  for (const [, segment, env] of block.matchAll(/^\s*'?([a-zA-Z0-9-]+)'?:\s*'([A-Z_]+)'/gm)) {
     map[segment] = `${env.replace(/_SERVICE_URL$/, '').toLowerCase()}-service`;
   }
   return map;
@@ -178,10 +182,10 @@ function clientPaths() {
 
   for (const file of files) {
     const text = readFileSync(file, 'utf8');
-    for (const [, raw] of text.matchAll(/['"`](\/[a-z-]+\/api\/v1\/[^'"`\s]*)/gi)) {
+    for (const [, raw] of text.matchAll(/['"`](\/[a-z0-9-]+\/api\/v1\/[^'"`\s]*)/gi)) {
       found.add(normalise(raw));
     }
-    for (const [, base] of text.matchAll(/['"`](\/[a-z-]+\/api\/v1)['"`]/gi)) {
+    for (const [, base] of text.matchAll(/['"`](\/[a-z0-9-]+\/api\/v1)['"`]/gi)) {
       bases.add(base);
     }
     for (const [, suffix] of text.matchAll(/`\$\{[A-Za-z_$][\w$.]*\}(\/[^`$]+)/g)) {

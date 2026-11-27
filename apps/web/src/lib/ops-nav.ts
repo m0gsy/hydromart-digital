@@ -41,6 +41,7 @@ import {
   canViewIncidents,
   canViewAudit,
   canViewDepotCrm,
+  canViewProspects,
   canViewDepotFinance,
   canBroadcastToCouriers,
   canHandOverRewards,
@@ -252,6 +253,7 @@ export const GROUPS: RailGroup[] = [
         show: canViewDepotCrm,
       },
       { href: '/dashboard/crm', labelKey: 'crm', show: canViewDepotCrm },
+      { href: '/dashboard/prospects', labelKey: 'prospects', show: canViewProspects },
       { href: '/dashboard/ratings', labelKey: 'ratings', show: canUseManagerConsole },
       {
         href: '/dashboard/recommendations',

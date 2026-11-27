@@ -6,6 +6,7 @@ import { AuthenticatedUser, CAPABILITY_KEY, InternalAuthGuard, Role } from '@hyd
 
 import { B2bProspectController } from '../../src/modules/b2b-prospect.controller';
 import {
+  AssigneesQueryDto,
   AssignProspectDto,
   ConvertProspectDto,
   CreateProspectDto,
@@ -26,6 +27,7 @@ const ROUTES: Record<string, string | null> = {
   list: 'b2bProspectRead',
   mine: 'b2bProspectWork',
   coverage: 'b2bProspectRead',
+  assignees: 'b2bProspectManage',
   get: 'b2bProspectWork',
   create: 'b2bProspectManage',
   import: 'b2bProspectImport',
@@ -48,6 +50,7 @@ describe('B2bProspectController', () => {
     list: jest.fn(),
     mine: jest.fn(),
     coverage: jest.fn(),
+    assignees: jest.fn(),
     get: jest.fn(),
     suppress: jest.fn(),
     setStatus: jest.fn(),
@@ -118,8 +121,11 @@ describe('B2bProspectController', () => {
     expect(await c.get(user, 'p1')).toBe('G');
     expect(await c.suppress(user, { reason: 'OTHER' } as never)).toBe('S');
     expect(await c.setStatus(user, 'p1', { status: 'LOST' } as never)).toBe('ST');
-    expect(await c.assign(user, 'p1', { assigneeId: null })).toBe('A');
-    expect(prospects.assign).toHaveBeenCalledWith(user, 'p1', null);
+    expect(await c.assign(user, 'p1', { assigneeId: null, seenUpdatedAt: '2026-11-27T01:00:00.000Z' })).toBe('A');
+    expect(prospects.assign).toHaveBeenCalledWith(user, 'p1', null, '2026-11-27T01:00:00.000Z');
+    prospects.assignees.mockResolvedValue('AS');
+    expect(await c.assignees(user, { depotId: 'd1' })).toBe('AS');
+    expect(prospects.assignees).toHaveBeenCalledWith(user, 'd1');
     expect(await c.setOwnerDepot(user, 'p1', { depotId: null, reason: 'abc' })).toBe('O');
     expect(await c.suppressProspect(user, 'p1', { reason: 'OTHER' })).toBe('SP');
     expect(prospects.suppressProspect).toHaveBeenCalledWith(user, 'p1', 'OTHER');
@@ -218,6 +224,11 @@ describe('b2b-prospect DTOs', () => {
     expect(await errors(SetOwnerDepotDto, { depotId: null, reason: 'abc' })).toEqual([]);
     expect(await errors(SetOwnerDepotDto, { depotId: 'x', reason: 'abc' })).toContain('depotId');
     expect(await errors(SetOwnerDepotDto, { depotId: null, reason: 'ab' })).toContain('reason');
+    expect(await errors(SetOwnerDepotDto, { depotId: null, reason: 'abc', seenUpdatedAt: '2026-11-27T01:00:00.000Z' })).toEqual([]);
+    expect(await errors(SetOwnerDepotDto, { depotId: null, reason: 'abc', seenUpdatedAt: 'yesterday' })).toContain('seenUpdatedAt');
+    expect(await errors(AssignProspectDto, { assigneeId: null, seenUpdatedAt: 'yesterday' })).toContain('seenUpdatedAt');
+    expect(await errors(AssigneesQueryDto, { depotId: u })).toEqual([]);
+    expect(await errors(AssigneesQueryDto, {})).toContain('depotId');
   });
 
   it('needs a stated, finite, non-negative accuracy and a known outcome for a check-in', async () => {

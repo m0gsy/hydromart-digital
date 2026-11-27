@@ -39,7 +39,7 @@ function segmentMap() {
   );
   const map = {};
   // Keys with a hyphen are quoted (`'hr-reports': …`); both forms are read.
-  for (const [, segment, env] of block.matchAll(/^\s*'?([a-zA-Z-]+)'?:\s*'([A-Z_]+)'/gm)) {
+  for (const [, segment, env] of block.matchAll(/^\s*'?([a-zA-Z0-9-]+)'?:\s*'([A-Z_]+)'/gm)) {
     map[segment] = `${env.replace(/_SERVICE_URL$/, '').toLowerCase()}-service`;
   }
   return map;
@@ -110,7 +110,7 @@ function clientPaths() {
   ];
   for (const file of files) {
     for (const [, raw] of readFileSync(file, 'utf8').matchAll(
-      /['"`](\/[a-z-]+\/api\/v1\/[^'"`\s]*)/gi,
+      /['"`](\/[a-z0-9-]+\/api\/v1\/[^'"`\s]*)/gi,
     )) {
       // `/${id}` is a path parameter. A placeholder NOT preceded by a slash is a
       // suffix, not a segment — `products${productQuery(q)}` appends a query string,
@@ -201,7 +201,7 @@ function clientMethods() {
       const line = carried ? `${carried}: ${rawLine.trim()}` : rawLine;
       const open = line.match(/([a-zA-Z0-9_]+):\s*\{\s*$/);
       const leaf = line.match(
-        /([a-zA-Z0-9_]+):\s*(?:\([^)]*\)\s*=>\s*)?['`](\/[a-z-]+\/api\/v1\/[^'`\s]*)/i,
+        /([a-zA-Z0-9_]+):\s*(?:\([^)]*\)\s*=>\s*)?['`](\/[a-z0-9-]+\/api\/v1\/[^'`\s]*)/i,
       );
       if (leaf && stack.length > 0) {
         const path = [...stack, leaf[1]];
@@ -295,7 +295,7 @@ function queryParamFindings(segments, routeCache) {
   for (const entry of readdirSync(CLIENT_DIR)) {
     if (!entry.endsWith('.ts')) continue;
     const text = readFileSync(join(CLIENT_DIR, entry), 'utf8');
-    for (const [, raw] of text.matchAll(/['"`](\/[a-z-]+\/api\/v1\/[^'"`\s]*\?[^'"`\s]*)/gi)) {
+    for (const [, raw] of text.matchAll(/['"`](\/[a-z0-9-]+\/api\/v1\/[^'"`\s]*\?[^'"`\s]*)/gi)) {
       const [pathPart, queryPart] = raw.split('?');
       const names = [...queryPart.matchAll(/(?:^|&)([a-zA-Z][a-zA-Z0-9_]*)=/g)].map((m) => m[1]);
       if (names.length === 0) {

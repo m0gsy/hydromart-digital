@@ -1,18 +1,7 @@
 {
   "orphans": [
-    "GET customer: /b2b-prospects/:",
-    "GET customer: /b2b-prospects/coverage",
-    "GET customer: /b2b-prospects/mine",
     "GET customer: /profile/directory",
-    "PATCH customer: /b2b-prospects/:/assign",
-    "PATCH customer: /b2b-prospects/:/owner-depot",
-    "PATCH customer: /b2b-prospects/:/status",
-    "POST customer: /b2b-prospects/:/convert",
-    "POST customer: /b2b-prospects/:/do-not-contact",
     "POST customer: /b2b-prospects/:/visits",
-    "POST customer: /b2b-prospects/export",
-    "POST customer: /b2b-prospects/import",
-    "POST customer: /b2b-prospects/recompute-owners",
     "POST payout: /payout/withdrawals"
   ]
 }

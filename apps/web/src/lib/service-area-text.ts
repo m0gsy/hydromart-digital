@@ -80,7 +80,7 @@ export interface AreaPreview {
 }
 
 const SIZE = 100;
-const KM_PER_DEGREE = 111.32;
+export const KM_PER_DEGREE = 111.32;
 
 /**
  * Equirectangular fit of the polygons (and the depot) into a square viewBox. Longitude is

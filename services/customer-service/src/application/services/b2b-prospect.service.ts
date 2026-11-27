@@ -268,7 +268,20 @@ export class B2bProspectService {
     return toDetail(updated);
   }
 
-  async assign(user: AuthenticatedUser, id: string, assigneeId: string | null): Promise<ProspectDetail> {
+  /** The staff of one depot, name only (never a phone): the assign picker and the list's assignee column. */
+  async assignees(user: AuthenticatedUser, depotId: string): Promise<{ id: string; name: string }[]> {
+    assertDepotAccess(user, depotId);
+    const ids = await this.roster.staffIdsForDepot(depotId);
+    const names = ids.length ? await this.identity.getCustomerNames(ids) : new Map<string, { fullName: string | null }>();
+    return ids.map((id) => ({ id, name: clean(names.get(id)?.fullName) ?? `Staf ${id.slice(-4)}` }));
+  }
+
+  async assign(
+    user: AuthenticatedUser,
+    id: string,
+    assigneeId: string | null,
+    seenUpdatedAt?: string,
+  ): Promise<ProspectDetail> {
     const { row } = await this.loadReachable(user, id, { mapIsUnprocessable: true });
     if (isTerminal(row.status)) {
       throw new ProspectTransitionError('Prospek yang sudah selesai tidak bisa ditugaskan');
@@ -279,11 +292,12 @@ export class B2bProspectService {
         throw new ProspectInvalidError('Penerima tugas bukan staf aktif di depot pemilik prospek');
       }
     }
-    const updated = await this.repo.update(id, {
-      assignedToId: assigneeId,
-      assignedAt: assigneeId ? new Date() : null,
-    });
-    if (!updated) throw new ProspectNotFoundError();
+    const updated = await this.repo.update(
+      id,
+      { assignedToId: assigneeId, assignedAt: assigneeId ? new Date() : null },
+      seenUpdatedAt ? new Date(seenUpdatedAt) : undefined,
+    );
+    if (!updated) throw seenUpdatedAt ? new ProspectStaleError() : new ProspectNotFoundError();
     await this.audit('b2b.prospect.assign', user, id, { prospectId: id, assigneeId });
     return toDetail(updated);
   }
@@ -295,7 +309,7 @@ export class B2bProspectService {
   async setOwnerDepot(
     user: AuthenticatedUser,
     id: string,
-    input: { depotId: string | null; reason: string },
+    input: { depotId: string | null; reason: string; seenUpdatedAt?: string },
   ): Promise<ProspectDetail> {
     const row = await this.repo.findById(id);
     if (!row) throw new ProspectNotFoundError();
@@ -309,13 +323,17 @@ export class B2bProspectService {
       }
     }
     const changed = row.ownerDepotId !== input.depotId;
-    const updated = await this.repo.update(id, {
-      ownerDepotId: input.depotId,
-      ownerSource: 'HQ',
-      // An assignee belongs to the old depot's roster.
-      ...(changed && { assignedToId: null, assignedAt: null }),
-    });
-    if (!updated) throw new ProspectNotFoundError();
+    const updated = await this.repo.update(
+      id,
+      {
+        ownerDepotId: input.depotId,
+        ownerSource: 'HQ',
+        // An assignee belongs to the old depot's roster.
+        ...(changed && { assignedToId: null, assignedAt: null }),
+      },
+      input.seenUpdatedAt ? new Date(input.seenUpdatedAt) : undefined,
+    );
+    if (!updated) throw input.seenUpdatedAt ? new ProspectStaleError() : new ProspectNotFoundError();
     await recordAuditEvent(
       { authServiceUrl: this.config.authServiceUrl, internalServiceKey: this.config.internalServiceKey },
       {

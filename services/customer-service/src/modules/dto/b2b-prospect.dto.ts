@@ -144,6 +144,16 @@ export class CoverageQueryDto {
   @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() depotId?: string;
 }
 
+export class AssigneesQueryDto {
+  @ApiProperty({ format: 'uuid' }) @IsUUID() depotId!: string;
+}
+
+/** Name only: there is deliberately no phone field on this class. */
+export class AssigneeResponseDto {
+  @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty() name!: string;
+}
+
 export class SetProspectStatusDto {
   @ApiProperty({ enum: B2B_STATUSES }) @IsIn(B2B_STATUSES as readonly string[]) status!: B2bProspectStatus;
   @ApiPropertyOptional({ description: 'Required for LOST (3 to 200 characters).' })
@@ -157,6 +167,8 @@ export class AssignProspectDto {
   @ValidateIf((o: AssignProspectDto) => o.assigneeId !== null)
   @IsUUID()
   assigneeId!: string | null;
+  @ApiPropertyOptional({ description: 'The updatedAt the caller read; a newer row is a 409.' })
+  @IsOptional() @IsISO8601() seenUpdatedAt?: string;
 }
 
 export class SetOwnerDepotDto {
@@ -165,6 +177,8 @@ export class SetOwnerDepotDto {
   @IsUUID()
   depotId!: string | null;
   @ApiProperty({ minLength: 3, maxLength: 200 }) @IsString() @MinLength(3) @MaxLength(200) reason!: string;
+  @ApiPropertyOptional({ description: 'The updatedAt the caller read; a newer row is a 409.' })
+  @IsOptional() @IsISO8601() seenUpdatedAt?: string;
 }
 
 export class SuppressDto {

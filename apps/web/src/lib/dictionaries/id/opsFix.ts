@@ -1,8 +1,11 @@
 // Depot-operator design-fidelity fixes (batch AB). Private fragment consumed via t('opsFix.*').
 // NO `as const` — values must widen to string so the en/ mirror stays assignable.
 import type { walkIn } from './opsFixWalkIn';
+import { prospects } from './prospects';
 
 const opsFixShared = {
+  // AREA-2a: the B2B prospect screens.
+  prospects,
   // Flow PR-4: the decision inbox on the approvals screens.
   // Review of flow PR-2a: the account behind an order's recipient, as its own link.
   entityLinks: { customerAccount: 'Lihat akun pelanggan' },

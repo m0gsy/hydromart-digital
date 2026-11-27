@@ -70,6 +70,7 @@ export const ops = {
     staffOnboarding: 'Manager guide',
     customers: 'Customers',
     crm: 'CRM & follow-up',
+    prospects: 'B2B prospects',
     broadcast: 'Courier announcements',
     loyalty: 'Loyalty & points',
     redemptions: 'Reward hand-over',

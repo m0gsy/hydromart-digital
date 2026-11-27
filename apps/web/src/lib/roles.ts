@@ -176,6 +176,9 @@ export const canViewDepotCrm = (role: string | null | undefined) => can('depotCr
 // Bulk-import into the depot's customer directory. Narrower than the read: HR sees the
 // directory in its own console but never writes it.
 export const canWriteDepotCrm = (role: string | null | undefined) => can('depotCrmWrite', role);
+// B2B prospects: Read opens the list and coverage, Work opens the caller's own list.
+export const canViewProspects = (role: string | null | undefined) =>
+  can('b2bProspectRead', role) || can('b2bProspectWork', role);
 export const canViewIncidents = (role: string | null | undefined) => can('incidents', role);
 export const canViewAudit = (role: string | null | undefined) => can('auditRead', role);
 export const canManageProcurement = (role: string | null | undefined) => can('procurement', role);

@@ -25,7 +25,7 @@ const hq = as({ sub: 'hq-1', role: Role.HEAD_OFFICE, depotId: null });
 
 describe('B2bProspectService', () => {
   let repo: InMemoryProspectRepository;
-  let identity: { customerIdByPhone: jest.Mock; getAccountOwners: jest.Mock };
+  let identity: { customerIdByPhone: jest.Mock; getAccountOwners: jest.Mock; getCustomerNames: jest.Mock };
   let listActive: jest.Mock;
   let roster: { staffIdsForDepot: jest.Mock };
   let svc: B2bProspectService;
@@ -43,7 +43,7 @@ describe('B2bProspectService', () => {
 
   beforeEach(() => {
     repo = new InMemoryProspectRepository();
-    identity = { customerIdByPhone: jest.fn().mockResolvedValue(null), getAccountOwners: jest.fn() };
+    identity = { customerIdByPhone: jest.fn().mockResolvedValue(null), getAccountOwners: jest.fn(), getCustomerNames: jest.fn() };
     importer = { resolveByPhone: jest.fn().mockResolvedValue({ customerId: 'new-cust', status: 'created' }) };
     listActive = jest.fn().mockResolvedValue([{ id: 'depot-a' }, { id: 'depot-b' }]);
     roster = { staffIdsForDepot: jest.fn().mockResolvedValue(['sales-1', 'kepala-a']) };
@@ -229,7 +229,41 @@ describe('B2bProspectService', () => {
     });
   });
 
+  describe('assignees', () => {
+    it('lists the depot staff by name only, with a fallback for a missing or blank name', async () => {
+      roster.staffIdsForDepot.mockResolvedValue(['sales-1', 'kepala-a', 'ghost-1234']);
+      identity.getCustomerNames.mockResolvedValue(
+        new Map([
+          ['sales-1', { fullName: ' Sari ', phone: '+6281200000009' }],
+          ['kepala-a', { fullName: '  ', phone: null }],
+        ]),
+      );
+      const res = await svc.assignees(kepalaA, 'depot-a');
+      expect(res).toEqual([
+        { id: 'sales-1', name: 'Sari' },
+        { id: 'kepala-a', name: 'Staf la-a' },
+        { id: 'ghost-1234', name: 'Staf 1234' },
+      ]);
+      expect(JSON.stringify(res)).not.toMatch(/phone|\+62812/);
+    });
+
+    it('skips the name lookup for an empty roster, refuses another depot, and fails hard on a dead roster', async () => {
+      roster.staffIdsForDepot.mockResolvedValue([]);
+      expect(await svc.assignees(kepalaA, 'depot-a')).toEqual([]);
+      expect(identity.getCustomerNames).not.toHaveBeenCalled();
+      await expect(svc.assignees(kepalaA, 'depot-b')).rejects.toBeInstanceOf(ForbiddenException);
+      roster.staffIdsForDepot.mockRejectedValue(new ServiceUnavailableException('down'));
+      await expect(svc.assignees(hq, 'depot-a')).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
+  });
+
   describe('assign', () => {
+    it('answers 409 when the version the caller read is not the row any more, and lands when it is', async () => {
+      const p = seed();
+      await expect(svc.assign(kepalaA, p.id, 'sales-1', new Date(p.updatedAt.getTime() - 1000).toISOString())).rejects.toBeInstanceOf(ProspectStaleError);
+      expect(await svc.assign(kepalaA, p.id, 'sales-1', p.updatedAt.toISOString())).toMatchObject({ assignedToId: 'sales-1' });
+    });
+
     it('assigns to a rostered staff member and unassigns', async () => {
       const p = seed();
       const a = await svc.assign(kepalaA, p.id, 'sales-1');
@@ -268,6 +302,13 @@ describe('B2bProspectService', () => {
   });
 
   describe('setOwnerDepot (HQ arbitration)', () => {
+    it('answers 409 on a stale version and lands on the current one', async () => {
+      const p = seed();
+      const old = new Date(p.updatedAt.getTime() - 1000).toISOString();
+      await expect(svc.setOwnerDepot(hq, p.id, { depotId: 'depot-b', reason: 'abc', seenUpdatedAt: old })).rejects.toBeInstanceOf(ProspectStaleError);
+      expect(await svc.setOwnerDepot(hq, p.id, { depotId: 'depot-b', reason: 'abc', seenUpdatedAt: p.updatedAt.toISOString() })).toMatchObject({ ownerDepotId: 'depot-b' });
+    });
+
     it('moves the owner, marks it HQ, drops the old assignee and writes an audit entry', async () => {
       const p = seed({ assignedToId: 'sales-1' });
       const res = await svc.setOwnerDepot(hq, p.id, { depotId: 'depot-b', reason: ' dekat gudang ' });

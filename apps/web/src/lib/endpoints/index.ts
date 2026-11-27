@@ -15,6 +15,7 @@ import { depot } from './depot';
 import { insight } from './insight';
 import { admin } from './admin';
 import { hr } from './hr';
+import { prospect } from './prospect';
 
 /**
  * The single object every screen imports. Assembled from the per-area modules above,
@@ -29,4 +30,5 @@ export const endpoints = {
   ...insight,
   ...admin,
   ...hr,
+  ...prospect,
 } as const;

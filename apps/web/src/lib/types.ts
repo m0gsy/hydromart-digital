@@ -3755,3 +3755,71 @@ export interface DepotPermit {
   number: string;
   validUntil: string;
 }
+
+// ---- B2B prospects (customer-service) ----
+export type ProspectStatus = 'NEW' | 'CONTACTED' | 'VISITED' | 'INTERESTED' | 'CONVERTED' | 'LOST' | 'DO_NOT_CONTACT';
+
+/** A list row: the business, never a person (no phone, contact or note). */
+export interface ProspectRow {
+  id: string;
+  name: string;
+  category: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  kecamatanCode: string | null;
+  kelurahanCode: string | null;
+  ownerDepotId: string | null;
+  ownerSource: 'AUTO' | 'HQ';
+  status: ProspectStatus;
+  assignedToId: string | null;
+  source: string;
+  sourceDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  hasPhone: boolean;
+}
+
+export interface ProspectVisit {
+  id: string;
+  outcome: string;
+  distanceM: number;
+  visitedAt: string;
+}
+
+/** One prospect as a Work holder opens it. */
+export interface ProspectDetail extends ProspectRow {
+  phoneE164: string | null;
+  contactName: string | null;
+  note: string | null;
+  licence: string | null;
+  sourceId: string | null;
+  sourceDataset: string | null;
+  customerId: string | null;
+  convertedAt: string | null;
+  lostReason: string | null;
+  assignedAt: string | null;
+  lastActivityAt: string | null;
+  /** Only on GET /:id. */
+  visits?: ProspectVisit[];
+}
+
+export interface ProspectPage<T> {
+  items: T[];
+  nextCursor: string | null;
+}
+
+export interface ProspectCoverage {
+  total: number;
+  onMap: number;
+  byCategory: { category: string; total: number; withPhone: number; withPhonePct: number }[];
+  byStatus: { status: ProspectStatus; total: number }[];
+  bySource: { source: string; total: number }[];
+  dataAge: { newestDays: number; medianDays: number; oldestDays: number } | null;
+  thirdPartyCostIdr: number | null;
+}
+
+export interface ProspectAssignee {
+  id: string;
+  name: string;
+}
