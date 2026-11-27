@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { AuthenticatedUser, depotScopeIds, gridCell1km, gridCellCenter } from '@hydromart/platform';
+import { AuthenticatedUser, gridCell1km, gridCellCenter } from '@hydromart/platform';
 
 import { AiAreaSourcesPort, AreaPin } from '../ports/ai-area-sources.port';
 import { AiReadSourcesPort } from '../ports/ai-read-sources.port';
@@ -8,7 +8,7 @@ import { DASHBOARD_TOKENS } from '../tokens';
 import { AnswerEnvelope } from './envelope';
 import { DOWN, GroupCtx, GroupMetricMeta, NO_SCOPE, OPEN_MONTH_REASON, SMALL_GROUP_REASON, TOO_MANY, fitsOneRead, isOpen, openGroup, sourceSpans } from './group-context';
 import { COMPLEMENT_FLAG, MaskedCell, SMALL_GROUP_MIN, suppressSmallGroups } from './masking';
-import { ReadScopeService } from './scope.service';
+import { ReadScopeService, readsNetwork } from './scope.service';
 
 /**
  * HD-20c: where the demand is and where it is not served, per kecamatan, kelurahan (BPS codes) or 1 km cell.
@@ -83,7 +83,7 @@ const sortKey = (c: Cell): string => c.id ?? (c.parent ? `${c.parent}~` : '~~');
 const byId = (a: Cell, b: Cell): number => (sortKey(a) < sortKey(b) ? -1 : sortKey(a) > sortKey(b) ? 1 : 0);
 const NO_KELURAHAN = 'Kelurahan tidak diketahui';
 /** The hierarchy group of a cell at kelurahan level: its kecamatan, whether or not its kelurahan is known. */
-const kecamatanOf = (c: Cell): string => c.parent ?? (c.id === null ? UNKNOWN : c.id.slice(0, KECAMATAN_CODE_LEN));
+export const kecamatanOf = (c: { id: string | null; parent?: string }): string => c.parent ?? (c.id === null ? UNKNOWN : c.id.slice(0, KECAMATAN_CODE_LEN));
 
 /** What names a cell: its code, its name, or for a grid cell its centre. */
 const head = (x: Cell) => ({
@@ -104,15 +104,21 @@ function publish(x: Cell, m: MaskedCell) {
   };
 }
 
+/** What the held-mass rule needs of a cell: its people, and (R-01) which customers they are. */
+export interface Counted {
+  people: number;
+  ks?: Set<number>;
+}
+
 /** People in the given cells, each counted once: the union of their customers, or the sum when cells hold none. */
-const mass = (cells: readonly Cell[]): number =>
+const mass = (cells: readonly Counted[]): number =>
   cells.some((c) => c.ks) ? new Set(cells.flatMap((c) => [...(c.ks ?? [])])).size : cells.reduce((n, c) => n + c.people, 0);
 
 /**
  * Within each group, while some cell is held and the held people number 1 or 2, hold the smallest cell
  * still published (or all of them). Mutates `masked`; a group with nothing held is left alone.
  */
-function holdMore(cells: readonly Cell[], masked: MaskedCell[], groupOf: (c: Cell) => string): void {
+export function holdMore<T extends Counted>(cells: readonly T[], masked: MaskedCell[], groupOf: (c: T) => string): void {
   const groups = new Map<string, number[]>();
   cells.forEach((c, i) => groups.set(groupOf(c), [...(groups.get(groupOf(c)) ?? []), i]));
   for (const idx of groups.values()) {
@@ -146,22 +152,10 @@ export class AreaMetricsService {
     const level = (query.level ?? 'kecamatan') as AreaLevel;
     const deadline = Date.now() + AREAS_DEADLINE_MS;
     const c = await openGroup(this.scopes, AREA_METRICS, 'wilayah', metricId, user, { period: 'month', date: `${query.month}-01` }, now);
-    if (metricId === 'R-02' && !(await this.readsNetwork(user))) return c.held(NETWORK_ONLY);
+    if (metricId === 'R-02' && !(await readsNetwork(this.grants, user))) return c.held(NETWORK_ONLY);
     if (metricId === 'R-01' && c.scope.spans.length === 0) return c.none(NO_SCOPE);
     if (isOpen(c)) return c.held(OPEN_MONTH_REASON);
     return metricId === 'R-01' ? this.served(c, level, deadline) : this.unserved(c, level, deadline);
-  }
-
-  /** Whether the caller reads every depot and every legal entity (a machine account does). */
-  private async readsNetwork(user: AuthenticatedUser): Promise<boolean> {
-    if (user.via === 'machine') return true;
-    try {
-      if (depotScopeIds(user) !== undefined) return false;
-    } catch {
-      return false;
-    }
-    const g = await this.grants.aiGrants(user.role);
-    return g?.all === true;
   }
 
   private async served(c: GroupCtx, level: AreaLevel, deadline: number): Promise<AnswerEnvelope> {

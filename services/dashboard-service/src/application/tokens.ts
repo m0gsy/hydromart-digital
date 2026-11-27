@@ -17,4 +17,6 @@ export const DASHBOARD_TOKENS = {
   AiCustomerSources: Symbol('AiCustomerSources'),
   /** HD-20c: the pins, regions and unserved demand behind the areas read. */
   AiAreaSources: Symbol('AiAreaSources'),
+  /** AREA-3: the grouped B2B prospect counts behind the prospects read. */
+  AiProspectSources: Symbol('AiProspectSources'),
 } as const;

@@ -20,6 +20,7 @@ import { B2bProspectExportService } from '../application/services/b2b-prospect-e
 import { B2bProspectMaintenanceService } from '../application/services/b2b-prospect-maintenance.service';
 import { B2bProspectVisitService } from '../application/services/b2b-prospect-visit.service';
 import { B2bProspectService } from '../application/services/b2b-prospect.service';
+import { B2bProspectAggregatePrismaRepository } from '../infrastructure/prisma/b2b-prospect-aggregate.prisma.repository';
 import { B2bProspectPrismaRepository } from '../infrastructure/prisma/b2b-prospect.prisma.repository';
 import { StaffRosterHttpAdapter } from '../infrastructure/http/staff-roster.http.adapter';
 import { UnservedDemandPrismaRepository } from '../infrastructure/prisma/unserved-demand.prisma.repository';
@@ -91,6 +92,7 @@ const providers: Provider[] = [
   { provide: CUSTOMER_TOKENS.PdpRepository, useClass: PdpPrismaRepository },
   { provide: CUSTOMER_TOKENS.UnservedDemandRepository, useClass: UnservedDemandPrismaRepository },
   { provide: CUSTOMER_TOKENS.B2bProspectRepository, useClass: B2bProspectPrismaRepository },
+  { provide: CUSTOMER_TOKENS.B2bProspectAggregateRepository, useClass: B2bProspectAggregatePrismaRepository },
   { provide: CUSTOMER_TOKENS.StaffRoster, useClass: StaffRosterHttpAdapter },
   {
     provide: CUSTOMER_TOKENS.Storage,
