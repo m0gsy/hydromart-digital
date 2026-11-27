@@ -436,7 +436,7 @@ grep -qx 'AI_TOKEN_SIGNING_KEY=' "$BOX/.env" && [ "$(grep -c '^AI_TOKEN_SIGNING_
 grep -q '^HIJACK=' "$BOX/.env" && bad "applied an inherited ENV_SET_BLOCK instead of its own block" ||
   ok "an inherited ENV_SET_BLOCK is not applied"
 # AI-5: n8n's keys, made the same way, and its machine account written for auth-service.
-for k in AIWEB_N8N_DB_PASSWORD AIWEB_N8N_ENCRYPTION_KEY AIWEB_N8N_TOKEN AIWEB_N8N_MACHINE_SECRET; do
+for k in AIWEB_N8N_DB_PASSWORD AIWEB_N8N_ENCRYPTION_KEY AIWEB_N8N_TOKEN AIWEB_N8N_MACHINE_SECRET AIWEB_LEAD_FORM_SECRET; do
   [[ "$(val "$k")" =~ ^[0-9a-f]{64}$ ]] && ok "$k: 64 hex characters" || bad "$k is not 64 hex characters"
 done
 [[ "$(val AIWEB_N8N_MACHINE_ID)" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] &&
