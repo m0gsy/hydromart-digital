@@ -783,16 +783,22 @@ condition that it is isolated as below. Default model `claude-haiku-5-5` (cost);
 The three keys, in `.env`, set by the owner through ENV_SET_BLOCK (deploy mode `env-set`), documented in
 `.env.production.example`: `HERMES_ANTHROPIC_API_KEY` (its OWN Anthropic key, own billing and monthly limit, never the
 AI web's), `HERMES_TELEGRAM_BOT_TOKEN` (from @BotFather), `HERMES_TELEGRAM_ALLOWED_USERS` (the owner's numeric Telegram
-id, from @userinfobot; comma-separated for more; unset means nobody).
+id, from @userinfobot; comma-separated for more, digits and commas only: the deploy refuses anything else; unset means nobody).
 
 Deploy modes (manual only; a normal deploy never touches Hermes):
 - `hermes`: refuses, naming the missing KEYS, when any of the three is absent from `.env`; pulls the pinned digest;
   makes the network and runs `scripts/hermes-firewall.sh`; copies `infra/hermes/config.yaml` into the data volume (a
   copy by a one-off container of the same image, not a mount: Hermes writes that file itself and its init chowns it);
-  starts the gateway; waits (180 s) for `telegram connected` in its log; then probes from inside the container and
-  prints results only: the box's ssh at the network gateway and at the public address and the metadata service
-  169.254.169.254:80 must NOT answer, api.anthropic.com:443 and api.telegram.org:443 MUST.
-- `hermes-stop`: `compose down`; the `hermes-data` volume (sessions, memories, skills) is kept.
+  starts the gateway; waits (180 s) for `telegram connected` in THIS container's log; then probes from inside the container
+  and prints results only: the network gateway and the box's own public IPv4 (printed, read from the host, not a name) on
+  ports 22, 5432 and 2375, and 169.254.169.254:80, must NOT answer; api.anthropic.com:443 and api.telegram.org:443 MUST. A
+  probe that cannot run (no python3, exec failed, name not resolved) is an error, never a pass. It also fails if Docker's IPv6
+  is on (the firewall is IPv4), and if `hermes tools list --platform telegram` shows an enabled browser tool. Any failure
+  stops the container and removes the flag. Only a deploy that passes writes `.deploy/hermes.enabled`.
+- Docker does not restart it (`restart: "no"`): at boot dockerd would start it before `DOCKER-USER` exists. Host cron
+  (`scripts/hermes-ensure.sh`, at boot after waiting for dockerd and `DOCKER-USER`, then every 5 minutes) closes the
+  network and starts the container only if that flag exists and the firewall run succeeded.
+- `hermes-stop`: removes the flag, then `compose down`; the `hermes-data` volume (sessions, memories, skills) is kept.
 
 What it can reach: the internet (Telegram, the LLM provider, the web). What it cannot: any hydromart database, any
 `.env` value but its own three, the docker socket, a host file, a hydromart or AI web network or container, the box's
@@ -800,7 +806,9 @@ own ports (ssh included) and the provider's private ranges. Held by: no port, no
 `cap_drop: ALL` plus only CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID, KILL (the image's init chowns the volume and
 drops to UID 10000), `no-new-privileges`, 1536 MB / 1 CPU / 512 pids; `scripts/check-hermes-compose.mjs` in CI;
 `scripts/hermes-firewall.sh` (chains `HERMES-NO-HOST` in INPUT and `HERMES-NO-LAN` in DOCKER-USER; at boot, every 5
-minutes and in every deploy); the approvals deny list and `unattended_mode`/`cron_mode: deny` in its config. Docker's
+minutes and in every deploy); the approvals deny list and `unattended_mode`/`cron_mode: deny` in its config. The deny globs are ADVISORY: a command
+spelled another way (`python -c`, a script it writes) is not matched. The firewall and the container's lack of any
+hydromart credential are the boundary, not those globs. Docker's
 embedded DNS keeps working: it answers inside the container's own namespace and never crosses the host chains.
 
 Stop it for good: Deploy mode `hermes-stop`; to remove its data too, `docker volume rm hydromart-hermes_hermes-data` on

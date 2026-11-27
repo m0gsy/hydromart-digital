@@ -34,7 +34,11 @@ services:
     image: nousresearch/hermes-agent@sha256:ef0650d523ee1b5ab32c779acabc446d9936869a9932591553688a62bcf0c42f
     # The foreground gateway: Telegram by long polling.
     command: ["gateway", "run"]
-    restart: unless-stopped
+    # NOT restarted by docker: at boot dockerd would start it before DOCKER-USER exists, so before the firewall
+    # could close the private ranges. The host owns the start instead (scripts/hermes-ensure.sh, from cron): only
+    # after scripts/hermes-firewall.sh succeeded, and only while .deploy/hermes.enabled exists (deploy mode `hermes`
+    # writes it, `hermes-stop` removes it). The same script restarts it within 5 minutes if it dies.
+    restart: "no"
     logging: *logging
     # RAM and CPU capped so a runaway session cannot starve hydromart (box: 16 GB, 8 vCPU).
     mem_limit: 1536m
@@ -63,6 +67,8 @@ services:
       - hermes
 
 networks:
+  # A plain bridge, IPv4 only: Docker's IPv6 must stay off (the deploy fails if it is on), because the firewall
+  # rules are IPv4 and a v6 address would be a way round them.
   hermes: {}
 
 volumes:

@@ -10,8 +10,8 @@
 #   HERMES-NO-HOST  in INPUT:       `-i <bridge> -j DROP`. Everything addressed to the box itself from that
 #                   bridge: ssh, the docker API, exporters, postgres, and the box's own public address (the
 #                   box holds it on eth0, so such a packet is local delivery and never leaves it).
-#   HERMES-NO-LAN   in DOCKER-USER: `-i <bridge> -d <range> -j DROP` for 169.254.0.0/16 (the cloud
-#                   metadata service), 10.0.0.0/8, 172.16.0.0/12 and 192.168.0.0/16: other containers (also
+#   HERMES-NO-LAN   in DOCKER-USER: `-d <range> -i <bridge> -j DROP` for 169.254.0.0/16 (the cloud
+#                   metadata service), 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 100.64.0.0/10, 0.0.0.0/8: other containers (also
 #                   those a published port would DNAT to, which DOCKER-USER sees after the rewrite) and the
 #                   provider's private network. The internet (Telegram, api.anthropic.com) is untouched.
 # Docker's embedded DNS (127.0.0.11) keeps working: that address lives inside the container's own network
@@ -24,7 +24,8 @@
 #
 # Kept: the kernel forgets the rules at a reboot and a network made again gets a new bridge, so cron runs this
 # at boot and every 5 minutes (scripts/install-host-cron.sh) and the deploy before the container starts
-# (scripts/hermes-deploy.sh). The bridges of the last run that had docker's answer are saved in
+# (scripts/hermes-deploy.sh); scripts/hermes-ensure.sh runs it and starts the container only after it succeeded
+# (docker itself never restarts the container, see the compose file). The bridges of the last run that had docker's answer are saved in
 # .deploy/hermes-firewall.bridges and used when docker does not answer (at boot). At boot DOCKER-USER may not
 # exist yet (docker makes it); the INPUT half is written, the other half by the next run, and the deploy's own
 # run always has both (the container starts only after it).
@@ -39,7 +40,33 @@ cd "$(dirname "$0")/.."
 
 HOST_CHAIN=HERMES-NO-HOST
 LAN_CHAIN=HERMES-NO-LAN
-RANGES=(169.254.0.0/16 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16)
+# 169.254/16 cloud metadata, 10/8 172.16/12 192.168/16 private networks (other containers, the provider's LAN),
+# 100.64/10 carrier-grade NAT (some providers' private side, Tailscale), 0.0.0.0/8 ("this host": 0.0.0.0 reaches
+# the box itself on some stacks).
+RANGES=(169.254.0.0/16 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 0.0.0.0/8)
+# The host's upstream DNS resolvers that sit inside a dropped range get an ACCEPT for port 53 (udp+tcp) to that exact
+# IP, ahead of the drops: cloud resolvers are often on 169.254.x or 10.x. Docker's embedded resolver forwards from
+# the HOST (its own namespace, not these chains), so this is a safeguard for a container that resolves directly.
+# HERMES_RESOLVERS (a space-separated list, may be empty) replaces reading the host: --print and the tests use it.
+ip2int() { local IFS=.; read -r a b c d <<<"$1"; echo $(((a << 24) | (b << 16) | (c << 8) | d)); }
+in_range() { # <ip> <cidr>
+  local net="${2%/*}" bits="${2#*/}" mask
+  mask=$(((0xFFFFFFFF << (32 - bits)) & 0xFFFFFFFF))
+  [ $(($(ip2int "$1") & mask)) -eq $(($(ip2int "$net") & mask)) ]
+}
+resolvers_in_ranges() {
+  local list ip r
+  if [ -n "${HERMES_RESOLVERS+x}" ]; then list="$HERMES_RESOLVERS"; else
+    list="$(awk '$1 == "nameserver" && $2 ~ /^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+$/ { print $2 }'       "$([ -r /run/systemd/resolve/resolv.conf ] && echo /run/systemd/resolve/resolv.conf || echo /etc/resolv.conf)" 2>/dev/null || true)"
+  fi
+  for ip in $list; do
+    [[ "$ip" =~ ^[0-9]+[.][0-9]+[.][0-9]+[.][0-9]+$ ]] || continue
+    case "$ip" in 127.*) continue ;; esac
+    for r in "${RANGES[@]}"; do
+      if in_range "$ip" "$r"; then echo "$ip"; break; fi
+    done
+  done
+}
 SAVED=.deploy/hermes-firewall.bridges
 
 # The rules as `iptables -S` prints them, for the bridges given.
@@ -48,9 +75,17 @@ host_rules() { # <bridge>...
   for br in "$@"; do out+=$'\n'"-A $HOST_CHAIN -i $br -j DROP"; done
   printf '%s' "$out"
 }
+# Option order is the one `iptables -S` prints (-d before -i), or the chain would look different every run.
 lan_rules() { # <bridge>...
-  local br r out="-N $LAN_CHAIN"
-  for br in "$@"; do for r in "${RANGES[@]}"; do out+=$'\n'"-A $LAN_CHAIN -i $br -d $r -j DROP"; done; done
+  local br r ip out="-N $LAN_CHAIN" resolvers
+  resolvers="$(resolvers_in_ranges)"
+  for br in "$@"; do
+    for ip in $resolvers; do
+      out+=$'\n'"-A $LAN_CHAIN -d $ip/32 -i $br -p udp -m udp --dport 53 -j ACCEPT"
+      out+=$'\n'"-A $LAN_CHAIN -d $ip/32 -i $br -p tcp -m tcp --dport 53 -j ACCEPT"
+    done
+    for r in "${RANGES[@]}"; do out+=$'\n'"-A $LAN_CHAIN -d $r -i $br -j DROP"; done
+  done
   printf '%s' "$out"
 }
 

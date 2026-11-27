@@ -494,7 +494,7 @@ jobs:
             fi
             if [ "${{ github.event.inputs.mode }}" = "hermes" ] || [ "${{ github.event.inputs.mode }}" = "hermes-stop" ]; then
               git fetch --quiet origin main
-              git checkout origin/main -- scripts/hermes-deploy.sh scripts/hermes-firewall.sh scripts/lib/deploy-common.sh infra/hermes/docker-compose.yml infra/hermes/config.yaml
+              git checkout origin/main -- scripts/hermes-deploy.sh scripts/hermes-firewall.sh scripts/hermes-ensure.sh scripts/lib/deploy-common.sh infra/hermes/docker-compose.yml infra/hermes/config.yaml
             fi
             if [ "${{ github.event.inputs.mode }}" = "restore-rehearsal" ]; then
               git fetch --quiet origin main

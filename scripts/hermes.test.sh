@@ -74,17 +74,55 @@ refuses othernet "$S.networks = ['default']" 'must join the `hermes` network' "a
 refuses nodrop "$S.cap_drop = []" 'cap_drop must be [ALL]' "caps not dropped"
 refuses morecap "$S.cap_add.push('SYS_ADMIN')" 'cap_add must be exactly' "an extra capability"
 refuses extraenv "$S.environment.OPENAI_API_KEY = 'x'" 'only ANTHROPIC_API_KEY' "a fourth environment key"
+refuses restart "$S.restart = 'unless-stopped'" 'restart must be "no"' "a docker restart policy (it would start before the firewall at boot)"
+refuses extends "$S.extends = {file: '/etc/x.yml', service: 'a'}" 'sets `extends`' "extends"
+refuses configs "doc.configs = {c: {file: '/etc/shadow'}}" 'top level' "top-level configs with a host file"
+refuses secrets "doc.secrets = {s: {file: '/etc/shadow'}}" 'top level' "top-level secrets with a host file"
+refuses include "doc.include = ['../aiweb/docker-compose.yml']" 'top level' "include"
+refuses dns "$S.dns = ['10.0.0.2']" 'sets `dns`' "a dns setting"
+refuses runtime "$S.runtime = 'runc'" 'sets `runtime`' "a runtime"
+refuses labels "$S.labels = {x: '/etc'}" 'sets `labels`' "labels"
+refuses nethost "doc.networks.hermes = {driver: 'host'}" 'plain' "network driver host"
+refuses netmacvlan "doc.networks.hermes = {driver: 'macvlan'}" 'plain' "network driver macvlan"
+refuses netinternal "doc.networks.hermes = {internal: true}" 'plain' "an internal network (Telegram would be unreachable; not the committed shape)"
+refuses voldriver "doc.volumes['hermes-data'] = {driver_opts: {type: 'none', device: '/', o: 'bind'}}" 'plain named volume' "a bind-backed volume"
 refuses extrasvc "doc.services.other = {image: 'x@sha256:0000000000000000000000000000000000000000000000000000000000000000'}" 'exactly one service' "a second service"
+
+echo "allow-list (hermes-deploy.sh --check-env):"
+envcase() { # <value> <expect ok|refused> <label>
+  printf 'HERMES_ANTHROPIC_API_KEY=x
+HERMES_TELEGRAM_BOT_TOKEN=y
+HERMES_TELEGRAM_ALLOWED_USERS=%s
+' "$1" >"$W/env"
+  local out rc
+  out="$(HERMES_ENV_FILE="$W/env" bash scripts/hermes-deploy.sh --check-env 2>&1)"
+  rc=$?
+  if [ "$2" = ok ] && [ $rc -eq 0 ]; then ok "accepts $3"
+  elif [ "$2" = refused ] && [ $rc -ne 0 ] && grep -q HERMES_TELEGRAM_ALLOWED_USERS <<<"$out" && ! grep -qF -- "$1" <<<"$out"; then ok "refuses $3, naming the key and not the value"
+  else bad "$3: rc=$rc ($(tail -1 <<<"$out"))"; fi
+}
+envcase 123456789 ok "one numeric id"
+envcase 123,456 ok "two ids"
+envcase '@owner' refused "a username"
+envcase '123;456' refused "a semicolon list"
+envcase '123,' refused "a trailing comma"
+envcase '123 456' refused "a space"
 
 echo "firewall rules (hermes-firewall.sh --print):"
 out="$(HERMES_BRIDGES='br-0123456789ab' bash scripts/hermes-firewall.sh --print 2>&1)"
 for want in '-A HERMES-NO-HOST -i br-0123456789ab -j DROP' \
-  '-A HERMES-NO-LAN -i br-0123456789ab -d 169.254.0.0/16 -j DROP' \
-  '-A HERMES-NO-LAN -i br-0123456789ab -d 10.0.0.0/8 -j DROP' \
-  '-A HERMES-NO-LAN -i br-0123456789ab -d 172.16.0.0/12 -j DROP' \
-  '-A HERMES-NO-LAN -i br-0123456789ab -d 192.168.0.0/16 -j DROP'; do
+'-A HERMES-NO-LAN -d 169.254.0.0/16 -i br-0123456789ab -j DROP'   '-A HERMES-NO-LAN -d 10.0.0.0/8 -i br-0123456789ab -j DROP'   '-A HERMES-NO-LAN -d 172.16.0.0/12 -i br-0123456789ab -j DROP'   '-A HERMES-NO-LAN -d 192.168.0.0/16 -i br-0123456789ab -j DROP'   '-A HERMES-NO-LAN -d 100.64.0.0/10 -i br-0123456789ab -j DROP'   '-A HERMES-NO-LAN -d 0.0.0.0/8 -i br-0123456789ab -j DROP'; do
   if grep -qxF -- "$want" <<<"$out"; then ok "writes: $want"; else bad "does not write: $want"; fi
 done
+out="$(HERMES_RESOLVERS='169.254.169.253 8.8.8.8 100.64.0.2' HERMES_BRIDGES='br-0123456789ab' bash scripts/hermes-firewall.sh --print 2>&1)"
+for want in '-A HERMES-NO-LAN -d 169.254.169.253/32 -i br-0123456789ab -p udp -m udp --dport 53 -j ACCEPT' \
+  '-A HERMES-NO-LAN -d 100.64.0.2/32 -i br-0123456789ab -p tcp -m tcp --dport 53 -j ACCEPT'; do
+  if grep -qxF -- "$want" <<<"$out"; then ok "a resolver in a dropped range is let through: $want"; else bad "resolver rule missing: $want"; fi
+done
+if grep -q -- '8.8.8.8' <<<"$out"; then bad "a public resolver got an ACCEPT rule"; else ok "a public resolver gets no rule"; fi
+first_accept="$(grep -n -- 'ACCEPT' <<<"$out" | head -1 | cut -d: -f1)"
+first_drop="$(grep -n -- 'LAN -d 169.254.0.0/16' <<<"$out" | head -1 | cut -d: -f1)"
+if [ -n "$first_accept" ] && [ "$first_accept" -lt "$first_drop" ]; then ok "the ACCEPTs come before the drops"; else bad "the ACCEPTs do not come before the drops"; fi
 if [ "$(HERMES_BRIDGES='' bash scripts/hermes-firewall.sh --print | grep -c -- '-A ')" = 0 ]; then
   ok "no bridge, no rule (the chains are emptied)"
 else
@@ -92,13 +130,14 @@ else
 fi
 
 echo "wiring:"
-for f in scripts/hermes-deploy.sh scripts/hermes-firewall.sh; do
+for f in scripts/hermes-deploy.sh scripts/hermes-firewall.sh scripts/hermes-ensure.sh; do
   if bash -n "$f"; then ok "$f parses"; else bad "$f does not parse"; fi
 done
 grep -q 'hermes)' .github/workflows/deploy.yml && grep -q 'hermes-stop)' .github/workflows/deploy.yml &&
   ok "deploy.yml resolves the modes hermes and hermes-stop" || bad "deploy.yml lacks the hermes modes"
-grep -q 'scripts/hermes-firewall.sh' scripts/install-host-cron.sh &&
-  ok "host cron runs the firewall" || bad "host cron does not run the firewall"
+grep -q 'hermes-ensure.sh --boot' scripts/install-host-cron.sh && grep -q 'scripts/hermes-ensure.sh >>' scripts/install-host-cron.sh &&
+  ok "host cron runs the ensure script at boot and every 5 minutes" || bad "host cron does not run the ensure script"
+grep -q 'hermes-ensure.sh' .github/workflows/deploy.yml && ok "deploy.yml checks the ensure script out" || bad "deploy.yml does not check out the ensure script"
 grep -q 'HERMES_ANTHROPIC_API_KEY' .env.production.example &&
   ok ".env.production.example documents the keys" || bad ".env.production.example lacks the keys"
 

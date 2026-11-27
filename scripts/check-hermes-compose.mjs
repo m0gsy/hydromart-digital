@@ -8,6 +8,15 @@
  * that lets every Telegram user in. This refuses those edits before they merge; the box proves the
  * result after every deploy (scripts/hermes-deploy.sh).
  *
+ * It is a WHITELIST: every top-level key, every service key and the shape of the network and the volume
+ * must be one this file already uses. A key nobody listed (extends, include, configs, secrets, dns,
+ * runtime, labels, a host-path anything) is refused, so a new Compose feature cannot slip past a
+ * blacklist that never heard of it.
+ *
+ * The values of HERMES_* keys are checked by name here; the deploy (scripts/hermes-deploy.sh) also refuses
+ * a HERMES_TELEGRAM_ALLOWED_USERS that is not numeric Telegram user ids separated by commas
+ * (^[0-9]+(,[0-9]+)*$), since a name or a stray character would silently allow the wrong people.
+ *
  *   node scripts/check-hermes-compose.mjs [compose file]
  *
  * Exit 0 = every rule holds; 1 = it names each one that does not.
@@ -23,8 +32,15 @@ const doc = yaml.load(text) ?? {};
 const problems = [];
 const bad = (message) => problems.push(message);
 
+// Top level: exactly these keys (`include`, `configs`, `secrets`, ... are refused).
+const TOP = ['name', 'x-logging', 'services', 'networks', 'volumes'];
+for (const key of Object.keys(doc)) if (!TOP.includes(key)) bad(`sets \`${key}\` at the top level, which is not one of: ${TOP.join(', ')}`);
+
 if (typeof doc.name !== 'string' || !/^[a-z0-9][a-z0-9_-]*$/.test(doc.name) || doc.name === 'hydromart' || doc.name === 'hydromart-ai') {
   bad(`\`name:\` must pin a project of its own, not "${doc.name}"`);
+}
+if (JSON.stringify(doc['x-logging']) !== JSON.stringify({ driver: 'json-file', options: { 'max-size': '50m', 'max-file': '3' } })) {
+  bad('x-logging must be the repo cap: json-file, max-size 50m, max-file 3');
 }
 
 // Values from .env reach this file only as ${HERMES_*}; `$$` is compose's escaped dollar.
@@ -37,19 +53,26 @@ const code = text.replace(/#[^\n]*/g, '');
 for (const name of ['GATEWAY_ALLOW_ALL_USERS', 'TELEGRAM_ALLOW_ALL_USERS', 'HERMES_YOLO_MODE', 'HERMES_DASHBOARD', 'API_SERVER_ENABLED', 'HERMES_ALLOW_PRIVATE_URLS', 'API_SERVER_KEY']) {
   if (code.includes(name)) bad(`${name} must never be set: it opens Hermes to everyone, or exposes a port, or lets it fetch private addresses`);
 }
+if (/docker\.sock/.test(code)) bad('docker.sock appears in the file: Hermes never gets the docker socket');
 
+// The network: exactly `hermes: {}` (a plain bridge: no driver, no ipam, no driver_opts, not external, no name).
 const networks = doc.networks ?? {};
 if (Object.keys(networks).join(',') !== 'hermes') bad(`networks must be exactly \`hermes\`, found: ${Object.keys(networks).join(', ') || 'none'}`);
-for (const [key, net] of Object.entries(networks)) {
-  if (net?.external === true || net?.external?.name !== undefined || net?.name !== undefined) {
-    bad(`networks.${key} must be this project's own: no \`external\`, no \`name\` (that is how another project's network is joined)`);
-  }
+if (networks.hermes !== undefined && networks.hermes !== null && JSON.stringify(networks.hermes) !== '{}') {
+  bad(`networks.hermes must be the plain \`{}\` (a bridge of this project: no driver, ipam, driver_opts, external, name, internal), found ${JSON.stringify(networks.hermes)}`);
+}
+
+// The volume: a plain named volume of this project.
+const volumes = doc.volumes ?? {};
+if (Object.keys(volumes).join(',') !== 'hermes-data') bad(`volumes must be exactly \`hermes-data\`, found: ${Object.keys(volumes).join(', ') || 'none'}`);
+if (volumes['hermes-data'] !== undefined && volumes['hermes-data'] !== null && JSON.stringify(volumes['hermes-data']) !== '{}') {
+  bad(`volumes.hermes-data must be a plain named volume (no external, driver, driver_opts, name), found ${JSON.stringify(volumes['hermes-data'])}`);
 }
 
 const services = Object.entries(doc.services ?? {});
 if (services.map(([n]) => n).join(',') !== 'hermes') bad(`exactly one service, \`hermes\`, is allowed; found: ${services.map(([n]) => n).join(', ') || 'none'}`);
 
-const FORBIDDEN = ['ports', 'expose', 'network_mode', 'pid', 'ipc', 'uts', 'privileged', 'devices', 'userns_mode', 'volumes_from', 'env_file', 'build', 'extra_hosts', 'links', 'external_links', 'sysctls', 'group_add', 'cgroup_parent', 'tmpfs'];
+const SERVICE_KEYS = ['image', 'command', 'restart', 'logging', 'mem_limit', 'cpus', 'pids_limit', 'cap_drop', 'cap_add', 'security_opt', 'environment', 'volumes', 'networks'];
 const ALLOWED_CAPS = ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'KILL', 'SETGID', 'SETUID'];
 const ALLOWED_ENV = {
   ANTHROPIC_API_KEY: 'HERMES_ANTHROPIC_API_KEY',
@@ -62,14 +85,16 @@ const required = (value, key) => {
 };
 for (const [name, svc] of services) {
   const where = `services.${name}`;
+  for (const key of Object.keys(svc ?? {})) {
+    if (!SERVICE_KEYS.includes(key)) bad(`${where} sets \`${key}\`, which is not one of the keys this file may use (${SERVICE_KEYS.join(', ')})`);
+  }
   if (!/^[^\s@]+@sha256:[0-9a-f]{64}$/.test(String(svc?.image ?? ''))) {
     bad(`${where}.image must be pinned by digest (name@sha256:<64 hex>): a tag is whatever its registry says today`);
   }
-  for (const key of FORBIDDEN) if (svc?.[key] !== undefined) bad(`${where} sets \`${key}\`, which reaches past this project's one network or past the pinned image`);
   if (JSON.stringify(svc?.command) !== '["gateway","run"]') bad(`${where}.command must be ["gateway", "run"]: the foreground Telegram gateway, nothing else`);
-  if (svc?.restart !== 'unless-stopped') bad(`${where}.restart must be unless-stopped`);
-  if (svc?.entrypoint !== undefined) bad(`${where} sets \`entrypoint\`: the image's own init is what drops the privileges`);
-  if (svc?.user !== undefined) bad(`${where} sets \`user\`: the image's init starts as root and drops to UID 10000 itself`);
+  // Docker never restarts it: at boot that would run it before DOCKER-USER exists. The host starts it (scripts/hermes-ensure.sh).
+  if (svc?.restart !== 'no') bad(`${where}.restart must be "no": the host starts it after the firewall (scripts/hermes-ensure.sh)`);
+  if (JSON.stringify(svc?.logging) !== JSON.stringify({ driver: 'json-file', options: { 'max-size': '50m', 'max-file': '3' } })) bad(`${where}.logging must be the repo's json-file cap (*logging)`);
 
   // Limits: RAM, CPU and processes capped.
   if (typeof svc?.mem_limit !== 'string' || !/^\d+[mg]$/i.test(svc.mem_limit)) bad(`${where}.mem_limit must be set (e.g. 1536m)`);
@@ -93,21 +118,16 @@ for (const [name, svc] of services) {
   }
 
   // Volumes: the one named data volume, nothing of the host.
-  const volumes = svc?.volumes ?? [];
-  if (volumes.length !== 1 || String(volumes[0]) !== 'hermes-data:/opt/data') bad(`${where}.volumes must be exactly ["hermes-data:/opt/data"]: no bind mount, no docker socket`);
-  if (!Object.hasOwn(doc.volumes ?? {}, 'hermes-data')) bad('volumes.hermes-data must be declared');
-  for (const [key, vol] of Object.entries(doc.volumes ?? {})) {
-    if (vol?.external || vol?.driver_opts || vol?.name !== undefined) bad(`volumes.${key} must be a plain named volume of this project`);
-  }
+  const vols = svc?.volumes ?? [];
+  if (vols.length !== 1 || String(vols[0]) !== 'hermes-data:/opt/data') bad(`${where}.volumes must be exactly ["hermes-data:/opt/data"]: no bind mount, no docker socket`);
 
   const joined = Array.isArray(svc?.networks) ? svc.networks : Object.keys(svc?.networks ?? {});
   if (joined.join(',') !== 'hermes') bad(`${where} must join the \`hermes\` network and nothing else, found: ${joined.join(', ') || 'none'}`);
 }
-if (/docker\.sock/.test(code)) bad('docker.sock appears in the file: Hermes never gets the docker socket');
 
 if (problems.length > 0) {
   console.error(`${file} breaks Hermes' isolation:\n`);
   for (const p of problems) console.error(`  - ${p}`);
   process.exit(1);
 }
-console.log(`Hermes compose OK: project ${doc.name}, 1 digest-pinned service, no port, no socket, no host mount, own network, caps ${ALLOWED_CAPS.join('+')}, only HERMES_* from .env.`);
+console.log(`Hermes compose OK: project ${doc.name}, 1 digest-pinned service, no port, no socket, no host mount, own plain network, restart "no", caps ${ALLOWED_CAPS.join('+')}, only HERMES_* from .env.`);

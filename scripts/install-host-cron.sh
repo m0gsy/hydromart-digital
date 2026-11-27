@@ -133,9 +133,11 @@ AIWEB_DRILL_LOG=$AIWEB_DRILL_LOG_PATH
 */5 * * * * cd $REPO && bash scripts/aiweb-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1
 
 # Hermes Agent's network, closed to the box and to every private range (owner decision 2026-11-27), the same way
-# and for the same reasons. Does nothing while Hermes has never been deployed (no network, nothing to close).
-@reboot cd $REPO && bash scripts/hermes-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1
-*/5 * * * * cd $REPO && bash scripts/hermes-firewall.sh >> /var/log/hydromart-watchdog.log 2>&1
+# and for the same reasons, then keeps the container running. Does nothing while Hermes has never been deployed.
+# Docker does not restart it (restart: "no"): the boot run waits for dockerd and DOCKER-USER, closes the network, and
+# only then starts the container, if deploy mode `hermes` left .deploy/hermes.enabled. The 5-minute run does the same.
+@reboot cd $REPO && bash scripts/hermes-ensure.sh --boot >> /var/log/hydromart-watchdog.log 2>&1
+*/5 * * * * cd $REPO && bash scripts/hermes-ensure.sh >> /var/log/hydromart-watchdog.log 2>&1
 
 # N13 — TLS expiry. Renewal is automatic, which is exactly why nobody watches it: the
 # failure is not a loud renewal error, it is renewal quietly stopping and every browser
