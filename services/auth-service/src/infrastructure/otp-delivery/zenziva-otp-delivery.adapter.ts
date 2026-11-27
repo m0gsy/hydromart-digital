@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { maskPhone } from '@hydromart/platform';
 
 import { redactGatewayDetail } from './redact-gateway-detail';
 
@@ -14,13 +15,18 @@ import {
 const REF_KEYS = ['messageId', 'message_id', 'id', 'trxid', 'trx_id', 'reference'];
 
 /**
- * A value safe to put in a log line as a message reference: identifier-shaped, and not a run of
- * 9-14 digits, which is the shape of a phone number and the one thing that must never be logged.
+ * A value safe to put in a log line as a message reference: identifier-shaped, and containing no
+ * run of 9 or more digits, which is the shape of a phone number and the one thing that must never
+ * be logged.
+ *
+ * "Containing", not "being". Zenziva's real `messageId` is `ot<destination number>_<suffix>`
+ * (seen in prod on 27 Nov 2026), so a check for a value that is ENTIRELY digits let every
+ * destination number into the log through the reference.
  */
 const isReference = (v: unknown): boolean =>
   (typeof v === 'string' || typeof v === 'number') &&
   /^[\w-]{3,64}$/.test(String(v)) &&
-  !/^\d{9,14}$/.test(String(v));
+  !/\d{9,}/.test(String(v));
 
 /**
  * Delivers OTP codes over Zenziva's masking SMS API. Selected via
@@ -121,10 +127,14 @@ export class ZenzivaOtpDeliveryAdapter implements OtpDeliveryPort {
      * Never the body: it echoes the destination number and the message, and the message IS the
      * code. Only the response's field NAMES are logged (so the reference field can be identified
      * from a real send), plus one reference value when it has the shape of an identifier.
+     *
+     * The destination is logged MASKED, the same way as every other number in the logs. The owner
+     * chose this on 27 Nov 2026: the last digits are enough to match a complaint to a Zenziva
+     * console row, and the full number never reaches the log.
      */
     const ref = REF_KEYS.map((key) => (body as Record<string, unknown>)[key]).find(isReference);
     this.logger.log(
-      `Zenziva accepted the OTP send in ${Date.now() - startedAt}ms ` +
+      `Zenziva accepted the OTP send to ${maskPhone(message.phone)} in ${Date.now() - startedAt}ms ` +
         `(response fields: ${Object.keys(body).join(',')}${ref === undefined ? '' : `; ref=${String(ref)}`})`,
     );
   }

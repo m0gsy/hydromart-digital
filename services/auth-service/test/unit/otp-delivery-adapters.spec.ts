@@ -199,7 +199,7 @@ describe('OTP delivery adapters', () => {
         mockZenziva({ status: '1', text: 'Success', messageId: 'abc-123' });
         await new ZenzivaOtpDeliveryAdapter(config).send(message);
         const line = log.mock.calls.map((c) => String(c[0])).join('\n');
-        expect(line).toMatch(/Zenziva accepted the OTP send in \d+ms/);
+        expect(line).toMatch(/Zenziva accepted the OTP send to \+6281\*{6}890 in \d+ms/);
         expect(line).toContain('response fields: status,text,messageId');
         expect(line).toContain('ref=abc-123');
       });
@@ -217,6 +217,18 @@ describe('OTP delivery adapters', () => {
         expect(line).toContain('response fields: status,to,message,id');
         expect(line).not.toContain('081234567890');
         expect(line).not.toContain('123456');
+        expect(line).not.toContain('ref=');
+      });
+
+      // Zenziva's real messageId embeds the destination: `ot<number>_<suffix>`.
+      it('never logs a reference that embeds the number', async () => {
+        const log = jest.spyOn(Logger.prototype, 'log').mockImplementation();
+        mockZenziva({ status: '1', messageId: 'ot6281234567890_mzdn17957522198841' });
+        await new ZenzivaOtpDeliveryAdapter(config).send(message);
+        const line = log.mock.calls.map((c) => String(c[0])).join('\n');
+        expect(line).toContain('response fields: status,messageId');
+        expect(line).toContain('to +6281******890');
+        expect(line).not.toContain('6281234567890');
         expect(line).not.toContain('ref=');
       });
 
