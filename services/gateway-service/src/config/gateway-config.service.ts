@@ -11,6 +11,9 @@ import { NATIVE_ORIGINS } from '../routing/session-bff';
 const SEGMENT_ENV: Record<string, string> = {
   auth: 'AUTH_SERVICE_URL',
   customers: 'CUSTOMER_SERVICE_URL',
+  // B2B prospects (customer-service, AREA-1). Own public segment, reuses the customer-service
+  // upstream (no new env var); without it every route would 404 at the gateway.
+  'b2b-prospects': 'CUSTOMER_SERVICE_URL',
   products: 'PRODUCT_SERVICE_URL',
   orders: 'ORDER_SERVICE_URL',
   payments: 'PAYMENT_SERVICE_URL',

@@ -18,6 +18,8 @@ JWT_ACCESS_SECRET=$(gen 48)
 JWT_REFRESH_SECRET=$(gen 48)
 OTP_PEPPER=$(gen 32)
 PAYMENT_WEBHOOK_SECRET=$(gen 32)
+# B2B do-not-contact list key (AREA-1). NEVER ROTATE: every stored hash would stop matching.
+PROSPECT_DNC_HMAC_KEY=$(gen 32)
 # One shared internal key — must be IDENTICAL in every service that talks internally.
 INTERNAL_SERVICE_KEY=$(gen 32)
 # Grafana admin login (H-27). The compose file requires it — the stack will not

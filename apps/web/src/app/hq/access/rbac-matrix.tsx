@@ -99,6 +99,12 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'prospectRead',
       'prospectCrm',
       'prospectSettings',
+      'b2bProspectRead',
+      'b2bProspectWork',
+      'b2bProspectManage',
+      'b2bProspectImport',
+      'b2bProspectExport',
+      'b2bProspectReassign',
     ],
   },
   {

@@ -238,3 +238,167 @@ model ResellerPriceChange {
   @@index([appliedAt, effectiveAt])
   @@map("reseller_price_changes")
 }
+
+// ─── B2B prospects (AREA-1) ──────────────────────────────────────────────────
+// A prospect is a BUSINESS a depot could sell gallons to. Nothing to do with the calon-mitra
+// (franchise applicant) CRM. Ids of B2bCategory equal the AREA-T category ids, upper-cased.
+
+enum B2bCategory {
+  KOS
+  SEKOLAH
+  PESANTREN
+  TEMPAT_IBADAH
+  KLINIK
+  BENGKEL
+  SALON
+  KEBUGARAN
+  RUMAH_MAKAN
+  KANTOR_RUKO
+  LAUNDRY
+  PENGINAPAN
+  PABRIK_GUDANG
+}
+
+enum B2bProspectStatus {
+  NEW
+  CONTACTED
+  VISITED
+  INTERESTED
+  CONVERTED
+  LOST
+  DO_NOT_CONTACT
+}
+
+/// The ONLY accepted sources. INTERNAL and FIELD are our own data and need no licence.
+enum B2bSource {
+  OVERTURE
+  OSM
+  FOURSQUARE_OS
+  INTERNAL
+  FIELD
+}
+
+enum B2bOwnerSource {
+  AUTO
+  HQ
+}
+
+enum B2bDncKind {
+  PHONE
+  PLACE
+}
+
+enum B2bDncReason {
+  PROSPECT_REFUSED
+  CUSTOMER_REQUEST
+  WRONG_NUMBER
+  LEGAL
+  OTHER
+}
+
+enum B2bVisitOutcome {
+  MET_DECISION_MAKER
+  LEFT_MATERIAL
+  NOT_THERE
+  REFUSED
+}
+
+model B2bProspect {
+  id             String             @id @default(uuid()) @db.Uuid
+  name           String
+  /// normaliseName(name): the matching key for duplicates and the place key of do-not-contact.
+  nameKey        String
+  category       B2bCategory
+  /// E.164, landlines included. Null when none; wiped on do-not-contact.
+  phoneE164      String?            @unique
+  contactName    String?
+  address        String?
+  latitude       Float
+  longitude      Float
+  gridCell       String
+  kecamatanCode  String?
+  kelurahanCode  String?
+  /// ONE column = exactly one owner. Null = the opportunity map (no depot serves the pin).
+  ownerDepotId   String?            @db.Uuid
+  ownerSource    B2bOwnerSource     @default(AUTO)
+  status         B2bProspectStatus  @default(NEW)
+  /// Staff account id; only ever set when ownerDepotId is not null.
+  assignedToId   String?            @db.Uuid
+  assignedAt     DateTime?
+  source         B2bSource
+  /// As stated in the file (AREA-T license, joined with a semicolon); required for the three open sources.
+  licence        String?
+  sourceId       String?
+  sourceDataset  String?
+  /// Vintage of the dataset row (coverage data age); createdAt is the fallback.
+  sourceDate     DateTime?
+  batchId        String?            @db.Uuid
+  customerId     String?            @db.Uuid
+  convertedAt    DateTime?
+  lostReason     String?
+  note           String?
+  /// The retention clock.
+  lastActivityAt DateTime
+  createdById    String?            @db.Uuid
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  visits         B2bProspectVisit[]
+
+  @@unique([source, sourceId])
+  @@index([nameKey])
+  @@index([ownerDepotId, status])
+  @@index([assignedToId, status])
+  @@index([kecamatanCode, category])
+  @@index([lastActivityAt])
+  @@index([latitude, longitude])
+  @@map("b2b_prospects")
+}
+
+/// One row per accepted GPS check-in (AREA-1b).
+model B2bProspectVisit {
+  id         String          @id @default(uuid()) @db.Uuid
+  prospectId String          @db.Uuid
+  visitorId  String          @db.Uuid
+  latitude   Float
+  longitude  Float
+  accuracyM  Float
+  distanceM  Int
+  outcome    B2bVisitOutcome
+  note       String?
+  visitedAt  DateTime        @default(now())
+  prospect   B2bProspect     @relation(fields: [prospectId], references: [id], onDelete: Cascade)
+
+  @@index([prospectId, visitedAt])
+  @@map("b2b_prospect_visits")
+}
+
+/// PERMANENT, never purged. Only what is needed to MATCH, never to identify (UU PDP): a keyed hash
+/// (HMAC-SHA256, PROSPECT_DNC_HMAC_KEY) of the phone or of the name plus 1 km cell, plus kind, reason, date, who.
+model B2bDoNotContact {
+  id        String       @id @default(uuid()) @db.Uuid
+  kind      B2bDncKind
+  keyHash   String
+  reason    B2bDncReason
+  addedById String?      @db.Uuid
+  addedAt   DateTime     @default(now())
+
+  @@unique([kind, keyHash])
+  @@map("b2b_do_not_contact")
+}
+
+/// One committed import file: the log and the third-party cost measure. Holds no personal data.
+model B2bImportBatch {
+  id           String   @id @default(uuid()) @db.Uuid
+  /// Distinct row sources and licences of the file, comma-joined (a file may mix overture and osm rows).
+  sources      String
+  licences     String
+  rows         Int
+  created      Int
+  refused      Int
+  failed       Int
+  costIdr      Int      @default(0)
+  importedById String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  @@map("b2b_import_batches")
+}

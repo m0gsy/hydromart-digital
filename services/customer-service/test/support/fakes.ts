@@ -314,6 +314,7 @@ export function buildTestConfig(overrides: Record<string, string> = {}): Custome
     MAX_ADDRESSES_PER_CUSTOMER: '20',
     LOYALTY_SERVICE_URL: 'http://loyalty.test',
     BIRTHDAY_REWARD_POINTS: '250',
+    PROSPECT_DNC_HMAC_KEY: 'test-prospect-dnc-hmac-key-32-chars-long',
     ...overrides,
   };
   const fake = {

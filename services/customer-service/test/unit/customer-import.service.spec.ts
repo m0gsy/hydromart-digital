@@ -46,6 +46,11 @@ class FakeIdentity implements IdentityPort {
     return { ...out, customerId: out.customerId || `cust-${++this.seq}` };
   }
 
+  // Import never asks about an existing account; present only to satisfy the port.
+  async customerIdByPhone(): Promise<string | null> {
+    return null;
+  }
+
   // Import never reads names back; present only to satisfy the port.
   async getCustomerNames(): Promise<Map<string, CustomerIdentity>> {
     return new Map();

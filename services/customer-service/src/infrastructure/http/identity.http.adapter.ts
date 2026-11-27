@@ -53,6 +53,32 @@ export class IdentityHttpAdapter implements IdentityPort {
     return { customerId: body.customerId, status: body.status };
   }
 
+  async customerIdByPhone(phone: string): Promise<string | null> {
+    const base = this.config.authServiceUrl;
+    const key = this.config.internalServiceKey;
+    if (!base || !key) {
+      throw new ServiceUnavailableException('AUTH_SERVICE_URL/INTERNAL_SERVICE_KEY belum diset');
+    }
+    let res: Response;
+    try {
+      res = await fetch(`${base.replace(/\/$/, '')}/api/v1/auth/internal/customers/by-phone`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-internal-key': key },
+        body: JSON.stringify({ phone }),
+        signal: AbortSignal.timeout(IdentityHttpAdapter.TIMEOUT_MS),
+      });
+    } catch (err) {
+      throw new ServiceUnavailableException(
+        `Gagal menghubungi auth-service: ${err instanceof Error ? err.message : 'unknown'}`,
+      );
+    }
+    if (!res.ok) {
+      throw new ServiceUnavailableException(`auth-service tidak bisa memeriksa nomor ini (${res.status})`);
+    }
+    const body = (await res.json()) as { customerId?: string | null };
+    return body.customerId ?? null;
+  }
+
   /**
    * Fail-SOFT on purpose: this only decorates a directory the caller can already render.
    * An unreachable auth-service must degrade the names, never 503 the depot's customer list.

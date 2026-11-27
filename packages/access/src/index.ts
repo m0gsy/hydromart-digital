@@ -700,6 +700,23 @@ export const CAPABILITIES = {
   // HD-21 - Hot/Warm thresholds and the legacy-application import. The owner grants it to Sales Lead.
   prospectSettings: ['SUPER_ADMIN'],
   /*
+   * customer-service (AREA-1) - B2B prospects: BUSINESSES a depot could sell gallons to. Not the
+   * calon-mitra caps above (those are franchise applicants). All six are grantable to a custom role
+   * (Sales Depot = LOCKED scope + b2bProspectWork only); only reassign is in CUSTOM_FORBIDDEN.
+   * Read: list (no phone), coverage, the opportunity map (network roles only).
+   */
+  b2bProspectRead: ['KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // Work: open one prospect with its phone; log status, visit, do-not-contact, convert.
+  b2bProspectWork: ['KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // Manage: field find, assign, reopen LOST; sees every prospect in depot scope, not only assigned.
+  b2bProspectManage: ['KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // Import: bulk import, the monthly owner recompute, the batch cost.
+  b2bProspectImport: ['MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+  // Export: rows out of the system (always audited, fail-closed).
+  b2bProspectExport: ['KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  // Reassign: HQ arbitrates which depot owns a prospect (Area-D4); Marketing imports but does not reassign.
+  b2bProspectReassign: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+  /*
    * depot-service (HD-15B PR-4) - read visits and findings: the per-depot supervisor view, a
    * visit's detail with its photo links. Depot-scoped like every depot read (a Kepala sees only
    * their own depot, a supervisor the depots they oversee, head office all).
@@ -1233,6 +1250,8 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   // hrAdmin / employeeAssign is a way to hand out built-in roles.
   'hrAdmin',
   'employeeAssign',
+  // AREA-1: which depot owns a B2B prospect is head office's arbitration, never a per-depot grant.
+  'b2bProspectReassign',
 ];
 
 /**

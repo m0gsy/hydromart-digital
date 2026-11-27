@@ -32,6 +32,7 @@ export {
   withinGeofence,
   type Geofence,
 } from './domain/geo';
+export { normalizeIdPhone } from './domain/phone';
 export {
   pointInServiceArea,
   depotServes,

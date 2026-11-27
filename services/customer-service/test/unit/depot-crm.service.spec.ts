@@ -61,6 +61,7 @@ class FakeIdentity implements IdentityPort {
   names = new Map<string, CustomerIdentity>();
   asked: string[][] = [];
   preRegisterCustomer = jest.fn();
+  customerIdByPhone = jest.fn();
   async getCustomerNames(ids: string[]): Promise<Map<string, CustomerIdentity>> {
     this.asked.push(ids);
     return this.names;

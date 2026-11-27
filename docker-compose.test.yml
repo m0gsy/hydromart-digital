@@ -103,6 +103,7 @@ services:
       MAX_ADDRESSES_PER_CUSTOMER: 20
       LOYALTY_SERVICE_URL: http://loyalty:3009
       PRODUCT_SERVICE_URL: http://product:3003
+      PROSPECT_DNC_HMAC_KEY: itest-prospect-dnc-hmac-key-0123456789abcdef
       # J-1 — see docker-compose.prod.yml. The integration suite asserts the directory's
       # order columns, so the test stack needs the same wiring the real one does.
       ORDER_SERVICE_URL: http://order:3004

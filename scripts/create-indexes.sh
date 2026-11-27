@@ -54,6 +54,12 @@
 # unserved_demand_monthKey_idx (customer-service, 2026-11-27, HD-20b) sits on a table its own migration creates:
 # built by that migration, not here, and the build is instant.
 #
+# b2b_prospects_phoneE164_key, b2b_prospects_source_sourceId_key, b2b_prospects_nameKey_idx,
+# b2b_prospects_ownerDepotId_status_idx, b2b_prospects_assignedToId_status_idx, b2b_prospects_kecamatanCode_category_idx,
+# b2b_prospects_lastActivityAt_idx, b2b_prospects_latitude_longitude_idx, b2b_prospect_visits_prospectId_visitedAt_idx and
+# b2b_do_not_contact_kind_keyHash_key (customer-service, 2026-11-28, AREA-1a) sit on four tables its own migration creates:
+# built by that migration, not here, and the build is instant.
+#
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh
 # database — CI, a new environment — the migration builds it itself, where locking an

@@ -6,6 +6,8 @@ import {
   can,
   grantorsFor,
   rolesFor,
+  loadCustomRoles,
+  loadOverrides,
   type Capability,
 } from './index';
 
@@ -168,6 +170,32 @@ describe('CAPABILITIES', () => {
     for (const c of ['prospectRead', 'prospectCrm', 'prospectSettings'] as const) {
       expect(CUSTOM_FORBIDDEN).not.toContain(c);
     }
+  });
+
+  // AREA-1: B2B prospect caps. Sales Depot is a custom role granted Work only.
+  it('gives the B2B prospect caps their holders; only reassign is forbidden to custom roles', () => {
+    expect(CAPABILITIES.b2bProspectRead).toEqual(['KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);
+    expect(CAPABILITIES.b2bProspectWork).toEqual(['KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+    expect(CAPABILITIES.b2bProspectManage).toEqual(['KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+    expect(CAPABILITIES.b2bProspectImport).toEqual(['MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN']);
+    expect(CAPABILITIES.b2bProspectExport).toEqual(['KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);
+    expect(CAPABILITIES.b2bProspectReassign).toEqual(['HEAD_OFFICE', 'SUPER_ADMIN']);
+    expect(can('b2bProspectImport', 'KEPALA_DEPOT')).toBe(false);
+    expect(can('b2bProspectReassign', 'MARKETING')).toBe(false);
+    for (const c of ['b2bProspectRead', 'b2bProspectWork', 'b2bProspectManage', 'b2bProspectImport', 'b2bProspectExport'] as const) {
+      expect(CUSTOM_FORBIDDEN).not.toContain(c);
+    }
+    expect(CUSTOM_FORBIDDEN).toContain('b2bProspectReassign');
+  });
+
+  it('lets a custom Sales Depot role hold Work but not Export or Reassign', () => {
+    loadCustomRoles([{ key: 'C_sales', name: 'Sales Depot', scope: 'LOCKED' }]);
+    loadOverrides({ b2bProspectWork: ['C_sales'], b2bProspectReassign: ['C_sales'] });
+    expect(can('b2bProspectWork', 'C_sales')).toBe(true);
+    expect(can('b2bProspectExport', 'C_sales')).toBe(false);
+    expect(can('b2bProspectReassign', 'C_sales')).toBe(false);
+    loadOverrides({});
+    loadCustomRoles([]);
   });
 
   // HD-15B: head office writes visit templates; supervisors conduct visits, a manager does not.
