@@ -19,6 +19,7 @@ import { MorningSummaryService } from '../application/services/morning-summary.s
 import { NotificationService } from '../application/services/notification.service';
 import { oneLine } from '../domain/ai-access-request';
 import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
+import { QualityHoldNoticeService } from '../application/services/quality-hold-notice.service';
 import { SalesWeeklyService } from '../application/services/sales-weekly.service';
 import { weekRefusal } from '../domain/sales-weekly';
 import { wibDate } from '../domain/morning-summary';
@@ -40,6 +41,8 @@ import {
   AiAgentNoticeDto,
   AiAgentNoticeResultDto,
   NotificationIdDto,
+  QualityHoldNoticeDto,
+  QualityHoldNoticeResultDto,
   SALES_WEEKLY_PREFIX,
   SalesWeeklyReadyDto,
   SalesWeeklyReadyResultDto,
@@ -69,6 +72,7 @@ export class NotificationExternalController {
     private readonly complianceDue: ComplianceDueService,
     private readonly salesWeekly: SalesWeeklyService,
     private readonly aiAgentNotices: AiAgentNoticeService,
+    private readonly qualityHold: QualityHoldNoticeService,
   ) {}
 
   /*
@@ -221,6 +225,23 @@ export class NotificationExternalController {
       throw new BadRequestException('date must be today in Asia/Jakarta');
     }
     return this.complianceDue.run(dto.date);
+  }
+
+  /*
+   * HD-14: n8n relays a quality hold that started or ended. Only the depot id is trusted: the
+   * depot's live state is read again and a notice that no longer agrees with it answers
+   * `{ notified: 0, stale: true }` (200, so n8n does not retry). Staff only: the depot's Kepala,
+   * supervisors, HQ Operasional and Marketing. 503 when the directory cannot be read (n8n retries).
+   */
+  @ExternalAccess('machine')
+  @Can('qualityHoldNotify')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Post('quality-hold')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'n8n: tell staff that a depot quality hold started or ended (HD-14)' })
+  @ApiOkResponse({ type: QualityHoldNoticeResultDto })
+  qualityHoldRun(@Body() dto: QualityHoldNoticeDto): Promise<QualityHoldNoticeResultDto> {
+    return this.qualityHold.run(dto.holdDepotId.toLowerCase(), dto.status, dto.changedAt);
   }
 
   /*

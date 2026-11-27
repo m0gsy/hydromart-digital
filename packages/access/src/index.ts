@@ -636,6 +636,8 @@ export const CAPABILITIES = {
   // own right; cancelling one stays the ordinary staff status path (orderFulfilment). Grantable to a custom role.
   qualityHoldOrders: ['KEPALA_DEPOT', 'HEAD_OFFICE', 'SUPER_ADMIN'],
   complianceDueNotify: ['SUPER_ADMIN'],
+  // HD-14: tell staff a quality hold began or ended (POST notifications/external/quality-hold), the n8n machine account's, same reasoning.
+  qualityHoldNotify: ['SUPER_ADMIN'],
   /*
    * crm-service (AI-26) - tell the people who read a legal entity's calon mitra CRM that the
    * weekly Sales report is ready (POST notifications/external/sales-weekly-ready). Held by the n8n
@@ -1209,6 +1211,7 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'maintenanceDueNotify',
   // HD-14: the n8n machine account's permit/lab-test sweep, same reasoning.
   'complianceDueNotify',
+  'qualityHoldNotify',
   // HD-14: ending a quality hold is head office's alone (owner decision); a custom role must never
   // hold it. Starting one stays grantable: stopping is the safe direction.
   'depotQualityHoldEnd',

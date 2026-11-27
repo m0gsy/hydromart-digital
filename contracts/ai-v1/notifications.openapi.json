@@ -891,7 +891,7 @@
             }
           },
           "403": {
-            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include maintenanceDueNotify. Not worth retrying until the machine account's scopes change.",
+            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include complianceDueNotify. Not worth retrying until the machine account's scopes change.",
             "content": {
               "application/json": {
                 "schema": {
@@ -920,6 +920,117 @@
           },
           "503": {
             "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call (nothing was sent), or the due items, the meter volume, the recipients or the earlier notices could not be read, or a recipient could not be filed. An outage never answers as \"nothing due\". Retry the same body the same WIB day: rows already filed stay, and nobody is told twice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/crm/api/v1/notifications/external/quality-hold": {
+      "post": {
+        "summary": "Tell staff that a depot quality hold started or ended.",
+        "description": "Called by n8n when it receives the signed event depot.quality_hold_changed. The token's scopes must include qualityHoldNotify. n8n relays the event's three fields; hydromart-digital trusts only the depot id: it reads the depot's CURRENT hold state again and tells staff only when the event agrees with it (ACTIVE while the depot is on hold, ENDED while it is not). Otherwise the answer is 200 with notified 0 and stale true: do not retry. changedAt is not trusted either: for ACTIVE the time shown and keyed is the hold's own start read from the depot (a replay with another changedAt files nothing new); for ENDED, which has no stored stamp, changedAt must be at most 5 minutes in the future and at most 24 hours old, else 400.\n\nTold (staff only, never customers): the depot's Kepala, the supervisors over it, HQ Operasional and Marketing (network-wide), each once, by bell, push and email. The words are hydromart-digital's and carry the depot name and the WIB time, never the reason or lab detail. A re-delivered event files nothing twice (the key is the depot, status, changedAt and recipient).\n\nThe depot id is named holdDepotId here, not depotId: a body key named depotId is read by the depot-scope guard, which refuses a machine token with 403.",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "The n8n workflow making the call, recorded in the audit trail as workflow (trimmed, at most 120 characters). Not checked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "hd14-quality-hold"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QualityHoldTrigger"
+              },
+              "example": {
+                "holdDepotId": "3f1d6c52-8a74-4a8e-9b1e-2f6f0f6f0a11",
+                "status": "ACTIVE",
+                "changedAt": "2026-11-27T03:15:00.000Z"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Staff were told (or already had been: a re-delivered event), or the event is stale and nobody was.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityHoldResult"
+                },
+                "example": {
+                  "notified": 6
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: holdDepotId not a UUID, status not ACTIVE or ENDED, changedAt not an ISO-8601 time (or, for ENDED, more than 5 minutes ahead or more than 24 hours old), or an unknown field. Not worth retrying with the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. That includes every token after AI and machine access was switched off (the published key set is empty): POST /auth/api/v1/auth/machine/token then answers 503. Get a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include qualityHoldNotify. Not worth retrying until the machine account's scopes change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this machine account. Wait the seconds in Retry-After, then retry with the same body.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call (nothing was sent), or the depot directory or the recipients could not be read, or a recipient could not be filed. Retry the same body: rows already filed stay, and nobody is told twice.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1471,6 +1582,54 @@
               "pending"
             ],
             "description": "WhatsApp waits for the Meta channel; it is never reported as sent."
+          }
+        }
+      },
+      "QualityHoldTrigger": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "holdDepotId",
+          "status",
+          "changedAt"
+        ],
+        "properties": {
+          "holdDepotId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The event's depotId (named differently on purpose: see the route description)."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "ENDED"
+            ],
+            "description": "The event's status."
+          },
+          "changedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The event's changedAt (ISO-8601)."
+          }
+        }
+      },
+      "QualityHoldResult": {
+        "type": "object",
+        "required": [
+          "notified"
+        ],
+        "properties": {
+          "notified": {
+            "type": "integer",
+            "description": "Notifications filed by this call (what a re-delivery already filed is not filed or counted again)."
+          },
+          "stale": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Present and true when the depot is no longer in the state the event says: nothing was sent and a retry would change nothing."
           }
         }
       }

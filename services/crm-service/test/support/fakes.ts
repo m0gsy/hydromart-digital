@@ -495,4 +495,11 @@ export class FakeHeldDepots {
     if (this.fail) throw new Error('depot-service down');
     return new Set(this.held);
   }
+  /** Depots known to the directory, by id; a depot is held when it is in `held`. */
+  known = new Map<string, string>();
+  since = new Map<string, string>();
+  async depotsById(): Promise<ReadonlyMap<string, { name: string; held: boolean; since: string | null }>> {
+    if (this.fail) throw new Error('depot-service down');
+    return new Map([...this.known].map(([id, name]) => [id, { name, held: this.held.has(id), since: this.since.get(id) ?? null }]));
+  }
 }

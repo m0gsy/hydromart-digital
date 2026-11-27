@@ -24,6 +24,7 @@ import {
 import { AI_AGENT_NOTICE_KINDS, AiAgentNoticeKind } from '../../domain/ai-agent-notice';
 import { CUSTOMER_REMINDER_KINDS, CustomerReminderKind } from '../../domain/customer-reminder';
 import { NotificationEvent } from '../../domain/notification-event';
+import { QUALITY_HOLD_STATUSES, QualityHoldStatus } from '../../domain/quality-hold-notice';
 import { NotificationStatus } from '../../domain/notification-status';
 import { NotificationRecord, OpsNotificationRecord } from '../../application/ports/notification.repository';
 
@@ -388,6 +389,32 @@ export class MaintenanceDueResultDto {
 export class ComplianceDueDto extends MaintenanceDueDto {}
 
 export class ComplianceDueResultDto extends MaintenanceDueResultDto {}
+
+/**
+ * HD-14: n8n relays `depot.quality_hold_changed`. The depot id is NOT called `depotId` on purpose:
+ * DepotScopeGuard reads that body key and refuses a machine token (locked to no depot) with 403.
+ */
+export class QualityHoldNoticeDto {
+  @ApiProperty({ description: "The event's depotId (named differently here: see the class note)." })
+  @IsUUID()
+  holdDepotId!: string;
+
+  @ApiProperty({ enum: QUALITY_HOLD_STATUSES, description: "The event's status." })
+  @IsIn(QUALITY_HOLD_STATUSES)
+  status!: QualityHoldStatus;
+
+  @ApiProperty({ example: '2026-11-27T03:15:00.000Z', description: "The event's changedAt." })
+  @IsISO8601({ strict: true })
+  changedAt!: string;
+}
+
+export class QualityHoldNoticeResultDto {
+  @ApiProperty({ description: 'Notifications filed by this call (a re-delivered event files none twice).' })
+  notified!: number;
+
+  @ApiPropertyOptional({ description: 'True when the depot no longer is in the state the event says: nothing sent, do not retry.' })
+  stale?: boolean;
+}
 /** AI-26: the dedupe base of the weekly Sales report notice is `sales-weekly:<Monday, WIB>`. */
 export const SALES_WEEKLY_PREFIX = 'sales-weekly:';
 

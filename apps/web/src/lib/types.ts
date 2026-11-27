@@ -949,6 +949,8 @@ export type NotificationEvent =
   // HD-14: a depot permit near expiry / a lab test overdue.
   | 'PERMIT_DUE'
   | 'LAB_TEST_DUE'
+  // HD-14: a depot quality hold began or ended, told to staff only.
+  | 'QUALITY_HOLD'
   | 'SALES_WEEKLY_REPORT'
   | 'AI_AGENT_FLAG'
   | 'AI_AGENT_CAP'
@@ -1013,6 +1015,7 @@ export const OPS_EVENTS = [
   'MAINTENANCE_DUE',
   'PERMIT_DUE',
   'LAB_TEST_DUE',
+  'QUALITY_HOLD',
   'SALES_WEEKLY_REPORT',
   'AI_AGENT_FLAG',
   'AI_AGENT_CAP',

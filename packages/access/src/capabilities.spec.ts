@@ -281,6 +281,9 @@ describe('CAPABILITIES', () => {
     expect(CAPABILITIES.complianceDueNotify).toEqual(['SUPER_ADMIN']);
     expect(can('complianceDueNotify', 'HEAD_OFFICE')).toBe(false);
     expect(CUSTOM_FORBIDDEN).toContain('complianceDueNotify');
+    expect(CAPABILITIES.qualityHoldNotify).toEqual(['SUPER_ADMIN']);
+    expect(can('qualityHoldNotify', 'HEAD_OFFICE')).toBe(false);
+    expect(CUSTOM_FORBIDDEN).toContain('qualityHoldNotify');
     expect(CUSTOM_FORBIDDEN).toContain('depotQualityHoldEnd');
     expect(CUSTOM_FORBIDDEN).not.toContain('depotQualityHoldStart');
     // the held-orders list is its own right, grantable, and not the court that ends a hold
