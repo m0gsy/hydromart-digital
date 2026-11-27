@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
 
 import { CoverageView } from '@/components/prospects/coverage-view';
+import { DncForm } from '@/components/prospects/dnc-form';
 import { ExportButton } from '@/components/prospects/export-button';
 import { ProspectTable } from '@/components/prospects/prospect-table';
 import { RecomputeOwners } from '@/components/prospects/recompute-owners';
@@ -45,6 +46,7 @@ function Body() {
   const [assigned, setAssigned] = useQueryState('assigned');
   const [q, setQ] = useQueryState('q');
   const [draft, setDraft] = useState(q);
+  const [dncOpen, setDncOpen] = useState(false);
 
   // The opportunity tab exists only for network roles: the server answers 403 to a depot role.
   // A depot-bound account (assignedDepotId) never probes, so a Kepala logs no 403 per page load.
@@ -144,6 +146,17 @@ function Body() {
               {t('opsFix.prospects.mapOpen')}
             </Link>
           )}
+          {/* AREA-2c: field work. A field find is Work (a Work-only role adds into its own depot); the global do-not-contact list is Manage. */}
+          {work && (
+            <Link href="/dashboard/prospects/new" className="text-sm font-semibold text-brand-700">
+              {t('opsFix.prospectsField.addField')}
+            </Link>
+          )}
+          {manage && (
+            <button type="button" className="text-sm font-semibold text-brand-700" onClick={() => setDncOpen((v) => !v)}>
+              {t('opsFix.prospectsField.dnc.open')}
+            </button>
+          )}
           {/* AREA-2b: HQ tools, pruned from the Ops app together with the import page. */}
           {isServedHere('/dashboard/prospects/import') && (
             <>
@@ -171,6 +184,7 @@ function Body() {
           )}
         </div>
       </div>
+      {dncOpen && manage && <DncForm onClose={() => setDncOpen(false)} />}
       <Segmented value={tab} options={tabs} onChange={(v) => setTab(v)} label={t('opsFix.prospects.title')} />
 
       {tab === 'coverage' ? (

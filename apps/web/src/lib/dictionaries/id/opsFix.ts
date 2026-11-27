@@ -2,12 +2,14 @@
 // NO `as const` — values must widen to string so the en/ mirror stays assignable.
 import type { walkIn } from './opsFixWalkIn';
 import { prospects } from './prospects';
+import { prospectsField } from './prospectsField';
 import { prospectsIo } from './prospectsIo';
 
 const opsFixShared = {
   // AREA-2a: the B2B prospect screens.
   prospects,
   prospectsIo,
+  prospectsField,
   // Flow PR-4: the decision inbox on the approvals screens.
   // Review of flow PR-2a: the account behind an order's recipient, as its own link.
   entityLinks: { customerAccount: 'Lihat akun pelanggan' },

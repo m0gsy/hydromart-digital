@@ -46,6 +46,8 @@ vi.mock('@/lib/depot-context', () => ({
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+vi.mock('@/components/toast', () => ({ useToast: () => ({ toast: vi.fn() }) }));
+vi.mock('@/components/hr/precise-location-notice', () => ({ PreciseLocationNotice: () => null }));
 vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: ask }) }));
 vi.mock('@/lib/use-query-param', () => ({ useQueryParam: () => query.id }));
 

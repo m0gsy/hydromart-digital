@@ -10,6 +10,7 @@ import { AssignForm } from '@/components/prospects/assign-form';
 import { OwnerDepotForm } from '@/components/prospects/owner-depot-form';
 import { saveError } from '@/components/prospects/save-error';
 import { StatusForm } from '@/components/prospects/status-form';
+import { VisitPanel } from '@/components/prospects/visit-panel';
 import { RequireAuth } from '@/components/require-auth';
 import { Badge, Button, Card, CenterState, ErrorState, Field, FormError, Input, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -172,6 +173,8 @@ function Body() {
       : (names.get(row.assignedToId) ?? t('opsFix.prospects.otherStaff'))
     : t('opsFix.prospects.unassigned');
   const terminal = isTerminal(row.status);
+  // The server's VISITABLE set: NEW to INTERESTED. A lost, converted or refused row takes no check-in.
+  const visitable = !terminal && row.status !== 'LOST' && row.ownerDepotId !== null;
   const open = (p: Exclude<Panel, null>) => {
     setError(null);
     setPanel(panel === p ? null : p);
@@ -311,6 +314,12 @@ function Body() {
         </Card>
       )}
       {terminal && <FormError message={error} />}
+
+      {visitable && (
+        <Card className="p-4" elevated={false}>
+          <VisitPanel row={row} onDone={merge} onStale={load} />
+        </Card>
+      )}
 
       <Card className="p-4" elevated={false}>
         <h2 className="mb-2 text-sm font-semibold">{t('opsFix.prospects.detail.visits')}</h2>

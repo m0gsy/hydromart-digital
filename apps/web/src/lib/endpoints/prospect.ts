@@ -27,6 +27,8 @@ export const prospect = {
     mine: (q: Omit<ProspectQuery, 'scope' | 'depotId' | 'assigned'> = {}) =>
       `/b2b-prospects/api/v1/b2b-prospects/mine${qs({ ...q })}`,
     coverage: (depotId?: string) => `/b2b-prospects/api/v1/b2b-prospects/coverage${qs({ depotId })}`,
+    create: '/b2b-prospects/api/v1/b2b-prospects',
+    suppress: '/b2b-prospects/api/v1/b2b-prospects/do-not-contact',
     import: '/b2b-prospects/api/v1/b2b-prospects/import',
     export: '/b2b-prospects/api/v1/b2b-prospects/export',
     recomputeOwners: '/b2b-prospects/api/v1/b2b-prospects/recompute-owners',
@@ -36,6 +38,7 @@ export const prospect = {
     assign: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}/assign`,
     ownerDepot: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}/owner-depot`,
     convert: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}/convert`,
+    visit: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}/visits`,
     doNotContact: (id: string) => `/b2b-prospects/api/v1/b2b-prospects/${id}/do-not-contact`,
   },
 } as const;

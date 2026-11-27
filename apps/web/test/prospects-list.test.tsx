@@ -337,3 +337,35 @@ describe('prospect list', () => {
     expect(await screen.findByText('opsFix.prospects.coverage.loadFailed')).toBeTruthy();
   });
 });
+
+describe('AREA-2c header actions', () => {
+  it('offers the field find to Work and the do-not-contact form only to Manage', async () => {
+    serve({ list: page([row()]), mine: page([]), opportunity: new FakeApiError(403, 'x') });
+    render(<ProspectsPage />);
+    expect(await screen.findByRole('link', { name: 'opsFix.prospectsField.addField' })).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'opsFix.prospectsField.dnc.open' }));
+    expect(screen.getByLabelText('opsFix.prospectsField.dnc.phone')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'opsFix.prospectsField.dnc.cancel' }));
+    expect(screen.queryByLabelText('opsFix.prospectsField.dnc.phone')).toBeNull();
+  });
+
+  it('gives a Work-only role the field find but no do-not-contact form', async () => {
+    auth.role = 'C_sales';
+    loadSessionCapabilities('C_sales', ['b2bProspectWork']);
+    serve({ mine: page([row()]) });
+    render(<ProspectsPage />);
+    expect(await screen.findByRole('link', { name: 'opsFix.prospectsField.addField' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'opsFix.prospectsField.dnc.open' })).toBeNull();
+  });
+
+  it('gives a Read-only role (Direksi) neither', async () => {
+    auth.role = 'DIREKTUR';
+    loadSessionCapabilities('DIREKTUR', ['b2bProspectRead', 'b2bProspectExport']);
+    serve({ list: page([row()]), opportunity: new FakeApiError(403, 'x') });
+    render(<ProspectsPage />);
+    expect(await screen.findByText('Kos Mawar')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'opsFix.prospectsField.addField' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'opsFix.prospectsField.dnc.open' })).toBeNull();
+  });
+});
+

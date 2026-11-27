@@ -3804,6 +3804,12 @@ export interface ProspectDetail extends ProspectRow {
   visits?: ProspectVisit[];
 }
 
+/** POST /:id/visits: the row after the check-in (status may have moved to VISITED) and the visit. */
+export interface ProspectVisitResult {
+  prospect: ProspectDetail;
+  visit: ProspectVisit;
+}
+
 export interface ProspectPage<T> {
   items: T[];
   nextCursor: string | null;
