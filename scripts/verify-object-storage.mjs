@@ -42,6 +42,7 @@ import {
   PutBucketPolicyCommand,
   DeleteBucketPolicyCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 
 import { EVIDENCE_PREFIXES, applyRules, evidenceRules } from './lib/s3-lifecycle.mjs';
@@ -72,16 +73,15 @@ const client = new S3Client({
   },
 });
 
-// F-32: this makes a bucket anonymously readable. The employee face photos live in a bucket
-// that must stay private, and nothing here knew the difference.
-if (/face/i.test(bucket)) {
+// Buckets that are never anonymously readable: only the private mode may run on them.
+const PRIVATE_BUCKETS = ['hydromart-pod', 'hydromart-visits', 'hydromart-facer'];
+const privateMode = process.env.STORAGE_PRIVATE === '1';
+// F-32: public mode makes a bucket anonymously readable. The employee face photos live in a bucket
+// that must stay private; private mode (policy deleted, anonymous GET proven refused) is what it needs.
+if (!privateMode && /face/i.test(bucket)) {
   console.error(`refusing: bucket "${bucket}" looks like the face-photo bucket, which must never be public.`);
   process.exit(1);
 }
-
-// Buckets that are never anonymously readable: only the private mode may run on them.
-const PRIVATE_BUCKETS = ['hydromart-pod', 'hydromart-visits'];
-const privateMode = process.env.STORAGE_PRIVATE === '1';
 if (!privateMode && PRIVATE_BUCKETS.includes(bucket)) {
   console.error(
     `refusing: bucket "${bucket}" is private (presigned links only); run with STORAGE_PRIVATE=1, never public-read.`,
@@ -235,6 +235,14 @@ async function main() {
     process.exit(1);
   }
   console.log(`✓ anonymous LIST ${publicBase} -> ${listRes.status}, the index stays private`);
+  // 5) Clean up the probe. Best effort: the proof above is already decided, so a failed delete
+  // (e.g. a key without delete rights) is one warning and never changes the exit code.
+  try {
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    console.log(`✓ probe object ${bucket}/${key} deleted`);
+  } catch (e) {
+    console.warn(`! could not delete probe object ${bucket}/${key} (${e.name}); remove it by hand`);
+  }
   console.log('\nStorage READY. Set STORAGE_DRIVER=s3 with these values in the service env.');
 }
 

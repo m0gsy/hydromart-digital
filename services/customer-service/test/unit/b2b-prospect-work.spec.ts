@@ -1,4 +1,4 @@
-import { ForbiddenException, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Logger, ServiceUnavailableException } from '@nestjs/common';
 
 import { loadCustomRoles, loadOverrides } from '@hydromart/access';
 import { AuthenticatedUser, Role, haversineMeters } from '@hydromart/platform';
@@ -167,7 +167,7 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
     const svc = () => makeProspects();
 
     it('verifies a named customer account and links it; wrong status is 409', async () => {
-      const p = seed({ status: 'INTERESTED', assignedToId: 'sales-1' });
+      const p = seed({ status: 'INTERESTED', assignedToId: 'sales-1', phoneE164: null });
       identity.getAccountOwners.mockResolvedValue(new Map([['cust-1', { fullName: 'A', phone: null }]]));
       const res = await svc().convert(sales, p.id, 'cust-1');
       expect(res).toMatchObject({ status: 'CONVERTED', customerId: 'cust-1' });
@@ -183,6 +183,35 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
       identity.getAccountOwners.mockResolvedValue(new Map());
       await expect(svc().convert(sales, p.id, 'ghost')).rejects.toThrow(ProspectInvalidError);
       expect(repo.rows.get(p.id)!.status).toBe('VISITED');
+    });
+
+    describe('a named account must hold the prospect mobile number', () => {
+      const account = (phone: string | null) => identity.getAccountOwners.mockResolvedValue(new Map([['cust-1', { fullName: 'A', phone }]]));
+
+      it('links when the numbers match after normalising (08.. vs +628..)', async () => {
+        const p = seed({ status: 'VISITED', assignedToId: 'sales-1', phoneE164: '+6281200000001' });
+        account('081200000001');
+        expect((await svc().convert(sales, p.id, 'cust-1')).customerId).toBe('cust-1');
+      });
+
+      it('422 on a different number, and nothing is converted', async () => {
+        const p = seed({ status: 'VISITED', assignedToId: 'sales-1', phoneE164: '+6281200000001' });
+        account('+6281299999999');
+        await expect(svc().convert(sales, p.id, 'cust-1')).rejects.toThrow(ProspectInvalidError);
+        expect(repo.rows.get(p.id)!.status).toBe('VISITED');
+      });
+
+      it('422 when auth answers the account without a phone: a match cannot be proven (fail closed)', async () => {
+        const p = seed({ status: 'VISITED', assignedToId: 'sales-1', phoneE164: '+6281200000001' });
+        account(null);
+        await expect(svc().convert(sales, p.id, 'cust-1')).rejects.toThrow(ProspectInvalidError);
+      });
+
+      it('a landline prospect keeps the existence check only', async () => {
+        const p = seed({ status: 'VISITED', assignedToId: 'sales-1', phoneE164: '+62215550123' });
+        account('+6281299999999');
+        expect((await svc().convert(sales, p.id, 'cust-1')).customerId).toBe('cust-1');
+      });
     });
 
     it('uses the account behind the mobile number when there is one', async () => {
@@ -354,6 +383,20 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
     const maint = () => new B2bProspectMaintenanceService(repo, { listActive: jest.fn() } as never, config());
     const cutoff = new Date('2026-06-01T00:00:00.000Z');
     const at = (iso: string) => new Date(iso);
+    const NOW = new Date('2027-06-02T00:00:00.000Z');
+    beforeEach(() => jest.useFakeTimers({ now: NOW }));
+    afterEach(() => jest.useRealTimers());
+
+    it('refuses a cutoff newer than 360 days ago, accepts one at or past it, refuses a non-date', async () => {
+      const day = 86_400_000;
+      const m = maint();
+      await expect(m.purge(new Date(NOW.getTime() - 359 * day))).rejects.toThrow(BadRequestException);
+      await expect(m.purge(new Date(NOW.getTime() - 359 * day))).rejects.toThrow(/360 hari/);
+      await expect(m.purge(new Date(NOW.getTime() - 360 * day + 1))).rejects.toThrow(BadRequestException);
+      await expect(m.purge(new Date('nope'))).rejects.toThrow(BadRequestException);
+      expect(await m.purge(new Date(NOW.getTime() - 360 * day))).toEqual({ deleted: 0, anonymised: 0 });
+      expect(await m.purge(new Date(NOW.getTime() - 361 * day))).toEqual({ deleted: 0, anonymised: 0 });
+    });
 
     it('deletes an unconverted row idle for longer than the cutoff, keeps one exactly AT it', async () => {
       const old = seed({ lastActivityAt: at('2026-05-31T23:59:59.999Z') });

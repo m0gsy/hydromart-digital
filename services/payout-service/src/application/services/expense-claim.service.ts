@@ -58,6 +58,14 @@ export class ExpenseClaimService {
     input: SubmitExpenseInput,
     courier?: AuthenticatedUser,
   ): Promise<ExpenseClaimRecord> {
+    return this.withReceiptLink(await this.fileClaim(courierId, input, courier));
+  }
+
+  private async fileClaim(
+    courierId: string,
+    input: SubmitExpenseInput,
+    courier?: AuthenticatedUser,
+  ): Promise<ExpenseClaimRecord> {
     if (!(input.amount > 0)) throw new InvalidExpenseAmountError();
     /*
      * AUTHZ-B3 — the depot comes from the TOKEN, not the form.
@@ -200,7 +208,7 @@ export class ExpenseClaimService {
       const limit = this.config.expenseManagerApproveMaxIdr;
       if (claim.amount > limit) throw new ExpenseApprovalAboveLimitError(limit);
     }
-    return this.approveAndCredit(claim, reviewerId, note ?? null);
+    return this.withReceiptLink(await this.approveAndCredit(claim, reviewerId, note ?? null));
   }
 
   /** Reviewer rejects a pending claim: no ledger movement. */
@@ -217,7 +225,7 @@ export class ExpenseClaimService {
       reviewNote: note ?? null,
     });
     if (!rejected) throw new ExpenseClaimNotPendingError();
-    return rejected;
+    return this.withReceiptLink(rejected);
   }
 
   listForCourier(
@@ -263,14 +271,13 @@ export class ExpenseClaimService {
    * payout queue.
    */
   private async withReceiptLinks(items: ExpenseClaimRecord[]): Promise<ExpenseClaimRecord[]> {
-    if (!this.photos) return items;
-    return Promise.all(
-      items.map(async (claim) =>
-        claim.receiptUrl
-          ? { ...claim, receiptUrl: await this.photos!.signedUrl(claim.receiptUrl) }
-          : claim,
-      ),
-    );
+    return Promise.all(items.map((claim) => this.withReceiptLink(claim)));
+  }
+
+  /** One claim's receipt as an expiring link or null; the create, approve and reject responses go through here too. */
+  private async withReceiptLink(claim: ExpenseClaimRecord): Promise<ExpenseClaimRecord> {
+    if (!this.photos || !claim.receiptUrl) return claim;
+    return { ...claim, receiptUrl: await this.photos.signedUrl(claim.receiptUrl) };
   }
 
   /**

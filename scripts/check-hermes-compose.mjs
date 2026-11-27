@@ -122,6 +122,10 @@ for (const [name, svc] of services) {
       if (!Object.hasOwn(ALLOWED_ENV, key) && !Object.hasOwn(OPTIONAL_ENV, key)) bad(`${where}.environment sets ${key}: only ${[...Object.keys(ALLOWED_ENV), ...Object.keys(OPTIONAL_ENV)].join(', ')} may be set`);
       else if (!Object.hasOwn(OPTIONAL_ENV, key) && String(env[key]).includes(AIWEB_KEY)) bad(`${where}.environment.${key} reads ${AIWEB_KEY}: that key may only feed ANTHROPIC_API_KEY_2`);
     }
+    // Every read of the AI web key must be that one environment value: a read in another field of this service
+    // (command, volumes, ...) is as much a leak as one under another key.
+    const reads = String(env.ANTHROPIC_API_KEY_2 ?? '').split(AIWEB_KEY).length - 1;
+    if (aiwebReads > reads) bad(`${AIWEB_KEY} is read outside ${where}.environment.ANTHROPIC_API_KEY_2: it may only feed that one value`);
     for (const [key, want] of Object.entries(OPTIONAL_ENV)) {
       if (env[key] !== undefined && env[key] !== want) bad(`${where}.environment.${key} must be exactly ${want} (optional, never \`:?\`), got ${env[key]}`);
     }
