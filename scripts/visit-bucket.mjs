@@ -59,6 +59,17 @@ const s3 = new S3Client({
   forcePathStyle: true,
   credentials: { accessKeyId, secretAccessKey },
 });
+// NOS refuses the LocationConstraint the SDK adds from the region name (jkt-1) with
+// InvalidLocationConstraint (Deploy run 45974756402). Without that body the bucket lands in the
+// endpoint's own region, as the portal's buckets do. Same step as the SDK's middleware, lower
+// priority, so this runs after it and before the body is serialised.
+s3.middlewareStack.add(
+  (next) => async (args) => {
+    if (args.input?.CreateBucketConfiguration?.LocationConstraint === region) delete args.input.CreateBucketConfiguration;
+    return next(args);
+  },
+  { step: 'initialize', priority: 'low', name: 'nosNoLocationConstraint' },
+);
 
 try {
   await s3.send(new CreateBucketCommand({ Bucket: bucket, ACL: 'private' }));
