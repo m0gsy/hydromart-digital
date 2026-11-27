@@ -7,9 +7,12 @@
     "PATCH customer: /b2b-prospects/:/assign",
     "PATCH customer: /b2b-prospects/:/owner-depot",
     "PATCH customer: /b2b-prospects/:/status",
+    "POST customer: /b2b-prospects/:/convert",
     "POST customer: /b2b-prospects/:/do-not-contact",
-    "POST customer: /b2b-prospects/do-not-contact",
+    "POST customer: /b2b-prospects/:/visits",
+    "POST customer: /b2b-prospects/export",
     "POST customer: /b2b-prospects/import",
+    "POST customer: /b2b-prospects/recompute-owners",
     "POST payout: /payout/withdrawals"
   ]
 }

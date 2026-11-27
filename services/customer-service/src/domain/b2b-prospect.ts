@@ -143,6 +143,8 @@ export interface ProspectRecord {
   lostReason: string | null;
   note: string | null;
   lastActivityAt: Date;
+  /** When a do-not-contact wipe emptied the row: its own purge clock. Null on every other row. */
+  suppressedAt: Date | null;
   createdById: string | null;
   createdAt: Date;
   updatedAt: Date;

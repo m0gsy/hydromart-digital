@@ -81,4 +81,7 @@ export const envValidationSchema = Joi.object({
   // AREA-1: HMAC key of the B2B do-not-contact list. Required: a blank key would hash every entry the
   // same way and the list could be rebuilt by anyone. NEVER ROTATE: every stored hash would stop matching.
   PROSPECT_DNC_HMAC_KEY: requiredSecret(32),
+  // AREA-1b: how close (metres) a salesperson must be to the pin to check in at a B2B prospect. Open-data pins
+  // are rough, so wider than a depot visit; the GPS accuracy must be inside it too. Owner decision 27 Nov: 200.
+  PROSPECT_VISIT_RADIUS_M: Joi.number().positive().max(5000).default(200),
 });

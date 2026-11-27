@@ -1,13 +1,16 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
-import { AuthenticatedUser, Can, CurrentUser } from '@hydromart/platform';
+import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
 import {
   B2bImportSummary,
   B2bProspectIntakeService,
   IntakeRow,
 } from '../application/services/b2b-prospect-intake.service';
+import { B2bProspectExportService } from '../application/services/b2b-prospect-export.service';
+import { B2bProspectMaintenanceService } from '../application/services/b2b-prospect-maintenance.service';
+import { B2bProspectVisitService } from '../application/services/b2b-prospect-visit.service';
 import {
   B2bProspectService,
   CoverageReport,
@@ -16,9 +19,12 @@ import {
 } from '../application/services/b2b-prospect.service';
 import {
   AssignProspectDto,
+  ConvertProspectDto,
   CoverageQueryDto,
   CoverageResponseDto,
   CreateProspectDto,
+  ExportProspectsDto,
+  ExportResponseDto,
   ImportProspectsDto,
   ImportProspectsResponseDto,
   MineQueryDto,
@@ -27,11 +33,16 @@ import {
   ProspectListQueryDto,
   ProspectMinePageResponseDto,
   ProspectOpenedResponseDto,
+  PurgeProspectsDto,
+  PurgeProspectsResponseDto,
+  RecomputeOwnersResponseDto,
   SetOwnerDepotDto,
   SetProspectStatusDto,
   SuppressDto,
   SuppressProspectDto,
   SuppressResultResponseDto,
+  VisitProspectDto,
+  VisitResponseDto,
 } from './dto/b2b-prospect.dto';
 
 /**
@@ -46,6 +57,9 @@ export class B2bProspectController {
   constructor(
     private readonly prospects: B2bProspectService,
     private readonly intake: B2bProspectIntakeService,
+    private readonly visits: B2bProspectVisitService,
+    private readonly exporter: B2bProspectExportService,
+    private readonly maintenance: B2bProspectMaintenanceService,
   ) {}
 
   @Get()
@@ -108,6 +122,39 @@ export class B2bProspectController {
     });
   }
 
+  @Post('export')
+  @HttpCode(200)
+  @Can('b2bProspectExport')
+  @ApiOkResponse({ type: ExportResponseDto })
+  @ApiOperation({ summary: 'Rows to export (max 5000, own depot for a depot role); audited first, 503 and no rows when the audit fails' })
+  export(@CurrentUser() user: AuthenticatedUser, @Body() dto: ExportProspectsDto) {
+    return this.exporter.export(user, dto);
+  }
+
+  @Post('recompute-owners')
+  @HttpCode(200)
+  @Can('b2bProspectImport')
+  @ApiOkResponse({ type: RecomputeOwnersResponseDto })
+  @ApiOperation({ summary: 'Monthly refresh: re-run the owner-depot rule for system-placed rows (never HQ-set, converted or do-not-contact)' })
+  recomputeOwners(@CurrentUser() user: AuthenticatedUser) {
+    return this.maintenance.recomputeOwners(user);
+  }
+
+  /*
+   * Retention (UU PDP): 12 months without salesperson activity. `@Public()` + InternalAuthGuard: the caller is
+   * admin-service's nightly sweep with the shared internal key, not a console session. Declared before ':id'.
+   */
+  @Post('internal/purge')
+  @Public()
+  @UseGuards(InternalAuthGuard)
+  @ApiSecurity('internal-key')
+  @HttpCode(200)
+  @ApiOkResponse({ type: PurgeProspectsResponseDto })
+  @ApiOperation({ summary: 'Delete idle prospects and anonymise idle converted ones older than the cutoff (internal)' })
+  purge(@Body() dto: PurgeProspectsDto) {
+    return this.maintenance.purge(new Date(dto.cutoff));
+  }
+
   @Post('do-not-contact')
   @HttpCode(200)
   @Can('b2bProspectManage')
@@ -164,5 +211,30 @@ export class B2bProspectController {
     @Body() dto: SuppressProspectDto,
   ): Promise<ProspectDetail> {
     return this.prospects.suppressProspect(user, id, dto.reason);
+  }
+
+  @Post(':id/visits')
+  @Can('b2bProspectWork')
+  @ApiCreatedResponse({ type: VisitResponseDto })
+  @ApiOperation({ summary: 'GPS check-in at the prospect (within the visit radius, accurate fix only)' })
+  visit(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: VisitProspectDto,
+  ) {
+    return this.visits.visit(user, id, dto);
+  }
+
+  @Post(':id/convert')
+  @HttpCode(200)
+  @Can('b2bProspectWork')
+  @ApiOkResponse({ type: ProspectDetailResponseDto })
+  @ApiOperation({ summary: 'The prospect became a customer (idempotent); a customerId is needed when it has no mobile number' })
+  convert(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ConvertProspectDto,
+  ): Promise<ProspectDetail> {
+    return this.prospects.convert(user, id, dto.customerId);
   }
 }

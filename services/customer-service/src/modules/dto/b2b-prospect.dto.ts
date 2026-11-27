@@ -266,3 +266,65 @@ export class SuppressResultResponseDto {
   @ApiProperty({ description: 'Do-not-contact entries now on the list for this request.' }) entries!: number;
   @ApiProperty({ description: 'Live prospects that matched and were wiped.' }) prospects!: number;
 }
+
+export const VISIT_OUTCOMES = ['MET_DECISION_MAKER', 'LEFT_MATERIAL', 'NOT_THERE', 'REFUSED'] as const;
+
+/** A GPS check-in at the prospect. `accuracyM` is required: a fix with no stated accuracy proves nothing. */
+export class VisitProspectDto {
+  @ApiProperty({ example: -6.2 }) @IsNumber({ allowNaN: false, allowInfinity: false }) @IsLatitude() latitude!: number;
+  @ApiProperty({ example: 106.8 }) @IsNumber({ allowNaN: false, allowInfinity: false }) @IsLongitude() longitude!: number;
+  @ApiProperty({ minimum: 0, description: 'The phone-reported accuracy of the fix, metres.' })
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0)
+  @Max(INT4_MAX)
+  accuracyM!: number;
+  @ApiProperty({ enum: VISIT_OUTCOMES }) @IsIn(VISIT_OUTCOMES as readonly string[]) outcome!: (typeof VISIT_OUTCOMES)[number];
+  @ApiPropertyOptional() @Blank() @IsOptional() @IsString() @MaxLength(500) note?: string;
+}
+
+export class ConvertProspectDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'An existing customer account. Needed when the prospect has no mobile number.' })
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+}
+
+export class ExportProspectsDto {
+  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() @IsUUID() depotId?: string;
+  @ApiPropertyOptional({ enum: B2B_STATUSES }) @IsOptional() @IsIn(B2B_STATUSES as readonly string[]) status?: B2bProspectStatus;
+  @ApiPropertyOptional({ enum: B2B_CATEGORIES }) @IsOptional() @IsIn(B2B_CATEGORIES as readonly string[]) category?: B2bCategory;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(20) kecamatanCode?: string;
+  @ApiPropertyOptional({ description: 'me | none | <staff uuid>' })
+  @ValidateIf((o: ExportProspectsDto) => o.assigned !== undefined && o.assigned !== 'me' && o.assigned !== 'none')
+  @IsUUID()
+  assigned?: string;
+}
+
+/** The sweep's call (admin-service, internal key): everything idle since this instant goes. */
+export class PurgeProspectsDto {
+  @ApiProperty({ type: String, format: 'date-time' }) @IsISO8601() cutoff!: string;
+}
+
+export class PurgeProspectsResponseDto {
+  @ApiProperty({ description: 'Rows deleted: the field the purge executors read.' }) deleted!: number;
+  @ApiProperty({ description: 'Converted rows stripped of everything that names or places the business (kept for counts).' })
+  anonymised!: number;
+}
+
+export class RecomputeOwnersResponseDto {
+  @ApiProperty() checked!: number;
+  @ApiProperty() changed!: number;
+  @ApiProperty({ description: 'Of the changed, how many now have no owner depot (the opportunity map).' }) nowOnMap!: number;
+}
+
+export class VisitResponseDto {
+  @ApiProperty({ type: ProspectDetailResponseDto }) prospect!: ProspectDetailResponseDto;
+  @ApiProperty({ type: 'object', additionalProperties: true, description: 'The check-in just recorded (id, distanceM, outcome...).' }) visit!: Record<string, unknown>;
+}
+
+export class ExportResponseDto {
+  @ApiProperty({ type: 'array', items: { type: 'object' }, description: 'Cells that start with = + - @ are prefixed with an apostrophe (except phone).' })
+  rows!: Record<string, unknown>[];
+  @ApiProperty({ description: 'More rows matched than the cap; narrow the filter.' }) truncated!: boolean;
+  @ApiProperty() rowCount!: number;
+}
