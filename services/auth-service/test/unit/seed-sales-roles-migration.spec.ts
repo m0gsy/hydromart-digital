@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { CAPABILITIES, loadOverrides } from '@hydromart/access';
+import { loadOverrides } from '@hydromart/access';
 
 import { CapabilityOverrideRecord } from '../../src/application/ports/capability-override.repository';
 import {
   AccessMatrixService,
   customRoleKeyFor,
 } from '../../src/application/services/access-matrix.service';
+import { Role } from '../../src/domain/customer/role.enum';
 import { FakeAudit, FakeCustomRoles, asAudit } from '../support/fake-custom-roles';
 
 const sql = readFileSync(
@@ -48,10 +49,17 @@ describe('seed_sales_roles migration', () => {
     ).toEqual(['prospectCrm', 'prospectRead', 'prospectSettings']);
   });
 
-  it('starts every capability from its compiled default', () => {
-    for (const cap of new Set(grants.map((g) => g.capability))) {
-      expect(defaults.get(cap)).toEqual([...CAPABILITIES[cap as keyof typeof CAPABILITIES]]);
-    }
+  it('starts from the compiled defaults of 27 Nov 2026 and names only valid, seeded roles', () => {
+    expect(Object.fromEntries(defaults)).toEqual({
+      prospectRead: ['MARKETING', 'DIREKTUR', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+      prospectCrm: ['MARKETING', 'SUPER_ADMIN'],
+      prospectSettings: ['SUPER_ADMIN'],
+    });
+    const builtIn = new Set<string>(Object.values(Role));
+    for (const r of [...defaults.values()].flat()) expect(builtIn.has(r)).toBe(true);
+    const seeded = new Set(roles.map((r) => r.key));
+    for (const g of grants) expect(seeded.has(g.key)).toBe(true);
+    for (const g of grants) expect(defaults.has(g.capability)).toBe(true);
   });
 
   it('passes the same validation the role CRUD applies', async () => {

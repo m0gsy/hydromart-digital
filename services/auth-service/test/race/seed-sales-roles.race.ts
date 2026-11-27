@@ -19,36 +19,86 @@ describeRace('seed_sales_roles migration on real Postgres', () => {
   });
   afterAll(async () => drop?.());
 
-  const snapshot = async () => ({
-    roles: await prisma.customRole.findMany({ orderBy: { key: 'asc' } }),
-    caps: await prisma.capabilityOverride.findMany({ orderBy: { capability: 'asc' } }),
+  const run = () => prisma.$executeRawUnsafe(sql);
+  const role = (key: string, archived = false, description: string | null = null) =>
+    prisma.customRole.create({
+      data: {
+        key,
+        name: key,
+        description,
+        scope: 'LOCKED',
+        archivedAt: archived ? new Date() : null,
+      },
+    });
+  const caps = async () => prisma.capabilityOverride.findMany({ orderBy: { capability: 'asc' } });
+  /** Every (capability, C_* role) pair in the matrix, sorted, duplicates kept. */
+  const pairs = async () =>
+    (await caps())
+      .flatMap((c) => c.roles.filter((r) => r.startsWith('C_')).map((r) => `${c.capability}:${r}`))
+      .sort();
+  const rolesOf = async (capability: string) =>
+    (await caps()).find((c) => c.capability === capability)?.roles;
+
+  const LEAD = [
+    'prospectCrm:C_sales_lead',
+    'prospectRead:C_sales_lead',
+    'prospectSettings:C_sales_lead',
+  ];
+  const SALES = ['prospectCrm:C_sales', 'prospectRead:C_sales'];
+
+  beforeEach(async () => {
+    await prisma.capabilityOverride.deleteMany({});
+    await prisma.capabilityDepotOverride.deleteMany({});
+    await prisma.customRole.deleteMany({});
   });
 
   it('seeds both roles and running it again changes nothing', async () => {
-    const first = await snapshot();
+    await run();
+    const first = {
+      roles: await prisma.customRole.findMany({ orderBy: { key: 'asc' } }),
+      caps: await caps(),
+    };
     expect(first.roles.map((r) => r.key)).toEqual(['C_sales', 'C_sales_lead']);
-    expect(first.caps.find((c) => c.capability === 'prospectSettings')?.roles).toEqual([
-      'SUPER_ADMIN',
-      'C_sales_lead',
-    ]);
-    await prisma.$executeRawUnsafe(sql);
-    expect(await snapshot()).toEqual(first);
+    expect(await pairs()).toEqual([...SALES, ...LEAD].sort());
+    expect(await rolesOf('prospectSettings')).toEqual(['SUPER_ADMIN', 'C_sales_lead']);
+    await run();
+    expect({
+      roles: await prisma.customRole.findMany({ orderBy: { key: 'asc' } }),
+      caps: await caps(),
+    }).toEqual(first);
   });
 
-  it('leaves a hand-made C_sales exactly as it is, caps included', async () => {
-    await prisma.capabilityOverride.deleteMany({});
-    await prisma.customRole.deleteMany({ where: { key: 'C_sales_lead' } });
-    await prisma.customRole.update({
-      where: { key: 'C_sales' },
-      data: { description: 'mine', archivedAt: new Date() },
+  it('leaves a hand-made archived C_sales exactly as it is and seeds only Lead', async () => {
+    await role('C_sales', true, 'mine');
+    await run();
+    expect((await prisma.customRole.findUnique({ where: { key: 'C_sales' } }))?.description).toBe(
+      'mine',
+    );
+    expect(await pairs()).toEqual([...LEAD].sort());
+  });
+
+  it('appends Lead once to existing override rows and keeps a hand-made active C_sales and its caps', async () => {
+    await role('C_sales', false, 'mine');
+    await prisma.capabilityOverride.create({
+      data: { capability: 'prospectRead', roles: ['MARKETING', 'C_sales'] },
     });
-    await prisma.$executeRawUnsafe(sql);
-    const { roles, caps } = await snapshot();
-    expect(roles.find((r) => r.key === 'C_sales')?.description).toBe('mine');
-    expect(caps.flatMap((c) => c.roles)).not.toContain('C_sales');
-    expect(caps.find((c) => c.capability === 'prospectSettings')?.roles).toEqual([
-      'SUPER_ADMIN',
-      'C_sales_lead',
-    ]);
+    await prisma.capabilityOverride.create({
+      data: { capability: 'prospectCrm', roles: ['DIREKTUR'] },
+    });
+    await run();
+    await run();
+    expect((await prisma.customRole.findUnique({ where: { key: 'C_sales' } }))?.description).toBe(
+      'mine',
+    );
+    expect(await rolesOf('prospectRead')).toEqual(['MARKETING', 'C_sales', 'C_sales_lead']);
+    expect(await rolesOf('prospectCrm')).toEqual(['DIREKTUR', 'C_sales_lead']);
+    expect(await rolesOf('prospectSettings')).toEqual(['SUPER_ADMIN', 'C_sales_lead']);
+    expect(await pairs()).toEqual(['prospectRead:C_sales', ...LEAD].sort());
+  });
+
+  it('gives a hand-made archived C_sales_lead no grants', async () => {
+    await role('C_sales_lead', true);
+    await run();
+    expect(await pairs()).toEqual([...SALES].sort());
   });
 });

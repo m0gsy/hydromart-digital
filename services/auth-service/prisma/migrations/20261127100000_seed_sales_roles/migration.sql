@@ -6,7 +6,10 @@
 -- Idempotent and never overwrites: a role row that already exists (hand-made, active or archived,
 -- any capabilities) is left exactly as it is, and ONLY a role row inserted here gets grants.
 -- capability_overrides.roles is a FULL replacement list, so a capability with no override row starts
--- from its compiled default (the `defaults` list below, kept equal to CAPABILITIES by a unit test).
+-- from its compiled default (the `defaults` list below, pinned in a unit test).
+-- The override rows freeze today's compiled defaults for these three capabilities: a later change to
+-- their default in packages/access no longer reaches prod for them (same trait as the console's
+-- set() and createRole).
 -- The matrix is polled from auth-service by every service, so no version marker needs bumping.
 WITH new_roles AS (
     INSERT INTO "custom_roles" ("key", "name", "description", "scope", "createdBy", "createdAt", "updatedAt")
