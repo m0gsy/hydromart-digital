@@ -95,10 +95,14 @@ describe('UnservedDemandPrismaRepository', () => {
   it('writes the row and the conditional marker in one transaction', async () => {
     const create = jest.fn().mockResolvedValue({});
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
-    const prisma = { unservedDemand: { create }, address: { updateMany } };
+    const count = jest.fn().mockResolvedValue(0);
+    const prisma = { unservedDemand: { create }, address: { updateMany, count } };
     const $transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
     const repo = new UnservedDemandPrismaRepository({ $transaction } as never);
     await expect(repo.record(row, marker)).resolves.toBe(true);
+    expect(count).toHaveBeenCalledWith({
+      where: { customerId: 'c1', id: { not: 'a1' }, unservedMonth: '2026-11', kecamatanCode: row.kecamatanCode },
+    });
     expect(create).toHaveBeenCalledWith({ data: row });
     expect(updateMany).toHaveBeenCalledWith({
       where: {
@@ -116,11 +120,21 @@ describe('UnservedDemandPrismaRepository', () => {
   it('records nothing (the transaction throws, so the row rolls back) when the marker matches no row', async () => {
     const prisma = {
       unservedDemand: { create: jest.fn() },
-      address: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+      address: { updateMany: jest.fn().mockResolvedValue({ count: 0 }), count: jest.fn().mockResolvedValue(0) },
     };
     const $transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
     const repo = new UnservedDemandPrismaRepository({ $transaction } as never);
     await expect(repo.record(row, marker)).resolves.toBe(false);
+  });
+
+  it('records nothing when another address of the same customer is already counted this month in the same kecamatan', async () => {
+    const create = jest.fn();
+    const updateMany = jest.fn();
+    const prisma = { unservedDemand: { create }, address: { updateMany, count: jest.fn().mockResolvedValue(1) } };
+    const $transaction = jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma));
+    await expect(new UnservedDemandPrismaRepository({ $transaction } as never).record(row, marker)).resolves.toBe(false);
+    expect(create).not.toHaveBeenCalled();
+    expect(updateMany).not.toHaveBeenCalled();
   });
 
   it('lets any other failure through', async () => {

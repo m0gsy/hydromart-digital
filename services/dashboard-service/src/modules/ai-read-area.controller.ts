@@ -23,7 +23,7 @@ export class AiReadAreaController {
   @ExternalAccess('ai')
   @Can('aiRead')
   @Get('areas')
-  @ApiOperation({ summary: 'Served (A-01) or unserved (A-02) demand per kecamatan, kelurahan or 1 km cell for a whole closed month' })
+  @ApiOperation({ summary: 'Served (R-01) or unserved (R-02) demand per kecamatan, kelurahan or 1 km cell for a whole closed month' })
   areaMetric(@CurrentUser() user: AuthenticatedUser, @Query() query: AreaQueryDto): Promise<AnswerEnvelope> {
     return this.areas.answer(query.metric, user, query);
   }

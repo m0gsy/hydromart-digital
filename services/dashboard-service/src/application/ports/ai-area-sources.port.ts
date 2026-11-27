@@ -1,7 +1,8 @@
 import { SourceSpan } from './ai-customer-sources.port';
 
 /**
- * HD-20c: the facts behind the areas read. Every method answers null when its source cannot answer
+ * HD-20c: the facts behind the areas read. `deadline` is the epoch ms by which the WHOLE read must be over
+ * (one budget across all calls). Every method answers null when its source cannot answer
  * (down, non-2xx, a shape it does not recognise): the metric then says belum_ada, never a partial sum.
  */
 export interface AreaPin {
@@ -41,9 +42,9 @@ export interface UnservedSummary {
 
 export interface AiAreaSourcesPort {
   /** Pins of the counted orders in the spans (order-service). */
-  areaPins(spans: readonly SourceSpan[]): Promise<AreaPin[] | null>;
+  areaPins(spans: readonly SourceSpan[], deadline: number): Promise<AreaPin[] | null>;
   /** The region of each pin, in order (customer-service); the caller sends no customer or address. */
-  lookupRegions(points: readonly { lat: number; lng: number }[]): Promise<RegionHit[] | null>;
+  lookupRegions(points: readonly { lat: number; lng: number }[], deadline: number): Promise<RegionHit[] | null>;
   /** Anonymous out-of-area pins of one WIB month, counted per cell and per distance band (customer-service). */
-  unservedDemand(month: string): Promise<UnservedSummary | null>;
+  unservedDemand(month: string, deadline: number): Promise<UnservedSummary | null>;
 }

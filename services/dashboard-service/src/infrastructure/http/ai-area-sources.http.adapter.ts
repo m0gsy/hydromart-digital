@@ -11,6 +11,8 @@ const GRID = /^-?\d+:-?\d+$/;
 
 /** customer-service takes at most this many pins per lookup call (MAX_LOOKUP_POINTS there). */
 export const LOOKUP_CHUNK = 1000;
+/** Lookup chunks in flight at once. */
+export const LOOKUP_PARALLEL = 4;
 
 const ref = (v: unknown): RegionRef | null | undefined =>
   v === null ? null : isObj(v) && typeof v.code === 'string' && typeof v.name === 'string' ? { code: v.code, name: v.name } : undefined;
@@ -27,8 +29,13 @@ export class AiAreaSourcesHttpAdapter implements AiAreaSourcesPort {
 
   constructor(private readonly config: DashboardConfigService) {}
 
-  private async call(url: string, body?: unknown): Promise<unknown | null> {
+  private async call(url: string, deadline: number, body?: unknown): Promise<unknown | null> {
     const where = url.split('?')[0];
+    const left = deadline - Date.now();
+    if (left <= 0) {
+      this.logger.warn(`${where} not called: the overall deadline has passed`);
+      return null;
+    }
     try {
       const res = await fetch(url, {
         method: body === undefined ? 'GET' : 'POST',
@@ -38,7 +45,7 @@ export class AiAreaSourcesHttpAdapter implements AiAreaSourcesPort {
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        signal: AbortSignal.timeout(AiAreaSourcesHttpAdapter.TIMEOUT_MS),
+        signal: AbortSignal.timeout(Math.min(AiAreaSourcesHttpAdapter.TIMEOUT_MS, left)),
       });
       if (!res.ok) {
         this.logger.warn(`${where} answered ${res.status}`);
@@ -51,43 +58,51 @@ export class AiAreaSourcesHttpAdapter implements AiAreaSourcesPort {
     }
   }
 
-  async areaPins(spans: readonly SourceSpan[]): Promise<AreaPin[] | null> {
-    const b = await this.call(`${this.config.orderServiceUrl}/api/v1/reports/internal/area-points`, { spans });
+  async areaPins(spans: readonly SourceSpan[], deadline: number): Promise<AreaPin[] | null> {
+    const b = await this.call(`${this.config.orderServiceUrl}/api/v1/reports/internal/area-points`, deadline, { spans });
     if (!isObj(b) || !Array.isArray(b.points)) return null;
     const rows = b.points as unknown[];
-    const fine = rows.every(
-      (r) =>
-        isObj(r) &&
-        isCount(r.k) &&
-        isCount(r.orders) &&
-        isCount(r.galon) &&
-        ((r.lat === null && r.lng === null) || (isNum(r.lat) && isNum(r.lng) && Math.abs(r.lat) <= 90 && Math.abs(r.lng) <= 180)),
-    );
-    return fine ? (rows as AreaPin[]) : null;
+    // A half pin (only lat or only lng) is no pin; a number that is not a coordinate is a source we do not understand.
+    const inRange = (v: unknown, max: number): boolean => v === null || (isNum(v) && Math.abs(v) <= max);
+    const fine = rows.every((r) => isObj(r) && isCount(r.k) && isCount(r.orders) && isCount(r.galon) && inRange(r.lat, 90) && inRange(r.lng, 180));
+    return fine
+      ? (rows as AreaPin[]).map((r) => (r.lat === null || r.lng === null ? { ...r, lat: null, lng: null } : r))
+      : null;
   }
 
-  async lookupRegions(points: readonly { lat: number; lng: number }[]): Promise<RegionHit[] | null> {
+  private async lookupChunk(base: string, chunk: readonly { lat: number; lng: number }[], deadline: number): Promise<RegionHit[] | null> {
+    const b = await this.call(`${base}/api/v1/customers/internal/regions/lookup`, deadline, { points: chunk });
+    if (!isObj(b) || !Array.isArray(b.points) || b.points.length !== chunk.length) return null;
+    const out: RegionHit[] = [];
+    for (const r of b.points as unknown[]) {
+      const kecamatan = isObj(r) ? ref(r.kecamatan) : undefined;
+      const kelurahan = isObj(r) ? ref(r.kelurahan) : undefined;
+      if (!isObj(r) || kecamatan === undefined || kelurahan === undefined || typeof r.gridCell !== 'string' || !GRID.test(r.gridCell)) return null;
+      out.push({ kecamatan, kelurahan, gridCell: r.gridCell });
+    }
+    return out;
+  }
+
+  async lookupRegions(points: readonly { lat: number; lng: number }[], deadline: number): Promise<RegionHit[] | null> {
     const base = this.config.customerServiceUrl;
     if (!base) return null;
+    const chunks: { lat: number; lng: number }[][] = [];
+    for (let i = 0; i < points.length; i += LOOKUP_CHUNK) chunks.push(points.slice(i, i + LOOKUP_CHUNK));
     const out: RegionHit[] = [];
-    for (let i = 0; i < points.length; i += LOOKUP_CHUNK) {
-      const chunk = points.slice(i, i + LOOKUP_CHUNK);
-      const b = await this.call(`${base}/api/v1/customers/internal/regions/lookup`, { points: chunk });
-      if (!isObj(b) || !Array.isArray(b.points) || b.points.length !== chunk.length) return null;
-      for (const r of b.points as unknown[]) {
-        const kecamatan = isObj(r) ? ref(r.kecamatan) : undefined;
-        const kelurahan = isObj(r) ? ref(r.kelurahan) : undefined;
-        if (!isObj(r) || kecamatan === undefined || kelurahan === undefined || typeof r.gridCell !== 'string' || !GRID.test(r.gridCell)) return null;
-        out.push({ kecamatan, kelurahan, gridCell: r.gridCell });
+    for (let i = 0; i < chunks.length; i += LOOKUP_PARALLEL) {
+      const done = await Promise.all(chunks.slice(i, i + LOOKUP_PARALLEL).map((c) => this.lookupChunk(base, c, deadline)));
+      for (const d of done) {
+        if (!d) return null;
+        out.push(...d);
       }
     }
     return out;
   }
 
-  async unservedDemand(month: string): Promise<UnservedSummary | null> {
+  async unservedDemand(month: string, deadline: number): Promise<UnservedSummary | null> {
     const base = this.config.customerServiceUrl;
     if (!base) return null;
-    const b = await this.call(`${base}/api/v1/customers/internal/unserved-demand?month=${encodeURIComponent(month)}`);
+    const b = await this.call(`${base}/api/v1/customers/internal/unserved-demand?month=${encodeURIComponent(month)}`, deadline);
     if (!isObj(b) || !Array.isArray(b.kecamatan) || !Array.isArray(b.kelurahan) || !Array.isArray(b.grid) || !Array.isArray(b.bands)) return null;
     const cells = (list: unknown[]): UnservedCell[] | null => {
       const ok = list.every((r) => isObj(r) && (r.code === null || typeof r.code === 'string') && (r.name === null || typeof r.name === 'string') && isCount(r.count));

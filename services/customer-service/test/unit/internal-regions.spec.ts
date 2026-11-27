@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 
+import { ServiceUnavailableException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
@@ -23,6 +24,8 @@ describe('RegionLookup.nameOf', () => {
     expect(l.nameOf('999')).toBeNull();
     const broken = new RegionLookup({} as never);
     expect(broken.nameOf('320101')).toBeNull();
+    expect(broken.available()).toBe(false);
+    expect(l.available()).toBe(true);
   });
 });
 
@@ -41,6 +44,11 @@ describe('InternalRegionsController', () => {
     expect(r.points[0]).toMatchObject({ kecamatan: { code: '320101', name: 'Kec Satu' }, kelurahan: { code: '3201010001', name: 'Kel A' } });
     expect(r.points[0].gridCell).toMatch(/^-?\d+:-?\d+$/);
     expect(r.points[1]).toMatchObject({ kecamatan: null, kelurahan: null });
+  });
+
+  it('answers 503, not an empty region, when the boundary asset cannot be read', () => {
+    const broken = new InternalRegionsController(new RegionLookup({} as never), unserved as never);
+    expect(() => broken.lookup({ points: [{ lat: 2, lng: 2 }] } as never)).toThrow(ServiceUnavailableException);
   });
 
   it('names the unserved cells and leaves a missing kelurahan code unnamed', async () => {

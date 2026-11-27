@@ -33,6 +33,17 @@ export class UnservedDemandPrismaRepository implements UnservedDemandRepository 
   async record(row: UnservedDemandRow, marker: UnservedMarker): Promise<boolean> {
     try {
       await this.prisma.$transaction(async (tx) => {
+        // One row is one PERSON per kecamatan per month: when another address of this customer is already
+        // counted this month in the same kecamatan, this one adds nobody.
+        const sameKecamatan = await tx.address.count({
+          where: {
+            customerId: marker.customerId,
+            id: { not: marker.addressId },
+            unservedMonth: row.monthKey,
+            kecamatanCode: row.kecamatanCode,
+          },
+        });
+        if (sameKecamatan > 0) throw new StaleMarker();
         await tx.unservedDemand.create({ data: row });
         const { count } = await tx.address.updateMany({
           where: {

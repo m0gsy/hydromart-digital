@@ -108,6 +108,11 @@ export class RegionLookup {
     return kel && parent ? { kecamatan: named(parent), kelurahan: named(kel) } : null;
   }
 
+  /** Whether the boundary asset could be read; false means every lookup would be a false "no region". */
+  available(): boolean {
+    return this.load() !== null;
+  }
+
   /** The BPS name of a kecamatan or kelurahan code; null when the code or the asset is unknown. */
   nameOf(code: string): string | null {
     this.load();

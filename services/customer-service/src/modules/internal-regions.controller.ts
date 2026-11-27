@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiSecurity, ApiTags } from '@nestjs/swagger';
 
 import { InternalAuthGuard, Public, gridCell1km } from '@hydromart/platform';
@@ -41,6 +41,8 @@ export class InternalRegionsController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Which kecamatan, kelurahan and 1 km cell each pin is in (internal service auth)' })
   lookup(@Body() dto: RegionLookupDto): { points: LookedUpPoint[] } {
+    // An unreadable asset must not look like "every pin is in no kecamatan".
+    if (!this.regions.available()) throw new ServiceUnavailableException('Batas wilayah belum bisa dibaca.');
     return {
       points: dto.points.map((p) => {
         // An order's pin carries no accuracy, so it is treated as precise (both levels), unlike a GPS fix saved on an address.

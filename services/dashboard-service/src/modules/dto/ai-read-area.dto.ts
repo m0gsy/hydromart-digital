@@ -5,7 +5,7 @@ import { AREA_LEVELS } from '../../application/ai-read/area-metrics';
 
 /** The areas route: one whole closed month (YYYY-MM), a level, and which metric of the areas group. */
 export class AreaQueryDto {
-  @ApiProperty({ example: 'A-01', description: 'A metric of the areas group (see the contract).' })
+  @ApiProperty({ example: 'R-01', description: 'A metric of the areas group (see the contract).' })
   @IsString()
   metric!: string;
 
