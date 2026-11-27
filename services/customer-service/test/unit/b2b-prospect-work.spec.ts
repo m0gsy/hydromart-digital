@@ -22,6 +22,7 @@ const sales = as({ sub: 'sales-1', role: 'C_sales', depotId: 'depot-a', depotIds
 const marketing = as({ sub: 'm-1', role: Role.MARKETING, depotId: null });
 /** A role that may export but not manage: only ever sees what is assigned to it. */
 const exporterOnly = as({ sub: 'x-1', role: 'C_exporter', depotId: 'depot-a', depotIds: ['depot-a'] });
+const salesExporter = as({ sub: 'x-2', role: 'C_salesx', depotId: 'depot-a', depotIds: ['depot-a'] });
 
 // A pin on the 200 m radius test: ~0.001 deg of latitude is ~111 m.
 const PIN = { latitude: -6.2013, longitude: 106.8137 };
@@ -56,8 +57,12 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
     loadCustomRoles([
       { key: 'C_sales', name: 'Sales Depot', scope: 'LOCKED' },
       { key: 'C_exporter', name: 'Exporter', scope: 'LOCKED' },
+      { key: 'C_salesx', name: 'Sales exporter', scope: 'LOCKED' },
     ]);
-    loadOverrides({ b2bProspectWork: ['C_sales', 'KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN'], b2bProspectExport: ['C_exporter', 'DIREKTUR'] });
+    loadOverrides({
+      b2bProspectWork: ['C_sales', 'C_salesx', 'KEPALA_DEPOT', 'MARKETING', 'HEAD_OFFICE', 'SUPER_ADMIN'],
+      b2bProspectExport: ['C_exporter', 'C_salesx', 'DIREKTUR'],
+    });
   });
   afterAll(() => {
     loadOverrides({});
@@ -378,9 +383,10 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
     });
 
     it('a read-only exporter (no b2bProspectWork, e.g. Direktur) gets no phone and no contact name; Work holders do; both are audited', async () => {
-            const direktur = as({ sub: 'd-1', role: Role.DIREKTUR, depotId: null });
-      seed({ phoneE164: '+6281200000001', contactName: 'Pak Budi', assignedToId: 'd-1' });
+      const direktur = as({ sub: 'd-1', role: Role.DIREKTUR, depotId: null });
+      seed({ phoneE164: '+6281200000001', contactName: 'Pak Budi', assignedToId: null });
       const read = await exportSvc().export(direktur, {});
+      expect(read.rowCount).toBe(1); // not held to rows assigned to it (Area-D6: Direksi exports)
       expect(JSON.stringify(read)).not.toMatch(/\+62|Budi/);
       expect(read.rows[0]).toMatchObject({ phone: null, contactName: null });
       for (const who of [kepalaA, marketing]) {
@@ -414,12 +420,25 @@ describe('B2B prospects, work it / export it / expire it (AREA-1b)', () => {
       expect(row).toMatchObject({ name: 'Kos Melati', kecamatan: "'=Gambir", kelurahan: null, sourceDate: null });
     });
 
-    it('a role that may export but not manage sees only what is assigned to it', async () => {
+    it('a role that works prospects without managing them (Sales) exports only what is assigned to it', async () => {
+      seed({ assignedToId: 'x-2' });
+      seed({ assignedToId: null });
+      seed({ assignedToId: 'other' });
+      expect((await exportSvc().export(salesExporter, {})).rowCount).toBe(1);
+      expect((await exportSvc().export(salesExporter, { assigned: 'none' })).rowCount).toBe(1);
+      expect((await exportSvc().export(salesExporter, {})).rows[0].phone).toBe('+6281200000001');
+    });
+
+    it('a read-only exporter (no Work, no Manage) exports its whole depot scope, with no phone or contact name', async () => {
       seed({ assignedToId: 'x-1' });
       seed({ assignedToId: null });
       seed({ assignedToId: 'other' });
-      expect((await exportSvc().export(exporterOnly, {})).rowCount).toBe(1);
+      seed({ ownerDepotId: 'depot-b' });
+      const res = await exportSvc().export(exporterOnly, {});
+      expect(res.rowCount).toBe(3);
+      expect(res.rows.every((r) => r.phone === null && r.contactName === null)).toBe(true);
       expect((await exportSvc().export(exporterOnly, { assigned: 'none' })).rowCount).toBe(1);
+      expect((await exportSvc().export(exporterOnly, { assigned: 'me' })).rowCount).toBe(1);
     });
 
     it('filters by unassigned and by a named assignee for a manager', async () => {

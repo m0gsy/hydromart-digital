@@ -81,8 +81,12 @@ export class B2bProspectExportService {
     // Validates a named depot against the caller's own and defaults an unnamed one to theirs: a Kepala is
     // locked to their depot, a network role may name any (or none = all, including the map).
     const depotIds = depotScopeIds(user, q.depotId);
-    // A role that may export but not manage only ever sees what is assigned to it.
-    const mine = reachOf(user, depotIds).assignedOnly || q.assigned === 'me';
+    // Phone and contact name are for roles that work prospects; a read-only exporter (Direktur) gets none.
+    const contact = can('b2bProspectWork', user.role, depotIds);
+    // Only a role that works prospects without managing them (a Sales Depot) is held to what is assigned
+    // to it. A read-only exporter (Direktur, Area-D6) exports its whole scope, as its list shows it, with
+    // no phone or contact name.
+    const mine = (contact && reachOf(user, depotIds).assignedOnly) || q.assigned === 'me';
     const found = await this.repo.exportRows({
       depotIds,
       status: q.status,
@@ -93,8 +97,6 @@ export class B2bProspectExportService {
       take: EXPORT_MAX + 1,
     });
     const truncated = found.length > EXPORT_MAX;
-    // Phone and contact name are for roles that work prospects; a read-only exporter (Direktur) gets none.
-    const contact = can('b2bProspectWork', user.role, depotIds);
     const rows = found.slice(0, EXPORT_MAX).map((r) => this.toRow(r, contact));
 
     const indexOf = new Map(rows.map((r, i) => [r.id, i]));
