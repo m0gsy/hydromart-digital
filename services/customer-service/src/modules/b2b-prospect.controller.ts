@@ -18,6 +18,8 @@ import {
   ProspectListRow,
 } from '../application/services/b2b-prospect.service';
 import {
+  AssigneeResponseDto,
+  AssigneesQueryDto,
   AssignProspectDto,
   ConvertProspectDto,
   CoverageQueryDto,
@@ -90,6 +92,14 @@ export class B2bProspectController {
   @ApiOkResponse({ type: CoverageResponseDto })
   coverage(@CurrentUser() user: AuthenticatedUser, @Query() query: CoverageQueryDto): Promise<CoverageReport> {
     return this.prospects.coverage(user, query.depotId);
+  }
+
+  @Get('assignees')
+  @Can('b2bProspectManage')
+  @ApiOkResponse({ type: [AssigneeResponseDto] })
+  @ApiOperation({ summary: 'Staff of one depot, name only (no phone): the assign picker' })
+  assignees(@CurrentUser() user: AuthenticatedUser, @Query() query: AssigneesQueryDto) {
+    return this.prospects.assignees(user, query.depotId);
   }
 
   @Get(':id')
@@ -185,7 +195,7 @@ export class B2bProspectController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignProspectDto,
   ): Promise<ProspectDetail> {
-    return this.prospects.assign(user, id, dto.assigneeId);
+    return this.prospects.assign(user, id, dto.assigneeId, dto.seenUpdatedAt);
   }
 
   @Patch(':id/owner-depot')
