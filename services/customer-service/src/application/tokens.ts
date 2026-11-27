@@ -17,6 +17,7 @@ export const CUSTOMER_TOKENS = {
   IdentityPort: Symbol('IdentityPort'),
   UnservedDemandRepository: Symbol('UnservedDemandRepository'),
   B2bProspectRepository: Symbol('B2bProspectRepository'),
+  B2bProspectAggregateRepository: Symbol('B2bProspectAggregateRepository'),
   StaffRoster: Symbol('StaffRoster'),
   PdpRepository: Symbol('PdpRepository'),
   Storage: Symbol('Storage'),

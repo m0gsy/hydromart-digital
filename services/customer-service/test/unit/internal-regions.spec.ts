@@ -37,7 +37,7 @@ describe('InternalRegionsController', () => {
     bands: [{ band: '>10', count: 4 }],
   };
   const unserved = { summarize: jest.fn().mockResolvedValue(summary) };
-  const c = new InternalRegionsController(new RegionLookup(asset), unserved as never);
+  const c = new InternalRegionsController(new RegionLookup(asset), unserved as never, {} as never);
 
   it('looks every pin up, in order, with its 1 km cell; a pin in no kecamatan has nulls', () => {
     const r = c.lookup({ points: [{ lat: 2, lng: 2 }, { lat: 50, lng: 50 }] } as never);
@@ -47,7 +47,7 @@ describe('InternalRegionsController', () => {
   });
 
   it('answers 503, not an empty region, when the boundary asset cannot be read', () => {
-    const broken = new InternalRegionsController(new RegionLookup({} as never), unserved as never);
+    const broken = new InternalRegionsController(new RegionLookup({} as never), unserved as never, {} as never);
     expect(() => broken.lookup({ points: [{ lat: 2, lng: 2 }] } as never)).toThrow(ServiceUnavailableException);
   });
 
