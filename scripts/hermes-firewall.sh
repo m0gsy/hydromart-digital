@@ -145,6 +145,7 @@ have="$(sudo -n iptables -w -S 2>&1)" ||
 wrote=''
 
 # Rewrite the chain when it differs from what is wanted, and make sure exactly ONE jump to it exists.
+# ponytail: the flush-and-re-add leaves a window of a few milliseconds with no DROP, only on first run or after drift (the chain already holds the wanted rules on every other run). Upgrade path: build the rules in a temp chain, swap the jump to it, delete the old chain.
 sync_chain() { # <chain> <want> <parent>
   local chain="$1" want="$2" parent="$3" rule copies
   if [ "$(awk -v c="$chain" '($1 == "-N" || $1 == "-A") && $2 == c' <<<"$have")" != "$want" ]; then

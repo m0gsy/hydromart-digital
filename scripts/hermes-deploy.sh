@@ -85,12 +85,10 @@ bash scripts/hermes-firewall.sh
 
 # IPv6 off (the rules are IPv4): the daemon's config and this network's.
 if grep -qsE '"ipv6"[[:space:]]*:[[:space:]]*true' /etc/docker/daemon.json; then
-  say "!! /etc/docker/daemon.json turns Docker's IPv6 on: the firewall rules are IPv4 only. Nothing was started."
-  exit 1
+  fail_closed "/etc/docker/daemon.json turns Docker's IPv6 on: the firewall rules are IPv4 only; Hermes is not started (a running one was stopped)"
 fi
 if [ "$(docker network inspect "${PROJECT}_hermes" --format '{{.EnableIPv6}}')" != false ]; then
-  say "!! the ${PROJECT}_hermes network has IPv6 on: the firewall rules are IPv4 only. Nothing was started."
-  exit 1
+  fail_closed "the ${PROJECT}_hermes network has IPv6 on: the firewall rules are IPv4 only; Hermes is not started (a running one was stopped)"
 fi
 
 # 4. config.yaml into the volume (see the header for why a copy and not a mount).
@@ -110,7 +108,9 @@ ok=''
 for _ in $(seq 1 $((WAIT_SECONDS / 3))); do
   state="$(docker inspect --format '{{.State.Status}}' "$cid" 2>/dev/null || echo gone)"
   [ "$state" = running ] || fail_closed "the container is $state; read its log on the box: docker logs $cid"
-  if docker logs --since "$started_at" "$cid" 2>&1 | grep -v '(degraded)' | grep -q "$STARTED"; then
+  # Captured first: under pipefail a `| grep -q` that exits early can SIGPIPE the writer and report a false failure.
+  logs="$(docker logs --since "$started_at" "$cid" 2>&1 || true)"
+  if grep -v '(degraded)' <<<"$logs" | grep -q "$STARTED"; then
     ok=1
     break
   fi
@@ -120,9 +120,11 @@ done
 say "gateway up: '$STARTED' seen"
 
 # Probes from INSIDE the container with python's socket (the image's own). One outcome per target: open, closed
-# (timeout, refused, no route) or ERROR (no python, exec failed, name does not resolve): an ERROR is never a pass.
+# (timeout, or host/network unreachable: a DROP or an ICMP-prohibited), refused or ERROR (no python, exec failed,
+# name does not resolve). A REFUSED connection (RST) means the packet reached the host, so it is reachable, never
+# blocked: "refused" matches no wanted outcome, so it fails every probe. An ERROR is never a pass either.
 docker exec "$cid" python3 -c 'import socket' >/dev/null 2>&1 || fail_closed "python3 is not usable inside the container, so no probe can be trusted"
-probe() { # <host> <port> -> open | closed | error
+probe() { # <host> <port> -> open | closed | refused | error
   local out
   out="$(docker exec "$cid" python3 -c '
 import errno, socket, sys
@@ -131,14 +133,16 @@ s.settimeout(4)
 try:
     s.connect((sys.argv[1], int(sys.argv[2])))
     print("open")
-except (socket.timeout, ConnectionRefusedError):
+except ConnectionRefusedError:
+    print("refused")
+except socket.timeout:
     print("closed")
 except socket.gaierror:
     print("error")
 except OSError as e:
     print("closed" if e.errno in (errno.ENETUNREACH, errno.EHOSTUNREACH, errno.EACCES) else "error")
 ' "$1" "$2" 2>/dev/null)" || out=error
-  case "$out" in open | closed) echo "$out" ;; *) echo error ;; esac
+  case "$out" in open | closed | refused) echo "$out" ;; *) echo error ;; esac
 }
 expect() { # <label> <host> <port> <want>
   local got
@@ -164,15 +168,15 @@ expect "api.telegram.org:443" api.telegram.org 443 open
 
 # The browser toolset must not be among the tools the Telegram gateway has (upstream: `hermes tools list --platform
 # telegram`, hermes_cli/subcommands/tools.py v0.23.4). The line format is upstream's, so the browser lines are printed
-# for the operator, and the deploy fails on one that says enabled.
-if tools="$(docker exec "$cid" hermes tools list --platform telegram 2>&1)"; then
-  browser="$(grep -i browser <<<"$tools" || true)"
-  say "tools (browser lines): ${browser:-none listed}"
-  if grep -i browser <<<"$tools" | grep -i enabled | grep -viq disabled; then
-    fail_closed "a browser tool is enabled for Telegram: infra/hermes/config.yaml must disable it"
-  fi
-else
-  say "NOTE: 'hermes tools list --platform telegram' failed; check by hand that no browser tool is enabled: docker exec $cid hermes tools list --platform telegram"
+# for the operator, and the deploy fails on one that says enabled. A failed or empty listing fails closed.
+tools="$(docker exec "$cid" hermes tools list --platform telegram 2>&1)" ||
+  fail_closed "'hermes tools list --platform telegram' failed, so no tool can be vouched for; check: docker exec $cid hermes tools list --platform telegram"
+[ -n "$tools" ] || fail_closed "'hermes tools list --platform telegram' printed nothing, so no tool can be vouched for"
+# ponytail: an allowlist comparison of the enabled tools is added once the real v0.23.4 output has been seen on the server; until then the enabled lines are logged and only the browser check gates.
+say "tools enabled for Telegram (names only):"
+{ grep -i enabled <<<"$tools" | grep -vi disabled || true; } | sed 's/^/[hermes-deploy]   /'
+if grep -i browser <<<"$tools" | grep -i enabled | grep -viq disabled; then
+  fail_closed "a browser tool is enabled for Telegram: infra/hermes/config.yaml must disable it"
 fi
 
 mkdir -p .deploy

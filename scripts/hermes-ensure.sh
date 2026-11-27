@@ -35,4 +35,5 @@ sudo -n iptables -w -C INPUT -j HERMES-NO-HOST 2>/dev/null && sudo -n iptables -
 cid="$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT" --filter label=com.docker.compose.service=hermes | head -1)"
 [ -n "$cid" ] || { say "the flag is set but there is no container: run deploy mode hermes"; exit 0; }
 [ "$(docker inspect --format '{{.State.Running}}' "$cid" 2>/dev/null)" = true ] && exit 0
+[ -f "$FLAG" ] || exit 0 # a deploy may have taken the flag away since the check above
 docker start "$cid" >/dev/null && say "started $cid (firewall closed)"
