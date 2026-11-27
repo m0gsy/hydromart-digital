@@ -49,7 +49,10 @@ else
 fi
 
 IMAGE="$(docker inspect -f '{{.Image}}' "$C" 2>/dev/null)"
-NET="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$C" 2>/dev/null | grep -m1 .)"
+# The compose project's own network (<project>_default) is where `postgres` resolves; prefer it
+# over whatever sorts first, in case the container ever joins a second network (e.g. edge).
+NETS="$(docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$C" 2>/dev/null)"
+NET="$(printf '%s\n' "$NETS" | grep -m1 '_default$' || printf '%s\n' "$NETS" | grep -m1 .)"
 if [ -z "$IMAGE" ] || [ -z "$NET" ]; then
   echo "!! cannot read the image or network of $C." >&2
   exit 2

@@ -27,7 +27,7 @@ case "$1" in
   inspect)
     case "$*" in
       *'.Image}}'*) echo sha256:img ;;
-      *Networks*) printf 'hydromart_default\nother\n' ;;
+      *Networks*) printf '%b' "${NETS_OUT:-hydromart_default\nother\n}" ;;
       *Config.Env*) printf 'PATH=/bin\nCUSTOMER_DATABASE_URL=%s\nOTHER=x\n' "$SECRET" ;;
     esac ;;
   run)
@@ -61,6 +61,8 @@ RUN="$(grep '^docker run' "$LOG")"
   ok "with CONFIRM it passes no --dry-run" || bad "execute argv wrong: $RUN"
 run --bogus >/dev/null
 [ "$?" = 2 ] && ok "an unknown argument exits 2" || bad "an unknown argument must exit 2"
+NETS_OUT='edge\nhydromart_default\n' run >/dev/null
+grep -q -- '--network hydromart_default' "$LOG" && ok "the compose _default network wins over one that sorts first" || bad "network choice wrong: $(grep '^docker run' "$LOG")"
 PS_OUT="" run >/dev/null
 [ "$?" = 2 ] && ! grep -q '^docker run' "$LOG" && ok "no customer container exits 2" || bad "zero containers must exit 2"
 PS_OUT=$'a\nb' run >/dev/null
