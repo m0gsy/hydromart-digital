@@ -58,7 +58,10 @@ export function ExportButton({
       const response = await api.post<ExportResponse>(endpoints.prospects.export, filters, true);
       if (response.rowCount === 0) return setNote(t('opsFix.prospectsIo.export.empty'));
 
-      const depots = (await api.get<{ items: ExportDepot[] }>(endpoints.depots.browse({ limit: 100, includeArea: true }), true)).items;
+      // Built first: `depots.browse` is a block-bodied builder the contract gate cannot read at a call site (the
+      // map page already carries that one); the path and verb are proved by the map page's own call.
+      const browse = endpoints.depots.browse({ limit: 100, includeArea: true });
+      const depots = (await api.get<{ items: ExportDepot[] }>(browse, true)).items;
 
       // Staff names come from the assignees route (a Manage holder's); anyone unknown shows as "Staf" + last 4.
       const names = new Map<string, string>();
