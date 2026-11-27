@@ -117,11 +117,16 @@ export function parseCsvRecords(text: string): CsvRecord[] {
  * was typed and evaluates nothing. Tab and CR get it too, because a reader that trims
  * leading whitespace turns a tabbed formula back into a formula.
  */
-function escapeCell(value: CsvCell): string {
+export function neutraliseCell(value: CsvCell): string {
   if (value == null) return '';
   const s = String(value);
   // A number cannot be a formula; only text can. A negative one must stay numeric.
-  const safe = typeof value !== 'number' && /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+  return typeof value !== 'number' && /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+}
+
+function escapeCell(value: CsvCell): string {
+  if (value == null) return '';
+  const safe = neutraliseCell(value);
   return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 

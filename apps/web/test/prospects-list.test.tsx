@@ -36,6 +36,7 @@ vi.mock('@/lib/deep-link', () => ({ isServedHere: () => served.map }));
 vi.mock('@/lib/depot-context', () => ({
   useDepot: () => ({ depots: [{ id: 'dep-a', code: 'BKS', name: 'Bekasi' }], selectedId: null }),
 }));
+vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm: vi.fn(), askReason: vi.fn() }) })); // AREA-2b: the recompute button asks
 vi.mock('@/components/require-auth', () => ({
   RequireAuth: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

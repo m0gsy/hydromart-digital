@@ -341,4 +341,10 @@ export class ExportResponseDto {
   rows!: Record<string, unknown>[];
   @ApiProperty({ description: 'More rows matched than the cap; narrow the filter.' }) truncated!: boolean;
   @ApiProperty() rowCount!: number;
+  @ApiProperty({
+    type: 'array',
+    items: { type: 'object' },
+    description: 'Visits of the exported rows (rowIndex into rows, visitorId, visitedAt, outcome, distanceM): no pin, no note.',
+  })
+  visits!: Record<string, unknown>[];
 }

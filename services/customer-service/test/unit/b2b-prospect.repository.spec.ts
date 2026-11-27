@@ -291,6 +291,17 @@ describe('B2bProspectPrismaRepository', () => {
       });
     });
 
+    it('reads the visits of the exported prospects without pin or note', async () => {
+      visit.findMany.mockResolvedValue([{ prospectId: 'p1' }]);
+      expect(await repo.exportVisits(['p1'], 20000)).toEqual([{ prospectId: 'p1' }]);
+      expect(visit.findMany).toHaveBeenLastCalledWith({
+        where: { prospectId: { in: ['p1'] } },
+        orderBy: [{ visitedAt: 'desc' }, { id: 'asc' }],
+        take: 20000,
+        select: { prospectId: true, visitorId: true, visitedAt: true, outcome: true, distanceM: true },
+      });
+    });
+
     it('walks the system-placed rows by id after a cursor, and moves one only if it is still as read', async () => {
       p.findMany.mockResolvedValue([]);
       await repo.autoOwnedAfter(null, 500);

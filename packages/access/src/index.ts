@@ -1422,3 +1422,5 @@ export function can(
     ids.every((id) => depotOverrides.get(depotKey(capability, role, id)) === 'GRANT')
   );
 }
+
+export * from './b2b-prospect';

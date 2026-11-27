@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { buildTemplateXlsx, classifyImportFile, parseXlsxRecords, toXlsxBlob } from '@/lib/xlsx';
+import { buildTemplateXlsx, classifyImportFile, parseXlsxRecords, toWorkbookBlob, toXlsxBlob } from '@/lib/xlsx';
 
 // exceljs is a big lazy chunk. Warm it once here instead of making whichever test
 // runs first absorb the load time and flake on the default 5s timeout.
@@ -187,6 +187,13 @@ describe('toXlsxBlob', () => {
     expect(sheet.getCell(2, 2).value).toBe('');
   });
 
+  it('neutralises a typed string that starts with = + - @ but leaves numbers (even negative) alone', async () => {
+    const sheet = await load(await toXlsxBlob(['a', 'b', 'c'], [['=HYPERLINK("http://x",A1)', '@SUM(1)', -5]], 'Data'));
+    expect(sheet.getCell(2, 1).value).toBe(`'=HYPERLINK("http://x",A1)`);
+    expect(sheet.getCell(2, 2).value).toBe("'@SUM(1)");
+    expect(sheet.getCell(2, 3).value).toBe(-5);
+  });
+
   it('truncates a sheet name Excel would reject', async () => {
     const sheet = await load(await toXlsxBlob(['a'], [['1']], 'x'.repeat(40)));
     expect(sheet.name).toBe('x'.repeat(31));
@@ -241,5 +248,32 @@ describe('parseXlsxRecords', () => {
   it('returns nothing for a workbook with no rows', async () => {
     const file = await sheetFile([]);
     await expect(parseXlsxRecords(file)).resolves.toEqual([]);
+  });
+});
+
+describe('toWorkbookBlob', () => {
+  it('writes every sheet, keeps Text columns and numbers, and neutralises text that would run', async () => {
+    const blob = await toWorkbookBlob([
+      { name: 'Satu', headers: ['kode', 'jumlah'], rows: [['007', 3]], text: ['kode'], footer: ['catatan'] },
+      { name: 'Dua', headers: ['x'], rows: [['=1+1'], ['-5'], [-5]] },
+      { name: 'Mentah', headers: ['tel'], rows: [['-1']], raw: ['tel'] },
+    ]);
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await blob.arrayBuffer());
+
+    expect(wb.worksheets.map((s) => s.name)).toEqual(['Satu', 'Dua', 'Mentah']);
+    expect(wb.worksheets[0]!.getColumn(1).numFmt).toBe('@');
+    expect(wb.worksheets[0]!.getCell('A2').value).toBe('007');
+    expect(wb.worksheets[0]!.getCell('B2').value).toBe(3);
+    expect(wb.worksheets[0]!.getCell('A3').value).toBe('catatan');
+    expect(wb.worksheets[1]!.getCell('A2').value).toBe("'=1+1");
+    expect(wb.worksheets[1]!.getCell('A3').value).toBe("'-5");
+    expect(wb.worksheets[1]!.getCell('A4').value).toBe(-5); // a real negative stays a number
+    expect(wb.worksheets[2]!.getCell('A2').value).toBe('-1'); // a raw column is verbatim
+    await expect(parseXlsxRecords(await asFile(blob, 'k.xlsx'))).resolves.toEqual([
+      { kode: '007', jumlah: '3' },
+      { kode: 'catatan', jumlah: '' },
+    ]);
   });
 });

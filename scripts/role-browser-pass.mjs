@@ -106,7 +106,7 @@ async function ensureCustomer(phone) {
 const R = (list) => list.trim().split(/\s+/);
 
 const HQ = R(`
-/dashboard/prospects/map /hq /hq/access /hq/analytics /hq/api-keys /hq/applications /hq/depot-drafts /hq/audit /hq/broadcast
+/dashboard/prospects/import /dashboard/prospects/map /hq /hq/access /hq/analytics /hq/api-keys /hq/applications /hq/depot-drafts /hq/audit /hq/broadcast
 /hq/campaigns /hq/catalog /hq/churn /hq/compare /hq/content /hq/customers /hq/depots
 /hq/dashboard /hq/exports /hq/flags /hq/forecast /hq/forms/commission /hq/forms/pricing-rule
 /hq/forms/segment /hq/forms/voucher /hq/franchise /hq/fraud /hq/health /hq/hierarchy

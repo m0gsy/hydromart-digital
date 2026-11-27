@@ -7,6 +7,7 @@ import {
   CreateOutcome,
   DncKeys,
   ExportQuery,
+  ExportVisit,
   NewVisit,
   ProspectListQuery,
   ProspectPatch,
@@ -162,6 +163,13 @@ export class InMemoryProspectRepository implements B2bProspectRepository {
       .filter((r) => !q.unassigned || r.assignedToId === null)
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id))
       .slice(0, q.take);
+  }
+
+  /** Seeded by the export tests; the fake does not tie recordVisit's rows to a prospect. */
+  exportVisitRows: ExportVisit[] = [];
+
+  async exportVisits(ids: readonly string[], take: number): Promise<ExportVisit[]> {
+    return this.exportVisitRows.filter((v) => ids.includes(v.prospectId)).slice(0, take);
   }
 
   async autoOwnedAfter(afterId: string | null, take: number): Promise<AutoOwned[]> {

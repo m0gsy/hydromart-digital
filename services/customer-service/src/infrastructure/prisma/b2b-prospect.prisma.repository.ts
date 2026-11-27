@@ -8,6 +8,7 @@ import {
   CreateOutcome,
   DncKeys,
   ExportQuery,
+  ExportVisit,
   NewVisit,
   ProspectListQuery,
   ProspectPatch,
@@ -280,6 +281,15 @@ export class B2bProspectPrismaRepository implements B2bProspectRepository {
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: q.take,
+    });
+  }
+
+  exportVisits(prospectIds: readonly string[], take: number): Promise<ExportVisit[]> {
+    return this.prisma.b2bProspectVisit.findMany({
+      where: { prospectId: { in: [...prospectIds] } },
+      orderBy: [{ visitedAt: 'desc' }, { id: 'asc' }],
+      take,
+      select: { prospectId: true, visitorId: true, visitedAt: true, outcome: true, distanceM: true },
     });
   }
 

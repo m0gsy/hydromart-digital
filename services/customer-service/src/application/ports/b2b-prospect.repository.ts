@@ -128,6 +128,9 @@ export interface B2bProspectRepository {
   /** Export rows: never a do-not-contact or anonymised row; one past `take` tells the caller it was cut. */
   exportRows(q: ExportQuery): Promise<ProspectRecord[]>;
 
+  /** The visits of these prospects for the export sheet: no pin, no note. Newest first, at most `take`. */
+  exportVisits(prospectIds: readonly string[], take: number): Promise<ExportVisit[]>;
+
   /** Rows whose owner depot the monthly refresh may recompute (owner AUTO, not converted / do-not-contact), by id after a cursor. */
   autoOwnedAfter(afterId: string | null, take: number): Promise<AutoOwned[]>;
   /** Moves one such row to its new owner depot (and drops the old depot's assignee). False = it was changed meanwhile (HQ took it, or it moved). */
@@ -160,6 +163,14 @@ export interface ExportQuery {
   assignedToId?: string;
   unassigned?: boolean;
   take: number;
+}
+
+export interface ExportVisit {
+  prospectId: string;
+  visitorId: string;
+  visitedAt: Date;
+  outcome: string;
+  distanceM: number;
 }
 
 export interface AutoOwned {
