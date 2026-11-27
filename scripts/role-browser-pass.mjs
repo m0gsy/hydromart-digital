@@ -106,7 +106,7 @@ async function ensureCustomer(phone) {
 const R = (list) => list.trim().split(/\s+/);
 
 const HQ = R(`
-/hq /hq/access /hq/analytics /hq/api-keys /hq/applications /hq/depot-drafts /hq/audit /hq/broadcast
+/dashboard/prospects/map /hq /hq/access /hq/analytics /hq/api-keys /hq/applications /hq/depot-drafts /hq/audit /hq/broadcast
 /hq/campaigns /hq/catalog /hq/churn /hq/compare /hq/content /hq/customers /hq/depots
 /hq/dashboard /hq/exports /hq/flags /hq/forecast /hq/forms/commission /hq/forms/pricing-rule
 /hq/forms/segment /hq/forms/voucher /hq/franchise /hq/fraud /hq/health /hq/hierarchy
@@ -144,7 +144,7 @@ const OPS = R(`
 /dashboard/sales-import /dashboard/search /dashboard/settings /dashboard/settlements /dashboard/shift
 /dashboard/staff /dashboard/subscriptions /dashboard/suppliers /dashboard/targets
 /dashboard/team-performance /dashboard/tracking /dashboard/vouchers /dashboard/visits /dashboard/visits/new /dashboard/visits/detail /dashboard/walk-in
-/dashboard/wastage /dashboard/wholesale
+/dashboard/wastage /dashboard/wholesale /dashboard/prospects /dashboard/prospects/detail
 `);
 
 /*
