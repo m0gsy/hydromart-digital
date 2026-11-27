@@ -66,6 +66,8 @@ export interface AreaQuery {
 interface Cell {
   id: string | null;
   label: string | null;
+  /** Kelurahan level: the kecamatan of a cell whose kelurahan is unknown, so it joins that kecamatan's siblings. */
+  parent?: string;
   lat?: number;
   lng?: number;
   people: number;
@@ -75,12 +77,19 @@ interface Cell {
   galon: number;
 }
 
-const byId = (a: Cell, b: Cell): number => (a.id === null ? 1 : b.id === null ? -1 : a.id.localeCompare(b.id));
+/** Codes in order; a cell with no kelurahan sorts right after the kelurahan of its kecamatan, the nameless one last. */
+const sortKey = (c: Cell): string => c.id ?? (c.parent ? `${c.parent}~` : '~~');
+/** Plain code-unit order: localeCompare would sort the "~" before the digits. */
+const byId = (a: Cell, b: Cell): number => (sortKey(a) < sortKey(b) ? -1 : sortKey(a) > sortKey(b) ? 1 : 0);
+const NO_KELURAHAN = 'Kelurahan tidak diketahui';
+/** The hierarchy group of a cell at kelurahan level: its kecamatan, whether or not its kelurahan is known. */
+const kecamatanOf = (c: Cell): string => c.parent ?? (c.id === null ? UNKNOWN : c.id.slice(0, KECAMATAN_CODE_LEN));
 
 /** What names a cell: its code, its name, or for a grid cell its centre. */
 const head = (x: Cell) => ({
   id: x.id,
-  label: x.id === null ? UNKNOWN : x.label,
+  label: x.id === null && !x.parent ? UNKNOWN : x.label,
+  ...(x.parent ? { kecamatan: x.parent } : {}),
   ...(x.lat !== undefined ? { lat: x.lat, lng: x.lng } : {}),
 });
 
@@ -121,7 +130,7 @@ function holdMore(cells: readonly Cell[], masked: MaskedCell[], groupOf: (c: Cel
 
 /** Applies both held-mass rules: the whole answer, and (kelurahan) each kecamatan. */
 function hold(cells: readonly Cell[], masked: MaskedCell[], level: AreaLevel): void {
-  if (level === 'kelurahan') holdMore(cells, masked, (c) => (c.id === null ? UNKNOWN : c.id.slice(0, KECAMATAN_CODE_LEN)));
+  if (level === 'kelurahan') holdMore(cells, masked, kecamatanOf);
   holdMore(cells, masked, () => 'all');
 }
 
@@ -180,7 +189,7 @@ export class AreaMetricsService {
   private async cellsOf(pins: readonly AreaPin[], level: AreaLevel, deadline: number): Promise<Cell[] | null> {
     const located = pins.filter((p) => p.lat !== null && p.lng !== null) as (AreaPin & { lat: number; lng: number })[];
     const key = (p: { lat: number | null; lng: number | null }): string => `${p.lat},${p.lng}`;
-    const where = new Map<string, { id: string | null; label: string | null }>();
+    const where = new Map<string, { id: string | null; label: string | null; parent?: string }>();
     if (level === 'grid') {
       for (const p of located) where.set(key(p), { id: gridCell1km(p.lat, p.lng), label: null });
     } else {
@@ -192,20 +201,23 @@ export class AreaMetricsService {
       if (!hits) return null;
       distinct.forEach((p, i) => {
         const r = level === 'kecamatan' ? hits[i].kecamatan : hits[i].kelurahan;
-        where.set(key(p), r ? { id: r.code, label: r.name } : { id: null, label: null });
+        // a pin in a kecamatan but in no mapped kelurahan stays under that kecamatan, not in the shared unknown cell
+        const parent = level === 'kelurahan' && !r ? hits[i].kecamatan?.code : undefined;
+        where.set(key(p), r ? { id: r.code, label: r.name } : parent ? { id: null, label: NO_KELURAHAN, parent } : { id: null, label: null });
       });
     }
-    const acc = new Map<string | null, { label: string | null; ks: Set<number>; orders: number; galon: number }>();
+    const acc = new Map<string, { id: string | null; parent?: string; label: string | null; ks: Set<number>; orders: number; galon: number }>();
     for (const p of pins) {
       const r = where.get(key(p)) ?? { id: null, label: null };
-      const a = acc.get(r.id) ?? { label: r.label, ks: new Set<number>(), orders: 0, galon: 0 };
+      const id = r.id ?? `~${r.parent ?? ''}`;
+      const a = acc.get(id) ?? { id: r.id, parent: r.parent, label: r.label, ks: new Set<number>(), orders: 0, galon: 0 };
       a.ks.add(p.k);
       a.orders += p.orders;
       a.galon += p.galon;
-      acc.set(r.id, a);
+      acc.set(id, a);
     }
-    return [...acc.entries()]
-      .map(([id, a]): Cell => ({ id, label: a.label, ...(level === 'grid' && id ? gridCellCenter(id) : {}), people: a.ks.size, ks: a.ks, orders: a.orders, galon: a.galon }))
+    return [...acc.values()]
+      .map((a): Cell => ({ id: a.id, label: a.label, ...(a.parent ? { parent: a.parent } : {}), ...(level === 'grid' && a.id ? gridCellCenter(a.id) : {}), people: a.ks.size, ks: a.ks, orders: a.orders, galon: a.galon }))
       .sort(byId);
   }
 
@@ -215,13 +227,20 @@ export class AreaMetricsService {
     const raw: Cell[] =
       level === 'grid'
         ? s.grid.map((g) => ({ id: g.cell, label: null, ...gridCellCenter(g.cell), people: g.count, orders: 0, galon: 0 }))
-        : (level === 'kecamatan' ? s.kecamatan : s.kelurahan).map((g) => ({ id: g.code, label: g.name, people: g.count, orders: 0, galon: 0 }));
+        : (level === 'kecamatan' ? s.kecamatan : s.kelurahan).map((g) => ({
+            id: g.code,
+            label: g.code ? g.name : g.kecamatan ? NO_KELURAHAN : null,
+            ...(!g.code && g.kecamatan ? { parent: g.kecamatan } : {}),
+            people: g.count,
+            orders: 0,
+            galon: 0,
+          }));
     const total = raw.reduce((n, x) => n + x.people, 0);
     if (total === 0) return c.none('Tidak ada orang di luar area depot yang tercatat pada bulan ini.');
     const list = raw.sort(byId);
     const cells = suppressSmallGroups(list.map((x) => ({ key: x.id ?? UNKNOWN, people: x.people })), total);
     // one row per person per kecamatan, so within a kecamatan the kelurahan rows are different people
-    if (level === 'kelurahan') holdMore(list, cells.cells, (x) => (x.id === null ? UNKNOWN : x.id.slice(0, KECAMATAN_CODE_LEN)));
+    if (level === 'kelurahan') holdMore(list, cells.cells, kecamatanOf);
     const counts = DISTANCE_BANDS.map((band) => ({ key: band, people: s.bands.find((b) => b.band === band)?.count ?? 0 }));
     const bands = suppressSmallGroups(counts, counts.reduce((n, b) => n + b.people, 0));
     return c.ok(

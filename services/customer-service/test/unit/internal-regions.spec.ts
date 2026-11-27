@@ -32,7 +32,7 @@ describe('RegionLookup.nameOf', () => {
 describe('InternalRegionsController', () => {
   const summary = {
     kecamatan: [{ code: '320101', count: 4 }],
-    kelurahan: [{ code: null, count: 1 }, { code: '3201010001', count: 3 }],
+    kelurahan: [{ code: null, kecamatan: '320101', count: 1 }, { code: '3201010001', kecamatan: '320101', count: 3 }],
     grid: [{ cell: '1:2', count: 4 }],
     bands: [{ band: '>10', count: 4 }],
   };
@@ -55,7 +55,7 @@ describe('InternalRegionsController', () => {
     const r = await c.unservedDemand({ month: '2026-11' });
     expect(unserved.summarize).toHaveBeenCalledWith('2026-11');
     expect(r.kecamatan).toEqual([{ code: '320101', name: 'Kec Satu', count: 4 }]);
-    expect(r.kelurahan).toEqual([{ code: null, name: null, count: 1 }, { code: '3201010001', name: 'Kel A', count: 3 }]);
+    expect(r.kelurahan).toEqual([{ code: null, name: null, kecamatan: '320101', count: 1 }, { code: '3201010001', name: 'Kel A', kecamatan: '320101', count: 3 }]);
     expect(r.grid).toEqual(summary.grid);
     expect(r.bands).toEqual(summary.bands);
   });
@@ -76,13 +76,13 @@ describe('UnservedDemandPrismaRepository.summarize', () => {
     const groupBy = jest
       .fn()
       .mockResolvedValueOnce([{ kecamatanCode: 'K', _count: { _all: 5 } }])
-      .mockResolvedValueOnce([{ kelurahanCode: null, _count: { _all: 2 } }])
+      .mockResolvedValueOnce([{ kecamatanCode: 'K', kelurahanCode: null, _count: { _all: 2 } }])
       .mockResolvedValueOnce([{ gridCell: '1:2', _count: { _all: 5 } }])
       .mockResolvedValueOnce([{ distanceBand: '3-5', _count: { _all: 5 } }]);
     const repo = new UnservedDemandPrismaRepository({ unservedDemand: { groupBy } } as never);
     await expect(repo.summarize('2026-11')).resolves.toEqual({
       kecamatan: [{ code: 'K', count: 5 }],
-      kelurahan: [{ code: null, count: 2 }],
+      kelurahan: [{ code: null, kecamatan: 'K', count: 2 }],
       grid: [{ cell: '1:2', count: 5 }],
       bands: [{ band: '3-5', count: 5 }],
     });

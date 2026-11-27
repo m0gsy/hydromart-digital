@@ -110,9 +110,11 @@ export class AiAreaSourcesHttpAdapter implements AiAreaSourcesPort {
     };
     const kecamatan = cells(b.kecamatan);
     const kelurahan = cells(b.kelurahan);
+    // a kelurahan row always names its kecamatan: without it a row with no kelurahan code could not be grouped
+    const parented = (b.kelurahan as { kecamatan?: unknown }[]).every((r) => typeof r.kecamatan === 'string');
     const gridOk = (b.grid as unknown[]).every((r) => isObj(r) && typeof r.cell === 'string' && GRID.test(r.cell) && isCount(r.count));
     const bandsOk = (b.bands as unknown[]).every((r) => isObj(r) && typeof r.band === 'string' && isCount(r.count));
-    return kecamatan && kelurahan && gridOk && bandsOk
+    return kecamatan && kelurahan && parented && gridOk && bandsOk
       ? { kecamatan, kelurahan, grid: b.grid as UnservedSummary['grid'], bands: b.bands as UnservedSummary['bands'] }
       : null;
   }

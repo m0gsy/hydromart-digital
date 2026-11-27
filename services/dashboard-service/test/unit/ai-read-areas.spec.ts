@@ -152,7 +152,7 @@ describe('R-01 served demand', () => {
 describe('R-02 unserved demand', () => {
   const summary = {
     kecamatan: [{ code: 'X', name: 'Kec X', count: 8 }, { code: 'Y', name: 'Kec Y', count: 2 }, { code: 'Z', name: 'Kec Z', count: 5 }],
-    kelurahan: [{ code: null, name: null, count: 3 }, { code: 'X01', name: 'Kel X', count: 12 }],
+    kelurahan: [{ code: null, name: null, kecamatan: '3203010', count: 3 }, { code: '3203010001', name: 'Kel X', kecamatan: '3203010', count: 12 }],
     grid: [{ cell: '-690:11866', count: 15 }],
     bands: [{ band: '>10', count: 9 }, { band: '3-5', count: 1 }, { band: '5-10', count: 5 }],
   };
@@ -193,10 +193,10 @@ describe('R-02 unserved demand', () => {
     }
   });
 
-  it('names a kelurahan without a code "tidak diketahui" and a grid cell by id and centre', async () => {
+  it('keeps a row with a kecamatan but no kelurahan under that kecamatan, named "Kelurahan tidak diketahui" and a grid cell by id and centre', async () => {
     const { service } = make({ unserved: summary });
     const kel = (await service.answer('R-02', ADMIN, { ...Q, level: 'kelurahan' }, CLOSED)).value as { cells: { id: string | null; label: string; people: number }[] };
-    expect(kel.cells[kel.cells.length - 1]).toMatchObject({ id: null, label: 'tidak diketahui', people: 3 });
+    expect(kel.cells[kel.cells.length - 1]).toMatchObject({ id: null, label: 'Kelurahan tidak diketahui', kecamatan: '3203010', people: 3 });
     const grid = (await service.answer('R-02', ADMIN, { ...Q, level: 'grid' }, CLOSED)).value as { cells: { id: string; lat: number; lng: number }[] };
     expect(grid.cells[0]).toMatchObject({ id: '-690:11866' });
     expect(typeof grid.cells[0].lat).toBe('number');
@@ -333,7 +333,7 @@ describe('AiAreaSourcesHttpAdapter (HD-20c)', () => {
   it('reads the unserved summary and refuses one it does not understand', async () => {
     const ok = {
       kecamatan: [{ code: 'K', name: 'Kec', count: 3 }],
-      kelurahan: [{ code: null, name: null, count: 1 }],
+      kelurahan: [{ code: null, name: null, kecamatan: 'K', count: 1 }],
       grid: [{ cell: '-1:2', count: 4 }],
       bands: [{ band: '>10', count: 4 }],
     };
@@ -344,6 +344,7 @@ describe('AiAreaSourcesHttpAdapter (HD-20c)', () => {
     for (const bad of [
       { ...ok, kecamatan: [{ code: 1, name: 'x', count: 1 }] },
       { ...ok, kelurahan: 'x' },
+      { ...ok, kelurahan: [{ code: null, name: null, count: 1 }] },
       { ...ok, grid: [{ cell: 'nope', count: 1 }] },
       { ...ok, bands: [{ band: 5, count: 1 }] },
       { ...ok, bands: undefined },
@@ -407,12 +408,12 @@ describe('HD-20c review fixes', () => {
     const unserved = {
       kecamatan: [],
       kelurahan: [
-        { code: '3203010001', name: 'a', count: 5 },
-        { code: '3203010002', name: 'b', count: 2 },
-        { code: '3273180001', name: 'c', count: 2 },
-        { code: '3273180002', name: 'd', count: 2 },
-        { code: '3273180003', name: 'e', count: 2 },
-        { code: '3300010001', name: 'f', count: 9 },
+        { code: '3203010001', name: 'a', kecamatan: '3203010', count: 5 },
+        { code: '3203010002', name: 'b', kecamatan: '3203010', count: 2 },
+        { code: '3273180001', name: 'c', kecamatan: '3273180', count: 2 },
+        { code: '3273180002', name: 'd', kecamatan: '3273180', count: 2 },
+        { code: '3273180003', name: 'e', kecamatan: '3273180', count: 2 },
+        { code: '3300010001', name: 'f', kecamatan: '3300010', count: 9 },
       ],
       grid: [],
       bands: [],
@@ -426,6 +427,49 @@ describe('HD-20c review fixes', () => {
       ['3273180003', null],
       ['3300010001', 9],
     ]);
+  });
+
+  it('K = 5 with one published kelurahan of 3 would give the 2 without a kelurahan away: the sibling is held too (R-01)', async () => {
+    const noKel: RegionHit = { kecamatan: { code: '3203010', name: 'K' }, kelurahan: null, gridCell: '1:1' };
+    const pins = [...people(0, 3, 1, 1), ...people(3, 2, 2, 2), ...people(5, 2, 3, 3), ...people(7, 2, 4, 4), ...people(9, 2, 5, 5), ...people(11, 6, 6, 6)];
+    const hits = {
+      '1,1': hit('3203010', '3203010001'),
+      '2,2': noKel,
+      '3,3': hit('3273180', '3273180001'),
+      '4,4': hit('3273180', '3273180002'),
+      '5,5': hit('3273180', '3273180003'),
+      '6,6': hit('3300010', '3300010001'),
+    };
+    const v = (await make({ pins, hits }).service.answer('R-01', ADMIN, { ...Q, level: 'kelurahan' }, CLOSED)).value as {
+      cells: { id: string | null; label: string; kecamatan?: string; customers: number | null; flag?: string }[];
+    };
+    expect(v.cells.map((c) => [c.id, c.kecamatan, c.customers, c.flag])).toEqual([
+      ['3203010001', undefined, null, 'ditahan'],
+      [null, '3203010', null, 'kurang dari 3'],
+      ['3273180001', undefined, null, 'kurang dari 3'],
+      ['3273180002', undefined, null, 'kurang dari 3'],
+      ['3273180003', undefined, null, 'kurang dari 3'],
+      ['3300010001', undefined, 6, undefined],
+    ]);
+    expect(v.cells[1].label).toBe('Kelurahan tidak diketahui');
+  });
+
+  it('the same K = 5 / 3 / 2 case for R-02 counts', async () => {
+    const unserved = {
+      kecamatan: [],
+      kelurahan: [
+        { code: '3203010001', name: 'a', kecamatan: '3203010', count: 3 },
+        { code: null, name: null, kecamatan: '3203010', count: 2 },
+        { code: '3273180001', name: 'c', kecamatan: '3273180', count: 2 },
+        { code: '3273180002', name: 'd', kecamatan: '3273180', count: 2 },
+        { code: '3273180003', name: 'e', kecamatan: '3273180', count: 2 },
+        { code: '3300010001', name: 'f', kecamatan: '3300010', count: 9 },
+      ],
+      grid: [],
+      bands: [],
+    };
+    const v = (await make({ unserved }).service.answer('R-02', ADMIN, { ...Q, level: 'kelurahan' }, CLOSED)).value as { cells: { id: string | null; people: number | null }[] };
+    expect(v.cells.map((c) => [c.id, c.people])).toEqual([['3203010001', null], [null, null], ['3273180001', null], ['3273180002', null], ['3273180003', null], ['3300010001', 9]]);
   });
 
   it('gives the whole read one deadline of 30 s and passes it to every source call', async () => {

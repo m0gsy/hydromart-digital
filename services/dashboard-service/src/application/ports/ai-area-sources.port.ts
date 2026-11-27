@@ -30,6 +30,8 @@ export interface UnservedCell {
   /** null = no kelurahan recorded. */
   code: string | null;
   name: string | null;
+  /** Kelurahan cells only: the kecamatan a cell with no kelurahan code stays under. */
+  kecamatan?: string;
   count: number;
 }
 

@@ -14,6 +14,10 @@ export interface LookedUpPoint {
   gridCell: string;
 }
 
+export interface NamedKelurahan extends NamedCount {
+  kecamatan: string;
+}
+
 export interface NamedCount {
   code: string | null;
   name: string | null;
@@ -57,12 +61,12 @@ export class InternalRegionsController {
   @ApiOperation({ summary: 'Anonymous out-of-area pins of one month, counted per cell and per distance band (internal service auth)' })
   async unservedDemand(@Query() q: UnservedDemandQueryDto): Promise<{
     kecamatan: NamedCount[];
-    kelurahan: NamedCount[];
+    kelurahan: NamedKelurahan[];
     grid: { cell: string; count: number }[];
     bands: { band: string; count: number }[];
   }> {
     const s: UnservedSummary = await this.unserved.summarize(q.month);
     const named = (r: { code: string | null; count: number }): NamedCount => ({ ...r, name: r.code ? this.regions.nameOf(r.code) : null });
-    return { kecamatan: s.kecamatan.map(named), kelurahan: s.kelurahan.map(named), grid: s.grid, bands: s.bands };
+    return { kecamatan: s.kecamatan.map(named), kelurahan: s.kelurahan.map((r) => ({ ...named(r), kecamatan: r.kecamatan })), grid: s.grid, bands: s.bands };
   }
 }

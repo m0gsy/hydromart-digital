@@ -18,7 +18,8 @@ export interface UnservedMarker {
 /** HD-20c: the rows of one month counted per cell and per band, aggregated in SQL (a null code = no kelurahan). */
 export interface UnservedSummary {
   kecamatan: { code: string | null; count: number }[];
-  kelurahan: { code: string | null; count: number }[];
+  /** `kecamatan` is the parent: a row with a kecamatan but no kelurahan stays under its kecamatan. */
+  kelurahan: { code: string | null; kecamatan: string; count: number }[];
   grid: { cell: string; count: number }[];
   bands: { band: string; count: number }[];
 }
