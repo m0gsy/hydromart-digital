@@ -191,3 +191,46 @@ describe('AiCustomerMetricsController and DTOs', () => {
     expect(await errors(AiLiveOrdersQueryDto, { depotIds: D1 })).toBe(0);
   });
 });
+
+describe('HD-20c area points', () => {
+  const C1 = 'c1111111-1111-4111-8111-111111111111';
+  const C2 = 'c2222222-2222-4222-8222-222222222222';
+  const row = (customerId: string, latitude: number | null, longitude: number | null, orders = 1n, galon = 2n) => ({ customerId, latitude, longitude, orders, galon });
+  const make = (rows: unknown[]) => new AiCustomerPrismaRepository({ $queryRaw: jest.fn().mockResolvedValue(rows) } as never);
+
+  it('numbers customers 0,1,.. within the answer, keeps one entry per pin and never returns an id', async () => {
+    const r = await make([row(C1, -6.2, 106.8), row(C2, -6.3, 106.9, 3n, 0n), row(C1, -6.21, 106.81)]).areaPoints([span(D1)], 10);
+    expect(r).toEqual({
+      points: [
+        { k: 0, lat: -6.2, lng: 106.8, orders: 1, galon: 2 },
+        { k: 1, lat: -6.3, lng: 106.9, orders: 3, galon: 0 },
+        { k: 0, lat: -6.21, lng: 106.81, orders: 1, galon: 2 },
+      ],
+      unlocated: { customers: 0, orders: 0, galon: 0 },
+    });
+    expect(JSON.stringify(r)).not.toContain(C1);
+  });
+
+  it('puts orders without a pin in the unlocated block, counting each customer once', async () => {
+    const r = await make([row(C1, null, null, 2n, 1n), row(C1, -6.2, null, 1n, 1n), row(C2, null, null, 1n, 0n)]).areaPoints([span(D1)], 10);
+    expect(r?.points).toEqual([]);
+    expect(r?.unlocated).toEqual({ customers: 2, orders: 4, galon: 2 });
+  });
+
+  it('answers null past the limit, and the service turns that into 422', async () => {
+    const rows = [row(C1, -6.2, 106.8), row(C2, -6.3, 106.9)];
+    await expect(make(rows).areaPoints([span(D1)], 1)).resolves.toBeNull();
+    const service = new AiCustomerMetricsService({ areaPoints: jest.fn().mockResolvedValue(null) } as never, {} as never);
+    await expect(service.areaPoints([span(D1)])).rejects.toThrow(UnprocessableEntityException);
+    const ok = new AiCustomerMetricsService({ areaPoints: jest.fn().mockResolvedValue('pts') } as never, {} as never);
+    await expect(ok.areaPoints([span(D1)])).resolves.toBe('pts');
+    expect(() => ok.areaPoints([span(D1, from, to), span(D1, from, to)])).rejects.toThrow(UnprocessableEntityException);
+  });
+
+  it('the controller passes the spans through as dates', async () => {
+    const metrics = { areaPoints: jest.fn().mockResolvedValue('p') };
+    const c = new AiCustomerMetricsController(metrics as never);
+    await expect(c.areaPoints({ spans: [{ depotId: D1, from: from.toISOString(), to: to.toISOString() }] } as never)).resolves.toBe('p');
+    expect(metrics.areaPoints).toHaveBeenCalledWith([span(D1)]);
+  });
+});
