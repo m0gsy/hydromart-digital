@@ -28,6 +28,8 @@ export class UnservedDemandQueryDto {
 
 /** AREA-3: most depots one prospect-aggregates call carries (dashboard-service's MAX_READ_DEPOTS). */
 export const MAX_AGGREGATE_DEPOTS = 100;
+/** Most cells one answer carries; above it the reply is `tooMany` and no cells. */
+export const MAX_AGGREGATE_CELLS = 5000;
 export const PROSPECT_AGG_KINDS = ['stock', 'conversions', 'visits'] as const;
 export const PROSPECT_AGG_LEVELS = ['depot', 'kecamatan', 'kelurahan', 'grid'] as const;
 

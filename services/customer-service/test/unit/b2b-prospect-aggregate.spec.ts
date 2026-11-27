@@ -59,6 +59,9 @@ describe('B2bProspectAggregatePrismaRepository', () => {
     const text = sqlOf(raw.mock.calls[0]);
     expect(text).toContain('"kecamatanCode"');
     expect(text).not.toMatch(FORBIDDEN);
+    // never CONVERTED (converted counts exist only per month), and a future source date cannot make the age negative
+    expect(text).toContain(`"status" <> 'CONVERTED'`);
+    expect(sqlOf(raw.mock.calls[1])).toContain('GREATEST(0');
   });
 
   it('conversions: the converted month only, by stored columns, one query', async () => {
@@ -72,6 +75,7 @@ describe('B2bProspectAggregatePrismaRepository', () => {
     expect(text).toContain("'CONVERTED'");
     expect(text).toContain('"convertedAt"');
     expect(text).toContain('"ownerDepotId" IS NULL');
+    expect(text).toContain('::timestamptz AT TIME ZONE');
     expect(text).not.toMatch(FORBIDDEN);
   });
 
@@ -123,6 +127,13 @@ describe('InternalRegionsController.prospectAggregates', () => {
     expect(q.today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(q).toMatchObject({ kind: 'conversions', level: 'kecamatan', depotIds: null, opportunity: true });
     expect(r.cells.map((x) => x.name)).toEqual(['Kec Satu', null, null]);
+  });
+
+  it('above 5000 cells it says tooMany and sends none', async () => {
+    agg.aggregate.mockResolvedValueOnce(Array.from({ length: 5001 }, (_, i) => ({ key: `${i}:0`, parent: null, total: 1 })));
+    await expect(c.prospectAggregates({ ...dto, level: 'grid' })).resolves.toEqual({ cells: [], tooMany: true });
+    agg.aggregate.mockResolvedValueOnce(Array.from({ length: 5000 }, (_, i) => ({ key: `${i}:0`, parent: null, total: 1 })));
+    expect((await c.prospectAggregates({ ...dto, level: 'grid' })).cells).toHaveLength(5000);
   });
 
   it('names nothing at grid level', async () => {

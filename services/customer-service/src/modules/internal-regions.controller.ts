@@ -7,7 +7,7 @@ import { B2bProspectAggregateRepository, ProspectAggCell } from '../application/
 import { UnservedDemandRepository, UnservedSummary } from '../application/ports/unserved-demand.repository';
 import { CUSTOMER_TOKENS } from '../application/tokens';
 import { RegionLookup } from '../infrastructure/geo/region-lookup';
-import { ProspectAggregatesDto, RegionLookupDto, UnservedDemandQueryDto } from './dto/regions.dto';
+import { MAX_AGGREGATE_CELLS, ProspectAggregatesDto, RegionLookupDto, UnservedDemandQueryDto } from './dto/regions.dto';
 
 export interface LookedUpPoint {
   kecamatan: { code: string; name: string } | null;
@@ -81,7 +81,7 @@ export class InternalRegionsController {
   @Post('internal/prospect-aggregates')
   @HttpCode(200)
   @ApiOperation({ summary: 'Masked-by-the-caller prospect aggregates for the AI read API (internal service auth); no prospect, name, phone, address or coordinate' })
-  async prospectAggregates(@Body() dto: ProspectAggregatesDto): Promise<{ cells: ProspectAggregateCell[] }> {
+  async prospectAggregates(@Body() dto: ProspectAggregatesDto): Promise<{ cells: ProspectAggregateCell[]; tooMany?: true }> {
     const { from, to } = localMonthRange(dayStartUtc(`${dto.month}-01`));
     const cells = await this.prospects.aggregate({
       kind: dto.kind,
@@ -92,6 +92,8 @@ export class InternalRegionsController {
       depotIds: dto.depotIds,
       opportunity: dto.opportunity,
     });
+    // A grid level can run to tens of thousands of cells: past the cap the caller is told, never sent a cut.
+    if (cells.length > MAX_AGGREGATE_CELLS) return { cells: [], tooMany: true };
     const regional = dto.level === 'kecamatan' || dto.level === 'kelurahan';
     return { cells: cells.map((c) => ({ ...c, name: regional && c.key ? this.regions.nameOf(c.key) : null })) };
   }

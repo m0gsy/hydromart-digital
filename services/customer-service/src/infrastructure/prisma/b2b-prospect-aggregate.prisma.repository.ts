@@ -50,12 +50,15 @@ export class B2bProspectAggregatePrismaRepository implements B2bProspectAggregat
     const owner = Prisma.sql`(${Prisma.join(owners, ' OR ')})`;
     const visits = q.kind === 'visits';
     const from = visits ? Prisma.sql`"b2b_prospects" p JOIN "b2b_prospect_visits" v ON v."prospectId" = p.id` : Prisma.sql`"b2b_prospects" p`;
+    // The columns are naive timestamp(3) holding UTC: bind the instants as the order-service reads do.
+    const at = (d: Date) => Prisma.sql`${d.toISOString()}::timestamptz AT TIME ZONE 'UTC'`;
+    // The stock never carries CONVERTED rows: all-time converted minus the published months would give a held month away.
     const when =
       q.kind === 'stock'
-        ? Prisma.empty
+        ? Prisma.sql`AND p."status" <> 'CONVERTED'`
         : visits
-          ? Prisma.sql`AND v."visitedAt" >= ${q.from} AND v."visitedAt" < ${q.to}`
-          : Prisma.sql`AND p."status" = 'CONVERTED' AND p."convertedAt" >= ${q.from} AND p."convertedAt" < ${q.to}`;
+          ? Prisma.sql`AND v."visitedAt" >= ${at(q.from)} AND v."visitedAt" < ${at(q.to)}`
+          : Prisma.sql`AND p."status" = 'CONVERTED' AND p."convertedAt" >= ${at(q.from)} AND p."convertedAt" < ${at(q.to)}`;
     const d1 = visits ? Prisma.sql`v."outcome"::text` : Prisma.sql`p."category"::text`;
     const d2 = q.kind === 'stock' ? Prisma.sql`p."status"::text` : Prisma.sql`NULL::text`;
     const rows = await this.prisma.$queryRaw<Row[]>`
@@ -69,7 +72,7 @@ export class B2bProspectAggregatePrismaRepository implements B2bProspectAggregat
       SELECT ${key} AS key, ${parent} AS parent, ${
         visits
           ? Prisma.sql`count(DISTINCT v."prospectId")::int`
-          : Prisma.sql`(percentile_cont(0.5) WITHIN GROUP (ORDER BY (${q.today}::date - (coalesce(p."sourceDate", p."createdAt") AT TIME ZONE 'UTC' AT TIME ZONE ${BUSINESS_TIME_ZONE})::date)::float8))::float8`
+          : Prisma.sql`(percentile_cont(0.5) WITHIN GROUP (ORDER BY GREATEST(0, (${q.today}::date - (coalesce(p."sourceDate", p."createdAt") AT TIME ZONE 'UTC' AT TIME ZONE ${BUSINESS_TIME_ZONE})::date)::float8)))::float8`
       } AS v
       FROM ${from} WHERE ${owner} ${when} GROUP BY 1, 2`;
     const cells = new Map<string, ProspectAggCell>();
