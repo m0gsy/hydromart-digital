@@ -14,7 +14,7 @@ vi.mock('@/lib/roles', () => ({ canViewDepotCrm: () => true }));
 vi.mock('@/lib/depot-context', () => ({
   useDepot: () => ({ scopedId: 'd1', selected: { name: 'Depot', code: 'D1' }, depots: [] }),
 }));
-vi.mock('@/lib/locale-context', () => ({ useT: () => ({ t: (k: string) => k }) }));
+vi.mock('@/lib/locale-context', () => ({ useT: () => ({ t: (k: string) => k }), useWaStrings: () => true }));
 
 import CrmPage from '@/app/dashboard/crm/page';
 

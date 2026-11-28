@@ -10,7 +10,7 @@ import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
-import { useT } from '@/lib/locale-context';
+import { useT, useWaStrings } from '@/lib/locale-context';
 import { canViewDepotCrm } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
 import type { CrmDashboard, CrmFollowUp, WaContactState } from '@/lib/types';
@@ -38,6 +38,14 @@ function SegmentStat({ label, value, hint, tone }: { label: string; value: numbe
  */
 type WaView = { enabled: boolean; states: Record<string, WaContactState> } | null;
 
+/** The muted line for a customer who cannot be messaged; mounted only while the channel is on. */
+function WaLabel({ stopped }: { stopped: boolean }) {
+  const { t } = useT();
+  const ready = useWaStrings();
+  if (!ready) return null;
+  return <span className="shrink-0 text-xs text-muted">{stopped ? t('wa.crm.stopped') : t('wa.crm.never')}</span>;
+}
+
 function FollowUpRow({ f, wa }: { f: CrmFollowUp; wa: WaView }) {
   const { t } = useT();
   const name = f.name ?? t('dashA.crm.noName');
@@ -62,11 +70,7 @@ function FollowUpRow({ f, wa }: { f: CrmFollowUp; wa: WaView }) {
           {t('dashA.crm.wa')}
         </ExternalLink>
       ) : f.phone ? (
-        wa?.enabled && (
-          <span className="shrink-0 text-xs text-muted">
-            {state === 'STOPPED' ? t('wa.crm.stopped') : t('wa.crm.never')}
-          </span>
-        )
+        wa?.enabled && <WaLabel stopped={state === 'STOPPED'} />
       ) : (
         <span className="shrink-0 text-xs text-muted">{t('dashA.crm.noPhone')}</span>
       )}

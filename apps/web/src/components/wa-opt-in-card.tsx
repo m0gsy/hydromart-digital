@@ -7,7 +7,7 @@ import { Button, Card, Chip } from '@/components/ui';
 import { useToast } from '@/components/toast';
 import { api } from '@/lib/api';
 import { endpoints } from '@/lib/endpoints';
-import { useT } from '@/lib/locale-context';
+import { useT, useWaStrings } from '@/lib/locale-context';
 import { openExternal } from '@/lib/platform';
 import type { WaCode, WaMe } from '@/lib/types';
 import { useAsync } from '@/lib/use-async';
@@ -26,6 +26,7 @@ export function WaOptInCard() {
 
 function WaOptInBody() {
   const { t } = useT();
+  const strings = useWaStrings();
   const { toast } = useToast();
   const me = useAsync<WaMe>(() => api.get(endpoints.whatsapp.me, true));
   const [busy, setBusy] = useState(false);
@@ -67,7 +68,7 @@ function WaOptInBody() {
 
   const state = me.data?.state ?? null;
   // The state is unknown while it loads or when it cannot be read: show nothing rather than a wrong button.
-  if (!state) return null;
+  if (!state || !strings) return null;
 
   return (
     <Card className="flex flex-col gap-2 p-4" testId="wa-opt-in-card">

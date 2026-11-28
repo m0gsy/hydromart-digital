@@ -166,6 +166,14 @@ const CHUNKS = {
         Object.assign(id.opsFix, { walkIn: m.walkIn });
       }),
   },
+  // WhatsApp number 1 (wa.*): the opt-in card, the cashier QR panel, /hq/whatsapp and the CRM label.
+  wa: {
+    loaded: () => 'wa' in id,
+    load: () =>
+      import('./dictionaries/id/wa').then((m) => {
+        Object.assign(id, { wa: m.wa });
+      }),
+  },
 } as const;
 type Chunk = keyof typeof CHUNKS;
 
@@ -203,6 +211,11 @@ export function useInsightStrings(): boolean {
 /** True once the counter till's strings can be read; the till draws nothing before that. */
 export function useCounterStrings(): boolean {
   return useChunk('counter');
+}
+
+/** True once the WhatsApp strings can be read; a WhatsApp screen draws nothing before that. */
+export function useWaStrings(): boolean {
+  return useChunk('wa');
 }
 
 export function useT(): LocaleValue {

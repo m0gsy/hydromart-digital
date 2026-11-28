@@ -25,6 +25,7 @@ vi.mock('@/components/confirm', () => ({ useConfirm: () => ({ confirm }) }));
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: { id: 'me', role: auth.role } }) }));
 vi.mock('@/lib/locale-context', () => ({
   useT: () => ({ t: (k: string, p?: Record<string, unknown>) => (p ? `${k}|${Object.values(p).join('|')}` : k) }),
+  useWaStrings: () => true,
 }));
 vi.mock('@/lib/platform', async (orig) => ({ ...(await orig<object>()), openExternal }));
 vi.mock('@/lib/wa-qr', () => ({ qrPath: async () => ({ size: 21, d: 'M0 0h1v1h-1z' }) }));

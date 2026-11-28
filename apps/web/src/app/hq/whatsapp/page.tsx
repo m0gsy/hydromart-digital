@@ -11,7 +11,7 @@ import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { endpoints } from '@/lib/endpoints';
 import { formatIDR } from '@/lib/format';
-import { useT } from '@/lib/locale-context';
+import { useT, useWaStrings } from '@/lib/locale-context';
 import { can } from '@/lib/roles';
 import type { WaOverview, WaTemplateStatus } from '@/lib/types';
 import { useAsync } from '@/lib/use-async';
@@ -126,6 +126,7 @@ function CapForm({ row, editable, onSaved }: { row: Row; editable: boolean; onSa
 
 export default function HqWhatsappPage() {
   const { t } = useT();
+  const strings = useWaStrings();
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const { customer } = useAuth();
@@ -165,7 +166,7 @@ export default function HqWhatsappPage() {
     }
   }
 
-  if (query.loading && !query.data) return <Skeleton className="h-96 w-full" />;
+  if (!strings || (query.loading && !query.data)) return <Skeleton className="h-96 w-full" />;
   if (query.error || !query.data) return <ErrorState message={t('wa.hq.loadError')} onRetry={query.reload} />;
 
   const o = query.data;

@@ -9,7 +9,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/roles';
 import { endpoints } from '@/lib/endpoints';
-import { useT } from '@/lib/locale-context';
+import { useT, useWaStrings } from '@/lib/locale-context';
 import { qrPath } from '@/lib/wa-qr';
 import type { WaCode } from '@/lib/types';
 import { useAsync } from '@/lib/use-async';
@@ -26,8 +26,6 @@ type CodeState = 'WAITING' | 'USED' | 'EXPIRED';
  * The panel polls the code every 3 s until it is used or its 30 minutes are up. Nothing here sends a message.
  */
 export function CounterWaOptIn({ depotId }: { depotId: string }) {
-  const { t } = useT();
-  const { toast } = useToast();
   const { customer } = useAuth();
   // Only a role the server lets issue a code is asked at all (waOptInIssue); the rest see nothing.
   const allowed = can('waOptInIssue', customer?.role);
@@ -35,6 +33,13 @@ export function CounterWaOptIn({ depotId }: { depotId: string }) {
     () => (allowed ? api.get(endpoints.whatsapp.status, true) : Promise.resolve({ enabled: false })),
     [allowed],
   );
+  return status.data?.enabled === true ? <CounterWaBody depotId={depotId} /> : null;
+}
+
+function CounterWaBody({ depotId }: { depotId: string }) {
+  const { t } = useT();
+  const strings = useWaStrings();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState<WaCode | null>(null);
   const [qr, setQr] = useState<{ size: number; d: string } | null>(null);
@@ -79,8 +84,6 @@ export function CounterWaOptIn({ depotId }: { depotId: string }) {
     };
   }, [code, state]);
 
-  if (status.data?.enabled !== true) return null;
-
   async function copy() {
     if (!code) return;
     try {
@@ -90,6 +93,8 @@ export function CounterWaOptIn({ depotId }: { depotId: string }) {
       toast(t('wa.cashier.copyError'), 'error');
     }
   }
+
+  if (!strings) return null;
 
   if (!open) {
     return (
