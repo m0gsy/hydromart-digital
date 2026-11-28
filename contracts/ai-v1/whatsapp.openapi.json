@@ -13,8 +13,8 @@
   "paths": {
     "/crm/api/v1/whatsapp/opt-outs": {
       "get": {
-        "summary": "Pull the consent rows number 1 wrote (STOP, MULAI, PROMO, opt-in) after a cursor.",
-        "description": "Rows whose source is not AIWEB, oldest seq first, at most `limit` (default and maximum 500). Phones are digits only, 62..., no plus. `purpose` is UTILITY or MARKETING; `granted` false is a STOP, true is an opt-in or MULAI/PROMO. `nextAfter` is the largest seq in the page (the `after` you sent when the page is empty). See the puller contract above: re-read an overlap window and dedupe on `id`.",
+        "summary": "Pull the MARKETING consent rows number 1 wrote (STOP, MULAI, PROMO) after a cursor.",
+        "description": "Rows whose source is not AIWEB, oldest seq first, at most `limit` (default and maximum 500). Phones are digits only, 62..., no plus. Only MARKETING rows are returned (a STOP writes both purposes; the UTILITY rows stay in hydromart-digital, so the AI web never receives who opted in to order messages); `granted` false is a STOP, true is MULAI or PROMO. `nextAfter` is the largest seq in the page (the `after` you sent when the page is empty). See the puller contract above: re-read an overlap window and dedupe on `id`.",
         "operationId": "whatsappOptOutsPull",
         "security": [
           {
@@ -199,7 +199,6 @@
           "purpose": {
             "type": "string",
             "enum": [
-              "UTILITY",
               "MARKETING"
             ]
           },

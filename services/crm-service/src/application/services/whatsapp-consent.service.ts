@@ -1,6 +1,10 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 
+import { AuthenticatedUser, depotScopeIds } from '@hydromart/platform';
+
+import { ActivitySegmentPort } from '../ports/activity-segment.port';
+import { CustomerDirectoryPort } from '../ports/customer-directory.port';
 import { CrmConfigService } from '../../config/crm-config.service';
 import {
   WA_CONSENT_TEXT_VERSION,
@@ -36,6 +40,8 @@ export class WhatsappConsentService {
     private readonly config: CrmConfigService,
     @Inject(CRM_TOKENS.WaConsentRepository) private readonly consent: WaConsentRepository,
     @Inject(CRM_TOKENS.WaTransactionRepository) private readonly tx: WaTransactionRepository,
+    @Inject(CRM_TOKENS.ActivitySegment) private readonly activity: ActivitySegmentPort,
+    @Inject(CRM_TOKENS.CustomerDirectory) private readonly directory: CustomerDirectoryPort,
   ) {}
 
   /** The chat the customer opens: number 1, prefilled with the registration text. */
@@ -134,22 +140,40 @@ export class WhatsappConsentService {
   }
 
   /**
-   * The depot CRM's follow-up list: may this number be messaged for marketing? Nothing else leaks. While the
-   * channel is off everything is NONE, so the wa.me buttons stay hidden.
+   * The depot CRM's follow-up list: may this customer be messaged for marketing? Asked by customer id; the
+   * phone is resolved here, only for customers inside the caller's depot scope (those who ordered at one of
+   * their depots). An unknown or out-of-scope id, and any failure to resolve, answers NONE: nothing else
+   * leaks, and while the channel is off everything is NONE so the wa.me buttons stay hidden.
+   * ponytail: the directory is read whole (same as depot campaigns); push an id filter into it if it outgrows that.
    */
-  async contactStates(phones: string[]): Promise<Record<string, ContactState>> {
-    const out: Record<string, ContactState> = {};
-    const normalised = new Map<string, string>();
-    for (const phone of phones) {
-      const n = normalizeWaPhone(phone);
-      out[phone] = 'NONE';
-      if (n) normalised.set(phone, n);
-    }
-    if (!this.config.whatsapp.ready || normalised.size === 0) return out;
-    const rows = await this.consent.listForPhones([...new Set(normalised.values())]);
-    for (const [phone, n] of normalised) {
-      const state = consentState(rows, n, 'MARKETING');
-      out[phone] = state === 'GRANTED' ? 'OPTED_IN' : state === 'STOPPED' ? 'STOPPED' : 'NONE';
+  async contactStates(
+    customerIds: string[],
+    user: Pick<AuthenticatedUser, 'role' | 'depotId' | 'depotIds'>,
+  ): Promise<Record<string, ContactState>> {
+    const out: Record<string, ContactState> = Object.fromEntries(customerIds.map((id) => [id, 'NONE' as const]));
+    if (!this.config.whatsapp.ready || customerIds.length === 0) return out;
+    try {
+      const scope = depotScopeIds(user);
+      let inScope: Set<string> | null = null;
+      if (scope) {
+        inScope = new Set();
+        for (const depotId of scope) for (const id of await this.activity.customersIn({ depotId })) inScope.add(id);
+      }
+      const wanted = new Set(customerIds);
+      const phoneOf = new Map<string, string>();
+      for (const r of await this.directory.resolveSegmentAsService({})) {
+        const phone = normalizeWaPhone(r.phone);
+        if (phone && wanted.has(r.customerId) && (!inScope || inScope.has(r.customerId))) phoneOf.set(r.customerId, phone);
+      }
+      if (phoneOf.size === 0) return out;
+      const rows = await this.consent.listForPhones([...new Set(phoneOf.values())]);
+      for (const [id, phone] of phoneOf) {
+        const state = consentState(rows, phone, 'MARKETING');
+        out[id] = state === 'GRANTED' ? 'OPTED_IN' : state === 'STOPPED' ? 'STOPPED' : 'NONE';
+      }
+    } catch {
+      // Fail closed: no button.
+      return Object.fromEntries(customerIds.map((id) => [id, 'NONE' as const]));
     }
     return out;
   }

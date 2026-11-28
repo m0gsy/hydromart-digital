@@ -6,7 +6,7 @@ import { WhatsappConsentService } from '../../src/application/services/whatsapp-
 import { WhatsappService } from '../../src/application/services/whatsapp.service';
 import { WA_CONSENT_TEXT_VERSION } from '../../src/domain/wa-consent';
 import { NotificationEvent } from '../../src/domain/notification-event';
-import { FakeCaps, FakeConsent, FakeMessages, FakeSender, FakeTemplates, FakeTx, WA_ENV, waConfig } from '../support/wa-fakes';
+import { FakeCaps, FakeConsent, FakeMessages, FakeSender, FakeActivity, FakeDirectory, FakeTemplates, FakeTx, WA_ENV, waConfig } from '../support/wa-fakes';
 
 const PHONE = '6281234567890';
 const CUSTOMER = 'cust-1';
@@ -35,7 +35,7 @@ describe('WhatsappService (send path)', () => {
     notify = jest.fn().mockResolvedValue(undefined);
     const moduleRef = { get: () => ({ notify }) } as unknown as ModuleRef;
     const config = waConfig(env);
-    consentService = new WhatsappConsentService(config, consent, new FakeTx(consent, messages, caps));
+    consentService = new WhatsappConsentService(config, consent, new FakeTx(consent, messages, caps), new FakeActivity(), new FakeDirectory());
     service = new WhatsappService(config, consent, messages, caps, templates, sender, consentService, moduleRef);
   };
   const optIn = () =>
@@ -255,6 +255,13 @@ describe('WhatsappService (send path)', () => {
       caps.setCap('SERVICE', { monthlyMessages: 100 });
       jest.spyOn(messages, 'findByDedupeKey').mockResolvedValue(null);
       await service.sendService(PHONE, 'Halo', 'gone');
+      expect(sender.texts).toEqual([]);
+    });
+
+    it('a SERVICE cap that is used up refuses the reply with its reason', async () => {
+      caps.setCap('SERVICE', { monthlyMessages: 0 });
+      await service.sendService(PHONE, 'Halo', 'full');
+      expect(only()).toMatchObject({ status: 'SKIPPED', skipReason: 'CAP' });
       expect(sender.texts).toEqual([]);
     });
 

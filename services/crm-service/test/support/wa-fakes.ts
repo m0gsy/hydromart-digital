@@ -309,3 +309,21 @@ export class FakeSender implements WhatsappSenderPort {
     return r;
   }
 }
+
+/** Who ordered at which depot (the depot scope of the CRM list). */
+export class FakeActivity {
+  byDepot = new Map<string, string[]>();
+  async customersIn(c: { depotId?: string }): Promise<string[]> {
+    return this.byDepot.get(c.depotId ?? '') ?? [];
+  }
+}
+
+export class FakeDirectory {
+  people: Array<{ customerId: string; name: string; phone: string }> = [];
+  async resolveSegment(): Promise<never[]> {
+    return [];
+  }
+  async resolveSegmentAsService(): Promise<Array<{ customerId: string; name: string; phone: string }>> {
+    return this.people;
+  }
+}

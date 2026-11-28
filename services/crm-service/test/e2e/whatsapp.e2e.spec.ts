@@ -189,8 +189,10 @@ describe('WhatsApp number 1 over HTTP', () => {
       it('pages by cursor with ids, and stamps the peer clock', async () => {
         const res = await http().get(OPT_OUTS).query({ after: 0, limit: 1 }).set('Authorization', `Bearer ${sync}`).expect(200);
         expect(res.body.items).toHaveLength(1);
-        expect(res.body.items[0]).toEqual(expect.objectContaining({ id: expect.any(String), seq: 1, phone: '6281234567890', source: 'APP' }));
-        expect(res.body.nextAfter).toBe(1);
+        expect(res.body.items[0]).toEqual(expect.objectContaining({ id: expect.any(String), phone: '6281234567890', purpose: 'MARKETING', source: 'KEYWORD' }));
+        // the registration wrote a UTILITY row too; it never leaves with this scope
+        expect(res.body.items[0].seq).toBeGreaterThan(1);
+        expect(res.body.nextAfter).toBe(res.body.items[0].seq);
         expect(ctx.consent.peer).not.toBeNull();
         await http().get(OPT_OUTS).query({ after: -1 }).set('Authorization', `Bearer ${sync}`).expect(400);
         await http().get(OPT_OUTS).query({ limit: 501 }).set('Authorization', `Bearer ${sync}`).expect(400);

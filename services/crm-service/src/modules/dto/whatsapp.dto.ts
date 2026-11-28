@@ -19,25 +19,20 @@ import {
   ValidateNested,
 } from 'class-validator';
 
+/** Walk-in only: a cashier code links the number to nobody; only the customer's own in-app code links an account. */
 export class CreateCashierCodeDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
   depotId!: string;
-
-  @ApiPropertyOptional({ format: 'uuid', description: 'Absent for a walk-in customer with no account.' })
-  @IsOptional()
-  @IsUUID()
-  customerId?: string;
 }
 
 export class ContactStateDto {
-  @ApiProperty({ type: [String], maxItems: 200 })
+  @ApiProperty({ type: [String], format: 'uuid', maxItems: 200 })
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(200)
-  @IsString({ each: true })
-  @MaxLength(32, { each: true })
-  phones!: string[];
+  @IsUUID('all', { each: true })
+  customerIds!: string[];
 }
 
 export class SetWaCapDto {

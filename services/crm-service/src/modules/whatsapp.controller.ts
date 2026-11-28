@@ -79,16 +79,12 @@ export class WhatsappController {
   @ApiOkResponse({ description: 'The code, its expiry and the wa.me link to draw as a QR.' })
   @Can('waOptInIssue')
   @UseGuards(WaReadyGuard)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('opt-in/codes')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Make an opt-in code the cashier shows as a QR (own depot)' })
   cashierCode(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateCashierCodeDto) {
-    return this.consent.createCode({
-      kind: 'CASHIER',
-      createdBy: user.sub,
-      customerId: dto.customerId ?? null,
-      depotId: dto.depotId,
-    });
+    return this.consent.createCode({ kind: 'CASHIER', createdBy: user.sub, customerId: null, depotId: dto.depotId });
   }
 
   @ApiOkResponse({ description: 'WAITING, USED or EXPIRED.' })
@@ -123,13 +119,13 @@ export class WhatsappController {
   }
 
   /** The depot CRM follow-up list: may this number be messaged? NONE for all while the channel is off. */
-  @ApiOkResponse({ description: 'Per number: OPTED_IN, STOPPED or NONE.' })
+  @ApiOkResponse({ description: 'Per customer id: OPTED_IN, STOPPED or NONE.' })
   @Can('depotCrm')
   @Post('contact-state')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'OPTED_IN / STOPPED / NONE for up to 200 numbers (depot CRM)' })
-  contactState(@Body() dto: ContactStateDto): Promise<Record<string, ContactState>> {
-    return this.consent.contactStates(dto.phones);
+  @ApiOperation({ summary: 'OPTED_IN / STOPPED / NONE for up to 200 customers of the caller depots (depot CRM)' })
+  contactState(@CurrentUser() user: AuthenticatedUser, @Body() dto: ContactStateDto): Promise<Record<string, ContactState>> {
+    return this.consent.contactStates(dto.customerIds, user);
   }
 
   @ApiOkResponse({ description: 'State, caps, month counters, templates and the last refusals.' })

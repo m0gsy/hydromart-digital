@@ -12,7 +12,7 @@ import { WhatsappSyncController } from '../../src/modules/whatsapp-sync.controll
 import { WhatsappWebhookController } from '../../src/modules/whatsapp-webhook.controller';
 import { WhatsappController } from '../../src/modules/whatsapp.controller';
 import { MetaSignatureGuard, WaReadyGuard } from '../../src/modules/whatsapp.guards';
-import { FakeCaps, FakeConsent, FakeMessages, FakeTemplates, FakeTx, WA_ENV, waConfig } from '../support/wa-fakes';
+import { FakeActivity, FakeCaps, FakeConsent, FakeDirectory, FakeMessages, FakeTemplates, FakeTx, WA_ENV, waConfig } from '../support/wa-fakes';
 
 // Fixed vectors: the secret, the exact bytes, and the header computed once with createHmac and pasted.
 const SECRET = 's3cr3t-app-secret';
@@ -27,6 +27,7 @@ describe('Meta signature over the raw body', () => {
   it.each([
     ['one byte changed', BODY.replace('entry', 'entrx'), HEADER],
     ['no sha256= prefix', BODY, HEADER.slice(7)],
+    ['sha1= prefix on a valid digest', BODY, 'sha1=' + HEADER.slice(7)],
     ['upper-case hex', BODY, `sha256=${HEADER.slice(7).toUpperCase()}`],
     ['no header', BODY, undefined],
     ['a header of another length', BODY, `${HEADER}00`],
@@ -54,6 +55,10 @@ describe('guards', () => {
     const guard = new MetaSignatureGuard(waConfig());
     expect(guard.canActivate(ctx({ 'x-hub-signature-256': HEADER }, Buffer.from(BODY)))).toBe(true);
     expect(() => guard.canActivate(ctx({}, Buffer.from(BODY)))).toThrow(UnauthorizedException);
+    // a valid digest under the wrong prefix, or bare
+    const hex = HEADER.slice(7);
+    expect(() => guard.canActivate(ctx({ 'x-hub-signature-256': 'sha1=' + hex }, Buffer.from(BODY)))).toThrow(UnauthorizedException);
+    expect(() => guard.canActivate(ctx({ 'x-hub-signature-256': hex }, Buffer.from(BODY)))).toThrow(UnauthorizedException);
     expect(() => guard.canActivate(ctx({ 'x-hub-signature-256': HEADER }))).toThrow(UnauthorizedException);
     expect(() => guard.canActivate(ctx({ 'x-hub-signature-256': ['x'] as unknown as string }, Buffer.from(BODY)))).toThrow(UnauthorizedException);
   });
@@ -110,10 +115,14 @@ describe('internal controller', () => {
 describe('consent service', () => {
   let consent: FakeConsent;
   let service: WhatsappConsentService;
+  let activity: FakeActivity;
+  let directory: FakeDirectory;
   const build = (env = WA_ENV) => {
     consent = new FakeConsent();
+    activity = new FakeActivity();
+    directory = new FakeDirectory();
     const tx = new FakeTx(consent, new FakeMessages(), new FakeCaps());
-    service = new WhatsappConsentService(waConfig(env), consent, tx);
+    service = new WhatsappConsentService(waConfig(env), consent, tx, activity, directory);
   };
   beforeEach(() => build());
   const grant = (phone: string, customerId: string | null, purpose: 'UTILITY' | 'MARKETING', granted = true, waNumber = '1', recordedAt?: Date) =>
@@ -148,29 +157,54 @@ describe('consent service', () => {
     expect(maskWaPhone('6281234567890')).toBe('+62 8xx-xxxx-7890');
   });
 
-  it('contact state: OPTED_IN only for granted marketing, STOPPED for a stop, NONE for the rest and for a bad number', async () => {
-    await grant('6281000000001', null, 'UTILITY');
-    await grant('6281000000001', null, 'MARKETING');
-    await grant('6281000000002', null, 'MARKETING');
-    await grant('6281000000002', null, 'MARKETING', false);
-    await grant('6281000000003', null, 'UTILITY');
-    await expect(service.contactStates(['0811000000001', '+6281000000002', '6281000000003', 'abc', '6281000000009'])).resolves.toEqual({
-      '0811000000001': 'NONE',
-      '+6281000000002': 'STOPPED',
-      '6281000000003': 'NONE',
-      abc: 'NONE',
-      '6281000000009': 'NONE',
+  describe('contact state (by customer id, inside the caller depot scope)', () => {
+    const global = { role: 'HEAD_OFFICE', depotId: null, depotIds: undefined } as never;
+    const kepala = { role: 'KEPALA_DEPOT', depotId: 'd1', depotIds: ['d1'] } as never;
+    const ids = ['c1', 'c2', 'c3', 'c4'];
+    beforeEach(async () => {
+      directory.people = [
+        { customerId: 'c1', name: 'A', phone: '081000000001' },
+        { customerId: 'c2', name: 'B', phone: '+6281000000002' },
+        { customerId: 'c3', name: 'C', phone: '6281000000003' },
+        { customerId: 'c4', name: 'D', phone: 'abc' },
+      ];
+      activity.byDepot.set('d1', ['c1', 'c2', 'c3', 'c4']);
+      await grant('6281000000001', null, 'UTILITY');
+      await grant('6281000000001', null, 'MARKETING');
+      await grant('6281000000002', null, 'MARKETING');
+      await grant('6281000000002', null, 'MARKETING', false);
+      await grant('6281000000003', null, 'UTILITY');
     });
-    await expect(service.contactStates(['081000000001'])).resolves.toEqual({ '081000000001': 'OPTED_IN' });
-    await expect(service.contactStates(['6281000000001'])).resolves.toEqual({ '6281000000001': 'OPTED_IN' });
-  });
 
-  it('contact state says NONE for everyone while the channel is off', async () => {
-    await grant('6281000000001', null, 'UTILITY');
-    await grant('6281000000001', null, 'MARKETING');
-    build({ ...WA_ENV, WA_ENABLED: '' });
-    await grant('6281000000001', null, 'MARKETING');
-    await expect(service.contactStates(['6281000000001'])).resolves.toEqual({ '6281000000001': 'NONE' });
+    it('OPTED_IN only for granted marketing, STOPPED for a stop, NONE for the rest and for an unusable number', async () => {
+      await expect(service.contactStates(ids, global)).resolves.toEqual({ c1: 'OPTED_IN', c2: 'STOPPED', c3: 'NONE', c4: 'NONE' });
+    });
+
+    it('a depot-scoped caller sees only customers who ordered at their depots; others and unknown ids are NONE', async () => {
+      activity.byDepot.set('d1', ['c2']);
+      await expect(service.contactStates(['c1', 'c2', 'nobody'], kepala)).resolves.toEqual({ c1: 'NONE', c2: 'STOPPED', nobody: 'NONE' });
+    });
+
+    it('fails closed: a directory that cannot be read answers NONE, never an error or a guess', async () => {
+      jest.spyOn(directory, 'resolveSegmentAsService').mockRejectedValue(new Error('down'));
+      await expect(service.contactStates(['c1'], global)).resolves.toEqual({ c1: 'NONE' });
+    });
+
+    it('answers NONE for everyone while the channel is off, and for an empty ask', async () => {
+      build({ ...WA_ENV, WA_ENABLED: '' });
+      await expect(service.contactStates(['c1'], global)).resolves.toEqual({ c1: 'NONE' });
+      build();
+      await expect(service.contactStates([], global)).resolves.toEqual({});
+    });
+
+    it('ids the directory does not know resolve to nothing and read NONE', async () => {
+      await expect(service.contactStates(['nobody'], global)).resolves.toEqual({ nobody: 'NONE' });
+    });
+
+    it('a customer with no consent rows at all is NONE', async () => {
+      consent.rows.length = 0;
+      await expect(service.contactStates(['c1'], global)).resolves.toEqual({ c1: 'NONE' });
+    });
   });
 
   it('serves the STOP list with ids, pages by cursor, and stamps the peer clock on every call', async () => {
@@ -287,8 +321,8 @@ describe('controllers delegate', () => {
     expect(consent.createCode).toHaveBeenLastCalledWith({ kind: 'SELF', createdBy: 'c1', customerId: 'c1', depotId: null });
     await controller.cashierCode(user, { depotId: 'd1' });
     expect(consent.createCode).toHaveBeenLastCalledWith({ kind: 'CASHIER', createdBy: 'u1', customerId: null, depotId: 'd1' });
-    await controller.cashierCode(user, { depotId: 'd1', customerId: 'c9' });
-    expect(consent.createCode).toHaveBeenLastCalledWith({ kind: 'CASHIER', createdBy: 'u1', customerId: 'c9', depotId: 'd1' });
+    await controller.cashierCode(user, { depotId: 'd1', customerId: 'c9' } as never);
+    expect(consent.createCode).toHaveBeenLastCalledWith({ kind: 'CASHIER', createdBy: 'u1', customerId: null, depotId: 'd1' });
     consent.codeState.mockResolvedValueOnce({ state: 'WAITING', depotId: 'd1' });
     await expect(controller.codeState({ sub: 'u1', role: 'KEPALA_DEPOT', depotId: 'd1', depotIds: ['d1'] } as never, 'id1')).resolves.toEqual({ state: 'WAITING' });
     expect(consent.codeState).toHaveBeenCalledWith('id1', 'u1');
@@ -297,8 +331,8 @@ describe('controllers delegate', () => {
     await expect(controller.codeState({ sub: 'u1', role: 'KEPALA_DEPOT', depotId: 'd1', depotIds: ['d1'] } as never, 'id1')).rejects.toThrow(ForbiddenException);
     await controller.me(user);
     await controller.revoke(user);
-    await controller.contactState({ phones: ['1'] });
-    expect(consent.contactStates).toHaveBeenCalledWith(['1']);
+    await controller.contactState(user, { customerIds: ['c1'] });
+    expect(consent.contactStates).toHaveBeenCalledWith(['c1'], user);
     await controller.overview();
     await controller.setCap(user, 'UTILITY', { monthlyMessages: 5 });
     expect(admin.setCap).toHaveBeenCalledWith('UTILITY', { monthlyMessages: 5, rateIdr: null, monthlyCostIdr: null }, 'u1');
