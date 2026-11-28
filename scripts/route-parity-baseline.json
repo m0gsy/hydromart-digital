@@ -1,6 +1,17 @@
 {
   "orphans": [
+    "GET crm: /whatsapp/hq/overview",
+    "GET crm: /whatsapp/me",
+    "GET crm: /whatsapp/opt-in/codes/:",
+    "GET crm: /whatsapp/status",
     "GET customer: /profile/directory",
-    "POST payout: /payout/withdrawals"
+    "POST crm: /whatsapp/contact-state",
+    "POST crm: /whatsapp/hq/pause",
+    "POST crm: /whatsapp/me/revoke",
+    "POST crm: /whatsapp/opt-in/code",
+    "POST crm: /whatsapp/opt-in/codes",
+    "POST payout: /payout/withdrawals",
+    "PUT crm: /whatsapp/hq/caps/:",
+    "PUT crm: /whatsapp/hq/templates"
   ]
 }

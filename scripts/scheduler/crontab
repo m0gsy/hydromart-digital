@@ -81,6 +81,8 @@
 # customers. Every 2 minutes: staff press "kirim" and expect it to be moving, not to wait
 # an hour. Each tick is bounded and resumable, so an interrupted sweep loses nothing.
 */2 * * * * sh /scripts/sweep.sh campaigns/internal/process-sending crm:3012
+# WhatsApp number 1 (HD-12): retry the template messages Meta did not take at first (3 tries in 15 min). Answers 200 {off:true} while WA_ENABLED is blank.
+* * * * * sh /scripts/sweep.sh whatsapp/internal/process-queue crm:3012
 # Partner webhook fan-out (H-30): send every delivery whose next attempt is due. Every
 # 5 minutes rather than hourly — a partner integration that learns about a delivery an
 # hour late is not an integration. Retries back off on their own (1m, 5m, 25m, ...), so
