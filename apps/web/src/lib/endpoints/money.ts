@@ -101,6 +101,7 @@ export const money = {
     generate: '/payout/api/v1/partner-bills/generate',
     approve: (id: string) => `/payout/api/v1/partner-bills/${id}/approve`,
     void: (id: string) => `/payout/api/v1/partner-bills/${id}/void`,
+    paid: (id: string) => `/payout/api/v1/partner-bills/${id}/paid`,
   },
 
   // Franchise payout: commission ledger, balance & withdrawals (FRANCHISE_OWNER).

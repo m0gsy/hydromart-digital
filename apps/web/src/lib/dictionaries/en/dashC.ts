@@ -254,6 +254,7 @@ export const dashC = {
       partnerBillRead: 'View partner royalty bills',
       partnerBillApprove: 'Approve and send partner royalty bills',
       partnerBillGenerate: 'Trigger the monthly royalty bill drafts (n8n machine account)',
+      partnerBillRemind: 'Read the partner bills not yet paid, for reminders (AI web machine account)',
       voucherRequestDecide: 'Decide voucher requests',
       fraudReview: 'Review fraud flags',
       refundIssue: 'Raise a refund',

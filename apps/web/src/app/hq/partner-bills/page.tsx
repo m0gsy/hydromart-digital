@@ -131,6 +131,7 @@ export default function HqPartnerBillsPage() {
                 <div className="flex flex-wrap items-center gap-4">
                   <Money amount={bill.totalIdr} className="font-bold tabular-nums" />
                   <Badge tone={STATUS_TONE[bill.status]}>{t(`hq.partnerBills.status.${bill.status}`)}</Badge>
+                  {bill.paidAt && <Badge tone="success">{t('hq.partnerBills.paid')}</Badge>}
                   <LinkButton href={`/hq/partner-bills/detail?id=${bill.id}`} variant="secondary">
                     {t('hq.partnerBills.open')}
                   </LinkButton>

@@ -259,6 +259,7 @@ export const dashC = {
       partnerBillRead: 'Lihat tagihan royalti mitra',
       partnerBillApprove: 'Setujui dan kirim tagihan royalti mitra',
       partnerBillGenerate: 'Picu pembuatan draf tagihan royalti bulanan (akun mesin n8n)',
+      partnerBillRemind: 'Baca tagihan mitra yang belum lunas untuk pengingat (akun mesin AI web)',
       voucherRequestDecide: 'Putuskan permintaan voucher',
       fraudReview: 'Tinjau indikasi fraud',
       refundIssue: 'Ajukan refund',

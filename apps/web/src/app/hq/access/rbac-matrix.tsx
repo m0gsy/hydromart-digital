@@ -145,6 +145,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'partnerBillRead',
       'partnerBillApprove',
       'partnerBillGenerate',
+      'partnerBillRemind',
       'depotDirectory',
       'orderManageRead',
       'staffDirectoryFinance',

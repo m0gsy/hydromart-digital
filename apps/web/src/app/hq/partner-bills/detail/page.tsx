@@ -26,6 +26,9 @@ export default function HqPartnerBillDetailPage() {
   const [error, setError] = useState<{ code?: string } | null>(null);
   const [voiding, setVoiding] = useState(false);
   const [reason, setReason] = useState('');
+  const [paying, setPaying] = useState(false);
+  const [paidOn, setPaidOn] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }));
+  const [ref, setRef] = useState('');
   const bill = useAsync<PartnerBill>(() => api.get(endpoints.partnerBills.detail(id), true), [id]);
 
   async function act(run: () => Promise<unknown>) {
@@ -34,6 +37,7 @@ export default function HqPartnerBillDetailPage() {
     try {
       await run();
       setVoiding(false);
+      setPaying(false);
       setReason('');
       bill.reload();
     } catch (e) {
@@ -93,6 +97,13 @@ export default function HqPartnerBillDetailPage() {
                 })}`}
             </p>
           )}
+          {b.status === 'SENT' && b.dueOn && (
+            <p className="text-sm text-muted">
+              {b.paidAt
+                ? t('hq.partnerBills.detail.paidOn', { on: b.paidOn ?? '', ref: b.paidRef ? ` (${b.paidRef})` : '' })
+                : t('hq.partnerBills.detail.dueOn', { on: b.dueOn })}
+            </p>
+          )}
           {b.status === 'VOID' && (
             <p className="text-sm text-muted">{t('hq.partnerBills.detail.voidedFor', { reason: b.voidReason ?? '' })}</p>
           )}
@@ -134,6 +145,51 @@ export default function HqPartnerBillDetailPage() {
                 </Link>
               )}
             </p>
+          )}
+
+          {canDecide && b.status === 'SENT' && !b.paidAt && (
+            <div className="flex flex-col gap-2">
+              {!paying ? (
+                <div>
+                  <Button disabled={busy} onClick={() => setPaying(true)}>
+                    {t('hq.partnerBills.detail.markPaid')}
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <label className="flex flex-col gap-1 text-sm text-muted">
+                    {t('hq.partnerBills.detail.paidOnLabel')}
+                    <input
+                      type="date"
+                      value={paidOn}
+                      onChange={(e) => setPaidOn(e.target.value)}
+                      className="rounded-lg border border-border bg-surface p-2 text-sm text-foreground"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-sm text-muted">
+                    {t('hq.partnerBills.detail.paidRefLabel')}
+                    <input
+                      type="text"
+                      value={ref}
+                      maxLength={100}
+                      onChange={(e) => setRef(e.target.value)}
+                      className="rounded-lg border border-border bg-surface p-2 text-sm text-foreground"
+                    />
+                  </label>
+                  <div className="flex gap-3">
+                    <Button
+                      disabled={busy || !paidOn}
+                      onClick={() => void act(() => api.post(endpoints.partnerBills.paid(b.id), { paidOn, ...(ref.trim() ? { ref: ref.trim() } : {}) }, true))}
+                    >
+                      {t('hq.partnerBills.detail.markPaidConfirm')}
+                    </Button>
+                    <Button variant="secondary" disabled={busy} onClick={() => setPaying(false)}>
+                      {t('hq.partnerBills.detail.voidCancel')}
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
           )}
 
           {canDecide && (b.status === 'DRAFT' || b.status === 'SENDING' || b.status === 'SENT') && (

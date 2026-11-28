@@ -227,6 +227,50 @@ describe('/hq/partner-bills/detail', () => {
     expect(await screen.findByText('hq.partnerBills.detail.sending')).toBeTruthy();
   });
 
+  it('marks a sent bill paid with the day and a reference, and then shows it as paid (HD-25)', async () => {
+    const sent = { ...draft, status: 'SENT', sentAt: '2026-11-09T00:00:00Z', dueOn: '2026-11-23', paidAt: null, paidOn: null, paidRef: null };
+    get.mockResolvedValue(sent);
+    post.mockResolvedValue({});
+    const { default: Page } = await import('@/app/hq/partner-bills/detail/page');
+    const view = render(<Page />);
+    expect(await screen.findByText(/hq\.partnerBills\.detail\.dueOn/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'hq.partnerBills.detail.markPaid' }));
+    fireEvent.change(screen.getByLabelText('hq.partnerBills.detail.paidOnLabel'), { target: { value: '2026-11-20' } });
+    fireEvent.change(screen.getByLabelText('hq.partnerBills.detail.paidRefLabel'), { target: { value: ' TRF 1 ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'hq.partnerBills.detail.markPaidConfirm' }));
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith('/payout/api/v1/partner-bills/b1/paid', { paidOn: '2026-11-20', ref: 'TRF 1' }, true),
+    );
+    // Without a reference the body carries none; cancel closes the form.
+    fireEvent.click(await screen.findByRole('button', { name: 'hq.partnerBills.detail.markPaid' }));
+    fireEvent.change(screen.getByLabelText('hq.partnerBills.detail.paidRefLabel'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'hq.partnerBills.detail.markPaidConfirm' }));
+    await waitFor(() => expect(post).toHaveBeenLastCalledWith('/payout/api/v1/partner-bills/b1/paid', { paidOn: '2026-11-20' }, true));
+    fireEvent.click(await screen.findByRole('button', { name: 'hq.partnerBills.detail.markPaid' }));
+    fireEvent.click(screen.getByRole('button', { name: 'hq.partnerBills.detail.voidCancel' }));
+    expect(screen.queryByLabelText('hq.partnerBills.detail.paidOnLabel')).toBeNull();
+    view.unmount();
+
+    get.mockResolvedValue({ ...sent, paidAt: '2026-11-20T03:00:00Z', paidOn: '2026-11-20', paidRef: 'TRF 1' });
+    render(<Page />);
+    expect(await screen.findByText(/hq\.partnerBills\.detail\.paidOn.*TRF 1/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'hq.partnerBills.detail.markPaid' })).toBeNull();
+  });
+
+  it('hides the paid button from a reader, and the list shows Lunas on a paid bill', async () => {
+    role.value = 'DIREKTUR';
+    get.mockResolvedValue({ ...draft, status: 'SENT', dueOn: '2026-11-23', paidAt: null });
+    const { default: Detail } = await import('@/app/hq/partner-bills/detail/page');
+    const view = render(<Detail />);
+    await screen.findByText('Royalti Depot Satu');
+    expect(screen.queryByRole('button', { name: 'hq.partnerBills.detail.markPaid' })).toBeNull();
+    view.unmount();
+    get.mockResolvedValue([{ ...draft, status: 'SENT', paidAt: '2026-11-20T03:00:00Z' }]);
+    const { default: List } = await import('@/app/hq/partner-bills/page');
+    render(<List />);
+    expect(await screen.findByText('hq.partnerBills.paid')).toBeTruthy();
+  });
+
   it('shows a load error', async () => {
     get.mockRejectedValue(new Error('down'));
     const { default: Page } = await import('@/app/hq/partner-bills/detail/page');
