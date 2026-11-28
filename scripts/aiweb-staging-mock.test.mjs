@@ -295,7 +295,7 @@ test('n8n: machine token, then the franchise notification, idempotent, validated
     assert.equal(claims.aud, 'hydromart-machine');
     assert.deepEqual(claims.scopes, [
       'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
-      'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'aiCsNotify', 'orderStatusByPhone', 'complianceDueNotify', 'qualityHoldNotify', 'waOptOutSync',
+      'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'aiCsNotify', 'orderStatusByPhone', 'complianceDueNotify', 'qualityHoldNotify', 'waOptOutSync', 'partnerBillRemind',
     ]);
 
     const applicationId = randomUUID();
@@ -442,6 +442,25 @@ test('n8n: the compliance sweep and the quality hold relay need their machine sc
     const human = await (await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE })).json();
     assert.equal((await send('quality-hold', human.accessToken, event)).status, 401);
     assert.equal((await send('quality-hold', null, event)).status, 401);
+  } finally {
+    await mock.close();
+  }
+});
+
+test('n8n: the open partner bills read needs the partnerBillRemind scope and answers an empty list', async () => {
+  const mock = await boot();
+  const open = (token) =>
+    json('GET', mock.base, '/payout/api/v1/external/partner-bills/open', undefined, token ? { authorization: `Bearer ${token}` } : {});
+  try {
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    const ok = await open(accessToken);
+    assert.equal(ok.status, 200);
+    assert.deepEqual(await ok.json(), []);
+    const p = pkce();
+    const { code } = await pick(mock, user('SUPER_ADMIN'), p);
+    const human = await (await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE })).json();
+    assert.equal((await open(human.accessToken)).status, 401);
+    assert.equal((await open(null)).status, 401);
   } finally {
     await mock.close();
   }

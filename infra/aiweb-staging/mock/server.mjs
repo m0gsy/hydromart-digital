@@ -16,6 +16,7 @@
 //   POST /crm/api/v1/notifications/external/maintenance-due   n8n's 07.30 WIB maintenance sweep (HD-15)
 //   POST /crm/api/v1/notifications/external/compliance-due   n8n's 07.30 WIB permit and lab-test sweep (HD-14)
 //   POST /crm/api/v1/notifications/external/quality-hold   n8n's relay of a depot quality hold event (HD-14)
+//   GET  /payout/api/v1/external/partner-bills/open   the AI web's read of sent, unpaid partner bills (HD-25): staging has no bills, so []
 //   POST /crm/api/v1/notifications/external/sales-weekly-ready   n8n's Monday weekly Sales report trigger (AI-26)
 //   POST /crm/api/v1/notifications/external/ai-agent-notice   n8n's relay of an AI agent event (AI-31)
 //   POST /crm/api/v1/notifications/external/ai-lead-notice   n8n's relay of a public form lead or its SLA reminder (AI-14)
@@ -180,7 +181,7 @@ const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 
 const ACCESS_KEYS = new Set(['eventId', 'requesterAccountId', 'legalEntityIds', 'group']);
 const MACHINE_SCOPES = [
   'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
-  'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'aiCsNotify', 'orderStatusByPhone', 'complianceDueNotify', 'qualityHoldNotify', 'waOptOutSync',
+  'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'aiCsNotify', 'orderStatusByPhone', 'complianceDueNotify', 'qualityHoldNotify', 'waOptOutSync', 'partnerBillRemind',
 ];
 export const AGENT_NOTICE_KINDS = ['FLAG', 'CAP_REACHED', 'STOPPED', 'STOPPED_ALL'];
 export const LEAD_NOTICE_KINDS = ['NEW', 'REMIND', 'ESCALATE'];
@@ -1281,6 +1282,11 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
           const [status, body] = readRoute(req, group, url.searchParams);
           return send(res, status, body);
         }
+      }
+      if (req.method === 'GET' && path === '/payout/api/v1/external/partner-bills/open') {
+        // HD-25: only a machine token with partnerBillRemind; staging holds no bills.
+        const [status, body] = machineAllowed(req, 'partnerBillRemind') ? [200, []] : refusedToken();
+        return send(res, status, body);
       }
       if (req.method === 'GET' && path === '/dashboard/api/v1/dashboard/pending-approvals') {
         const [status, body] = pendingApprovals(req);
