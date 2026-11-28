@@ -4,8 +4,9 @@
 # and an upgrade path, and it is deleted the moment upstream ships a fix. This list
 # is the triage record, not a mute button. Anything not listed here still fails CI.
 #
-# What this gate scans is `node:22-alpine` — an image we consume and do not build.
-# We cannot patch it; we can only pin a newer tag when one exists, or stop shipping
+# What this gate scans is every distinct FROM base: `node:22.23.4-alpine` for all services
+# but face-service, which runs `node:22.23.4-bookworm-slim` — images we consume and do not build.
+# We cannot patch them; we can only pin a newer tag when one exists, or stop shipping
 # the affected component. Both are noted per entry.
 
 # openssl DoS via unbounded memory growth. Alpine has published 3.5.8-r0; NO published
@@ -26,6 +27,18 @@ CVE-2026-14456
 # Delete this line once node:22.x-bookworm-slim ships libpam 1.5.2-6+deb12u3 or later
 # (re-scan the tag), or when face-service moves to the alpine base.
 CVE-2025-6020
+
+# zstd information disclosure via an uninitialized buffer (HIGH), libzstd1. Debian
+# published 1.5.4+dfsg2-5+deb12u1; face-service's node:22.23.4-bookworm-slim still carries
+# 1.5.4+dfsg2-5 and upstream has not rebuilt it yet — first seen by this gate on
+# 2026-11-28 (Security run 46096545829). Not reachable here: nothing in the container
+# calls the system libzstd. The running face-service process maps only glibc, libstdc++,
+# sharp's bundled libvips-cpp and onnxruntime (read-only check of /proc/1/maps in the
+# production face container, 2026-11-28); node carries its own zstd. Only dpkg and apt
+# link libzstd1, and they never run in the runtime image.
+# Delete this line once node:22.x-bookworm-slim ships libzstd1 1.5.4+dfsg2-5+deb12u1 or
+# later (re-scan the tag), or when face-service moves to the alpine base.
+CVE-2026-124851
 
 # Language packages are NOT scanned here (--pkg-types os). Everything trivy reported
 # in that class lives in npm's OWN bundle inside the base image
