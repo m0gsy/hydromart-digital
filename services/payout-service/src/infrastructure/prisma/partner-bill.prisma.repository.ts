@@ -48,7 +48,7 @@ interface BillRow {
 
 const UNIQUE_VIOLATION = 'P2002';
 
-/** A `date` column carries no zone: its UTC midnight is the day itself. */
+// tz-ok: a `date` column carries no zone; Prisma hands it back as UTC midnight of the day itself.
 const dayOf = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null);
 
 @Injectable()
