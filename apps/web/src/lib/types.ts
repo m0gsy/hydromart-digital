@@ -3840,3 +3840,45 @@ export interface ProspectAssignee {
   id: string;
   name: string;
 }
+
+// WhatsApp number 1 (crm-service, HD-12/HD-13).
+export interface WaCode {
+  id: string;
+  code: string;
+  expiresAt: string;
+  link: string;
+}
+export type WaMeState = 'GRANTED' | 'STOPPED' | 'NONE';
+export interface WaMe {
+  state: WaMeState;
+  /** `+62 8xx-xxxx-1234`, already masked by the server. */
+  phone: string | null;
+}
+export type WaContactState = 'OPTED_IN' | 'STOPPED' | 'NONE';
+export type WaCategory = 'UTILITY' | 'MARKETING' | 'AUTHENTICATION' | 'SERVICE';
+export type WaTemplateStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'PAUSED';
+export interface WaOverview {
+  state: 'OFF' | 'INCOMPLETE' | 'PAUSED' | 'ON';
+  missing: string[];
+  month: string;
+  categories: {
+    category: WaCategory;
+    monthlyMessages: number | null;
+    rateIdr: number | null;
+    monthlyCostIdr: number | null;
+    paused: boolean;
+    messages: number;
+    costIdr: number | null;
+  }[];
+  templates: {
+    id: string;
+    name: string;
+    language: string;
+    event: string | null;
+    category: string;
+    bodyParams: number;
+    status: string;
+    statusReason: string | null;
+  }[];
+  problems: { id: string; status: string; skipReason: string | null; templateName: string; createdAt: string }[];
+}

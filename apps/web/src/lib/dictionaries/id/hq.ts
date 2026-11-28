@@ -95,6 +95,7 @@ export const hq = {
     slaPolicy: 'Kebijakan SLA',
     forecastModels: 'Model prakiraan',
     retention: 'Retensi & backup',
+    whatsapp: 'WhatsApp nomor 1',
     pdp: 'Permintaan data (UU PDP)',
     security: 'Keamanan & 2FA',
     policyChanges: 'Persetujuan perubahan',

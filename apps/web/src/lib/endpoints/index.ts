@@ -16,6 +16,7 @@ import { insight } from './insight';
 import { admin } from './admin';
 import { hr } from './hr';
 import { prospect } from './prospect';
+import { whatsapp } from './whatsapp';
 
 /**
  * The single object every screen imports. Assembled from the per-area modules above,
@@ -31,4 +32,5 @@ export const endpoints = {
   ...admin,
   ...hr,
   ...prospect,
+  ...whatsapp,
 } as const;

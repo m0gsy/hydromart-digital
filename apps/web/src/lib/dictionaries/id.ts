@@ -29,6 +29,7 @@ import { mgrFix } from './id/mgrFix';
 import { hrFix } from './id/hrFix';
 import { settings } from './id/settings';
 import { errors } from './id/errors';
+import { wa } from './id/wa';
 
 export const id = {
   nav: {
@@ -275,6 +276,7 @@ export const id = {
   hrFix,
   settings,
   errors,
+  wa,
 };
 
 /**
