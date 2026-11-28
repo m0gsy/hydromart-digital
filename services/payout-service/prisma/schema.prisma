@@ -364,6 +364,13 @@ model PartnerBill {
   bankAccountHolder String?
   /// The franchise-owner accounts it was sent to; an owner lists the bills that name them.
   recipientIds    String[]          @db.Uuid
+  /// HD-25: the WIB day it falls due (the day it was sent + 14), set when it is sent.
+  dueOn           DateTime?         @db.Date
+  /// HD-25: set once when Finance marks the SENT bill paid; `paidOn` is the day the money arrived.
+  paidAt          DateTime?
+  paidOn          DateTime?         @db.Date
+  paidBy          String?           @db.Uuid
+  paidRef         String?
 
   lines           PartnerBillLine[]
 

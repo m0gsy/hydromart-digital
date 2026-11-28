@@ -35,6 +35,15 @@ export class PartnerBillNotDraftError extends DomainError {
   }
 }
 
+/** Only a sent bill can be paid: a draft was never asked for and a void one never will be. */
+export class PartnerBillNotSentError extends DomainError {
+  readonly code = 'PARTNER_BILL_NOT_SENT';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Only a sent bill can be marked paid.');
+  }
+}
+
 /** The bill is being sent: it cannot be voided until it is sent (then void it) or the send is retried. */
 export class PartnerBillSendingError extends DomainError {
   readonly code = 'PARTNER_BILL_SENDING';

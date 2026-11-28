@@ -715,6 +715,8 @@ export const CAPABILITIES = {
   partnerBillRead: ['FINANCE', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   partnerBillApprove: ['FINANCE', 'SUPER_ADMIN'],
   partnerBillGenerate: ['SUPER_ADMIN'],
+  /* HD-25: the AI web's machine read of sent, unpaid bills (GET external/partner-bills/open). Machine-only. */
+  partnerBillRemind: ['SUPER_ADMIN'],
   /*
    * depot-service (HD-15B) - write the checklist templates a supervisor visit starts from. Head
    * office and directors only; the network has one template list. Not in CUSTOM_FORBIDDEN: an
@@ -1284,6 +1286,7 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   // HD-23: approving a bill sends it to every owner of the entity's depots; generating is n8n's.
   'partnerBillApprove',
   'partnerBillGenerate',
+  'partnerBillRemind',
   'staffAdmin',
   'staffDelete',
   'hierarchyAdmin',

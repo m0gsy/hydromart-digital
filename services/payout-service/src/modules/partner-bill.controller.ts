@@ -20,11 +20,13 @@ import {
   ExternalAccess,
 } from '@hydromart/platform';
 
-import { GenerateResult, PartnerBillService } from '../application/services/partner-bill.service';
+import { GenerateResult, OpenBill, PartnerBillService } from '../application/services/partner-bill.service';
 import { PartnerBillRecord } from '../domain/partner-bill';
 import {
   GenerateBillsDto,
   GenerateBillsResponseDto,
+  MarkPaidDto,
+  OpenBillResponseDto,
   PartnerBillListQueryDto,
   PartnerBillResponseDto,
   VoidBillDto,
@@ -91,6 +93,20 @@ export class PartnerBillController {
   @ApiOkResponse({ type: PartnerBillResponseDto })
   @Can('partnerBillApprove')
   @UseInterceptors(AuditMutationsInterceptor)
+  @Post(':id/paid')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark a sent bill paid (the day the money arrived and a reference); a second call changes nothing' })
+  async paid(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MarkPaidDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return view(await this.bills.markPaid(id, dto.paidOn, dto.ref || null, user.sub));
+  }
+
+  @ApiOkResponse({ type: PartnerBillResponseDto })
+  @Can('partnerBillApprove')
+  @UseInterceptors(AuditMutationsInterceptor)
   @Post(':id/void')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Withdraw a draft or a sent bill, with a reason; the month may be generated again' })
@@ -124,5 +140,19 @@ export class PartnerBillExternalController {
   @ApiOkResponse({ type: GenerateBillsResponseDto })
   generate(@Body() dto: GenerateBillsDto): Promise<GenerateResult> {
     return this.bills.generate(dto.month);
+  }
+
+  /**
+   * HD-25: the sent, unpaid bills for the AI web's invoice reminders. Read-only; the call is audited
+   * like every machine call. Depot codes only: no owner names, phones or account numbers.
+   */
+  @ExternalAccess('machine')
+  @Can('partnerBillRemind')
+  @UseInterceptors(AuditMutationsInterceptor)
+  @Get('open')
+  @ApiOperation({ summary: 'AI web: sent bills not yet paid, newest first (HD-25)' })
+  @ApiOkResponse({ type: OpenBillResponseDto, isArray: true })
+  open(): Promise<OpenBill[]> {
+    return this.bills.open();
   }
 }

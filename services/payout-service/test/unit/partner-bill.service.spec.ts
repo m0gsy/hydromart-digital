@@ -5,6 +5,8 @@ import type { PartnerBillRecord } from '../../src/domain/partner-bill';
 import {
   dayAfter,
   dayBefore,
+  dayPlus,
+  dueOnOf,
   monthLabel,
   monthWindow,
   splitNote,
@@ -62,6 +64,8 @@ function build(opts: {
     beginSend: jest.fn(async (id: string) => ({ ...stored.get(id)!, status: 'SENDING' }) as PartnerBillRecord),
     markSent: jest.fn(async (id: string) => ({ ...stored.get(id)!, status: 'SENT' }) as PartnerBillRecord),
     markVoid: jest.fn(async (id: string) => ({ ...stored.get(id)!, status: 'VOID' }) as PartnerBillRecord),
+    markPaid: jest.fn(async (id: string) => (opts.racing ? null : ({ ...stored.get(id)!, paidAt: new Date() } as PartnerBillRecord))),
+    listOpen: jest.fn().mockResolvedValue([] as PartnerBillRecord[]),
   };
   const sources = {
     entityTimeline: jest.fn().mockResolvedValue(
@@ -364,7 +368,70 @@ describe('PartnerBillService approve, void and reads', () => {
   });
 });
 
+describe('PartnerBillService paid mark and open bills (HD-25)', () => {
+  const sent = (extra: Partial<PartnerBillRecord> = {}): PartnerBillRecord =>
+    ({
+      id: 'b1',
+      legalEntityName: 'PT Mitra A',
+      month: '2026-10',
+      status: 'SENT',
+      totalIdr: 150000,
+      dueOn: '2026-11-22',
+      paidAt: null,
+      lines: [
+        { id: 'l1', depotId: D1, label: 'x', amountIdr: 100000, basis: {} },
+        { id: 'l2', depotId: D2, label: 'y', amountIdr: 50000, basis: {} },
+        { id: 'l3', depotId: D1, label: 'z', amountIdr: 1, basis: {} },
+      ],
+      ...extra,
+    }) as unknown as PartnerBillRecord;
+
+  it('marks a sent bill paid once, and a second mark changes nothing', async () => {
+    const t = build();
+    t.stored.set('b1', sent());
+    expect((await t.svc.markPaid('b1', '2026-11-20', 'TRF 1', 'fin-1')).paidAt).toBeInstanceOf(Date);
+    expect(t.bills.markPaid).toHaveBeenCalledWith('b1', { paidOn: '2026-11-20', ref: 'TRF 1', paidBy: 'fin-1' });
+    const again = build();
+    again.stored.set('b1', sent({ paidAt: new Date('2026-11-20T03:00:00Z') }));
+    expect((await again.svc.markPaid('b1', '2026-11-25', null, 'fin-2')).paidAt).toEqual(new Date('2026-11-20T03:00:00Z'));
+    expect(again.bills.markPaid).not.toHaveBeenCalled();
+  });
+
+  it('refuses a draft, a void or a missing bill, and reads the winner when two marks race', async () => {
+    for (const status of ['DRAFT', 'SENDING', 'VOID'] as const) {
+      const t = build();
+      t.stored.set('b1', sent({ status }));
+      await expect(t.svc.markPaid('b1', '2026-11-20', null, 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_NOT_SENT', status: 409 });
+    }
+    await expect(build().svc.markPaid('nope', '2026-11-20', null, 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_NOT_FOUND' });
+    const race = build({ racing: true });
+    race.stored.set('b1', sent());
+    expect((await race.svc.markPaid('b1', '2026-11-20', null, 'f')).id).toBe('b1');
+  });
+
+  it('answers the open bills with depot codes only, each depot looked up once', async () => {
+    const t = build();
+    t.bills.listOpen.mockResolvedValue([sent(), sent({ id: 'b2', legalEntityName: 'PT B', lines: [] })]);
+    expect(await t.svc.open()).toEqual([
+      { id: 'b1', month: '2026-10', monthLabel: 'Oktober 2026', legalEntityName: 'PT Mitra A', totalIdr: 150000, dueOn: '2026-11-22', depotCodes: ['D-1', 'D-2'] },
+      { id: 'b2', month: '2026-10', monthLabel: 'Oktober 2026', legalEntityName: 'PT B', totalIdr: 150000, dueOn: '2026-11-22', depotCodes: [] },
+    ]);
+    expect(t.sources.depot).toHaveBeenCalledTimes(2);
+    expect(t.bills.listOpen).toHaveBeenCalledWith(200);
+  });
+});
+
 describe('partner bill dates', () => {
+  it('adds days in the WIB calendar and dates a due day from the WIB day of sending', () => {
+    expect(dayPlus('2026-11-20', 14)).toBe('2026-12-04');
+    expect(dayPlus('2026-12-25', 14)).toBe('2027-01-08');
+    // 23:30 UTC on 8 Nov is already 9 Nov in Jakarta; 16:59 UTC is still 8 Nov, 17:00 is 9 Nov.
+    expect(dueOnOf(new Date('2026-11-08T23:30:00Z'))).toBe('2026-11-23');
+    expect(dueOnOf(new Date('2026-11-08T16:59:00Z'))).toBe('2026-11-22');
+    expect(dueOnOf(new Date('2026-11-08T17:00:00Z'))).toBe('2026-11-23');
+    expect(dueOnOf(new Date('2026-11-08T03:00:00Z'))).toBe('2026-11-22');
+  });
+
   it('reads a month in the WIB calendar', () => {
     expect(monthWindow('2026-02')).toMatchObject({ firstDay: '2026-02-01', lastDay: '2026-02-28' });
     expect(monthWindow('2026-12').lastDay).toBe('2026-12-31');

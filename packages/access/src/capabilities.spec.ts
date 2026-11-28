@@ -395,7 +395,9 @@ describe('CAPABILITIES', () => {
     expect(can('partnerBillRead', 'MARKETING')).toBe(false);
     expect(can('partnerBillApprove', 'HEAD_OFFICE')).toBe(false);
     expect(CAPABILITIES.partnerBillGenerate).toEqual(['SUPER_ADMIN']);
-    for (const cap of ['partnerBillApprove', 'partnerBillGenerate']) expect(CUSTOM_FORBIDDEN).toContain(cap);
+    // HD-25: the AI web's machine read of open bills is machine-only too.
+    expect(CAPABILITIES.partnerBillRemind).toEqual(['SUPER_ADMIN']);
+    for (const cap of ['partnerBillApprove', 'partnerBillGenerate', 'partnerBillRemind']) expect(CUSTOM_FORBIDDEN).toContain(cap);
     expect(CUSTOM_FORBIDDEN).not.toContain('partnerBillRead');
   });
 

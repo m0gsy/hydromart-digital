@@ -27,6 +27,10 @@ export interface PartnerBillRepository {
     id: string,
     data: { approvedBy: string; recipientIds: string[]; bank: PartnerBillBank },
   ): Promise<PartnerBillRecord | null>;
+  /** SENT and unpaid, newest month first, with lines (the machine read of open bills). */
+  listOpen(limit: number): Promise<PartnerBillRecord[]>;
+  /** SENT and not yet paid -> paid; null when it is anything else or somebody marked it first. */
+  markPaid(id: string, data: { paidOn: string; ref: string | null; paidBy: string }): Promise<PartnerBillRecord | null>;
   /** DRAFT or SENT -> VOID with its reason; null when it is VOID, SENDING or gone. */
   markVoid(id: string, reason: string): Promise<PartnerBillRecord | null>;
 }
