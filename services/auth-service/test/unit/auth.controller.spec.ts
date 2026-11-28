@@ -124,6 +124,30 @@ describe('AuthController', () => {
     );
   });
 
+  it('login() forwards sessionDrop and only well-formed app headers', async () => {
+    const withHeaders = (headers: Record<string, unknown>): Request =>
+      ({ ...req, headers: { ...req.headers, ...headers } }) as unknown as Request;
+    await controller.login(
+      { phone: '+628123456789', sessionDrop: 'lock_sms' },
+      withHeaders({ 'x-app-id': 'id.hydromart.ops', 'x-app-version': '11301' }),
+    );
+    expect(login.requestLogin).toHaveBeenLastCalledWith(
+      expect.objectContaining({ sessionDrop: 'lock_sms', appId: 'id.hydromart.ops', appVersion: '11301' }),
+    );
+    await controller.login(
+      { phone: '+628123456789' },
+      withHeaders({ 'x-app-id': 'evil.app', 'x-app-version': '1.2.3' }),
+    );
+    const bad = login.requestLogin.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(bad.appId).toBeUndefined();
+    expect(bad.appVersion).toBeUndefined();
+    await controller.login({ phone: '+628123456789' }, req);
+    const none = login.requestLogin.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(none.appId).toBeUndefined();
+    expect(none.appVersion).toBeUndefined();
+    expect(none.sessionDrop).toBeUndefined();
+  });
+
   it('login() passes a staff door through to the service', async () => {
     await controller.login({ phone: '+628123456789', audience: 'STAFF' }, req);
     expect(login.requestLogin).toHaveBeenCalledWith({

@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
+import { SESSION_DROP_REASONS, SessionDropReason } from '../../../domain/session-drop';
 import { SOURCE_CODE_PATTERN } from './register.dto';
 
 export class LoginDto {
@@ -40,4 +41,13 @@ export class LoginDto {
   @IsString()
   @Matches(SOURCE_CODE_PATTERN, { message: 'lastSource bukan kode sumber yang sah.' })
   lastSource?: string;
+
+  @ApiPropertyOptional({
+    enum: SESSION_DROP_REASONS,
+    description:
+      'Native app only: why the app dropped a stored session before asking for this code. Audit metadata only.',
+  })
+  @IsOptional()
+  @IsIn(SESSION_DROP_REASONS)
+  sessionDrop?: SessionDropReason;
 }

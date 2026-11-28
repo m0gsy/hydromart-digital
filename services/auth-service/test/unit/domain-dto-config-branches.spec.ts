@@ -93,6 +93,14 @@ describe('RegisterDto campaign codes', () => {
     const fields = validateSync(login('Pameran')).map((e) => e.property);
     expect(fields).toEqual(expect.arrayContaining(['firstSource', 'lastSource']));
   });
+
+  it('accepts a known sessionDrop reason, rejects an unknown one, and allows none', () => {
+    const login = (sessionDrop: unknown) =>
+      plainToInstance(LoginDto, { phone: '081234567890', sessionDrop });
+    expect(validateSync(login('lock_sms'))).toHaveLength(0);
+    expect(validateSync(login(undefined))).toHaveLength(0);
+    expect(validateSync(login('because')).map((e) => e.property)).toEqual(['sessionDrop']);
+  });
 });
 
 describe('Customer entity branch gaps', () => {
