@@ -916,6 +916,8 @@ services:
         # nobody could set. Blank hides both buttons, which is right for a fleet with no
         # single line yet.
         NEXT_PUBLIC_COURIER_HOTLINE: ${COURIER_HOTLINE:-}
+        # HD-19: the AI web origin (same AI_WEB_URL crm-service uses) for the ops "Tanya AI" entry.
+        NEXT_PUBLIC_AI_WEB_URL: ${AI_WEB_URL:-}
         # N2: frozen into the bundle like the two above. Empty = the reporter is off and
         # the SDK is not even downloaded, so leaving it unset changes nothing.
         NEXT_PUBLIC_SENTRY_DSN: ${SENTRY_DSN_WEB:-}

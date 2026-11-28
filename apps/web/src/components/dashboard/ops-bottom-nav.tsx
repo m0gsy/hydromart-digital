@@ -16,6 +16,7 @@ import {
 
 import { ConsoleSignOut } from '@/components/console-sign-out';
 
+import { AskAiEntry } from '@/components/ask-ai-link';
 import { DepotSwitcher } from '@/components/dashboard/ops-rail';
 import { HUB_ICONS } from '@/lib/ops-hub-icons';
 import { GROUPS, hubsFor } from '@/lib/ops-nav';
@@ -191,6 +192,7 @@ function MoreSheetTab({ current }: { current: string | undefined }) {
               </Link>
             );
           })}
+          <AskAiEntry onNavigate={() => setOpen(false)} />
           {/* CA-2-61: on a phone the rail is hidden, so this sheet is the only place an
               exit can live. */}
           <div className="mt-2 border-t border-app pt-2">

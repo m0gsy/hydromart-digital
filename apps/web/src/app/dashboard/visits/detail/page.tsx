@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
 
+import { AskAiDepotLink } from '@/components/ask-ai-link';
 import { useConfirm } from '@/components/confirm';
 import { RequireAuth } from '@/components/require-auth';
 import {
@@ -333,6 +334,7 @@ function Body({ id }: { id: string }) {
         </p>
       </div>
       {!editable && <p className="text-xs text-muted">{t('opsFix.visits.detail.readOnly')}</p>}
+      <AskAiDepotLink depotId={visit.depotId} />
       {visit.items.map((item) => (
         <ItemCard
           key={item.id}

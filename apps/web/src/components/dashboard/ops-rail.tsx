@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Storefront,
 } from '@phosphor-icons/react';
+import { AskAiEntry } from '@/components/ask-ai-link';
 import { ConsoleSignOut } from '@/components/console-sign-out';
 import { useAuth } from '@/lib/auth-context';
 import { useDepot } from '@/lib/depot-context';
@@ -186,6 +187,7 @@ export function OpsRail() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-1 pt-2">
+        <AskAiEntry />
         <div className="flex items-center justify-between px-3 py-1.5">
           <span className="text-xs font-medium text-muted">{t('ops.language')}</span>
           <div className="flex overflow-hidden rounded-full border border-app text-[11px] font-bold">
