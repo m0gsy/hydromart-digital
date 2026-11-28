@@ -6,7 +6,7 @@
 #
 # What this gate scans is every distinct FROM base: `node:22.23.4-alpine` for all services
 # but face-service, which runs `node:22.23.4-bookworm-slim` — images we consume and do not build.
-# We cannot patch it; we can only pin a newer tag when one exists, or stop shipping
+# We cannot patch them; we can only pin a newer tag when one exists, or stop shipping
 # the affected component. Both are noted per entry.
 
 # openssl DoS via unbounded memory growth. Alpine has published 3.5.8-r0; NO published
