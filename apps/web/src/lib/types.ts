@@ -961,6 +961,9 @@ export type NotificationEvent =
   | 'AI_LEAD_NEW'
   | 'AI_LEAD_REMIND'
   | 'AI_LEAD_ESCALATE'
+  | 'AI_CS_NEW'
+  | 'AI_CS_REMIND'
+  | 'AI_CS_ESCALATE'
   | 'VISIT_FINDING'
   | 'FOLLOW_UP_OVERDUE'
   // HD-23: the monthly royalty bill, one row per franchise owner.
@@ -1031,6 +1034,9 @@ export const OPS_EVENTS = [
   'AI_LEAD_NEW',
   'AI_LEAD_REMIND',
   'AI_LEAD_ESCALATE',
+  'AI_CS_NEW',
+  'AI_CS_REMIND',
+  'AI_CS_ESCALATE',
   'VISIT_FINDING',
   'FOLLOW_UP_OVERDUE',
   'PARTNER_BILL',
@@ -2987,7 +2993,7 @@ export interface SecurityPolicy {
 
 // Per-admin notification prefs (23a). Event ids are canonical; labels are i18n on the web.
 export type NotificationEventId =
-  'criticalSla' | 'newFranchiseApp' | 'morningSummary' | 'aiAccessRequest' | 'salesWeekly' | 'aiAgent' | 'aiLead' | 'maintenanceDue' | 'visitFinding' | 'payoutPending' | 'systemIncident' | 'dailyDigest';
+  'criticalSla' | 'newFranchiseApp' | 'morningSummary' | 'aiAccessRequest' | 'salesWeekly' | 'aiAgent' | 'aiLead' | 'aiCs' | 'maintenanceDue' | 'visitFinding' | 'payoutPending' | 'systemIncident' | 'dailyDigest';
 export interface NotificationChannelPref {
   id: NotificationEventId;
   push: boolean;

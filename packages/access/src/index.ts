@@ -669,6 +669,24 @@ export const CAPABILITIES = {
    */
   aiAgentNotify: ['SUPER_ADMIN'],
   /*
+   * depot-service + crm-service (AI-11) - the CS inbox of the AI web (WhatsApp number 2). There is no
+   * customer-service role: head office holds all three, Direksi also manage, and the owner grants a
+   * custom CS role what it needs (all three are ordinary caps; the CS lead is a custom role with
+   * aiCsManage). read opens the list and threads and is told of handoffs; reply claims and sends;
+   * manage takes over, closes any, edits caps and pauses, and is told of escalations.
+   * GET depot ai/cs/access answers all three.
+   */
+  aiCsRead: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+  aiCsReply: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+  aiCsManage: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  /*
+   * crm-service (AI-11) - tell the CS staff that a chat was handed to them or waits too long
+   * (POST notifications/external/ai-cs-notice). Held by the AI web / n8n machine account through its
+   * token's scopes; ids and a kind only, hydromart picks the recipients and writes the text. Also in
+   * CUSTOM_FORBIDDEN.
+   */
+  aiCsNotify: ['SUPER_ADMIN'],
+  /*
    * crm-service (HD-12/HD-13) - WhatsApp number 1. waOptInIssue: the cashier makes the QR code a walk-in
    * customer scans to opt in (own depot, fenced by the DepotScopeGuard). waCostRead opens /hq/whatsapp and
    * is who is told when a monthly cap is near; waManage edits caps and rates, the template states and the
@@ -1256,6 +1274,8 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'aiLeadNotify',
   // AI-29/AI-31: the n8n machine account's, same reasoning; and who may switch agents on or change their caps.
   'aiAgentNotify',
+  // AI-11: the machine account's CS notice, same reasoning.
+  'aiCsNotify',
   // HD-12/HD-13: the AI web machine account's STOP-list sync; cost and caps are the owner's side.
   'waOptOutSync',
   'waManage',

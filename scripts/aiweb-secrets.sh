@@ -395,7 +395,7 @@ SEEN_IDS=''
 MA_NEW=''
 MA_SET=0
 machine_account AIWEB_N8N n8n required franchiseApplicationNotify \
-  morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiLeadNotify aiAgentNotify partnerBillGenerate complianceDueNotify qualityHoldNotify
+  morningSummaryNotify aiAccessRequestNotify orderStatusByPhone customerReminderNotify maintenanceDueNotify salesReportNotify aiLeadNotify aiAgentNotify aiCsNotify partnerBillGenerate complianceDueNotify qualityHoldNotify
 # waOptOutSync (HD-12/13): the AI web's pull and push of the WhatsApp STOP list, an optional scope like n8n's.
 machine_account AIWEB_APP aiweb skippable aiReadAgent waOptOutSync
 if [ "$MA_SET" = 1 ]; then add MACHINE_ACCOUNTS "$MA_NEW"; fi
