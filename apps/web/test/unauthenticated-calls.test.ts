@@ -26,6 +26,7 @@ const PUBLIC_CALLS = new Set([
   'endpoints.auth.resendOtp',
   'endpoints.auth.verifyOtp',
   'endpoints.franchiseApps.submit',
+  'endpoints.franchiseApps.leadForm',
   'endpoints.orders.track(token)',
   'endpoints.products.categories',
   'endpoints.payments.methods',
