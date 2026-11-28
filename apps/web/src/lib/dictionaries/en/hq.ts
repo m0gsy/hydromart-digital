@@ -93,6 +93,7 @@ export const hq = {
     slaPolicy: 'SLA policy',
     forecastModels: 'Forecast models',
     retention: 'Retention & backup',
+    whatsapp: 'WhatsApp number 1',
     pdp: 'Data requests (UU PDP)',
     security: 'Security & 2FA',
     policyChanges: 'Change approvals',

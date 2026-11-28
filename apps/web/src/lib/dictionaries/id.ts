@@ -29,6 +29,7 @@ import { mgrFix } from './id/mgrFix';
 import { hrFix } from './id/hrFix';
 import { settings } from './id/settings';
 import { errors } from './id/errors';
+import type { wa } from './id/wa';
 
 export const id = {
   nav: {
@@ -282,4 +283,4 @@ export const id = {
  * `useInsightStrings` when the dashboard opens, because every other route would otherwise carry
  * them in the shared bundle. `en` is a lazy chunk already, so it holds them inline.
  */
-export type Dictionary = typeof id & { insight: typeof insight };
+export type Dictionary = typeof id & { insight: typeof insight; wa: typeof wa };

@@ -61,6 +61,7 @@ import {
   UsersThree,
   Wallet,
   WarningOctagon,
+  WhatsappLogo,
 } from '@phosphor-icons/react';
 
 import { ConsoleSignOut } from '@/components/console-sign-out';
@@ -150,6 +151,7 @@ export const HQ_ICONS: Record<string, Icon> = {
   '/hq/sla-policy': Timer,
   '/hq/forecast-models': ChartLineUp,
   '/hq/retention': Archive,
+  '/hq/whatsapp': WhatsappLogo,
   '/hq/pdp': ShieldCheck,
   '/hq/security': Lock,
   '/hq/policy-changes': ShieldCheck,
