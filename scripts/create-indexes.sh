@@ -60,6 +60,13 @@
 # b2b_do_not_contact_kind_keyHash_key (customer-service, 2026-11-28, AREA-1a) sit on four tables its own migration creates:
 # built by that migration, not here, and the build is instant.
 #
+# wa_consents_seq_key, wa_consents_phone_purpose_recordedAt_idx, wa_consents_customerId_purpose_recordedAt_idx,
+# wa_consents_source_sourceRef_key, wa_opt_in_codes_code_key, wa_opt_in_codes_expiresAt_idx, wa_messages_dedupeKey_key,
+# wa_messages_metaMessageId_key, wa_messages_status_createdAt_idx, wa_messages_monthKey_category_idx,
+# wa_messages_phone_createdAt_idx, wa_inbound_events_receivedAt_idx and wa_templates_name_language_key (crm-service,
+# 2026-11-29, HD-12/HD-13 WhatsApp number 1) sit on eight tables its own three migrations create: built by those
+# migrations, not here, and the build is instant.
+#
 # So the split is: build concurrently HERE, first; the migration then finds the index
 # already present (every one of them is `IF NOT EXISTS`) and is a no-op. On a fresh
 # database — CI, a new environment — the migration builds it itself, where locking an
