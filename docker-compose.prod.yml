@@ -447,6 +447,7 @@ services:
       # in a container means every lookup fails and validation quietly stops happening.
       PRODUCT_SERVICE_URL: http://product:3003
       DEPOT_ALERT_PHONE: ${DEPOT_ALERT_PHONE:-}
+      FRANCHISE_LEAD_FORM_URL: ${FRANCHISE_LEAD_FORM_URL:-}
       # Closing a cashier's shift reads that depot's takings from here. Without it a shift
       # can be opened but never closed — no drawer is ever settled against a guess.
       PAYMENT_SERVICE_URL: http://payment:3005

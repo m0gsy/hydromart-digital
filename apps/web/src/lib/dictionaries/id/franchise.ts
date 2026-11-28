@@ -57,4 +57,7 @@ export const franchise = {
   sentCode: 'Kode depot usulan',
   sentAt: 'Waktu kirim',
   sentAnother: 'Kirim pengajuan lain',
+  // HD-22: shown instead of the form while the AI web form is the way in.
+  movedNotice: 'Pendaftaran calon mitra kini lewat formulir HYDROMART AI.',
+  openForm: 'Buka formulir',
 };

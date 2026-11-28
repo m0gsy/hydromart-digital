@@ -2,9 +2,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { post } = vi.hoisted(() => ({ post: vi.fn() }));
+const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
 
-vi.mock('@/lib/api', () => ({ api: { post }, ApiError: class ApiError extends Error {} }));
+vi.mock('@/lib/api', () => ({ api: { post, get }, ApiError: class ApiError extends Error {} }));
 
 import { LocaleProvider } from '@/lib/locale-context';
 import FranchiseApplicationPage from '@/app/waralaba/page';
@@ -37,6 +37,7 @@ function fillAndSend() {
 // mockResolvedValue returns the mock, so an arrow body would "post" once after every test.
 beforeEach(() => {
   post.mockResolvedValue(RECEIPT);
+  get.mockResolvedValue({ url: null }); // HD-22: no cutover, the in-app form
 });
 afterEach(() => {
   vi.clearAllMocks();
@@ -52,6 +53,7 @@ describe('/waralaba: the source of an application', () => {
   it('sends the first code this browser kept and the latest', async () => {
     localStorage.setItem('hydromart.source', JSON.stringify({ first: 'pameran-jkt', last: 'meta-iklan-bdg' }));
     render(<FranchiseApplicationPage />, { wrapper: LocaleProvider });
+    await screen.findByRole('checkbox');
     fillAndSend();
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(post.mock.calls[0]?.[1]).toMatchObject({
@@ -63,6 +65,7 @@ describe('/waralaba: the source of an application', () => {
 
   it('sends no source at all when no coded link was followed', async () => {
     render(<FranchiseApplicationPage />, { wrapper: LocaleProvider });
+    await screen.findByRole('checkbox');
     fillAndSend();
     await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
     expect(post.mock.calls[0]?.[1]).not.toHaveProperty('firstSource');

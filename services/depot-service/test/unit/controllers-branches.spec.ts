@@ -431,8 +431,16 @@ describe('FranchiseApplicationController', () => {
     purgeRejectedOlderThan: jest.fn(),
     summary: jest.fn(),
   };
-  const c = new FranchiseApplicationController(svc as never);
+  const leadForm = { franchiseLeadFormUrl: null as string | null };
+  const c = new FranchiseApplicationController(svc as never, leadForm as never);
   beforeEach(() => jest.clearAllMocks());
+
+  // HD-22: the public route /waralaba reads to know whether the AI web form took over.
+  it('tells the apps where the partner form lives, or null when the cutover is off', () => {
+    expect(c.leadForm()).toEqual({ url: null });
+    leadForm.franchiseLeadFormUrl = 'https://ai.example.test/daftar-mitra';
+    expect(c.leadForm()).toEqual({ url: 'https://ai.example.test/daftar-mitra' });
+  });
 
   const submission = {
     applicantName: 'Budi Santoso',

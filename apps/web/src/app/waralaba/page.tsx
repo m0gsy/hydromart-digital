@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CrosshairSimple } from '@phosphor-icons/react';
 
 import { PrivacyLink } from '@/components/privacy-sheet';
+import { ExternalLink } from '@/components/external-link';
 import { Button, Card, Field, FormError, Input } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { readSources } from '@/lib/attribution';
@@ -11,6 +12,8 @@ import { endpoints } from '@/lib/endpoints';
 import { currentPosition } from '@/lib/geo';
 import { toIndonesianE164 } from '@/lib/format';
 import { useT } from '@/lib/locale-context';
+import { isNativeShell } from '@/lib/platform';
+import { useAsync } from '@/lib/use-async';
 import { franchise as franchiseID } from '@/lib/dictionaries/id/franchise';
 import { franchise as franchiseEN } from '@/lib/dictionaries/en/franchise';
 
@@ -42,7 +45,7 @@ const EMPTY = {
  * depot-service; the approvals queue that reads these rows lives at /hq/applications.
  * The response is a receipt, not the record, so there is nothing here to poll.
  */
-export default function FranchiseApplicationPage() {
+function FranchiseForm() {
   const { locale } = useT();
   const copy = locale === 'en' ? franchiseEN : franchiseID;
 
@@ -302,6 +305,38 @@ export default function FranchiseApplicationPage() {
           {copy.submit}
         </Button>
       </form>
+    </div>
+  );
+}
+
+/**
+ * HD-22: once the server says the AI web owns partner applications (`url` set), this page is a
+ * notice plus a button to that form (the web also redirects); otherwise, and when the lookup
+ * fails, the in-app form above stays exactly as it was. Nothing renders while the answer loads,
+ * so the old form never flashes before the notice.
+ */
+export default function FranchiseApplicationPage() {
+  const { locale } = useT();
+  const copy = locale === 'en' ? franchiseEN : franchiseID;
+  const lead = useAsync<{ url: string | null }>(() => api.get(endpoints.franchiseApps.leadForm), []);
+  const url = lead.data?.url ?? null;
+
+  useEffect(() => {
+    if (url && !isNativeShell()) window.location.replace(url);
+  }, [url]);
+
+  if (lead.loading) return null;
+  if (!url) return <FranchiseForm />;
+  return (
+    <div className="mx-auto max-w-[640px]">
+      <h1 className="text-[22px] font-extrabold tracking-[-0.02em]">{copy.title}</h1>
+      <p className="mt-3 text-[14px] leading-relaxed">{copy.movedNotice}</p>
+      <ExternalLink
+        href={url}
+        className="mt-5 inline-flex rounded-[10px] bg-brand-600 px-5 py-2.5 text-[14px] font-bold text-white"
+      >
+        {copy.openForm}
+      </ExternalLink>
     </div>
   );
 }

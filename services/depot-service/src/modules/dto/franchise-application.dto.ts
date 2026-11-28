@@ -243,6 +243,12 @@ export class PurgeRejectedResponseDto {
   deleted!: number;
 }
 
+/** HD-22: where the partner form lives now; null while /waralaba keeps its own form. */
+export class LeadFormResponseDto {
+  @ApiProperty({ type: String, nullable: true, example: 'https://ai.hydromart-digital.com/daftar-mitra' })
+  url!: string | null;
+}
+
 /** HD-6 H5: the window `[from, to)` an application summary is asked for, at most a leap year. */
 export class ApplicationSummaryQueryDto {
   @ApiProperty({ type: String, format: 'date-time' })

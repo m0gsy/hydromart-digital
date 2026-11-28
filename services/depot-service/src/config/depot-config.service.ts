@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BUSINESS_TIME_ZONE, SettingsCache } from '@hydromart/platform';
 
@@ -14,11 +14,19 @@ export interface VisitS3Settings {
 }
 
 @Injectable()
-export class DepotConfigService {
+export class DepotConfigService implements OnModuleInit {
   constructor(
     private readonly config: ConfigService,
     private readonly settings: SettingsCache,
   ) {}
+
+  /** HD-22: a typo in FRANCHISE_LEAD_FORM_URL must never stop the service; say so once, key only. */
+  onModuleInit(): void {
+    const raw = this.config.get<string>('FRANCHISE_LEAD_FORM_URL', '').trim();
+    if (raw && !this.franchiseLeadFormUrl) {
+      new Logger(DepotConfigService.name).warn('FRANCHISE_LEAD_FORM_URL is not a valid https URL; the /waralaba cutover stays off');
+    }
+  }
 
   private num(key: string): number {
     return Number(this.config.getOrThrow(key));
@@ -58,6 +66,14 @@ export class DepotConfigService {
   // Low-stock alerting (optional). Both blank in dev = feature off (no alert emitted).
   get crmServiceUrl(): string {
     return this.config.get<string>('CRM_SERVICE_URL', '');
+  }
+  /**
+   * HD-22: where prospective partners apply now (the AI web form). Blank or anything that is
+   * not an https URL = null = /waralaba keeps its own form, exactly as before.
+   */
+  get franchiseLeadFormUrl(): string | null {
+    const url = this.config.get<string>('FRANCHISE_LEAD_FORM_URL', '').trim();
+    return /^https:\/\/[^\s]+$/i.test(url) ? url : null;
   }
   get alertPhone(): string {
     return this.config.get<string>('DEPOT_ALERT_PHONE', '');

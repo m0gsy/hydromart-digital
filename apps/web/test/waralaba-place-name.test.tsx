@@ -3,10 +3,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { post } = vi.hoisted(() => ({ post: vi.fn() }));
+// HD-22: the page asks where the form lives first; null = the in-app form.
+const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn().mockResolvedValue({ url: null }) }));
 
 vi.mock('@/lib/api', () => ({
-  api: { post },
+  api: { post, get },
   ApiError: class ApiError extends Error {},
 }));
 vi.mock('@/lib/locale-context', () => ({ useT: () => ({ locale: 'id', t: (k: string) => k }) }));
@@ -21,6 +22,7 @@ import { franchise } from '@/lib/dictionaries/id/franchise';
 async function fill(city: string, province = 'Jawa Barat') {
   const u = userEvent.setup();
   render(<FranchiseApplicationPage />);
+  await screen.findByRole('checkbox');
   const type = async (id: string, v: string) => {
     const el = document.getElementById(id) as HTMLInputElement;
     await u.clear(el);

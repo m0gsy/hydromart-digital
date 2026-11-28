@@ -183,6 +183,8 @@ export const admin = {
   franchiseApps: {
     // Public (no token) and throttled to 3/hour per IP by depot-service.
     submit: '/depots/api/v1/franchise-applications',
+    // HD-22: public; { url: string | null } = the AI web partner form when the cutover is on.
+    leadForm: '/depots/api/v1/franchise-applications/lead-form',
     list: (q: { page?: number; limit?: number; stage?: string } = {}) => {
       const p = new URLSearchParams();
       if (q.page) p.set('page', String(q.page));
