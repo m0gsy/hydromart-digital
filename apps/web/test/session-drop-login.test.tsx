@@ -59,7 +59,12 @@ beforeEach(() => {
   replace.mockReset();
   store.hasStoredSession.mockReset().mockReturnValue(false);
   store.hasTokens.mockReset().mockReturnValue(true);
-  store.retryUnlock.mockClear();
+  // Like the real one: a retry forgets the dismissal at once, so a stray form submit right after
+  // the click would no longer be stopped by the confirm, and would send the SMS.
+  store.retryUnlock.mockReset().mockImplementation(() => {
+    store.hasStoredSession.mockReturnValue(false);
+    return Promise.resolve();
+  });
 });
 afterEach(cleanup);
 
@@ -99,6 +104,9 @@ describe('/login', () => {
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect(loginBody()).toMatchObject({ sessionDrop: 'stored_skipped' });
     expect(localStorage.getItem(MARKER)).toBe('stored_skipped');
+    // One SMS, and the question does not come back over the request it just sent.
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Tetap pakai kode SMS' })).toBeNull();
   });
 
   it('"Buka sesi" opens the stored session and spends no SMS', async () => {
@@ -138,10 +146,13 @@ describe('/hq/login (staff)', () => {
     await waitFor(() => expect(store.retryUnlock).toHaveBeenCalledTimes(1));
     expect(post).not.toHaveBeenCalled();
 
+    store.hasStoredSession.mockReturnValue(true); // the prompt was dismissed again
     fireEvent.submit(screen.getByPlaceholderText('81234567890').closest('form')!);
     fireEvent.click(await screen.findByRole('button', { name: 'Tetap pakai kode SMS' }));
     await waitFor(() => expect(post).toHaveBeenCalled());
     expect(loginBody()).toMatchObject({ audience: 'STAFF', sessionDrop: 'stored_skipped' });
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Tetap pakai kode SMS' })).toBeNull();
   });
 });
 

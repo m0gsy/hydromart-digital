@@ -88,11 +88,20 @@ async function readWithRetry(): Promise<VaultRead> {
   return vaultRead();
 }
 
-async function writeWithRetry(value: string): Promise<void> {
+/**
+ * Bumped by every `setTokens`. A retry that wakes up to a newer number stands down: the vault now
+ * belongs to a later write (a rotation or a sign-out), and putting the older token back over it
+ * would leave a refresh token the server has already rotated on disk. Replayed at the next launch,
+ * that is reuse: the whole family is revoked and the user is back on an SMS code.
+ */
+let vaultGeneration = 0;
+
+async function writeWithRetry(value: string, generation: number): Promise<void> {
   try {
     await vaultWrite(value);
   } catch {
     await new Promise((resolve) => setTimeout(resolve, VAULT_RETRY_MS));
+    if (generation !== vaultGeneration) return;
     await vaultWrite(value);
   }
 }
@@ -385,10 +394,12 @@ export function setTokens(next: Tokens | null): void {
   // tracked rather than awaited here — `setTokens` is called from inside a synchronous
   // response handler. `tokensPersisted()` is how the one caller that must not run ahead
   // of the disk waits for it.
-  persisting = (next ? writeWithRetry(JSON.stringify(next)) : vaultClear()).catch(() => {
+  const generation = ++vaultGeneration;
+  persisting = (next ? writeWithRetry(JSON.stringify(next), generation) : vaultClear()).catch(() => {
     // Keystore unavailable: this session still works from memory until the app closes, and the
-    // next launch will find nothing. Say so now, so the SMS that follows can be explained.
-    if (next) noteSessionDrop('vault_write_failed');
+    // next launch will find nothing. Say so now, so the SMS that follows can be explained. Only
+    // the latest write speaks for the vault; an older one that failed was superseded anyway.
+    if (next && generation === vaultGeneration) noteSessionDrop('vault_write_failed');
   });
 }
 

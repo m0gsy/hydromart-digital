@@ -172,6 +172,29 @@ describe('vault write', () => {
     expect(getAccessToken()).toBe('A');
     expect(marker()).toBe('vault_write_failed');
   });
+
+  it('a retry that wakes after a newer write stands down, so a rotated token never goes back on disk', async () => {
+    const dev = install({ stored: null, writeFails: [true] });
+    const { setTokens, tokensPersisted } = await load();
+    setTokens({ accessToken: 'A1', refreshToken: 'R1' });
+    setTokens({ accessToken: 'A2', refreshToken: 'R2' });
+    await tokensPersisted();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(dev.calls.writes).toBe(2);
+    expect(dev.entries.hydromart_session).toContain('"R2"');
+    expect(marker()).toBeNull();
+  });
+
+  it('a retry that wakes after a sign-out stands down, so the phone stays signed out', async () => {
+    const dev = install({ stored: null, writeFails: [true] });
+    const { setTokens, clearTokens } = await load();
+    setTokens({ accessToken: 'A1', refreshToken: 'R1' });
+    clearTokens();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(dev.calls.writes).toBe(1);
+    expect(dev.entries.hydromart_session).toBeNull();
+    expect(marker()).toBeNull();
+  });
 });
 
 describe('refresh', () => {

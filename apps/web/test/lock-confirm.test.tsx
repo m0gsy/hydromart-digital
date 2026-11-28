@@ -16,6 +16,7 @@ const store = vi.hoisted(() => ({
 vi.mock('@/lib/token-store', () => store);
 vi.mock('@/lib/auth-context', () => ({ useAuth: () => ({ customer: null }) }));
 
+import { KeepSessionConfirm } from '@/components/keep-session-confirm';
 import LockScreen from '@/components/session-lock-screen';
 import { LocaleProvider } from '@/lib/locale-context';
 
@@ -62,5 +63,27 @@ describe('lock screen: SMS confirm', () => {
     expect(store.retryUnlock).toHaveBeenCalledTimes(1);
     expect(store.clearTokens).not.toHaveBeenCalled();
     expect(props.onUnlocked).toHaveBeenCalled();
+  });
+});
+
+describe('the confirm inside the login form', () => {
+  it('never submits the form around it, and lands focus on "Buka sesi"', () => {
+    const submitted = vi.fn((e: { preventDefault(): void }) => e.preventDefault());
+    const onOpen = vi.fn();
+    const onSkip = vi.fn();
+    render(
+      <LocaleProvider>
+        <form onSubmit={submitted}>
+          <KeepSessionConfirm onOpen={onOpen} onSkip={onSkip} />
+        </form>
+      </LocaleProvider>,
+    );
+    const open = screen.getByRole('button', { name: 'Buka sesi' });
+    expect(document.activeElement).toBe(open);
+    fireEvent.click(open);
+    fireEvent.click(screen.getByRole('button', { name: 'Tetap pakai kode SMS' }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onSkip).toHaveBeenCalledTimes(1);
+    expect(submitted).not.toHaveBeenCalled();
   });
 });
