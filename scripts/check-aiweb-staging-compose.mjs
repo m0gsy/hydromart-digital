@@ -111,6 +111,7 @@ if (user(env('migrate').DATABASE_URL) !== 'ai_owner') bad('migrate must connect 
 for (const n of ['n8n', 'n8n-setup']) if (env(n).DB_POSTGRESDB_USER !== 'n8n' || env(n).DB_POSTGRESDB_HOST !== 'db') bad(`${n} must connect to db as n8n`);
 if (env('n8n').N8N_SSRF_ALLOWED_HOSTNAMES !== 'aiweb,hydromart-mock') bad('n8n: N8N_SSRF_ALLOWED_HOSTNAMES must be exactly aiweb,hydromart-mock');
 if (env('staging-aiweb').ALERT_WEBHOOK_URL !== 'http://hydromart-mock:9911/alert') bad('staging-aiweb: ALERT_WEBHOOK_URL must be the fake hydromart\'s /alert, never a real channel');
+if (env('staging-aiweb').SITE_MODE !== 'preview') bad('staging-aiweb: SITE_MODE must be the literal preview (noindex, behind the staging password)');
 const host = /^https:\/\/([a-z0-9.-]+)$/.exec(String(env('staging-aiweb').AI_WEB_URL ?? ''))?.[1];
 if (!host) bad('staging-aiweb.AI_WEB_URL must be an https origin');
 for (const [svc, key] of [['staging-aiweb', 'HYDROMART_WEB_URL'], ['staging-aiweb', 'HYDROMART_API_URL'], ['hydromart-mock', 'MOCK_AI_WEB_URL']]) {
