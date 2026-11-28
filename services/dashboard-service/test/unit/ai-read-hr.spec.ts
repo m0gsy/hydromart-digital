@@ -57,6 +57,7 @@ function build(scope: ReadScope = SCOPE, over: Partial<Record<keyof AiOrgSources
     payrollGate: jest.fn(async (ids: readonly string[]): Promise<PayrollGateRow[]> => ids.map((d) => gate(d))),
     payroll: jest.fn(async (ids: readonly string[]) => ids.map((d) => pay(d))),
     kasbon: jest.fn(async (ids: readonly string[]): Promise<KasbonRow[]> => ids.map((depotId) => ({ depotId, people: 4, remainingIdr: 2_500_000 }))),
+    turnover: jest.fn(async (ids: readonly string[]) => ids.map((depotId) => ({ depotId, exits: 0, startHeadcount: 5, endHeadcount: 5 }))),
     ...(over as Record<string, jest.Mock>),
   };
   const depots = { hrSummaryMany: jest.fn(async (ids: string[]) => finished(ids) as unknown[]) };
@@ -347,9 +348,60 @@ describe('HrMetricsService: H-03, H-04, H-05 (finished month, payrollRead)', () 
   });
 });
 
+describe('HrMetricsService: H-07 turnover', () => {
+  const turn = (depotId: string, o: Record<string, number> = {}) => ({ depotId, exits: 1, startHeadcount: 10, endHeadcount: 9, ...o });
+  const withTurnover = (rows: (ids: readonly string[]) => unknown[] | null) => build(SCOPE, { turnover: jest.fn(async (ids: readonly string[]) => rows(ids)) });
+  const h7 = (b: ReturnType<typeof build>, query: Record<string, string> = NOVEMBER, now: Date = CLOSED) => b.ask('H-07', 'SUPER_ADMIN', query, now);
+
+  it('is exits over the average of opening and closing heads, as a total, for a closed month', async () => {
+    const b = withTurnover((ids) => ids.map((d) => turn(d, { exits: 3 })));
+    const out = await h7(b);
+    // 6 exits over (20 + 18) / 2 = 19 heads
+    expect(out).toMatchObject({ status: 'ok', unit: 'persen', value: 31.6, scope: { depotIds: [D1, D2] } });
+    expect(b.sources.turnover).toHaveBeenCalledWith([D1, D2], '2026-11');
+  });
+
+  it('gives a real 0 when nobody left', async () => {
+    const out = await h7(withTurnover((ids) => ids.map((d) => turn(d, { exits: 0 }))));
+    expect(out.value).toBe(0);
+  });
+
+  it('holds back a leaver count or a headcount of 1 or 2 (in the total), never a number', async () => {
+    const one = scopeOf([span(D1, '2026-11-01', '2026-11-30')]);
+    for (const o of [{ exits: 1 }, { exits: 0, startHeadcount: 1 }, { exits: 0, endHeadcount: 2 }] as Record<string, number>[]) {
+      const b = build(one, { turnover: jest.fn(async (ids: readonly string[]) => ids.map((d) => turn(d, o))) });
+      expect(await h7(b)).toMatchObject({ status: 'ditahan', value: null });
+    }
+    // small in one depot but not in the total of the scope: the total is what is published
+    expect((await h7(withTurnover((ids) => ids.map((d, i) => turn(d, i === 0 ? { exits: 1 } : { exits: 2 }))))).status).toBe('ok');
+  });
+
+  it('is belum_ada for an open month, nobody employed, an unreadable source or no readable depot', async () => {
+    const open = await h7(withTurnover((ids) => ids.map((d) => turn(d))), NOVEMBER, new Date('2026-12-07T03:00:00.000Z'));
+    expect(open).toMatchObject({ status: 'belum_ada' });
+    expect(open.reason).toContain('tanggal 8');
+    expect((await h7(withTurnover((ids) => ids.map((d) => turn(d, { exits: 0, startHeadcount: 0, endHeadcount: 0 }))))).status).toBe('belum_ada');
+    expect((await h7(withTurnover(() => null))).status).toBe('belum_ada');
+    const ended = scopeOf([span(D1, '2026-11-01', '2026-11-15')]);
+    expect((await h7(build(ended))).reason).toContain('hari terakhir');
+  });
+
+  it('does not count a leaver without an exit date (hr-service only counts exit days), and says so in the label', async () => {
+    const out = await h7(withTurnover((ids) => ids.map((d) => turn(d, { exits: 0 }))));
+    expect(out.label).toContain('tanpa tanggal keluar tidak dihitung');
+    expect(out.value).toBe(0);
+  });
+
+  it('refuses a period that is not one whole month', async () => {
+    const b = withTurnover((ids) => ids.map((d) => turn(d)));
+    await expect(h7(b, { from: '2026-11-05', to: '2026-11-20' })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(h7(b, { period: 'year', date: '2026-06-01' })).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
 describe('HrMetricsService: the rest', () => {
-  it('answers overtime and turnover belum_ada, whoever asks', async () => {
-    for (const id of ['H-06', 'H-07']) expect(await build().ask(id)).toMatchObject({ status: 'belum_ada', value: null });
+  it('answers overtime belum_ada, whoever asks', async () => {
+    expect(await build().ask('H-06')).toMatchObject({ status: 'belum_ada', value: null });
   });
 
   it('says belum_ada with no readable depot and knows exactly its own ids', async () => {

@@ -72,6 +72,20 @@ export interface OverdueFollowUp {
   findingNote: string | null;
 }
 
+/** AI-21: one depot's visit counts for the AI read API. Counts and one date only: no visitor, note, photo or finding text. */
+export interface AiVisitSummary {
+  depotId: string;
+  /** COMPLETED visits whose completion falls in the window. */
+  completed: number;
+  /** FINDING lines of visits checked in within the window, drafts left out. */
+  findings: number;
+  /** The newest completion of any time, null = never visited. */
+  lastCompletedAt: Date | null;
+  /** Open follow-ups now (overdue ones included) and the overdue part (deadline before `todayKey`). */
+  followUpsOpen: number;
+  followUpsOverdue: number;
+}
+
 export interface VisitRepository {
   /** Creates the visit with its copied lines; a second open visit by the same person at the same depot throws VisitAlreadyOpenError. */
   create(data: NewVisit): Promise<Visit>;
@@ -106,4 +120,6 @@ export interface VisitRepository {
   ): Promise<OverdueFollowUp[]>;
   /** Stamps the follow-ups a reminder went out for. */
   stampOverdueNotice(ids: string[], now: Date): Promise<void>;
+  /** AI-21: counts per asked depot (every one appears, zeros included) for the window `[from, to)`. */
+  aiSummary(depotIds: readonly string[], from: Date, to: Date, todayKey: string): Promise<AiVisitSummary[]>;
 }

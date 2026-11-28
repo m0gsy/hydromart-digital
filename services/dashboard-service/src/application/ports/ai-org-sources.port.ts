@@ -67,6 +67,14 @@ export interface KasbonRow {
   remainingIdr: number;
 }
 
+/** hr-service: exits and opening and closing headcount of a month per depot (H-07). */
+export interface TurnoverRow {
+  depotId: string;
+  exits: number;
+  startHeadcount: number;
+  endHeadcount: number;
+}
+
 /** depot-service: one depot's month targets (HD-16). 0 = not set, never a goal of zero. */
 export interface DepotTargetRow {
   depotId: string;
@@ -92,6 +100,8 @@ export interface AiOrgSourcesPort {
   payrollGate(depotIds: readonly string[], month: string): Promise<PayrollGateRow[] | null>;
   payroll(depotIds: readonly string[], month: string): Promise<PayrollRow[] | null>;
   kasbon(depotIds: readonly string[], month: string): Promise<KasbonRow[] | null>;
+  /** H-07: exits and opening and closing headcount of the month (YYYY-MM), one row per depot asked. */
+  turnover(depotIds: readonly string[], month: string): Promise<TurnoverRow[] | null>;
   /** HD-16: the month targets (YYYY-MM) of the depots named, one row each, in ONE read. */
   depotTargets(depotIds: readonly string[], month: string): Promise<DepotTargetRow[] | null>;
 }

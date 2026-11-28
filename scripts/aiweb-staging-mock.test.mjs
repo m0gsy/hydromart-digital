@@ -841,6 +841,65 @@ test('the read API: targets with no target anywhere are belum_ada, even split by
   }
 });
 
+test('the read API: visits, H-01, H-02, H-07 and the extra money metrics hold the contract (AI-21)', async () => {
+  const mock = await boot({}, () => Date.parse('2026-12-10T03:00:00Z'));
+  try {
+    const hq = await tokenOf(mock, user('HEAD_OFFICE'));
+    const q = (group, metric, rest = '') => get(mock, `${READ_PATH}/${group}?metric=${metric}${rest}`, hq);
+    const month = '&period=month&date=2026-11-10';
+    // V-01 / V-04: plain and split, total = sum
+    for (const m of ['V-01', 'V-04']) {
+      const plain = await (await q('visits', m, month)).json();
+      assertEnvelope(plain, 'visits', m);
+      const split = await (await q('visits', m, `${month}&split=depot`)).json();
+      assert.equal(split.value.total, plain.value);
+      assert.deepEqual([...splitOf(split).keys()], FAKE_DEPOTS);
+    }
+    // V-02: only per depot, null = never visited; V-03: totals and per depot
+    const v2none = await (await q('visits', 'V-02')).json();
+    assert.equal(v2none.status, 'belum_ada');
+    const v2 = await (await q('visits', 'V-02', '&split=depot')).json();
+    assertEnvelope(v2, 'visits', 'V-02');
+    assert.equal(v2.value.byDepot.at(-1).days, null);
+    const v3 = await (await q('visits', 'V-03', '&split=depot')).json();
+    assert.deepEqual(v3.value.byDepot.map((r) => r.depotId), FAKE_DEPOTS);
+    assert.equal(v3.value.overdue, v3.value.byDepot.reduce((a, r) => a + r.overdue, 0));
+    // a role outside the visits group is refused; a depot-bound supervisor sees its own depot
+    for (const role of ['FINANCE', 'HR', 'MARKETING', 'STAFF_DEPOT']) {
+      const res = await get(mock, `${READ_PATH}/visits?metric=V-01`, await tokenOf(mock, user(role)));
+      assert.equal(res.status, 200);
+      const held = await res.json();
+      assertEnvelope(held, 'visits', 'V-01');
+      assert.equal(held.status, 'ditahan');
+      assert.equal(held.value, null);
+      assert.ok(held.reason);
+    }
+    const mine = await (await get(mock, `${READ_PATH}/visits?metric=V-03&split=depot`, await tokenOf(mock, user('SUPERVISOR')))).json();
+    assert.equal(mine.value.byDepot.length, 1);
+    // H-01 holds the depot of 2 and a neighbour; H-07 a plain percent, held for a group of 2
+    const h1 = await (await q('hr', 'H-01', '&date=2026-12-10')).json();
+    assertEnvelope(h1, 'hr', 'H-01');
+    assert.deepEqual(h1.value.byDepot.map((r) => r.flag), [undefined, undefined, 'ditahan', 'kurang dari 3']);
+    const h7 = await (await q('hr', 'H-07', month)).json();
+    assertEnvelope(h7, 'hr', 'H-07');
+    assert.equal(h7.value, 10.3);
+    assert.equal((await q('hr', 'H-07', `${month}&split=depot`)).status, 400);
+    const h2 = await (await q('hr', 'H-02', month)).json();
+    assert.equal(h2.value.rate.status, 'ok');
+    const open = await (await q('hr', 'H-07', '&period=month&date=2026-12-01')).json();
+    assert.equal(open.status, 'belum_ada');
+    // money extras: ditahan L-07, belum_ada L-08, split only where the contract says
+    assert.equal((await (await q('money', 'L-07', month)).json()).status, 'ditahan');
+    assert.equal((await (await q('money', 'L-08', month)).json()).status, 'belum_ada');
+    assert.equal(typeof (await (await q('money', 'L-06', month)).json()).value, 'number');
+    assertEnvelope(await (await q('money', 'U-04', `${month}&split=depot`)).json(), 'money', 'U-04');
+    assert.equal((await q('money', 'P-03', `${month}&split=depot`)).status, 400);
+    assert.equal((await q('money', 'P-03', month)).status, 200);
+  } finally {
+    await mock.close();
+  }
+});
+
 test('the read API: refusals use the contract shape (401, 403, 404, 400)', async () => {
   const mock = await boot();
   try {

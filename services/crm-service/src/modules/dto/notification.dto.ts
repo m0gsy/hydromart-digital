@@ -296,6 +296,7 @@ export const AI_ACCESS_GROUPS = [
   'customers',
   'delivery',
   'gallons',
+  'visits',
 ] as const;
 export type AiAccessGroup = (typeof AI_ACCESS_GROUPS)[number];
 

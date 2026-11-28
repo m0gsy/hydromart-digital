@@ -11,6 +11,7 @@ import {
   KasbonDepotRow,
   PayrollDepotRow,
   PayrollGateRow,
+  TurnoverDepotRow,
 } from '../application/ports/ai-read.repository';
 import { AiAttendanceQueryDto, AiAttendanceResponseDto, AiMonthQueryDto } from './dto/ai-read.dto';
 
@@ -53,5 +54,12 @@ export class AiReadInternalController {
   @ApiOperation({ summary: 'What is still owed on active kasbon through a month per depot (internal)' })
   kasbon(@Query() q: AiMonthQueryDto): Promise<KasbonDepotRow[]> {
     return this.repo.kasbon(q.depotIds, q.month);
+  }
+
+  @ApiOkResponse({ description: 'One row per depot asked for.' })
+  @Get('turnover')
+  @ApiOperation({ summary: 'Exits and opening and closing headcount of a month per depot (internal)' })
+  turnover(@Query() q: AiMonthQueryDto): Promise<TurnoverDepotRow[]> {
+    return this.repo.turnover(q.depotIds, q.month);
   }
 }

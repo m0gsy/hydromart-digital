@@ -154,6 +154,7 @@ describe('VisitService', () => {
     overdueCounts: jest.fn(),
     overdueToRemind: jest.fn(),
     stampOverdueNotice: jest.fn(),
+    aiSummary: jest.fn(),
   };
   const notifier = { notify: jest.fn() };
   const depots = { findById: jest.fn(), findManyByIds: jest.fn(), search: jest.fn() };
@@ -712,6 +713,27 @@ describe('VisitService', () => {
       await expect(svc.closeFollowUp(ITEM1, 'x', supervisor())).rejects.toBeInstanceOf(VisitItemNotFoundError);
     });
 
+    it('AI summary: asks the repository for the WIB day and turns the last completion into a WIB day', async () => {
+      const row = { depotId: DEPOT, completed: 2, findings: 1, followUpsOpen: 3, followUpsOverdue: 1 };
+      repo.aiSummary.mockResolvedValue([
+        { ...row, lastCompletedAt: new Date('2026-11-27T17:30:00.000Z') },
+        { ...row, depotId: DEPOT2, lastCompletedAt: null },
+      ]);
+      const from = new Date('2026-10-31T17:00:00.000Z');
+      const to = new Date('2026-11-30T17:00:00.000Z');
+      await expect(svc.aiSummary([DEPOT, DEPOT2], from, to, AFTER_MIDNIGHT)).resolves.toEqual([
+        { ...row, lastCompletedOn: '2026-11-28' },
+        { ...row, depotId: DEPOT2, lastCompletedOn: null },
+      ]);
+      expect(repo.aiSummary).toHaveBeenCalledWith([DEPOT, DEPOT2], from, to, '2026-11-28');
+    });
+
+    it('AI summary: defaults to the present moment', async () => {
+      repo.aiSummary.mockResolvedValue([]);
+      await expect(svc.aiSummary([DEPOT], new Date(0), new Date(1))).resolves.toEqual([]);
+      expect(repo.aiSummary).toHaveBeenCalledWith([DEPOT], new Date(0), new Date(1), expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+    });
+
     it('counts overdue follow-ups against the WIB day', async () => {
       repo.overdueCounts.mockResolvedValue({ depots: 2, items: 5 });
       await expect(svc.overdueSweep(AFTER_MIDNIGHT)).resolves.toEqual({ depots: 2, items: 5, notified: 0 });
@@ -885,6 +907,21 @@ describe('VisitInternalController', () => {
     expect(Reflect.getMetadata('path', handler)).toBe('overdue-sweep');
     expect(Reflect.getMetadata('__guards__', handler).map((g: { name: string }) => g.name)).toEqual(['InternalAuthGuard']);
     expect(Reflect.getMetadata(CAPABILITY_KEY, handler)).toBeUndefined();
+  });
+});
+
+describe('VisitInternalController AI summary', () => {
+  it('answers the service rows under items, GET ai-summary, internal key only', async () => {
+    const svc = { aiSummary: jest.fn().mockResolvedValue([{ depotId: DEPOT }]) };
+    const controller = new VisitInternalController(svc as never);
+    await expect(
+      controller.aiSummary({ depotIds: `${DEPOT},${DEPOT2}`, from: '2026-10-31T17:00:00.000Z', to: '2026-11-30T17:00:00.000Z' }),
+    ).resolves.toEqual({ items: [{ depotId: DEPOT }] });
+    expect(svc.aiSummary).toHaveBeenCalledWith([DEPOT, DEPOT2], new Date('2026-10-31T17:00:00.000Z'), new Date('2026-11-30T17:00:00.000Z'));
+    const handler = VisitInternalController.prototype.aiSummary;
+    expect(Reflect.getMetadata('method', handler)).toBe(0); // GET
+    expect(Reflect.getMetadata('path', handler)).toBe('ai-summary');
+    expect(Reflect.getMetadata('__guards__', handler).map((g: { name: string }) => g.name)).toEqual(['InternalAuthGuard']);
   });
 });
 

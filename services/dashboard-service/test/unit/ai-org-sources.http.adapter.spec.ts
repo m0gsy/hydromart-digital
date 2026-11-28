@@ -162,6 +162,15 @@ describe('AiOrgSourcesHttpAdapter (HD-6 H5)', () => {
     answer([]);
     await expect(adapter().kasbon([D1], '2026-11')).resolves.toBeNull();
 
+    // H-07: exits and opening and closing heads of the month
+    const turn = { depotId: D1, exits: 1, startHeadcount: 10, endHeadcount: 9 };
+    const tn = answer([turn]);
+    await expect(adapter().turnover([D1], '2026-11')).resolves.toEqual([turn]);
+    expect(tn[0].url.pathname).toBe('/api/v1/hr-reports/internal/ai/turnover');
+    expect(tn[0].url.searchParams.get('month')).toBe('2026-11');
+    answer([{ ...turn, endHeadcount: undefined }]);
+    await expect(adapter().turnover([D1], '2026-11')).resolves.toBeNull();
+
     // HD-16: the month targets of every depot asked, in one read
     const tgt = { depotId: D1, revenueTargetIdr: 5, ordersTarget: 1, newCustomersTarget: 2, gallonsTarget: 3 };
     const t = answer([tgt]);
@@ -178,6 +187,7 @@ describe('AiOrgSourcesHttpAdapter (HD-6 H5)', () => {
     await expect(adapter(false).attendance([D1], '2026-11-01', '2026-11-30')).resolves.toBeNull();
     await expect(adapter(false).payroll([D1], '2026-11')).resolves.toBeNull();
     await expect(adapter(false).kasbon([D1], '2026-11')).resolves.toBeNull();
+    await expect(adapter(false).turnover([D1], '2026-11')).resolves.toBeNull();
     expect(off).toHaveLength(0);
   });
 });

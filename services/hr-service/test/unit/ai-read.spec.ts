@@ -287,6 +287,50 @@ describe('AiReadPrismaRepository.kasbon (HD-6 H5)', () => {
   });
 });
 
+describe('AiReadPrismaRepository.turnover (H-07)', () => {
+  const e = (depotId: string | null, joinDate: string, exitDate: string | null, homeDepotId: string | null = null) => ({
+    depotId,
+    homeDepotId,
+    joinDate: day(joinDate),
+    exitDate: exitDate ? day(exitDate) : null,
+  });
+
+  it('counts exits and opening and closing heads per home depot, every asked depot present', async () => {
+    const { prisma, repo } = setup();
+    prisma.employee.findMany.mockResolvedValue([
+      e(D1, '2025-01-01', null), // there all month
+      e(D1, '2025-01-01', '2026-11-10'), // left in the month
+      e(D1, '2026-11-05', null), // joined in the month: not in the opening heads
+      e(D1, '2026-11-02', '2026-11-20'), // joined and left in the month
+      e(D2, '2025-01-01', '2026-12-05'), // leaves later: still there at the end
+      e(D2, '2025-01-01', null, D1), // lent to D2, belongs to D1
+      e('99999999-9999-4999-8999-999999999999', '2025-01-01', null), // not asked
+      e(null, '2025-01-01', null), // above any depot
+    ]);
+    expect(await repo.turnover([D1, D2], '2026-11')).toEqual([
+      { depotId: D1, exits: 2, startHeadcount: 3, endHeadcount: 3 },
+      { depotId: D2, exits: 0, startHeadcount: 1, endHeadcount: 1 },
+    ]);
+    const where = prisma.employee.findMany.mock.calls[0][0].where;
+    expect(where.joinDate).toEqual({ lte: new Date('2026-11-30T00:00:00Z') });
+    expect(where.OR).toEqual([{ exitDate: { gte: new Date('2026-11-01T00:00:00Z') } }, { exitDate: null, status: 'ACTIVE' }]);
+  });
+
+  it('does not count a RESIGNED employee without an exit date as an exit', async () => {
+    const { prisma, repo } = setup();
+    // the query keeps only ACTIVE people with no exit day, so such a leaver never reaches the count
+    prisma.employee.findMany.mockResolvedValue([e(D1, '2025-01-01', null)]);
+    expect(await repo.turnover([D1], '2026-11')).toEqual([{ depotId: D1, exits: 0, startHeadcount: 1, endHeadcount: 1 }]);
+    expect(prisma.employee.findMany.mock.calls[0][0].where.OR).toContainEqual({ exitDate: null, status: 'ACTIVE' });
+  });
+
+  it('refuses more people than it will walk', async () => {
+    const { prisma, repo } = setup();
+    prisma.employee.findMany.mockResolvedValue(new Array(MAX_AI_READ_GROUPS + 1).fill(e(D1, '2025-01-01', null)));
+    await expect(repo.turnover([D1], '2026-11')).rejects.toBeInstanceOf(UnprocessableEntityException);
+  });
+});
+
 describe('AiReadInternalController and its DTOs (HD-6 H5)', () => {
   it('hands the depots and the window to the repository', async () => {
     const repo = {
@@ -294,16 +338,19 @@ describe('AiReadInternalController and its DTOs (HD-6 H5)', () => {
       payroll: jest.fn().mockResolvedValue([]),
       payrollGate: jest.fn().mockResolvedValue([]),
       kasbon: jest.fn().mockResolvedValue([]),
+      turnover: jest.fn().mockResolvedValue([]),
     };
     const c = new AiReadInternalController(repo as never);
     await c.attendance({ depotIds: [D1], from: '2026-11-01', to: '2026-11-30' });
     await c.payroll({ depotIds: [D1], month: '2026-11' });
     await c.payrollGate({ depotIds: [D1], month: '2026-11' });
     await c.kasbon({ depotIds: [D1], month: '2026-11' });
+    await c.turnover({ depotIds: [D1], month: '2026-11' });
     expect(repo.attendance).toHaveBeenCalledWith([D1], '2026-11-01', '2026-11-30');
     expect(repo.payroll).toHaveBeenCalledWith([D1], '2026-11');
     expect(repo.payrollGate).toHaveBeenCalledWith([D1], '2026-11');
     expect(repo.kasbon).toHaveBeenCalledWith([D1], '2026-11');
+    expect(repo.turnover).toHaveBeenCalledWith([D1], '2026-11');
   });
 
   it('takes 1 to 100 depot ids, an ordered window of at most 366 days, and a real month', async () => {

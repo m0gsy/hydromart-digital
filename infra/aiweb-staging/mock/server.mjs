@@ -19,7 +19,7 @@
 //   POST /crm/api/v1/notifications/external/sales-weekly-ready   n8n's Monday weekly Sales report trigger (AI-26)
 //   POST /crm/api/v1/notifications/external/ai-agent-notice   n8n's relay of an AI agent event (AI-31)
 //   POST /crm/api/v1/notifications/external/ai-lead-notice   n8n's relay of a public form lead or its SLA reminder (AI-14)
-//   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers|targets   the read API: made-up numbers
+//   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers|targets|hr|visits   the read API: made-up numbers
 //                                       derived from the date; a depot-bound person sees one depot
 //   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
 //   GET  /depot/api/v1/ai/crm/legacy-applications , /auth/api/v1/ai/crm/pic-candidates   fake applicants and PIC candidates (HD-21)
@@ -145,7 +145,12 @@ function bounds(unit, date) {
 }
 // What each read route serves: metric -> unit, as the contract's x-metrics names it.
 const READ = {
-  money: { 'P-01': 'Rp', 'P-07': 'pesanan' },
+  money: {
+    'P-01': 'Rp', 'P-07': 'pesanan', 'P-02': 'Rp', 'P-03': 'Rp', 'U-01': 'Rp', 'U-02': 'Rp, transaksi', 'U-04': 'Rp', 'U-05': 'Rp',
+    'L-06': 'Rp', 'L-07': 'Rp', 'L-08': 'persen', 'L-09': 'Rp',
+  },
+  hr: { 'H-01': 'orang', 'H-02': 'hari', 'H-07': 'persen' },
+  visits: { 'V-01': 'kunjungan', 'V-02': 'hari', 'V-03': 'tindak lanjut', 'V-04': 'temuan' },
   gallons: { 'G-01': 'galon' },
   customers: { 'C-01': 'orang' },
   targets: { 'T-01': 'Rp', 'T-02': 'galon', 'T-03': 'pesanan' },
@@ -153,7 +158,17 @@ const READ = {
 // A target metric and the metric that measures it (T-03 is P-07 here: the mock has no P-04).
 const TARGET_BASE = { 'T-01': 'P-01', 'T-02': 'G-01', 'T-03': 'P-07' };
 const READ_UNITS = new Set(['day', 'week', 'month', 'year']);
-const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 'customers', 'delivery', 'gallons'];
+// AI-21: the metrics a mock answer builds itself (see extraRoute), and the ones that may be split by depot.
+const EXTRA = new Set(
+  Object.keys(READ.hr).map((m) => `hr:${m}`).concat(
+    Object.keys(READ.visits).map((m) => `visits:${m}`),
+    ['P-02', 'P-03', 'U-01', 'U-02', 'U-04', 'U-05', 'L-06', 'L-07', 'L-08', 'L-09'].map((m) => `money:${m}`),
+  ),
+);
+const SPLITTABLE = new Set(['U-02', 'U-04', 'U-05', 'V-01', 'V-02', 'V-03', 'V-04']);
+// The role x data group matrix, as far as the mock goes: visits are for the people who run depots and above.
+const VISIT_ROLES = new Set(['KEPALA_DEPOT', 'ASSISTANT_SUPERVISOR', 'SUPERVISOR', 'MANAGER', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN']);
+const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 'customers', 'delivery', 'gallons', 'visits'];
 const ACCESS_KEYS = new Set(['eventId', 'requesterAccountId', 'legalEntityIds', 'group']);
 const MACHINE_SCOPES = [
   'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
@@ -519,7 +534,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     if (claims.aud !== 'hydromart-ai' || claims.role === 'FRANCHISE_OWNER') {
       return { fail: [403, errorBody(403, 'FORBIDDEN', 'This token may not read this.')] };
     }
-    return { depots: claims.depotId ? fixtures.depots.filter((d) => d.id === claims.depotId) : fixtures.depots };
+    return { role: claims.role, depots: claims.depotId ? fixtures.depots.filter((d) => d.id === claims.depotId) : fixtures.depots };
   }
   const todayWib = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(now());
 
@@ -553,8 +568,16 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     const metric = q.get('metric');
     if (!metric) return bad('metric is required');
     const unitName = READ[group][metric];
-    if (!unitName) return [404, errorBody(404, 'NOT_FOUND', 'Not a metric of this group (staging answers P-01, P-07, G-01, C-01 and T-01 to T-03).')];
+    if (!unitName) return [404, errorBody(404, 'NOT_FOUND', 'Not a metric of this group (staging answers only the metrics its fixtures cover).')];
     const split = q.get('split');
+    if (EXTRA.has(`${group}:${metric}`)) {
+      if (split !== null && (split !== 'depot' || !SPLITTABLE.has(metric))) return bad('this metric cannot be split like that');
+      // As the real route: a role that may not read visits gets the held envelope, not a 403.
+      if (group === 'visits' && !VISIT_ROLES.has(who.role)) {
+        return [200, envelope(depots, unit, date, { metricId: metric, unit: READ.visits[metric], value: null, status: 'ditahan', reason: 'Data kunjungan hanya untuk peran yang boleh membaca kunjungan supervisor.' })];
+      }
+      return extraRoute(group, metric, depots, unit, date, split !== null, bad);
+    }
     if (split !== null && (split !== 'depot' || group === 'customers')) return bad('this metric cannot be split like that');
     if (metric === 'C-01' && unit !== 'month') return bad('C-01 is a whole month');
     if (group === 'targets') return targetRoute(depots, metric, unit, date, split, bad);
@@ -567,6 +590,131 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     const byDepot = depots.map((d) => ({ depotId: d.id, value: sum(d) }));
     const total = byDepot.reduce((a, v) => a + v.value, 0);
     return [200, envelope(depots, unit, date, { metricId: metric, value: split ? { total, byDepot } : total, unit: unitName })];
+  }
+
+  // AI-21: visits V-01..V-04, HR H-01, H-02 and H-07, and the money metrics the assistants read beyond P-01 and P-07.
+  // Made-up numbers from the fixtures; the rules follow the contract's x-metrics (closed months only for people,
+  // whole months for L-*, groups under 3 held back, V-02 only per depot, a point-in-time metric answers today).
+  function extraRoute(group, metric, depots, unit, date, split, bad) {
+    const today = dayNo(todayWib());
+    const settled = (lastDay) => lastDay + 1 + 7 <= today; // a closed month is answered from the 8th of the next one
+    const out = { metricId: metric, unit: READ[group][metric] };
+    const answer = (u, d, over) => [200, envelope(depots, u, d, { ...out, ...over })];
+    const none = (reason, u = unit, d = date) => answer(u, d, { value: null, status: 'belum_ada', reason });
+    const held = (reason, u = unit, d = date) => answer(u, d, { value: null, status: 'ditahan', reason });
+    const [from, to] = bounds(unit, date);
+    const people = depots.reduce((a, d) => a + d.people, 0);
+
+    if (group === 'visits') {
+      const count = (d) => {
+        let t = 0;
+        for (let n = from; n <= to; n += 1) if ((n + d.visits.seed) % 5 === 0 && (metric === 'V-01' || n % 2 === 0)) t += 1;
+        return t;
+      };
+      if (metric === 'V-01' || metric === 'V-04') {
+        const byDepot = depots.map((d) => ({ depotId: d.id, value: count(d) }));
+        const total = byDepot.reduce((a, r) => a + r.value, 0);
+        return answer(unit, date, { value: split ? { total, byDepot } : total });
+      }
+      // V-02 and V-03 are about now: the answer is today whatever period was sent.
+      const nowDate = isoOf(today);
+      if (metric === 'V-02') {
+        if (!split) return none('V-02 hanya dijawab per depot (split=depot): satu angka untuk seluruh jaringan tidak berarti apa-apa.', 'day', nowDate);
+        return answer('day', nowDate, { value: { byDepot: depots.map((d) => ({ depotId: d.id, days: d.visits.lastDays })) } });
+      }
+      const total = { open: depots.reduce((a, d) => a + d.visits.open, 0), overdue: depots.reduce((a, d) => a + d.visits.overdue, 0) };
+      const value = split ? { ...total, byDepot: depots.map((d) => ({ depotId: d.id, open: d.visits.open, overdue: d.visits.overdue })) } : total;
+      return answer('day', nowDate, { value });
+    }
+
+    if (group === 'hr') {
+      if (metric === 'H-01') {
+        // Today only. A depot of 1 or 2 is held, then the smallest neighbours until at least 6 people are held.
+        if (unit !== 'day' || date !== isoOf(today)) return none('Karyawan aktif hanya bisa dijawab untuk hari ini; riwayat status karyawan belum disimpan.');
+        const cells = depots.map((d) => ({ depotId: d.id, value: d.people, flag: undefined }));
+        const small = cells.filter((c) => c.value > 0 && c.value < 3);
+        let heldPeople = 0;
+        for (const c of small) {
+          c.flag = 'kurang dari 3';
+          heldPeople += c.value;
+        }
+        const rest = cells.filter((c) => !c.flag && c.value > 0).sort((a, b) => a.value - b.value);
+        while (small.length > 0 && heldPeople < 6 && rest.length > 0) {
+          const next = rest.shift();
+          next.flag = 'ditahan';
+          heldPeople += next.value;
+        }
+        const totalHeld = small.length > 0 && heldPeople < 6;
+        const byDepot = cells.map((c) => (c.flag ? { depotId: c.depotId, value: null, flag: c.flag } : { depotId: c.depotId, value: c.value }));
+        return answer(unit, date, { value: { total: totalHeld ? null : people, ...(totalHeld ? { totalFlag: 'ditahan' } : {}), byDepot } });
+      }
+      if (unit !== 'month' && !(unit === 'year' && metric === 'H-02')) return bad(`${metric} is one whole month`);
+      if (metric === 'H-07' && split) return bad('H-07 is a total');
+      if (!settled(to)) return none('Hanya dijawab untuk bulan yang sudah tutup, mulai tanggal 8 bulan berikutnya, supaya catatan yang terlambat masuk sudah ikut.');
+      if (metric === 'H-07') {
+        const exits = depots.reduce((a, d) => a + d.exits, 0);
+        if (people < 3 || (exits > 0 && exits < 3)) return held('Karyawan di balik angka turnover kurang dari 3; angkanya tidak diberikan.');
+        return answer(unit, date, { value: Math.round((exits / people) * 1000) / 10 });
+      }
+      if (people < 3) return held('Karyawan di balik angka kehadiran kurang dari 3; angkanya tidak diberikan.');
+      const scheduledDays = people * Math.round((to - from + 1) * 0.8);
+      const present = Math.round(scheduledDays * 0.8);
+      const late = Math.round(scheduledDays * 0.06);
+      const leave = Math.round(scheduledDays * 0.04);
+      const absent = scheduledDays - present - late - leave;
+      return answer(unit, date, {
+        value: {
+          present, late, absentRecorded: Math.round(absent / 3), leave, pending: 0, scheduledDays, absent, unscheduledDays: 0,
+          rate: { status: 'ok', value: Math.round(((present + late) / scheduledDays) * 1000) / 10, unit: 'persen' },
+        },
+      });
+    }
+
+    // money
+    const revenue = (d) => {
+      let t = 0;
+      for (let n = from; n <= to; n += 1) t += dayValue(d, 'P-01', n);
+      return t;
+    };
+    const refund = (d) => Math.round(revenue(d) * 0.01);
+    const net = (d) => revenue(d) - refund(d);
+    const totalOf = (f) => depots.reduce((a, d) => a + f(d), 0);
+    if (metric === 'P-02') return answer(unit, date, { value: { refundIdr: totalOf(refund), refundOfCancelledAndVoidOrdersIdr: Math.round(totalOf(refund) / 4) } });
+    if (metric === 'P-03') return answer(unit, date, { value: totalOf(net) });
+    if (metric === 'U-01') {
+      const total = totalOf(net);
+      const cash = Math.round(total * 0.45);
+      const byMethod = { CASH: { amountIdr: cash, count: Math.round(cash / 55_000) }, QRIS: { amountIdr: total - cash, count: Math.round((total - cash) / 60_000) } };
+      return answer(unit, date, { value: { totalIdr: total, byMethod } });
+    }
+    const sumObjects = (list) => {
+      const add = (a, b) => (typeof a === 'number' ? a + b : Object.fromEntries(Object.keys(a).map((k) => [k, add(a[k], b[k])])));
+      return list.reduce(add);
+    };
+    const shapes = {
+      'U-02': (d) => {
+        const idr = Math.round(revenue(d) * 0.03);
+        const count = Math.max(1, Math.round(idr / 60_000));
+        return { totalIdr: idr, count, byMethod: { QRIS: { amountIdr: idr, count } }, byAge: { '0-1': Math.round(idr * 0.5), '2-3': Math.round(idr * 0.3), '4-7': Math.round(idr * 0.2), '8+': 0 } };
+      },
+      'U-04': (d) => {
+        const collected = Math.round(revenue(d) * 0.4);
+        const deposited = Math.round(collected * 0.9);
+        return { collectedIdr: collected, depositedIdr: deposited, undepositedIdr: collected - deposited, expectedIdr: deposited, shortfallIdr: 0, surplusIdr: 0 };
+      },
+      'U-05': (d) => ({ cashIdr: Math.round(revenue(d) * 0.1), shiftVariance: { shifts: 3, shortfallIdr: 15_000, surplusIdr: 0 } }),
+    };
+    if (shapes[metric]) {
+      const one = shapes[metric];
+      const total = sumObjects(depots.map(one));
+      return answer(unit, date, { value: split ? { total, byDepot: depots.map((d) => ({ depotId: d.id, code: d.code, value: one(d) })) } : total });
+    }
+    // L-06..L-09: whole calendar months only.
+    if (unit !== 'month') return bad(`${metric} is a whole month`);
+    if (metric === 'L-06') return answer(unit, date, { value: Math.round(totalOf(revenue) * 0.35), label: 'laba kotor = omzet dikurangi HPP' });
+    if (metric === 'L-07') return held('Gaji bulan ini belum selesai: laba bersih ditahan sampai penggajian selesai.');
+    if (metric === 'L-08') return none('Laba bersih belum bisa dihitung, jadi margin bersih belum ada.');
+    return answer(unit, date, { value: Math.round(totalOf(net) * 0.12), label: 'arus kas bersih, bukan laba' });
   }
 
   // T-01..T-03: one whole month. actual = the base metric's sums, up to today for the running month
@@ -971,7 +1119,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (req.method === 'GET' && path.startsWith('/dashboard/api/v1/ai/read/')) {
         const group = path.slice('/dashboard/api/v1/ai/read/'.length);
-        if (['scope', 'money', 'gallons', 'customers', 'targets'].includes(group)) {
+        if (['scope', 'money', 'gallons', 'customers', 'targets', 'hr', 'visits'].includes(group)) {
           const [status, body] = readRoute(req, group, url.searchParams);
           return send(res, status, body);
         }

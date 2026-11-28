@@ -87,6 +87,16 @@ export interface PayrollGateRow {
   final: number;
 }
 
+/** H-07: heads behind a month's turnover, per depot (the employee's home depot, else the live one). Counts only. */
+export interface TurnoverDepotRow {
+  depotId: string;
+  /** Employees whose exit day falls inside the month. */
+  exits: number;
+  /** Employed on the day before the month began / on its last day. */
+  startHeadcount: number;
+  endHeadcount: number;
+}
+
 export interface AiReadRepository {
   payrollGate(depotIds: readonly string[], month: string): Promise<PayrollGateRow[]>;
   /**
@@ -101,4 +111,6 @@ export interface AiReadRepository {
   payroll(depotIds: readonly string[], month: string): Promise<PayrollDepotRow[]>;
   /** What is still owed through `month` on active loans, counting only APPROVED/PAID payslips. */
   kasbon(depotIds: readonly string[], month: string): Promise<KasbonDepotRow[]>;
+  /** Exits and opening and closing headcount of `month` (`YYYY-MM`). Employed = joined, and not exited (a leaver with no exit day counts only while ACTIVE). */
+  turnover(depotIds: readonly string[], month: string): Promise<TurnoverDepotRow[]>;
 }

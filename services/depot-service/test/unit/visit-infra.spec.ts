@@ -413,6 +413,25 @@ describe('VisitPrismaRepository', () => {
     await expect(repo.overdueCounts('2026-11-28')).resolves.toEqual({ depots: 2, items: 5 });
     expect(visitItem.groupBy.mock.calls[0][0].where.followUpDueOn).toEqual({ lt: new Date('2026-11-28T00:00:00.000Z') });
   });
+
+  it('counts per asked depot, zeros included, and reads only COMPLETED visits and open findings of them', async () => {
+    visit.groupBy
+      .mockResolvedValueOnce([{ depotId: DEPOT, _count: { _all: 4 } }])
+      .mockResolvedValueOnce([{ depotId: DEPOT, _max: { completedAt: new Date('2026-11-20T03:00:00.000Z') } }]);
+    visitItem.groupBy
+      .mockResolvedValueOnce([{ depotId: DEPOT, _count: { _all: 2 } }])
+      .mockResolvedValueOnce([{ depotId: DEPOT, _count: { _all: 3 } }])
+      .mockResolvedValueOnce([{ depotId: DEPOT, _count: { _all: 1 } }]);
+    const from = new Date('2026-10-31T17:00:00.000Z');
+    const to = new Date('2026-11-30T17:00:00.000Z');
+    await expect(repo.aiSummary([DEPOT, 'd2'], from, to, '2026-11-28')).resolves.toEqual([
+      { depotId: DEPOT, completed: 4, findings: 2, lastCompletedAt: new Date('2026-11-20T03:00:00.000Z'), followUpsOpen: 3, followUpsOverdue: 1 },
+      { depotId: 'd2', completed: 0, findings: 0, lastCompletedAt: null, followUpsOpen: 0, followUpsOverdue: 0 },
+    ]);
+    expect(visit.groupBy.mock.calls[0][0].where).toEqual({ depotId: { in: [DEPOT, 'd2'] }, status: 'COMPLETED', completedAt: { gte: from, lt: to } });
+    expect(visitItem.groupBy.mock.calls[0][0].where.visit).toEqual({ status: 'COMPLETED', checkInAt: { gte: from, lt: to } });
+    expect(visitItem.groupBy.mock.calls[2][0].where.followUpDueOn).toEqual({ lt: new Date('2026-11-28T00:00:00.000Z') });
+  });
 });
 
 describe('VISIT_NOTIFY_ENABLED', () => {

@@ -488,6 +488,20 @@ export class VisitService {
     return { ...counts, notified };
   }
 
+  /**
+   * AI-21: visit counts for the AI read API (dashboard-service, internal key), for exactly the depots and
+   * instants given. Counts and the WIB day of the last completion only.
+   */
+  async aiSummary(
+    depotIds: readonly string[],
+    from: Date,
+    to: Date,
+    now: Date = new Date(),
+  ): Promise<{ depotId: string; completed: number; findings: number; lastCompletedOn: string | null; followUpsOpen: number; followUpsOverdue: number }[]> {
+    const rows = await this.visits.aiSummary(depotIds, from, to, localDayKey(now));
+    return rows.map(({ lastCompletedAt, ...r }) => ({ ...r, lastCompletedOn: lastCompletedAt ? localDayKey(lastCompletedAt) : null }));
+  }
+
   private async withPhoto(item: VisitItem): Promise<VisitItemView> {
     let photoUrl: string | null = null;
     if (item.photoKey) {
