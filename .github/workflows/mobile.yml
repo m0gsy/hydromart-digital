@@ -299,6 +299,8 @@ jobs:
       - name: Export both binaries
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
+          # HD-19: the AI web origin behind the Ops "Tanya AI" entry (inlined; blank hides it).
+          NEXT_PUBLIC_AI_WEB_URL: ${{ vars.AI_WEB_URL || 'https://ai.hydromart-digital.com' }}
           # N2: the APK is a FROZEN export — whatever is inlined here is what the binary
           # reports with for its whole life on a device. No DSN means no reporter at all,
           # which is the state every shipped build has been in.
@@ -534,6 +536,8 @@ jobs:
       - name: Export both binaries
         env:
           NEXT_PUBLIC_API_URL: ${{ vars.MOBILE_API_URL }}
+          # HD-19: the AI web origin behind the Ops "Tanya AI" entry (inlined; blank hides it).
+          NEXT_PUBLIC_AI_WEB_URL: ${{ vars.AI_WEB_URL || 'https://ai.hydromart-digital.com' }}
           # N2: the APK is a FROZEN export — whatever is inlined here is what the binary
           # reports with for its whole life on a device. No DSN means no reporter at all,
           # which is the state every shipped build has been in.

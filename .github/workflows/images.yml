@@ -163,3 +163,4 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ vars.PUBLIC_API_URL }}
             NEXT_PUBLIC_SENTRY_DSN=${{ vars.SENTRY_DSN_WEB }}
             NEXT_PUBLIC_SENTRY_ENV=${{ vars.SENTRY_ENVIRONMENT || 'production' }}
+            NEXT_PUBLIC_AI_WEB_URL=${{ vars.AI_WEB_URL || 'https://ai.hydromart-digital.com' }}
