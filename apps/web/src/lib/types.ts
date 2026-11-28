@@ -936,6 +936,9 @@ export type NotificationEvent =
   | 'REFUND_REQUESTED'
   // AI-5: raised by n8n, to the accounts that may review franchise applications.
   | 'FRANCHISE_APPLICATION_SUBMITTED'
+  // HD-12: WhatsApp number 1 near / at a monthly cap, for the accounts that read its cost.
+  | 'WA_CAP_WARNING'
+  | 'WA_CAP_REACHED'
   // AI-9: the Direksi morning summary, one row per recipient.
   | 'MORNING_SUMMARY'
   // AI-7c: someone asks for AI web access, one row per person who can grant it.
@@ -1013,6 +1016,8 @@ export const OPS_EVENTS = [
   'EXPENSE_CLAIM_SUBMITTED',
   'REFUND_REQUESTED',
   'FRANCHISE_APPLICATION_SUBMITTED',
+  'WA_CAP_WARNING',
+  'WA_CAP_REACHED',
   'MORNING_SUMMARY',
   'AI_ACCESS_REQUESTED',
   'MAINTENANCE_DUE',

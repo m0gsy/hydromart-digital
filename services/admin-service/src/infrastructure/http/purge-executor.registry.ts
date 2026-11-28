@@ -31,6 +31,11 @@ const REMOTE_DATASETS = [
     path: '/api/v1/notifications/internal/purge',
     mode: 'DELETE',
   },
+  // HD-12/HD-13: WhatsApp number 1 (crm). The message log, the webhook dedupe keys, and the consent ledger,
+  // whose purge keeps every number whose newest row is a STOP (do-not-contact).
+  { dataset: 'wa_messages', envKey: 'CRM_SERVICE_URL', path: '/api/v1/whatsapp/internal/purge-messages', mode: 'DELETE' },
+  { dataset: 'wa_inbound_events', envKey: 'CRM_SERVICE_URL', path: '/api/v1/whatsapp/internal/purge-inbound', mode: 'DELETE' },
+  { dataset: 'wa_consents', envKey: 'CRM_SERVICE_URL', path: '/api/v1/whatsapp/internal/purge-consents', mode: 'DELETE' },
   // Proof-of-delivery photos. Delivery used to run its own nightly sweep off a per-depot
   // setting; that setting is gone, so the window lives in exactly one place now.
   {

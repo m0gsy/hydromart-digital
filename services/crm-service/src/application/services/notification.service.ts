@@ -31,6 +31,7 @@ import { DepotStaffPort } from '../ports/depot-staff.port';
 import { NotificationPreferencePort } from '../ports/notification-preference.port';
 import { StaffPrefsPort } from '../ports/staff-prefs.port';
 import { DepotOverseersPort } from '../ports/depot-overseers.port';
+import { WhatsappEnqueuePort } from '../ports/whatsapp-enqueue.port';
 import { PushService } from './push.service';
 import { CRM_TOKENS } from '../tokens';
 
@@ -78,6 +79,10 @@ export class NotificationService {
     @Optional()
     @Inject(CRM_TOKENS.StaffEmail)
     private readonly staffEmail?: StaffEmailPort,
+    // HD-12: WhatsApp number 1, after the inbox row and the push. Optional: absent = the old behaviour.
+    @Optional()
+    @Inject(CRM_TOKENS.WhatsappEnqueue)
+    private readonly whatsapp?: WhatsappEnqueuePort,
   ) {}
 
   /**
@@ -411,12 +416,16 @@ export class NotificationService {
         // A customer who muted push has not suffered a failed delivery — `pushAllowedFor`
         // resolves, nothing is sent, and the row stays SENT. Only a throw lands here.
         .catch(failed);
+      // WhatsApp is additive: the row and the push above are already on their way, and this never throws.
+      void this.whatsapp?.enqueue({ event, customerId, notificationId: record.id, dedupeKey, vars });
     } else if (APPROVER_CAP_FOR_EVENT[event] || (depotId && OPS_EVENTS.includes(event))) {
       // No customer to push to, but a depot whose staff this is for. The preference check
       // above is deliberately NOT applied: it is a customer's mute on their own order
       // updates, not a staff member's opt-out from an incident at the depot they work at.
       this.pushToDepotStaff(event, message, depotId, vars);
     }
+    // The number that received this is no longer the customer's: its WhatsApp consent ends with it.
+    if (event === NotificationEvent.PHONE_CHANGED) void this.whatsapp?.phoneChanged(phone);
     return { record, created };
   }
 

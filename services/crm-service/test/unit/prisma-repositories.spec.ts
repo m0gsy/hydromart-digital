@@ -667,12 +667,18 @@ describe('NotificationPrismaRepository.erasePerson', () => {
   const campaignRecipient = { deleteMany: jest.fn() };
   const webPushSubscription = { deleteMany: jest.fn() };
   const savedSegment = { findMany: jest.fn(), update: jest.fn() };
+  const waMessage = { deleteMany: jest.fn() };
+  const waOptInCode = { deleteMany: jest.fn() };
+  const waConsent = { deleteMany: jest.fn(), updateMany: jest.fn() };
   const $transaction = jest.fn(async (ops: Promise<unknown>[]) => Promise.all(ops));
   const prisma = {
     notification,
     campaignRecipient,
     webPushSubscription,
     savedSegment,
+    waMessage,
+    waOptInCode,
+    waConsent,
     $transaction,
   } as unknown as PrismaService;
   const repo = new NotificationPrismaRepository(prisma);
@@ -683,12 +689,30 @@ describe('NotificationPrismaRepository.erasePerson', () => {
     campaignRecipient.deleteMany.mockResolvedValue({ count: 17 });
     webPushSubscription.deleteMany.mockResolvedValue({ count: 2 });
     savedSegment.findMany.mockResolvedValue([]);
+    waMessage.deleteMany.mockResolvedValue({ count: 0 });
+    waOptInCode.deleteMany.mockResolvedValue({ count: 0 });
+    waConsent.deleteMany.mockResolvedValue({ count: 0 });
+  });
+
+  // HD-12/HD-13: the WhatsApp log and codes go, the grants go, the STOP rows stay but lose the customer link.
+  it('erases the WhatsApp log, codes and grants, and unlinks the STOP rows that stay', async () => {
+    waMessage.deleteMany.mockResolvedValue({ count: 4 });
+    waOptInCode.deleteMany.mockResolvedValue({ count: 1 });
+    waConsent.deleteMany.mockResolvedValue({ count: 2 });
+    expect(await repo.erasePerson('cust-1', '0812345678901')).toBe(3052 + 7);
+    const match = [{ customerId: 'cust-1' }, { phone: '62812345678901' }];
+    expect(waMessage.deleteMany).toHaveBeenCalledWith({ where: { OR: match } });
+    expect(waOptInCode.deleteMany).toHaveBeenCalledWith({
+      where: { OR: [{ customerId: 'cust-1' }, { usedPhone: '62812345678901' }] },
+    });
+    expect(waConsent.deleteMany).toHaveBeenCalledWith({ where: { granted: true, OR: match } });
+    expect(waConsent.updateMany).toHaveBeenCalledWith({ where: { customerId: 'cust-1' }, data: { customerId: null } });
   });
 
   it('matches on id OR phone, in one transaction, and totals the rows', async () => {
     expect(await repo.erasePerson('cust-1', '+628111')).toBe(3052);
 
-    expect($transaction).toHaveBeenCalledTimes(1);
+    expect($transaction).toHaveBeenCalledTimes(2);
     // OR, not AND: a campaign recipient who never registered has a phone and no id, and
     // that is exactly the row the audit counted.
     // CRM-8: every stored spelling of the number is matched.

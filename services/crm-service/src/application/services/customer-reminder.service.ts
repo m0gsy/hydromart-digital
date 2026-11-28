@@ -38,8 +38,9 @@ interface Reminder {
  * and answers counts. Dedupe is the notification's own key, so a retry or a second cron tick sends
  * nothing twice and counts the already-sent as `skipped`.
  *
- * WhatsApp seam: reported `pending` and never faked. Sending there needs the per-number consent of
- * HD-13; when it exists, it belongs right after `notifyOnce` in `run`, for the rows it just created.
+ * WhatsApp: reported `pending` and never faked. `notifyOnce` itself hands the rows it just created to
+ * WhatsApp number 1 (HD-12, opted-in customers, SUBSCRIPTION_TOMORROW and UNPAID_ORDER only), after the
+ * inbox row and the push; this result counts what was filed, not what Meta accepted.
  */
 @Injectable()
 export class CustomerReminderService {

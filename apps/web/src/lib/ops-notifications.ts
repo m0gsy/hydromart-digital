@@ -55,6 +55,9 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   REFUND_REQUESTED: 'orders',
   // AI-5: a prospective franchise partner is a sales lead, and "Sales" is who it is for.
   FRANCHISE_APPLICATION_SUBMITTED: 'sales',
+  // HD-12: a cost cap is a money matter, filed with the approvals.
+  WA_CAP_WARNING: 'orders',
+  WA_CAP_REACHED: 'orders',
   // AI-9: approvals waiting are decisions, the same bucket as the other approval alerts.
   MORNING_SUMMARY: 'orders',
   // AI-7c: a request waiting for a decision, the same bucket.

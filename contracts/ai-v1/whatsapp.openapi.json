@@ -1,0 +1,346 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "hydromart-digital WhatsApp STOP list (number 1 <-> number 2)",
+    "version": "1.0.0",
+    "description": "HD-12/HD-13. WhatsApp number 1 (transaction notifications) lives in hydromart-digital; number 2 (customer service) lives in the AI web. A customer who sends STOP to either must be silent on both, so the two sides keep one STOP list between them. This file is the contract of that sync: the AI web PULLS number 1's rows and PUSHES its own.\n\nAuthentication: a machine token (aud hydromart-machine, ES256) from POST /auth/api/v1/auth/machine/token (auth.openapi.json) whose scopes include waOptOutSync. The AI web's machine account holds it. An ES256 token of any other kind (aud hydromart-ai) and a machine token without the scope are refused with 403. Every POST is recorded in the audit trail BEFORE it runs and refused with 503 when it cannot be recorded; nothing is written then.\n\nWhile WhatsApp is switched off on the hydromart-digital side these routes still answer (the ledger is data), and the AI web may keep polling.\n\nPULLER CONTRACT (read this before writing the poller). `seq` is a database sequence and is NOT commit-ordered: a row with a lower seq can become visible after a row with a higher one was already read, so a puller that trusts its cursor alone can skip a STOP. Therefore: on every poll ask for `after = cursor - 1000` (an overlap window, never below 0), and dedupe what comes back on `id`, which is stable. Move the cursor to `nextAfter` only after every item of the page is stored. Poll every 30-60 seconds; each successful GET also stamps a clock hydromart-digital reads: if the AI web has not called for longer than 180 seconds, hydromart-digital treats the AI web's STOP list as unknown and holds every marketing message (never sends on hope).\n\nOne person, one list: the newest choice across both numbers wins for MARKETING; a STOP on number 1 also ends utility messages on number 1 only.\n\nCompatibility: unknown request fields are refused (400). A field may be added to a response within version 1; removing or renaming one is a new contract version."
+  },
+  "servers": [
+    {
+      "url": "https://api.hydromart-digital.com"
+    }
+  ],
+  "paths": {
+    "/crm/api/v1/whatsapp/opt-outs": {
+      "get": {
+        "summary": "Pull the MARKETING consent rows number 1 wrote (STOP, MULAI, PROMO) after a cursor.",
+        "description": "Rows whose source is not AIWEB, oldest seq first, at most `limit` (default and maximum 500). Phones are digits only, 62..., no plus. Only MARKETING rows are returned (a STOP writes both purposes; the UTILITY rows stay in hydromart-digital, so the AI web never receives who opted in to order messages); `granted` false is a STOP, true is MULAI or PROMO. `nextAfter` is the largest seq in the page (the `after` you sent when the page is empty). See the puller contract above: re-read an overlap window and dedupe on `id`.",
+        "operationId": "whatsappOptOutsPull",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptOutPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: after or limit is not a whole number in range.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one that is not a machine token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token whose scopes do not include waOptOutSync, or an AI-web token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Push the AI web's own number-2 STOP or MULAI (MARKETING only).",
+        "description": "Call it at the moment the customer sends STOP or MULAI on number 2, then again from a retry sweep until it answers 200. Idempotent on `eventId` (use `wa2:<seq>`): a replay answers 200 with the item counted under `duplicates`. `recordedAt` is the moment the customer acted; it orders their choices across both numbers and is never taken from the future. The batch is all or nothing: a phone that is not an Indonesian mobile number refuses the whole call with 400 and writes nothing.",
+        "operationId": "whatsappOptOutsPush",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptOutPush"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Written (or already there).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptOutPushResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: a field is wrong, an unknown field was sent, or a phone is not an Indonesian mobile number.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one that is not a machine token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token whose scopes do not include waOptOutSync, or an AI-web token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the call could not be recorded in the audit trail; nothing was written. Retry the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "machineToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Authorization: Bearer <accessToken> from POST /auth/api/v1/auth/machine/token. ES256, aud hydromart-machine; its scopes claim is the machine account's closed capability list."
+      }
+    },
+    "schemas": {
+      "OptOutItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "seq",
+          "phone",
+          "purpose",
+          "granted",
+          "source",
+          "recordedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable id of the row: the AI web dedupes on it."
+          },
+          "seq": {
+            "type": "integer",
+            "description": "Order of insertion; not commit-ordered (see the puller contract)."
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^62[0-9]{8,14}$"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "MARKETING"
+            ]
+          },
+          "granted": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "APP",
+              "CASHIER_QR",
+              "KEYWORD",
+              "STAFF_REVOKE",
+              "ERASURE"
+            ]
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OptOutPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "nextAfter"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/OptOutItem"
+            }
+          },
+          "nextAfter": {
+            "type": "integer"
+          }
+        }
+      },
+      "OptOutPushItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "phone",
+          "purpose",
+          "granted",
+          "recordedAt"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80,
+            "description": "`wa2:<seq>`: the replay key."
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "Any spelling of an Indonesian mobile number (0812..., +62812..., 62812...)."
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "MARKETING"
+            ]
+          },
+          "granted": {
+            "type": "boolean",
+            "description": "false = STOP, true = MULAI."
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OptOutPush": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/OptOutPushItem"
+            }
+          }
+        }
+      },
+      "OptOutPushResult": {
+        "type": "object",
+        "required": [
+          "accepted",
+          "duplicates"
+        ],
+        "properties": {
+          "accepted": {
+            "type": "integer"
+          },
+          "duplicates": {
+            "type": "integer"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "statusCode",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "statusCode": {
+            "type": "integer"
+          },
+          "code": {
+            "type": "string",
+            "description": "VALIDATION_ERROR, UNAUTHORIZED, FORBIDDEN, RATE_LIMITED or SERVICE_UNAVAILABLE."
+          },
+          "message": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "For people reading logs. Route on statusCode and code."
+          }
+        }
+      }
+    }
+  }
+}

@@ -19,6 +19,7 @@
 //   POST /crm/api/v1/notifications/external/sales-weekly-ready   n8n's Monday weekly Sales report trigger (AI-26)
 //   POST /crm/api/v1/notifications/external/ai-agent-notice   n8n's relay of an AI agent event (AI-31)
 //   POST /crm/api/v1/notifications/external/ai-lead-notice   n8n's relay of a public form lead or its SLA reminder (AI-14)
+//   GET|POST /crm/api/v1/whatsapp/opt-outs   the WhatsApp STOP list the AI web pulls and pushes (HD-12/13): an empty list, items accepted
 //   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers|targets|hr|visits   the read API: made-up numbers
 //                                       derived from the date; a depot-bound person sees one depot
 //   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
@@ -172,7 +173,7 @@ const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 
 const ACCESS_KEYS = new Set(['eventId', 'requesterAccountId', 'legalEntityIds', 'group']);
 const MACHINE_SCOPES = [
   'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
-  'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify',
+  'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify', 'waOptOutSync',
 ];
 export const AGENT_NOTICE_KINDS = ['FLAG', 'CAP_REACHED', 'STOPPED', 'STOPPED_ALL'];
 export const LEAD_NOTICE_KINDS = ['NEW', 'REMIND', 'ESCALATE'];
@@ -468,6 +469,30 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       eventId: b.eventId, city: null, province: null,
     });
     return [200, { recipients: 0, notified: 0, whatsapp: 'pending' }];
+  }
+
+  // HD-12/13: number 1's STOP list. Staging has no customers, so the pull is an empty page and the push is
+  // checked against the contract and counted; the scope is the AI web machine account's `waOptOutSync`.
+  function waOptOuts(req, url, body) {
+    if (!machineAllowed(req, 'waOptOutSync')) return refusedToken();
+    if (req.method === 'GET') {
+      const after = url.searchParams.get('after') ?? '0';
+      const limit = url.searchParams.get('limit') ?? '500';
+      if (!/^[0-9]{1,15}$/.test(after) || !/^[0-9]{1,3}$/.test(limit) || Number(limit) < 1 || Number(limit) > 500) {
+        return [400, errorBody(400, 'VALIDATION_ERROR', ['after and limit must be whole numbers'])];
+      }
+      return [200, { items: [], nextAfter: Number(after) }];
+    }
+    const items = body && typeof body === 'object' && Array.isArray(body.items) ? body.items : null;
+    const valid =
+      items !== null && items.length >= 1 && items.length <= 200 &&
+      items.every((i) => i && typeof i === 'object' &&
+        Object.keys(i).every((k) => ['eventId', 'phone', 'purpose', 'granted', 'recordedAt'].includes(k)) &&
+        typeof i.eventId === 'string' && i.eventId.length >= 1 && i.eventId.length <= 80 &&
+        typeof i.phone === 'string' && i.phone.length <= 32 && i.purpose === 'MARKETING' &&
+        typeof i.granted === 'boolean' && typeof i.recordedAt === 'string' && !Number.isNaN(Date.parse(i.recordedAt)));
+    if (!valid) return [400, errorBody(400, 'VALIDATION_ERROR', ['The items are not what the contract asks for'])];
+    return [200, { accepted: items.length, duplicates: 0 }];
   }
 
   // AI-14's relay of a public form lead (AiLeadNoticeTrigger): ids and place names. Nobody to tell in staging.
@@ -1091,6 +1116,10 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (post && path === '/crm/api/v1/notifications/external/ai-agent-notice') {
         const [status, body] = aiAgentNotice(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if ((post || req.method === 'GET') && path === '/crm/api/v1/whatsapp/opt-outs') {
+        const [status, body] = waOptOuts(req, url, post ? parseJson(raw) : null);
         return send(res, status, body);
       }
       if (post && path === '/crm/api/v1/notifications/external/ai-lead-notice') {

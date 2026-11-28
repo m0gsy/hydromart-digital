@@ -294,7 +294,7 @@ test('n8n: machine token, then the franchise notification, idempotent, validated
     assert.equal(claims.aud, 'hydromart-machine');
     assert.deepEqual(claims.scopes, [
       'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
-      'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify',
+      'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify', 'waOptOutSync',
     ]);
 
     const applicationId = randomUUID();
@@ -527,6 +527,35 @@ test('n8n: the form lead notice needs aiLeadNotify, the contract body and an eve
     const human = await (await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE })).json();
     assert.equal((await send(human.accessToken, notice)).status, 401);
     assert.equal((await send(null, notice)).status, 401);
+  } finally {
+    await mock.close();
+  }
+});
+
+test('the WhatsApp STOP list needs waOptOutSync, the contract paging and the contract body', async () => {
+  const mock = await boot();
+  const wa = contract('whatsapp');
+  const path = '/crm/api/v1/whatsapp/opt-outs';
+  const call = (method, token, body, query = '') =>
+    json(method, mock.base, path + query, body, token ? { authorization: `Bearer ${token}` } : {});
+  try {
+    assert.deepEqual(wa.paths[path].get.security, [{ machineToken: [] }]);
+    assert.deepEqual(wa.paths[path].post.security, [{ machineToken: [] }]);
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    const page = await call('GET', accessToken, undefined, '?after=1000&limit=500');
+    assert.equal(page.status, 200);
+    const body = await page.json();
+    assert.deepEqual(Object.keys(body).sort(), [...wa.components.schemas.OptOutPage.required].sort());
+    assert.equal(body.nextAfter, 1000);
+    for (const q of ['?after=-1', '?limit=0', '?limit=501', '?after=x']) assert.equal((await call('GET', accessToken, undefined, q)).status, 400, q);
+    const item = { eventId: 'wa2:7', phone: '081234567890', purpose: 'MARKETING', granted: false, recordedAt: '2026-11-29T01:00:00.000Z' };
+    const ok = await call('POST', accessToken, { items: [item] });
+    assert.equal(ok.status, 200);
+    assert.deepEqual(Object.keys(await ok.json()).sort(), [...wa.components.schemas.OptOutPushResult.required].sort());
+    for (const bad of [{ items: [] }, { items: [{ ...item, purpose: 'UTILITY' }] }, { items: [{ ...item, extra: 1 }] }, { items: [{ ...item, recordedAt: 'nope' }] }, {}]) {
+      assert.equal((await call('POST', accessToken, bad)).status, 400, JSON.stringify(bad));
+    }
+    assert.equal((await call('GET', null)).status, 401);
   } finally {
     await mock.close();
   }

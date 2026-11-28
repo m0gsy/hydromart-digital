@@ -669,6 +669,17 @@ export const CAPABILITIES = {
    */
   aiAgentNotify: ['SUPER_ADMIN'],
   /*
+   * crm-service (HD-12/HD-13) - WhatsApp number 1. waOptInIssue: the cashier makes the QR code a walk-in
+   * customer scans to opt in (own depot, fenced by the DepotScopeGuard). waCostRead opens /hq/whatsapp and
+   * is who is told when a monthly cap is near; waManage edits caps and rates, the template states and the
+   * kill switch. waOptOutSync is the AI web machine account's (pull and push of the STOP list); only the
+   * machine holds it, so also in CUSTOM_FORBIDDEN.
+   */
+  waOptInIssue: ['KEPALA_DEPOT', 'MANAGER', 'SUPER_ADMIN'],
+  waCostRead: ['FINANCE', 'HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
+  waManage: ['DIREKTUR', 'SUPER_ADMIN'],
+  waOptOutSync: ['SUPER_ADMIN'],
+  /*
    * dashboard-service (AI-31) - read the money family of the AI read API (U-02, U-04, U-05, P-01)
    * across EVERY depot, on a schedule with nobody signed in. Held only by the AI web's own machine
    * account (AIWEB_APP_MACHINE_*, scripts/aiweb-secrets.sh) through its token's scopes, read-only,
@@ -1245,6 +1256,9 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'aiLeadNotify',
   // AI-29/AI-31: the n8n machine account's, same reasoning; and who may switch agents on or change their caps.
   'aiAgentNotify',
+  // HD-12/HD-13: the AI web machine account's STOP-list sync; cost and caps are the owner's side.
+  'waOptOutSync',
+  'waManage',
   'aiReadAgent',
   'aiTeamManage',
   // HD-23: approving a bill sends it to every owner of the entity's depots; generating is n8n's.

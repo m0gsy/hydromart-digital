@@ -65,6 +65,8 @@ export const SWEEP_SCHEDULE: ScheduledSweep[] = [
     label: 'Penugasan lintas depot',
   },
   { job: 'campaigns/internal/process-sending', everyMinutes: 2, label: 'Kampanye terkirim' },
+  // HD-12: answers 200 {off:true} while WhatsApp is switched off, so it reads as a healthy (idle) round.
+  { job: 'whatsapp/internal/process-queue', everyMinutes: 1, label: 'Antrean WhatsApp nomor 1' },
   { job: 'webhooks/deliveries/process', everyMinutes: 5, label: 'Webhook mitra' },
   {
     job: 'reports/internal/daily-sales-broadcast/pagi',

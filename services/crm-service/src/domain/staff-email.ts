@@ -85,6 +85,14 @@ export const STAFF_EMAIL_TEMPLATES: Partial<Record<NotificationEvent, StaffEmail
     subject: 'Tagihan royalti {{month}} dibatalkan',
     body: 'Tagihan royalti {{month}} dibatalkan: {{reason}}. Tagihan pengganti akan dikirim bila ada. Buka tautan di bawah untuk melihatnya.',
   },
+  [NotificationEvent.WA_CAP_WARNING]: {
+    subject: 'WhatsApp nomor 1 mendekati batas bulanan',
+    body: 'WhatsApp nomor 1: {{category}} sudah {{pct}}% dari batas bulan ini ({{used}}/{{cap}}). Buka tautan di bawah untuk melihat biaya dan batasnya.',
+  },
+  [NotificationEvent.WA_CAP_REACHED]: {
+    subject: 'WhatsApp nomor 1 mencapai batas bulanan',
+    body: 'WhatsApp nomor 1: batas {{category}} bulan ini tercapai. Pengiriman WhatsApp berhenti; notifikasi aplikasi tetap jalan. Buka tautan di bawah untuk melihat biayanya.',
+  },
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: {
     subject: 'Lamaran waralaba baru: calon mitra di {{city}}, {{province}}',
     body: 'Lamaran waralaba baru dari calon mitra di {{city}}, {{province}}. Buka tautan di bawah untuk meninjaunya.',

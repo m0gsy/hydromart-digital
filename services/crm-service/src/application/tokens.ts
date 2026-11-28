@@ -32,4 +32,13 @@ export const CRM_TOKENS = {
   // HD-14: which depots are on a quality hold (depot-service).
   HeldDepots: Symbol('HeldDepots'),
   LegalEntityAudience: Symbol('LegalEntityAudience'),
+  // HD-12/HD-13: WhatsApp number 1.
+  WaConsentRepository: Symbol('WaConsentRepository'),
+  WaMessageRepository: Symbol('WaMessageRepository'),
+  WaCapRepository: Symbol('WaCapRepository'),
+  WaTemplateRepository: Symbol('WaTemplateRepository'),
+  WaTransactionRepository: Symbol('WaTransactionRepository'),
+  WhatsappSender: Symbol('WhatsappSender'),
+  // What notifyOnce calls after the inbox row and push: the WhatsApp send path.
+  WhatsappEnqueue: Symbol('WhatsappEnqueue'),
 } as const;

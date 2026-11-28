@@ -117,6 +117,10 @@ export enum NotificationEvent {
   PARTNER_BILL = 'PARTNER_BILL',
   // HD-23: a sent bill was withdrawn; the owners it went to are told why. Tokens: {{month}}, {{reason}}.
   PARTNER_BILL_VOID = 'PARTNER_BILL_VOID',
+  // HD-12: WhatsApp number 1 passed 80% of a monthly cap / reached it. One row for the accounts holding
+  // waCostRead (raised inside crm, not by n8n). Tokens: {{category}}, {{pct}}, {{used}}, {{cap}}.
+  WA_CAP_WARNING = 'WA_CAP_WARNING',
+  WA_CAP_REACHED = 'WA_CAP_REACHED',
   ORDER_CONFIRMED = 'ORDER_CONFIRMED',
   ORDER_ON_DELIVERY = 'ORDER_ON_DELIVERY',
   ORDER_DELIVERED = 'ORDER_DELIVERED',
@@ -295,6 +299,10 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.AI_LEAD_REMIND]: 'Calon mitra dari {{city}} belum dihubungi lewat 2 jam kerja. {{link}}',
   [NotificationEvent.AI_LEAD_ESCALATE]:
     'Calon mitra dari {{city}} belum dihubungi lewat 4 jam kerja. Perlu tindakan Sales Lead. {{link}}',
+  [NotificationEvent.WA_CAP_WARNING]:
+    'WhatsApp nomor 1: {{category}} sudah {{pct}}% dari batas bulan ini ({{used}}/{{cap}}).',
+  [NotificationEvent.WA_CAP_REACHED]:
+    'WhatsApp nomor 1: batas {{category}} bulan ini tercapai. Pengiriman WhatsApp berhenti; notifikasi aplikasi tetap jalan.',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Perawatan jatuh tempo di {{depot}}: {{items}}. Buka menu Perawatan untuk menjadwalkan servis.',
   [NotificationEvent.PERMIT_DUE]:
@@ -423,6 +431,9 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.REFUND_REQUESTED,
   // AI-5: no depot. The row is for those who review applications, the push likewise.
   NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED,
+  // HD-12: for the accounts holding waCostRead (APPROVER_CAP_FOR_EVENT), no depot.
+  NotificationEvent.WA_CAP_WARNING,
+  NotificationEvent.WA_CAP_REACHED,
   // AI-9: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
   NotificationEvent.MORNING_SUMMARY,
   // AI-7c: addressed to one account (also in PERSONAL_OPS_EVENTS), no depot.
@@ -530,6 +541,9 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.REFUND_REQUESTED]: 'approval',
   // AI-5: its own switch on /hq/profile, not the depot consoles' "approval".
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: 'newFranchiseApp',
+  // HD-12: a cost warning rides the approval switch (push and email, default on), like the partner bill.
+  [NotificationEvent.WA_CAP_WARNING]: 'approval',
+  [NotificationEvent.WA_CAP_REACHED]: 'approval',
   // AI-9: its own switch on /hq/profile, push and email, both defaulting on.
   [NotificationEvent.MORNING_SUMMARY]: 'morningSummary',
   // AI-7c: its own switch on /hq/profile, push and email, both defaulting on.
@@ -575,6 +589,9 @@ export const APPROVER_CAP_FOR_EVENT: Partial<Record<NotificationEvent, Capabilit
   // AI-5, owner decision: whoever may review applications (head office, the director, and
   // "Sales" once its role is given this capability in the matrix).
   [NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED]: 'franchiseApplications',
+  // HD-12: whoever may read the WhatsApp cost screen.
+  [NotificationEvent.WA_CAP_WARNING]: 'waCostRead',
+  [NotificationEvent.WA_CAP_REACHED]: 'waCostRead',
 };
 
 /**
@@ -664,6 +681,10 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
   [NotificationEvent.AI_LEAD_REMIND]: 'The calon mitra from {{city}} has not been contacted after 2 working hours. {{link}}',
   [NotificationEvent.AI_LEAD_ESCALATE]:
     'The calon mitra from {{city}} has not been contacted after 4 working hours. Sales Lead must act. {{link}}',
+  [NotificationEvent.WA_CAP_WARNING]:
+    'WhatsApp number 1: {{category}} is at {{pct}}% of the monthly cap ({{used}}/{{cap}}).',
+  [NotificationEvent.WA_CAP_REACHED]:
+    'WhatsApp number 1: the {{category}} cap for this month is reached. WhatsApp sending stops; app notifications keep going.',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Maintenance is due at {{depot}}: {{items}}. Open Maintenance to schedule the service.',
   [NotificationEvent.PERMIT_DUE]:
