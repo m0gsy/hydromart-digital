@@ -4,7 +4,8 @@
 # and an upgrade path, and it is deleted the moment upstream ships a fix. This list
 # is the triage record, not a mute button. Anything not listed here still fails CI.
 #
-# What this gate scans is `node:22-alpine` — an image we consume and do not build.
+# What this gate scans is every distinct FROM base: `node:22.23.4-alpine` for all services
+# but face-service, which runs `node:22.23.4-bookworm-slim` — images we consume and do not build.
 # We cannot patch it; we can only pin a newer tag when one exists, or stop shipping
 # the affected component. Both are noted per entry.
 
