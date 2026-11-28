@@ -166,7 +166,10 @@ describe('a locked session is never drawn as a signed-in app', () => {
     await screen.findByRole('dialog', {}, SLOW);
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /kode SMS/i }));
+      fireEvent.click(screen.getByRole('button', { name: /masuk dengan kode SMS/i }));
+    });
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: /tetap pakai kode SMS/i }));
     });
 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());

@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { Fingerprint } from '@phosphor-icons/react';
 
+import { KeepSessionConfirm } from '@/components/keep-session-confirm';
 import { Button } from '@/components/ui';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
+import { noteSessionDrop } from '@/lib/session-drop';
 import { setSession } from '@/lib/session-store';
 import { clearTokens, hasTokens, retryUnlock } from '@/lib/token-store';
 
@@ -33,10 +35,12 @@ export default function LockScreen({
   const { t } = useT();
   const { customer } = useAuth();
   const [failed, setFailed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   // No cached profile means nothing to hide; a CUSTOMER profile means a shopper.
   const canBrowse = !customer || customer.role === 'CUSTOMER';
 
   async function unlock() {
+    setConfirming(false);
     setBusy(true);
     setFailed(false);
     try {
@@ -55,6 +59,7 @@ export default function LockScreen({
   function signInWithSms() {
     // Local only: the token that could revoke the old session upstream is exactly the one
     // that cannot be read. The next sign-in replaces it.
+    noteSessionDrop('lock_sms');
     clearTokens();
     setSession(null);
   }
@@ -81,9 +86,13 @@ export default function LockScreen({
         <Button onClick={unlock} loading={busy}>
           {t('auth.lock.unlock')}
         </Button>
-        <Button variant="secondary" onClick={signInWithSms} disabled={busy}>
-          {t('auth.lock.useOtp')}
-        </Button>
+        {confirming ? (
+          <KeepSessionConfirm busy={busy} onOpen={unlock} onSkip={signInWithSms} />
+        ) : (
+          <Button variant="secondary" onClick={() => setConfirming(true)} disabled={busy}>
+            {t('auth.lock.useOtp')}
+          </Button>
+        )}
         {canBrowse && (
           <Button variant="ghost" onClick={continueAsGuest} disabled={busy}>
             {t('auth.lock.continueGuest')}

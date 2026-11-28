@@ -47,7 +47,8 @@ async function readEndpoint(): Promise<string | null> {
 }
 
 async function writeEndpoint(endpoint: string): Promise<void> {
-  await vaultWrite(endpoint, FCM_ENDPOINT_KEY);
+  // A refused write throws now (the session needs to know); here the localStorage copy below is the floor.
+  await vaultWrite(endpoint, FCM_ENDPOINT_KEY).catch(() => {});
   // Both, deliberately. The Keystore is the durable copy — it is what survives the
   // localStorage eviction this used to lose the subscription to. But `vaultWrite` cannot
   // report a missing plugin, so a build or device without SecureStorage would silently

@@ -13,6 +13,7 @@ import { forgetPushAsk, unsubscribeFromPush } from './push';
 import { forgetNotificationsSeen } from './unread';
 import { setLocation } from './location-store';
 import { forgetSessionFamily, rememberSessionFamily } from './session-device';
+import { noteSessionDrop } from './session-drop';
 import { getSession, setSession, subscribe } from './session-store';
 import { isNativeShell } from './platform';
 import { clearTokens, getRefreshToken, hasTokens, unlockTokens } from './token-store';
@@ -164,6 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // it the upstream revoke is skipped and the token stays valid for its full 30
         // days on a phone whose user just signed out.
         const refreshToken = getRefreshToken();
+        noteSessionDrop('signed_out');
         api
           .post(endpoints.auth.logout, refreshToken ? { refreshToken } : undefined, true)
           .catch(() => {});

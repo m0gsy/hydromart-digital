@@ -5,6 +5,7 @@ import { notifyDepotChanged, registerRefresher } from './depot-signal';
 import { endpoints } from './endpoints';
 import { translate } from './locale-context';
 import { isNativeShell } from './platform';
+import { noteSessionDrop } from './session-drop';
 import { getSession, setSession } from './session-store';
 import {
   captureTokens,
@@ -196,6 +197,7 @@ async function refreshSession(): Promise<Session | null> {
          */
         const refused = err instanceof ApiError && (err.status === 401 || err.status === 403);
         if (refused) {
+          noteSessionDrop('refresh_refused');
           setSession(null);
           clearTokens();
         }

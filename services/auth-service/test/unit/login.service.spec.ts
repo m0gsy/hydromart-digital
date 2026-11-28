@@ -61,6 +61,30 @@ describe('LoginService', () => {
     expect(await customers.findByPhone('+6281234567890')).not.toBeNull();
   });
 
+  it('keeps the audit shape unchanged when no sessionDrop or app build is sent', async () => {
+    const customer = makeCustomer();
+    customers.seed(customer);
+    await service.requestLogin({ phone: customer.phone, context: ctx });
+    expect(audit.entries.at(-1)?.metadata).toBeUndefined();
+  });
+
+  it('puts sessionDrop and the app build in the audit metadata', async () => {
+    const customer = makeCustomer();
+    customers.seed(customer);
+    await service.requestLogin({
+      phone: customer.phone,
+      sessionDrop: 'vault_empty',
+      appId: 'id.hydromart.ops',
+      appVersion: '11301',
+      context: ctx,
+    });
+    expect(audit.entries.at(-1)?.metadata).toEqual({
+      sessionDrop: 'vault_empty',
+      appId: 'id.hydromart.ops',
+      appVersion: '11301',
+    });
+  });
+
   // HD-8: this door signs people up too, so it keeps where they came from, like /register.
   it('keeps the campaign codes on a number it signs up, and a lone one as both', async () => {
     const create = jest.spyOn(customers, 'create');

@@ -6,12 +6,15 @@ import { Suspense, useState } from 'react';
 import { ArrowRight, Drop } from '@phosphor-icons/react';
 
 import { BiometricRetry } from '@/components/biometric-retry';
+import { KeepSessionConfirm } from '@/components/keep-session-confirm';
 import { BrandMark, Button, Card, Skeleton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { readSources } from '@/lib/attribution';
 import { endpoints } from '@/lib/endpoints';
 import { useT } from '@/lib/locale-context';
 import { isCustomerApp, isOpsApp } from '@/lib/platform';
+import { noteSessionDrop, sessionDropField } from '@/lib/session-drop';
+import { hasStoredSession, hasTokens, retryUnlock } from '@/lib/token-store';
 import type { OtpChallenge } from '@/lib/types';
 
 // Fixed brand gradient — never flips under dark (spec 4c), so it's an inline literal.
@@ -92,6 +95,8 @@ function LoginForm() {
   const reason = useSearchParams().get('reason');
   const [phone, setPhone] = useState(handedOver);
   const [loading, setLoading] = useState(false);
+  // A stored session is still on the device: ask before spending an SMS on it.
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(() =>
     reason === 'not-staff'
       ? t('errors.byCode.AUTH_NOT_STAFF')
@@ -100,8 +105,25 @@ function LoginForm() {
         : null,
   );
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function openStored() {
+    setConfirming(false);
+    await retryUnlock();
+    // A document load, as BiometricRetry does: the providers above decided "signed out" on the way in.
+    if (hasTokens()) window.location.replace('/');
+  }
+
+  function skipStored() {
+    noteSessionDrop('stored_skipped');
+    setConfirming(false);
+    void submit(undefined, true);
+  }
+
+  async function submit(e?: React.FormEvent, confirmed = false) {
+    e?.preventDefault();
+    if (!confirmed && hasStoredSession()) {
+      setConfirming(true);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -110,8 +132,8 @@ function LoginForm() {
         // HD-8: an unknown number is signed up here (AUTH-3), so it carries where they came
         // from, as /register does. The staff door never signs anyone up.
         audience === 'STAFF'
-          ? { phone, audience }
-          : { phone, ...(audience ? { audience } : {}), ...readSources() },
+          ? { phone, audience, ...sessionDropField() }
+          : { phone, ...(audience ? { audience } : {}), ...readSources(), ...sessionDropField() },
       );
       // AUTH-3: the server decides. A number with no account is registered rather than
       // refused, and it answers REGISTRATION so /verify shows the signup wording and posts
@@ -205,14 +227,18 @@ function LoginForm() {
         </p>
       )}
 
-      <Button
-        type="submit"
-        loading={loading}
-        className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold"
-      >
-        {t('auth.login.submit')}
-        {!loading && <ArrowRight size={17} weight="bold" />}
-      </Button>
+      {confirming ? (
+        <KeepSessionConfirm onOpen={openStored} onSkip={skipStored} />
+      ) : (
+        <Button
+          type="submit"
+          loading={loading}
+          className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold"
+        >
+          {t('auth.login.submit')}
+          {!loading && <ArrowRight size={17} weight="bold" />}
+        </Button>
+      )}
 
       {!opsApp && (
         <p className="text-center text-[13px] text-muted">

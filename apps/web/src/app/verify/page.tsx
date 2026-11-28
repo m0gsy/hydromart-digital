@@ -13,6 +13,8 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { consoleHome } from '@/lib/roles';
+import { completeLogin, peekSessionDrop } from '@/lib/session-drop';
+import { hasTokens } from '@/lib/token-store';
 import type { OtpChallenge, OtpPurpose, Session } from '@/lib/types';
 
 /**
@@ -104,7 +106,9 @@ function VerifyForm() {
     setLoading(true);
     setError(null);
     try {
+      const dropped = peekSessionDrop();
       const session = await api.post<Session>(endpoints.auth.verifyOtp, { phone, code: value, purpose });
+      if (hasTokens()) completeLogin(dropped);
       signIn(session);
       // Redeem a referral code carried from registration. Fail-soft: an invalid or
       // already-used code must never block completing signup.

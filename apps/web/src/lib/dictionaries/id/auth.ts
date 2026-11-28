@@ -9,6 +9,13 @@ export const auth = {
     useOtp: 'Masuk dengan kode SMS',
     continueGuest: 'Lanjut tanpa masuk',
   },
+  // Konfirmasi sebelum memakai kode SMS saat sesi tersimpan masih bisa dibuka.
+  keepSession: {
+    title: 'Sesi kamu masih tersimpan',
+    body: 'Buka dengan sidik jari atau PIN, tanpa kode SMS. Kode SMS hanya perlu kalau sidik jari atau PIN tidak bisa dipakai.',
+    open: 'Buka sesi',
+    skip: 'Tetap pakai kode SMS',
+  },
   login: {
     biometricHint:
       'Sesi kamu masih tersimpan di perangkat ini. Buka dengan sidik jari atau PIN, tanpa kode SMS.',

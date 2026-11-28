@@ -10,6 +10,12 @@ export const auth: typeof base = {
     useOtp: 'Sign in with an SMS code',
     continueGuest: 'Continue without signing in',
   },
+  keepSession: {
+    title: 'Your session is still stored',
+    body: 'Open it with your fingerprint or PIN, no SMS code needed. You only need an SMS code if your fingerprint or PIN cannot be used.',
+    open: 'Open session',
+    skip: 'Use an SMS code anyway',
+  },
   login: {
     biometricHint:
       'Your session is still stored on this device. Open it with a fingerprint or PIN, no SMS code needed.',

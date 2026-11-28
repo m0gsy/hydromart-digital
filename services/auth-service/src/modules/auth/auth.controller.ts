@@ -15,6 +15,12 @@ import { ResendOtpDto } from './dto/resend-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { OtpChallengeResponseDto, SessionResponseDto } from './dto/responses.dto';
 
+/** A request header, only when it is one string matching `pattern`; anything else is dropped. */
+function header(req: Request, name: string, pattern: RegExp): string | undefined {
+  const value = req.headers?.[name];
+  return typeof value === 'string' && pattern.test(value) ? value : undefined;
+}
+
 @ApiTags('Authentication')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
@@ -86,6 +92,9 @@ export class AuthController {
       audience: dto.audience,
       firstSource: dto.firstSource,
       lastSource: dto.lastSource,
+      sessionDrop: dto.sessionDrop,
+      appId: header(req, 'x-app-id', /^id\.hydromart\.(app|ops)$/),
+      appVersion: header(req, 'x-app-version', /^\d{1,9}$/),
       context: getRequestContext(req),
     });
     return OtpChallengeResponseDto.from(result);

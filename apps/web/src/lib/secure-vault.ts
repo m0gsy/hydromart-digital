@@ -77,7 +77,7 @@ export async function vaultRead(key: string = VAULT_KEY): Promise<VaultRead> {
  * whole family for, forcing the user back through OTP.
  */
 export async function vaultWrite(value: string, key: string = VAULT_KEY): Promise<void> {
-  await askPlugin(PLUGIN_STORAGE, 'internalSetItem', {
+  const res = await tryPlugin(PLUGIN_STORAGE, 'internalSetItem', {
     prefixedKey: key,
     data: value,
     sync: false,
@@ -85,6 +85,10 @@ export async function vaultWrite(value: string, key: string = VAULT_KEY): Promis
     // correct when `cap add ios` happens.
     access: 'whenUnlocked',
   });
+  // A write the Keystore refused used to vanish here (`askPlugin` turns a rejection into null),
+  // so the session lived only in memory and nobody knew. An absent plugin is not a failure: it
+  // is the same "nothing to write to" that `vaultRead` calls `unavailable`.
+  if (!res.ok && res.code !== 'unavailable') throw new Error(`vault write failed: ${res.code}`);
 }
 
 export async function vaultClear(key: string = VAULT_KEY): Promise<void> {

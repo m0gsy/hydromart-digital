@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { SessionDropReason } from '../../domain/session-drop';
 import { CustomerStatus } from '../../domain/customer/customer-status.enum';
 import { NotStaffError, StaffAccountError } from '../../domain/errors/auth.errors';
 import { Role } from '../../domain/customer/role.enum';
@@ -21,6 +22,11 @@ export interface LoginRequestCommand {
   /** HD-8: campaign codes, kept only when this request signs a new number up. */
   firstSource?: string;
   lastSource?: string;
+  /** Native app: why it dropped a still-valid session (audit metadata only). */
+  sessionDrop?: SessionDropReason;
+  /** Sanitised x-app-id / x-app-version of the calling app build. */
+  appId?: string;
+  appVersion?: string;
   context: RequestContext;
 }
 
@@ -98,12 +104,18 @@ export class LoginService {
       registering ? OtpPurpose.REGISTRATION : OtpPurpose.LOGIN,
     );
 
+    const metadata = {
+      ...(command.sessionDrop ? { sessionDrop: command.sessionDrop } : {}),
+      ...(command.appId ? { appId: command.appId } : {}),
+      ...(command.appVersion ? { appVersion: command.appVersion } : {}),
+    };
     await this.audit.record({
       customerId: customer.id,
       action: registering ? AuditAction.REGISTER_REQUESTED : AuditAction.LOGIN_REQUESTED,
       success: true,
       ipAddress: command.context.ipAddress,
       userAgent: command.context.userAgent,
+      ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
     });
 
     return challenge;
