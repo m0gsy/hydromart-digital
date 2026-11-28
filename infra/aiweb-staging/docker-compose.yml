@@ -144,6 +144,9 @@ services:
       MOCK_PORT: "9911"
       MOCK_AI_WEB_URL: https://staging-ai.hydromart-digital.com
       MOCK_INGRESS_URL: http://aiweb:3000/api/ingress/hd
+      # Number 2 (AI-10): blank = no "send a WhatsApp message" button; set it to the app secret the staging AI web holds.
+      MOCK_WA2_APP_SECRET: ${STAGING_WA2_APP_SECRET:-}
+      MOCK_WA2_INGRESS_URL: http://aiweb:3000/api/ingress/wa
       MOCK_SIGNING_KEY: ${STAGING_MOCK_SIGNING_KEY:?set by scripts/aiweb-staging-secrets.sh}
       MOCK_HD_EVENT_SECRET: ${STAGING_HD_EVENT_SECRET:?set by scripts/aiweb-staging-secrets.sh}
       MOCK_MACHINE_ID: ${STAGING_N8N_MACHINE_ID:?set by scripts/aiweb-staging-secrets.sh}

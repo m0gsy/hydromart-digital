@@ -19,12 +19,17 @@
 //   POST /crm/api/v1/notifications/external/sales-weekly-ready   n8n's Monday weekly Sales report trigger (AI-26)
 //   POST /crm/api/v1/notifications/external/ai-agent-notice   n8n's relay of an AI agent event (AI-31)
 //   POST /crm/api/v1/notifications/external/ai-lead-notice   n8n's relay of a public form lead or its SLA reminder (AI-14)
+//   POST /crm/api/v1/notifications/external/ai-cs-notice   n8n's relay of a CS chat handoff or a slow chat (AI-11)
 //   GET|POST /crm/api/v1/whatsapp/opt-outs   the WhatsApp STOP list the AI web pulls and pushes (HD-12/13): an empty list, items accepted
 //   GET  /dashboard/api/v1/ai/read/scope|money|gallons|customers|targets|hr|visits   the read API: made-up numbers
 //                                       derived from the date; a depot-bound person sees one depot
 //   GET  /dashboard/api/v1/dashboard/pending-approvals   the queues a person decides
 //   GET  /depot/api/v1/ai/crm/legacy-applications , /auth/api/v1/ai/crm/pic-candidates   fake applicants and PIC candidates (HD-21)
 //   GET  /depot/api/v1/ai/team/access   the Tim AI screen's access read (AI-29)
+//   GET  /depot/api/v1/ai/cs/access    the CS inbox's access read (AI-11)
+//   GET  /depot/api/v1/depots          the public depot list the WhatsApp menu answers opening hours from (AI-10)
+//   POST /order/api/v1/machine/orders/by-phone   n8n's order-status lookup for the WhatsApp menu (HD-18)
+//   POST /_graph/{version}/{phoneNumberId}/messages   a fake Meta Graph: answers a made-up wamid, keeps no text (AI-10)
 //   GET  /depot/api/v1/ai/crm/access , POST|GET /depot/api/v1/ai/drafts/depots/from-crm[/:prospectId]
 //                                       the CRM calon mitra's access read and depot draft (HD-21a)
 //   POST /alert                         the AI web's alarm webhook
@@ -43,6 +48,8 @@
 //   MOCK_MACHINE_ID, MOCK_MACHINE_SECRET   n8n's machine account (without them none is accepted)
 //   MOCK_HD_EVENT_SECRET   signs the events the /_mock/ button sends to the AI web
 //   MOCK_INGRESS_URL       where it sends them (http://aiweb:3000/api/ingress/hd)
+//   MOCK_WA2_APP_SECRET    signs the WhatsApp message the /_mock/ button sends (blank = the button is off)
+//   MOCK_WA2_INGRESS_URL   where it sends it (http://aiweb:3000/api/ingress/wa)
 //
 // Not production: the authenticator code is the fixed 123456, the recovery code STAGE-ABCDE, and
 // every state (codes, counters, calls) lives in memory and ends with the process.
@@ -173,10 +180,11 @@ const ACCESS_GROUPS = ['scope', 'money', 'stock', 'loyalty', 'franchise', 'hr', 
 const ACCESS_KEYS = new Set(['eventId', 'requesterAccountId', 'legalEntityIds', 'group']);
 const MACHINE_SCOPES = [
   'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
-  'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify', 'waOptOutSync',
+  'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'aiCsNotify', 'orderStatusByPhone', 'complianceDueNotify', 'qualityHoldNotify', 'waOptOutSync',
 ];
 export const AGENT_NOTICE_KINDS = ['FLAG', 'CAP_REACHED', 'STOPPED', 'STOPPED_ALL'];
 export const LEAD_NOTICE_KINDS = ['NEW', 'REMIND', 'ESCALATE'];
+export const CS_NOTICE_KINDS = ['NEW', 'REMIND', 'ESCALATE'];
 export const REMINDER_KINDS = ['SUBSCRIPTION_TOMORROW', 'POINTS_EXPIRING', 'UNPAID_ORDER'];
 const ACCESS_PER_REQUESTER = 3;
 const ACCESS_PER_HOUR = 30;
@@ -193,6 +201,7 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
   const returnUrl = `${aiWeb}/masuk/callback`;
   const secure = aiWeb.startsWith('https:');
   const ingressUrl = env.MOCK_INGRESS_URL || 'http://aiweb:3000/api/ingress/hd';
+  const waIngressUrl = env.MOCK_WA2_INGRESS_URL || 'http://aiweb:3000/api/ingress/wa';
 
   const privateKey = env.MOCK_SIGNING_KEY
     ? createPrivateKey({ key: Buffer.from(env.MOCK_SIGNING_KEY, 'base64'), format: 'der', type: 'pkcs8' })
@@ -214,9 +223,10 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     crmDrafts: new Map(), // lower-case prospectId -> the depot draft (HD-21a)
     calls: fresh(),
     lastEvent: null,
+    lastWa: null,
   };
   function fresh() {
-    return { tokens: 0, refusedTokens: 0, handoffs: 0, notifications: [], refusedNotifications: 0, alerts: [] };
+    return { tokens: 0, refusedTokens: 0, handoffs: 0, notifications: [], refusedNotifications: 0, alerts: [], graphSends: 0 };
   }
 
   function jwt(claims, ttl = TOKEN_TTL_S) {
@@ -514,6 +524,69 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       eventId: b.eventId, city: b.city, province: b.province,
     });
     return [200, { skipped: false, recipients: 0, notified: 0, whatsapp: 'pending' }];
+  }
+
+  // AI-11's relay of a CS chat (AiCsNoticeTrigger): a conversation id and a kind, never a customer's data. Nobody to tell in staging.
+  function aiCsNotice(req, body) {
+    if (!machineAllowed(req, 'aiCsNotify')) return refusedToken();
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    const valid =
+      Object.keys(b).every((k) => ['eventId', 'kind', 'conversationId'].includes(k)) &&
+      CS_NOTICE_KINDS.includes(b.kind) &&
+      typeof b.conversationId === 'string' && RX.uuid.test(b.conversationId) &&
+      typeof b.eventId === 'string' &&
+      new RegExp(`^${b.kind === 'NEW' ? `ai-cs:${b.conversationId.toLowerCase()}` : `ai-cs-overdue:${b.conversationId.toLowerCase()}:${b.kind}`}(:[0-9]{1,6})?$`).test(b.eventId);
+    if (!valid) return [400, errorBody(400, 'VALIDATION_ERROR', ['The notification is not what the contract asks for'])];
+    keep(state.calls.notifications, {
+      workflow: String(req.headers['x-workflow'] ?? '').slice(0, 120) || null,
+      eventId: b.eventId, city: null, province: null,
+    });
+    return [200, { recipients: 0, notified: 0, whatsapp: 'pending' }];
+  }
+
+  // HD-18's order status for the WhatsApp menu (OrdersByPhoneRequest): 0800000000 has no orders, 0800000503 is the
+  // "cannot answer" case, any other number gets one made-up order. No address, name or courier, as the contract says.
+  function ordersByPhone(req, body) {
+    if (!machineAllowed(req, 'orderStatusByPhone')) return refusedToken();
+    const b = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
+    if (Object.keys(b).some((k) => k !== 'msisdn') || typeof b.msisdn !== 'string' || b.msisdn.length < 1 || b.msisdn.length > 32) {
+      return [400, errorBody(400, 'VALIDATION_ERROR', ['The request is not what the contract asks for'])];
+    }
+    const digits = b.msisdn.replace(/\D/g, '');
+    if (digits.endsWith('800000000')) return [200, { orders: [] }];
+    if (digits.endsWith('800000503')) return [503, errorBody(503, 'SERVICE_UNAVAILABLE', 'The order lookup cannot answer now')];
+    return [200, { orders: [{
+      orderNumber: 'HM-20261128-000001', createdAt: '2026-11-28 09:41', items: [{ name: 'Galon isi ulang 19 L', quantity: 2 }], total: 24000,
+      paymentStatus: 'PENDING', paymentMethod: 'CASH', status: 'ON_DELIVERY', depot: 'Depot Contoh Satu', deliveryWindow: '10.00 - 12.00', scheduledFor: '2026-11-28 10:00',
+    }] }];
+  }
+
+  // The anonymous depot list (PagedPublicDepotResponseDto, trimmed to what the menu reads): made-up depots, no bank data.
+  const OPEN = { open: '08:00', close: '17:00' };
+  const PUBLIC_DEPOTS = fixtures.depots.map((d, i) => ({
+    id: d.id, code: d.code, name: d.label, address: `Jl. Contoh No. ${i + 1}`, city: 'Bekasi', province: 'Jawa Barat',
+    lat: -6.24 - i / 100, lng: 106.99, serviceRadiusKm: 5, deliveryFee: 0, minOrderAmount: null,
+    operatingHours: { mon: OPEN, tue: OPEN, wed: OPEN, thu: OPEN, fri: OPEN, sat: { open: '08:00', close: '13:00' } },
+    holidays: [], active: true, acceptsTransfer: false, acceptsQris: false, qualityHold: { active: false, since: null },
+  }));
+  function publicDepots(url) {
+    const page = Number(url.searchParams.get('page') ?? '1');
+    const limit = Number(url.searchParams.get('limit') ?? '20');
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1 || limit > 100) {
+      return [400, errorBody(400, 'VALIDATION_ERROR', ['page and limit must be whole numbers'])];
+    }
+    return [200, { items: PUBLIC_DEPOTS.slice((page - 1) * limit, page * limit), total: PUBLIC_DEPOTS.length, page, limit, totalPages: Math.ceil(PUBLIC_DEPOTS.length / limit) }];
+  }
+
+  // A fake Meta Graph for number 2: the send answers a made-up message id and keeps no text and no number.
+  function graphSend(req, path, body) {
+    if (!/^\/_graph\/v[0-9.]{1,8}\/[A-Za-z0-9_-]{1,40}\/messages$/.test(path)) return [404, errorBody(404, 'NOT_FOUND', 'not here')];
+    if (!/^Bearer .+/.test(req.headers.authorization ?? '')) return [401, { error: { message: 'Invalid OAuth access token.', type: 'OAuthException', code: 190 } }];
+    if (!body || typeof body !== 'object' || body.messaging_product !== 'whatsapp' || typeof body.to !== 'string') {
+      return [400, { error: { message: 'Invalid parameter', type: 'OAuthException', code: 100 } }];
+    }
+    state.calls.graphSends += 1;
+    return [200, { messaging_product: 'whatsapp', contacts: [{ input: body.to, wa_id: body.to }], messages: [{ id: `wamid.MOCK${randomUUID().replaceAll('-', '').toUpperCase()}` }] }];
   }
 
   // "Minta akses": ids only (contract AiAccessRequestedNotify). A requester that is a fixture person
@@ -822,6 +895,16 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
     return [200, { read: true, manage: row[0], stop: row[1], role: claims.role }];
   }
 
+  // AI-11: the CS inbox's access read, the built-in matrix (HEAD_OFFICE and SUPER_ADMIN hold all three; Direksi only manage, so no read = 403).
+  const CS_ROLES = new Set(['HEAD_OFFICE', 'SUPER_ADMIN']);
+  function csAccess(req) {
+    const auth = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
+    const claims = auth ? readJwt(auth[1]) : null;
+    if (!claims || state.killed || !(claims.exp > now() / 1000)) return refusedToken();
+    if (claims.aud !== 'hydromart-ai' || !CS_ROLES.has(claims.role)) return [403, errorBody(403, 'FORBIDDEN', 'You do not have permission to perform this action.')];
+    return [200, { read: true, reply: true, manage: true, accountId: claims.sub, role: claims.role }];
+  }
+
   // Obviously fake people, the same on every run: the shapes of drafts.openapi.json, nothing real.
   const LEGACY_SAMPLE = [
     { id: '00000000-0000-4000-8000-0000000000f1', stage: 'PENDING', applicantName: 'Calon Contoh Satu', applicantPhoneE164: '+6281200000001', city: 'Bekasi', province: 'Jawa Barat', proposedName: 'Depot Contoh Satu', investmentAmountIdr: 150000000, firstSource: 'contoh-ig', privacyConsentVersion: '2026-11-24', submittedAt: '2026-11-01T03:00:00.000Z' },
@@ -995,9 +1078,39 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       `<form method="post" action="/_mock/event"><label>Kota <input name="city" value="Bekasi" maxlength="100"></label> ` +
       `<button>Kirim peristiwa lamaran waralaba (bertanda tangan)</button></form>` +
       `<p>Terakhir: ${state.lastEvent ? esc(JSON.stringify(state.lastEvent)) : 'belum ada'}</p>` +
+      (env.MOCK_WA2_APP_SECRET
+        ? `<form method="post" action="/_mock/wa"><label>Pesan WhatsApp nomor 2 <input name="text" value="Halo" maxlength="500"></label> ` +
+          `<button>Kirim pesan masuk (bertanda tangan)</button></form><p>Terakhir: ${state.lastWa ? esc(JSON.stringify(state.lastWa)) : 'belum ada'}</p>`
+        : '') +
       `<form method="post" action="/_mock/reset"><button>Kosongkan catatan dan kode</button></form>` +
       `<h2>Panggilan</h2><pre>${esc(JSON.stringify({ ...c, notifications: c.notifications.length, alerts: c.alerts.length }, null, 2))}</pre>` +
       `<p><a href="/_mock/calls">Rincian (JSON)</a></p>`);
+  }
+
+  // One made-up customer writes to number 2: Meta's message shape, signed sha256=hex(HMAC(raw body)) with the app secret.
+  async function sendWa(text) {
+    const secret = env.MOCK_WA2_APP_SECRET;
+    if (!secret) return { sent: false, why: 'MOCK_WA2_APP_SECRET is not set' };
+    const raw = JSON.stringify({
+      object: 'whatsapp_business_account',
+      entry: [{ id: 'MOCKWABA', changes: [{ field: 'messages', value: {
+        messaging_product: 'whatsapp',
+        metadata: { display_phone_number: '628000000000', phone_number_id: 'MOCKPHONEID' },
+        contacts: [{ profile: { name: 'Contoh Pelanggan' }, wa_id: '6281200000099' }],
+        messages: [{ from: '6281200000099', id: `wamid.MOCKIN${randomUUID().replaceAll('-', '').toUpperCase()}`, timestamp: String(Math.floor(now() / 1000)), type: 'text', text: { body: text } }],
+      } }] }],
+    });
+    try {
+      const r = await fetch(waIngressUrl, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-hub-signature-256': `sha256=${createHmac('sha256', secret).update(raw).digest('hex')}` },
+        body: raw,
+        signal: AbortSignal.timeout(10_000),
+      });
+      return { sent: true, status: r.status };
+    } catch (error) {
+      return { sent: false, why: String(error?.cause?.code ?? error?.name ?? 'error') };
+    }
   }
 
   async function sendEvent(city) {
@@ -1126,6 +1239,22 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
         const [status, body] = aiLeadNotice(req, parseJson(raw));
         return send(res, status, body);
       }
+      if (post && path === '/crm/api/v1/notifications/external/ai-cs-notice') {
+        const [status, body] = aiCsNotice(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (post && path === '/order/api/v1/machine/orders/by-phone') {
+        const [status, body] = ordersByPhone(req, parseJson(raw));
+        return send(res, status, body);
+      }
+      if (req.method === 'GET' && path === '/depot/api/v1/depots') {
+        const [status, body] = publicDepots(url);
+        return send(res, status, body);
+      }
+      if (post && path.startsWith('/_graph/')) {
+        const [status, body] = graphSend(req, path, parseJson(raw));
+        return send(res, status, body);
+      }
       if (post && path === '/crm/api/v1/notifications/external/ai-access-requested') {
         const [status, body] = accessRequested(req, parseJson(raw));
         return send(res, status, body);
@@ -1171,6 +1300,10 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
       }
       if (req.method === 'GET' && path === '/depot/api/v1/ai/team/access') {
         const [status, body] = teamAccess(req);
+        return send(res, status, body);
+      }
+      if (req.method === 'GET' && path === '/depot/api/v1/ai/cs/access') {
+        const [status, body] = csAccess(req);
         return send(res, status, body);
       }
       if (post && path === '/depot/api/v1/ai/drafts/depots/from-crm') {
@@ -1225,6 +1358,12 @@ export function createMock({ env = process.env, now = () => Date.now(), fixtures
         state.crmDrafts.clear();
         state.calls = fresh();
         state.lastEvent = null;
+        state.lastWa = null;
+        res.writeHead(303, { location: '/_mock/' });
+        return res.end();
+      }
+      if (post && path === '/_mock/wa') {
+        state.lastWa = await sendWa((new URLSearchParams(raw).get('text') || 'Halo').slice(0, 500));
         res.writeHead(303, { location: '/_mock/' });
         return res.end();
       }

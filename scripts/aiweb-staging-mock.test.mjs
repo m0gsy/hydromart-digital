@@ -5,13 +5,14 @@
 //
 //   node scripts/aiweb-staging-mock.test.mjs
 import assert from 'node:assert/strict';
-import { createHash, createPublicKey, randomBytes, randomUUID, verify } from 'node:crypto';
+import { createHash, createHmac, createPublicKey, randomBytes, randomUUID, verify } from 'node:crypto';
+import { createServer } from 'node:http';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { AGENT_NOTICE_KINDS, LEAD_NOTICE_KINDS, PATTERNS, RECOVERY_CODE, REMINDER_KINDS, TOTP_CODE, createMock, signEvent } from '../infra/aiweb-staging/mock/server.mjs';
+import { AGENT_NOTICE_KINDS, CS_NOTICE_KINDS, LEAD_NOTICE_KINDS, PATTERNS, RECOVERY_CODE, REMINDER_KINDS, TOTP_CODE, createMock, signEvent } from '../infra/aiweb-staging/mock/server.mjs';
 
 const contract = (name) => JSON.parse(readFileSync(new URL(`../contracts/ai-v1/${name}.openapi.json`, import.meta.url), 'utf8'));
 const auth = contract('auth');
@@ -294,7 +295,7 @@ test('n8n: machine token, then the franchise notification, idempotent, validated
     assert.equal(claims.aud, 'hydromart-machine');
     assert.deepEqual(claims.scopes, [
       'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
-      'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify', 'waOptOutSync',
+      'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'aiCsNotify', 'orderStatusByPhone', 'complianceDueNotify', 'qualityHoldNotify', 'waOptOutSync',
     ]);
 
     const applicationId = randomUUID();
@@ -1109,6 +1110,17 @@ test('CRM calon mitra: access, depot draft with the D1 re-check, replay and stat
     assert.equal((await get(mock, teamUrl, await tokenOf(mock, user('SUPERVISOR')))).status, 403);
     assert.equal((await get(mock, teamUrl, await machineToken(mock))).status, 403);
 
+    // AI-11: the CS inbox's access read: head office holds all three, Direksi has no read (403), the account id is the person's own.
+    const csUrl = '/depot/api/v1/ai/cs/access';
+    assert.ok(drafts.paths[csUrl], 'cs access is in drafts.openapi.json');
+    const cs = await (await get(mock, csUrl, await tokenOf(mock, user('HEAD_OFFICE')))).json();
+    for (const f of drafts.components.schemas.AiCsAccess.required) assert.ok(cs[f] !== undefined, 'cs access has ' + f);
+    assert.deepEqual([cs.read, cs.reply, cs.manage, cs.role], [true, true, true, 'HEAD_OFFICE']);
+    assert.equal(cs.accountId, user('HEAD_OFFICE').id);
+    assert.equal((await get(mock, csUrl)).status, 401);
+    assert.equal((await get(mock, csUrl, sales)).status, 403);
+    assert.equal((await get(mock, csUrl, await machineToken(mock))).status, 403);
+
     // Draft: 201, then 200 for the same body, 409 for another, with the contract's statuses.
     const documented = new Set(Object.keys(drafts.paths[FROM_CRM].post.responses));
     for (const s of [200, 201, 400, 401, 403, 409, 422]) assert.ok(documented.has(String(s)), `documents ${s}`);
@@ -1209,5 +1221,111 @@ test('CRM calon mitra: the legacy applications and the PIC candidates hold the c
     }
   } finally {
     await mock.close();
+  }
+});
+
+test('AI-11: the CS notice needs aiCsNotify, the contract body and an eventId that matches its kind and chat', async () => {
+  const mock = await boot();
+  const path = '/crm/api/v1/notifications/external/ai-cs-notice';
+  const send = (token, body) => json('POST', mock.base, path, body, token ? { authorization: `Bearer ${token}`, 'x-workflow': 'wf' } : {});
+  const s = notifications.components.schemas;
+  try {
+    assert.deepEqual(notifications.paths[path].post.security, [{ machineToken: [] }]);
+    assert.deepEqual(CS_NOTICE_KINDS, s.AiCsNoticeTrigger.properties.kind.enum);
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    const conversationId = randomUUID();
+    const notice = { eventId: 'ai-cs:' + conversationId, kind: 'NEW', conversationId };
+    const ok = await send(accessToken, notice);
+    assert.equal(ok.status, 200);
+    assert.deepEqual(Object.keys(await ok.json()).sort(), [...s.AiCsNoticeResult.required].sort());
+    assert.equal((await send(accessToken, { ...notice, eventId: notice.eventId + ':2' })).status, 200); // a second round
+    assert.equal((await send(accessToken, { ...notice, kind: 'ESCALATE', eventId: 'ai-cs-overdue:' + conversationId + ':ESCALATE' })).status, 200);
+    for (const bad of [
+      { ...notice, kind: 'NOPE' },
+      { ...notice, eventId: 'ai-cs-overdue:' + conversationId + ':NEW' },
+      { ...notice, kind: 'REMIND' }, // the eventId of another kind
+      { ...notice, eventId: 'ai-cs:' + randomUUID() }, // another chat
+      { ...notice, text: 'halo' }, // nothing from the customer passes
+      { ...notice, conversationId: 'nope' },
+      { kind: 'NEW' },
+    ]) {
+      assert.equal((await send(accessToken, bad)).status, 400, JSON.stringify(bad));
+    }
+    assert.equal((await send(null, notice)).status, 401);
+    const calls = await (await fetch(mock.base + '/_mock/calls')).json();
+    assert.equal(calls.notifications.length, 3);
+    assert.ok(calls.notifications.every((n) => n.city === null), 'no customer data is kept');
+  } finally {
+    await mock.close();
+  }
+});
+
+test('AI-10: order status by phone, the public depot list and the fake Graph send answer what the menu reads', async () => {
+  const mock = await boot();
+  const orders = contract('orders');
+  try {
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    const byPhone = (msisdn, token = accessToken) =>
+      json('POST', mock.base, '/order/api/v1/machine/orders/by-phone', { msisdn }, token ? { authorization: 'Bearer ' + token } : {});
+    const one = await (await byPhone('081200000099')).json();
+    const item = orders.components.schemas.MachineOrder;
+    for (const f of item.required) assert.ok(one.orders[0][f] !== undefined, 'order has ' + f);
+    assert.deepEqual(Object.keys(one.orders[0]).sort(), Object.keys(item.properties).sort(), 'no address, name or courier');
+    assert.deepEqual(await (await byPhone('0800000000')).json(), { orders: [] });
+    assert.equal((await byPhone('0800000503')).status, 503);
+    assert.equal((await byPhone('x'.repeat(33))).status, 400);
+    assert.equal((await byPhone('081200000099', null)).status, 401);
+    assert.equal((await json('POST', mock.base, '/order/api/v1/machine/orders/by-phone', { msisdn: '1', extra: 1 }, { authorization: 'Bearer ' + accessToken })).status, 400);
+
+    const depots = await (await fetch(mock.base + '/depot/api/v1/depots?limit=2')).json();
+    assert.deepEqual([depots.items.length, depots.total, depots.page, depots.limit], [2, fixtures.depots.length, 1, 2]);
+    assert.deepEqual(Object.keys(depots.items[0]).filter((k) => /bank|account/i.test(k)), [], 'no bank data');
+    assert.ok(depots.items[0].operatingHours.mon.open);
+    assert.equal((await fetch(mock.base + '/depot/api/v1/depots?page=0')).status, 400);
+
+    const graph = (path, body, token = 'tok') => json('POST', mock.base, path, body, token ? { authorization: 'Bearer ' + token } : {});
+    const sent = await (await graph('/_graph/v21.0/MOCKPHONEID/messages', { messaging_product: 'whatsapp', to: '6281200000099', type: 'text', text: { body: 'x' } })).json();
+    assert.match(sent.messages[0].id, /^wamid\.MOCK[0-9A-F]{32}$/);
+    assert.equal((await graph('/_graph/v21.0/MOCKPHONEID/messages', {}, null)).status, 401);
+    assert.equal((await graph('/_graph/v21.0/MOCKPHONEID/messages', { to: '1' })).status, 400);
+    assert.equal((await graph('/_graph/v21.0/MOCKPHONEID/other', { messaging_product: 'whatsapp', to: '1' })).status, 404);
+    const calls = await (await fetch(mock.base + '/_mock/calls')).json();
+    assert.equal(calls.graphSends, 1);
+    assert.ok(!JSON.stringify(calls).includes('6281200000099'), 'the number is not kept');
+  } finally {
+    await mock.close();
+  }
+});
+
+test('AI-10: the /_mock/ button sends a WhatsApp message signed with the app secret, and only when the secret is set', async () => {
+  let got = null;
+  const sink = createServer((req, res) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      got = { raw: Buffer.concat(chunks).toString(), sig: req.headers['x-hub-signature-256'] };
+      res.writeHead(200).end();
+    });
+  });
+  await new Promise((r) => sink.listen(0, '127.0.0.1', r));
+  const secret = 'w'.repeat(40);
+  const off = await boot();
+  const on = await boot({ MOCK_WA2_APP_SECRET: secret, MOCK_WA2_INGRESS_URL: 'http://127.0.0.1:' + sink.address().port + '/api/ingress/wa' });
+  try {
+    assert.ok(!(await (await fetch(off.base + '/_mock/')).text()).includes('/_mock/wa'));
+    assert.ok((await (await fetch(on.base + '/_mock/')).text()).includes('/_mock/wa'));
+    await fetch(off.base + '/_mock/wa', { method: 'POST', body: new URLSearchParams({ text: 'Halo' }), redirect: 'manual' });
+    assert.equal(got, null, 'nothing is sent without the secret');
+    assert.equal(off.state.lastWa.sent, false);
+    await fetch(on.base + '/_mock/wa', { method: 'POST', body: new URLSearchParams({ text: 'Halo CS' }), redirect: 'manual' });
+    assert.equal(got.sig, 'sha256=' + createHmac('sha256', secret).update(got.raw).digest('hex'));
+    const message = JSON.parse(got.raw).entry[0].changes[0].value.messages[0];
+    assert.equal(message.text.body, 'Halo CS');
+    assert.match(message.id, /^wamid\./);
+    assert.deepEqual(on.state.lastWa, { sent: true, status: 200 });
+  } finally {
+    await off.close();
+    await on.close();
+    await new Promise((r) => sink.close(r));
   }
 });
