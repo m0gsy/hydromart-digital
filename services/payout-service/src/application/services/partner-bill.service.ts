@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { dayStartUtc, localMonthKey } from '@hydromart/platform';
+import { dayStartUtc, localDayKey, localMonthKey } from '@hydromart/platform';
 
 import {
   BankAccountMissingError,
@@ -8,6 +8,9 @@ import {
   PartnerBillNoRecipientsError,
   PartnerBillNotDraftError,
   PartnerBillNotFoundError,
+  PartnerBillNotSentError,
+  PartnerBillPaidError,
+  PartnerBillPaidOnFutureError,
   PartnerBillSendingError,
   PartnerBillVoidedError,
 } from '../../domain/errors.partner-bill';
@@ -26,6 +29,17 @@ import { LedgerRepository } from '../ports/ledger.repository';
 import { PartnerBillRepository } from '../ports/partner-bill.repository';
 import { PartnerBillNotifier, PartnerBillSources } from '../ports/partner-bill-sources.port';
 import { PAYOUT_TOKENS } from '../tokens';
+
+/** One open bill as the machine reads it: no owners, phones or account numbers. */
+export interface OpenBill {
+  id: string;
+  month: string;
+  monthLabel: string;
+  legalEntityName: string;
+  totalIdr: number;
+  dueOn: string;
+  depotCodes: string[];
+}
 
 /** What a generate run did. Counts only: this is also what the n8n machine route answers. */
 export interface GenerateResult {
@@ -244,6 +258,45 @@ export class PartnerBillService {
   }
 
   /**
+   * HD-25: Finance marks a SENT bill paid. Idempotent: a bill already paid is returned as it is
+   * (the first mark stands), so a second click or a retry changes nothing.
+   */
+  async markPaid(id: string, paidOn: string, ref: string | null, actorId: string): Promise<PartnerBillRecord> {
+    const bill = await this.get(id);
+    if (bill.status !== 'SENT') throw new PartnerBillNotSentError();
+    if (paidOn > localDayKey(new Date())) throw new PartnerBillPaidOnFutureError();
+    if (bill.paidAt) return bill;
+    const paid = await this.bills.markPaid(id, { paidOn, ref, paidBy: actorId });
+    if (!paid) return this.get(id); // somebody marked it between the read and the write
+    this.logger.log(`partner.bill.paid id=${id} by=${actorId} on=${paidOn}`);
+    return paid;
+  }
+
+  /**
+   * HD-25: the sent, unpaid bills for the AI web's reminders, newest first. Depots are told by code
+   * only (the AI side matches on it); nothing about owners or accounts leaves here.
+   */
+  async open(): Promise<OpenBill[]> {
+    const codes = new Map<string, string>();
+    const out: OpenBill[] = [];
+    for (const b of await this.bills.listOpen(LIST_LIMIT)) {
+      for (const l of b.lines ?? []) {
+        if (!codes.has(l.depotId)) codes.set(l.depotId, (await this.sources.depot(l.depotId)).code);
+      }
+      out.push({
+        id: b.id,
+        month: b.month,
+        monthLabel: monthLabel(b.month),
+        legalEntityName: b.legalEntityName,
+        totalIdr: b.totalIdr,
+        dueOn: b.dueOn as string, // set when sent, and backfilled for the bills sent before HD-25
+        depotCodes: [...new Set((b.lines ?? []).map((l) => codes.get(l.depotId) as string))].sort(),
+      });
+    }
+    return out;
+  }
+
+  /**
    * A draft, or a sent bill with its reason (its owners are told, once each). Refused while it is
    * being sent. A voided month may be generated again.
    */
@@ -251,6 +304,7 @@ export class PartnerBillService {
     const bill = await this.get(id);
     if (bill.status === 'VOID') throw new PartnerBillVoidedError();
     if (bill.status === 'SENDING') throw new PartnerBillSendingError();
+    if (bill.paidAt) throw new PartnerBillPaidError();
     const why = reason.trim();
     if (bill.status === 'SENT') {
       await this.notifier.sendVoid({

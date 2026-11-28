@@ -8,7 +8,7 @@ import { LedgerPrismaRepository } from '../../src/infrastructure/prisma/ledger.p
 import { PartnerBillSourcesHttpAdapter } from '../../src/infrastructure/http/partner-bill-sources.http.adapter';
 import { PartnerBillNotifierHttpAdapter } from '../../src/infrastructure/http/partner-bill-notifier.http.adapter';
 import { PayoutAuditSink } from '../../src/infrastructure/http/audit.sink';
-import { GenerateBillsDto, PartnerBillListQueryDto, VoidBillDto } from '../../src/modules/dto/partner-bill.dto';
+import { GenerateBillsDto, MarkPaidDto, PartnerBillListQueryDto, VoidBillDto } from '../../src/modules/dto/partner-bill.dto';
 
 const NOW = new Date('2026-11-08T03:00:00Z');
 const BILL_ROW = {
@@ -39,6 +39,8 @@ describe('PartnerBill controllers', () => {
     generate: jest.fn().mockResolvedValue({ month: '2026-10', made: 1 }),
     approve: jest.fn().mockResolvedValue(rec),
     void: jest.fn().mockResolvedValue(rec),
+    markPaid: jest.fn().mockResolvedValue(rec),
+    open: jest.fn().mockResolvedValue([{ id: 'b1' }]),
   };
   const ctl = new PartnerBillController(service as never);
   const user = { sub: 'u1' } as never;
@@ -62,6 +64,24 @@ describe('PartnerBill controllers', () => {
     await ctl.generate({ month: '2026-10' });
     await new PartnerBillExternalController(service as never).generate({ month: '2026-10' });
     expect(service.generate).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks paid for the signed-in Finance user and gives the machine the open bills', async () => {
+    expect(await ctl.paid('b1', { paidOn: '2026-11-20', ref: 'TRF' }, user)).toMatchObject({ id: 'b1', recipients: 2 });
+    expect(service.markPaid).toHaveBeenLastCalledWith('b1', '2026-11-20', 'TRF', 'u1');
+    await ctl.paid('b1', { paidOn: '2026-11-20' }, user);
+    expect(service.markPaid).toHaveBeenLastCalledWith('b1', '2026-11-20', null, 'u1');
+    expect(await new PartnerBillExternalController(service as never).open()).toEqual([{ id: 'b1' }]);
+  });
+
+  it('validates the paid day and the reference', async () => {
+    const bad = (plain: object) => validate(plainToInstance(MarkPaidDto, plain)).then((e) => e.length);
+    expect(await bad({ paidOn: '2026-11-20', ref: ' TRF 1 ' })).toBe(0);
+    expect(await bad({ paidOn: '2026-11-20' })).toBe(0);
+    expect(await bad({ paidOn: '2026-02-30' })).toBeGreaterThan(0);
+    expect(await bad({ paidOn: '20 Nov' })).toBeGreaterThan(0);
+    expect(await bad({ paidOn: '2026-11-20T10:00:00Z' })).toBeGreaterThan(0);
+    expect(await bad({ paidOn: '2026-11-20', ref: 'x'.repeat(101) })).toBeGreaterThan(0);
   });
 
   it('validates the month, the void reason and the list filter', async () => {
@@ -130,6 +150,56 @@ describe('PartnerBillPrismaRepository', () => {
     await repo.listForOwner('o1', 10);
     expect(prisma.partnerBill.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({ where: { status: { in: ['SENT', 'VOID'] }, recipientIds: { has: 'o1' } } }),
+    );
+  });
+
+  it('reads the due and paid days as day keys', async () => {
+    const { prisma, repo } = setup();
+    prisma.partnerBill.findUnique.mockResolvedValueOnce({
+      ...BILL_ROW,
+      dueOn: new Date('2026-11-22T00:00:00Z'),
+      paidAt: NOW,
+      paidOn: new Date('2026-11-20T00:00:00Z'),
+      paidBy: 'f1',
+      paidRef: 'TRF',
+    });
+    expect(await repo.findById('b1')).toMatchObject({ dueOn: '2026-11-22', paidOn: '2026-11-20', paidBy: 'f1', paidRef: 'TRF' });
+    prisma.partnerBill.findUnique.mockResolvedValueOnce(BILL_ROW);
+    expect(await repo.findById('b1')).toMatchObject({ dueOn: null, paidOn: null });
+  });
+
+  it('lists the open bills (SENT, unpaid) with lines, and marks paid only while SENT and unpaid', async () => {
+    const { prisma, repo } = setup();
+    prisma.partnerBill.findMany.mockResolvedValue([BILL_ROW]);
+    expect(await repo.listOpen(200)).toHaveLength(1);
+    expect(prisma.partnerBill.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { status: 'SENT', paidAt: null }, take: 200, include: { lines: true } }),
+    );
+    prisma.partnerBill.updateMany.mockResolvedValue({ count: 1 });
+    prisma.partnerBill.findUnique.mockResolvedValue(BILL_ROW);
+    expect(await repo.markPaid('b1', { paidOn: '2026-11-20', ref: null, paidBy: 'f' })).toMatchObject({ id: 'b1' });
+    expect(prisma.partnerBill.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: { id: 'b1', status: 'SENT', paidAt: null },
+        data: expect.objectContaining({ paidOn: new Date('2026-11-20'), paidBy: 'f', paidRef: null }),
+      }),
+    );
+    prisma.partnerBill.updateMany.mockResolvedValue({ count: 0 });
+    expect(await repo.markPaid('b1', { paidOn: '2026-11-20', ref: null, paidBy: 'f' })).toBeNull();
+  });
+
+  it('sets the due day, 14 WIB days on, when a bill is sent', async () => {
+    const { prisma, repo } = setup();
+    prisma.partnerBill.updateMany.mockResolvedValue({ count: 1 });
+    prisma.partnerBill.findUnique.mockResolvedValue(BILL_ROW);
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-08T23:30:00Z'));
+    try {
+      await repo.markSent('b1', { approvedBy: 'f', recipientIds: ['o1'], bank: { bankName: 'B', bankAccountNumber: '1', bankAccountHolder: 'P' } });
+    } finally {
+      jest.useRealTimers();
+    }
+    expect(prisma.partnerBill.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ dueOn: new Date('2026-11-23') }) }),
     );
   });
 

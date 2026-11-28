@@ -115,6 +115,9 @@ function BillsCard({ summary }: { summary: PayoutSummary }) {
                 </span>
                 <Money amount={b.totalIdr} className="font-bold tabular-nums" />
               </div>
+              {b.status === 'SENT' && b.paidAt && (
+                <p className="text-xs font-medium text-[color:var(--success)]">{t('dashB.payout.billPaid', { on: b.paidOn ?? '' })}</p>
+              )}
               {b.status === 'VOID' && (
                 <p className="text-xs font-medium text-[color:var(--danger)]">
                   {t('dashB.payout.billVoid', { reason: b.voidReason ?? '' })}

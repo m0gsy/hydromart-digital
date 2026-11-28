@@ -58,6 +58,15 @@ describe('franchise payout page', () => {
     expect(post).not.toHaveBeenCalled();
   });
 
+  it('tells the owner a bill was paid', async () => {
+    get.mockImplementation(async (path: string) =>
+      path.endsWith('/partner-bills/mine') ? [{ ...bill, paidAt: '2026-11-20T03:00:00Z', paidOn: '2026-11-20' }] : summary,
+    );
+    const { default: PayoutPage } = await import('@/app/dashboard/payout/page');
+    render(<PayoutPage />);
+    expect(await screen.findByText(/dashB\.payout\.billPaid/)).toBeTruthy();
+  });
+
   it('shows a withdrawn bill with its reason and without payment details', async () => {
     get.mockImplementation(async (path: string) =>
       path.endsWith('/partner-bills/mine') ? [{ ...bill, status: 'VOID', voidReason: 'Salah badan hukum' }] : summary,

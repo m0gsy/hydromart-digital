@@ -37,6 +37,11 @@ export interface PartnerBill {
   voidReason: string | null;
   bank: PartnerBillBank | null;
   recipients: number;
+  /** HD-25: WIB day it falls due, and the paid mark (`paidOn` = the day the money arrived). */
+  dueOn: string | null;
+  paidAt: string | null;
+  paidOn: string | null;
+  paidRef: string | null;
   lines?: PartnerBillLine[];
 }
 

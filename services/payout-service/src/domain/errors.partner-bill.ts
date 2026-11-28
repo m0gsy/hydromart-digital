@@ -35,6 +35,33 @@ export class PartnerBillNotDraftError extends DomainError {
   }
 }
 
+/** Only a sent bill can be paid: a draft was never asked for and a void one never will be. */
+export class PartnerBillNotSentError extends DomainError {
+  readonly code = 'PARTNER_BILL_NOT_SENT';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('Only a sent bill can be marked paid.');
+  }
+}
+
+/** A paid bill is settled: voiding it would hide a payment that was received. */
+export class PartnerBillPaidError extends DomainError {
+  readonly code = 'PARTNER_BILL_PAID';
+  readonly status = HTTP_STATUS.CONFLICT;
+  constructor() {
+    super('This bill is already paid and cannot be voided.');
+  }
+}
+
+/** Money cannot have arrived on a day that has not come yet. */
+export class PartnerBillPaidOnFutureError extends DomainError {
+  readonly code = 'PARTNER_BILL_PAID_ON_FUTURE';
+  readonly status = HTTP_STATUS.BAD_REQUEST;
+  constructor() {
+    super('The paid day cannot be later than today.');
+  }
+}
+
 /** The bill is being sent: it cannot be voided until it is sent (then void it) or the send is retried. */
 export class PartnerBillSendingError extends DomainError {
   readonly code = 'PARTNER_BILL_SENDING';

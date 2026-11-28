@@ -44,8 +44,18 @@ export interface PartnerBillRecord {
   voidReason: string | null;
   bank: PartnerBillBank | null;
   recipientIds: string[];
+  /** WIB day the bill is due: the day it was sent plus PARTNER_BILL_DUE_DAYS. Null on a draft. */
+  dueOn: string | null;
+  /** Set when Finance marks it paid (SENT only); `paidOn` is the day the money arrived. */
+  paidAt: Date | null;
+  paidOn: string | null;
+  paidBy: string | null;
+  paidRef: string | null;
   lines?: PartnerBillLineRecord[];
 }
+
+/** HD-25: days from the WIB day a bill is sent to its due day. A constant, not configuration. */
+export const PARTNER_BILL_DUE_DAYS = 14;
 
 const MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 export const isMonthKey = (month: string): boolean => MONTH.test(month);
@@ -98,6 +108,14 @@ export function dayBefore(day: string): string {
 export function dayAfter(day: string): string {
   return localDayKey(new Date(dayStartUtc(day).getTime() + 25 * 3_600_000));
 }
+
+/** A day key plus `n` days, in the WIB calendar. */
+export function dayPlus(day: string, n: number): string {
+  return localDayKey(new Date(dayStartUtc(day).getTime() + n * 24 * 3_600_000));
+}
+
+/** The due day of a bill sent at `sentAt`. */
+export const dueOnOf = (sentAt: Date): string => dayPlus(localDayKey(sentAt), PARTNER_BILL_DUE_DAYS);
 
 /** Turns each depot's spans into closed day ranges inside the month: a span runs until the next one starts. */
 export function stretchesOf(spans: readonly EntitySpan[], lastDay: string): DepotStretch[] {

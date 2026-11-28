@@ -10,6 +10,7 @@ import {
   PartnerBillLineRecord,
   PartnerBillRecord,
   PartnerBillStatus,
+  dueOnOf,
 } from '../../domain/partner-bill';
 import { PrismaService } from './prisma.service';
 
@@ -37,10 +38,18 @@ interface BillRow {
   bankAccountNumber: string | null;
   bankAccountHolder: string | null;
   recipientIds: string[];
+  dueOn: Date | null;
+  paidAt: Date | null;
+  paidOn: Date | null;
+  paidBy: string | null;
+  paidRef: string | null;
   lines?: LineRow[];
 }
 
 const UNIQUE_VIOLATION = 'P2002';
+
+// tz-ok: a `date` column carries no zone; Prisma hands it back as UTC midnight of the day itself.
+const dayOf = (d: Date | null): string | null => (d ? d.toISOString().slice(0, 10) : null);
 
 @Injectable()
 export class PartnerBillPrismaRepository implements PartnerBillRepository {
@@ -69,6 +78,11 @@ export class PartnerBillPrismaRepository implements PartnerBillRepository {
       voidReason: row.voidReason,
       bank,
       recipientIds: row.recipientIds ?? [],
+      dueOn: dayOf(row.dueOn),
+      paidAt: row.paidAt,
+      paidOn: dayOf(row.paidOn),
+      paidBy: row.paidBy,
+      paidRef: row.paidRef,
       ...(row.lines
         ? {
             lines: row.lines.map(
@@ -166,8 +180,31 @@ export class PartnerBillPrismaRepository implements PartnerBillRepository {
         approvedAt: now,
         sentAt: now,
         recipientIds: data.recipientIds,
+        dueOn: new Date(dueOnOf(now)),
         ...data.bank,
       },
+    });
+    return count === 0 ? null : this.findById(id);
+  }
+
+  async listOpen(limit: number): Promise<PartnerBillRecord[]> {
+    const rows = await this.prisma.partnerBill.findMany({
+      where: { status: 'SENT', paidAt: null },
+      orderBy: [{ month: 'desc' }, { legalEntityName: 'asc' }, { id: 'asc' }],
+      take: limit,
+      include: { lines: true },
+    });
+    return rows.map((r) => this.toRecord(r as unknown as BillRow));
+  }
+
+  async markPaid(
+    id: string,
+    data: { paidOn: string; ref: string | null; paidBy: string },
+  ): Promise<PartnerBillRecord | null> {
+    // The SENT-and-unpaid guard is in the WHERE clause: two clicks cannot both write.
+    const { count } = await this.prisma.partnerBill.updateMany({
+      where: { id, status: 'SENT', paidAt: null },
+      data: { paidAt: new Date(), paidOn: new Date(data.paidOn), paidBy: data.paidBy, paidRef: data.ref },
     });
     return count === 0 ? null : this.findById(id);
   }

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsString, IsUUID, Matches, MaxLength, MinLength } from 'class-validator';
 
 const MONTH_KEY = /^\d{4}-(0[1-9]|1[0-2])$/;
 const trimmed = ({ value }: { value: unknown }): unknown => (typeof value === 'string' ? value.trim() : value);
@@ -18,6 +18,20 @@ export class VoidBillDto {
   @MinLength(3)
   @MaxLength(300)
   reason!: string;
+}
+
+export class MarkPaidDto {
+  @ApiProperty({ example: '2026-12-03', description: 'The day the money arrived, YYYY-MM-DD.' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'paidOn must be YYYY-MM-DD' })
+  @IsISO8601({ strict: true })
+  paidOn!: string;
+
+  @ApiPropertyOptional({ example: 'TRF 0312/BCA', description: 'A transfer reference to find the payment by.' })
+  @IsOptional()
+  @Transform(trimmed)
+  @IsString()
+  @MaxLength(100)
+  ref?: string;
 }
 
 export class PartnerBillListQueryDto {
@@ -101,6 +115,16 @@ export class PartnerBillResponseDto {
   bank!: PartnerBillBankResponseDto | null;
   @ApiProperty({ description: 'How many owner accounts the bill was sent to.' })
   recipients!: number;
+  @ApiProperty({ type: String, nullable: true, example: '2026-12-22', description: 'WIB day it falls due; null on a draft.' })
+  dueOn!: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  paidAt!: Date | null;
+  @ApiProperty({ type: String, nullable: true, example: '2026-12-03', description: 'The day the money arrived.' })
+  paidOn!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  paidBy!: string | null;
+  @ApiProperty({ type: String, nullable: true })
+  paidRef!: string | null;
   @ApiPropertyOptional({ type: [PartnerBillLineResponseDto] })
   lines?: PartnerBillLineResponseDto[];
 }
@@ -124,4 +148,21 @@ export class GenerateBillsResponseDto {
   noOwner!: number;
   @ApiProperty({ type: [String], description: 'Their depot codes.' })
   noOwnerDepots!: string[];
+}
+
+export class OpenBillResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+  @ApiProperty({ example: '2026-11' })
+  month!: string;
+  @ApiProperty({ example: 'November 2026' })
+  monthLabel!: string;
+  @ApiProperty()
+  legalEntityName!: string;
+  @ApiProperty({ description: 'Whole rupiah.' })
+  totalIdr!: number;
+  @ApiProperty({ example: '2026-12-22', description: 'WIB day the bill falls due.' })
+  dueOn!: string;
+  @ApiProperty({ type: [String], description: 'Codes of the depots on the bill.' })
+  depotCodes!: string[];
 }
