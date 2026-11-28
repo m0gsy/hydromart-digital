@@ -63,6 +63,20 @@ import { PartnerBillNoticeController } from './partner-bill-notice.controller';
 import { NotificationExternalController } from './notification-external.controller';
 import { BroadcastController } from './broadcast.controller';
 import { PushController } from './push.controller';
+import { WhatsappService } from '../application/services/whatsapp.service';
+import { WhatsappConsentService } from '../application/services/whatsapp-consent.service';
+import { WhatsappWebhookService } from '../application/services/whatsapp-webhook.service';
+import { WhatsappAdminService } from '../application/services/whatsapp-admin.service';
+import { WaCapPrismaRepository, WaTemplatePrismaRepository } from '../infrastructure/prisma/wa-cap.prisma.repository';
+import { WaConsentPrismaRepository } from '../infrastructure/prisma/wa-consent.prisma.repository';
+import { WaMessagePrismaRepository } from '../infrastructure/prisma/wa-message.prisma.repository';
+import { WaTransactionPrismaRepository } from '../infrastructure/prisma/wa-transaction.prisma.repository';
+import { MetaWhatsappSenderAdapter } from '../infrastructure/whatsapp/meta-whatsapp.sender.adapter';
+import { WhatsappController } from './whatsapp.controller';
+import { WhatsappWebhookController } from './whatsapp-webhook.controller';
+import { WhatsappInternalController } from './whatsapp-internal.controller';
+import { WhatsappSyncController } from './whatsapp-sync.controller';
+import { MetaSignatureGuard, WaReadyGuard } from './whatsapp.guards';
 
 const providers: Provider[] = [
   PrismaService,
@@ -117,6 +131,21 @@ const providers: Provider[] = [
   // HD-18: customer reminders n8n triggers.
   CustomerReminderService,
   { provide: CRM_TOKENS.CustomerReminderSource, useClass: CustomerReminderSourceHttpAdapter },
+  // HD-12/HD-13: WhatsApp number 1. Everything here is inert while WA_ENABLED is blank: routes answer 404,
+  // and notifyOnce's hook returns before it writes or calls anything.
+  WhatsappService,
+  WhatsappConsentService,
+  WhatsappWebhookService,
+  WhatsappAdminService,
+  WaReadyGuard,
+  MetaSignatureGuard,
+  { provide: CRM_TOKENS.WhatsappEnqueue, useExisting: WhatsappService },
+  { provide: CRM_TOKENS.WhatsappSender, useClass: MetaWhatsappSenderAdapter },
+  { provide: CRM_TOKENS.WaConsentRepository, useClass: WaConsentPrismaRepository },
+  { provide: CRM_TOKENS.WaMessageRepository, useClass: WaMessagePrismaRepository },
+  { provide: CRM_TOKENS.WaCapRepository, useClass: WaCapPrismaRepository },
+  { provide: CRM_TOKENS.WaTemplateRepository, useClass: WaTemplatePrismaRepository },
+  { provide: CRM_TOKENS.WaTransactionRepository, useClass: WaTransactionPrismaRepository },
   { provide: APP_GUARD, useClass: JwtAuthGuard },
   { provide: APP_GUARD, useClass: RolesGuard },
   { provide: APP_GUARD, useClass: DepotScopeGuard },
@@ -135,6 +164,10 @@ const providers: Provider[] = [
     NotificationExternalController,
     BroadcastController,
     PushController,
+    WhatsappController,
+    WhatsappWebhookController,
+    WhatsappInternalController,
+    WhatsappSyncController,
   ],
   providers,
   exports: [PrismaService, CrmConfigService],

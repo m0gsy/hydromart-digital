@@ -35,6 +35,10 @@ export class WaConsentPrismaRepository implements WaConsentRepository {
     return this.prisma.waConsent.findMany({ where: { phone }, orderBy: { seq: 'asc' }, take: 1000 });
   }
 
+  listForPhones(phones: string[]): Promise<WaConsentRecord[]> {
+    return this.prisma.waConsent.findMany({ where: { phone: { in: phones } }, orderBy: { seq: 'asc' }, take: 5000 });
+  }
+
   listUtilityForCustomer(customerId: string): Promise<WaConsentRecord[]> {
     return this.prisma.waConsent.findMany({
       where: { customerId, purpose: 'UTILITY', waNumber: '1' },
@@ -67,6 +71,10 @@ export class WaConsentPrismaRepository implements WaConsentRepository {
     return this.prisma.waOptInCode.findUnique({ where: { code }, select: CODE_FIELDS });
   }
 
+  findCodeById(id: string): Promise<WaOptInCodeRecord | null> {
+    return this.prisma.waOptInCode.findUnique({ where: { id }, select: CODE_FIELDS });
+  }
+
   async claimCode(code: string, phone: string, now: Date): Promise<WaOptInCodeRecord | null> {
     const { count } = await this.prisma.waOptInCode.updateMany({
       where: { code, usedAt: null, expiresAt: { gt: now } },
@@ -78,6 +86,13 @@ export class WaConsentPrismaRepository implements WaConsentRepository {
   async peerLastOkAt(peer: string): Promise<Date | null> {
     const row = await this.prisma.waPeerState.findUnique({ where: { peer } });
     return row ? row.lastOkAt : null;
+  }
+
+  async purgeBefore(cutoff: Date): Promise<number> {
+    // Newest row per phone by seq; only a phone whose newest row is a grant and old enough is deleted.
+    return this.prisma.$executeRaw`DELETE FROM "wa_consents" WHERE "phone" IN (
+      SELECT "phone" FROM (SELECT DISTINCT ON ("phone") "phone", "granted", "recordedAt" FROM "wa_consents" ORDER BY "phone", "seq" DESC) n
+      WHERE n."granted" = true AND n."recordedAt" < ${cutoff})`;
   }
 
   async stampPeer(peer: string, now: Date, lastSeq: bigint): Promise<void> {

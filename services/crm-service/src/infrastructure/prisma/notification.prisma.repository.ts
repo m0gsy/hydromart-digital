@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { PERSONAL_OPS_EVENTS } from '../../domain/notification-event';
 import { phoneVariants } from '../../domain/phone-variants';
+import { normalizeWaPhone } from '../../domain/wa-phone';
 
 import { NotificationStatus } from '../../domain/notification-status';
 import {
@@ -61,6 +62,16 @@ export class NotificationPrismaRepository implements NotificationRepository {
       this.prisma.campaignRecipient.deleteMany({ where: { OR: match } }),
       this.prisma.webPushSubscription.deleteMany({ where: { customerId } }),
     ]);
+    // HD-12/HD-13: the WhatsApp log and the opt-in codes of this person go; their consent ledger keeps only the
+    // STOP rows (the do-not-contact rule), unlinked from the customer. Grants are deleted.
+    const wa = normalizeWaPhone(phone ?? '');
+    const waMatch = wa ? [{ customerId }, { phone: wa }] : [{ customerId }];
+    const [waMessages, waCodes, waGrants] = await this.prisma.$transaction([
+      this.prisma.waMessage.deleteMany({ where: { OR: waMatch } }),
+      this.prisma.waOptInCode.deleteMany({ where: { OR: wa ? [{ customerId }, { usedPhone: wa }] : [{ customerId }] } }),
+      this.prisma.waConsent.deleteMany({ where: { granted: true, OR: waMatch } }),
+    ]);
+    await this.prisma.waConsent.updateMany({ where: { customerId }, data: { customerId: null } });
     // CRM-8: a saved segment can name customers by id. Drop this one from every list; the
     // segment itself is staff's, and the other people in it are not being erased.
     const segments = await this.prisma.savedSegment.findMany({
@@ -78,7 +89,9 @@ export class NotificationPrismaRepository implements NotificationRepository {
         },
       });
     }
-    return notifications.count + recipients.count + subscriptions.count + segments.length;
+    return (
+      notifications.count + recipients.count + subscriptions.count + segments.length + waMessages.count + waCodes.count + waGrants.count
+    );
   }
 
   async record(data: RecordNotificationData): Promise<NotificationRecord> {

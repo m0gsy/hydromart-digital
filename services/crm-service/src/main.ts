@@ -12,7 +12,8 @@ import { AppModule } from './app.module';
 import { CrmConfigService } from './config/crm-config.service';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
+  // rawBody: Meta signs the exact bytes of its webhook POST, which the JSON parser would otherwise consume.
   const logger = app.get(Logger);
   app.useLogger(logger);
 

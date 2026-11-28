@@ -170,6 +170,10 @@ export class WaTemplatePrismaRepository implements WaTemplateRepository {
     await this.prisma.waTemplate.createMany({ data: [template], skipDuplicates: true });
   }
 
+  get(name: string, language: string): Promise<WaTemplateRecord | null> {
+    return this.prisma.waTemplate.findUnique({ where: { name_language: { name, language } } });
+  }
+
   async setStatus(name: string, language: string, status: string, reason: string | null): Promise<boolean> {
     const { count } = await this.prisma.waTemplate.updateMany({
       where: { name, language },

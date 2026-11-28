@@ -109,11 +109,16 @@ describe('WaMessagePrismaRepository', () => {
     expect(failed.error).toHaveLength(500);
   });
 
-  it('STOP cancels what is still QUEUED for the phone', async () => {
-    waMessage.updateMany.mockResolvedValue({ count: 2 });
-    await expect(repo.cancelQueuedForPhone('6281')).resolves.toBe(2);
+  it('STOP cancels what is still QUEUED for the phone and returns what it moved', async () => {
+    waMessage.findMany.mockResolvedValueOnce([]);
+    await expect(repo.cancelQueuedForPhone('6281')).resolves.toEqual([]);
+    expect(waMessage.updateMany).not.toHaveBeenCalled();
+    waMessage.findMany
+      .mockResolvedValueOnce([{ id: 'm1' }, { id: 'm2' }])
+      .mockResolvedValueOnce([{ id: 'm1', vars: {} }]);
+    await expect(repo.cancelQueuedForPhone('6281')).resolves.toEqual([{ id: 'm1', vars: {} }]);
     expect(waMessage.updateMany).toHaveBeenCalledWith({
-      where: { phone: '6281', status: 'QUEUED' },
+      where: { id: { in: ['m1', 'm2'] }, status: 'QUEUED' },
       data: { status: 'CANCELLED' },
     });
   });
@@ -126,7 +131,12 @@ describe('WaMessagePrismaRepository', () => {
 
     waMessage.findMany.mockResolvedValueOnce([{ id: 'm1' }, { id: 'm2' }]).mockResolvedValueOnce([{ id: 'm1', vars: null }]);
     await expect(repo.claimQueued(10, 'tok', at, stale)).resolves.toEqual([{ id: 'm1', vars: {} }]);
-    const free = { status: 'QUEUED', OR: [{ claimedAt: null }, { claimedAt: { lt: stale } }] };
+    const free = {
+      status: 'QUEUED',
+      category: { not: 'SERVICE' },
+      createdAt: { lt: new Date(at.getTime() - 30_000) },
+      OR: [{ claimedAt: null }, { claimedAt: { lt: stale } }],
+    };
     expect(waMessage.findMany.mock.calls[1][0]).toMatchObject({ where: free, take: 10 });
     expect(waMessage.updateMany).toHaveBeenCalledWith({
       where: { ...free, id: { in: ['m1', 'm2'] } },
