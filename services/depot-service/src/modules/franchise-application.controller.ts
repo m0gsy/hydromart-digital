@@ -33,6 +33,7 @@ import {
   ApplicationSummaryQueryDto,
   ApplicationSummaryResponseDto,
   DecisionReasonDto,
+  LeadFormResponseDto,
   ListApplicationsQueryDto,
   PatchApplicationDto,
   PurgeRejectedApplicationsDto,
@@ -66,6 +67,7 @@ export class FranchiseApplicationController {
    * while FRANCHISE_LEAD_FORM_URL is unset. No auth, no personal data, cacheable. Static segment,
    * declared before ':id'. The submit route below stays live for old installed apps.
    */
+  @ApiOkResponse({ type: LeadFormResponseDto })
   @Public()
   @Header('Cache-Control', 'public, max-age=300')
   @Get('lead-form')
