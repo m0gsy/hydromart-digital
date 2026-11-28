@@ -62,6 +62,12 @@ item untuk direproduksi.
 - **Uji keamanan yang dijalankan**, bukan pembacaan kode — termasuk rate limit di tepi pada
   beban nyata, bukan hitungan per-instance di memori.
 - **Retensi dan penghapusan data di luar jalur bukti pengiriman.**
+- **WhatsApp nomor 1 (HD-12/HD-13): masa simpan bukti izin.** Default yang dipakai kode, belum ditinjau pengacara:
+  catatan izin per nomor disimpan 3 tahun sejak catatan terbaru nomor itu; nomor yang catatan terbarunya STOP tidak pernah
+  dihapus (daftar jangan-hubungi, sama seperti B2B), dan penghapusan data pribadi hanya melepas tautan ke pelanggan
+  sambil menyimpan baris STOP; log pesan keluar 180 hari (cukup untuk mencocokkan tagihan Meta); kunci dedupe webhook
+  30 hari. Perlu dipastikan: apakah 3 tahun cukup sebagai bukti, apakah menyimpan STOP tanpa batas diizinkan, dan
+  teks persetujuan versi 2026-11-29 sebelum nomor 1 dinyalakan.
 
 ---
 
