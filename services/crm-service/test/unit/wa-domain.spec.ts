@@ -64,6 +64,7 @@ describe('parseKeyword', () => {
 let seq = 0n;
 const row = (over: Partial<WaConsentRow>): WaConsentRow => ({
   seq: (seq += 1n),
+  recordedAt: new Date(Date.UTC(2026, 10, 29, 0, 0, Number(seq))),
   phone: '6281234567890',
   customerId: null,
   waNumber: '1',
@@ -90,6 +91,34 @@ describe('currentConsents / consentState', () => {
 
   it('UTILITY is per number 1: a number 2 row does not count', () => {
     expect(consentState([row({ waNumber: '2' })], '6281234567890', 'UTILITY')).toBe('NONE');
+  });
+
+  it('the newest marketing choice across BOTH numbers wins', () => {
+    const phone = '6281234567890';
+    const stopOn2 = row({ purpose: 'MARKETING', waNumber: '2', granted: false });
+    const promoOn1 = row({ purpose: 'MARKETING' });
+    expect(consentState([stopOn2, promoOn1], phone, 'MARKETING')).toBe('GRANTED');
+    const promoFirst = row({ purpose: 'MARKETING' });
+    const stopLater = row({ purpose: 'MARKETING', waNumber: '2', granted: false });
+    expect(consentState([promoFirst, stopLater], phone, 'MARKETING')).toBe('STOPPED');
+    // by when the person acted, not by insertion order: a higher seq with an older time loses
+    const older = row({ purpose: 'MARKETING', waNumber: '2', granted: false, recordedAt: new Date('2026-11-01') });
+    const newer = row({ purpose: 'MARKETING', recordedAt: new Date('2026-11-02') });
+    const lateSeq = row({ purpose: 'MARKETING', waNumber: '2', granted: false, recordedAt: new Date('2026-11-01') });
+    expect(consentState([newer, older, lateSeq], phone, 'MARKETING')).toBe('GRANTED');
+    // same instant: seq breaks the tie
+    const at = new Date('2026-11-03');
+    expect(
+      consentState(
+        [row({ purpose: 'MARKETING', recordedAt: at }), row({ purpose: 'MARKETING', waNumber: '2', granted: false, recordedAt: at })],
+        phone,
+        'MARKETING',
+      ),
+    ).toBe('STOPPED');
+    // a newer grant on number 2 does not lift a number-1 stop
+    expect(
+      consentState([row({ purpose: 'MARKETING', granted: false }), row({ purpose: 'MARKETING', waNumber: '2' })], phone, 'MARKETING'),
+    ).toBe('STOPPED');
   });
 
   it('a MARKETING stop on EITHER number counts everywhere', () => {
@@ -236,6 +265,7 @@ describe('cost and cap functions', () => {
 describe('WA_TEMPLATE_SPECS / WA_UTILITY_EVENTS', () => {
   it('has one spec per utility event, and the list is exactly the specs', () => {
     expect(WA_UTILITY_EVENTS).toHaveLength(10);
+    expect(WA_TEMPLATE_SPECS.DELIVERY_RESCHEDULED.params).toEqual(['orderNumber', 'rescheduledFor', 'slot']);
     expect(WA_UTILITY_EVENTS.sort()).toEqual(Object.keys(WA_TEMPLATE_SPECS).sort());
     expect(isWaUtilityEvent('ORDER_CONFIRMED')).toBe(true);
     expect(isWaUtilityEvent('ORDER_RECEIVED')).toBe(false);
@@ -255,7 +285,9 @@ describe('WA_TEMPLATE_SPECS / WA_UTILITY_EVENTS', () => {
   it.each(WA_UTILITY_EVENTS)('%s: parameters match the notification tokens and the body numbers them in order', (event) => {
     const spec: { name: string; body: string; params: readonly string[]; language: string; category: string } = WA_TEMPLATE_SPECS[event];
     const tokens = [...templateFor(event, 'id').matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]);
-    expect([...new Set(tokens)].sort()).toEqual([...spec.params].sort());
+    // the reschedule note is left out on purpose: Meta refuses an empty text parameter, and the note is optional
+    const omitted = event === 'DELIVERY_RESCHEDULED' ? ['note'] : [];
+    expect([...new Set(tokens)].filter((t) => !omitted.includes(t)).sort()).toEqual([...spec.params].sort());
     expect([...spec.body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1]))).toEqual(spec.params.map((_, i) => i + 1));
     // what Meta Manager accepts: lowercase underscore name, one line, does not start or end on a parameter
     expect(spec.name).toMatch(/^[a-z_]+$/);

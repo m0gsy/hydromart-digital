@@ -43,6 +43,7 @@ export class WaConsentPrismaRepository implements WaConsentRepository {
     });
   }
 
+  /** Not commit-ordered: see the contract on the port (callers re-read an overlap window and dedupe on id). */
   listAfter(afterSeq: bigint, limit: number): Promise<WaConsentRecord[]> {
     return this.prisma.waConsent.findMany({
       where: { seq: { gt: afterSeq }, NOT: { source: 'AIWEB' } },

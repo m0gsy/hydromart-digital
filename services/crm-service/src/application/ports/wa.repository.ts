@@ -43,7 +43,12 @@ export interface WaConsentRepository {
   listForPhone(phone: string): Promise<WaConsentRecord[]>;
   /** Number 1 UTILITY rows of one customer, newest last. */
   listUtilityForCustomer(customerId: string): Promise<WaConsentRecord[]>;
-  /** The STOP-list feed for the AI web: rows not written by it, after a cursor. */
+  /**
+   * The STOP-list feed for the AI web: rows not written by it, after a cursor.
+   * CONTRACT: `seq` is a BIGSERIAL and is NOT commit-ordered: a lower seq can commit after a higher one was
+   * already read, so a puller that trusts the cursor alone skips it. The caller must re-read an overlap window
+   * (seq > cursor - 1000, or recordedAt within the last 2 minutes) and dedupe on `id`. PR-B implements that.
+   */
   listAfter(afterSeq: bigint, limit: number): Promise<WaConsentRecord[]>;
   createCode(input: {
     code: string;

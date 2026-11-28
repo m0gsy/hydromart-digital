@@ -27,6 +27,8 @@ export type WaPurpose = 'UTILITY' | 'MARKETING';
 /** The shape of a ledger row this module reads. `seq` is the order: two rows in one second keep it. */
 export interface WaConsentRow {
   seq: bigint;
+  /** When the person acted; with `seq` as the tie-break it orders choices across both numbers. */
+  recordedAt: Date;
   phone: string;
   customerId: string | null;
   waNumber: string;
@@ -48,19 +50,31 @@ export function currentConsents(rows: readonly WaConsentRow[]): Map<string, WaCo
 }
 
 /**
- * What number 1 may do with a phone. UTILITY is per number 1 only. MARKETING: a stop on EITHER number counts
- * everywhere (a customer who said STOP to the promo number must not get a promo from the other), and a grant
- * only counts when it was given to number 1 itself.
+ * What number 1 may do with a phone. UTILITY is per number 1 only. MARKETING: for the phone, the NEWEST explicit
+ * choice across BOTH numbers wins (by when the person acted, `seq` breaks a tie): a newer STOP anywhere blocks,
+ * and a newer PROMO on number 1 lifts an older STOP from number 2. A grant only counts when number 1 itself
+ * holds a granted newest row; a grant given on number 2 alone gives number 1 nothing.
  */
 export function consentState(
   rows: readonly WaConsentRow[],
   phone: string,
   purpose: WaPurpose,
 ): WaConsentState {
-  const current = currentConsents(rows.filter((r) => r.phone === phone));
-  const states = [...current.values()].filter((r) => r.purpose === purpose);
-  if (purpose === 'MARKETING' && states.some((r) => !r.granted)) return 'STOPPED';
-  const onOne = states.find((r) => r.waNumber === '1');
+  const mine = rows.filter((r) => r.phone === phone && r.purpose === purpose);
+  if (purpose === 'UTILITY') {
+    const onOne = [...currentConsents(mine).values()].find((r) => r.waNumber === '1');
+    return !onOne ? 'NONE' : onOne.granted ? 'GRANTED' : 'STOPPED';
+  }
+  const newest = mine.reduce<WaConsentRow | null>(
+    (a, r) =>
+      !a || r.recordedAt > a.recordedAt || (r.recordedAt.getTime() === a.recordedAt.getTime() && r.seq > a.seq)
+        ? r
+        : a,
+    null,
+  );
+  if (!newest) return 'NONE';
+  if (!newest.granted) return 'STOPPED';
+  const onOne = [...currentConsents(mine).values()].find((r) => r.waNumber === '1');
   if (!onOne) return 'NONE';
   return onOne.granted ? 'GRANTED' : 'STOPPED';
 }

@@ -113,10 +113,20 @@ export class WaCapPrismaRepository implements WaCapRepository {
     const cap = await this.getCap(waNumber, category);
     // ponytail: gives back the rate as it is NOW; a rate edited between reserve and release leaves the cost off by the difference.
     const rate = cap ? (rateFor(category, cap) ?? 0) : 0;
-    await this.prisma.waCostCounter.updateMany({
-      where: { waNumber, monthKey, category, messages: { gt: 0 }, costIdr: { gte: rate } },
-      data: { messages: { decrement: 1 }, costIdr: { decrement: rate } },
+    const where = { waNumber, monthKey, category };
+    // The message always comes back; the cost comes back up to what is counted, never below zero.
+    const { count } = await this.prisma.waCostCounter.updateMany({
+      where: { ...where, messages: { gt: 0 } },
+      data: { messages: { decrement: 1 } },
     });
+    if (count === 0 || rate === 0) return;
+    const row = await this.prisma.waCostCounter.findUnique({
+      where: { waNumber_monthKey_category: { waNumber, monthKey, category } },
+    });
+    const back = Math.min(rate, row ? Number(row.costIdr.toString()) : 0);
+    if (back > 0) {
+      await this.prisma.waCostCounter.updateMany({ where, data: { costIdr: { decrement: back } } });
+    }
   }
 
   async markWarned(waNumber: string, monthKey: string, category: WaCategory, at: Date): Promise<boolean> {

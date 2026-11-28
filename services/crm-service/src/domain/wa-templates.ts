@@ -74,8 +74,8 @@ export const WA_TEMPLATE_SPECS = {
     name: 'hm_delivery_rescheduled',
     language: 'id',
     category: 'UTILITY',
-    body: 'Halo, pengiriman pesanan {{1}} dijadwalkan ulang ke {{2}} {{3}}. {{4}} Mohon maaf atas ketidaknyamanannya.',
-    params: ['orderNumber', 'rescheduledFor', 'slot', 'note'],
+    body: 'Halo, pengiriman pesanan {{1}} dijadwalkan ulang ke {{2}} {{3}}. Mohon maaf atas ketidaknyamanannya.',
+    params: ['orderNumber', 'rescheduledFor', 'slot'],
   },
   [NotificationEvent.SUBSCRIPTION_TOMORROW]: {
     name: 'hm_subscription_tomorrow',

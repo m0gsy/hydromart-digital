@@ -157,7 +157,7 @@ describe('WaMessagePrismaRepository', () => {
 
 describe('WaCapPrismaRepository', () => {
   const waCap = { findUnique: fn(), findMany: fn(), upsert: fn(), updateMany: fn() };
-  const waCostCounter = { createMany: fn(), updateMany: fn(), findUniqueOrThrow: fn(), findMany: fn() };
+  const waCostCounter = { createMany: fn(), updateMany: fn(), findUnique: fn(), findUniqueOrThrow: fn(), findMany: fn() };
   const repo = new WaCapPrismaRepository({ waCap, waCostCounter } as never);
   const at = new Date('2026-11-29T03:00:00.000Z');
   const capRow = (over: Record<string, unknown> = {}) => ({
@@ -249,25 +249,49 @@ describe('WaCapPrismaRepository', () => {
   });
 
   describe('release', () => {
-    it('gives one message and its cost back, never below zero', async () => {
-      waCap.findUnique.mockResolvedValue(capRow({ rateIdr: { toString: () => '400' } }));
+    const rateCap = () => capRow({ rateIdr: { toString: () => '400' } });
+    const ckey = { waNumber_monthKey_category: { waNumber: '1', monthKey: '2026-11', category: 'UTILITY' } };
+
+    it('gives the message back, and the full rate when the counter holds it', async () => {
+      waCap.findUnique.mockResolvedValue(rateCap());
+      waCostCounter.updateMany.mockResolvedValue({ count: 1 });
+      waCostCounter.findUnique.mockResolvedValue({ costIdr: { toString: () => '1200' } });
       await repo.release('1', '2026-11', 'UTILITY');
-      expect(waCostCounter.updateMany).toHaveBeenCalledWith({
-        where: { ...key, messages: { gt: 0 }, costIdr: { gte: 400 } },
-        data: { messages: { decrement: 1 }, costIdr: { decrement: 400 } },
-      });
+      expect(waCostCounter.updateMany.mock.calls).toEqual([
+        [{ where: { ...key, messages: { gt: 0 } }, data: { messages: { decrement: 1 } } }],
+        [{ where: key, data: { costIdr: { decrement: 400 } } }],
+      ]);
+      expect(waCostCounter.findUnique).toHaveBeenCalledWith({ where: ckey });
     });
 
-    it('with no cap row or no rate it gives back the message only', async () => {
+    it('never takes the cost below zero: gives back only what is counted', async () => {
+      waCap.findUnique.mockResolvedValue(rateCap());
+      waCostCounter.updateMany.mockResolvedValue({ count: 1 });
+      waCostCounter.findUnique.mockResolvedValue({ costIdr: { toString: () => '150' } });
+      await repo.release('1', '2026-11', 'UTILITY');
+      expect(waCostCounter.updateMany).toHaveBeenLastCalledWith({ where: key, data: { costIdr: { decrement: 150 } } });
+    });
+
+    it('still gives the message back when the cost is already 0 or the row is gone', async () => {
+      waCap.findUnique.mockResolvedValue(rateCap());
+      waCostCounter.updateMany.mockResolvedValue({ count: 1 });
+      waCostCounter.findUnique.mockResolvedValueOnce({ costIdr: { toString: () => '0' } }).mockResolvedValueOnce(null);
+      await repo.release('1', '2026-11', 'UTILITY');
+      await repo.release('1', '2026-11', 'UTILITY');
+      expect(waCostCounter.updateMany).toHaveBeenCalledTimes(2);
+    });
+
+    it('with no cap row or no rate only the message comes back; an empty counter changes nothing', async () => {
       waCap.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce(capRow());
+      waCostCounter.updateMany.mockResolvedValue({ count: 1 });
       await repo.release('1', '2026-11', 'UTILITY');
       await repo.release('1', '2026-11', 'UTILITY');
-      for (const call of waCostCounter.updateMany.mock.calls) {
-        expect(call[0]).toEqual({
-          where: { ...key, messages: { gt: 0 }, costIdr: { gte: 0 } },
-          data: { messages: { decrement: 1 }, costIdr: { decrement: 0 } },
-        });
-      }
+      expect(waCostCounter.updateMany).toHaveBeenCalledTimes(2);
+      expect(waCostCounter.findUnique).not.toHaveBeenCalled();
+      waCap.findUnique.mockResolvedValue(rateCap());
+      waCostCounter.updateMany.mockClear().mockResolvedValue({ count: 0 });
+      await repo.release('1', '2026-11', 'UTILITY');
+      expect(waCostCounter.updateMany).toHaveBeenCalledTimes(1);
     });
   });
 
