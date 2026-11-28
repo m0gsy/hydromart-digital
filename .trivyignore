@@ -27,6 +27,18 @@ CVE-2026-14456
 # (re-scan the tag), or when face-service moves to the alpine base.
 CVE-2025-6020
 
+# zstd information disclosure via an uninitialized buffer (HIGH), libzstd1. Debian
+# published 1.5.4+dfsg2-5+deb12u1; face-service's node:22.23.4-bookworm-slim still carries
+# 1.5.4+dfsg2-5 and upstream has not rebuilt it yet — first seen by this gate on
+# 2026-11-28 (Security run 46096545829). Not reachable here: nothing in the container
+# calls the system libzstd. The running face-service process maps only glibc, libstdc++,
+# sharp's bundled libvips-cpp and onnxruntime (read-only check of /proc/1/maps in the
+# production face container, 2026-11-28); node carries its own zstd. Only dpkg and apt
+# link libzstd1, and they never run in the runtime image.
+# Delete this line once node:22.x-bookworm-slim ships libzstd1 1.5.4+dfsg2-5+deb12u1 or
+# later (re-scan the tag), or when face-service moves to the alpine base.
+CVE-2026-124851
+
 # Language packages are NOT scanned here (--pkg-types os). Everything trivy reported
 # in that class lives in npm's OWN bundle inside the base image
 # (/usr/local/lib/node_modules/npm) — brace-expansion, cross-spawn, glob, tar. That is
