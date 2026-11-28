@@ -4,7 +4,7 @@
     "accessibility": 95,
     "best-practices": 100,
     "seo": 100,
-    "bytes": 423408,
+    "bytes": 431910,
     "requests": 40,
     "domNodes": 220
   },
@@ -13,7 +13,7 @@
     "accessibility": 95,
     "best-practices": 100,
     "seo": 100,
-    "bytes": 382886,
+    "bytes": 401895,
     "requests": 32,
     "domNodes": 218
   },
@@ -22,7 +22,7 @@
     "accessibility": 96,
     "best-practices": 100,
     "seo": 100,
-    "bytes": 373635,
+    "bytes": 389822,
     "requests": 27,
     "domNodes": 133
   },
@@ -31,7 +31,7 @@
     "accessibility": 95,
     "best-practices": 100,
     "seo": 100,
-    "bytes": 450599,
+    "bytes": 463979,
     "requests": 37,
     "domNodes": 43
   }
