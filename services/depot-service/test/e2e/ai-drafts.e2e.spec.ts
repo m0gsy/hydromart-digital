@@ -661,6 +661,25 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       expect((await get(TEAM, custom).expect(200)).body).toEqual({ read: true, manage: false, stop: true, role: 'C_SALES' });
     });
 
+    it('cs access (AI-11): read / reply / manage per role with the account id, a custom role by override, 403 below, 401 without a token', async () => {
+      const CS = '/api/v1/ai/cs/access';
+      const read = async (role: string) => (await get(CS, aiToken(role, null)).expect(200)).body;
+      expect(await read('HEAD_OFFICE')).toEqual({ read: true, reply: true, manage: true, accountId: PERSON, role: 'HEAD_OFFICE' });
+      await get(CS, aiToken('DIREKTUR', null)).expect(403);
+      await get(CS, aiToken('MANAGER', depotId)).expect(403);
+      await get(CS, staff(Role.SUPER_ADMIN)).expect(403);
+      await get(CS, machineToken()).expect(403);
+      await get(CS, null).expect(401);
+      const custom = aiToken('C_CS', null);
+      await get(CS, custom).expect(403);
+      loadCustomRoles([{ key: 'C_CS', name: 'CS', scope: 'GLOBAL' }]);
+      loadOverrides({ aiCsRead: [...CAPABILITIES.aiCsRead, 'C_CS'], aiCsReply: [...CAPABILITIES.aiCsReply, 'C_CS'] });
+      expect((await get(CS, custom).expect(200)).body).toEqual({ read: true, reply: true, manage: false, accountId: PERSON, role: 'C_CS' });
+      // Depot-locked: judged at the person's own depot (a per-depot deny hides the read).
+      loadOverrides({ aiCsRead: [...CAPABILITIES.aiCsRead, 'KEPALA_DEPOT'] });
+      expect((await get(CS, aiToken('KEPALA_DEPOT', depotId)).expect(200)).body).toMatchObject({ read: true, reply: false });
+    });
+
     it('access follows the RUNTIME matrix: a custom role granted by override, with its legal entities', async () => {
       const sales = aiToken('C_SALES', null);
       await get(ACCESS, sales).expect(403);
