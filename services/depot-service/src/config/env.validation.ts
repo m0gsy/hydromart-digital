@@ -37,6 +37,8 @@ export const envValidationSchema = Joi.object({
         .default(''),
     }),
   DEPOT_ALERT_PHONE: Joi.string().allow('').default(''),
+  // HD-22: the AI web partner form /waralaba hands over to. Blank = the in-app form stays.
+  FRANCHISE_LEAD_FORM_URL: Joi.string().uri({ scheme: ['https'] }).allow('').default(''),
   // Closing a cashier's shift reads that depot's takings from payment-service. Blank means
   // shifts can be opened but never closed — deliberate: a shift close that guesses the
   // expected cash would accuse or absolve a real person on made-up numbers.

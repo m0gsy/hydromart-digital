@@ -59,6 +59,14 @@ export class DepotConfigService {
   get crmServiceUrl(): string {
     return this.config.get<string>('CRM_SERVICE_URL', '');
   }
+  /**
+   * HD-22: where prospective partners apply now (the AI web form). Blank or anything that is
+   * not an https URL = null = /waralaba keeps its own form, exactly as before.
+   */
+  get franchiseLeadFormUrl(): string | null {
+    const url = this.config.get<string>('FRANCHISE_LEAD_FORM_URL', '').trim();
+    return /^https:\/\/[^\s]+$/i.test(url) ? url : null;
+  }
   get alertPhone(): string {
     return this.config.get<string>('DEPOT_ALERT_PHONE', '');
   }

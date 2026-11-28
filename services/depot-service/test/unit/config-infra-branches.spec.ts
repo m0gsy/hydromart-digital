@@ -26,6 +26,18 @@ describe('DepotConfigService', () => {
   const settings = { effective: jest.fn((_k, _t, envValue: number) => envValue) };
   const svc = new DepotConfigService(config as never, settings as never);
 
+  // HD-22: only a plain https URL turns the /waralaba cutover on; anything else is off.
+  it('reads the partner form URL, and treats blank or a non-https value as off', () => {
+    expect(svc.franchiseLeadFormUrl).toBeNull();
+    env.FRANCHISE_LEAD_FORM_URL = ' https://ai.example.test/daftar-mitra ';
+    expect(svc.franchiseLeadFormUrl).toBe('https://ai.example.test/daftar-mitra');
+    env.FRANCHISE_LEAD_FORM_URL = 'http://ai.example.test/daftar-mitra';
+    expect(svc.franchiseLeadFormUrl).toBeNull();
+    env.FRANCHISE_LEAD_FORM_URL = 'javascript:alert(1)';
+    expect(svc.franchiseLeadFormUrl).toBeNull();
+    delete env.FRANCHISE_LEAD_FORM_URL;
+  });
+
   it('reads env-derived and tunable config values', () => {
     expect(svc.nodeEnv).toBe('development');
     expect(svc.isProduction).toBe(false);

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -16,6 +17,7 @@ import { Throttle } from '@nestjs/throttler';
 
 import { AuthenticatedUser, Can, CurrentUser, InternalAuthGuard, Public } from '@hydromart/platform';
 
+import { DepotConfigService } from '../config/depot-config.service';
 import {
   ApproveResult,
   FranchiseApplicationService,
@@ -54,7 +56,24 @@ import {
 @Can('franchiseApplications')
 @Controller({ path: 'franchise-applications', version: '1' })
 export class FranchiseApplicationController {
-  constructor(private readonly applications: FranchiseApplicationService) {}
+  constructor(
+    private readonly applications: FranchiseApplicationService,
+    private readonly config: DepotConfigService,
+  ) {}
+
+  /**
+   * HD-22: tells /waralaba (web and the apps) where the AI web partner form lives; `url` is null
+   * while FRANCHISE_LEAD_FORM_URL is unset. No auth, no personal data, cacheable. Static segment,
+   * declared before ':id'. The submit route below stays live for old installed apps.
+   */
+  @Public()
+  @Header('Cache-Control', 'public, max-age=300')
+  @Get('lead-form')
+  @ApiOperation({ summary: 'Where the partner application form lives now (public)' })
+  leadForm(): { url: string | null } {
+    return { url: this.config.franchiseLeadFormUrl };
+  }
+
 
   /**
    * A prospective partner applies. The ONLY public route here — the rest of this

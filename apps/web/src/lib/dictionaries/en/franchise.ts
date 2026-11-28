@@ -49,4 +49,7 @@ export const franchise = {
   sentCode: 'Proposed depot code',
   sentAt: 'Sent at',
   sentAnother: 'Send another application',
+  // HD-22: shown instead of the form while the AI web form is the way in.
+  movedNotice: 'Partner applications now go through the HYDROMART AI form.',
+  openForm: 'Open the form',
 };
