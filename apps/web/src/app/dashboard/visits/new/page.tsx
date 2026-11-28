@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Lock } from '@phosphor-icons/react';
 
+import { AskAiDepotLink } from '@/components/ask-ai-link';
 import { PreciseLocationNotice } from '@/components/hr/precise-location-notice';
 import { RequireAuth } from '@/components/require-auth';
 import { Button, CenterState, ErrorState, Field, FormError, Skeleton } from '@/components/ui';
@@ -108,6 +109,7 @@ function Body() {
           ))}
         </select>
       </Field>
+      {depotId && <AskAiDepotLink depotId={depotId} />}
       <Field label={t('opsFix.visits.new.template')} htmlFor="visit-template">
         <select
           id="visit-template"

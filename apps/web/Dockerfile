@@ -37,6 +37,9 @@ ENV NEXT_PUBLIC_SENTRY_ENV=$NEXT_PUBLIC_SENTRY_ENV
 # correct behaviour for a deployment that has no fleet line yet.
 ARG NEXT_PUBLIC_COURIER_HOTLINE=
 ENV NEXT_PUBLIC_COURIER_HOTLINE=$NEXT_PUBLIC_COURIER_HOTLINE
+# HD-19: the AI web origin behind the ops "Tanya AI" entry; blank hides it. Inlined at build.
+ARG NEXT_PUBLIC_AI_WEB_URL=
+ENV NEXT_PUBLIC_AI_WEB_URL=$NEXT_PUBLIC_AI_WEB_URL
 # Install against the root lockfile (workspaces), then build the shared RBAC
 # package (roles.ts imports @hydromart/access) and only @hydromart/web.
 COPY package.json package-lock.json tsconfig.base.json ./

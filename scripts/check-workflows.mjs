@@ -255,12 +255,15 @@ const RELEASE_CONFIG = [
   ['mobile.yml', 'bundle', 'ANDROID_KEY_ALIAS', 'refuse'],
   ['mobile.yml', 'bundle', 'ANDROID_KEY_PASSWORD', 'refuse'],
   ['mobile.yml', 'bundle', 'SENTRY_ENVIRONMENT', 'default'],
+  // HD-19: the AI web origin behind the Ops "Tanya AI" entry; inline fallback = the production AI web.
+  ['mobile.yml', 'bundle', 'AI_WEB_URL', 'default'],
   // `testable` hands a debug APK to a person holding a phone. Refusing to build one because a
   // reporting DSN is unset is the inversion above; saying the APK is blind is the whole duty.
   ['mobile.yml', 'testable', 'MOBILE_API_URL', 'refuse'],
   ['mobile.yml', 'testable', 'MOBILE_WEB_HOST', 'default'],
   ['mobile.yml', 'testable', 'SENTRY_DSN_MOBILE', 'warn'],
   ['mobile.yml', 'testable', 'SENTRY_ENVIRONMENT', 'default'],
+  ['mobile.yml', 'testable', 'AI_WEB_URL', 'default'],
   // A debug APK without it still builds and installs, it just cannot register for push, so say so
   // in the log rather than refuse: a fork's pull request has no secrets at all.
   ['mobile.yml', 'testable', 'GOOGLE_SERVICES_JSON_BASE64', 'warn'],

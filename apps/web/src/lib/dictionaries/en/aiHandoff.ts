@@ -10,4 +10,8 @@ export const aiHandoff: typeof base = {
   retry: 'Try again',
   ask: 'Sign in to the HYDROMART AI web as {name}? Continue only if you just pressed Sign in there yourself.',
   continue: 'Continue',
+  tanya: 'Ask AI',
+  tanyaDepot: 'Ask AI about this depot',
+  tanyaHelp:
+    'The Supervisor assistant on the AI web: priority depots to visit, follow-ups and depot figures.',
 };
