@@ -338,6 +338,20 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('aiLeadNotify');
   });
 
+  // HD-12/HD-13: WhatsApp number 1. The cashier issues opt-in codes, finance reads cost, Direksi edits caps; the STOP-list sync is the AI web machine's.
+  it('splits the WhatsApp caps and leaves the STOP-list sync to the machine account', () => {
+    expect(can('waOptInIssue', 'KEPALA_DEPOT')).toBe(true);
+    expect(can('waOptInIssue', 'FINANCE')).toBe(false);
+    expect(can('waCostRead', 'FINANCE')).toBe(true);
+    expect(can('waCostRead', 'KEPALA_DEPOT')).toBe(false);
+    expect(CAPABILITIES.waManage).toEqual(['DIREKTUR', 'SUPER_ADMIN']);
+    expect(CAPABILITIES.waOptOutSync).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING', 'MANAGER']) expect(can('waOptOutSync', role)).toBe(false);
+    expect(CUSTOM_FORBIDDEN).toContain('waOptOutSync');
+    expect(CUSTOM_FORBIDDEN).toContain('waManage');
+    expect(CUSTOM_FORBIDDEN).not.toContain('waOptInIssue');
+  });
+
   // AI-29/AI-31: Direksi and SUPER_ADMIN manage the AI team; boss roles and head office may only stop.
   it('splits the AI team into read, manage (Direksi) and stop, and leaves the agent notice to the machine', () => {
     expect(CAPABILITIES.aiTeamManage).toEqual(['DIREKTUR', 'SUPER_ADMIN']);
