@@ -91,6 +91,13 @@ describe('purge executor registry', () => {
     ]);
   });
 
+  it('sends the three WhatsApp datasets (HD-12/13) to crm-service, one route each', () => {
+    const executors = build(ALL).filter((e) => e.dataset.startsWith('wa_'));
+    expect(executors.map((e) => e.dataset).sort()).toEqual(['wa_consents', 'wa_inbound_events', 'wa_messages']);
+    const withoutCrm = Object.fromEntries(Object.entries(ALL).filter(([key]) => key !== 'CRM_SERVICE_URL'));
+    expect(build(withoutCrm).some((e) => e.dataset.startsWith('wa_'))).toBe(false);
+  });
+
   it('drops b2b_prospects when customer-service is not configured, so it reads UNENFORCED', () => {
     const withoutCustomer = Object.fromEntries(Object.entries(ALL).filter(([key]) => key !== 'CUSTOMER_SERVICE_URL'));
     expect(build(withoutCustomer).map((e) => e.dataset)).not.toContain('b2b_prospects');
