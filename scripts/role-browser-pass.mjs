@@ -116,7 +116,7 @@ const HQ = R(`
 /hq/reconciliation /hq/refunds /hq/reports/export /hq/retention /hq/returns /hq/roster
 /hq/scheduled-reports /hq/scorecard /hq/search /hq/security /hq/sitemap /hq/sla-policy
 /hq/staff /hq/staff/import /hq/depots/import /hq/catalog/import /hq/catalog/import-categories /hq/subscriptions /hq/tax /hq/tickets /hq/vouchers
-/hq/webhooks /hq/wizard /hq/access/landing
+/hq/webhooks /hq/whatsapp /hq/wizard /hq/access/landing
 /hq/access/detail /hq/applications/detail /hq/depot-drafts/detail /hq/depots/detail /hq/forecast-models
 /hq/orders/detail /hq/pnl /hq/pnl/legal-entities /hq/depot-costs /hq/depot-costs/import /hq/policy-changes /hq/sop /hq/sop/detail /hq/visit-templates
 `);

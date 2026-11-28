@@ -811,6 +811,10 @@
   "/hq/webhooks": [
     "auth"
   ],
+  "/hq/whatsapp": [
+    "auth",
+    "crm"
+  ],
   "/hq/wizard": [
     "auth"
   ],

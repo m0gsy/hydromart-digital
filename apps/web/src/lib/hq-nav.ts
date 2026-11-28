@@ -191,6 +191,7 @@ export const HQ_GROUPS: HqRailGroup[] = [
       { href: '/hq/api-keys', labelKey: 'apiKeys', cap: 'platformAdmin' },
       { href: '/hq/webhooks', labelKey: 'webhooks', cap: 'platformAdmin' },
       { href: '/hq/retention', labelKey: 'retention', cap: 'platformAdmin' },
+      { href: '/hq/whatsapp', labelKey: 'whatsapp', cap: 'waCostRead' },
       { href: '/hq/security', labelKey: 'security', cap: 'platformAdmin' },
       { href: '/hq/policy-changes', labelKey: 'policyChanges', cap: 'platformAdmin' },
       { href: '/hq/wizard', labelKey: 'wizard', cap: 'platformAdmin' },
