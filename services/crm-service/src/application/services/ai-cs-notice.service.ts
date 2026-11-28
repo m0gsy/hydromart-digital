@@ -17,7 +17,7 @@ export interface AiCsNoticeResult {
 /**
  * AI-11: the AI web's CS inbox (WhatsApp number 2) relays "a chat was handed to CS" (NEW) or "it waits
  * too long" (REMIND / ESCALATE) by a conversation id and a kind only: no customer name, number or
- * message text ever passes, and none is written. hydromart picks the recipients (aiCsRead holders;
+ * message text ever passes, and none is written. hydromart picks the recipients (aiCsReply holders;
  * aiCsManage holders for ESCALATE) and writes the words and the link.
  */
 @Injectable()
@@ -58,7 +58,7 @@ export class AiCsNoticeService {
   /** Active accounts whose role holds the kind's capability (read again per account, so a moved person drops out). */
   private async recipients(kind: AiCsNoticeKind): Promise<string[]> {
     try {
-      const roles = [...rolesFor(kind === 'ESCALATE' ? 'aiCsManage' : 'aiCsRead')];
+      const roles = [...rolesFor(kind === 'ESCALATE' ? 'aiCsManage' : 'aiCsReply')];
       const ids = [...new Set(await this.directory.staffIdsByRoles(roles))];
       const held = await this.directory.rolesOf(ids);
       return ids.filter((id) => {

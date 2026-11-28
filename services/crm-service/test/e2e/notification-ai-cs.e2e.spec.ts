@@ -177,11 +177,13 @@ describe('POST notifications/external/ai-cs-notice (AI-11)', () => {
     expect(remind.body).toMatchObject({ recipients: 2 });
     const escalate = await post(scoped(), { ...BODY, kind: 'ESCALATE', eventId: `ai-cs-overdue:${CONV}:ESCALATE` }).expect(200);
     expect(escalate.body).toMatchObject({ recipients: 3, notified: 3 });
+    // Direksi (read + manage, no reply) is told of the ESCALATE only, never of a new or slow chat.
+    expect(repo.records.filter((r) => r.customerId === 'dir-1').map((r) => r.event)).toEqual(['AI_CS_ESCALATE']);
     expect(repo.records.filter((r) => r.event === 'AI_CS_ESCALATE').map((r) => r.customerId).sort()).toEqual(['dir-1', 'ho-1', 'sa-1']);
     expect(repo.records.find((r) => r.event === 'AI_CS_ESCALATE')!.message).toContain('Lead CS');
 
     loadCustomRoles([{ key: 'C_CS', name: 'CS', scope: 'GLOBAL' }]);
-    loadOverrides({ aiCsRead: [...CAPABILITIES.aiCsRead, 'C_CS'] });
+    loadOverrides({ aiCsReply: [...CAPABILITIES.aiCsReply, 'C_CS'] });
     try {
       const again = await post(scoped(), { ...BODY, eventId: `${BODY.eventId}:2` }).expect(200);
       expect(again.body).toMatchObject({ recipients: 3, notified: 3 });

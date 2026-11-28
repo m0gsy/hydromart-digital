@@ -912,7 +912,7 @@
     "/depot/api/v1/ai/cs/access": {
       "get": {
         "summary": "What the signed-in person may do in the AI web CS inbox (AI-11).",
-        "description": "Needs aiCsRead (built in: HEAD_OFFICE, SUPER_ADMIN, plus any custom role the owner grants it; all three CS capabilities are ordinary, grantable ones, so a CS lead is a custom role holding aiCsManage). read, reply and manage are evaluated against the matrix in force now (custom roles and per-depot grants included), so a change shows on the next call. reply (aiCsReply) claims and answers a chat; manage (aiCsManage: HEAD_OFFICE, DIREKTUR, SUPER_ADMIN) takes over, closes any chat, edits caps and pauses sending. accountId is the caller's account id (the AI web's claim of a chat is by this id) and role the role key.",
+        "description": "Needs aiCsRead (built in: HEAD_OFFICE, DIREKTUR, SUPER_ADMIN, plus any custom role the owner grants it; all three CS capabilities are ordinary, grantable ones, so a CS lead is a custom role holding aiCsManage). read, reply and manage are evaluated against the matrix in force now (custom roles and per-depot grants included), so a change shows on the next call. reply (aiCsReply) claims and answers a chat; manage (aiCsManage: HEAD_OFFICE, DIREKTUR, SUPER_ADMIN) takes over, closes any chat, edits caps and pauses sending. accountId is the caller's account id (the AI web's claim of a chat is by this id) and role the role key.",
         "security": [
           {
             "aiToken": []

@@ -50,7 +50,8 @@ describe('AiCsNoticeService', () => {
 
   it('knows the audience of each kind', () => {
     expect(isCsRecipient('NEW', 'HEAD_OFFICE')).toBe(true);
-    expect(isCsRecipient('NEW', 'DIREKTUR')).toBe(false);
+    expect(isCsRecipient('NEW', 'DIREKTUR')).toBe(false); // reads and manages, but does not answer
+    expect(isCsRecipient('REMIND', 'DIREKTUR')).toBe(false);
     expect(isCsRecipient('REMIND', 'MARKETING')).toBe(false);
     expect(isCsRecipient('ESCALATE', 'DIREKTUR')).toBe(true);
     expect(isCsRecipient('ESCALATE', 'MANAGER')).toBe(false);

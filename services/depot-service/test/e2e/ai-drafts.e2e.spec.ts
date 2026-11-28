@@ -665,7 +665,8 @@ describe('AI drafts (HD-17 part A, e2e)', () => {
       const CS = '/api/v1/ai/cs/access';
       const read = async (role: string) => (await get(CS, aiToken(role, null)).expect(200)).body;
       expect(await read('HEAD_OFFICE')).toEqual({ read: true, reply: true, manage: true, accountId: PERSON, role: 'HEAD_OFFICE' });
-      await get(CS, aiToken('DIREKTUR', null)).expect(403);
+      expect((await get(CS, aiToken('DIREKTUR', null)).expect(200)).body).toMatchObject({ read: true, reply: false, manage: true });
+      await get(CS, aiToken('FINANCE', null)).expect(403);
       await get(CS, aiToken('MANAGER', depotId)).expect(403);
       await get(CS, staff(Role.SUPER_ADMIN)).expect(403);
       await get(CS, machineToken()).expect(403);

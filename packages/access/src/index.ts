@@ -670,13 +670,13 @@ export const CAPABILITIES = {
   aiAgentNotify: ['SUPER_ADMIN'],
   /*
    * depot-service + crm-service (AI-11) - the CS inbox of the AI web (WhatsApp number 2). There is no
-   * customer-service role: head office holds all three, Direksi also manage, and the owner grants a
+   * customer-service role: head office holds all three, Direksi reads and manages, and the owner grants a
    * custom CS role what it needs (all three are ordinary caps; the CS lead is a custom role with
-   * aiCsManage). read opens the list and threads and is told of handoffs; reply claims and sends;
+   * aiCsManage). read opens the list and threads; reply claims and sends and is told of handoffs and slow chats;
    * manage takes over, closes any, edits caps and pauses, and is told of escalations.
    * GET depot ai/cs/access answers all three.
    */
-  aiCsRead: ['HEAD_OFFICE', 'SUPER_ADMIN'],
+  aiCsRead: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   aiCsReply: ['HEAD_OFFICE', 'SUPER_ADMIN'],
   aiCsManage: ['HEAD_OFFICE', 'DIREKTUR', 'SUPER_ADMIN'],
   /*

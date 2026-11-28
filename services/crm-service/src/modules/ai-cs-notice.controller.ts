@@ -12,7 +12,7 @@ import { AiCsNoticeDto, AiCsNoticeResultDto } from './dto/notification.dto';
  * too long (REMIND after 15 working minutes, ESCALATE after 60). Like the other routes under
  * notifications/external: only a machine ES256 token holding `aiCsNotify`, audited before it runs
  * (503 when the audit cannot be written). A conversation id and a kind only: no customer name,
- * number or text passes. hydromart picks the recipients (aiCsRead holders; aiCsManage for ESCALATE)
+ * number or text passes. hydromart picks the recipients (aiCsReply holders; aiCsManage for ESCALATE)
  * and writes the words; it goes out as bell, push and email (WhatsApp stays `pending`).
  * AiCsNoticeService names the events, so staff-email.spec.ts holds it to the same email/switch rule.
  */

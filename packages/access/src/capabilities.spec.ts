@@ -374,7 +374,8 @@ describe('CAPABILITIES', () => {
       expect(CUSTOM_FORBIDDEN).not.toContain(cap);
     }
     expect(can('aiCsManage', 'DIREKTUR')).toBe(true);
-    expect(can('aiCsRead', 'DIREKTUR')).toBe(false);
+    expect(can('aiCsRead', 'DIREKTUR')).toBe(true);
+    expect(can('aiCsReply', 'DIREKTUR')).toBe(false);
     expect(CAPABILITIES.aiCsNotify).toEqual(['SUPER_ADMIN']);
     for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING']) expect(can('aiCsNotify', role)).toBe(false);
     expect(CUSTOM_FORBIDDEN).toContain('aiCsNotify');

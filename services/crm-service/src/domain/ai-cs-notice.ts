@@ -11,9 +11,9 @@ export const AI_CS_EVENT_OF: Record<AiCsNoticeKind, NotificationEvent> = {
   ESCALATE: NotificationEvent.AI_CS_ESCALATE,
 };
 
-/** NEW and REMIND go to whoever reads the CS inbox (aiCsRead), ESCALATE to whoever manages it (aiCsManage). */
+/** NEW and REMIND go to whoever answers in the CS inbox (aiCsReply), ESCALATE to whoever manages it (aiCsManage). */
 export const isCsRecipient = (kind: AiCsNoticeKind, role: string): boolean =>
-  can(kind === 'ESCALATE' ? 'aiCsManage' : 'aiCsRead', role);
+  can(kind === 'ESCALATE' ? 'aiCsManage' : 'aiCsReply', role);
 
 /**
  * The AI web's own dedupe key: ai-cs:<conversationId> for NEW, ai-cs-overdue:<conversationId>:<kind>
