@@ -311,6 +311,7 @@ describe('the staff switch for each depot alert', () => {
       'salesWeekly',
       'aiAgent',
       'aiLead',
+      'aiCs',
       'maintenanceDue',
       'visitFinding',
     ];

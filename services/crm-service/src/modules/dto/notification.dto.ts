@@ -22,6 +22,7 @@ import {
 } from 'class-validator';
 
 import { AI_AGENT_NOTICE_KINDS, AiAgentNoticeKind } from '../../domain/ai-agent-notice';
+import { AI_CS_NOTICE_KINDS, AiCsNoticeKind } from '../../domain/ai-cs-notice';
 import { AI_LEAD_NOTICE_KINDS, AiLeadNoticeKind } from '../../domain/ai-lead-notice';
 import { CUSTOMER_REMINDER_KINDS, CustomerReminderKind } from '../../domain/customer-reminder';
 import { NotificationEvent } from '../../domain/notification-event';
@@ -543,6 +544,32 @@ export class AiLeadNoticeDto {
 export class AiLeadNoticeResultDto {
   @ApiProperty({ description: 'True when the legal entity is unknown or switched off: nothing was sent, do not retry.' })
   skipped!: boolean;
+  @ApiProperty({ description: 'People the notice is for.' })
+  recipients!: number;
+  @ApiProperty({ description: 'Of those, how many have the notice (a retry files none twice).' })
+  notified!: number;
+  @ApiProperty({ enum: ['pending'] })
+  whatsapp!: 'pending';
+}
+
+/** AI-11: the AI web's CS inbox relays a handoff or a slow chat: a conversation id and a kind. No customer data ever passes. */
+export class AiCsNoticeDto {
+  @ApiProperty({ example: 'ai-cs:7c1f0f64-0b6e-4f4e-9d6a-2f3f7c9a1b11', description: 'ai-cs:<conversationId> for NEW, ai-cs-overdue:<conversationId>:<kind> otherwise, plus an optional :<n> round.' })
+  @IsString()
+  @Matches(/^[A-Za-z0-9:._-]{1,120}$/, { message: 'eventId: 1 to 120 characters of A-Z a-z 0-9 : . _ -' })
+  eventId!: string;
+
+  @ApiProperty({ enum: AI_CS_NOTICE_KINDS })
+  @IsIn(AI_CS_NOTICE_KINDS)
+  kind!: AiCsNoticeKind;
+
+  @ApiProperty({ format: 'uuid' })
+  @Transform(lowerCase)
+  @IsUUID()
+  conversationId!: string;
+}
+
+export class AiCsNoticeResultDto {
   @ApiProperty({ description: 'People the notice is for.' })
   recipients!: number;
   @ApiProperty({ description: 'Of those, how many have the notice (a retry files none twice).' })

@@ -15,6 +15,7 @@ import { QualityHoldNoticeService } from '../application/services/quality-hold-n
 import { HeldDepotsHttpAdapter } from '../infrastructure/http/held-depots.http.adapter';
 import { ComplianceDueHttpAdapter } from '../infrastructure/http/compliance-due.http.adapter';
 import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
+import { AiCsNoticeService } from '../application/services/ai-cs-notice.service';
 import { AiLeadNoticeService } from '../application/services/ai-lead-notice.service';
 import { SalesWeeklyService } from '../application/services/sales-weekly.service';
 import { LegalEntityAudienceHttpAdapter } from '../infrastructure/http/legal-entity-audience.http.adapter';
@@ -60,6 +61,7 @@ import { SavedSegmentController } from './saved-segment.controller';
 import { NotificationController } from './notification.controller';
 import { VisitNoticeController } from './visit-notice.controller';
 import { PartnerBillNoticeController } from './partner-bill-notice.controller';
+import { AiCsNoticeController } from './ai-cs-notice.controller';
 import { NotificationExternalController } from './notification-external.controller';
 import { BroadcastController } from './broadcast.controller';
 import { PushController } from './push.controller';
@@ -94,6 +96,7 @@ const providers: Provider[] = [
   SalesWeeklyService,
   AiAgentNoticeService,
   AiLeadNoticeService,
+  AiCsNoticeService,
   { provide: CRM_TOKENS.LegalEntityAudience, useClass: LegalEntityAudienceHttpAdapter },
   DepotAudienceService,
   VisitNoticeService,
@@ -162,6 +165,7 @@ const providers: Provider[] = [
     VisitNoticeController,
     PartnerBillNoticeController,
     NotificationExternalController,
+    AiCsNoticeController,
     BroadcastController,
     PushController,
     WhatsappController,
