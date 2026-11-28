@@ -67,6 +67,9 @@ function CapForm({ row, editable, onSaved }: { row: Row; editable: boolean; onSa
   async function save() {
     setSaving(true);
     try {
+      // stale-write-ok: one cap row per category, shown again from the server after every save; two admins
+      // (waManage = DIREKTUR, SUPER_ADMIN) setting the same row is the same last decision. The overview carries
+      // no updatedAt yet; add seenUpdatedAt + assertFresh with the first server change to this route.
       await api.put(
         endpoints.whatsapp.hqCap(row.category),
         { monthlyMessages: capNum, rateIdr: rateNum, monthlyCostIdr: costNum },
@@ -153,6 +156,7 @@ export default function HqWhatsappPage() {
 
   async function setTemplate(name: string, language: string, status: string) {
     try {
+      // stale-write-ok: one decision (the approval state of one template), re-read after the save.
       await api.put(endpoints.whatsapp.hqTemplates, { name, language, status }, true);
       toast(t('wa.hq.saved'), 'success');
       query.reload();
