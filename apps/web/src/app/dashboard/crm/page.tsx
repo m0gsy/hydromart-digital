@@ -13,7 +13,7 @@ import { useDepot } from '@/lib/depot-context';
 import { useT } from '@/lib/locale-context';
 import { canViewDepotCrm } from '@/lib/roles';
 import { useAsync } from '@/lib/use-async';
-import type { CrmDashboard, CrmFollowUp } from '@/lib/types';
+import type { CrmDashboard, CrmFollowUp, WaContactState } from '@/lib/types';
 
 /** wa.me deep link (manual send — no gateway). Strips non-digits; 08xx → 62xx (Indonesia). */
 function waLink(phone: string, text: string): string {
@@ -32,9 +32,16 @@ function SegmentStat({ label, value, hint, tone }: { label: string; value: numbe
   );
 }
 
-function FollowUpRow({ f }: { f: CrmFollowUp }) {
+/**
+ * HD-12/HD-13: what the server says about messaging this customer on WhatsApp. null = not known (still loading,
+ * the call failed, or the channel is off): then there is no chat button and no label, never a guess.
+ */
+type WaView = { enabled: boolean; states: Record<string, WaContactState> } | null;
+
+function FollowUpRow({ f, wa }: { f: CrmFollowUp; wa: WaView }) {
   const { t } = useT();
   const name = f.name ?? t('dashA.crm.noName');
+  const state = wa?.states[f.customerId] ?? 'NONE';
   return (
     <li className="flex items-center justify-between gap-3 py-3 text-sm">
       <span className="min-w-0">
@@ -46,7 +53,7 @@ function FollowUpRow({ f }: { f: CrmFollowUp }) {
           <span className="tabular-nums">{formatIDR(f.totalSpentIdr)}</span>
         </span>
       </span>
-      {f.phone ? (
+      {f.phone && wa && state === 'OPTED_IN' ? (
         <ExternalLink
           href={waLink(f.phone, t('dashA.crm.waTemplate', { name }))}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90"
@@ -54,6 +61,12 @@ function FollowUpRow({ f }: { f: CrmFollowUp }) {
           <WhatsappLogo size={16} weight="fill" />
           {t('dashA.crm.wa')}
         </ExternalLink>
+      ) : f.phone ? (
+        wa?.enabled && (
+          <span className="shrink-0 text-xs text-muted">
+            {state === 'STOPPED' ? t('wa.crm.stopped') : t('wa.crm.never')}
+          </span>
+        )
       ) : (
         <span className="shrink-0 text-xs text-muted">{t('dashA.crm.noPhone')}</span>
       )}
@@ -68,6 +81,23 @@ function CrmBody() {
   const { data, error, loading, reload } = useAsync<CrmDashboard | null>(
     () => (scopedId ? api.get(endpoints.depotCrm.crmDashboard(scopedId), true) : Promise.resolve(null)),
     [scopedId],
+  );
+
+  // Ask the server which of these customers may be messaged. Any failure leaves `null`: no button (fail closed).
+  const ids = data?.followUps.map((f) => f.customerId) ?? [];
+  const wa = useAsync<WaView>(
+    async () => {
+      if (ids.length === 0) return null;
+      const { enabled } = await api.get<{ enabled: boolean }>(endpoints.whatsapp.status, true);
+      if (!enabled) return { enabled: false, states: {} };
+      const states = await api.post<Record<string, WaContactState>>(
+        endpoints.whatsapp.contactState,
+        { customerIds: ids.slice(0, 200) },
+        true,
+      );
+      return { enabled: true, states };
+    },
+    [ids.join(',')],
   );
 
   const scopedDepot = selected ?? depots.find((d) => d.id === scopedId) ?? null;
@@ -121,7 +151,7 @@ function CrmBody() {
             ) : (
               <ul className="mt-2 divide-y divide-[color:var(--border)]">
                 {data.followUps.map((f) => (
-                  <FollowUpRow key={f.customerId} f={f} />
+                  <FollowUpRow key={f.customerId} f={f} wa={wa.data} />
                 ))}
               </ul>
             )}

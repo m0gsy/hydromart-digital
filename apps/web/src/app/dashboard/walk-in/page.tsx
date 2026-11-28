@@ -35,6 +35,7 @@ import { PrinterSetup } from '@/components/dashboard/printer-setup';
 import { CounterPromoStrip } from '@/components/dashboard/counter-promos';
 import { CounterHeldBaskets } from '@/components/dashboard/counter-held-baskets';
 import { CounterShiftTally } from '@/components/dashboard/counter-shift-tally';
+import { CounterWaOptIn } from '@/components/dashboard/counter-wa-optin';
 import {
   MAX_HELD,
   addHeld,
@@ -1318,6 +1319,7 @@ function WalkIn({ depotId }: { depotId: string }) {
                   </Button>
                   <span className="text-xs text-muted">{t('opsFix.walkIn.identifyHint')}</span>
                 </div>
+                <CounterWaOptIn depotId={depotId} />
                 {/* Read-only: nothing is created until the cashier taps Cek pelanggan or sells. */}
                 {lookup && (
                   <p className="text-xs font-semibold sm:col-span-2" role="status">

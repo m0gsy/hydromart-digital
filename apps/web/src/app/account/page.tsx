@@ -36,6 +36,7 @@ import {
 
 import { Sheet, ConfirmDialog } from '@/components/overlay';
 import { GallonDepositCard } from '@/components/gallon-deposit-card';
+import { WaOptInCard } from '@/components/wa-opt-in-card';
 import {
   Button,
   Chip,
@@ -1223,6 +1224,9 @@ export default function AccountPage() {
           <ProfileCard customer={customer} subtitle={memberSub} />
 
           <GallonDepositCard />
+
+          {/* HD-12/13: hidden while the channel is off; a staff account has no customer ledger. */}
+          {!showOps && <WaOptInCard />}
 
           <div className={`${GROUP} lg:hidden`}>
             {links.map(({ href, label, icon: Icon }) => (
