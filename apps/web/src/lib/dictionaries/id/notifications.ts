@@ -39,6 +39,8 @@ export const notifications = {
     EXPENSE_CLAIM_SUBMITTED: 'Klaim biaya menunggu persetujuan',
     REFUND_REQUESTED: 'Refund menunggu persetujuan',
     FRANCHISE_APPLICATION_SUBMITTED: 'Lamaran waralaba baru',
+    WA_CAP_WARNING: 'WhatsApp mendekati batas bulanan',
+    WA_CAP_REACHED: 'WhatsApp mencapai batas bulanan',
     MORNING_SUMMARY: 'Persetujuan menunggu Anda',
     MAINTENANCE_DUE: 'Perawatan alat jatuh tempo',
     PERMIT_DUE: 'Izin depot jatuh tempo',

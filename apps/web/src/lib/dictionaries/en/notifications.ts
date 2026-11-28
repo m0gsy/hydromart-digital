@@ -36,6 +36,8 @@ export const notifications = {
     EXPENSE_CLAIM_SUBMITTED: 'Expense claim waiting for approval',
     REFUND_REQUESTED: 'Refund waiting for approval',
     FRANCHISE_APPLICATION_SUBMITTED: 'New franchise application',
+    WA_CAP_WARNING: 'WhatsApp near its monthly cap',
+    WA_CAP_REACHED: 'WhatsApp reached its monthly cap',
     MORNING_SUMMARY: 'Approvals waiting for you',
     MAINTENANCE_DUE: 'Equipment maintenance due',
     PERMIT_DUE: 'Depot permit due',

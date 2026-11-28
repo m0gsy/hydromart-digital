@@ -203,6 +203,10 @@ export function destinationFor(
     // AI-5: the application itself (head office's, web only like pricing), or the list.
     case NotificationEvent.FRANCHISE_APPLICATION_SUBMITTED:
       return vars.applicationId ? withId('/hq/applications/detail', vars.applicationId) : '/hq/applications';
+    // HD-12: the WhatsApp cost screen.
+    case NotificationEvent.WA_CAP_WARNING:
+    case NotificationEvent.WA_CAP_REACHED:
+      return '/hq/whatsapp';
     // AI-9: the queue screen the summary names (an href of the HD-11 queue contract), else the inbox.
     // AI-7c: the screen where access is granted (HQ legal entities, the AI access matrix).
     case NotificationEvent.AI_ACCESS_REQUESTED:
