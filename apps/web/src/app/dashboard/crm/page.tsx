@@ -33,8 +33,8 @@ function SegmentStat({ label, value, hint, tone }: { label: string; value: numbe
 }
 
 /**
- * HD-12/HD-13: what the server says about messaging this customer on WhatsApp. null = not known (still loading,
- * the call failed, or the channel is off): then there is no chat button and no label, never a guess.
+ * HD-12/HD-13: what the server says about messaging this customer on WhatsApp. null = not known yet, or contact-state failed while the
+ * channel is on: no chat button, never a guess. enabled false (off, or status unreadable) = the button as it always was.
  */
 type WaView = { enabled: boolean; states: Record<string, WaContactState> } | null;
 
@@ -53,7 +53,7 @@ function FollowUpRow({ f, wa }: { f: CrmFollowUp; wa: WaView }) {
           <span className="tabular-nums">{formatIDR(f.totalSpentIdr)}</span>
         </span>
       </span>
-      {f.phone && wa && state === 'OPTED_IN' ? (
+      {f.phone && wa && (!wa.enabled || state === 'OPTED_IN') ? (
         <ExternalLink
           href={waLink(f.phone, t('dashA.crm.waTemplate', { name }))}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#25D366] px-3 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90"
@@ -88,7 +88,11 @@ function CrmBody() {
   const wa = useAsync<WaView>(
     async () => {
       if (ids.length === 0) return null;
-      const { enabled } = await api.get<{ enabled: boolean }>(endpoints.whatsapp.status, true);
+      // Off or unreadable status: the follow-up button behaves exactly as before WhatsApp existed.
+      const enabled = await api
+        .get<{ enabled: boolean }>(endpoints.whatsapp.status, true)
+        .then((r) => r.enabled === true)
+        .catch(() => false);
       if (!enabled) return { enabled: false, states: {} };
       const states = await api.post<Record<string, WaContactState>>(
         endpoints.whatsapp.contactState,

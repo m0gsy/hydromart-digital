@@ -72,23 +72,21 @@ describe('depot CRM wa.me button state', () => {
     expect(screen.queryByText('wa.crm.stopped')).toBeNull();
   });
 
-  it('fails closed when the status call fails', async () => {
+  it('behaves as before when the status call fails: button for every number, no contact-state call', async () => {
     serve(new Error('404'));
     render(<CrmPage />);
-    await screen.findByText('dashA.crm.followTitle');
-    await waitFor(() => expect(get).toHaveBeenCalledWith('/crm/api/v1/whatsapp/status', true));
+    await waitFor(() => expect(screen.getAllByText('dashA.crm.wa')).toHaveLength(3));
     expect(post).not.toHaveBeenCalled();
-    expect(screen.queryByText('dashA.crm.wa')).toBeNull();
+    expect(screen.queryByText('wa.crm.never')).toBeNull();
   });
 
-  it('while WhatsApp is off: no chat button, no label, and contact-state is not asked', async () => {
+  it('while WhatsApp is off: the button is shown as before, no label, contact-state is not asked', async () => {
     serve({ enabled: false });
     render(<CrmPage />);
-    await screen.findByText('dashA.crm.followTitle');
-    await waitFor(() => expect(get).toHaveBeenCalledWith('/crm/api/v1/whatsapp/status', true));
+    await waitFor(() => expect(screen.getAllByText('dashA.crm.wa')).toHaveLength(3));
     expect(post).not.toHaveBeenCalled();
-    expect(screen.queryByText('dashA.crm.wa')).toBeNull();
     expect(screen.queryByText('wa.crm.never')).toBeNull();
+    expect(screen.queryByText('wa.crm.stopped')).toBeNull();
   });
 
   it('asks for at most 200 customers', async () => {
