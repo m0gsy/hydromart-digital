@@ -646,6 +646,13 @@ export const CAPABILITIES = {
    */
   salesReportNotify: ['SUPER_ADMIN'],
   /*
+   * crm-service (AI-14) - tell the Sales team that a calon mitra filled the public form on the AI
+   * web, or that the lead waited past its SLA (POST notifications/external/ai-lead-notice). Held by
+   * the n8n machine account through its token's scopes; ids and place names only, hydromart picks
+   * the recipients and writes the text, so also in CUSTOM_FORBIDDEN like salesReportNotify.
+   */
+  aiLeadNotify: ['SUPER_ADMIN'],
+  /*
    * depot-service + crm-service (AI-29/AI-31) - the "Tim AI" screen of the AI web (its agents).
    * Owner decision 26 Nov 2026: Direksi and SUPER_ADMIN switch agents on, change caps and approve
    * playbooks (aiTeamManage); an agent's boss role and head office may only STOP (aiTeamStop); an
@@ -1234,6 +1241,8 @@ export const CUSTOM_FORBIDDEN: readonly Capability[] = [
   'depotQualityHoldEnd',
   // AI-26: the n8n machine account's, same reasoning.
   'salesReportNotify',
+  // AI-14: the n8n machine account's, same reasoning.
+  'aiLeadNotify',
   // AI-29/AI-31: the n8n machine account's, same reasoning; and who may switch agents on or change their caps.
   'aiAgentNotify',
   'aiReadAgent',

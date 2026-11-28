@@ -198,6 +198,11 @@ const appEnv = doc.services?.aiweb?.environment ?? {};
 for (const [key, from] of [['HYDROMART_MACHINE_ID', 'AIWEB_APP_MACHINE_ID'], ['HYDROMART_MACHINE_SECRET', 'AIWEB_APP_MACHINE_SECRET']]) {
   if (!fromEnv(appEnv[key], from)) bad(`services.aiweb.environment.${key} must be \${${from}:-}, got ${appEnv[key]}`);
 }
+// AI-14: the public form's four settings, from AIWEB_LEAD_FORM_* with a blank default (blank legal
+// entity = the form is closed), and to the app alone.
+for (const key of ['LEGAL_ENTITY_ID', 'SECRET', 'WA_NUMBER', 'ORIGINS']) {
+  if (!fromEnv(appEnv['LEAD_FORM_' + key], 'AIWEB_LEAD_FORM_' + key)) bad(`services.aiweb.environment.LEAD_FORM_${key} must be \${AIWEB_LEAD_FORM_${key}:-}, got ${appEnv['LEAD_FORM_' + key]}`);
+}
 if (onEgress.join(',') !== 'n8n') bad(`only n8n may join egress, the one network with a way off the box, found: ${onEgress.join(', ') || 'none'}`);
 
 // One service faces Caddy, and it connects as a role of its own: never the role the migration

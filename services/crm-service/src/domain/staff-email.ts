@@ -57,6 +57,18 @@ export const STAFF_EMAIL_TEMPLATES: Partial<Record<NotificationEvent, StaffEmail
     subject: 'Agen AI dihentikan',
     body: '{{who}} dihentikan. Buka {{link}} (masuk dulu dengan akun hydromart Anda) untuk detailnya.',
   },
+  [NotificationEvent.AI_LEAD_NEW]: {
+    subject: 'Calon mitra baru dari formulir',
+    body: 'Calon mitra baru dari formulir di {{city}}, {{province}}. Buka {{link}} (masuk dulu dengan akun hydromart Anda), lalu ambil dalam 2 jam kerja.',
+  },
+  [NotificationEvent.AI_LEAD_REMIND]: {
+    subject: 'Calon mitra belum dihubungi (2 jam kerja)',
+    body: 'Calon mitra dari {{city}} belum dihubungi lewat 2 jam kerja. Buka {{link}} (masuk dulu dengan akun hydromart Anda).',
+  },
+  [NotificationEvent.AI_LEAD_ESCALATE]: {
+    subject: 'Calon mitra belum dihubungi (4 jam kerja)',
+    body: 'Calon mitra dari {{city}} belum dihubungi lewat 4 jam kerja. Perlu tindakan Sales Lead. Buka {{link}} (masuk dulu dengan akun hydromart Anda).',
+  },
   [NotificationEvent.VISIT_FINDING]: {
     subject: 'Temuan kunjungan supervisor di {{depot}}',
     body: 'Kunjungan supervisor ke {{depot}} menemukan: {{items}}. Buka tautan di bawah untuk melihat dan menindaklanjutinya.',

@@ -329,6 +329,15 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).toContain('salesReportNotify');
   });
 
+  // AI-14: n8n only relays the public form lead notice; no human role raises it.
+  it('leaves the form lead notice to the machine account', () => {
+    expect(CAPABILITIES.aiLeadNotify).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING', 'MANAGER']) {
+      expect(can('aiLeadNotify', role)).toBe(false);
+    }
+    expect(CUSTOM_FORBIDDEN).toContain('aiLeadNotify');
+  });
+
   // AI-29/AI-31: Direksi and SUPER_ADMIN manage the AI team; boss roles and head office may only stop.
   it('splits the AI team into read, manage (Direksi) and stop, and leaves the agent notice to the machine', () => {
     expect(CAPABILITIES.aiTeamManage).toEqual(['DIREKTUR', 'SUPER_ADMIN']);

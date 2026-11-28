@@ -242,6 +242,7 @@ export const dashC = {
       complianceDueNotify: 'Picu pengingat izin dan uji lab (akun mesin n8n)',
       qualityHoldNotify: 'Beritahu staf bahwa quality hold dimulai atau selesai (akun mesin n8n)',
       salesReportNotify: 'Picu pemberitahuan laporan Sales mingguan (akun mesin n8n)',
+      aiLeadNotify: 'Picu pemberitahuan calon mitra dari formulir untuk Sales (akun mesin n8n)',
       aiTeamRead: 'Buka layar Tim AI',
       aiTeamManage: 'Nyalakan agen AI, ubah plafon, setujui playbook',
       aiTeamStop: 'Hentikan agen AI',

@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { AGENT_NOTICE_KINDS, PATTERNS, RECOVERY_CODE, REMINDER_KINDS, TOTP_CODE, createMock, signEvent } from '../infra/aiweb-staging/mock/server.mjs';
+import { AGENT_NOTICE_KINDS, LEAD_NOTICE_KINDS, PATTERNS, RECOVERY_CODE, REMINDER_KINDS, TOTP_CODE, createMock, signEvent } from '../infra/aiweb-staging/mock/server.mjs';
 
 const contract = (name) => JSON.parse(readFileSync(new URL(`../contracts/ai-v1/${name}.openapi.json`, import.meta.url), 'utf8'));
 const auth = contract('auth');
@@ -294,7 +294,7 @@ test('n8n: machine token, then the franchise notification, idempotent, validated
     assert.equal(claims.aud, 'hydromart-machine');
     assert.deepEqual(claims.scopes, [
       'franchiseApplicationNotify', 'morningSummaryNotify', 'aiAccessRequestNotify', 'customerReminderNotify', 'maintenanceDueNotify',
-      'salesReportNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify',
+      'salesReportNotify', 'aiLeadNotify', 'aiAgentNotify', 'complianceDueNotify', 'qualityHoldNotify',
     ]);
 
     const applicationId = randomUUID();
@@ -490,6 +490,43 @@ test('n8n: the weekly Sales report trigger and the agent notice need their machi
       assert.equal((await send(route, human.accessToken, b)).status, 401);
       assert.equal((await send(route, null, b)).status, 401);
     }
+  } finally {
+    await mock.close();
+  }
+});
+
+test('n8n: the form lead notice needs aiLeadNotify, the contract body and an eventId that matches its kind', async () => {
+  const mock = await boot();
+  const send = (token, body) =>
+    json('POST', mock.base, '/crm/api/v1/notifications/external/ai-lead-notice', body, token ? { authorization: `Bearer ${token}`, 'x-workflow': 'wf' } : {});
+  const s = notifications.components.schemas;
+  try {
+    assert.deepEqual(notifications.paths['/crm/api/v1/notifications/external/ai-lead-notice'].post.security, [{ machineToken: [] }]);
+    assert.deepEqual(LEAD_NOTICE_KINDS, s.AiLeadNoticeTrigger.properties.kind.enum);
+    const { accessToken } = await (await json('POST', mock.base, '/auth/api/v1/auth/machine/token', { accountId: MACHINE.id, secret: MACHINE.secret })).json();
+    const prospectId = randomUUID();
+    const notice = { eventId: `ai-lead:${prospectId}`, kind: 'NEW', prospectId, legalEntityId: randomUUID(), city: 'Bekasi', province: 'Jawa Barat' };
+    const ok = await send(accessToken, notice);
+    assert.equal(ok.status, 200);
+    assert.deepEqual(Object.keys(await ok.json()).sort(), [...s.AiLeadNoticeResult.required].sort());
+    const overdue = { ...notice, kind: 'ESCALATE', eventId: `ai-lead-overdue:${prospectId}:ESCALATE`, picAccountId: randomUUID() };
+    assert.equal((await send(accessToken, overdue)).status, 200);
+    for (const bad of [
+      { ...notice, kind: 'NOPE' },
+      { ...notice, eventId: `ai-lead-overdue:${prospectId}:NEW` }, // the eventId of another kind
+      { ...overdue, eventId: `ai-lead:${prospectId}` },
+      { ...notice, city: 'www.example.com' }, // a link is not a place name
+      { ...notice, phone: '0812' }, // nothing personal passes
+      { ...notice, legalEntityId: 'nope' },
+      { kind: 'NEW' },
+    ]) {
+      assert.equal((await send(accessToken, bad)).status, 400, JSON.stringify(bad));
+    }
+    const p = pkce();
+    const { code } = await pick(mock, user('SUPER_ADMIN'), p);
+    const human = await (await json('POST', mock.base, '/auth/api/v1/auth/handoff/token', { code, codeVerifier: p.verifier, totp: TOTP_CODE })).json();
+    assert.equal((await send(human.accessToken, notice)).status, 401);
+    assert.equal((await send(null, notice)).status, 401);
   } finally {
     await mock.close();
   }

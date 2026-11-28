@@ -15,6 +15,7 @@ import { QualityHoldNoticeService } from '../application/services/quality-hold-n
 import { HeldDepotsHttpAdapter } from '../infrastructure/http/held-depots.http.adapter';
 import { ComplianceDueHttpAdapter } from '../infrastructure/http/compliance-due.http.adapter';
 import { AiAgentNoticeService } from '../application/services/ai-agent-notice.service';
+import { AiLeadNoticeService } from '../application/services/ai-lead-notice.service';
 import { SalesWeeklyService } from '../application/services/sales-weekly.service';
 import { LegalEntityAudienceHttpAdapter } from '../infrastructure/http/legal-entity-audience.http.adapter';
 import { MaintenanceDueService } from '../application/services/maintenance-due.service';
@@ -78,6 +79,7 @@ const providers: Provider[] = [
   QualityHoldNoticeService,
   SalesWeeklyService,
   AiAgentNoticeService,
+  AiLeadNoticeService,
   { provide: CRM_TOKENS.LegalEntityAudience, useClass: LegalEntityAudienceHttpAdapter },
   DepotAudienceService,
   VisitNoticeService,

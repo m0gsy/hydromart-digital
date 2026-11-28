@@ -70,6 +70,10 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   AI_AGENT_FLAG: 'orders',
   AI_AGENT_CAP: 'orders',
   AI_AGENT_STOPPED: 'orders',
+  // AI-14: a form lead is a sales matter, like the weekly report.
+  AI_LEAD_NEW: 'sales',
+  AI_LEAD_REMIND: 'sales',
+  AI_LEAD_ESCALATE: 'sales',
   VISIT_FINDING: 'stock',
   FOLLOW_UP_OVERDUE: 'stock',
   // HD-23: a bill to pay is a money matter, filed with the approvals.

@@ -128,6 +128,7 @@ export const CAP_SECTIONS: { key: string; caps: Capability[] }[] = [
       'complianceDueNotify',
       'qualityHoldNotify',
       'salesReportNotify',
+      'aiLeadNotify',
       'aiTeamRead',
       'aiTeamManage',
       'aiTeamStop',

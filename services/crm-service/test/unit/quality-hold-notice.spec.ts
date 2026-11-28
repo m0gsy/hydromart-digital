@@ -124,7 +124,7 @@ describe('quality hold copy and wiring', () => {
 
   it('hands the controller body to the service with the depot id in one spelling', async () => {
     const run = jest.fn(async () => ({ notified: 1 }));
-    const controller = new NotificationExternalController({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, { run } as never);
+    const controller = new NotificationExternalController({} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, { run } as never);
     await controller.qualityHoldRun({ holdDepotId: D1.toUpperCase(), status: 'ACTIVE', changedAt: AT });
     expect(run).toHaveBeenCalledWith(D1, 'ACTIVE', AT);
   });

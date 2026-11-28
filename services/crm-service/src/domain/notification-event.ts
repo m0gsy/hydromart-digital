@@ -99,6 +99,12 @@ export enum NotificationEvent {
   AI_AGENT_FLAG = 'AI_AGENT_FLAG',
   AI_AGENT_CAP = 'AI_AGENT_CAP',
   AI_AGENT_STOPPED = 'AI_AGENT_STOPPED',
+  // AI-14: a calon mitra filled the public form on the AI web (NEW), or the lead waited past 2 / 4
+  // working hours (REMIND / ESCALATE). One row per Sales person, raised by POST
+  // notifications/external/ai-lead-notice. Tokens: {{city}}, {{province}}, {{link}}.
+  AI_LEAD_NEW = 'AI_LEAD_NEW',
+  AI_LEAD_REMIND = 'AI_LEAD_REMIND',
+  AI_LEAD_ESCALATE = 'AI_LEAD_ESCALATE',
   // HD-15B: a completed supervisor visit with findings (one digest per recipient per visit), and the
   // open follow-ups past their deadline (one digest per recipient per depot per day). Raised by
   // POST notifications/internal/visit-notice from depot-service. Tokens: {{depot}}, {{items}},
@@ -284,6 +290,11 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.AI_AGENT_FLAG]: '{{who}} menandai kejanggalan baru. Buka Tim AI untuk detail. {{link}}',
   [NotificationEvent.AI_AGENT_CAP]: '{{who}} berhenti: plafon bulan ini tercapai. Buka Tim AI untuk detail. {{link}}',
   [NotificationEvent.AI_AGENT_STOPPED]: '{{who}} dihentikan. Buka Tim AI untuk detail. {{link}}',
+  [NotificationEvent.AI_LEAD_NEW]:
+    'Calon mitra baru dari formulir di {{city}}, {{province}}. Buka antrean dan ambil dalam 2 jam kerja. {{link}}',
+  [NotificationEvent.AI_LEAD_REMIND]: 'Calon mitra dari {{city}} belum dihubungi lewat 2 jam kerja. {{link}}',
+  [NotificationEvent.AI_LEAD_ESCALATE]:
+    'Calon mitra dari {{city}} belum dihubungi lewat 4 jam kerja. Perlu tindakan Sales Lead. {{link}}',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Perawatan jatuh tempo di {{depot}}: {{items}}. Buka menu Perawatan untuk menjadwalkan servis.',
   [NotificationEvent.PERMIT_DUE]:
@@ -427,6 +438,10 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_AGENT_FLAG,
   NotificationEvent.AI_AGENT_CAP,
   NotificationEvent.AI_AGENT_STOPPED,
+  // AI-14: each recipient's own row.
+  NotificationEvent.AI_LEAD_NEW,
+  NotificationEvent.AI_LEAD_REMIND,
+  NotificationEvent.AI_LEAD_ESCALATE,
   // HD-15B: the same, addressed to one account (also in PERSONAL_OPS_EVENTS); the depot is in the text.
   NotificationEvent.VISIT_FINDING,
   NotificationEvent.FOLLOW_UP_OVERDUE,
@@ -492,6 +507,7 @@ export type StaffToggle =
   | 'aiAccessRequest'
   | 'salesWeekly'
   | 'aiAgent'
+  | 'aiLead'
   | 'maintenanceDue'
   | 'visitFinding';
 
@@ -530,6 +546,10 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.AI_AGENT_FLAG]: 'aiAgent',
   [NotificationEvent.AI_AGENT_CAP]: 'aiAgent',
   [NotificationEvent.AI_AGENT_STOPPED]: 'aiAgent',
+  // AI-14: one switch for the three form lead notices on /hq/profile, push and email, default on.
+  [NotificationEvent.AI_LEAD_NEW]: 'aiLead',
+  [NotificationEvent.AI_LEAD_REMIND]: 'aiLead',
+  [NotificationEvent.AI_LEAD_ESCALATE]: 'aiLead',
   // HD-15B: one switch for both visit notices (depot lists and /hq/profile), push and email, default on.
   [NotificationEvent.VISIT_FINDING]: 'visitFinding',
   [NotificationEvent.FOLLOW_UP_OVERDUE]: 'visitFinding',
@@ -590,6 +610,10 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_AGENT_FLAG,
   NotificationEvent.AI_AGENT_CAP,
   NotificationEvent.AI_AGENT_STOPPED,
+  // AI-14: each recipient's own row.
+  NotificationEvent.AI_LEAD_NEW,
+  NotificationEvent.AI_LEAD_REMIND,
+  NotificationEvent.AI_LEAD_ESCALATE,
   // HD-15B: each recipient's own row.
   NotificationEvent.VISIT_FINDING,
   NotificationEvent.FOLLOW_UP_OVERDUE,
@@ -635,6 +659,11 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
   [NotificationEvent.AI_AGENT_FLAG]: '{{who}} flagged something new. Open Tim AI for details. {{link}}',
   [NotificationEvent.AI_AGENT_CAP]: "{{who}} stopped: this month's cap is reached. Open Tim AI for details. {{link}}",
   [NotificationEvent.AI_AGENT_STOPPED]: '{{who}} was stopped. Open Tim AI for details. {{link}}',
+  [NotificationEvent.AI_LEAD_NEW]:
+    'New calon mitra from the form in {{city}}, {{province}}. Open the queue and take it within 2 working hours. {{link}}',
+  [NotificationEvent.AI_LEAD_REMIND]: 'The calon mitra from {{city}} has not been contacted after 2 working hours. {{link}}',
+  [NotificationEvent.AI_LEAD_ESCALATE]:
+    'The calon mitra from {{city}} has not been contacted after 4 working hours. Sales Lead must act. {{link}}',
   [NotificationEvent.MAINTENANCE_DUE]:
     'Maintenance is due at {{depot}}: {{items}}. Open Maintenance to schedule the service.',
   [NotificationEvent.PERMIT_DUE]:
