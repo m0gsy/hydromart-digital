@@ -149,7 +149,9 @@ export class WhatsappWebhookService {
           ? { code: errors[0] ? String(errors[0].code ?? '') || null : null, text: str(errors[0]?.title) || 'failed' }
           : null;
       const applied = await t.messages.applyStatus(wamid, status, at, error);
-      if (!applied) return;
+      // The report beat our own markSent (the wamid is not stored yet): roll the dedupe key back and let
+      // Meta's retry apply it, instead of losing it.
+      if (!applied) throw new Error('status for a message not stored yet');
       // Meta did not bill it, or it failed: the upper-bound reservation goes back, once per message.
       const give = obj(item.pricing).billable === false || (status === 'FAILED' && applied.changed);
       if (give && (await t.messages.recordInbound(`${wamid}:release`, 'RELEASE'))) {

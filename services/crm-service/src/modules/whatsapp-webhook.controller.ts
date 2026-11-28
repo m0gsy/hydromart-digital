@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiExcludeController, ApiOkResponse } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 import { timingSafeEqual } from 'node:crypto';
 
 import { Public } from '@hydromart/platform';
@@ -50,7 +51,9 @@ export class WhatsappWebhookController {
     return String(query['hub.challenge'] ?? '');
   }
 
+  // The signature is the gate: Meta's bursts must not be throttled per IP.
   @ApiOkResponse({ description: 'Acknowledged: { ok: true }.' })
+  @SkipThrottle()
   @Public()
   @UseGuards(WaReadyGuard, MetaSignatureGuard)
   @Post()

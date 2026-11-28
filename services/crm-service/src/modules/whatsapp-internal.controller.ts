@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiExcludeController, ApiOkResponse } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { InternalAuthGuard, Public } from '@hydromart/platform';
 
@@ -16,6 +17,8 @@ import { CrmConfigService } from '../config/crm-config.service';
  * only ever deletes.
  */
 @ApiExcludeController()
+// Scheduler and admin-service calls, authed by the internal key: not a public surface to throttle.
+@SkipThrottle()
 @Controller({ path: 'whatsapp/internal', version: '1' })
 export class WhatsappInternalController {
   constructor(

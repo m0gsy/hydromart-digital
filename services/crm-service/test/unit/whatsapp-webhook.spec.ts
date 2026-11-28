@@ -4,7 +4,7 @@ import { WhatsappConsentService } from '../../src/application/services/whatsapp-
 import { WhatsappWebhookService } from '../../src/application/services/whatsapp-webhook.service';
 import { WhatsappService } from '../../src/application/services/whatsapp.service';
 import { WA_REPLY_CODE_INVALID, WA_REPLY_OTHER, WA_REPLY_PROMO, WA_REPLY_STARTED, WA_REPLY_STOPPED } from '../../src/domain/wa-replies';
-import { FakeCaps, FakeConsent, FakeMessages, FakeSender, FakeTemplates, FakeTx, waConfig } from '../support/wa-fakes';
+import { FakeCaps, FakeConsent, FakeMessages, FakeSender, FakeActivity, FakeDirectory, FakeTemplates, FakeTx, waConfig } from '../support/wa-fakes';
 
 const PHONE = '6281234567890';
 const CUSTOMER = 'cust-1';
@@ -33,9 +33,9 @@ describe('WhatsappWebhookService', () => {
     caps.setCap('UTILITY', { monthlyMessages: 100 });
     const config = waConfig();
     const tx = new FakeTx(consent, messages, caps);
-    const consentService = new WhatsappConsentService(config, consent, tx);
+    const consentService = new WhatsappConsentService(config, consent, tx, new FakeActivity(), new FakeDirectory());
     const whatsapp = new WhatsappService(config, consent, messages, caps, templates, sender, consentService, { get: () => ({ notify: jest.fn() }) } as unknown as ModuleRef);
-    webhook = new WhatsappWebhookService(config, new WhatsappConsentService(config, consent, tx), whatsapp, tx, templates);
+    webhook = new WhatsappWebhookService(config, consentService, whatsapp, tx, templates);
   });
 
   const state = (purpose: string) => {
@@ -189,8 +189,19 @@ describe('WhatsappWebhookService', () => {
       expect(messages.rows[1].status).toBe('FAILED');
     });
 
-    it('a report for a message we never sent, a repeat, or an unknown state changes nothing', async () => {
-      await webhook.handle(status('wamid.nobody', 'delivered'));
+    it('a report that beat our own markSent is not lost: the item rolls back and the retry applies it', async () => {
+      await sent('wamid.late');
+      const row = messages.rows[0];
+      const meta = row.metaMessageId;
+      row.metaMessageId = null; // markSent has not stored the wamid yet
+      await expect(webhook.handle(status('wamid.late', 'delivered'))).rejects.toThrow();
+      expect(messages.inbound.has('wamid.late:delivered')).toBe(false);
+      row.metaMessageId = meta;
+      await webhook.handle(status('wamid.late', 'delivered'));
+      expect(row.status).toBe('DELIVERED');
+    });
+
+    it('a repeat, or an unknown state, changes nothing', async () => {
       await webhook.handle(status('wamid.out1', 'weird'));
       await webhook.handle(payload({ statuses: [{ status: 'sent' }] }));
       expect(caps.releases).toEqual([]);
