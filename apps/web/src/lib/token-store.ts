@@ -2,7 +2,15 @@
 
 import { onResume } from './app-lifecycle';
 import { isNativeShell } from './platform';
-import { FAILURES_KEY, unlockDevice, vaultClear, vaultRead, vaultWrite } from './secure-vault';
+import { hadSession, markHadSession, noteSessionDrop } from './session-drop';
+import {
+  FAILURES_KEY,
+  unlockDevice,
+  vaultClear,
+  vaultRead,
+  vaultWrite,
+  type VaultRead,
+} from './secure-vault';
 
 /**
  * F2: the native half of the session. F3b: and where it sleeps.
@@ -65,6 +73,29 @@ const MAX_UNLOCK_FAILURES = 3;
  * dead app. A late answer still counts: if the owner does unlock afterwards, the session opens.
  */
 const UNLOCK_TIMEOUT_MS = 90_000;
+
+/**
+ * A Keystore call that failed gets one more try shortly after. The plugin's failures are mostly
+ * transient (the key store busy right after the app resumes), and each unretried one used to
+ * cost a billed SMS: a failed read destroyed the stored session, a failed write left it only in memory.
+ */
+const VAULT_RETRY_MS = 300;
+
+async function readWithRetry(): Promise<VaultRead> {
+  const first = await vaultRead();
+  if (first.ok || first.code === 'unavailable') return first;
+  await new Promise((resolve) => setTimeout(resolve, VAULT_RETRY_MS));
+  return vaultRead();
+}
+
+async function writeWithRetry(value: string): Promise<void> {
+  try {
+    await vaultWrite(value);
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, VAULT_RETRY_MS));
+    await vaultWrite(value);
+  }
+}
 
 let tokens: Tokens | null = null;
 /** The last vault write, so a caller can wait for the disk before acting on the token. */
@@ -206,6 +237,14 @@ export function unlockWasCancelled(): boolean {
   return cancelled;
 }
 
+/**
+ * The Keystore holds a session its owner has not opened: a dismissed prompt, or a locked screen.
+ * Asking for an SMS code now would spend one on a session that opens with a fingerprint or PIN.
+ */
+export function hasStoredSession(): boolean {
+  return unlockWasCancelled() || getSessionLock() === 'locked';
+}
+
 /** Ask again, after a dismissal. The only thing allowed to forget a finished unlock. */
 export function retryUnlock(): Promise<void> {
   cancelled = false;
@@ -242,19 +281,24 @@ async function restoreFromVault(): Promise<void> {
 
   // Whatever way this ends, the answer is announced exactly once, after the flags are final.
   try {
-    const read = await vaultRead();
+    const read = await readWithRetry();
     // A read that failed is a key the device can no longer use — Android invalidates one
     // when a new fingerprint is enrolled. Leaving the entry in place would mean a prompt
     // on every launch for a blob that can never be decrypted again, so it goes, and the
     // user signs in once with an OTP. Deliberately not done for `unavailable`, which is a
     // missing plugin rather than a broken key.
     if (!read.ok) {
-      if (read.code !== 'unavailable') await vaultClear();
+      if (read.code !== 'unavailable') {
+        noteSessionDrop('vault_read_failed');
+        await vaultClear();
+      }
       settledEmpty = true;
       primeTokens(null);
       return;
     }
     if (read.data === null) {
+      // Nothing stored, on a phone that had a session: the Keystore lost it. A first run has no marker to set.
+      if (hadSession()) noteSessionDrop('vault_empty');
       settledEmpty = true;
       primeTokens(null);
       return;
@@ -267,6 +311,7 @@ async function restoreFromVault(): Promise<void> {
       // An entry that opened but holds nothing usable is as good as none: nothing will ever
       // read it, and calling it "locked" would offer a prompt that can never succeed.
       if (!restored) settledEmpty = true;
+      else markHadSession();
       primeTokens(restored);
       return;
     }
@@ -277,6 +322,7 @@ async function restoreFromVault(): Promise<void> {
       await setFailures(count);
       if (count >= MAX_UNLOCK_FAILURES) {
         await setFailures(0);
+        noteSessionDrop('unlock_failed');
         await vaultClear();
         settledEmpty = true;
         primeTokens(null);
@@ -339,8 +385,10 @@ export function setTokens(next: Tokens | null): void {
   // tracked rather than awaited here — `setTokens` is called from inside a synchronous
   // response handler. `tokensPersisted()` is how the one caller that must not run ahead
   // of the disk waits for it.
-  persisting = (next ? vaultWrite(JSON.stringify(next)) : vaultClear()).catch(() => {
-    /* Keystore unavailable: this session still works from memory until the app closes */
+  persisting = (next ? writeWithRetry(JSON.stringify(next)) : vaultClear()).catch(() => {
+    // Keystore unavailable: this session still works from memory until the app closes, and the
+    // next launch will find nothing. Say so now, so the SMS that follows can be explained.
+    if (next) noteSessionDrop('vault_write_failed');
   });
 }
 

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 import { ArrowRight, LockKey, ShieldCheck } from '@phosphor-icons/react';
 
+import { KeepSessionConfirm } from '@/components/keep-session-confirm';
 import { Button, Skeleton } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { api, ApiError } from '@/lib/api';
@@ -12,6 +13,8 @@ import { endpoints } from '@/lib/endpoints';
 import { useAuth } from '@/lib/auth-context';
 import { useT } from '@/lib/locale-context';
 import { consoleHome } from '@/lib/roles';
+import { completeLogin, noteSessionDrop, peekSessionDrop, sessionDropField } from '@/lib/session-drop';
+import { hasStoredSession, hasTokens, retryUnlock } from '@/lib/token-store';
 import type { OtpChallenge, Session } from '@/lib/types';
 
 /**
@@ -40,6 +43,8 @@ function HqLoginPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cooldown, setCooldown] = useState(0);
+  // A stored session is still on the device: ask before spending an SMS on it.
+  const [confirming, setConfirming] = useState(false);
 
   // Already signed in → straight on. This is the ONLY navigation out of this screen:
   // verify() signs in and lets this effect route, so a fresh sign-in and a return visit
@@ -61,15 +66,32 @@ function HqLoginPanel() {
     return () => clearInterval(id);
   }, [counting]);
 
-  async function requestCode(e?: React.FormEvent) {
+  async function openStored() {
+    setConfirming(false);
+    // The auth provider sees the unlock and routes through `signedInRole` above.
+    await retryUnlock();
+  }
+
+  function skipStored() {
+    noteSessionDrop('stored_skipped');
+    setConfirming(false);
+    void requestCode(undefined, true);
+  }
+
+  async function requestCode(e?: React.FormEvent, confirmed = false) {
     e?.preventDefault();
     if (loading || phone.trim() === '') return;
+    if (!confirmed && hasStoredSession()) {
+      setConfirming(true);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       const challenge = await api.post<OtpChallenge>(endpoints.auth.login, {
         phone: phone.trim(),
         audience: 'STAFF',
+        ...sessionDropField(),
       });
       setStep('otp');
       setCooldown(challenge.resendCooldownSeconds ?? RESEND_SECONDS);
@@ -85,11 +107,13 @@ function HqLoginPanel() {
     setLoading(true);
     setError(null);
     try {
+      const dropped = peekSessionDrop();
       const session = await api.post<Session>(endpoints.auth.verifyOtp, {
         phone: phone.trim(),
         code: value,
         purpose: 'LOGIN',
       });
+      if (hasTokens()) completeLogin(dropped);
       signIn(session);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('hq.login.error'));
@@ -151,14 +175,18 @@ function HqLoginPanel() {
                 </p>
               )}
 
-              <Button
-                type="submit"
-                loading={loading}
-                className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold"
-              >
-                {t('hq.login.sendCode')}
-                {!loading && <ArrowRight size={17} weight="bold" />}
-              </Button>
+              {confirming ? (
+                <KeepSessionConfirm onOpen={openStored} onSkip={skipStored} />
+              ) : (
+                <Button
+                  type="submit"
+                  loading={loading}
+                  className="h-[52px] w-full rounded-[14px] text-[15px] font-extrabold"
+                >
+                  {t('hq.login.sendCode')}
+                  {!loading && <ArrowRight size={17} weight="bold" />}
+                </Button>
+              )}
             </form>
           ) : (
             <form
