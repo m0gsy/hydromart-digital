@@ -48,6 +48,18 @@ export const envValidationSchema = Joi.object({
   FCM_PROJECT_ID: Joi.string().allow('').default(''),
   FCM_CLIENT_EMAIL: Joi.string().allow('').default(''),
   FCM_PRIVATE_KEY: Joi.string().allow('').default(''),
+  // WhatsApp number 1 (HD-12/HD-13). ALL blank = off: nothing is sent, the webhook answers 404. Values live on the
+  // box or in the GitHub secret, never in the repo; the validator allows blank so a half-filled set cannot stop crm booting.
+  WA_ENABLED: Joi.string().allow('').default(''),
+  WA_ACCESS_TOKEN: Joi.string().allow('').default(''),
+  WA_APP_SECRET: Joi.string().allow('').default(''),
+  WA_VERIFY_TOKEN: Joi.string().allow('').default(''),
+  WA_PHONE_NUMBER_ID_1: Joi.string().allow('').default(''),
+  WA_WABA_ID_1: Joi.string().allow('').default(''),
+  WA_GRAPH_VERSION: Joi.string().allow('').default(''),
+  WA_NUMBER_1_E164: Joi.string().allow('').default(''),
+  WA_LEGAL_ENTITY_NAME: Joi.string().allow('').default(''),
+  WA_PEER_MAX_AGE_SECONDS: Joi.string().allow('').default(''),
   // Q-6: also from x-shared. The depot-scope resolver fails CLOSED on it, so an
   // unset value does not degrade tenant isolation — it refuses every scoped request.
   DEPOT_SERVICE_URL: Joi.string()

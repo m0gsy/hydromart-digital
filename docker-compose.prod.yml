@@ -622,6 +622,17 @@ services:
       FCM_PROJECT_ID: ${FCM_PROJECT_ID:-}
       FCM_CLIENT_EMAIL: ${FCM_CLIENT_EMAIL:-}
       FCM_PRIVATE_KEY: ${FCM_PRIVATE_KEY:-}
+      # WhatsApp number 1 (HD-12/HD-13). ALL blank = off: nothing is sent and the webhook answers 404.
+      WA_ENABLED: ${WA_ENABLED:-}
+      WA_ACCESS_TOKEN: ${WA_ACCESS_TOKEN:-}
+      WA_APP_SECRET: ${WA_APP_SECRET:-}
+      WA_VERIFY_TOKEN: ${WA_VERIFY_TOKEN:-}
+      WA_PHONE_NUMBER_ID_1: ${WA_PHONE_NUMBER_ID_1:-}
+      WA_WABA_ID_1: ${WA_WABA_ID_1:-}
+      WA_GRAPH_VERSION: ${WA_GRAPH_VERSION:-}
+      WA_NUMBER_1_E164: ${WA_NUMBER_1_E164:-}
+      WA_LEGAL_ENTITY_NAME: ${WA_LEGAL_ENTITY_NAME:-}
+      WA_PEER_MAX_AGE_SECONDS: ${WA_PEER_MAX_AGE_SECONDS:-}
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--output-document=/dev/null", "http://127.0.0.1:3012/api/v1/health"]
       interval: 30s

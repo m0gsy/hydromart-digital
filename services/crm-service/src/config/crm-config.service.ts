@@ -113,4 +113,55 @@ export class CrmConfigService {
       privateKey: this.config.get<string>('FCM_PRIVATE_KEY', '').trim().replace(/\\n/g, '\n'),
     };
   }
+
+  /**
+   * WhatsApp number 1 (HD-12/HD-13). Everything blank is OFF: `ready` is false, nothing is sent and
+   * nothing is answered. A half-filled set also reads as not ready, with the missing KEY NAMES (never the
+   * values) so HQ can see what is left, and it never blocks boot: a bad env-set must not take crm down.
+   * no-deploy-probe: WhatsApp is switched on deliberately by the owner; an incomplete set shows as OFF with the missing key names on /hq/whatsapp
+   */
+  get whatsapp(): {
+    enabled: boolean;
+    ready: boolean;
+    missing: string[];
+    accessToken: string;
+    appSecret: string;
+    verifyToken: string;
+    phoneNumberId1: string;
+    wabaId1: string;
+    graphVersion: string;
+    number1E164: string;
+    legalEntityName: string;
+    peerMaxAgeSeconds: number;
+  } {
+    const str = (key: string): string => this.config.get<string>(key, '').trim();
+    const enabled = str('WA_ENABLED').toLowerCase() === 'true';
+    const required = [
+      'WA_ACCESS_TOKEN',
+      'WA_APP_SECRET',
+      'WA_VERIFY_TOKEN',
+      'WA_PHONE_NUMBER_ID_1',
+      'WA_WABA_ID_1',
+      'WA_GRAPH_VERSION',
+      'WA_NUMBER_1_E164',
+      'WA_LEGAL_ENTITY_NAME',
+    ];
+    const missing = enabled ? required.filter((key) => !str(key)) : [];
+    // Policy value, not a price: three missed 60 s polls of the AI web before its STOP list counts as stale.
+    const peerMaxAge = Number(str('WA_PEER_MAX_AGE_SECONDS'));
+    return {
+      enabled,
+      ready: enabled && missing.length === 0,
+      missing,
+      accessToken: str('WA_ACCESS_TOKEN'),
+      appSecret: str('WA_APP_SECRET'),
+      verifyToken: str('WA_VERIFY_TOKEN'),
+      phoneNumberId1: str('WA_PHONE_NUMBER_ID_1'),
+      wabaId1: str('WA_WABA_ID_1'),
+      graphVersion: str('WA_GRAPH_VERSION'),
+      number1E164: str('WA_NUMBER_1_E164'),
+      legalEntityName: str('WA_LEGAL_ENTITY_NAME'),
+      peerMaxAgeSeconds: Number.isFinite(peerMaxAge) && peerMaxAge > 0 ? peerMaxAge : 180,
+    };
+  }
 }
