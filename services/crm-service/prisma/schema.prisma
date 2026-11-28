@@ -252,3 +252,168 @@ model SavedSegment {
 
   @@map("saved_segments")
 }
+
+// ---- WhatsApp number 1 (HD-12 / HD-13). Schema only in this release: nothing reads or writes
+// these tables yet (deploy-common.sh pending_migrations: "schema ships one release before its reader").
+
+/// The per-number consent ledger, append-only: the current state of a (phone, purpose) is its
+/// newest row, and no row at all means "never asked", which is not "refused". `seq` is the cursor
+/// the AI web pulls the STOP list by. auth-service's per-customer ledger is untouched: a number
+/// needs a channel, a legal entity and a source, and a walk-in number has no account.
+model WaConsent {
+  id          String   @id @default(uuid())
+  seq         BigInt   @unique @default(autoincrement())
+  /// Digits only, `62...`, no plus (normalizeWaPhone).
+  phone       String
+  customerId  String?
+  /// '1' | '2'
+  waNumber    String
+  /// 'UTILITY' | 'MARKETING'
+  purpose     String
+  channel     String   @default("WHATSAPP")
+  /// PT name at the time of the consent (WA_LEGAL_ENTITY_NAME).
+  legalEntity String
+  granted     Boolean
+  textVersion String
+  /// 'APP' | 'CASHIER_QR' | 'KEYWORD' | 'AIWEB' | 'STAFF_REVOKE' | 'ERASURE'
+  source      String
+  /// Opt-in code id, Meta wamid or AI web event id; (source, sourceRef) makes a replay a no-op.
+  sourceRef   String?
+  depotId     String?
+  recordedAt  DateTime @default(now())
+
+  @@unique([source, sourceRef])
+  @@index([phone, purpose, recordedAt(sort: Desc)])
+  @@index([customerId, purpose, recordedAt(sort: Desc)])
+  @@map("wa_consents")
+}
+
+/// A single-use code the customer sends to number 1 (`DAFTAR <code>`): it links a phone to a
+/// customer or a cashier's counter. Claimed by one conditional UPDATE.
+model WaOptInCode {
+  id         String    @id @default(uuid())
+  code       String    @unique
+  /// 'CASHIER' | 'SELF'
+  kind       String
+  customerId String?
+  depotId    String?
+  createdBy  String
+  expiresAt  DateTime
+  usedAt     DateTime?
+  usedPhone  String?
+  createdAt  DateTime  @default(now())
+
+  @@index([expiresAt])
+  @@map("wa_opt_in_codes")
+}
+
+/// Outbound log and outbox for number 1. `dedupeKey` (`wa:` + the notification's key) makes a
+/// retried event unable to send twice; `skipReason` tells HQ why nothing left.
+model WaMessage {
+  id             String    @id @default(uuid())
+  notificationId String?
+  dedupeKey      String    @unique
+  customerId     String?
+  phone          String
+  waNumber       String
+  /// 'UTILITY' | 'MARKETING' | 'AUTHENTICATION' | 'SERVICE'
+  category       String
+  templateName   String
+  language       String
+  /// The rendered parameters only.
+  vars           Json
+  /// 'QUEUED' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'CANCELLED' | 'SKIPPED'
+  status         String
+  /// 'OFF' | 'PAUSED' | 'NO_CONSENT' | 'STOPPED' | 'CAP' | 'TEMPLATE_NOT_APPROVED' | 'PEER_STOP_UNKNOWN' | 'NO_PHONE'
+  skipReason     String?
+  /// Meta's wamid.
+  metaMessageId  String?   @unique
+  errorCode      String?
+  error          String?
+  attempts       Int       @default(0)
+  /// localMonthKey of creation (WIB).
+  monthKey       String
+  claimToken     String?
+  claimedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  failedAt       DateTime?
+
+  @@index([status, createdAt])
+  @@index([monthKey, category])
+  @@index([phone, createdAt])
+  @@map("wa_messages")
+}
+
+/// Inbound webhook dedupe: the key (`wamid`, or `wamid:status`) only. No body is kept.
+model WaInboundEvent {
+  eventKey   String   @id
+  kind       String
+  receivedAt DateTime @default(now())
+
+  @@index([receivedAt])
+  @@map("wa_inbound_events")
+}
+
+/// Monthly message cap per number and category. No row = cannot send (fail closed). `rateIdr`
+/// is the owner's estimate from Meta's official price list; nothing guesses it.
+model WaCap {
+  waNumber        String
+  category        String
+  monthlyMessages Int
+  rateIdr         Decimal? @db.Decimal(12, 2)
+  monthlyCostIdr  Decimal? @db.Decimal(14, 2)
+  /// Kill switch per row.
+  paused          Boolean  @default(false)
+  updatedBy       String?
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@id([waNumber, category])
+  @@map("wa_caps")
+}
+
+/// What was handed to Meta this month (WIB), per number and category. No personal data: kept 24 months.
+model WaCostCounter {
+  waNumber  String
+  monthKey  String
+  category  String
+  messages  Int       @default(0)
+  costIdr   Decimal   @default(0) @db.Decimal(14, 2)
+  warnedAt  DateTime?
+  stoppedAt DateTime?
+  updatedAt DateTime  @default(now()) @updatedAt
+
+  @@id([waNumber, monthKey, category])
+  @@map("wa_cost_counters")
+}
+
+/// Approval state of a Meta template. Which event maps to which template and parameter order is
+/// code (WA_TEMPLATE_SPECS), so a template cannot be sent with the wrong parameters.
+model WaTemplate {
+  id             String   @id @default(uuid())
+  name           String
+  language       String
+  /// NotificationEvent name, null for a template no event sends.
+  event          String?
+  category       String
+  bodyParams     Int
+  metaTemplateId String?
+  /// 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'PAUSED'
+  status         String   @default("DRAFT")
+  statusReason   String?
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  @@unique([name, language])
+  @@map("wa_templates")
+}
+
+/// Last time the AI web (number 2) pulled the STOP list; a stale peer blocks marketing sends.
+model WaPeerState {
+  peer     String   @id
+  lastOkAt DateTime
+  lastSeq  BigInt   @default(0)
+
+  @@map("wa_peer_state")
+}
