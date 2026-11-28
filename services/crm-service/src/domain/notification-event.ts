@@ -105,6 +105,12 @@ export enum NotificationEvent {
   AI_LEAD_NEW = 'AI_LEAD_NEW',
   AI_LEAD_REMIND = 'AI_LEAD_REMIND',
   AI_LEAD_ESCALATE = 'AI_LEAD_ESCALATE',
+  // AI-11: a WhatsApp number 2 chat was handed to CS (NEW), waits past 15 working minutes (REMIND) or
+  // past 60 (ESCALATE). One row per CS person, raised by POST notifications/external/ai-cs-notice.
+  // Token: {{link}} only: never a customer's name, number or text.
+  AI_CS_NEW = 'AI_CS_NEW',
+  AI_CS_REMIND = 'AI_CS_REMIND',
+  AI_CS_ESCALATE = 'AI_CS_ESCALATE',
   // HD-15B: a completed supervisor visit with findings (one digest per recipient per visit), and the
   // open follow-ups past their deadline (one digest per recipient per depot per day). Raised by
   // POST notifications/internal/visit-notice from depot-service. Tokens: {{depot}}, {{items}},
@@ -299,6 +305,9 @@ const TEMPLATES_ID: Record<NotificationEvent, string> = {
   [NotificationEvent.AI_LEAD_REMIND]: 'Calon mitra dari {{city}} belum dihubungi lewat 2 jam kerja. {{link}}',
   [NotificationEvent.AI_LEAD_ESCALATE]:
     'Calon mitra dari {{city}} belum dihubungi lewat 4 jam kerja. Perlu tindakan Sales Lead. {{link}}',
+  [NotificationEvent.AI_CS_NEW]: 'Chat pelanggan diserahkan ke CS. Buka Inbox CS dan ambil. {{link}}',
+  [NotificationEvent.AI_CS_REMIND]: 'Chat pelanggan belum diambil CS lewat 15 menit kerja. {{link}}',
+  [NotificationEvent.AI_CS_ESCALATE]: 'Chat pelanggan belum dijawab CS lewat 60 menit kerja. Perlu tindakan Lead CS. {{link}}',
   [NotificationEvent.WA_CAP_WARNING]:
     'WhatsApp nomor 1: {{category}} sudah {{pct}}% dari batas bulan ini ({{used}}/{{cap}}).',
   [NotificationEvent.WA_CAP_REACHED]:
@@ -453,6 +462,10 @@ export const OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_LEAD_NEW,
   NotificationEvent.AI_LEAD_REMIND,
   NotificationEvent.AI_LEAD_ESCALATE,
+  // AI-11: each recipient's own row.
+  NotificationEvent.AI_CS_NEW,
+  NotificationEvent.AI_CS_REMIND,
+  NotificationEvent.AI_CS_ESCALATE,
   // HD-15B: the same, addressed to one account (also in PERSONAL_OPS_EVENTS); the depot is in the text.
   NotificationEvent.VISIT_FINDING,
   NotificationEvent.FOLLOW_UP_OVERDUE,
@@ -519,6 +532,7 @@ export type StaffToggle =
   | 'salesWeekly'
   | 'aiAgent'
   | 'aiLead'
+  | 'aiCs'
   | 'maintenanceDue'
   | 'visitFinding';
 
@@ -564,6 +578,10 @@ export const STAFF_TOGGLE_FOR_EVENT: Partial<Record<NotificationEvent, StaffTogg
   [NotificationEvent.AI_LEAD_NEW]: 'aiLead',
   [NotificationEvent.AI_LEAD_REMIND]: 'aiLead',
   [NotificationEvent.AI_LEAD_ESCALATE]: 'aiLead',
+  // AI-11: one switch for the three CS chat notices on /hq/profile, push and email, default on.
+  [NotificationEvent.AI_CS_NEW]: 'aiCs',
+  [NotificationEvent.AI_CS_REMIND]: 'aiCs',
+  [NotificationEvent.AI_CS_ESCALATE]: 'aiCs',
   // HD-15B: one switch for both visit notices (depot lists and /hq/profile), push and email, default on.
   [NotificationEvent.VISIT_FINDING]: 'visitFinding',
   [NotificationEvent.FOLLOW_UP_OVERDUE]: 'visitFinding',
@@ -631,6 +649,10 @@ export const PERSONAL_OPS_EVENTS: NotificationEvent[] = [
   NotificationEvent.AI_LEAD_NEW,
   NotificationEvent.AI_LEAD_REMIND,
   NotificationEvent.AI_LEAD_ESCALATE,
+  // AI-11: each recipient's own row.
+  NotificationEvent.AI_CS_NEW,
+  NotificationEvent.AI_CS_REMIND,
+  NotificationEvent.AI_CS_ESCALATE,
   // HD-15B: each recipient's own row.
   NotificationEvent.VISIT_FINDING,
   NotificationEvent.FOLLOW_UP_OVERDUE,
@@ -681,6 +703,9 @@ const TEMPLATES_EN: Record<NotificationEvent, string> = {
   [NotificationEvent.AI_LEAD_REMIND]: 'The calon mitra from {{city}} has not been contacted after 2 working hours. {{link}}',
   [NotificationEvent.AI_LEAD_ESCALATE]:
     'The calon mitra from {{city}} has not been contacted after 4 working hours. Sales Lead must act. {{link}}',
+  [NotificationEvent.AI_CS_NEW]: 'A customer chat was handed to CS. Open the CS inbox and take it. {{link}}',
+  [NotificationEvent.AI_CS_REMIND]: 'A customer chat has waited over 15 working minutes for CS. {{link}}',
+  [NotificationEvent.AI_CS_ESCALATE]: 'A customer chat has had no CS answer for over 60 working minutes. The CS lead must act. {{link}}',
   [NotificationEvent.WA_CAP_WARNING]:
     'WhatsApp number 1: {{category}} is at {{pct}}% of the monthly cap ({{used}}/{{cap}}).',
   [NotificationEvent.WA_CAP_REACHED]:

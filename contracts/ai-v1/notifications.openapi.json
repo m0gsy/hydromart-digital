@@ -934,6 +934,119 @@
         }
       }
     },
+    "/crm/api/v1/notifications/external/ai-cs-notice": {
+      "post": {
+        "summary": "Tell the CS staff that a customer chat was handed to them, or that nobody answered it in time (AI-11).",
+        "description": "Called by the AI web's CS inbox (WhatsApp number 2, built OFF until Meta) through its n8n workflow when a chat is handed to CS (kind NEW), waits 15 working minutes without an owner (REMIND) or 60 working minutes without an answer (ESCALATE). The token's scopes must include aiCsNotify (the machine account's, never a person's). The body carries a conversation id and a kind only: no customer name, no phone number and no message text ever pass, and none is written into the notice. hydromart-digital writes the words (events AI_CS_NEW, AI_CS_REMIND, AI_CS_ESCALATE) and the link <AI web>/cs/<conversationId>.\n\nWho is told: NEW and REMIND, every ACTIVE staff account whose role holds aiCsReply, the agents who answer (built in: HEAD_OFFICE, SUPER_ADMIN, plus any custom role the owner grants it; DIREKTUR is not paged for every chat). ESCALATE: every active account whose role holds aiCsManage (HEAD_OFFICE, DIREKTUR, SUPER_ADMIN, plus custom roles). Channels: bell, push and email (HR email first, else the login email); each person can switch push and email off on /hq/profile ('Chat pelanggan untuk CS'). WhatsApp number 1 carries customer order messages only, never a staff notification, so nothing is sent there: the response says whatsapp 'pending', never 'sent'.\n\neventId must be ai-cs:<conversationId> for NEW and ai-cs-overdue:<conversationId>:<REMIND|ESCALATE> otherwise, optionally followed by :<n> (1 to 6 digits) for the n-th handoff of a chat that was closed and reopened (anything else is a 400). Idempotent per (eventId, recipient): a retry sends nobody twice. 503 means the audit, a read or a recipient failed (or AI_WEB_URL is not configured): retry the same body.",
+        "security": [
+          {
+            "machineToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Workflow",
+            "in": "header",
+            "required": false,
+            "description": "The n8n workflow making the call, recorded in the audit trail as workflow (trimmed, at most 120 characters). Not checked.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "hd-ai-cs-handoff"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiCsNoticeTrigger"
+              },
+              "example": {
+                "eventId": "ai-cs:7c1f0f64-0b6e-4f4e-9d6a-2f3f7c9a1b11",
+                "kind": "NEW",
+                "conversationId": "7c1f0f64-0b6e-4f4e-9d6a-2f3f7c9a1b11"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Every recipient has the notice (a retry files none twice).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiCsNoticeResult"
+                },
+                "example": {
+                  "recipients": 2,
+                  "notified": 2,
+                  "whatsapp": "pending"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_ERROR: a field missing, malformed or unknown (a stray field such as text is refused; eventId must match kind and conversationId). Not worth retrying with the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHORIZED: no token, an expired one, or one hydromart-digital cannot verify. Get a new token, then retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: a valid token that may not call this: an AI-web token, or a machine token whose scopes do not include aiCsNotify. Not worth retrying until the machine account's scopes change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: too many calls from this machine account. Wait the seconds in Retry-After, then retry with the same body.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: the audit trail could not record the call (nothing was sent), or the recipients could not be read or filed, or AI_WEB_URL is not configured. Retry later with the same body; the eventId keeps a retry from sending twice.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/crm/api/v1/notifications/external/compliance-due": {
       "post": {
         "summary": "Tell who must know that a depot permit or lab test is due.",
@@ -1716,6 +1829,58 @@
           },
           "recipients": {
             "type": "integer"
+          },
+          "notified": {
+            "type": "integer",
+            "description": "Of those, how many have the notice."
+          },
+          "whatsapp": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ]
+          }
+        }
+      },
+      "AiCsNoticeTrigger": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eventId",
+          "kind",
+          "conversationId"
+        ],
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9:._-]{1,120}$",
+            "description": "ai-cs:<conversationId> for NEW, ai-cs-overdue:<conversationId>:<kind> otherwise, plus an optional :<n> round. The dedupe key per recipient."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "NEW",
+              "REMIND",
+              "ESCALATE"
+            ]
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AiCsNoticeResult": {
+        "type": "object",
+        "required": [
+          "recipients",
+          "notified",
+          "whatsapp"
+        ],
+        "properties": {
+          "recipients": {
+            "type": "integer",
+            "description": "People the notice is for."
           },
           "notified": {
             "type": "integer",

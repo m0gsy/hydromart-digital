@@ -69,6 +69,18 @@ export const STAFF_EMAIL_TEMPLATES: Partial<Record<NotificationEvent, StaffEmail
     subject: 'Calon mitra belum dihubungi (4 jam kerja)',
     body: 'Calon mitra dari {{city}} belum dihubungi lewat 4 jam kerja. Perlu tindakan Sales Lead. Buka {{link}} (masuk dulu dengan akun hydromart Anda).',
   },
+  [NotificationEvent.AI_CS_NEW]: {
+    subject: 'Chat pelanggan diserahkan ke CS',
+    body: 'Ada chat pelanggan yang diserahkan ke CS. Buka {{link}} (masuk dulu dengan akun hydromart Anda), lalu ambil chatnya.',
+  },
+  [NotificationEvent.AI_CS_REMIND]: {
+    subject: 'Chat pelanggan belum diambil (15 menit kerja)',
+    body: 'Chat pelanggan belum diambil CS lewat 15 menit kerja. Buka {{link}} (masuk dulu dengan akun hydromart Anda).',
+  },
+  [NotificationEvent.AI_CS_ESCALATE]: {
+    subject: 'Chat pelanggan belum dijawab (60 menit kerja)',
+    body: 'Chat pelanggan belum dijawab CS lewat 60 menit kerja. Perlu tindakan Lead CS. Buka {{link}} (masuk dulu dengan akun hydromart Anda).',
+  },
   [NotificationEvent.VISIT_FINDING]: {
     subject: 'Temuan kunjungan supervisor di {{depot}}',
     body: 'Kunjungan supervisor ke {{depot}} menemukan: {{items}}. Buka tautan di bawah untuk melihat dan menindaklanjutinya.',

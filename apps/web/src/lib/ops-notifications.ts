@@ -77,6 +77,9 @@ export const OPS_EVENT_GROUP: Record<string, OpsNotifGroup> = {
   AI_LEAD_NEW: 'sales',
   AI_LEAD_REMIND: 'sales',
   AI_LEAD_ESCALATE: 'sales',
+  AI_CS_NEW: 'orders',
+  AI_CS_REMIND: 'orders',
+  AI_CS_ESCALATE: 'orders',
   VISIT_FINDING: 'stock',
   FOLLOW_UP_OVERDUE: 'stock',
   // HD-23: a bill to pay is a money matter, filed with the approvals.

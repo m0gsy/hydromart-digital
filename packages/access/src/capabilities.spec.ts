@@ -365,6 +365,22 @@ describe('CAPABILITIES', () => {
     expect(CUSTOM_FORBIDDEN).not.toContain('aiTeamStop');
   });
 
+  // AI-11: the CS inbox caps are ordinary (grantable); only the machine notice is forbidden to custom roles.
+  it('gives head office the CS inbox caps and leaves the CS notice to the machine account', () => {
+    for (const cap of ['aiCsRead', 'aiCsReply', 'aiCsManage'] as const) {
+      expect(can(cap, 'HEAD_OFFICE')).toBe(true);
+      expect(can(cap, 'SUPER_ADMIN')).toBe(true);
+      expect(can(cap, 'MARKETING')).toBe(false);
+      expect(CUSTOM_FORBIDDEN).not.toContain(cap);
+    }
+    expect(can('aiCsManage', 'DIREKTUR')).toBe(true);
+    expect(can('aiCsRead', 'DIREKTUR')).toBe(true);
+    expect(can('aiCsReply', 'DIREKTUR')).toBe(false);
+    expect(CAPABILITIES.aiCsNotify).toEqual(['SUPER_ADMIN']);
+    for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'MARKETING']) expect(can('aiCsNotify', role)).toBe(false);
+    expect(CUSTOM_FORBIDDEN).toContain('aiCsNotify');
+  });
+
   it('leaves the money read of the AI web machine account to the machine alone', () => {
     expect(CAPABILITIES.aiReadAgent).toEqual(['SUPER_ADMIN']);
     for (const role of ['HEAD_OFFICE', 'DIREKTUR', 'FINANCE']) expect(can('aiReadAgent', role)).toBe(false);

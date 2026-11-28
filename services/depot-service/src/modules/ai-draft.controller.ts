@@ -43,6 +43,7 @@ import { PriceOverrideProposalRecord } from '../domain/price-override-proposal';
 import { PurchaseOrder } from '../domain/purchase-order';
 import { AiPriceOverrideDraftDto, AiPurchaseOrderDraftDto } from './dto/ai-draft.dto';
 import {
+  AiCsAccessResponseDto,
   AiTeamAccessResponseDto,
   CrmAccessResponseDto,
   CrmDepotDraftDto,
@@ -296,6 +297,33 @@ export class AiTeamController {
       read: can('aiTeamRead', user.role, depots),
       manage: can('aiTeamManage', user.role, depots),
       stop: can('aiTeamStop', user.role, depots),
+      role: user.role,
+    };
+  }
+}
+
+/**
+ * AI-11: what the signed-in person may do in the AI web's CS inbox (WhatsApp number 2), evaluated with
+ * the RUNTIME matrix like the team access read. Needs aiCsRead; reply and manage are answered for the
+ * buttons. accountId lets the AI web recognise "my" chats (the claim is the AI web's, by this id).
+ */
+@ApiTags('AI drafts')
+@ApiBearerAuth()
+@UseGuards(AiTokenOnlyGuard)
+@Controller({ path: 'ai/cs', version: '1' })
+export class AiCsController {
+  @ApiOkResponse({ type: AiCsAccessResponseDto })
+  @ExternalAccess('ai')
+  @Can('aiCsRead')
+  @Get('access')
+  @ApiOperation({ summary: 'AI web CS inbox: read / reply / manage access of the caller (AI-11)' })
+  access(@CurrentUser() user: AuthenticatedUser): AiCsAccessResponseDto {
+    const depots = isDepotLocked(user.role) && user.depotId ? [user.depotId] : undefined;
+    return {
+      read: can('aiCsRead', user.role, depots),
+      reply: can('aiCsReply', user.role, depots),
+      manage: can('aiCsManage', user.role, depots),
+      accountId: user.sub,
       role: user.role,
     };
   }

@@ -123,6 +123,15 @@ export class AiTeamAccessResponseDto {
   @ApiProperty({ description: "The person's role key, for the AI web's agent -> boss role rule." }) role!: string;
 }
 
+/** AI-11: what the signed-in person may do in the AI web's CS inbox (WhatsApp number 2). */
+export class AiCsAccessResponseDto {
+  @ApiProperty({ description: 'Holds aiCsRead: may open the inbox and read threads.' }) read!: boolean;
+  @ApiProperty({ description: 'Holds aiCsReply: may claim and answer a chat.' }) reply!: boolean;
+  @ApiProperty({ description: 'Holds aiCsManage: takes over, closes any chat, edits caps and pauses.' }) manage!: boolean;
+  @ApiProperty({ format: 'uuid', description: "The person's account id (the AI web's claim is by this id)." }) accountId!: string;
+  @ApiProperty({ description: "The person's role key." }) role!: string;
+}
+
 export class CrmDepotDraftResponseDto {
   @ApiProperty({ format: 'uuid' }) draftId!: string;
   @ApiProperty({ enum: ['DRAFT'] }) status!: string;
