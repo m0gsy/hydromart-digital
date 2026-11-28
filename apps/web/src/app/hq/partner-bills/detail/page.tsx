@@ -210,13 +210,13 @@ export default function HqPartnerBillDetailPage() {
                     {busy ? t('hq.partnerBills.detail.approving') : t('hq.partnerBills.detail.approve')}
                   </Button>
                 )}
-                {!voiding && b.status !== 'SENDING' && (
+                {!voiding && b.status !== 'SENDING' && !b.paidAt && (
                   <Button variant="secondary" disabled={busy} onClick={() => setVoiding(true)}>
                     {t('hq.partnerBills.detail.void')}
                   </Button>
                 )}
               </div>
-              {voiding && (
+              {voiding && !b.paidAt && (
                 <div className="flex flex-col gap-2">
                   <label className="text-sm text-muted" htmlFor="void-reason">
                     {t('hq.partnerBills.detail.voidReason')}

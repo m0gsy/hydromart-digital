@@ -409,6 +409,22 @@ describe('PartnerBillService paid mark and open bills (HD-25)', () => {
     expect((await race.svc.markPaid('b1', '2026-11-20', null, 'f')).id).toBe('b1');
   });
 
+  it('refuses a paid day later than the WIB today, and a void of a paid bill', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-20T18:00:00Z')); // 21 Nov 01:00 in Jakarta
+    try {
+      const t = build();
+      t.stored.set('b1', sent());
+      await expect(t.svc.markPaid('b1', '2026-11-22', null, 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_PAID_ON_FUTURE', status: 400 });
+      expect((await t.svc.markPaid('b1', '2026-11-21', null, 'f')).paidAt).toBeInstanceOf(Date);
+    } finally {
+      jest.useRealTimers();
+    }
+    const paid = build();
+    paid.stored.set('b1', sent({ paidAt: new Date() }));
+    await expect(paid.svc.void('b1', 'salah', 'f')).rejects.toMatchObject({ code: 'PARTNER_BILL_PAID', status: 409 });
+    expect(paid.bills.markVoid).not.toHaveBeenCalled();
+  });
+
   it('answers the open bills with depot codes only, each depot looked up once', async () => {
     const t = build();
     t.bills.listOpen.mockResolvedValue([sent(), sent({ id: 'b2', legalEntityName: 'PT B', lines: [] })]);

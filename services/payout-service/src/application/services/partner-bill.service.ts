@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { dayStartUtc, localMonthKey } from '@hydromart/platform';
+import { dayStartUtc, localDayKey, localMonthKey } from '@hydromart/platform';
 
 import {
   BankAccountMissingError,
@@ -9,6 +9,8 @@ import {
   PartnerBillNotDraftError,
   PartnerBillNotFoundError,
   PartnerBillNotSentError,
+  PartnerBillPaidError,
+  PartnerBillPaidOnFutureError,
   PartnerBillSendingError,
   PartnerBillVoidedError,
 } from '../../domain/errors.partner-bill';
@@ -262,6 +264,7 @@ export class PartnerBillService {
   async markPaid(id: string, paidOn: string, ref: string | null, actorId: string): Promise<PartnerBillRecord> {
     const bill = await this.get(id);
     if (bill.status !== 'SENT') throw new PartnerBillNotSentError();
+    if (paidOn > localDayKey(new Date())) throw new PartnerBillPaidOnFutureError();
     if (bill.paidAt) return bill;
     const paid = await this.bills.markPaid(id, { paidOn, ref, paidBy: actorId });
     if (!paid) return this.get(id); // somebody marked it between the read and the write
@@ -301,6 +304,7 @@ export class PartnerBillService {
     const bill = await this.get(id);
     if (bill.status === 'VOID') throw new PartnerBillVoidedError();
     if (bill.status === 'SENDING') throw new PartnerBillSendingError();
+    if (bill.paidAt) throw new PartnerBillPaidError();
     const why = reason.trim();
     if (bill.status === 'SENT') {
       await this.notifier.sendVoid({

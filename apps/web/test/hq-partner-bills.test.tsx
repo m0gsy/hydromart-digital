@@ -255,6 +255,7 @@ describe('/hq/partner-bills/detail', () => {
     render(<Page />);
     expect(await screen.findByText(/hq\.partnerBills\.detail\.paidOn.*TRF 1/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'hq.partnerBills.detail.markPaid' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'hq.partnerBills.detail.void' })).toBeNull();
   });
 
   it('hides the paid button from a reader, and the list shows Lunas on a paid bill', async () => {
