@@ -106,7 +106,9 @@ export class WhatsappService implements WhatsappEnqueuePort {
       input.customerId,
     );
     // Never asked has no number at all; a row with a blank number cannot be messaged.
-    if (!state.phone) return skip('', state.state === 'NONE' ? 'NO_CONSENT' : 'NO_PHONE');
+    // Never asked: no row at all (it would be one per notification of every customer who never opted in).
+    if (state.state === 'NONE') return;
+    if (!state.phone) return skip('', 'NO_PHONE');
     if (state.state === 'STOPPED') return skip(state.phone, 'STOPPED');
     const template = await this.templates.get(spec.name, spec.language);
     if (!template || template.status !== 'APPROVED') return skip(state.phone, 'TEMPLATE_NOT_APPROVED');

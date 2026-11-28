@@ -65,7 +65,7 @@ export class FakeConsent implements WaConsentRepository {
     return this.rows.filter((r) => r.customerId === customerId && r.purpose === 'UTILITY' && r.waNumber === '1');
   }
   async listAfter(afterSeq: bigint, limit: number): Promise<WaConsentRecord[]> {
-    return this.rows.filter((r) => r.seq > afterSeq && r.source !== 'AIWEB').slice(0, limit);
+    return this.rows.filter((r) => r.seq > afterSeq && r.purpose === 'MARKETING' && r.source !== 'AIWEB').slice(0, limit);
   }
   async createCode(input: {
     code: string;

@@ -50,7 +50,7 @@ export class WaConsentPrismaRepository implements WaConsentRepository {
   /** Not commit-ordered: see the contract on the port (callers re-read an overlap window and dedupe on id). */
   listAfter(afterSeq: bigint, limit: number): Promise<WaConsentRecord[]> {
     return this.prisma.waConsent.findMany({
-      where: { seq: { gt: afterSeq }, NOT: { source: 'AIWEB' } },
+      where: { seq: { gt: afterSeq }, purpose: 'MARKETING', NOT: { source: 'AIWEB' } },
       orderBy: { seq: 'asc' },
       take: limit,
     });
@@ -89,10 +89,13 @@ export class WaConsentPrismaRepository implements WaConsentRepository {
   }
 
   async purgeBefore(cutoff: Date): Promise<number> {
-    // Newest row per phone by seq; only a phone whose newest row is a grant and old enough is deleted.
+    // A phone goes only when its newest row is older than the cutoff AND no purpose of it ends in a STOP
+    // (newest row per phone and purpose): a MARKETING stop from the AI web survives a newer UTILITY grant.
     return this.prisma.$executeRaw`DELETE FROM "wa_consents" WHERE "phone" IN (
-      SELECT "phone" FROM (SELECT DISTINCT ON ("phone") "phone", "granted", "recordedAt" FROM "wa_consents" ORDER BY "phone", "seq" DESC) n
-      WHERE n."granted" = true AND n."recordedAt" < ${cutoff})`;
+      SELECT "phone" FROM "wa_consents" GROUP BY "phone" HAVING MAX("recordedAt") < ${cutoff})
+      AND "phone" NOT IN (
+      SELECT n."phone" FROM (SELECT DISTINCT ON ("phone", "purpose") "phone", "granted" FROM "wa_consents" ORDER BY "phone", "purpose", "seq" DESC) n
+      WHERE n."granted" = false)`;
   }
 
   async stampPeer(peer: string, now: Date, lastSeq: bigint): Promise<void> {

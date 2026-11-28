@@ -98,10 +98,12 @@ describe('WaConsentPrismaRepository (sender release)', () => {
     const [strings, cutoff] = $executeRaw.mock.calls[0];
     const sql = strings.join('?');
     expect(cutoff).toBe(at);
-    expect(sql).toContain('DISTINCT ON ("phone")');
-    expect(sql).toContain('ORDER BY "phone", "seq" DESC');
-    expect(sql).toContain('n."granted" = true');
-    expect(sql).toContain('n."recordedAt" < ?');
+    // idle past the cutoff, and spared when ANY purpose's newest row is a STOP (decided per phone and purpose)
+    expect(sql).toContain('HAVING MAX("recordedAt") < ?');
+    expect(sql).toContain('DISTINCT ON ("phone", "purpose")');
+    expect(sql).toContain('ORDER BY "phone", "purpose", "seq" DESC');
+    expect(sql).toContain('NOT IN');
+    expect(sql).toContain('n."granted" = false');
   });
 });
 

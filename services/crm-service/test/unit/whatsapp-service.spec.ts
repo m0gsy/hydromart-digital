@@ -88,7 +88,6 @@ describe('WhatsappService (send path)', () => {
     ['OFF (enabled but a key missing)', () => build({ ...WA_ENV, WA_VERIFY_TOKEN: '' }), () => undefined],
     ['CAP (no cap row)', () => void caps.caps.clear(), () => undefined],
     ['PAUSED', () => void (caps.caps.get('1|UTILITY')!.paused = true), () => undefined],
-    ['NO_CONSENT (never asked)', () => void (consent.rows.length = 0), () => undefined],
     ['STOPPED', () => consent.append({ phone: PHONE, customerId: CUSTOMER, waNumber: '1', purpose: 'UTILITY', legalEntity: 'PT', granted: false, textVersion: 'v', source: 'KEYWORD', sourceRef: 'stop', depotId: null }).then(() => undefined), () => undefined],
     ['TEMPLATE_NOT_APPROVED', () => void templates.setStatus('hm_order_confirmed', 'id', 'SUBMITTED', null), () => undefined],
     ['MISSING_PARAM (no order number)', () => undefined, () => undefined],
@@ -106,6 +105,13 @@ describe('WhatsappService (send path)', () => {
     await consent.append({ phone: '', customerId: CUSTOMER, waNumber: '1', purpose: 'UTILITY', legalEntity: 'PT', granted: true, textVersion: 'v', source: 'APP', sourceRef: 'blank', depotId: null });
     await service.enqueue(input());
     expect(only()).toMatchObject({ status: 'SKIPPED', skipReason: 'NO_PHONE' });
+  });
+
+  it('a customer who never opted in leaves no row at all', async () => {
+    consent.rows.length = 0;
+    await service.enqueue(input());
+    expect(messages.rows).toEqual([]);
+    expect(sender.templates).toEqual([]);
   });
 
   it('falls back to "Pelanggan" for an empty name instead of sending an empty parameter', async () => {

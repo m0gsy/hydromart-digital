@@ -69,7 +69,7 @@ export interface WaConsentRepository {
   /** When the AI web last pulled the STOP list; null if it never has. */
   peerLastOkAt(peer: string): Promise<Date | null>;
   stampPeer(peer: string, now: Date, lastSeq: bigint): Promise<void>;
-  /** Retention: phones whose newest row is a grant and older than the cutoff go; a number last seen as STOP stays. */
+  /** Retention: phones idle past the cutoff go, unless any purpose of the phone ends in a STOP (do-not-contact). */
   purgeBefore(cutoff: Date): Promise<number>;
 }
 

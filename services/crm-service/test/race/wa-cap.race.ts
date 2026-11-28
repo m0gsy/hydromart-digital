@@ -56,6 +56,18 @@ describeRace('WhatsApp caps and opt-in codes on real Postgres', () => {
     expect(ok(await race(Array.from({ length: 6 }, () => () => caps.reserve('1', '2026-11', 'SERVICE'))))).toBe(3);
   });
 
+  it('purge keeps a phone with any purpose ending in a STOP, even when a newer grant exists, and deletes the rest', async () => {
+    const old = new Date('2020-01-01T00:00:00.000Z');
+    const row = (phone: string, purpose: string, granted: boolean, waNumber: string, ref: string) =>
+      consent.append({ phone, customerId: null, waNumber, purpose, legalEntity: 'PT', granted, textVersion: 'v', source: waNumber === '2' ? 'AIWEB' : 'APP', sourceRef: ref, depotId: null, recordedAt: old });
+    await row('6281500000001', 'MARKETING', false, '2', 'p1');
+    await row('6281500000001', 'UTILITY', true, '1', 'p2');
+    await row('6281500000002', 'UTILITY', true, '1', 'p3');
+    await consent.purgeBefore(new Date('2021-01-01T00:00:00.000Z'));
+    expect(await prisma.waConsent.count({ where: { phone: '6281500000001' } })).toBe(2);
+    expect(await prisma.waConsent.count({ where: { phone: '6281500000002' } })).toBe(0);
+  });
+
   it('two numbers claiming one opt-in code at once: exactly one wins', async () => {
     await consent.createCode({ code: 'RACE2345', kind: 'SELF', customerId: null, depotId: null, createdBy: 'u', expiresAt: new Date(Date.now() + 60_000) });
     const res = await race(['6281000000001', '6281000000002', '6281000000003'].map((p) => () => consent.claimCode('RACE2345', p, new Date())));

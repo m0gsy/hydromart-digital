@@ -31,7 +31,7 @@ describe('WaConsentPrismaRepository', () => {
     expect(waConsent.findMany.mock.calls).toEqual([
       [{ where: { phone: '6281' }, orderBy: { seq: 'asc' }, take: 1000 }],
       [{ where: { customerId: 'c1', purpose: 'UTILITY', waNumber: '1' }, orderBy: { seq: 'asc' }, take: 1000 }],
-      [{ where: { seq: { gt: 5n }, NOT: { source: 'AIWEB' } }, orderBy: { seq: 'asc' }, take: 500 }],
+      [{ where: { seq: { gt: 5n }, purpose: 'MARKETING', NOT: { source: 'AIWEB' } }, orderBy: { seq: 'asc' }, take: 500 }],
     ]);
   });
 

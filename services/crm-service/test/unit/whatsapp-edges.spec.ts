@@ -179,11 +179,12 @@ describe('consent service', () => {
     await grant('6281000000009', null, 'MARKETING', false, '2');
     const first = await service.optOutsAfter(0, 1);
     expect(first.items).toHaveLength(1);
-    expect(first.items[0]).toMatchObject({ phone: '6281000000001', purpose: 'UTILITY', granted: false, seq: 1 });
+    // a STOP wrote both purposes; only MARKETING leaves with waOptOutSync
+    expect(first.items[0]).toMatchObject({ phone: '6281000000001', purpose: 'MARKETING', granted: false, seq: 2 });
     expect(first.items[0].id).toEqual(expect.any(String));
-    expect(first.nextAfter).toBe(1);
+    expect(first.nextAfter).toBe(2);
     const rest = await service.optOutsAfter(first.nextAfter, 500);
-    expect(rest.items.map((i) => i.seq)).toEqual([2]);
+    expect(rest.items).toEqual([]);
     expect(rest.nextAfter).toBe(2);
     expect(consent.peer?.lastSeq).toBe(2n);
     const empty = await service.optOutsAfter(50, 500);
